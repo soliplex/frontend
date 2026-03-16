@@ -1,0 +1,64 @@
+name: Gitleaks Secret Scan
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        id: gitleaks
+        uses: docker://ghcr.io/gitleaks/gitleaks:latest
+        continue-on-error: true
+        with:
+          args: detect --source=/github/workspace --config=/github/workspace/.gitleaks.toml --no-git --verbose --redact --report-format json --report-path /github/workspace/gitleaks-report.json
+
+      - name: Parse Gitleaks report
+        id: parse-report
+        if: steps.gitleaks.outcome == 'failure'
+        run: |
+          if [ -f gitleaks-report.json ]; then
+            FILES=$(jq -r '[.[].File] | unique | .[]' gitleaks-report.json | head -10 | tr '\n' ', ' | sed 's/,$//')
+            echo "matched_files=$FILES" >> $GITHUB_OUTPUT
+          else
+            echo "matched_files=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail if secrets found
+        if: steps.gitleaks.outcome == 'failure'
+        run: exit 1
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v2.1.1
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          MATCHED_FILES: ${{ steps.parse-report.outputs.matched_files }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          webhook: ${{ secrets.SLACK_NOTIFY_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "channel": "#soliplex",
+              "username": "gitleaks-ci",
+              "text": ":rotating_light: Potential secrets detected on ${{ env.REF_NAME }} in: ${{ env.MATCHED_FILES }}\n${{ env.RUN_URL }}",
+              "icon_emoji": ":rotating_light:"
+            }
