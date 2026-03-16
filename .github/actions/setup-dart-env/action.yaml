@@ -1,0 +1,30 @@
+name: "Setup Dart/Flutter Environment"
+description: "Sets up Flutter SDK, caches pub dependencies, and runs pub get"
+inputs:
+  working-directory:
+    description: "Directory to run pub get in"
+    default: "."
+  runner:
+    description: "Tool to use for pub get (flutter or dart)"
+    default: "flutter"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        cache: true
+
+    - name: Cache pub dependencies
+      uses: actions/cache@v5
+      with:
+        path: ~/.pub-cache
+        key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pub-
+
+    - name: Install dependencies
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: ${{ inputs.runner }} pub get

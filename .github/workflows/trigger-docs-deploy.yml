@@ -1,0 +1,66 @@
+name: Trigger Documentation Rebuild
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**/*.md'
+      - 'docs/**/*.mdx'
+      - 'README.md'
+      - '.github/workflows/trigger-docs-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  trigger-docs-rebuild:
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_MSG: ${{ github.event.head_commit.message }}
+    steps:
+      - name: Trigger soliplex.github.io documentation rebuild
+        env:
+          DOCS_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+          PUSHER: ${{ github.actor }}
+        run: |
+          echo "Triggering documentation rebuild for $REPO"
+
+          payload=$(jq -n \
+            --arg repo "$REPO" \
+            --arg ref "$REF" \
+            --arg sha "$SHA" \
+            --arg pusher "$PUSHER" \
+            --arg message "$COMMIT_MSG" \
+            '{
+              event_type: "docs_update",
+              client_payload: {
+                repository: $repo,
+                ref: $ref,
+                sha: $sha,
+                pusher: $pusher,
+                commit_message: $message
+              }
+            }')
+
+          response=$(curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token $DOCS_TOKEN" \
+            -w "\n%{http_code}" \
+            https://api.github.com/repos/soliplex/soliplex.github.io/dispatches \
+            -d "$payload")
+
+          http_code=$(echo "$response" | tail -n1)
+
+          if [ "$http_code" -eq 204 ]; then
+            echo "Successfully triggered documentation rebuild"
+          else
+            echo "Failed to trigger documentation rebuild (HTTP $http_code)"
+            echo "$response"
+            exit 1
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Failed to trigger documentation rebuild. Check DOCS_DEPLOY_TOKEN secret."

@@ -1,6 +1,8 @@
 name: soliplex_frontend
 description: Modular Flutter frontend framework for Soliplex
-version: 0.1.0
+# To update version, run:
+# dart run tool/bump_version.dart <major|minor|patch|build>
+version: 0.1.0+0
 
 environment:
   sdk: ^3.6.0

@@ -1,0 +1,159 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".pymarkdown"
+      - "LICENSE"
+  pull_request:
+    branches: [main, 'feat/**', 'fix/**', 'refactor/**', 'chore/**']
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".pymarkdown"
+      - "LICENSE"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SLACK_NOTIFY_URL: ${{ secrets.SLACK_NOTIFY_URL }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dart environment
+        uses: ./.github/actions/setup-dart-env
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze code
+        run: flutter analyze --fatal-infos
+
+      - name: Check documentation
+        run: dart doc --dry-run
+
+      - name: Lint markdown
+        run: |
+          pip install pymarkdownlnt==0.9.35
+          pymarkdown scan --recurse --respect-gitignore .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dart environment
+        uses: ./.github/actions/setup-dart-env
+
+      - name: Generate random seed
+        id: seed
+        run: echo "value=$RANDOM" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: |
+          SEED="${{ steps.seed.outputs.value }}"
+          echo "::notice::Test ordering seed: $SEED"
+          flutter test --test-randomize-ordering-seed="$SEED" --coverage
+
+      - name: Report seed on failure
+        if: failure()
+        run: |
+          SEED="${{ steps.seed.outputs.value }}"
+          echo "::error::Tests failed with ordering seed: $SEED"
+          echo "Reproduce with: --test-randomize-ordering-seed=$SEED"
+
+      - name: Check coverage threshold
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lcov
+          COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 \
+            | grep "lines" | sed 's/.*: \([0-9.]*\)%.*/\1/')
+          echo "Coverage: ${COVERAGE}%"
+          if [ -z "$COVERAGE" ]; then
+            echo "::error::Could not parse coverage from lcov.info"
+            exit 1
+          fi
+          COVERAGE_INT=${COVERAGE%.*}
+          if [ "$COVERAGE_INT" -lt 80 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below minimum 80%"
+            exit 1
+          fi
+          echo "::notice::Coverage check passed with ${COVERAGE}%"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_NOTIFY_URL != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REF: ${{ github.ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          webhook: ${{ env.SLACK_NOTIFY_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "channel": "#soliplex",
+              "username": "flutter-ci",
+              "text": ":x: Tests failed on ${{ env.REF }}:\n${{ env.COMMIT_MSG }}\n${{ env.RUN_URL }}",
+              "icon_emoji": ":flutter:"
+            }
+
+  build-web:
+    needs: [lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dart environment
+        uses: ./.github/actions/setup-dart-env
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: web-build
+          path: build/web/
+          retention-days: 7
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_NOTIFY_URL != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REF: ${{ github.ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          webhook: ${{ env.SLACK_NOTIFY_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "channel": "#soliplex",
+              "username": "flutter-ci",
+              "text": ":x: Web build failed on ${{ env.REF }}:\n${{ env.COMMIT_MSG }}\n${{ env.RUN_URL }}",
+              "icon_emoji": ":flutter:"
+            }
