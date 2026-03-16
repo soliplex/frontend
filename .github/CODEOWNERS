@@ -1,0 +1,5 @@
+# Default owners for everything
+* @soliplex/core-team
+
+# CI/CD changes
+.github/ @soliplex/core-team
