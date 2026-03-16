@@ -1,0 +1,16 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for placeholder tokens and excluded paths"
+regexTarget = "match"
+regexes = [
+    '''your-api-key''',
+    '''your-token''',
+    '''your-password''',
+]
+paths = [
+    '''.venv''',
+    '''\.venv''',
+    '''\.pytest_cache''',
+]
