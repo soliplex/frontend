@@ -1,0 +1,5 @@
+#include? "Local.xcconfig"
+
+PRODUCT_NAME = Soliplex
+PRODUCT_BUNDLE_IDENTIFIER = ai.soliplex.client
+PRODUCT_COPYRIGHT = Copyright © 2025 Soliplex AI. All rights reserved.
