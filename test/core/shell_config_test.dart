@@ -28,7 +28,7 @@ void main() {
     test('requires appName and theme', () {
       final config = ShellConfig(
         appName: 'Test',
-        theme: ThemeData.light(),
+        theme: ThemeData(),
       );
 
       expect(config.appName, 'Test');
@@ -40,7 +40,7 @@ void main() {
     test('allows custom initialRoute', () {
       final config = ShellConfig(
         appName: 'Test',
-        theme: ThemeData.light(),
+        theme: ThemeData(),
         initialRoute: '/home',
       );
 
@@ -50,7 +50,7 @@ void main() {
     test('routes getter flattens module routes', () {
       final config = ShellConfig(
         appName: 'Test',
-        theme: ThemeData.light(),
+        theme: ThemeData(),
         modules: [
           ModuleContribution(routes: [
             GoRoute(path: '/a', builder: (_, __) => const SizedBox()),
@@ -71,7 +71,7 @@ void main() {
 
       final config = ShellConfig(
         appName: 'Test',
-        theme: ThemeData.light(),
+        theme: ThemeData(),
         modules: [
           ModuleContribution(overrides: [p1.overrideWithValue(1)]),
           ModuleContribution(overrides: [p2.overrideWithValue('hello')]),
@@ -87,7 +87,7 @@ void main() {
 
       final config = ShellConfig(
         appName: 'Test',
-        theme: ThemeData.light(),
+        theme: ThemeData(),
         modules: [
           ModuleContribution(redirect: r1),
           ModuleContribution(), // no redirect
