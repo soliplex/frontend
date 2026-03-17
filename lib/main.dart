@@ -1,12 +1,6 @@
-import 'package:flutter/material.dart';
+import 'src/core/shell.dart';
+import 'src/flavors/standard.dart';
 
 void main() {
-  runApp(
-    const MaterialApp(
-      title: 'Soliplex',
-      home: Scaffold(
-        body: Center(child: Text('Soliplex')),
-      ),
-    ),
-  );
+  runSoliplexShell(standard());
 }

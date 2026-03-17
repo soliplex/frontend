@@ -77,7 +77,7 @@ a module is one line:
 
 ```dart
 ShellConfig standard() {
-  final auth = UnauthenticatedState();
+  final auth = Unauthenticated();
   return ShellConfig(
     appName: 'Soliplex',
     theme: ThemeData.light(),  // plain ThemeData; no custom palette wrapper yet
@@ -175,7 +175,7 @@ lib/
 │   │       └── chat_module.dart
 │   │
 │   └── flavors/
-│       └── standard.dart               ← standard flavor + UnauthenticatedState
+│       └── standard.dart               ← standard flavor
 ```
 
 `interfaces/` holds shared sealed types and their providers that cross module
@@ -197,29 +197,28 @@ through constructor injection without wrapper interfaces.
 
 ### Step 2: Core — ModuleContribution, ShellConfig & Route Validation (TDD)
 
-- [ ] `ModuleContribution` data class (`routes`, `overrides`, `redirect`)
-- [ ] `ShellConfig` immutable data class (`appName`, `theme`, `modules`, `initialRoute`)
-- [ ] `ShellConfig.routes` / `ShellConfig.overrides` / `ShellConfig.redirects` getters that flatten modules
-- [ ] Route validation pure function (recursive tree walk: no duplicate paths with parameterized segment normalization, initial route exists when routes are non-empty, no path shadowing — parameterized sibling before literal sibling is an error); returns list of error descriptions (empty = valid). Note: `RouteBase` is abstract — the walk must type-check `GoRoute` (has `path`), `ShellRoute` (no path, recurse into `routes`), and `StatefulShellRoute` (no path, iterate `branches` then recurse)
-- [ ] Tests: valid config, empty modules, duplicate paths (exact and normalized parameterized), missing initial route, nested route validation, path shadowing detection, module flattening
+- [x] `ModuleContribution` data class (`routes`, `overrides`, `redirect`)
+- [x] `ShellConfig` immutable data class (`appName`, `theme`, `modules`, `initialRoute`)
+- [x] `ShellConfig.routes` / `ShellConfig.overrides` / `ShellConfig.redirects` getters that flatten modules
+- [x] Route validation pure function (recursive tree walk: no duplicate paths with parameterized segment normalization, initial route exists when routes are non-empty, no path shadowing — parameterized sibling before literal sibling is an error); returns list of error descriptions (empty = valid). Note: `RouteBase` is abstract — the walk must type-check `GoRoute` (has `path`), `ShellRoute` (no path, recurse into `routes`), and `StatefulShellRoute` (no path, iterate `branches` then recurse)
+- [x] Tests: valid config, empty modules, duplicate paths (exact and normalized parameterized), missing initial route, nested route validation, path shadowing detection, module flattening
 
 ### Step 3: Core — Shell Bootstrap (TDD)
 
-- [ ] `runSoliplexShell()` and `SoliplexShell` widget
-- [ ] Validate routes (throw `ArgumentError` on failure) → build GoRouter → ProviderScope with overrides → MaterialApp.router
-- [ ] Tests: empty config throws `ArgumentError`, override composition (overrides from multiple modules compose into a single ProviderScope; each provider may only be overridden once across all modules), redirect composition (first non-null wins)
+- [x] `runSoliplexShell()` and `SoliplexShell` widget
+- [x] Validate routes (throw `ArgumentError` on failure) → build GoRouter → ProviderScope with overrides → MaterialApp.router
+- [x] Tests: empty config throws `ArgumentError`, override composition (overrides from multiple modules compose into a single ProviderScope; each provider may only be overridden once across all modules), redirect composition (first non-null wins)
 
 ### Step 4: Interfaces & Auth Module
 
-- [ ] `AuthState` sealed class + `authStateProvider` in `interfaces/auth_state.dart`
-- [ ] `authModule()` function in `modules/auth/auth_module.dart`
+- [x] `AuthState` sealed class + `authStateProvider` in `interfaces/auth_state.dart`
+- [x] `authModule()` function in `modules/auth/auth_module.dart`
 
 ### Step 5: Barrel Export, Flavor & App Entry Point
 
-- [ ] Fill `soliplex_frontend.dart` with public exports: `ShellConfig`, `ModuleContribution`, `runSoliplexShell`, `AuthState`, `authStateProvider`. Flavors and concrete implementations stay private (`src/`)
-- [ ] `UnauthenticatedState` — concrete `AuthState` impl, flavor-private in `flavors/standard.dart`
-- [ ] `standard()` flavor function (empty module list initially; design examples show eventual shape)
-- [ ] Wire `main.dart` to use `runSoliplexShell` with standard flavor
+- [x] Fill `soliplex_frontend.dart` with public exports: `ShellConfig`, `ModuleContribution`, `runSoliplexShell`, `AuthState`, `Authenticated`, `Unauthenticated`, `authStateProvider`, `authModule`. Flavors stay private (`src/`)
+- [x] `standard()` flavor function using `Unauthenticated()` directly
+- [x] Wire `main.dart` to use `runSoliplexShell` with standard flavor
 
 ## Dependencies
 
