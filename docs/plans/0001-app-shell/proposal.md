@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 **Date:** 2026-03-11
-**Branch:** `feat/new_frontend`
+**Branch:** `feat/shell-core`
 
 ## Context
 
@@ -18,18 +18,21 @@ functions. It serves as both a **runnable app** and an **importable library**.
 ### Module Composition
 
 Each module is a plain Dart function that receives dependencies via
-**constructor injection** and returns a `ModuleContribution` (routes +
-Riverpod overrides). The compiler enforces dependency order — you can't call
-a module function without providing its deps.
+**constructor injection** and returns a `ModuleContribution` (routes,
+Riverpod overrides, and an optional redirect). The compiler enforces
+dependency order — you can't call a module function without providing its
+deps.
 
 ```dart
 class ModuleContribution {
-  final List<RouteBase> routes;    // unmodifiable
-  final List<Override> overrides;  // unmodifiable
+  final List<RouteBase> routes;       // unmodifiable
+  final List<Override> overrides;     // unmodifiable
+  final GoRouterRedirect? redirect;   // optional
 
   ModuleContribution({
     List<RouteBase> routes = const [],
     List<Override> overrides = const [],
+    this.redirect,
   })  : routes = List.unmodifiable(routes),
         overrides = List.unmodifiable(overrides);
 }
@@ -64,6 +67,8 @@ class ShellConfig {
 
   List<RouteBase> get routes => modules.expand((m) => m.routes).toList();
   List<Override> get overrides => modules.expand((m) => m.overrides).toList();
+  List<GoRouterRedirect> get redirects =>
+      modules.map((m) => m.redirect).whereType<GoRouterRedirect>().toList();
 }
 ```
 
@@ -90,9 +95,10 @@ child `ModuleContribution` objects (not just routes) so their overrides are
 preserved. Feature modules stay ignorant of the navigation shell.
 
 `runSoliplexShell(config)` validates routes (see Step 2 for details), builds a
-GoRouter, collects all overrides into a single root `ProviderScope`, and
-renders `MaterialApp.router`. Syntax validation (leading slashes, empty paths)
-is left to GoRouter itself.
+GoRouter with composed redirects (module order determines priority; first
+non-null result wins), collects all overrides into a single root
+`ProviderScope`, and renders `MaterialApp.router`. Syntax validation (leading
+slashes, empty paths) is left to GoRouter itself.
 
 To disable a module, remove its call. Runtime feature flags (A/B, remote
 config) can be added to flavor functions later.
@@ -136,10 +142,10 @@ itself has no network layer.
 ## Key Design Decisions
 
 1. **Constructor injection** — explicit wiring, compile-time dependency checking
-2. **Modules are cohesive units** — routes + overrides in one `ModuleContribution`; no base class, no registry
+2. **Modules are cohesive units** — routes, overrides, and an optional redirect in one `ModuleContribution`; no base class, no registry
 3. **Riverpod as widget-tree DI only** — overrides collected into single root `ProviderScope`
 4. **Signals for reactivity** — `soliplex_agent` uses `signals_core`; Flutter UI bridges via `signals` package
-5. **Interfaces, not implementations** — `AuthState` is abstract; flavors create concrete instances
+5. **Interfaces, not implementations** — `AuthState` is sealed; flavors create concrete instances
 6. **Providers co-located with their type** — `authStateProvider` lives alongside `AuthState` in `interfaces/`; modules import it directly. Constructor injection at the flavor level is the single cross-module dependency channel; providers deliver injected values to widgets
 7. **Composition over configuration** — modules included/excluded by presence in flavor functions
 8. **Shell has no soliplex_agent dependency** — agent integration comes via a module
@@ -158,7 +164,7 @@ lib/
 │   │   └── router.dart                 ← route validation, GoRouter assembly
 │   │
 │   ├── interfaces/
-│   │   └── auth_state.dart             ← AuthState abstract class + authStateProvider
+│   │   └── auth_state.dart             ← AuthState sealed class + authStateProvider
 │   │
 │   ├── modules/
 │   │   ├── auth/
@@ -172,7 +178,7 @@ lib/
 │       └── standard.dart               ← standard flavor + UnauthenticatedState
 ```
 
-`interfaces/` holds shared abstract types and their providers that cross module
+`interfaces/` holds shared sealed types and their providers that cross module
 boundaries. `modules/` holds feature modules. `soliplex_agent` types flow
 through constructor injection without wrapper interfaces.
 
@@ -191,9 +197,9 @@ through constructor injection without wrapper interfaces.
 
 ### Step 2: Core — ModuleContribution, ShellConfig & Route Validation (TDD)
 
-- [ ] `ModuleContribution` data class (`routes`, `overrides`)
+- [ ] `ModuleContribution` data class (`routes`, `overrides`, `redirect`)
 - [ ] `ShellConfig` immutable data class (`appName`, `theme`, `modules`, `initialRoute`)
-- [ ] `ShellConfig.routes` / `ShellConfig.overrides` getters that flatten modules
+- [ ] `ShellConfig.routes` / `ShellConfig.overrides` / `ShellConfig.redirects` getters that flatten modules
 - [ ] Route validation pure function (recursive tree walk: no duplicate paths with parameterized segment normalization, initial route exists when routes are non-empty, no path shadowing — parameterized sibling before literal sibling is an error); returns list of error descriptions (empty = valid). Note: `RouteBase` is abstract — the walk must type-check `GoRoute` (has `path`), `ShellRoute` (no path, recurse into `routes`), and `StatefulShellRoute` (no path, iterate `branches` then recurse)
 - [ ] Tests: valid config, empty modules, duplicate paths (exact and normalized parameterized), missing initial route, nested route validation, path shadowing detection, module flattening
 
@@ -205,7 +211,7 @@ through constructor injection without wrapper interfaces.
 
 ### Step 4: Interfaces & Auth Module
 
-- [ ] `AuthState` abstract class + `authStateProvider` in `interfaces/auth_state.dart`
+- [ ] `AuthState` sealed class + `authStateProvider` in `interfaces/auth_state.dart`
 - [ ] `authModule()` function in `modules/auth/auth_module.dart`
 
 ### Step 5: Barrel Export, Flavor & App Entry Point
