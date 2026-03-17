@@ -1,6 +1,6 @@
 # Proposal: Soliplex Frontend Shell — Modular Architecture
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-03-11
 **Branch:** `feat/shell-core`
 
@@ -40,9 +40,6 @@ class ModuleContribution {
 
 ```dart
 ModuleContribution authModule({required AuthState auth}) => ModuleContribution(
-  routes: [
-    GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-  ],
   overrides: [
     authStateProvider.overrideWithValue(auth),
   ],
