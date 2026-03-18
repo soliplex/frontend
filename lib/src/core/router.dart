@@ -13,34 +13,12 @@ List<String> validateRoutes({
   required List<RouteBase> routes,
   required String initialRoute,
 }) {
-  final errors = <String>[];
-  final paths = <String>[];
-
-  void walkRoutes(List<RouteBase> routes, String parentPath) {
-    for (final route in routes) {
-      if (route is GoRoute) {
-        final segment = route.path;
-        final fullPath = _joinPath(parentPath, segment);
-        final normalized = _canonicalPath(fullPath);
-
-        paths.add(normalized);
-
-        walkRoutes(route.routes, fullPath);
-      } else if (route is StatefulShellRoute) {
-        for (final branch in route.branches) {
-          walkRoutes(branch.routes, parentPath);
-        }
-      } else if (route is ShellRoute) {
-        walkRoutes(route.routes, parentPath);
-      }
-    }
-  }
-
   if (routes.isEmpty) {
     return ['Configuration must define at least one route'];
   }
 
-  walkRoutes(routes, '');
+  final errors = <String>[];
+  final paths = _collectPaths(routes, '');
 
   // Check for duplicate paths
   final seen = <String>{};
@@ -67,6 +45,24 @@ List<String> validateRoutes({
   }
 
   return errors;
+}
+
+List<String> _collectPaths(List<RouteBase> routes, String parentPath) {
+  final paths = <String>[];
+  for (final route in routes) {
+    if (route is GoRoute) {
+      final fullPath = _joinPath(parentPath, route.path);
+      paths.add(_canonicalPath(fullPath));
+      paths.addAll(_collectPaths(route.routes, fullPath));
+    } else if (route is StatefulShellRoute) {
+      for (final branch in route.branches) {
+        paths.addAll(_collectPaths(branch.routes, parentPath));
+      }
+    } else if (route is ShellRoute) {
+      paths.addAll(_collectPaths(route.routes, parentPath));
+    }
+  }
+  return paths;
 }
 
 String _joinPath(String parent, String segment) {
