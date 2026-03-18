@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'router.dart';
+
 class ModuleContribution {
   final List<RouteBase> routes;
   final List<Override> overrides;
@@ -33,5 +35,10 @@ class ShellConfig {
   List<Override> get overrides => modules.expand((m) => m.overrides).toList();
 
   List<GoRouterRedirect> get redirects =>
-      modules.map((m) => m.redirect).whereType<GoRouterRedirect>().toList();
+      modules.map((m) => m.redirect).nonNulls.toList();
+
+  List<String> validate() => validateRoutes(
+        routes: routes,
+        initialRoute: initialRoute,
+      );
 }

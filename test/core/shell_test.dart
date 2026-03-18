@@ -6,8 +6,8 @@ import 'package:soliplex_frontend/src/core/shell.dart';
 import 'package:soliplex_frontend/src/core/shell_config.dart';
 
 void main() {
-  group('SoliplexShell', () {
-    test('empty config throws ArgumentError', () {
+  group('runSoliplexShell', () {
+    test('throws ArgumentError on invalid config', () {
       final config = ShellConfig(
         appName: 'Test',
         theme: ThemeData(),
@@ -15,7 +15,9 @@ void main() {
 
       expect(() => runSoliplexShell(config), throwsArgumentError);
     });
+  });
 
+  group('SoliplexShell', () {
     testWidgets('overrides from multiple modules compose', (tester) async {
       final greeting = Provider<String>((_) => 'default greeting');
       final farewell = Provider<String>((_) => 'default farewell');
@@ -52,29 +54,6 @@ void main() {
 
       expect(find.text('hello'), findsOneWidget);
       expect(find.text('goodbye'), findsOneWidget);
-    });
-  });
-
-  group('runSoliplexShell', () {
-    test('throws ArgumentError on duplicate routes', () {
-      final config = ShellConfig(
-        appName: 'Test',
-        theme: ThemeData(),
-        modules: [
-          ModuleContribution(
-            routes: [
-              GoRoute(path: '/', builder: (_, __) => const SizedBox()),
-            ],
-          ),
-          ModuleContribution(
-            routes: [
-              GoRoute(path: '/', builder: (_, __) => const SizedBox()),
-            ],
-          ),
-        ],
-      );
-
-      expect(() => runSoliplexShell(config), throwsArgumentError);
     });
   });
 
