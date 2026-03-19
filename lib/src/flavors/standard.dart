@@ -8,25 +8,22 @@ import '../core/signal_listenable.dart';
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/secure_token_storage.dart';
 import '../modules/auth/server_manager.dart';
-import '../modules/auth/token_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 
 Future<ShellConfig> standard({
   String appName = 'Soliplex',
   ThemeData? theme,
-  TokenStorage? storage,
 }) async {
   final inspector = NetworkInspector();
   final refreshClient = createAgentHttpClient(
     innerClient: createPlatformClient(),
     observers: [inspector],
   );
-  final tokenStorage = storage ?? SecureTokenStorage();
   final serverManager = ServerManager(
     refreshClient: refreshClient,
     inspector: inspector,
-    storage: tokenStorage,
+    storage: SecureTokenStorage(),
   );
   await serverManager.restoreServers();
 
