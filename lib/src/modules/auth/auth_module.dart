@@ -1,8 +1,11 @@
 import '../../core/shell_config.dart';
-import '../../interfaces/auth_state.dart';
+import 'auth_providers.dart';
+import 'server_manager.dart';
 
-ModuleContribution authModule({required AuthState auth}) {
+ModuleContribution authModule({required ServerManager serverManager}) {
   return ModuleContribution(
-    overrides: [authStateProvider.overrideWithValue(auth)],
+    overrides: [
+      serverManagerProvider.overrideWithValue(serverManager),
+    ],
   );
 }

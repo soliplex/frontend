@@ -22,12 +22,16 @@ class ShellConfig {
   final ThemeData theme;
   final String initialRoute;
   final List<ModuleContribution> modules;
+  final Listenable? refreshListenable;
+  final VoidCallback? onDispose;
 
   ShellConfig({
     required this.appName,
     required this.theme,
     this.initialRoute = '/',
     List<ModuleContribution> modules = const [],
+    this.refreshListenable,
+    this.onDispose,
   }) : modules = List.unmodifiable(modules);
 
   List<RouteBase> get routes => modules.expand((m) => m.routes).toList();

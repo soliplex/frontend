@@ -1,5 +1,6 @@
 name: soliplex_frontend
 description: Modular Flutter frontend framework for Soliplex
+publish_to: none
 # To update version, run:
 # dart run tool/bump_version.dart <major|minor|patch|build>
 version: 0.1.0+0
@@ -12,8 +13,18 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.1.0
+  flutter_secure_storage: ^9.2.4
   go_router: ^17.1.0
-  signals: ^6.2.0
+  soliplex_agent:
+    git:
+      url: https://github.com/runyaga/flutter.git
+      ref: main
+      path: packages/soliplex_agent
+  soliplex_client_native:
+    git:
+      url: https://github.com/runyaga/flutter.git
+      ref: main
+      path: packages/soliplex_client_native
 
 dev_dependencies:
   flutter_test:

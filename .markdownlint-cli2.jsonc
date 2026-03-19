@@ -1,0 +1,7 @@
+{
+  "ignores": [
+    ".dart_tool/**",
+    "linux/**",
+    "windows/**"
+  ]
+}
