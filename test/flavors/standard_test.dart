@@ -5,20 +5,31 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/flavors.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 
+import '../helpers/fakes.dart';
+
 void main() {
   group('standard()', () {
+    late ShellConfig config;
+
+    setUp(() async {
+      config = await standard(storage: InMemoryTokenStorage());
+    });
+
+    tearDown(() {
+      config.onDispose?.call();
+    });
+
     test('includes a root route', () {
-      final config = standard();
       final paths = config.routes.whereType<GoRoute>().map((r) => r.path);
       expect(paths, contains('/'));
     });
 
-    test('provides Unauthenticated as initial auth state', () {
-      final config = standard();
+    test('initial auth state is Unauthenticated', () {
       final container = ProviderContainer(overrides: config.overrides);
       addTearDown(container.dispose);
 
-      expect(container.read(authStateProvider), isA<Unauthenticated>());
+      final manager = container.read(serverManagerProvider);
+      expect(manager.authState.value, isA<Unauthenticated>());
     });
   });
 }

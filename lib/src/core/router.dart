@@ -94,6 +94,7 @@ GoRouter buildRouter(ShellConfig config) {
   return GoRouter(
     initialLocation: config.initialRoute,
     routes: config.routes,
+    refreshListenable: config.refreshListenable,
     redirect: config.redirects.isEmpty
         ? null
         : (BuildContext context, GoRouterState state) async {
