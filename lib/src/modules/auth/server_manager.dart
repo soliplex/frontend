@@ -31,8 +31,9 @@ class ServerManager {
   final HttpClientFactory _clientFactory;
   final TokenStorage _storage;
 
-  final Signal<Map<String, ServerEntry>> servers =
+  final Signal<Map<String, ServerEntry>> _servers =
       Signal<Map<String, ServerEntry>>({});
+  ReadonlySignal<Map<String, ServerEntry>> get servers => _servers;
 
   final ServerRegistry registry = ServerRegistry();
 
@@ -42,15 +43,17 @@ class ServerManager {
   /// Serializes persistence operations per server to prevent race conditions.
   final Map<String, Future<void>> _persistQueue = {};
 
+  bool _restoring = false;
+
   /// Aggregate auth state derived from all server sessions.
   late final ReadonlySignal<AuthState> authState = computed(() {
-    return servers.value.values.any((e) => e.auth.isAuthenticated)
+    return _servers.value.values.any((e) => e.auth.isAuthenticated)
         ? const Authenticated()
         : const Unauthenticated();
   });
 
   ServerEntry addServer({required String serverId, required Uri serverUrl}) {
-    if (servers.value.containsKey(serverId)) {
+    if (_servers.value.containsKey(serverId)) {
       throw StateError('Server "$serverId" already exists');
     }
 
@@ -76,7 +79,7 @@ class ServerManager {
     );
 
     registry.add(connection);
-    servers.value = {...servers.value, serverId: entry};
+    _servers.value = {..._servers.value, serverId: entry};
 
     _subscriptions[serverId] = auth.session.subscribe((_) {
       _onSessionChanged(serverId, entry);
@@ -86,7 +89,7 @@ class ServerManager {
   }
 
   void removeServer(String serverId) {
-    final entry = servers.value[serverId];
+    final entry = _servers.value[serverId];
     if (entry == null) {
       throw StateError('No server entry for "$serverId"');
     }
@@ -97,8 +100,8 @@ class ServerManager {
     entry.httpClient.close();
     registry.remove(serverId);
 
-    final updated = {...servers.value}..remove(serverId);
-    servers.value = updated;
+    final updated = {..._servers.value}..remove(serverId);
+    _servers.value = updated;
 
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))
@@ -116,29 +119,35 @@ class ServerManager {
       debugPrint('Failed to load stored servers: $e\n$st');
       return;
     }
-    for (final entry in stored.entries) {
-      try {
-        final server = addServer(
-          serverId: entry.key,
-          serverUrl: entry.value.serverUrl,
-        );
-        server.auth.login(
-          provider: entry.value.provider,
-          tokens: entry.value.tokens,
-        );
-      } catch (e, st) {
-        debugPrint('Failed to restore server ${entry.key}: $e\n$st');
+    _restoring = true;
+    try {
+      for (final entry in stored.entries) {
+        try {
+          final server = addServer(
+            serverId: entry.key,
+            serverUrl: entry.value.serverUrl,
+          );
+          server.auth.login(
+            provider: entry.value.provider,
+            tokens: entry.value.tokens,
+          );
+        } catch (e, st) {
+          debugPrint('Failed to restore server ${entry.key}: $e\n$st');
+        }
       }
+    } finally {
+      _restoring = false;
     }
   }
 
   void dispose() {
-    for (final id in servers.value.keys.toList()) {
+    for (final id in _servers.value.keys.toList()) {
       removeServer(id);
     }
   }
 
   void _onSessionChanged(String serverId, ServerEntry entry) {
+    if (_restoring) return;
     Future<void> persist() async {
       switch (entry.auth.session.value) {
         case ActiveSession(:final provider, :final tokens):

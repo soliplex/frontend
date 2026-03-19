@@ -236,5 +236,25 @@ void main() {
         isTrue,
       );
     });
+
+    test('does not re-persist restored data', () async {
+      final storage = InMemoryTokenStorage();
+
+      await storage.save(
+        'restored',
+        PersistedServer(
+          serverUrl: Uri.parse('https://restored.example.com'),
+          provider: _provider,
+          tokens: _tokens(),
+        ),
+      );
+      storage.saveCount = 0;
+
+      final manager = _createManager(storage: storage);
+      await manager.restoreServers();
+
+      await Future<void>.delayed(Duration.zero);
+      expect(storage.saveCount, 0);
+    });
   });
 }

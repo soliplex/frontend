@@ -71,9 +71,11 @@ class FakeHttpObserver implements HttpObserver {
 /// In-memory token storage for tests.
 class InMemoryTokenStorage implements TokenStorage {
   final Map<String, PersistedServer> _store = {};
+  int saveCount = 0;
 
   @override
   Future<void> save(String serverId, PersistedServer data) async {
+    saveCount++;
     _store[serverId] = data;
   }
 
