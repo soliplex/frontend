@@ -253,7 +253,7 @@ void main() {
       await tester.pump();
 
       // Accept the insecure warning.
-      await tester.tap(find.text('I understand, connect anyway'));
+      await tester.tap(find.text('Connect anyway'));
       await tester.pumpAndSettle();
 
       // Should add a second server, not reuse the first.
@@ -357,7 +357,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // AlertDialog with insecure warning
+      // Inline insecure warning
       expect(find.text('Insecure Connection'), findsOneWidget);
       expect(find.textContaining('not encrypted'), findsOneWidget);
     });
