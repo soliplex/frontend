@@ -109,7 +109,6 @@ class ServerManager {
 
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))
-        .whenComplete(() => _persistQueue.remove(serverId))
         .catchError((Object e, StackTrace st) {
       debugPrint('Failed to delete stored session for $serverId: $e\n$st');
     });
