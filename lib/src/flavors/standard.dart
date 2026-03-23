@@ -44,8 +44,8 @@ Future<ShellConfig> standard({
         tokenRefresher: tokenRefresher,
       );
 
-  final refreshClient = buildClient();
-  final refreshService = TokenRefreshService(httpClient: refreshClient);
+  final plainClient = buildClient();
+  final refreshService = TokenRefreshService(httpClient: plainClient);
 
   AuthSession buildAuth() => AuthSession(refreshService: refreshService);
 
@@ -79,7 +79,7 @@ Future<ShellConfig> standard({
     onDispose: () {
       authListenable.dispose();
       serverManager.dispose();
-      refreshClient.close();
+      plainClient.close();
     },
     modules: [
       diagnosticsModule(inspector: inspector),
@@ -87,7 +87,7 @@ Future<ShellConfig> standard({
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,
-        probeClient: refreshClient,
+        probeClient: plainClient,
         appName: appName,
         callbackParams: callbackParams,
         consentNotice: consentNotice,
