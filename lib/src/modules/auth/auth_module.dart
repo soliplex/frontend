@@ -39,21 +39,27 @@ ModuleContribution authModule({
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, state) => HomeScreen(
-          serverManager: serverManager,
-          appName: appName,
-          logo: logo,
-          defaultBackendUrl: defaultBackendUrl,
-          autoConnectUrl: state.uri.queryParameters['url'],
+        pageBuilder: (_, state) => NoTransitionPage(
+          child: HomeScreen(
+            serverManager: serverManager,
+            appName: appName,
+            logo: logo,
+            defaultBackendUrl: defaultBackendUrl,
+            autoConnectUrl: state.uri.queryParameters['url'],
+          ),
         ),
       ),
       GoRoute(
         path: '/servers',
-        builder: (_, __) => ServerListScreen(serverManager: serverManager),
+        pageBuilder: (_, __) => NoTransitionPage(
+          child: ServerListScreen(serverManager: serverManager),
+        ),
       ),
       GoRoute(
         path: '/auth/callback',
-        builder: (_, __) => AuthCallbackScreen(serverManager: serverManager),
+        pageBuilder: (_, __) => NoTransitionPage(
+          child: AuthCallbackScreen(serverManager: serverManager),
+        ),
       ),
     ],
     redirect: (_, state) {

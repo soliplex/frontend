@@ -10,7 +10,9 @@ ModuleContribution lobbyPlaceholder() {
     routes: [
       GoRoute(
         path: '/lobby',
-        builder: (_, __) => const LobbyPlaceholderScreen(),
+        pageBuilder: (_, __) => const NoTransitionPage(
+          child: LobbyPlaceholderScreen(),
+        ),
       ),
     ],
   );
