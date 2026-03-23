@@ -75,7 +75,9 @@ Future<ConnectionProbeResult> probeConnection({
       return ConnectionFailure(e);
     }
   }
-  return ConnectionFailure(lastNetworkError!);
+  return ConnectionFailure(
+    lastNetworkError ?? Exception('No reachable server at: $input'),
+  );
 }
 
 /// Parses user input into candidate URIs to probe, in priority order.

@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as dev;
+
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
@@ -63,8 +64,7 @@ class NativeAuthFlow implements AuthFlow {
     } on AuthException {
       rethrow;
     } on Exception catch (e, st) {
-      // TODO: Replace with structured logging once available.
-      debugPrint('NativeAuthFlow: ${e.runtimeType}: $e\n$st');
+      dev.log('NativeAuthFlow.authenticate', error: e, stackTrace: st);
       throw AuthException(
         'Authentication failed (${e.runtimeType}). Please try again.',
       );
@@ -86,9 +86,9 @@ class NativeAuthFlow implements AuthFlow {
           postLogoutRedirectUrl: _redirectUri,
         ),
       );
-    } on Exception catch (e) {
+    } on Exception catch (e, st) {
       // IdP session cleanup is best-effort; local logout already handled.
-      debugPrint('NativeAuthFlow.endSession: $e');
+      dev.log('NativeAuthFlow.endSession', error: e, stackTrace: st);
     }
   }
 }
