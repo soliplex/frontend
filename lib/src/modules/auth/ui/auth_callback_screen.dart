@@ -29,55 +29,61 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
   }
 
   Future<void> _processCallback() async {
-    final params = ref.read(callbackParamsProvider);
+    try {
+      final params = ref.read(callbackParamsProvider);
 
-    if (params is NoCallbackParams) {
-      _fail('No callback parameters received.');
-      return;
+      if (params is NoCallbackParams) {
+        _fail('No callback parameters received.');
+        return;
+      }
+
+      if (params.hasError) {
+        _fail('Authentication failed: ${params.error}');
+        return;
+      }
+
+      final webParams = params as WebCallbackParams;
+      final accessToken = webParams.accessToken;
+      if (accessToken == null) {
+        _fail('No access token in callback.');
+        return;
+      }
+
+      final preAuth = await PreAuthStateStorage.load();
+      if (!mounted) return;
+      if (preAuth == null) {
+        _fail('Authentication session expired or missing. Please try again.');
+        return;
+      }
+
+      await PreAuthStateStorage.clear();
+      if (!mounted) return;
+
+      final serverId = serverIdFromUrl(preAuth.serverUrl);
+      final entry = widget.serverManager.addServer(
+        serverId: serverId,
+        serverUrl: preAuth.serverUrl,
+      );
+
+      entry.auth.login(
+        provider: OidcProvider(
+          discoveryUrl: preAuth.discoveryUrl,
+          clientId: preAuth.clientId,
+        ),
+        tokens: AuthTokens(
+          accessToken: accessToken,
+          refreshToken: webParams.refreshToken ?? '',
+          expiresAt: webParams.expiresIn != null
+              ? DateTime.now().add(Duration(seconds: webParams.expiresIn!))
+              : DateTime.now().add(AuthTokens.defaultLifetime),
+          idToken: null,
+        ),
+      );
+
+      if (mounted) context.go('/lobby');
+    } catch (e) {
+      _fail('Something went wrong. Please try again.');
     }
-
-    if (params.hasError) {
-      _fail('Authentication failed: ${params.error}');
-      return;
-    }
-
-    final webParams = params as WebCallbackParams;
-    final accessToken = webParams.accessToken;
-    if (accessToken == null) {
-      _fail('No access token in callback.');
-      return;
-    }
-
-    final preAuth = await PreAuthStateStorage.load();
-    if (preAuth == null) {
-      _fail('Authentication session expired or missing. Please try again.');
-      return;
-    }
-
-    await PreAuthStateStorage.clear();
-
-    final serverId = serverIdFromUrl(preAuth.serverUrl);
-    final entry = widget.serverManager.addServer(
-      serverId: serverId,
-      serverUrl: preAuth.serverUrl,
-    );
-
-    entry.auth.login(
-      provider: OidcProvider(
-        discoveryUrl: preAuth.discoveryUrl,
-        clientId: preAuth.clientId,
-      ),
-      tokens: AuthTokens(
-        accessToken: accessToken,
-        refreshToken: webParams.refreshToken ?? '',
-        expiresAt: webParams.expiresIn != null
-            ? DateTime.now().add(Duration(seconds: webParams.expiresIn!))
-            : DateTime.now().add(const Duration(hours: 1)),
-        idToken: null,
-      ),
-    );
-
-    if (mounted) context.go('/lobby');
   }
 
   void _fail(String message) {

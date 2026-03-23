@@ -225,7 +225,7 @@ class ConnectFlow {
           accessToken: authResult.accessToken,
           refreshToken: authResult.refreshToken ?? '',
           expiresAt: authResult.expiresAt ??
-              DateTime.now().add(const Duration(hours: 1)),
+              DateTime.now().add(AuthTokens.defaultLifetime),
           idToken: authResult.idToken,
         ),
       );

@@ -23,6 +23,8 @@ class OidcProvider {
 
 /// In-memory token cache.
 class AuthTokens {
+  /// Assumed token lifetime when the server doesn't provide an expiry.
+  static const defaultLifetime = Duration(hours: 1);
   const AuthTokens({
     required this.accessToken,
     required this.refreshToken,
