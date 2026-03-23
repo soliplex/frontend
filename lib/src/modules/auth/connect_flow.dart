@@ -75,6 +75,8 @@ class ConnectFlow {
   bool _disposed = false;
   int _generation = 0;
 
+  bool _isCancelled(int gen) => _disposed || gen != _generation;
+
   Future<void> connect(String url) async {
     if (state.value is! UrlInput) return;
     final gen = ++_generation;
@@ -87,7 +89,7 @@ class ConnectFlow {
         discover: discover,
       );
 
-      if (_disposed || gen != _generation) return;
+      if (_isCancelled(gen)) return;
 
       switch (result) {
         case ConnectionSuccess():
@@ -110,7 +112,7 @@ class ConnectFlow {
       }
     } catch (e, st) {
       debugPrint('ConnectFlow.connect: $e\n$st');
-      if (gen == _generation && !_disposed) {
+      if (!_isCancelled(gen)) {
         state.value = UrlInput(error: 'Unexpected error: $e');
       }
     }
@@ -186,7 +188,7 @@ class ConnectFlow {
     AuthProviderConfig provider, {
     required ConnectionSuccess probeResult,
   }) async {
-    final gen = _generation;
+    final gen = ++_generation;
     state.value = const Authenticating();
 
     final discoveryUrl =
@@ -200,7 +202,7 @@ class ConnectFlow {
       createdAt: DateTime.timestamp(),
     ));
 
-    if (_disposed || gen != _generation) return;
+    if (_isCancelled(gen)) return;
 
     try {
       final authResult = await authFlow.authenticate(
@@ -208,7 +210,7 @@ class ConnectFlow {
         backendUrl: probeResult.serverUrl,
       );
 
-      if (_disposed || gen != _generation) return;
+      if (_isCancelled(gen)) return;
 
       final serverId = serverIdFromUrl(probeResult.serverUrl);
       final entry = serverManager.addServer(
@@ -232,18 +234,18 @@ class ConnectFlow {
 
       await PreAuthStateStorage.clear();
       DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
-      if (!_disposed && gen == _generation) state.value = const Connected();
+      if (!_isCancelled(gen)) state.value = const Connected();
     } on AuthRedirectInitiated {
       // Web: browser is redirecting to IdP.
     } on AuthException catch (e) {
       await PreAuthStateStorage.clear();
-      if (!_disposed && gen == _generation) {
+      if (!_isCancelled(gen)) {
         state.value = UrlInput(error: e.message);
       }
     } on Exception catch (e, st) {
       debugPrint('ConnectFlow._authenticate: $e\n$st');
       await PreAuthStateStorage.clear();
-      if (!_disposed && gen == _generation) {
+      if (!_isCancelled(gen)) {
         state.value = UrlInput(error: 'Authentication failed: $e');
       }
     }
