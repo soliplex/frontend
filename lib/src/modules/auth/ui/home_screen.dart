@@ -62,9 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     _unsubscribeFlow = _flow.state.subscribe((state) {
       if (state is Connected && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) context.go('/lobby');
-        });
+        context.go('/lobby');
         return;
       }
       if (mounted) setState(() {});
