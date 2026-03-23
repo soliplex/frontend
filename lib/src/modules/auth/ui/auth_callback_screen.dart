@@ -54,7 +54,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     await PreAuthStateStorage.clear();
 
     final serverManager = ref.read(serverManagerProvider);
-    final serverId = formatServerUrl(preAuth.serverUrl);
+    final serverId = serverIdFromUrl(preAuth.serverUrl);
     final entry = serverManager.addServer(
       serverId: serverId,
       serverUrl: preAuth.serverUrl,

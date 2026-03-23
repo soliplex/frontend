@@ -450,7 +450,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       switch (result) {
         case ConnectionSuccess():
-          final resultId = formatServerUrl(result.serverUrl);
+          final resultId = serverIdFromUrl(result.serverUrl);
           final existing = widget.serverManager.servers.value[resultId];
           if (existing != null && existing.isConnected) {
             context.go('/lobby');
@@ -532,7 +532,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _addServerNoAuth(ConnectionSuccess probeResult) {
-    final serverId = formatServerUrl(probeResult.serverUrl);
+    final serverId = serverIdFromUrl(probeResult.serverUrl);
     widget.serverManager.addServer(
       serverId: serverId,
       serverUrl: probeResult.serverUrl,
@@ -569,7 +569,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       if (!mounted) return;
 
-      final serverId = formatServerUrl(probeResult.serverUrl);
+      final serverId = serverIdFromUrl(probeResult.serverUrl);
       final entry = widget.serverManager.addServer(
         serverId: serverId,
         serverUrl: probeResult.serverUrl,

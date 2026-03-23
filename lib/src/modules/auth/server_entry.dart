@@ -2,6 +2,11 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'auth_session.dart';
 
+/// Canonical server identity: scheme + host + port (default ports omitted).
+///
+/// Used as storage keys and registry keys. Do not change without migration.
+String serverIdFromUrl(Uri url) => url.origin;
+
 /// Formats a server URL for display: always includes scheme, omits unspecified port.
 String formatServerUrl(Uri url) {
   final port = url.hasPort ? ':${url.port}' : '';
