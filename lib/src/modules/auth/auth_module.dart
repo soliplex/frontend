@@ -39,15 +39,19 @@ ModuleContribution authModule({
     routes: [
       GoRoute(
         path: '/',
-        pageBuilder: (_, state) => NoTransitionPage(
-          child: HomeScreen(
-            serverManager: serverManager,
-            appName: appName,
-            logo: logo,
-            defaultBackendUrl: defaultBackendUrl,
-            autoConnectUrl: state.uri.queryParameters['url'],
-          ),
-        ),
+        pageBuilder: (_, state) {
+          final autoConnectUrl = state.uri.queryParameters['url'];
+          return NoTransitionPage(
+            key: autoConnectUrl != null ? UniqueKey() : state.pageKey,
+            child: HomeScreen(
+              serverManager: serverManager,
+              appName: appName,
+              logo: logo,
+              defaultBackendUrl: defaultBackendUrl,
+              autoConnectUrl: autoConnectUrl,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/servers',
