@@ -85,6 +85,12 @@ class ServerManager {
       resolvedAlias = alias;
     } else {
       resolvedAlias = _uniqueAlias(serverUrl);
+      if (alias != null) {
+        debugPrint(
+          'Alias "$alias" for $serverId collides with an existing alias; '
+          'using "$resolvedAlias" instead',
+        );
+      }
     }
 
     final auth = _authFactory();
