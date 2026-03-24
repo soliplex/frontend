@@ -75,11 +75,18 @@ class ServerManager {
     required String serverId,
     required Uri serverUrl,
     bool requiresAuth = true,
+    String? alias,
   }) {
     final existing = _servers.value[serverId];
     if (existing != null) return existing;
 
-    final alias = _uniqueAlias(serverUrl);
+    final String resolvedAlias;
+    if (alias != null && _aliases.add(alias)) {
+      resolvedAlias = alias;
+    } else {
+      resolvedAlias = _uniqueAlias(serverUrl);
+    }
+
     final auth = _authFactory();
 
     final httpClient = _clientFactory(
@@ -95,7 +102,7 @@ class ServerManager {
 
     final entry = ServerEntry(
       serverId: serverId,
-      alias: alias,
+      alias: resolvedAlias,
       serverUrl: serverUrl,
       auth: auth,
       httpClient: httpClient,
@@ -153,6 +160,7 @@ class ServerManager {
             serverId: entry.key,
             serverUrl: entry.value.serverUrl,
             requiresAuth: entry.value.requiresAuth,
+            alias: entry.value.alias,
           );
           if (entry.value
               case AuthenticatedServer(:final provider, :final tokens)) {
@@ -187,6 +195,7 @@ class ServerManager {
             serverId,
             AuthenticatedServer(
               serverUrl: entry.serverUrl,
+              alias: entry.alias,
               requiresAuth: entry.requiresAuth,
               provider: provider,
               tokens: tokens,
@@ -197,6 +206,7 @@ class ServerManager {
             serverId,
             KnownServer(
               serverUrl: entry.serverUrl,
+              alias: entry.alias,
               requiresAuth: entry.requiresAuth,
             ),
           );

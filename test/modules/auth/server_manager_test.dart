@@ -346,6 +346,21 @@ void main() {
       final stored = await storage.loadAll();
       expect(stored, isEmpty);
     });
+
+    test('persists alias in storage', () async {
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+
+      final entry = manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+      );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+
+      await Future<void>.delayed(Duration.zero);
+      final stored = await storage.loadAll();
+      expect(stored['http://localhost:8000']!.alias, 'localhost-8000');
+    });
   });
 
   group('restoreServers', () {
@@ -430,6 +445,43 @@ void main() {
       final entry = manager.servers.value['no-auth']!;
       expect(entry.requiresAuth, isFalse);
       expect(entry.isConnected, isTrue);
+    });
+
+    test('restores persisted alias', () async {
+      final storage = InMemoryServerStorage();
+
+      await storage.save(
+        'http://localhost:8000',
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+          alias: 'localhost-8000',
+        ),
+      );
+
+      final manager = _createManager(storage: storage);
+      await manager.restoreServers();
+
+      final entry = manager.servers.value['http://localhost:8000']!;
+      expect(entry.alias, 'localhost-8000');
+    });
+
+    test('generates alias when restoring legacy data without alias', () async {
+      final storage = InMemoryServerStorage();
+
+      await storage.save(
+        'http://localhost:8000',
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        ),
+      );
+
+      final manager = _createManager(storage: storage);
+      await manager.restoreServers();
+
+      final entry = manager.servers.value['http://localhost:8000']!;
+      expect(entry.alias, 'localhost-8000');
     });
   });
 }
