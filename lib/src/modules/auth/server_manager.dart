@@ -43,6 +43,9 @@ class ServerManager {
   /// Serializes persistence operations per server to prevent race conditions.
   final Map<String, Future<void>> _persistQueue = {};
 
+  /// Tracks in-use aliases to ensure uniqueness.
+  final Set<String> _aliases = {};
+
   bool _restoring = false;
 
   /// Aggregate auth state derived from all server sessions.
@@ -52,13 +55,43 @@ class ServerManager {
         : const Unauthenticated();
   });
 
+  String _uniqueAlias(Uri serverUrl) {
+    final base = aliasFromUrl(serverUrl);
+    if (_aliases.add(base)) return base;
+    for (var i = 2;; i++) {
+      final candidate = '$base-$i';
+      if (_aliases.add(candidate)) return candidate;
+    }
+  }
+
+  ServerEntry? entryByAlias(String alias) {
+    for (final entry in _servers.value.values) {
+      if (entry.alias == alias) return entry;
+    }
+    return null;
+  }
+
   ServerEntry addServer({
     required String serverId,
     required Uri serverUrl,
     bool requiresAuth = true,
+    String? alias,
   }) {
     final existing = _servers.value[serverId];
     if (existing != null) return existing;
+
+    final String resolvedAlias;
+    if (alias != null && _aliases.add(alias)) {
+      resolvedAlias = alias;
+    } else {
+      resolvedAlias = _uniqueAlias(serverUrl);
+      if (alias != null) {
+        debugPrint(
+          'Alias "$alias" for $serverId collides with an existing alias; '
+          'using "$resolvedAlias" instead',
+        );
+      }
+    }
 
     final auth = _authFactory();
 
@@ -75,6 +108,7 @@ class ServerManager {
 
     final entry = ServerEntry(
       serverId: serverId,
+      alias: resolvedAlias,
       serverUrl: serverUrl,
       auth: auth,
       httpClient: httpClient,
@@ -98,6 +132,7 @@ class ServerManager {
       throw StateError('No server entry for "$serverId"');
     }
 
+    _aliases.remove(entry.alias);
     _subscriptions.remove(serverId)?.call();
 
     entry.connection.close();
@@ -131,6 +166,7 @@ class ServerManager {
             serverId: entry.key,
             serverUrl: entry.value.serverUrl,
             requiresAuth: entry.value.requiresAuth,
+            alias: entry.value.alias,
           );
           if (entry.value
               case AuthenticatedServer(:final provider, :final tokens)) {
@@ -152,6 +188,7 @@ class ServerManager {
       entry.value.httpClient.close();
       registry.remove(entry.key);
     }
+    _aliases.clear();
     _servers.value = {};
   }
 
@@ -164,6 +201,7 @@ class ServerManager {
             serverId,
             AuthenticatedServer(
               serverUrl: entry.serverUrl,
+              alias: entry.alias,
               requiresAuth: entry.requiresAuth,
               provider: provider,
               tokens: tokens,
@@ -174,6 +212,7 @@ class ServerManager {
             serverId,
             KnownServer(
               serverUrl: entry.serverUrl,
+              alias: entry.alias,
               requiresAuth: entry.requiresAuth,
             ),
           );

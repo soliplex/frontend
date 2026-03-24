@@ -71,6 +71,68 @@ void main() {
     });
   });
 
+  group('alias', () {
+    test('assigns alias from server URL', () {
+      final manager = _createManager();
+
+      final entry = manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+      );
+
+      expect(entry.alias, 'localhost-8000');
+    });
+
+    test('appends suffix on collision', () {
+      final manager = _createManager();
+
+      final first = manager.addServer(
+        serverId: 'http://example.com',
+        serverUrl: Uri.parse('http://example.com'),
+      );
+      final second = manager.addServer(
+        serverId: 'https://example.com',
+        serverUrl: Uri.parse('https://example.com'),
+      );
+
+      expect(first.alias, 'example-com');
+      expect(second.alias, 'example-com-2');
+    });
+
+    test('entryByAlias returns matching entry', () {
+      final manager = _createManager();
+
+      final entry = manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+      );
+
+      expect(manager.entryByAlias('localhost-8000'), same(entry));
+    });
+
+    test('entryByAlias returns null for unknown alias', () {
+      final manager = _createManager();
+      expect(manager.entryByAlias('nonexistent'), isNull);
+    });
+
+    test('removeServer frees alias for reuse', () {
+      final manager = _createManager();
+
+      manager.addServer(
+        serverId: 'http://example.com',
+        serverUrl: Uri.parse('http://example.com'),
+      );
+      manager.removeServer('http://example.com');
+
+      final reused = manager.addServer(
+        serverId: 'https://example.com',
+        serverUrl: Uri.parse('https://example.com'),
+      );
+
+      expect(reused.alias, 'example-com');
+    });
+  });
+
   group('removeServer', () {
     test('removes entry from servers and registry', () {
       final manager = _createManager();
@@ -284,6 +346,21 @@ void main() {
       final stored = await storage.loadAll();
       expect(stored, isEmpty);
     });
+
+    test('persists alias in storage', () async {
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+
+      final entry = manager.addServer(
+        serverId: 'http://localhost:8000',
+        serverUrl: Uri.parse('http://localhost:8000'),
+      );
+      entry.auth.login(provider: _provider, tokens: _tokens());
+
+      await Future<void>.delayed(Duration.zero);
+      final stored = await storage.loadAll();
+      expect(stored['http://localhost:8000']!.alias, 'localhost-8000');
+    });
   });
 
   group('restoreServers', () {
@@ -368,6 +445,43 @@ void main() {
       final entry = manager.servers.value['no-auth']!;
       expect(entry.requiresAuth, isFalse);
       expect(entry.isConnected, isTrue);
+    });
+
+    test('restores persisted alias', () async {
+      final storage = InMemoryServerStorage();
+
+      await storage.save(
+        'http://localhost:8000',
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+          alias: 'localhost-8000',
+        ),
+      );
+
+      final manager = _createManager(storage: storage);
+      await manager.restoreServers();
+
+      final entry = manager.servers.value['http://localhost:8000']!;
+      expect(entry.alias, 'localhost-8000');
+    });
+
+    test('generates alias when restoring legacy data without alias', () async {
+      final storage = InMemoryServerStorage();
+
+      await storage.save(
+        'http://localhost:8000',
+        KnownServer(
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        ),
+      );
+
+      final manager = _createManager(storage: storage);
+      await manager.restoreServers();
+
+      final entry = manager.servers.value['http://localhost:8000']!;
+      expect(entry.alias, 'localhost-8000');
     });
   });
 }

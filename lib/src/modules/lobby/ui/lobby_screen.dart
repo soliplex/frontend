@@ -39,8 +39,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onSettings() {}
 
-  void _onRoomTap(String serverId, String roomId) =>
-      context.go('/room/${Uri.encodeComponent(serverId)}/$roomId');
+  void _onRoomTap(String serverId, String roomId) {
+    final entry = widget.serverManager.servers.value[serverId];
+    assert(entry != null, 'Room tap for unknown serverId: $serverId');
+    if (entry == null) return;
+    context.go('/room/${entry.alias}/$roomId');
+  }
 
   @override
   Widget build(BuildContext context) {

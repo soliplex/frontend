@@ -6,16 +6,22 @@ import 'auth_tokens.dart';
 
 /// Data persisted per server for session restoration.
 sealed class PersistedServer {
-  const PersistedServer({required this.serverUrl, this.requiresAuth = true});
+  const PersistedServer({
+    required this.serverUrl,
+    this.alias,
+    this.requiresAuth = true,
+  });
 
   factory PersistedServer.fromJson(Map<String, dynamic> json) {
     final serverUrl = Uri.parse(json['serverUrl'] as String);
+    final alias = json['alias'] as String?;
     final requiresAuth = json['requiresAuth'] as bool? ?? true;
     final providerJson = json['provider'] as Map<String, dynamic>?;
     final tokensJson = json['tokens'] as Map<String, dynamic>?;
     if (providerJson != null && tokensJson != null) {
       return AuthenticatedServer(
         serverUrl: serverUrl,
+        alias: alias,
         requiresAuth: requiresAuth,
         provider: OidcProvider.fromJson(providerJson),
         tokens: AuthTokens.fromJson(tokensJson),
@@ -24,10 +30,12 @@ sealed class PersistedServer {
     if (providerJson != null || tokensJson != null) {
       dev.log('Partial auth data for $serverUrl — treating as unauthenticated');
     }
-    return KnownServer(serverUrl: serverUrl, requiresAuth: requiresAuth);
+    return KnownServer(
+        serverUrl: serverUrl, alias: alias, requiresAuth: requiresAuth);
   }
 
   final Uri serverUrl;
+  final String? alias;
   final bool requiresAuth;
 
   Map<String, dynamic> toJson();
@@ -37,6 +45,7 @@ sealed class PersistedServer {
 class AuthenticatedServer extends PersistedServer {
   const AuthenticatedServer({
     required super.serverUrl,
+    super.alias,
     super.requiresAuth,
     required this.provider,
     required this.tokens,
@@ -48,6 +57,7 @@ class AuthenticatedServer extends PersistedServer {
   @override
   Map<String, dynamic> toJson() => {
         'serverUrl': serverUrl.toString(),
+        if (alias != null) 'alias': alias,
         'requiresAuth': requiresAuth,
         'provider': provider.toJson(),
         'tokens': tokens.toJson(),
@@ -56,11 +66,13 @@ class AuthenticatedServer extends PersistedServer {
 
 /// A known server without auth credentials.
 class KnownServer extends PersistedServer {
-  const KnownServer({required super.serverUrl, super.requiresAuth});
+  const KnownServer(
+      {required super.serverUrl, super.alias, super.requiresAuth});
 
   @override
   Map<String, dynamic> toJson() => {
         'serverUrl': serverUrl.toString(),
+        if (alias != null) 'alias': alias,
         'requiresAuth': requiresAuth,
       };
 }

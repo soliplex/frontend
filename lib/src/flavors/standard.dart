@@ -88,7 +88,7 @@ Future<ShellConfig> standard({
     modules: [
       diagnosticsModule(inspector: inspector),
       lobbyModule(serverManager: serverManager),
-      roomPlaceholder(),
+      roomPlaceholder(serverManager: serverManager),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,
