@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 class RoomPlaceholderScreen extends StatelessWidget {
   const RoomPlaceholderScreen({
     super.key,
-    required this.serverId,
+    required this.serverAlias,
     required this.roomId,
+    this.serverId,
   });
 
-  final String serverId;
+  final String serverAlias;
+  final String? serverId;
   final String roomId;
 
   @override
@@ -23,7 +25,8 @@ class RoomPlaceholderScreen extends StatelessWidget {
       ),
       body: Center(
         child: Text(
-          'Conversation UI — coming soon\n\nServer: $serverId\nRoom: $roomId',
+          'Conversation UI — coming soon\n\n'
+          'Server: ${serverId ?? serverAlias}\nRoom: $roomId',
         ),
       ),
     );
