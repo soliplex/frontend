@@ -5,6 +5,7 @@ import 'package:soliplex_client_native/soliplex_client_native.dart';
 
 import '../core/shell_config.dart';
 import '../core/signal_listenable.dart';
+import '../interfaces/auth_state.dart';
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
@@ -16,7 +17,8 @@ import '../modules/auth/server_manager.dart';
 import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
-import '../modules/lobby_placeholder.dart';
+import '../modules/lobby/lobby_module.dart';
+import '../modules/room_placeholder.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
@@ -74,7 +76,9 @@ Future<ShellConfig> standard({
     appName: appName,
     logo: logo,
     theme: theme ?? ThemeData(),
-    initialRoute: callbackParams is! NoCallbackParams ? '/auth/callback' : '/',
+    initialRoute: callbackParams is! NoCallbackParams
+        ? '/auth/callback'
+        : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
     refreshListenable: authListenable,
     onDispose: () {
       authListenable.dispose();
@@ -83,7 +87,8 @@ Future<ShellConfig> standard({
     },
     modules: [
       diagnosticsModule(inspector: inspector),
-      lobbyPlaceholder(),
+      lobbyModule(serverManager: serverManager),
+      roomPlaceholder(),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,

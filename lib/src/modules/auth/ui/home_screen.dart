@@ -396,6 +396,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Expanded(child: Divider()),
         ],
       ),
+      if (connectedCount > 0)
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => context.go('/lobby'),
+            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Go to Lobby'),
+          ),
+        ),
       Align(
         alignment: Alignment.centerRight,
         child: TextButton(
