@@ -7,6 +7,13 @@ import 'auth_session.dart';
 /// Used as storage keys and registry keys. Do not change without migration.
 String serverIdFromUrl(Uri url) => url.origin;
 
+/// Path-safe slug derived from a server URL: host dots become hyphens,
+/// non-default port appended.
+String aliasFromUrl(Uri url) {
+  final host = url.host.replaceAll('.', '-');
+  return url.hasPort ? '$host-${url.port}' : host;
+}
+
 /// Formats a server URL for display: always includes scheme, omits unspecified port.
 String formatServerUrl(Uri url) {
   final port = url.hasPort ? ':${url.port}' : '';
