@@ -1,4 +1,7 @@
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+// ignore: depend_on_referenced_packages
+import 'package:soliplex_client/soliplex_client.dart'
+    show HttpTransport, SoliplexApi, UrlBuilder;
 
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
@@ -133,6 +136,40 @@ class RecordingAuthFlow implements AuthFlow {
     lastEndSessionEndpoint = endSessionEndpoint;
     onEndSession?.call();
   }
+}
+
+/// SoliplexApi with a controllable getRooms response.
+///
+/// All other methods throw [UnimplementedError].
+class FakeSoliplexApi extends SoliplexApi {
+  FakeSoliplexApi()
+      : super(
+          transport: HttpTransport(client: FakeHttpClient()),
+          urlBuilder: UrlBuilder('https://fake.example.com/api/v1'),
+        );
+
+  List<Room>? nextRooms;
+  Exception? nextError;
+
+  @override
+  Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    if (nextError != null) throw nextError!;
+    if (nextRooms != null) return nextRooms!;
+    throw StateError(
+        'FakeSoliplexApi: set nextRooms or nextError before calling');
+  }
+}
+
+/// AgUiStreamClient that throws [UnimplementedError] for all calls.
+///
+/// Sufficient for constructing a [ServerConnection] in tests that don't
+/// exercise streaming.
+class FakeAgUiStreamClient extends AgUiStreamClient {
+  FakeAgUiStreamClient()
+      : super(
+          httpTransport: HttpTransport(client: FakeHttpClient()),
+          urlBuilder: UrlBuilder('https://fake.example.com/api/v1'),
+        );
 }
 
 /// In-memory server storage for tests.
