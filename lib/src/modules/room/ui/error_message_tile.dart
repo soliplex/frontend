@@ -7,9 +7,20 @@ class ErrorMessageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text(message.errorText),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: SelectableText(
+          message.errorText,
+          style: TextStyle(color: theme.colorScheme.onErrorContainer),
+        ),
+      ),
     );
   }
 }
