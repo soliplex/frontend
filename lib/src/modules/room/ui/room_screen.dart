@@ -5,6 +5,8 @@ import 'package:signals_flutter/signals_flutter.dart';
 import '../../auth/server_entry.dart';
 import '../room_state.dart';
 import '../thread_list_state.dart';
+import '../thread_view_state.dart';
+import 'message_timeline.dart';
 import 'thread_sidebar.dart';
 
 const double _sidebarWidth = 260;
@@ -162,8 +164,14 @@ class _RoomScreenState extends State<RoomScreen> {
     if (threadView == null) {
       return const Center(child: Text('Select a thread'));
     }
-    return Center(
-      child: Text('Thread: ${threadView.threadId}'),
-    );
+    final status = threadView.messages.watch(context);
+    return switch (status) {
+      MessagesLoading() => const Center(child: CircularProgressIndicator()),
+      MessagesFailed(:final error) => Center(
+          child: Text('Failed to load messages: $error'),
+        ),
+      MessagesLoaded(:final messages, :final messageStates) =>
+        MessageTimeline(messages: messages, messageStates: messageStates),
+    };
   }
 }
