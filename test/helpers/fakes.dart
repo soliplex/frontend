@@ -151,12 +151,39 @@ class FakeSoliplexApi extends SoliplexApi {
   List<Room>? nextRooms;
   Exception? nextError;
 
+  List<ThreadInfo>? nextThreads;
+  Exception? nextThreadsError;
+  ThreadHistory? nextThreadHistory;
+  Exception? nextThreadHistoryError;
+
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
     if (nextError != null) throw nextError!;
     if (nextRooms != null) return nextRooms!;
     throw StateError(
         'FakeSoliplexApi: set nextRooms or nextError before calling');
+  }
+
+  @override
+  Future<List<ThreadInfo>> getThreads(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextThreadsError != null) throw nextThreadsError!;
+    if (nextThreads != null) return nextThreads!;
+    throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');
+  }
+
+  @override
+  Future<ThreadHistory> getThreadHistory(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextThreadHistoryError != null) throw nextThreadHistoryError!;
+    if (nextThreadHistory != null) return nextThreadHistory!;
+    throw StateError(
+        'FakeSoliplexApi: set nextThreadHistory or nextThreadHistoryError');
   }
 }
 

@@ -18,7 +18,7 @@ import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
-import '../modules/room_placeholder.dart';
+import '../modules/room/room_module.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
@@ -88,7 +88,7 @@ Future<ShellConfig> standard({
     modules: [
       diagnosticsModule(inspector: inspector),
       lobbyModule(serverManager: serverManager),
-      roomPlaceholder(serverManager: serverManager),
+      roomModule(serverManager: serverManager),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,
