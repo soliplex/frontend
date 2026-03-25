@@ -156,6 +156,8 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextThreadsError;
   ThreadHistory? nextThreadHistory;
   Exception? nextThreadHistoryError;
+  (ThreadInfo, Map<String, dynamic>)? nextCreateThread;
+  Exception? nextCreateThreadError;
 
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
@@ -185,6 +187,19 @@ class FakeSoliplexApi extends SoliplexApi {
     if (nextThreadHistory != null) return nextThreadHistory!;
     throw StateError(
         'FakeSoliplexApi: set nextThreadHistory or nextThreadHistoryError');
+  }
+
+  @override
+  Future<(ThreadInfo, Map<String, dynamic>)> createThread(
+    String roomId, {
+    String? name,
+    CancelToken? cancelToken,
+  }) async {
+    if (nextCreateThreadError != null) throw nextCreateThreadError!;
+    if (nextCreateThread != null) return nextCreateThread!;
+    throw StateError(
+      'FakeSoliplexApi: set nextCreateThread or nextCreateThreadError',
+    );
   }
 }
 
