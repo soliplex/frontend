@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../auth/server_entry.dart';
+import '../agent_runtime_manager.dart';
 import '../room_state.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
@@ -18,11 +19,13 @@ class RoomScreen extends StatefulWidget {
     required this.serverEntry,
     required this.roomId,
     required this.threadId,
+    required this.runtimeManager,
   });
 
   final ServerEntry serverEntry;
   final String roomId;
   final String? threadId;
+  final AgentRuntimeManager runtimeManager;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -38,6 +41,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _state = RoomState(
       connection: widget.serverEntry.connection,
       roomId: widget.roomId,
+      runtimeManager: widget.runtimeManager,
     );
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
@@ -56,6 +60,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _state = RoomState(
         connection: widget.serverEntry.connection,
         roomId: widget.roomId,
+        runtimeManager: widget.runtimeManager,
       );
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);

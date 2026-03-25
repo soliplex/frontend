@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -11,6 +12,7 @@ import '../../../helpers/test_server_entry.dart';
 void main() {
   late FakeSoliplexApi api;
   late ServerEntry entry;
+  late AgentRuntimeManager runtimeManager;
 
   setUp(() {
     api = FakeSoliplexApi();
@@ -24,6 +26,15 @@ void main() {
     ];
     api.nextThreadHistory = ThreadHistory(messages: const []);
     entry = createTestServerEntry(api: api);
+    runtimeManager = AgentRuntimeManager(
+      platform: TestPlatformConstraints(),
+      toolRegistryResolver: (_) async => const ToolRegistry(),
+      logger: testLogger(),
+    );
+  });
+
+  tearDown(() async {
+    await runtimeManager.dispose();
   });
 
   testWidgets('wide layout shows thread sidebar', (tester) async {
@@ -36,6 +47,7 @@ void main() {
         serverEntry: entry,
         roomId: 'room-1',
         threadId: null,
+        runtimeManager: runtimeManager,
       ),
     ));
     await tester.pumpAndSettle();

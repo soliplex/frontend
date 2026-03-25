@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../core/shell_config.dart';
 import '../core/signal_listenable.dart';
@@ -18,6 +19,7 @@ import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
+import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/room_module.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
@@ -72,6 +74,14 @@ Future<ShellConfig> standard({
   final authListenable = SignalListenable(serverManager.authState);
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
+  final runtimeManager = AgentRuntimeManager(
+    platform: kIsWeb
+        ? const WebPlatformConstraints()
+        : const NativePlatformConstraints(),
+    toolRegistryResolver: (_) async => const ToolRegistry(),
+    logger: LogManager.instance.getLogger('room'),
+  );
+
   return ShellConfig(
     appName: appName,
     logo: logo,
@@ -84,11 +94,12 @@ Future<ShellConfig> standard({
       authListenable.dispose();
       serverManager.dispose();
       plainClient.close();
+      runtimeManager.dispose();
     },
     modules: [
       diagnosticsModule(inspector: inspector),
       lobbyModule(serverManager: serverManager),
-      roomModule(serverManager: serverManager),
+      roomModule(serverManager: serverManager, runtimeManager: runtimeManager),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,

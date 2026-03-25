@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 
 import '../../helpers/fakes.dart';
@@ -13,9 +15,26 @@ ServerManager _createManager() => ServerManager(
     );
 
 void main() {
+  late AgentRuntimeManager runtimeManager;
+
+  setUp(() {
+    runtimeManager = AgentRuntimeManager(
+      platform: TestPlatformConstraints(),
+      toolRegistryResolver: (_) async => const ToolRegistry(),
+      logger: testLogger(),
+    );
+  });
+
+  tearDown(() async {
+    await runtimeManager.dispose();
+  });
+
   test('contributes room routes', () {
     final manager = _createManager();
-    final contribution = roomModule(serverManager: manager);
+    final contribution = roomModule(
+      serverManager: manager,
+      runtimeManager: runtimeManager,
+    );
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
     expect(paths, contains('/room/:serverAlias/:roomId'));
@@ -24,7 +43,10 @@ void main() {
 
   test('contributes no overrides in Slice A', () {
     final manager = _createManager();
-    final contribution = roomModule(serverManager: manager);
+    final contribution = roomModule(
+      serverManager: manager,
+      runtimeManager: runtimeManager,
+    );
     expect(contribution.overrides, isEmpty);
   });
 }

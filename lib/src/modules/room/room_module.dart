@@ -2,20 +2,30 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/shell_config.dart';
 import '../auth/server_manager.dart';
+import 'agent_runtime_manager.dart';
 import 'ui/room_screen.dart';
 
 ModuleContribution roomModule({
   required ServerManager serverManager,
+  required AgentRuntimeManager runtimeManager,
 }) {
   return ModuleContribution(
     routes: [
-      _buildRoute('/room/:serverAlias/:roomId', serverManager),
-      _buildRoute('/room/:serverAlias/:roomId/:threadId', serverManager),
+      _buildRoute('/room/:serverAlias/:roomId', serverManager, runtimeManager),
+      _buildRoute(
+        '/room/:serverAlias/:roomId/:threadId',
+        serverManager,
+        runtimeManager,
+      ),
     ],
   );
 }
 
-GoRoute _buildRoute(String path, ServerManager serverManager) {
+GoRoute _buildRoute(
+  String path,
+  ServerManager serverManager,
+  AgentRuntimeManager runtimeManager,
+) {
   return GoRoute(
     path: path,
     redirect: (context, state) {
@@ -32,6 +42,7 @@ GoRoute _buildRoute(String path, ServerManager serverManager) {
           serverEntry: entry,
           roomId: state.pathParameters['roomId']!,
           threadId: state.pathParameters['threadId'],
+          runtimeManager: runtimeManager,
         ),
       );
     },
