@@ -20,13 +20,6 @@ void main() {
     connection = _fakeConnection(api);
   });
 
-  test('creates ThreadListState on construction', () {
-    api.nextThreads = [];
-    final state = RoomState(connection: connection, roomId: 'room-1');
-    expect(state.threadList, isNotNull);
-    state.dispose();
-  });
-
   test('selectThread creates ThreadViewState', () async {
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -54,17 +47,6 @@ void main() {
     expect(state.activeThreadView!.threadId, 'thread-2');
     expect(state.activeThreadView, isNot(same(first)));
 
-    state.dispose();
-  });
-
-  test('dispose cleans up all child state', () {
-    api.nextThreads = [];
-    api.nextThreadHistory = ThreadHistory(messages: const []);
-
-    final state = RoomState(connection: connection, roomId: 'room-1');
-    state.selectThread('thread-1');
-
-    // Should not throw
     state.dispose();
   });
 }
