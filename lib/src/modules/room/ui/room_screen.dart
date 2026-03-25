@@ -190,9 +190,7 @@ class _RoomScreenState extends State<RoomScreen> {
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
-              title: Text(
-                selectedThreadId != null ? 'Thread' : widget.roomId,
-              ),
+              title: Text(widget.roomId),
             ),
             drawer: Drawer(
               child: Builder(

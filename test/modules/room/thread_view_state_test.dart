@@ -97,7 +97,8 @@ void main() {
       await runtimeManager.dispose();
     });
 
-    test('re-fetch failure after run error sets MessagesFailed', () async {
+    test('run failure without conversation preserves existing messages',
+        () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -109,20 +110,17 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(state.messages.value, isA<MessagesLoaded>());
 
-      // Arrange re-fetch to fail before sendMessage so that when the
-      // session run fails (FakeAgUiStreamClient throws), the subsequent
-      // re-fetch also fails and leaves messages in MessagesFailed.
-      api.nextThreadHistoryError = Exception('re-fetch error');
+      // Send a message — spawn will succeed but the run will fail
+      // (FakeAgUiStreamClient throws). FailedState may have no
+      // conversation, so existing messages should be preserved.
       await state.sendMessage('Hello', runtime);
 
-      // Pump the event loop until the async run failure and re-fetch
-      // have both propagated.
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
-        if (state.messages.value is MessagesFailed) break;
       }
 
-      expect(state.messages.value, isA<MessagesFailed>());
+      // Messages should still be loaded (not replaced with error).
+      expect(state.messages.value, isA<MessagesLoaded>());
 
       state.dispose();
     });

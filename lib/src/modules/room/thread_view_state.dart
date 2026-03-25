@@ -51,11 +51,19 @@ class ThreadViewState {
 
   Future<void> sendMessage(String prompt, AgentRuntime runtime) async {
     _lastSendError.value = null;
+    final current = _messages.value;
+    final cachedHistory = current is MessagesLoaded
+        ? ThreadHistory(
+            messages: current.messages,
+            messageStates: current.messageStates,
+          )
+        : null;
     try {
       final session = await runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
+        cachedHistory: cachedHistory,
       );
       if (_isDisposed) return;
       _attachSession(session);
@@ -85,27 +93,29 @@ class ThreadViewState {
   void _onRunState(RunState runState) {
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
-        _messages.value = MessagesLoaded(
-          messages: conversation.messages,
-          messageStates: conversation.messageStates,
-        );
+        _messages.value = _loadedFrom(conversation);
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-      case CompletedState():
-      case FailedState():
-      case CancelledState():
-        _runStateUnsub?.call();
-        _runStateUnsub = null;
-        _activeSession = null;
-        _sessionState.value = null;
-        // Keep _streamingState visible until fetch completes to avoid
-        // a flicker between streaming end and new data arriving.
-        _fetchThenClearStreaming();
+      case CompletedState(:final conversation):
+        _detachSession();
+        _messages.value = _loadedFrom(conversation);
+      case FailedState(:final conversation):
+      case CancelledState(:final conversation):
+        _detachSession();
+        if (conversation != null) {
+          _messages.value = _loadedFrom(conversation);
+        }
       case IdleState():
       case ToolYieldingState():
         break;
     }
   }
+
+  static MessagesLoaded _loadedFrom(Conversation conversation) =>
+      MessagesLoaded(
+        messages: conversation.messages,
+        messageStates: conversation.messageStates,
+      );
 
   void _detachSession() {
     _runStateUnsub?.call();
@@ -113,30 +123,6 @@ class ThreadViewState {
     _activeSession = null;
     _streamingState.value = null;
     _sessionState.value = null;
-  }
-
-  void _fetchThenClearStreaming() {
-    if (_isDisposed) return;
-    _cancelToken?.cancel('re-fetch');
-    final token = CancelToken();
-    _cancelToken = token;
-
-    _connection.api
-        .getThreadHistory(_roomId, threadId, cancelToken: token)
-        .then((history) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      _messages.value = MessagesLoaded(
-        messages: history.messages,
-        messageStates: history.messageStates,
-      );
-      _streamingState.value = null;
-    }).catchError((Object error) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      _streamingState.value = null;
-      _messages.value = MessagesFailed(error);
-    });
   }
 
   void _fetch() {
