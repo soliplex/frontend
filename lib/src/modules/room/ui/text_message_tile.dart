@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'markdown/flutter_markdown_plus_renderer.dart';
+
 class TextMessageTile extends StatelessWidget {
   const TextMessageTile({super.key, required this.message});
   final TextMessage message;
@@ -32,7 +34,9 @@ class TextMessageTile extends StatelessWidget {
                 : theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: SelectableText(message.text),
+          child: isUser
+              ? SelectableText(message.text)
+              : FlutterMarkdownPlusRenderer(data: message.text),
         ),
       ],
     );
