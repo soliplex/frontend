@@ -34,6 +34,15 @@ dependencies:
       url: https://github.com/runyaga/flutter.git
       ref: main
       path: packages/soliplex_client_native
+  flutter_markdown_plus: ^1.0.7
+  markdown: ^7.0.0
+  flutter_highlight: ^0.7.0
+  flutter_svg: ^2.0.17
+  soliplex_client:
+    git:
+      url: https://github.com/runyaga/flutter.git
+      ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      path: packages/soliplex_client
 
 dev_dependencies:
   flutter_test:
