@@ -15,6 +15,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
+          onRetryThreads: () {},
         ),
       ),
     ));
@@ -45,6 +46,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
+          onRetryThreads: () {},
         ),
       ),
     ));
@@ -72,6 +74,7 @@ void main() {
           onThreadSelected: (id) => selectedId = id,
           onBackToLobby: () {},
           onCreateThread: () {},
+          onRetryThreads: () {},
         ),
       ),
     ));
@@ -91,6 +94,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
+          onRetryThreads: () {},
         ),
       ),
     ));
