@@ -4,6 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../execution_step.dart';
 import '../execution_tracker.dart';
+import 'markdown/flutter_markdown_plus_renderer.dart';
 
 ActivityType _currentActivity(StreamingState state) => switch (state) {
       AwaitingText(:final currentActivity) => currentActivity,
@@ -49,7 +50,9 @@ class StreamingTile extends StatelessWidget {
               color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(text.isEmpty ? '...' : text),
+            child: text.isEmpty
+                ? const Text('...')
+                : FlutterMarkdownPlusRenderer(data: text),
           ),
         ),
     };
