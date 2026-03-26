@@ -6,6 +6,20 @@ import 'thread_view_state.dart';
 
 export 'thread_view_state.dart' show SendError;
 
+sealed class RoomStatus {}
+
+class RoomLoading extends RoomStatus {}
+
+class RoomLoaded extends RoomStatus {
+  RoomLoaded(this.room);
+  final Room room;
+}
+
+class RoomFailed extends RoomStatus {
+  RoomFailed(this.error);
+  final Object error;
+}
+
 class RoomState {
   RoomState({
     required ServerConnection connection,
@@ -18,7 +32,9 @@ class RoomState {
         threadList = ThreadListState(
           connection: connection,
           roomId: roomId,
-        );
+        ) {
+    _fetchRoom();
+  }
 
   final ServerConnection _connection;
   final String _roomId;
@@ -29,10 +45,28 @@ class RoomState {
   ThreadViewState? _activeThreadView;
   bool _isDisposed = false;
 
+  final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
+  ReadonlySignal<RoomStatus> get room => _room;
+
   final Signal<SendError?> _lastError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastError => _lastError;
 
   void clearError() => _lastError.value = null;
+
+  void _fetchRoom() {
+    _connection.api.getRooms().then((rooms) {
+      if (_isDisposed) return;
+      final match = rooms.where((r) => r.id == _roomId).firstOrNull;
+      if (match != null) {
+        _room.value = RoomLoaded(match);
+      } else {
+        _room.value = RoomFailed(StateError('Room $_roomId not found'));
+      }
+    }).catchError((Object error) {
+      if (_isDisposed) return;
+      _room.value = RoomFailed(error);
+    });
+  }
 
   ThreadViewState? get activeThreadView => _activeThreadView;
 
