@@ -59,7 +59,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
     if (lastUserMsg != null && lastUserMsg.id != _lastUserMessageId) {
       _lastUserMessageId = lastUserMsg.id;
       _needsInitialScroll = false;
-      _scrollToMessage(lastUserMsg.id, animate: true);
+      _pinMessageAtTop(lastUserMsg.id);
     }
 
     final activeIds = widget.messages.map((m) => m.id).toSet();
@@ -82,21 +82,21 @@ class _MessageTimelineState extends State<MessageTimeline> {
     return null;
   }
 
-  void _scrollToMessage(String messageId, {bool animate = false}) {
+  void _pinMessageAtTop(String messageId) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
 
-      if (_tryEnsureVisible(messageId, animate: animate)) return;
+      if (_tryPinAtTop(messageId)) return;
 
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_scrollController.hasClients) return;
-        _tryEnsureVisible(messageId, animate: animate);
+        _tryPinAtTop(messageId);
       });
     });
   }
 
-  bool _tryEnsureVisible(String messageId, {bool animate = false}) {
+  bool _tryPinAtTop(String messageId) {
     final key = _messageKeys[messageId];
     if (key?.currentContext == null) return false;
 
@@ -105,16 +105,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final target = viewport.getOffsetToReveal(renderObject, 0.0).offset - 8;
 
     _scrollController.setAnchor(target);
-
-    if (animate) {
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
-      _scrollController.jumpTo(target);
-    }
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
     return true;
   }
 
