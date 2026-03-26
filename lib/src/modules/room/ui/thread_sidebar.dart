@@ -11,6 +11,7 @@ class ThreadSidebar extends StatelessWidget {
     required this.onThreadSelected,
     required this.onBackToLobby,
     required this.onCreateThread,
+    this.onRetryThreads,
   });
 
   final ThreadListStatus threadListStatus;
@@ -18,6 +19,7 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String threadId) onThreadSelected;
   final VoidCallback onBackToLobby;
   final VoidCallback onCreateThread;
+  final VoidCallback? onRetryThreads;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +62,31 @@ class ThreadSidebar extends StatelessWidget {
     return switch (threadListStatus) {
       ThreadsLoading() => const Center(child: CircularProgressIndicator()),
       ThreadsFailed(:final error) => Center(
-          child: Text('Failed to load threads: $error'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Failed to load threads',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  error.toString(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonal(
+                  onPressed: onRetryThreads,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
         ),
       ThreadsLoaded(:final threads) => threads.isEmpty
           ? const Center(child: Text('No threads'))

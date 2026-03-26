@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../auth/server_entry.dart';
 import '../agent_runtime_manager.dart';
@@ -164,6 +165,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onThreadSelected: _onThreadSelected,
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
+            onRetryThreads: () => _state.threadList.refresh(),
           );
           final content = _buildContent();
 
@@ -204,6 +206,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       Navigator.pop(drawerContext);
                       _state.createThread();
                     },
+                    onRetryThreads: () => _state.threadList.refresh(),
                   ),
                 ),
               ),
@@ -232,7 +235,19 @@ class _RoomScreenState extends State<RoomScreen> {
       }
       return Column(
         children: [
-          const Expanded(child: Center(child: Text('Select a thread'))),
+          Expanded(
+            child: Builder(
+              builder: (context) {
+                final roomStatus = _state.room.watch(context);
+                final room = roomStatus is RoomLoaded ? roomStatus.room : null;
+                return _EmptyRoomContent(
+                  room: room,
+                  onSuggestionTapped: (suggestion) =>
+                      _state.sendToNewThread(suggestion),
+                );
+              },
+            ),
+          ),
           if (roomError != null)
             _SendErrorBanner(
               error: roomError,
@@ -250,6 +265,8 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
+    final roomStatus = _state.room.watch(context);
+    final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final sendError = threadView.lastSendError.watch(context);
 
     final unsentText = sendError?.unsentText;
@@ -272,13 +289,38 @@ class _RoomScreenState extends State<RoomScreen> {
                 child: CircularProgressIndicator(),
               ),
             MessagesFailed(:final error) => Center(
-                child: Text('Failed to load messages: $error'),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Failed to load messages',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      error.toString(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      onPressed: threadView.refresh,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             MessagesLoaded(:final messages, :final messageStates) =>
               MessageTimeline(
                 messages: messages,
                 messageStates: messageStates,
                 streamingState: streaming,
+                executionTracker: threadView.executionTracker,
+                room: room,
+                onSuggestionTapped: (suggestion) =>
+                    threadView.sendMessage(suggestion, _state.runtime),
               ),
           },
         ),
@@ -296,6 +338,74 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
       ],
     );
+  }
+}
+
+class _EmptyRoomContent extends StatelessWidget {
+  const _EmptyRoomContent({this.room, this.onSuggestionTapped});
+
+  final Room? room;
+  final void Function(String)? onSuggestionTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (room != null && (room!.hasWelcomeMessage || room!.hasSuggestions)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (room!.name.isNotEmpty)
+                Text(
+                  room!.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              if (room!.hasWelcomeMessage) ...[
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Text(
+                    room!.welcomeMessage,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+              if (room!.hasSuggestions) ...[
+                const SizedBox(height: 24),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final suggestion in room!.suggestions)
+                        ActionChip(
+                          label: Text(suggestion),
+                          onPressed: onSuggestionTapped != null
+                              ? () => onSuggestionTapped!(suggestion)
+                              : null,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const Center(child: Text('Select a thread'));
   }
 }
 
