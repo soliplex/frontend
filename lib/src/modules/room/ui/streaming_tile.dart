@@ -187,10 +187,12 @@ class _StepLogState extends State<_StepLog> {
         ),
       );
     }
+    final isThinking = step.label == 'Thinking';
     return Icon(
       Icons.check_circle,
       size: 12,
-      color: theme.colorScheme.primary,
+      color:
+          isThinking ? theme.colorScheme.tertiary : theme.colorScheme.primary,
     );
   }
 
@@ -215,7 +217,8 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final thinkingText = widget.tracker.thinkingText.watch(context);
-    if (thinkingText.isEmpty) return const SizedBox.shrink();
+    final isStreaming = widget.tracker.isThinkingStreaming.watch(context);
+    if (thinkingText.isEmpty && !isStreaming) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -249,6 +252,17 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (isStreaming) ...[
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: theme.colorScheme.tertiary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               if (_expanded) ...[
