@@ -222,14 +222,13 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  void _restoreUnsentText(String? unsentText, VoidCallback clearError) {
+  void _restoreUnsentText(String? unsentText) {
     if (unsentText == null || _chatController.text.isNotEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _chatController.text = unsentText;
       _chatController.selection =
           TextSelection.collapsed(offset: _chatController.text.length);
-      clearError();
     });
   }
 
@@ -244,7 +243,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildNoThreadContent() {
     final roomError = _state.lastError.watch(context);
     final isSpawning = _state.isSpawning.watch(context);
-    _restoreUnsentText(roomError?.unsentText, _state.clearError);
+    _restoreUnsentText(roomError?.unsentText);
 
     return Column(
       children: [
@@ -286,7 +285,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final sendError = threadView.lastSendError.watch(context);
 
-    _restoreUnsentText(sendError?.unsentText, threadView.clearSendError);
+    _restoreUnsentText(sendError?.unsentText);
 
     return Column(
       children: [

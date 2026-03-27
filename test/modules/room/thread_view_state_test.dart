@@ -390,6 +390,41 @@ void main() {
       state.dispose();
     });
 
+    test('consecutive spawn errors each surface lastSendError', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      expect(state.messages.value, isA<MessagesLoaded>());
+
+      // Dispose the runtime so spawn throws.
+      await runtimeManager.dispose();
+
+      // First send failure.
+      await state.sendMessage('First', runtime);
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(state.lastSendError.value, isNotNull);
+      expect(state.lastSendError.value!.unsentText, 'First');
+
+      // Second send failure without manually clearing the error.
+      await state.sendMessage('Second', runtime);
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(state.lastSendError.value, isNotNull);
+      expect(state.lastSendError.value!.unsentText, 'Second');
+
+      state.dispose();
+    });
+
     test('executionTrackers is empty before any streaming', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
