@@ -5,6 +5,9 @@ import 'send_error.dart';
 
 export 'send_error.dart';
 
+/// Sentinel key for the execution tracker created before a message ID is known.
+const awaitingTrackerKey = '_awaiting';
+
 sealed class ThreadViewStatus {}
 
 class MessagesLoading extends ThreadViewStatus {}
@@ -111,9 +114,9 @@ class ThreadViewState {
         _sessionState.value = AgentSessionState.running;
         if (streaming is TextStreaming &&
             _activeTrackerMessageId != streaming.messageId) {
-          if (_activeTrackerMessageId == '_awaiting') {
+          if (_activeTrackerMessageId == awaitingTrackerKey) {
             // Re-key the awaiting tracker to the actual message ID
-            final tracker = _executionTrackers.remove('_awaiting');
+            final tracker = _executionTrackers.remove(awaitingTrackerKey);
             if (tracker != null) {
               _executionTrackers[streaming.messageId] = tracker;
             }
@@ -127,8 +130,8 @@ class ThreadViewState {
         } else if (streaming is AwaitingText &&
             _activeTrackerMessageId == null &&
             _activeSession != null) {
-          _activeTrackerMessageId = '_awaiting';
-          _executionTrackers['_awaiting'] = ExecutionTracker(
+          _activeTrackerMessageId = awaitingTrackerKey;
+          _executionTrackers[awaitingTrackerKey] = ExecutionTracker(
             executionEvents: _activeSession!.lastExecutionEvent,
           );
         }
