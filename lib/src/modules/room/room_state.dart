@@ -1,6 +1,7 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'agent_runtime_manager.dart';
+import 'run_registry.dart';
 import 'thread_list_state.dart';
 import 'thread_view_state.dart';
 
@@ -25,10 +26,12 @@ class RoomState {
     required ServerConnection connection,
     required String roomId,
     required AgentRuntimeManager runtimeManager,
+    required RunRegistry registry,
     this.onNavigateToThread,
   })  : _connection = connection,
         _roomId = roomId,
         _runtimeManager = runtimeManager,
+        _registry = registry,
         threadList = ThreadListState(
           connection: connection,
           roomId: roomId,
@@ -39,6 +42,7 @@ class RoomState {
   final ServerConnection _connection;
   final String _roomId;
   final AgentRuntimeManager _runtimeManager;
+  final RunRegistry _registry;
   final void Function(String threadId)? onNavigateToThread;
 
   final ThreadListState threadList;
@@ -82,6 +86,7 @@ class RoomState {
       connection: _connection,
       roomId: _roomId,
       threadId: threadId,
+      registry: _registry,
     );
   }
 
@@ -116,11 +121,12 @@ class RoomState {
         prompt: prompt,
       );
       if (_isDisposed) return;
-      final newThreadId = session.threadKey.threadId;
+      final key = session.threadKey;
+      _registry.register(key, session);
       threadList.refresh();
-      selectThread(newThreadId);
+      selectThread(key.threadId);
       _activeThreadView!.attachSession(session);
-      onNavigateToThread?.call(newThreadId);
+      onNavigateToThread?.call(key.threadId);
     } on Object catch (error) {
       if (_isDisposed) return;
       _lastError.value = SendError(error, unsentText: prompt);

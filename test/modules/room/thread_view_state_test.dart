@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 
 import '../../helpers/fakes.dart';
@@ -39,10 +40,16 @@ class _FakeAgentSession implements AgentSession {
 void main() {
   late FakeSoliplexApi api;
   late ServerConnection connection;
+  late RunRegistry registry;
 
   setUp(() {
     api = FakeSoliplexApi();
     connection = _fakeConnection(api);
+    registry = RunRegistry();
+  });
+
+  tearDown(() {
+    registry.dispose();
   });
 
   test('fetches thread history and exposes messages', () async {
@@ -58,6 +65,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       threadId: 'thread-1',
+      registry: registry,
     );
 
     expect(state.messages.value, isA<MessagesLoading>());
@@ -78,6 +86,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       threadId: 'thread-1',
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -101,6 +110,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       threadId: 'thread-1',
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -128,6 +138,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       threadId: 'thread-1',
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -146,6 +157,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       threadId: 'thread-1',
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -239,6 +251,7 @@ void main() {
         connection: connection,
         roomId: 'room-1',
         threadId: 'thread-1',
+        registry: registry,
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -275,6 +288,7 @@ void main() {
         connection: connection,
         roomId: 'room-1',
         threadId: 'thread-1',
+        registry: registry,
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -309,6 +323,7 @@ void main() {
         connection: connection,
         roomId: 'room-1',
         threadId: 'thread-1',
+        registry: registry,
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -324,6 +339,7 @@ void main() {
         connection: connection,
         roomId: 'room-1',
         threadId: 'thread-1',
+        registry: registry,
       );
 
       await Future<void>.delayed(Duration.zero);

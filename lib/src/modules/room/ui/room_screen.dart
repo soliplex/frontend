@@ -5,6 +5,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import '../../auth/server_entry.dart';
 import '../agent_runtime_manager.dart';
 import '../room_state.dart';
+import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
 import 'chat_input.dart';
@@ -23,12 +24,14 @@ class RoomScreen extends StatefulWidget {
     required this.roomId,
     required this.threadId,
     required this.runtimeManager,
+    required this.registry,
   });
 
   final ServerEntry serverEntry;
   final String roomId;
   final String? threadId;
   final AgentRuntimeManager runtimeManager;
+  final RunRegistry registry;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -100,6 +103,7 @@ class _RoomScreenState extends State<RoomScreen> {
         connection: widget.serverEntry.connection,
         roomId: widget.roomId,
         runtimeManager: widget.runtimeManager,
+        registry: widget.registry,
         onNavigateToThread: _navigateToThread,
       );
 

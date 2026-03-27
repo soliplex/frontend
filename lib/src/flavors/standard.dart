@@ -21,6 +21,7 @@ import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/room_module.dart';
+import '../modules/room/run_registry.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
@@ -120,6 +121,8 @@ Future<ShellConfig> standard({
     logger: LogManager.instance.getLogger('room'),
   );
 
+  final registry = RunRegistry();
+
   return ShellConfig(
     appName: appName,
     logo: logo,
@@ -133,11 +136,16 @@ Future<ShellConfig> standard({
       serverManager.dispose();
       plainClient.close();
       runtimeManager.dispose();
+      registry.dispose();
     },
     modules: [
       diagnosticsModule(inspector: inspector),
       lobbyModule(serverManager: serverManager),
-      roomModule(serverManager: serverManager, runtimeManager: runtimeManager),
+      roomModule(
+        serverManager: serverManager,
+        runtimeManager: runtimeManager,
+        registry: registry,
+      ),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,

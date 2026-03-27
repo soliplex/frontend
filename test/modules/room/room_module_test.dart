@@ -5,6 +5,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
+import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -16,6 +17,7 @@ ServerManager _createManager() => ServerManager(
 
 void main() {
   late AgentRuntimeManager runtimeManager;
+  late RunRegistry registry;
 
   setUp(() {
     runtimeManager = AgentRuntimeManager(
@@ -23,10 +25,12 @@ void main() {
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
     );
+    registry = RunRegistry();
   });
 
   tearDown(() async {
     await runtimeManager.dispose();
+    registry.dispose();
   });
 
   test('contributes room routes', () {
@@ -34,6 +38,7 @@ void main() {
     final contribution = roomModule(
       serverManager: manager,
       runtimeManager: runtimeManager,
+      registry: registry,
     );
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -46,6 +51,7 @@ void main() {
     final contribution = roomModule(
       serverManager: manager,
       runtimeManager: runtimeManager,
+      registry: registry,
     );
     expect(contribution.overrides, isEmpty);
   });

@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
+import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -16,6 +17,7 @@ void main() {
   late FakeSoliplexApi api;
   late ServerConnection connection;
   late AgentRuntimeManager runtimeManager;
+  late RunRegistry registry;
 
   setUp(() {
     api = FakeSoliplexApi();
@@ -25,10 +27,12 @@ void main() {
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
     );
+    registry = RunRegistry();
   });
 
   tearDown(() async {
     await runtimeManager.dispose();
+    registry.dispose();
   });
 
   test('selectThread creates ThreadViewState', () async {
@@ -40,6 +44,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
     expect(state.activeThreadView, isNull);
 
@@ -59,6 +64,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     state.selectThread('thread-1');
@@ -80,6 +86,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -100,6 +107,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -131,6 +139,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
       onNavigateToThread: (id) => navigatedThreadId = id,
     );
 
@@ -161,6 +170,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     expect(state.room.value, isA<RoomLoading>());
@@ -182,6 +192,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -199,6 +210,7 @@ void main() {
       connection: connection,
       roomId: 'room-1',
       runtimeManager: runtimeManager,
+      registry: registry,
     );
 
     await Future<void>.delayed(Duration.zero);
