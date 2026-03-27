@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'markdown/flutter_markdown_plus_renderer.dart';
+
 class RoomWelcome extends StatelessWidget {
   const RoomWelcome({
     super.key,
@@ -42,12 +44,8 @@ class RoomWelcome extends StatelessWidget {
               const SizedBox(height: 8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
-                child: Text(
-                  currentRoom.welcomeMessage,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
+                child: FlutterMarkdownPlusRenderer(
+                  data: currentRoom.welcomeMessage,
                 ),
               ),
             ],

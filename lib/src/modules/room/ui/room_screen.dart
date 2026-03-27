@@ -46,6 +46,7 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKey);
     _state = _createRoomState();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
@@ -123,25 +124,18 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void dispose() {
     _cancelAutoSelect();
+    HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
     _chatController.dispose();
     _chatFocusNode.dispose();
     super.dispose();
   }
 
-  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    if (_chatFocusNode.hasFocus) return KeyEventResult.ignored;
-    final char = event.character;
-    if (char == null || char.isEmpty) return KeyEventResult.ignored;
-    // Ignore control characters (e.g. backspace, escape).
-    if (char.codeUnitAt(0) < 0x20) return KeyEventResult.ignored;
-
+  bool _handleKey(KeyEvent event) {
+    if (_chatFocusNode.hasFocus) return false;
+    if (event is! KeyDownEvent) return false;
     _chatFocusNode.requestFocus();
-    _chatController.text += char;
-    _chatController.selection =
-        TextSelection.collapsed(offset: _chatController.text.length);
-    return KeyEventResult.handled;
+    return false;
   }
 
   void _onBackToLobby() => context.go('/lobby');
@@ -159,7 +153,6 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return Focus(
       autofocus: true,
-      onKeyEvent: _onKeyEvent,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= _wideBreakpoint;
