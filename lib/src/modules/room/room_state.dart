@@ -60,15 +60,10 @@ class RoomState {
   void _fetchRoom() {
     final token = CancelToken();
     _roomFetchToken = token;
-    _connection.api.getRooms(cancelToken: token).then((rooms) {
+    _connection.api.getRoom(_roomId, cancelToken: token).then((room) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
-      final match = rooms.where((r) => r.id == _roomId).firstOrNull;
-      if (match != null) {
-        _room.value = RoomLoaded(match);
-      } else {
-        _room.value = RoomFailed(StateError('Room $_roomId not found'));
-      }
+      _room.value = RoomLoaded(room);
     }).catchError((Object error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;

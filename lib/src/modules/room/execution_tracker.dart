@@ -12,6 +12,8 @@ class ExecutionTracker {
 
   final Stopwatch _stopwatch = Stopwatch();
   void Function()? _unsub;
+  bool _isFrozen = false;
+  bool get isFrozen => _isFrozen;
 
   final Signal<List<ExecutionStep>> _steps =
       Signal<List<ExecutionStep>>(const []);
@@ -23,7 +25,15 @@ class ExecutionTracker {
   final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
   ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
 
+  void freeze() {
+    _unsub?.call();
+    _unsub = null;
+    _stopwatch.stop();
+    _isFrozen = true;
+  }
+
   void _onEvent(ExecutionEvent? event) {
+    assert(!_isFrozen, 'Cannot process events on a frozen ExecutionTracker');
     if (event == null) return;
     switch (event) {
       case ThinkingStarted():

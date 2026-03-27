@@ -1,5 +1,3 @@
-import 'dart:async' show unawaited;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -303,26 +301,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 messages: messages,
                 messageStates: messageStates,
                 streamingState: streaming,
-                executionTracker: threadView.executionTracker,
+                executionTrackers: threadView.executionTrackers,
                 room: room,
                 onSuggestionTapped: (suggestion) =>
                     threadView.sendMessage(suggestion, _state.runtime),
-                onFeedbackSubmit: (runId, feedback, reason) {
-                  final connection = widget.serverEntry.connection;
-                  unawaited(
-                    connection.api
-                        .submitFeedback(
-                      widget.roomId,
-                      threadView.threadId,
-                      runId,
-                      feedback,
-                      reason: reason,
-                    )
-                        .catchError((Object e) {
-                      debugPrint('Feedback submission failed: $e');
-                    }),
-                  );
-                },
+                onFeedbackSubmit: threadView.submitFeedback,
               ),
           },
         ),

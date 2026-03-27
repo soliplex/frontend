@@ -826,8 +826,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/soliplex_agent"
-      ref: main
-      resolved-ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
       url: "https://github.com/runyaga/flutter.git"
     source: git
     version: "0.1.0"
@@ -835,8 +835,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/soliplex_client"
-      ref: "583bb976bc5817f1fb0004216859b16762c07206"
-      resolved-ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
       url: "https://github.com/runyaga/flutter.git"
     source: git
     version: "1.0.0-dev"
@@ -844,8 +844,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/soliplex_client_native"
-      ref: main
-      resolved-ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
       url: "https://github.com/runyaga/flutter.git"
     source: git
     version: "1.0.0-dev"
@@ -853,8 +853,8 @@ packages:
     dependency: transitive
     description:
       path: "packages/soliplex_completions"
-      ref: "583bb976bc5817f1fb0004216859b16762c07206"
-      resolved-ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
       url: "https://github.com/runyaga/flutter.git"
     source: git
     version: "0.1.0"
@@ -862,8 +862,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/soliplex_logging"
-      ref: "583bb976bc5817f1fb0004216859b16762c07206"
-      resolved-ref: "583bb976bc5817f1fb0004216859b16762c07206"
+      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
       url: "https://github.com/runyaga/flutter.git"
     source: git
     version: "0.1.0"

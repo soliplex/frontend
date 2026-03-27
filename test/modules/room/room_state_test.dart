@@ -32,7 +32,7 @@ void main() {
   });
 
   test('selectThread creates ThreadViewState', () async {
-    api.nextRooms = [Room(id: 'room-1', name: 'Test')];
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
 
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('selectThread disposes previous ThreadViewState', () async {
-    api.nextRooms = [Room(id: 'room-1', name: 'Test')];
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
 
@@ -72,7 +72,7 @@ void main() {
   });
 
   test('createThread error surfaces lastError', () async {
-    api.nextRooms = [Room(id: 'room-1', name: 'Test')];
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
     api.nextCreateThreadError = Exception('server error');
 
@@ -93,7 +93,7 @@ void main() {
   });
 
   test('sendToNewThread error surfaces lastError with unsent text', () async {
-    api.nextRooms = [Room(id: 'room-1', name: 'Test')];
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
 
     final state = RoomState(
@@ -121,7 +121,7 @@ void main() {
       name: 'New Thread',
       createdAt: DateTime(2026, 3, 25),
     );
-    api.nextRooms = [Room(id: 'room-1', name: 'Test')];
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextCreateThread = (createdThread, <String, dynamic>{});
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -153,9 +153,8 @@ void main() {
   });
 
   test('fetches room metadata on construction', () async {
-    api.nextRooms = [
-      Room(id: 'room-1', name: 'Test Room', welcomeMessage: 'Hello!'),
-    ];
+    api.nextRoom =
+        Room(id: 'room-1', name: 'Test Room', welcomeMessage: 'Hello!');
     api.nextThreads = [];
 
     final state = RoomState(
@@ -193,9 +192,7 @@ void main() {
   });
 
   test('room not found emits RoomFailed', () async {
-    api.nextRooms = [
-      Room(id: 'other-room', name: 'Other'),
-    ];
+    api.nextError = Exception('Room not found');
     api.nextThreads = [];
 
     final state = RoomState(

@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
+import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import 'message_tile.dart';
 import 'room_welcome.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
-import 'streaming_tile.dart';
 
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({
@@ -16,7 +17,7 @@ class MessageTimeline extends StatefulWidget {
     required this.messages,
     required this.messageStates,
     this.streamingState,
-    this.executionTracker,
+    this.executionTrackers = const {},
     this.room,
     this.onSuggestionTapped,
     this.onFeedbackSubmit,
@@ -25,7 +26,7 @@ class MessageTimeline extends StatefulWidget {
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
   final StreamingState? streamingState;
-  final ExecutionTracker? executionTracker;
+  final Map<String, ExecutionTracker> executionTrackers;
   final Room? room;
   final void Function(String suggestion)? onSuggestionTapped;
   final void Function(String runId, FeedbackType feedback, String? reason)?
@@ -140,10 +141,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    final hasStreaming = widget.streamingState != null;
-    final itemCount = widget.messages.length + (hasStreaming ? 1 : 0);
+    final displayMessages = computeDisplayMessages(
+      widget.messages,
+      widget.streamingState,
+    );
 
-    if (itemCount == 0) {
+    if (displayMessages.isEmpty) {
       return RoomWelcome(
         room: widget.room,
         onSuggestionTapped: widget.onSuggestionTapped,
@@ -158,6 +161,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
     }
 
     final runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
+    final streamingActivity = widget.streamingState != null
+        ? switch (widget.streamingState!) {
+            AwaitingText(:final currentActivity) => currentActivity,
+            TextStreaming(:final currentActivity) => currentActivity,
+          }
+        : null;
 
     return Stack(
       children: [
@@ -167,26 +176,24 @@ class _MessageTimelineState extends State<MessageTimeline> {
             SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverList.builder(
-                itemCount: itemCount,
+                itemCount: displayMessages.length,
                 itemBuilder: (context, index) {
-                  if (hasStreaming && index == widget.messages.length) {
-                    return Padding(
-                      key: const ValueKey('streaming'),
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: StreamingTile(
-                        streamingState: widget.streamingState!,
-                        executionTracker: widget.executionTracker,
-                      ),
-                    );
-                  }
-                  final message = widget.messages[index];
+                  final message = displayMessages[index];
+                  final isLastItem = index == displayMessages.length - 1;
                   return Padding(
-                    key: _keyFor(message.id),
+                    key: message is LoadingMessage
+                        ? const ValueKey('loading')
+                        : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: 16),
                     child: MessageTile(
                       message: message,
                       runId: runIdMap[message.id],
                       onFeedbackSubmit: widget.onFeedbackSubmit,
+                      executionTracker: widget.executionTrackers[message.id] ??
+                          (message is LoadingMessage
+                              ? widget.executionTrackers[awaitingTrackerKey]
+                              : null),
+                      streamingActivity: isLastItem ? streamingActivity : null,
                     ),
                   );
                 },

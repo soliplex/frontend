@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../execution_tracker.dart';
+import 'execution/activity_indicator.dart';
+import 'execution/step_log.dart';
+import 'execution/thinking_block.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 
@@ -10,21 +14,33 @@ class TextMessageTile extends StatelessWidget {
     required this.message,
     this.runId,
     this.onFeedbackSubmit,
+    this.executionTracker,
+    this.streamingActivity,
   });
 
   final TextMessage message;
   final String? runId;
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
+  final ExecutionTracker? executionTracker;
+  final ActivityType? streamingActivity;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
     final showFeedback = !isUser && onFeedbackSubmit != null;
+    final hasTracker = executionTracker != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (streamingActivity != null)
+          ActivityIndicator(activity: streamingActivity!),
+        if (hasTracker) StepLog(tracker: executionTracker!),
+        if (hasTracker)
+          ExecutionThinkingBlock(tracker: executionTracker!)
+        else if (!isUser && message.hasThinkingText)
+          _ThinkingBlock(text: message.thinkingText),
         Text(
           isUser ? 'You' : 'Assistant',
           style: theme.textTheme.labelSmall?.copyWith(
@@ -32,10 +48,6 @@ class TextMessageTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        if (message.hasThinkingText) ...[
-          _ThinkingBlock(text: message.thinkingText),
-          const SizedBox(height: 4),
-        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -46,7 +58,9 @@ class TextMessageTile extends StatelessWidget {
           ),
           child: isUser
               ? SelectableText(message.text)
-              : FlutterMarkdownPlusRenderer(data: message.text),
+              : message.text.isEmpty
+                  ? const Text('...')
+                  : FlutterMarkdownPlusRenderer(data: message.text),
         ),
         if (showFeedback) ...[
           const SizedBox(height: 4),

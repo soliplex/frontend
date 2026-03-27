@@ -1,5 +1,11 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+/// Maps each non-user message ID to the [MessageState.runId] of its
+/// preceding user message.
+///
+/// Assumes messages are ordered chronologically and that each user message
+/// starts a new "turn" — all subsequent non-user messages (assistant text,
+/// tool calls, errors) belong to that turn until the next user message.
 Map<String, String?> buildRunIdMap(
   List<ChatMessage> messages,
   Map<String, MessageState> messageStates,

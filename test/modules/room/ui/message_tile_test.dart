@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/step_log.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/loading_message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
 
@@ -43,6 +48,144 @@ void main() {
       await tester.pumpWidget(
           MaterialApp(home: Scaffold(body: TextMessageTile(message: msg))));
       expect(find.text('Thinking...'), findsOneWidget);
+    });
+
+    testWidgets('renders StepLog and ThinkingBlock when tracker provided',
+        (tester) async {
+      final events = Signal<ExecutionEvent?>(null);
+      final tracker = ExecutionTracker(executionEvents: events);
+
+      events.value = const ThinkingStarted();
+      events.value = const ThinkingContent(delta: 'reasoning...');
+      events.value = const ServerToolCallStarted(
+        toolName: 'search',
+        toolCallId: 'tc-1',
+      );
+
+      final msg = TextMessage(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026),
+        text: 'Response',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextMessageTile(
+            message: msg,
+            executionTracker: tracker,
+          ),
+        ),
+      ));
+
+      expect(find.byType(StepLog), findsOneWidget);
+      expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
+
+      tracker.dispose();
+    });
+
+    testWidgets('renders ActivityIndicator when streamingActivity provided',
+        (tester) async {
+      final msg = TextMessage(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026),
+        text: 'Response',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextMessageTile(
+            message: msg,
+            streamingActivity: const RespondingActivity(),
+          ),
+        ),
+      ));
+
+      expect(find.byType(ActivityIndicator), findsOneWidget);
+      expect(find.text('Responding...'), findsOneWidget);
+    });
+
+    testWidgets('renders placeholder for empty assistant text', (tester) async {
+      final msg = TextMessage(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026),
+        text: '',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: TextMessageTile(message: msg)),
+      ));
+
+      expect(find.text('...'), findsOneWidget);
+    });
+
+    testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
+        (tester) async {
+      final events = Signal<ExecutionEvent?>(null);
+      final tracker = ExecutionTracker(executionEvents: events);
+
+      events.value = const ThinkingStarted();
+      events.value = const ThinkingContent(delta: 'live thinking');
+
+      final msg = TextMessage(
+        id: 'msg-1',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026),
+        text: 'Response',
+        thinkingText: 'persisted thinking',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextMessageTile(
+            message: msg,
+            executionTracker: tracker,
+          ),
+        ),
+      ));
+
+      // ExecutionThinkingBlock is rendered, not the _ThinkingBlock
+      expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
+      // The persisted "Thinking..." ExpansionTile label should not appear
+      expect(find.byType(ExpansionTile), findsNothing);
+
+      tracker.dispose();
+    });
+  });
+
+  group('LoadingMessageTile', () {
+    testWidgets('renders spinner fallback without tracker', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: LoadingMessageTile()),
+      ));
+
+      expect(find.text('Thinking...'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('renders execution widgets with tracker', (tester) async {
+      final events = Signal<ExecutionEvent?>(null);
+      final tracker = ExecutionTracker(executionEvents: events);
+
+      events.value = const ThinkingStarted();
+      events.value = const ThinkingContent(delta: 'working...');
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LoadingMessageTile(
+            executionTracker: tracker,
+            streamingActivity: const ThinkingActivity(),
+          ),
+        ),
+      ));
+
+      expect(find.byType(ActivityIndicator), findsOneWidget);
+      expect(find.byType(StepLog), findsOneWidget);
+      expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
+
+      tracker.dispose();
     });
   });
 

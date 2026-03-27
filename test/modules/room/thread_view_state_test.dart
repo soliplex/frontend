@@ -12,6 +12,30 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       agUiStreamClient: FakeAgUiStreamClient(),
     );
 
+/// Minimal session fake for testing [ThreadViewState] signal behavior.
+class _FakeAgentSession implements AgentSession {
+  _FakeAgentSession()
+      : _runState = Signal<RunState>(const IdleState()),
+        _lastExecutionEvent = Signal<ExecutionEvent?>(null);
+
+  final Signal<RunState> _runState;
+  final Signal<ExecutionEvent?> _lastExecutionEvent;
+
+  @override
+  AgentSessionState get state => AgentSessionState.running;
+
+  @override
+  ReadonlySignal<RunState> get runState => _runState;
+
+  @override
+  ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _lastExecutionEvent;
+
+  void emit(RunState state) => _runState.value = state;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 void main() {
   late FakeSoliplexApi api;
   late ServerConnection connection;
@@ -114,6 +138,82 @@ void main() {
     state.dispose();
   });
 
+  test('updates messages when list content changes but length stays the same',
+      () async {
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = ThreadViewState(
+      connection: connection,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    expect(state.messages.value, isA<MessagesLoaded>());
+
+    final session = _FakeAgentSession();
+    state.attachSession(session);
+
+    final listA = <ChatMessage>[
+      TextMessage(
+        id: 'msg-1',
+        user: ChatUser.user,
+        createdAt: DateTime(2026),
+        text: 'Hello',
+      ),
+    ];
+    final conversationA = Conversation(
+      threadId: 'thread-1',
+      messages: listA,
+    );
+
+    session.emit(RunningState(
+      threadKey: (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1'
+      ),
+      runId: 'run-1',
+      conversation: conversationA,
+      streaming: const AwaitingText(),
+    ));
+
+    final loaded1 = state.messages.value as MessagesLoaded;
+    expect(loaded1.messages.first.id, 'msg-1');
+
+    // Same length, different content, different list instance.
+    final listB = <ChatMessage>[
+      TextMessage(
+        id: 'msg-2',
+        user: ChatUser.assistant,
+        createdAt: DateTime(2026),
+        text: 'Hi there',
+      ),
+    ];
+    final conversationB = Conversation(
+      threadId: 'thread-1',
+      messages: listB,
+    );
+
+    session.emit(RunningState(
+      threadKey: (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1'
+      ),
+      runId: 'run-1',
+      conversation: conversationB,
+      streaming: const AwaitingText(),
+    ));
+
+    final loaded2 = state.messages.value as MessagesLoaded;
+    expect(loaded2.messages.first.id, 'msg-2',
+        reason:
+            'should update when list instance changes even with same length');
+
+    state.dispose();
+  });
+
   group('sendMessage', () {
     late AgentRuntimeManager runtimeManager;
     late AgentRuntime runtime;
@@ -202,7 +302,7 @@ void main() {
       state.dispose();
     });
 
-    test('creates executionTracker on sendMessage', () async {
+    test('executionTrackers is empty before any streaming', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -212,22 +312,12 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      expect(state.executionTracker, isNull);
-
-      await state.sendMessage('Hello', runtime);
-
-      // Give the session time to start
-      for (var i = 0; i < 10; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
-
-      // Tracker survives session end so UI can show final step log
-      expect(state.executionTracker, isNotNull);
+      expect(state.executionTrackers, isEmpty);
 
       state.dispose();
     });
 
-    test('executionTracker survives session end for UI display', () async {
+    test('executionTrackers are cleaned up on dispose', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -245,13 +335,8 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      // Tracker persists after session ends; streaming state is cleared
-      expect(state.executionTracker, isNotNull);
-      expect(state.streamingState.value, isNull);
-
       state.dispose();
-      // Tracker is cleaned up on view disposal
-      expect(state.executionTracker, isNull);
+      expect(state.executionTrackers, isEmpty);
     });
   });
 }

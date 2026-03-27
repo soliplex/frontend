@@ -1,7 +1,11 @@
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
 import 'send_error.dart';
+import 'tracker_registry.dart';
 
 export 'send_error.dart';
 
@@ -13,11 +17,29 @@ class MessagesLoaded extends ThreadViewStatus {
   MessagesLoaded({required this.messages, required this.messageStates});
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessagesLoaded &&
+          identical(messages, other.messages) &&
+          identical(messageStates, other.messageStates);
+
+  @override
+  int get hashCode => Object.hash(messages, messageStates);
 }
 
 class MessagesFailed extends ThreadViewStatus {
   MessagesFailed(this.error);
   final Object error;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessagesFailed && identical(error, other.error);
+
+  @override
+  int get hashCode => error.hashCode;
 }
 
 class ThreadViewState {
@@ -52,8 +74,19 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
-  ExecutionTracker? _executionTracker;
-  ExecutionTracker? get executionTracker => _executionTracker;
+  final TrackerRegistry _trackerRegistry = TrackerRegistry();
+  Map<String, ExecutionTracker> get executionTrackers =>
+      _trackerRegistry.trackers;
+
+  void submitFeedback(String runId, FeedbackType feedback, String? reason) {
+    unawaited(
+      _connection.api
+          .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
+          .catchError((Object e) {
+        debugPrint('Feedback submission failed: $e');
+      }),
+    );
+  }
 
   void clearSendError() => _lastSendError.value = null;
 
@@ -98,27 +131,35 @@ class ThreadViewState {
     _activeSession = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
-    _executionTracker?.dispose();
-    _executionTracker =
-        ExecutionTracker(executionEvents: session.lastExecutionEvent);
   }
 
   void _onRunState(RunState runState) {
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
-        _messages.value = _loadedFrom(conversation);
+        final current = _messages.value;
+        if (current is! MessagesLoaded ||
+            !identical(current.messages, conversation.messages)) {
+          _messages.value = _loadedFrom(conversation);
+        }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
+        _trackerRegistry.onStreaming(
+          streaming,
+          _activeSession!.lastExecutionEvent,
+        );
       case CompletedState(:final conversation):
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         _messages.value = _loadedFrom(conversation);
       case FailedState(:final conversation, :final error):
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
           _messages.value = _loadedFrom(conversation);
         }
       case CancelledState(:final conversation):
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
           _messages.value = _loadedFrom(conversation);
@@ -175,7 +216,6 @@ class ThreadViewState {
     _isDisposed = true;
     _cancelToken?.cancel('disposed');
     _detachSession();
-    _executionTracker?.dispose();
-    _executionTracker = null;
+    _trackerRegistry.dispose();
   }
 }
