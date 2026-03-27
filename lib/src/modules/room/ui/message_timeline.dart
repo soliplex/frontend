@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
-import '../thread_view_state.dart' show awaitingTrackerKey;
+import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import 'message_tile.dart';
 import 'room_welcome.dart';

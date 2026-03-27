@@ -2,11 +2,9 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
 import 'send_error.dart';
+import 'tracker_registry.dart';
 
 export 'send_error.dart';
-
-/// Sentinel key for the execution tracker created before a message ID is known.
-const awaitingTrackerKey = '_awaiting';
 
 sealed class ThreadViewStatus {}
 
@@ -55,11 +53,9 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
-  final Map<String, ExecutionTracker> _executionTrackers = {};
+  final TrackerRegistry _trackerRegistry = TrackerRegistry();
   Map<String, ExecutionTracker> get executionTrackers =>
-      Map.unmodifiable(_executionTrackers);
-
-  String? _activeTrackerMessageId;
+      _trackerRegistry.trackers;
 
   void clearSendError() => _lastSendError.value = null;
 
@@ -112,42 +108,23 @@ class ThreadViewState {
         _messages.value = _loadedFrom(conversation);
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-        if (streaming is TextStreaming &&
-            _activeTrackerMessageId != streaming.messageId) {
-          if (_activeTrackerMessageId == awaitingTrackerKey) {
-            // Re-key the awaiting tracker to the actual message ID
-            final tracker = _executionTrackers.remove(awaitingTrackerKey);
-            if (tracker != null) {
-              _executionTrackers[streaming.messageId] = tracker;
-            }
-          } else {
-            _freezeActiveTracker();
-            _executionTrackers[streaming.messageId] = ExecutionTracker(
-              executionEvents: _activeSession!.lastExecutionEvent,
-            );
-          }
-          _activeTrackerMessageId = streaming.messageId;
-        } else if (streaming is AwaitingText &&
-            _activeTrackerMessageId == null &&
-            _activeSession != null) {
-          _activeTrackerMessageId = awaitingTrackerKey;
-          _executionTrackers[awaitingTrackerKey] = ExecutionTracker(
-            executionEvents: _activeSession!.lastExecutionEvent,
-          );
-        }
+        _trackerRegistry.onStreaming(
+          streaming,
+          _activeSession!.lastExecutionEvent,
+        );
       case CompletedState(:final conversation):
-        _freezeActiveTracker();
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         _messages.value = _loadedFrom(conversation);
       case FailedState(:final conversation, :final error):
-        _freezeActiveTracker();
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
           _messages.value = _loadedFrom(conversation);
         }
       case CancelledState(:final conversation):
-        _freezeActiveTracker();
+        _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
           _messages.value = _loadedFrom(conversation);
@@ -155,13 +132,6 @@ class ThreadViewState {
       case IdleState():
       case ToolYieldingState():
         break;
-    }
-  }
-
-  void _freezeActiveTracker() {
-    if (_activeTrackerMessageId != null) {
-      _executionTrackers[_activeTrackerMessageId!]?.freeze();
-      _activeTrackerMessageId = null;
     }
   }
 
@@ -211,9 +181,6 @@ class ThreadViewState {
     _isDisposed = true;
     _cancelToken?.cancel('disposed');
     _detachSession();
-    for (final tracker in _executionTrackers.values) {
-      tracker.dispose();
-    }
-    _executionTrackers.clear();
+    _trackerRegistry.dispose();
   }
 }
