@@ -59,9 +59,9 @@ class RoomWelcome extends StatelessWidget {
                   alignment: WrapAlignment.center,
                   children: [
                     for (final suggestion in currentRoom.suggestions)
-                      ActionChip(
-                        label: Text(suggestion),
-                        onPressed: onSuggestionTapped != null
+                      _SuggestionChip(
+                        label: suggestion,
+                        onTap: onSuggestionTapped != null
                             ? () => onSuggestionTapped!(suggestion)
                             : null,
                       ),
@@ -70,6 +70,35 @@ class RoomWelcome extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({required this.label, this.onTap});
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 520),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(label, style: theme.textTheme.bodyMedium),
+          ),
         ),
       ),
     );
