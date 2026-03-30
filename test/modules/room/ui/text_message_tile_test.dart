@@ -71,4 +71,25 @@ void main() {
     expect(find.byType(CopyButton), findsOneWidget);
     expect(find.byType(FeedbackButtons), findsNothing);
   });
+
+  testWidgets('thinking block shows copy button', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TextMessageTile(
+            message: TextMessage(
+              id: '4',
+              user: ChatUser.assistant,
+              createdAt: DateTime(2026),
+              text: 'Response',
+              thinkingText: 'Let me think about this...',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // One CopyButton for the message, one for the thinking block
+    expect(find.byType(CopyButton), findsNWidgets(2));
+  });
 }

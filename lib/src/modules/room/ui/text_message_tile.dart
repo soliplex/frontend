@@ -86,11 +86,22 @@ class _ThinkingBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ExpansionTile(
-      title: Text(
-        'Thinking...',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Thinking...',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          CopyButton(
+            text: text,
+            tooltip: 'Copy thinking',
+            iconSize: 16,
+          ),
+        ],
       ),
       dense: true,
       tilePadding: EdgeInsets.zero,
