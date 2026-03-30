@@ -1,5 +1,4 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Factory and cache for [AgentRuntime] instances, keyed by server ID.
 ///
@@ -8,14 +7,14 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 class AgentRuntimeManager {
   AgentRuntimeManager({
     required PlatformConstraints platform,
-    required ToolRegistryResolver toolRegistryResolver,
+    required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
     required Logger logger,
   })  : _platform = platform,
         _toolRegistryResolver = toolRegistryResolver,
         _logger = logger;
 
   final PlatformConstraints _platform;
-  final ToolRegistryResolver _toolRegistryResolver;
+  final Future<ToolRegistry> Function(String roomId) _toolRegistryResolver;
   final Logger _logger;
   final Map<String, ({ServerConnection connection, AgentRuntime runtime})>
       _cache = {};
@@ -42,13 +41,8 @@ class AgentRuntimeManager {
   }
 
   AgentRuntime _createRuntime(ServerConnection connection) {
-    final llmProvider = AgUiLlmProvider(
-      api: connection.api,
-      agUiStreamClient: connection.agUiStreamClient,
-    );
     return AgentRuntime(
       connection: connection,
-      llmProvider: llmProvider,
       toolRegistryResolver: _toolRegistryResolver,
       platform: _platform,
       logger: _logger,

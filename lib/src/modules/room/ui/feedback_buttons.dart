@@ -96,6 +96,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
 
     final reason = await showDialog<String>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => const FeedbackReasonDialog(),
     );
 

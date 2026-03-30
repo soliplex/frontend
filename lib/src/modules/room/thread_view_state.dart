@@ -1,6 +1,6 @@
 import 'dart:async' show unawaited;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
@@ -68,6 +68,7 @@ class ThreadViewState {
 
   CancelToken? _cancelToken;
   AgentSession? _activeSession;
+  Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
   bool _isDisposed = false;
 
@@ -78,6 +79,10 @@ class ThreadViewState {
   final Signal<StreamingState?> _streamingState = Signal<StreamingState?>(null);
   ReadonlySignal<StreamingState?> get streamingState => _streamingState;
 
+  // Lifecycle: null → spawning (sendMessage) → running (_onRunState)
+  //            → null (_detachSession on terminal state, or cancelRun).
+  //            Doubles as a concurrency guard (sendMessage rejects if non-null)
+  //            and the UI signal for ChatInput's cancel button.
   final Signal<AgentSessionState?> _sessionState =
       Signal<AgentSessionState?>(null);
   ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
@@ -104,27 +109,31 @@ class ThreadViewState {
   void refresh() => _fetch();
 
   Future<void> sendMessage(String prompt, AgentRuntime runtime) async {
+    if (_sessionState.value != null) return;
     _lastSendError.value = null;
-    final current = _messages.value;
-    final cachedHistory = current is MessagesLoaded
-        ? ThreadHistory(
-            messages: current.messages,
-            messageStates: current.messageStates,
-          )
-        : null;
+    _sessionState.value = AgentSessionState.spawning;
+    Future<AgentSession>? spawnFuture;
     try {
-      final session = await runtime.spawn(
+      spawnFuture = runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
-        cachedHistory: cachedHistory,
       );
-      if (_isDisposed) return;
+      _pendingSpawn = spawnFuture;
+      final session = await spawnFuture;
+      if (_pendingSpawn != spawnFuture) return;
+      _pendingSpawn = null;
       _registry.register(threadKey, session);
+      if (_isDisposed) return;
       _attachSession(session);
     } on Object catch (error) {
-      if (_isDisposed) return;
+      if (_isDisposed || _sessionState.value == null) return;
       _lastSendError.value = SendError(error, unsentText: prompt);
+    } finally {
+      if (_pendingSpawn == spawnFuture) {
+        _pendingSpawn = null;
+        _sessionState.value = null;
+      }
     }
   }
 
@@ -133,7 +142,24 @@ class ThreadViewState {
   }
 
   void cancelRun() {
+    if (_cancelPendingSpawn()) return;
     _activeSession?.cancel();
+  }
+
+  /// Cancels a pending spawn if one exists. Returns true if a spawn was
+  /// cancelled, false if there was nothing pending.
+  bool _cancelPendingSpawn() {
+    final pending = _pendingSpawn;
+    if (pending == null) return false;
+    _pendingSpawn = null;
+    _sessionState.value = null;
+    unawaited(pending.then((s) {
+      s.cancel();
+      s.dispose();
+    }).catchError((Object e) {
+      debugPrint('Cancelled spawn cleanup failed: $e');
+    }));
+    return true;
   }
 
   void _attachSession(AgentSession session) {
@@ -146,35 +172,37 @@ class ThreadViewState {
   }
 
   void _onRunState(RunState runState) {
+    final session = _activeSession;
+    if (session == null) return;
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
         final current = _messages.value;
         if (current is! MessagesLoaded ||
             !identical(current.messages, conversation.messages)) {
-          _messages.value = _loadedFrom(conversation);
+          _messages.value = _messagesLoaded(conversation);
         }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
         _trackerRegistry.onStreaming(
           streaming,
-          _activeSession!.lastExecutionEvent,
+          session.lastExecutionEvent,
         );
-      case CompletedState(:final conversation):
+      case CompletedState(:final conversation, :final runId):
         _trackerRegistry.onRunTerminated();
         _detachSession();
-        _messages.value = _loadedFrom(conversation);
+        _messages.value = _messagesLoaded(conversation, runId: runId);
       case FailedState(:final conversation, :final error):
         _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
-          _messages.value = _loadedFrom(conversation);
+          _messages.value = _messagesLoaded(conversation);
         }
       case CancelledState(:final conversation):
         _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
-          _messages.value = _loadedFrom(conversation);
+          _messages.value = _messagesLoaded(conversation);
         }
       case IdleState():
       case ToolYieldingState():
@@ -182,11 +210,36 @@ class ThreadViewState {
     }
   }
 
-  static MessagesLoaded _loadedFrom(Conversation conversation) =>
-      MessagesLoaded(
-        messages: conversation.messages,
-        messageStates: conversation.messageStates,
-      );
+  MessagesLoaded _messagesLoaded(Conversation conversation, {String? runId}) {
+    final existing = switch (_messages.value) {
+      MessagesLoaded(:final messageStates) => messageStates,
+      _ => const <String, MessageState>{},
+    };
+    final merged = {...existing, ...conversation.messageStates};
+    if (runId != null) {
+      final userMsgId = _lastUserMessageId(conversation);
+      if (userMsgId != null) {
+        merged[userMsgId] = MessageState(
+          userMessageId: userMsgId,
+          sourceReferences: const [],
+          runId: runId,
+        );
+      }
+    }
+    return MessagesLoaded(
+      messages: conversation.messages,
+      messageStates: merged,
+    );
+  }
+
+  static String? _lastUserMessageId(Conversation conversation) {
+    for (var i = conversation.messages.length - 1; i >= 0; i--) {
+      if (conversation.messages[i].user == ChatUser.user) {
+        return conversation.messages[i].id;
+      }
+    }
+    return null;
+  }
 
   void _detachSession() {
     _runStateUnsub?.call();
@@ -212,16 +265,16 @@ class ThreadViewState {
 
   void _applyOutcome(RunOutcome outcome) {
     switch (outcome) {
-      case CompletedRun(:final conversation):
-        _messages.value = _loadedFrom(conversation);
+      case CompletedRun(:final conversation, :final runId):
+        _messages.value = _messagesLoaded(conversation, runId: runId);
       case FailedRun(:final conversation, :final error):
         _lastSendError.value = SendError(error);
         if (conversation != null) {
-          _messages.value = _loadedFrom(conversation);
+          _messages.value = _messagesLoaded(conversation);
         }
       case CancelledRun(:final conversation):
         if (conversation != null) {
-          _messages.value = _loadedFrom(conversation);
+          _messages.value = _messagesLoaded(conversation);
         }
     }
   }

@@ -9,8 +9,9 @@ sealed class RunOutcome {
 
 /// The run completed successfully.
 class CompletedRun extends RunOutcome {
-  const CompletedRun(this.conversation);
+  const CompletedRun(this.conversation, {required this.runId});
   final Conversation conversation;
+  final String runId;
 }
 
 /// The run failed.
@@ -80,7 +81,8 @@ class RunRegistry {
 
   static RunOutcome _outcomeFrom(RunState state, AgentResult result) {
     return switch (state) {
-      CompletedState(:final conversation) => CompletedRun(conversation),
+      CompletedState(:final conversation, :final runId) =>
+        CompletedRun(conversation, runId: runId),
       FailedState(:final conversation, :final error) =>
         FailedRun(conversation, error),
       CancelledState(:final conversation) => CancelledRun(conversation),

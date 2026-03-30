@@ -1,3 +1,6 @@
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'agent_runtime_manager.dart';
@@ -48,13 +51,18 @@ class RoomState {
   final ThreadListState threadList;
   ThreadViewState? _activeThreadView;
   CancelToken? _roomFetchToken;
+  Future<AgentSession>? _pendingSpawn;
   bool _isDisposed = false;
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
-  final Signal<bool> _isSpawning = Signal<bool>(false);
-  ReadonlySignal<bool> get isSpawning => _isSpawning;
+  // Lifecycle: null → spawning (sendToNewThread) → null (on completion,
+  //            error, or cancelSpawn). Doubles as a concurrency guard and
+  //            the UI signal for ChatInput's cancel button.
+  final Signal<AgentSessionState?> _sessionState =
+      Signal<AgentSessionState?>(null);
+  ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
 
   final Signal<SendError?> _lastError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastError => _lastError;
@@ -111,27 +119,49 @@ class RoomState {
   ///
   /// Spawns a session which creates the thread server-side, then creates a
   /// [ThreadViewState] and attaches the session to it.
+  void cancelSpawn() {
+    final pending = _pendingSpawn;
+    if (pending == null) return;
+    _pendingSpawn = null;
+    _sessionState.value = null;
+    unawaited(pending.then((s) {
+      s.cancel();
+      s.dispose();
+    }).catchError((Object e) {
+      debugPrint('Cancelled spawn cleanup failed: $e');
+    }));
+  }
+
   Future<void> sendToNewThread(String prompt) async {
-    if (_isSpawning.value) return;
+    if (_sessionState.value != null) return;
     _lastError.value = null;
-    _isSpawning.value = true;
+    _sessionState.value = AgentSessionState.spawning;
+    Future<AgentSession>? spawnFuture;
     try {
-      final session = await runtime.spawn(
+      spawnFuture = runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
       );
-      if (_isDisposed) return;
+      _pendingSpawn = spawnFuture;
+      final session = await spawnFuture;
+      if (_pendingSpawn != spawnFuture) return;
+      _pendingSpawn = null;
+      _sessionState.value = null;
       final key = session.threadKey;
       _registry.register(key, session);
+      if (_isDisposed) return;
       threadList.refresh();
       selectThread(key.threadId);
       _activeThreadView!.attachSession(session);
       onNavigateToThread?.call(key.threadId);
     } on Object catch (error) {
-      if (_isDisposed) return;
+      if (_isDisposed || _sessionState.value == null) return;
       _lastError.value = SendError(error, unsentText: prompt);
     } finally {
-      if (!_isDisposed) _isSpawning.value = false;
+      if (_pendingSpawn == spawnFuture) {
+        _pendingSpawn = null;
+        _sessionState.value = null;
+      }
     }
   }
 

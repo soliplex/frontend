@@ -122,6 +122,59 @@ void main() {
     state.dispose();
   });
 
+  test('sessionState is spawning during sendToNewThread', () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      connection: connection,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final sendFuture = state.sendToNewThread('Hello');
+    expect(state.sessionState.value, AgentSessionState.spawning);
+
+    await sendFuture;
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    state.dispose();
+  });
+
+  test('dispose during sendToNewThread does not cancel the spawn', () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      connection: connection,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    // Start sendToNewThread but dispose before spawn completes.
+    final sendFuture = state.sendToNewThread('Hello');
+    state.dispose();
+
+    // Should complete without error — spawn runs to completion.
+    await sendFuture;
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // No error should be surfaced (disposed state swallows errors).
+    expect(state.lastError.value, isNull);
+  });
+
   test('createThread calls API, refreshes list, and selects thread', () async {
     final createdThread = ThreadInfo(
       id: 'new-thread',

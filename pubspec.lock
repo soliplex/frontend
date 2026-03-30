@@ -34,14 +34,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.3"
-  anthropic_sdk_dart:
-    dependency: transitive
-    description:
-      name: anthropic_sdk_dart
-      sha256: ab9fb1aaf866e2de7b2f86cdb81221763e7559e42abfd6e345588df55e2150dc
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.2"
   archive:
     dependency: transitive
     description:
@@ -329,14 +321,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  freezed_annotation:
-    dependency: transitive
-    description:
-      name: freezed_annotation
-      sha256: "7294967ff0a6d98638e7acb774aac3af2550777accd8149c90af5b014e6d44d8"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.0"
   frontend_server_client:
     dependency: transitive
     description:
@@ -553,30 +537,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.3.0"
-  ollama_dart:
-    dependency: transitive
-    description:
-      name: ollama_dart
-      sha256: "55a45e381f3cf24791df510e287f353e776d376f556d34ba49b09bc918eee319"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.5"
-  open_responses:
-    dependency: transitive
-    description:
-      name: open_responses
-      sha256: "36fddff2706c9eb1b1766a97c02c2fe5db2b69ad0781532ec0fccc26b0f738f2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.4"
-  openai_dart:
-    dependency: transitive
-    description:
-      name: openai_dart
-      sha256: "4731f94ea9a09cd9e92333debcfb87efda2764718e506538206df9f540e9ab60"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.0"
   package_config:
     dependency: transitive
     description:
@@ -826,45 +786,36 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/soliplex_agent"
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      url: "https://github.com/runyaga/flutter.git"
+      ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      resolved-ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      url: "https://github.com/runyaga/soliplex-agent.git"
     source: git
     version: "0.1.0"
   soliplex_client:
     dependency: "direct main"
     description:
       path: "packages/soliplex_client"
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      url: "https://github.com/runyaga/flutter.git"
+      ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      resolved-ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      url: "https://github.com/runyaga/soliplex-agent.git"
     source: git
     version: "1.0.0-dev"
   soliplex_client_native:
     dependency: "direct main"
     description:
       path: "packages/soliplex_client_native"
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      url: "https://github.com/runyaga/flutter.git"
+      ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      resolved-ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      url: "https://github.com/runyaga/soliplex-agent.git"
     source: git
     version: "1.0.0-dev"
-  soliplex_completions:
-    dependency: transitive
-    description:
-      path: "packages/soliplex_completions"
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      url: "https://github.com/runyaga/flutter.git"
-    source: git
-    version: "0.1.0"
   soliplex_logging:
     dependency: "direct main"
     description:
       path: "packages/soliplex_logging"
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      resolved-ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
-      url: "https://github.com/runyaga/flutter.git"
+      ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      resolved-ref: c0bfe95b73396e509f2e491cb1010deaac1e78b4
+      url: "https://github.com/runyaga/soliplex-agent.git"
     source: git
     version: "0.1.0"
   source_map_stack_trace:

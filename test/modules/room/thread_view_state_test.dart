@@ -24,6 +24,7 @@ class _FakeAgentSession implements AgentSession {
   final Signal<RunState> _runState;
   final Signal<ExecutionEvent?> _lastExecutionEvent;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
+  bool cancelCalled = false;
 
   @override
   AgentSessionState get state => AgentSessionState.running;
@@ -36,6 +37,9 @@ class _FakeAgentSession implements AgentSession {
 
   @override
   Future<AgentResult> get result => _resultCompleter.future;
+
+  @override
+  void cancel() => cancelCalled = true;
 
   void emit(RunState state) => _runState.value = state;
 
@@ -425,6 +429,143 @@ void main() {
       state.dispose();
     });
 
+    test('dispose during sendMessage still registers session in registry',
+        () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      expect(state.messages.value, isA<MessagesLoaded>());
+
+      // Start sendMessage but dispose before it completes.
+      final sendFuture = state.sendMessage('Hello', runtime);
+      state.dispose();
+
+      // Let the spawn complete.
+      await sendFuture;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // Session should be tracked in the registry despite disposal.
+      final key = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+      final active = registry.activeSession(key);
+      final outcome = registry.completedOutcome(key);
+      expect(active != null || outcome != null, isTrue);
+    });
+
+    test('dispose does not cancel an active session', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final fakeSession = _FakeAgentSession();
+      state.attachSession(fakeSession);
+      expect(state.sessionState.value, isNotNull);
+
+      state.dispose();
+
+      expect(fakeSession.cancelCalled, isFalse);
+    });
+
+    test('sessionState is spawning while sendMessage awaits spawn', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Start sendMessage without awaiting — observe intermediate state.
+      final future = state.sendMessage('Hello', runtime);
+      expect(state.sessionState.value, AgentSessionState.spawning);
+
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      state.dispose();
+    });
+
+    test('sendMessage is rejected while a session is active', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Simulate an active session.
+      final fakeSession = _FakeAgentSession();
+      state.attachSession(fakeSession);
+      expect(state.sessionState.value, isNotNull);
+
+      // Dispose runtime so spawn would throw if called.
+      await runtimeManager.dispose();
+
+      // sendMessage should bail out before reaching spawn.
+      await state.sendMessage('Hello', runtime);
+
+      // No error means spawn was never attempted.
+      expect(state.lastSendError.value, isNull);
+
+      state.dispose();
+    });
+
+    test('cancelRun during spawn prevents session from attaching', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Start sendMessage and immediately cancel.
+      final future = state.sendMessage('Hello', runtime);
+      state.cancelRun();
+
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // Cancel should have cleaned up — no error from the failed run.
+      expect(state.lastSendError.value, isNull);
+      expect(state.sessionState.value, isNull);
+
+      state.dispose();
+    });
+
     test('executionTrackers is empty before any streaming', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
@@ -437,6 +578,40 @@ void main() {
 
       await Future<void>.delayed(Duration.zero);
       expect(state.executionTrackers, isEmpty);
+
+      state.dispose();
+    });
+
+    test('session completing clears activeSession without crash', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Attach a fake session and emit CompletedState.
+      // This triggers _onRunState → _detachSession → _activeSession = null.
+      final fakeSession = _FakeAgentSession();
+      state.attachSession(fakeSession);
+
+      final conversation = Conversation(threadId: 'thread-1');
+      fakeSession.emit(CompletedState(
+        threadKey: (
+          serverId: 'test-server',
+          roomId: 'room-1',
+          threadId: 'thread-1',
+        ),
+        runId: 'run-1',
+        conversation: conversation,
+      ));
+
+      // No crash — the null-check in _onRunState handles cleanup safely.
+      expect(state.sessionState.value, isNull);
 
       state.dispose();
     });

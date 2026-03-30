@@ -5,6 +5,7 @@ import '../execution_tracker.dart';
 import 'execution/activity_indicator.dart';
 import 'execution/step_log.dart';
 import 'execution/thinking_block.dart';
+import 'copy_button.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 
@@ -62,10 +63,16 @@ class TextMessageTile extends StatelessWidget {
                   ? const Text('...')
                   : FlutterMarkdownPlusRenderer(data: message.text),
         ),
-        if (showFeedback) ...[
-          const SizedBox(height: 4),
-          FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
-        ],
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            CopyButton(text: message.text),
+            if (showFeedback) ...[
+              const SizedBox(width: 8),
+              FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -79,11 +86,22 @@ class _ThinkingBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ExpansionTile(
-      title: Text(
-        'Thinking...',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Thinking...',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          CopyButton(
+            text: text,
+            tooltip: 'Copy thinking',
+            iconSize: 16,
+          ),
+        ],
       ),
       dense: true,
       tilePadding: EdgeInsets.zero,

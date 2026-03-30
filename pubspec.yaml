@@ -21,18 +21,18 @@ dependencies:
   signals_flutter: ^6.3.0
   soliplex_agent:
     git:
-      url: https://github.com/runyaga/flutter.git
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      url: https://github.com/runyaga/soliplex-agent.git
+      ref: "c0bfe95b73396e509f2e491cb1010deaac1e78b4"
       path: packages/soliplex_agent
   soliplex_logging:
     git:
-      url: https://github.com/runyaga/flutter.git
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      url: https://github.com/runyaga/soliplex-agent.git
+      ref: "c0bfe95b73396e509f2e491cb1010deaac1e78b4"
       path: packages/soliplex_logging
   soliplex_client_native:
     git:
-      url: https://github.com/runyaga/flutter.git
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      url: https://github.com/runyaga/soliplex-agent.git
+      ref: "c0bfe95b73396e509f2e491cb1010deaac1e78b4"
       path: packages/soliplex_client_native
   flutter_markdown_plus: ^1.0.7
   markdown: ^7.0.0
@@ -40,8 +40,8 @@ dependencies:
   flutter_svg: ^2.0.17
   soliplex_client:
     git:
-      url: https://github.com/runyaga/flutter.git
-      ref: "9f4b6e9e250532d30eb48812e8e7c018e24926e0"
+      url: https://github.com/runyaga/soliplex-agent.git
+      ref: "c0bfe95b73396e509f2e491cb1010deaac1e78b4"
       path: packages/soliplex_client
 
 dev_dependencies:

@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:soliplex_agent/soliplex_agent.dart';
-// ignore: depend_on_referenced_packages
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 
 import '../auth/server_entry.dart';

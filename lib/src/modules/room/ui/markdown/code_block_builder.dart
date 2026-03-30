@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
+
+import '../copy_button.dart';
 
 class CodeBlockBuilder extends MarkdownElementBuilder {
   CodeBlockBuilder({required this.preferredStyle});
@@ -52,42 +53,6 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
       }
     }
     return 'plaintext';
-  }
-}
-
-Future<void> _copyToClipboard(BuildContext context, String text) async {
-  await Clipboard.setData(ClipboardData(text: text));
-  if (!context.mounted) return;
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-    const SnackBar(content: Text('Copied to clipboard')),
-  );
-}
-
-class _ToolbarIconButton extends StatelessWidget {
-  const _ToolbarIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final iconColor = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(icon, size: 16, color: iconColor),
-        ),
-      ),
-    );
   }
 }
 
@@ -158,18 +123,28 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
         const Spacer(),
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: _ToolbarIconButton(
-            icon: _showSource ? Icons.image : Icons.code,
-            tooltip: _showSource ? 'Show preview' : 'Show source',
-            onTap: () => setState(() => _showSource = !_showSource),
+          child: Tooltip(
+            message: _showSource ? 'Show preview' : 'Show source',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () => setState(() => _showSource = !_showSource),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  _showSource ? Icons.image : Icons.code,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           ),
         ),
         Padding(
           padding: const EdgeInsets.only(right: 4, top: 4),
-          child: _ToolbarIconButton(
-            icon: Icons.copy,
+          child: CopyButton(
+            text: widget.code,
             tooltip: 'Copy SVG',
-            onTap: () => _copyToClipboard(context, widget.code),
+            iconSize: 16,
           ),
         ),
       ],
@@ -209,10 +184,10 @@ class _CodeBlock extends StatelessWidget {
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(right: 4, top: 4),
-              child: _ToolbarIconButton(
-                icon: Icons.copy,
+              child: CopyButton(
+                text: code,
                 tooltip: 'Copy code',
-                onTap: () => _copyToClipboard(context, code),
+                iconSize: 16,
               ),
             ),
           ],

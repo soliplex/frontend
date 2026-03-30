@@ -134,6 +134,7 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _handleKey(KeyEvent event) {
     if (_chatFocusNode.hasFocus) return false;
     if (event is! KeyDownEvent) return false;
+    if (ModalRoute.of(context)?.isCurrent != true) return false;
     _chatFocusNode.requestFocus();
     return false;
   }
@@ -235,7 +236,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _buildNoThreadContent() {
     final roomError = _state.lastError.watch(context);
-    final isSpawning = _state.isSpawning.watch(context);
+    final sessionState = _state.sessionState.watch(context);
     _restoreUnsentText(roomError?.unsentText);
 
     return Column(
@@ -247,7 +248,7 @@ class _RoomScreenState extends State<RoomScreen> {
               final room = roomStatus is RoomLoaded ? roomStatus.room : null;
               return RoomWelcome(
                 room: room,
-                onSuggestionTapped: isSpawning
+                onSuggestionTapped: sessionState != null
                     ? null
                     : (suggestion) => _state.sendToNewThread(suggestion),
                 fallback: const Center(child: Text('Select a thread')),
@@ -262,8 +263,8 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
         ChatInput(
           onSend: (text) => _state.sendToNewThread(text),
-          onCancel: () {},
-          sessionState: null,
+          onCancel: _state.cancelSpawn,
+          sessionState: _state.sessionState,
           controller: _chatController,
           focusNode: _chatFocusNode,
         ),

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
+import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../core/shell_config.dart';
 import '../core/signal_listenable.dart';
