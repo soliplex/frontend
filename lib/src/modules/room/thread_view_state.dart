@@ -1,6 +1,6 @@
 import 'dart:async' show unawaited;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
@@ -68,6 +68,7 @@ class ThreadViewState {
 
   CancelToken? _cancelToken;
   AgentSession? _activeSession;
+  Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
   bool _isDisposed = false;
 
@@ -104,7 +105,9 @@ class ThreadViewState {
   void refresh() => _fetch();
 
   Future<void> sendMessage(String prompt, AgentRuntime runtime) async {
+    if (_sessionState.value != null) return;
     _lastSendError.value = null;
+    _sessionState.value = AgentSessionState.spawning;
     final current = _messages.value;
     final cachedHistory = current is MessagesLoaded
         ? ThreadHistory(
@@ -112,19 +115,29 @@ class ThreadViewState {
             messageStates: current.messageStates,
           )
         : null;
+    Future<AgentSession>? spawnFuture;
     try {
-      final session = await runtime.spawn(
+      spawnFuture = runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
         cachedHistory: cachedHistory,
       );
+      _pendingSpawn = spawnFuture;
+      final session = await spawnFuture;
+      if (_pendingSpawn != spawnFuture) return;
+      _pendingSpawn = null;
       _registry.register(threadKey, session);
       if (_isDisposed) return;
       _attachSession(session);
     } on Object catch (error) {
       if (_isDisposed) return;
       _lastSendError.value = SendError(error, unsentText: prompt);
+    } finally {
+      if (_pendingSpawn == spawnFuture) {
+        _pendingSpawn = null;
+        _sessionState.value = null;
+      }
     }
   }
 
@@ -133,6 +146,18 @@ class ThreadViewState {
   }
 
   void cancelRun() {
+    final pending = _pendingSpawn;
+    if (pending != null) {
+      _pendingSpawn = null;
+      _sessionState.value = null;
+      unawaited(pending.then((s) {
+        s.cancel();
+        s.dispose();
+      }).catchError((Object e) {
+        debugPrint('Cancelled spawn cleanup failed: $e');
+      }));
+      return;
+    }
     _activeSession?.cancel();
   }
 
@@ -258,6 +283,7 @@ class ThreadViewState {
 
   void dispose() {
     _isDisposed = true;
+    cancelRun();
     _cancelToken?.cancel('disposed');
     _detachSession();
     _trackerRegistry.dispose();

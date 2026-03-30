@@ -425,8 +425,7 @@ void main() {
       state.dispose();
     });
 
-    test('dispose during sendMessage still registers session in registry',
-        () async {
+    test('dispose during sendMessage cancels pending spawn', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
@@ -443,37 +442,101 @@ void main() {
       final sendFuture = state.sendMessage('Hello', runtime);
       state.dispose();
 
-      // Let the spawn complete.
+      // Let the spawn complete and cleanup run.
       await sendFuture;
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
       }
 
-      // Session should be tracked in the registry despite disposal.
+      // Dispose cancels the pending spawn — no session should be registered.
       final key = (
         serverId: 'test-server',
         roomId: 'room-1',
         threadId: 'thread-1',
       );
-      final active = registry.activeSession(key);
-      final outcome = registry.completedOutcome(key);
-      expect(active != null || outcome != null, isTrue);
+      expect(registry.activeSession(key), isNull);
+      expect(registry.completedOutcome(key), isNull);
+    });
 
-      // A new ThreadViewState for the same thread should restore from registry
-      // rather than fetching from the server.
+    test('sessionState is spawning while sendMessage awaits spawn', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
-      final restored = ThreadViewState(
+
+      final state = ThreadViewState(
         connection: connection,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
       );
 
-      // The run failed (FakeAgUiStreamClient throws), so the outcome is a
-      // FailedRun. Restoration applies the error via _applyOutcome.
-      expect(restored.lastSendError.value, isNotNull);
+      await Future<void>.delayed(Duration.zero);
 
-      restored.dispose();
+      // Start sendMessage without awaiting — observe intermediate state.
+      final future = state.sendMessage('Hello', runtime);
+      expect(state.sessionState.value, AgentSessionState.spawning);
+
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      state.dispose();
+    });
+
+    test('sendMessage is rejected while a session is active', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Simulate an active session.
+      final fakeSession = _FakeAgentSession();
+      state.attachSession(fakeSession);
+      expect(state.sessionState.value, isNotNull);
+
+      // Dispose runtime so spawn would throw if called.
+      await runtimeManager.dispose();
+
+      // sendMessage should bail out before reaching spawn.
+      await state.sendMessage('Hello', runtime);
+
+      // No error means spawn was never attempted.
+      expect(state.lastSendError.value, isNull);
+
+      state.dispose();
+    });
+
+    test('cancelRun during spawn prevents session from attaching', () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Start sendMessage and immediately cancel.
+      final future = state.sendMessage('Hello', runtime);
+      state.cancelRun();
+
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // Cancel should have cleaned up — no error from the failed run.
+      expect(state.lastSendError.value, isNull);
+      expect(state.sessionState.value, isNull);
+
+      state.dispose();
     });
 
     test('executionTrackers is empty before any streaming', () async {

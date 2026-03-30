@@ -122,7 +122,32 @@ void main() {
     state.dispose();
   });
 
-  test('isSpawning clears after disposal during sendToNewThread', () async {
+  test('sessionState is spawning during sendToNewThread', () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      connection: connection,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final sendFuture = state.sendToNewThread('Hello');
+    expect(state.sessionState.value, AgentSessionState.spawning);
+
+    await sendFuture;
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    state.dispose();
+  });
+
+  test('sessionState clears after disposal during sendToNewThread', () async {
     api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
     api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -145,8 +170,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     }
 
-    // isSpawning should be cleared unconditionally, even after disposal.
-    expect(state.isSpawning.value, isFalse);
+    // sessionState should be cleared after disposal.
+    expect(state.sessionState.value, isNull);
   });
 
   test('createThread calls API, refreshes list, and selects thread', () async {

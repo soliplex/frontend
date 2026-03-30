@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import '../../auth/server_entry.dart';
 import '../agent_runtime_manager.dart';
 import '../room_state.dart';
@@ -17,11 +16,6 @@ import 'thread_sidebar.dart';
 
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;
-
-/// Constant signal used to tell [ChatInput] a spawn is in progress
-/// when no [ThreadViewState] exists yet.
-final _spawningSessionState =
-    Signal<AgentSessionState?>(AgentSessionState.spawning);
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
@@ -241,7 +235,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _buildNoThreadContent() {
     final roomError = _state.lastError.watch(context);
-    final isSpawning = _state.isSpawning.watch(context);
+    final sessionState = _state.sessionState.watch(context);
     _restoreUnsentText(roomError?.unsentText);
 
     return Column(
@@ -253,7 +247,7 @@ class _RoomScreenState extends State<RoomScreen> {
               final room = roomStatus is RoomLoaded ? roomStatus.room : null;
               return RoomWelcome(
                 room: room,
-                onSuggestionTapped: isSpawning
+                onSuggestionTapped: sessionState != null
                     ? null
                     : (suggestion) => _state.sendToNewThread(suggestion),
                 fallback: const Center(child: Text('Select a thread')),
@@ -269,7 +263,7 @@ class _RoomScreenState extends State<RoomScreen> {
         ChatInput(
           onSend: (text) => _state.sendToNewThread(text),
           onCancel: _state.cancelSpawn,
-          sessionState: isSpawning ? _spawningSessionState : null,
+          sessionState: _state.sessionState,
           controller: _chatController,
           focusNode: _chatFocusNode,
         ),

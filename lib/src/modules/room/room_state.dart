@@ -57,8 +57,9 @@ class RoomState {
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
-  final Signal<bool> _isSpawning = Signal<bool>(false);
-  ReadonlySignal<bool> get isSpawning => _isSpawning;
+  final Signal<AgentSessionState?> _sessionState =
+      Signal<AgentSessionState?>(null);
+  ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
 
   final Signal<SendError?> _lastError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastError => _lastError;
@@ -119,7 +120,7 @@ class RoomState {
     final pending = _pendingSpawn;
     if (pending == null) return;
     _pendingSpawn = null;
-    _isSpawning.value = false;
+    _sessionState.value = null;
     unawaited(pending.then((s) {
       s.cancel();
       s.dispose();
@@ -129,9 +130,9 @@ class RoomState {
   }
 
   Future<void> sendToNewThread(String prompt) async {
-    if (_isSpawning.value) return;
+    if (_sessionState.value != null) return;
     _lastError.value = null;
-    _isSpawning.value = true;
+    _sessionState.value = AgentSessionState.spawning;
     Future<AgentSession>? spawnFuture;
     try {
       spawnFuture = runtime.spawn(
@@ -141,6 +142,7 @@ class RoomState {
       _pendingSpawn = spawnFuture;
       final session = await spawnFuture;
       if (_pendingSpawn != spawnFuture) return;
+      _pendingSpawn = null;
       final key = session.threadKey;
       _registry.register(key, session);
       if (_isDisposed) return;
@@ -154,7 +156,7 @@ class RoomState {
     } finally {
       if (_pendingSpawn == spawnFuture) {
         _pendingSpawn = null;
-        _isSpawning.value = false;
+        _sessionState.value = null;
       }
     }
   }
