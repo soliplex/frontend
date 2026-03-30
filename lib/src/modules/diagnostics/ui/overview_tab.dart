@@ -350,29 +350,11 @@ class _SseEventCard extends StatefulWidget {
 class _SseEventCardState extends State<_SseEventCard> {
   bool _expanded = false;
 
-  String _summary() {
-    final payload = widget.event.payload;
-    return switch (widget.event.type) {
-      'TEXT_MESSAGE_CONTENT' => payload['delta'] as String? ?? '',
-      'TEXT_MESSAGE_START' => 'role: ${payload['role'] as String? ?? '?'}',
-      'TEXT_MESSAGE_END' => 'messageId: ${payload['messageId'] ?? '?'}',
-      'TOOL_CALL_START' => payload['toolCallName'] as String? ?? '?',
-      'TOOL_CALL_ARGS' => payload['delta'] as String? ?? '',
-      'TOOL_CALL_END' => 'toolCallId: ${payload['toolCallId'] ?? '?'}',
-      'TOOL_CALL_RESULT' => payload['content'] as String? ?? '',
-      'THINKING_CONTENT' => payload['delta'] as String? ?? '',
-      'STATE_SNAPSHOT' || 'STATE_DELTA' => '(object)',
-      'RUN_STARTED' || 'RUN_FINISHED' => '',
-      'RUN_ERROR' => payload['message'] as String? ?? '',
-      _ => '',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final summary = _summary();
+    final summary = sseEventSummary(widget.event);
     final nodes = buildJsonTree(widget.event.payload);
 
     return Card(

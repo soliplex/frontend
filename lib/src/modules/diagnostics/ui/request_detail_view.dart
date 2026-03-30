@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../../shared/copy_button.dart';
-import '../models/event_accumulator.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
-import '../models/sse_event_parser.dart';
+import '../models/search_text_extractor.dart';
 import 'http_status_display.dart';
 import 'overview_tab.dart';
 
@@ -63,105 +62,17 @@ class _RequestDetailViewState extends State<RequestDetailView>
 
   void _onSearchChanged() => setState(() => _currentMatchIndex = 0);
 
-  String _requestText() {
-    final group = widget.group;
-    final parts = <String>[];
-    parts.add(group.methodLabel);
-    parts.add(group.uri.toString());
-    final headers = group.requestHeaders;
-    for (final e in headers.entries) {
-      parts.add('${e.key}: ${e.value}');
-    }
-    final body = group.requestBody;
-    if (body != null) parts.add(HttpEventGroup.formatBody(body));
-    return parts.join('\n');
-  }
-
-  String _responseText() {
-    final group = widget.group;
-    final parts = <String>[];
-    final resp = group.response;
-    if (resp != null) {
-      parts.add('${resp.statusCode}');
-      if (resp.reasonPhrase != null) parts.add(resp.reasonPhrase!);
-      final headers = resp.headers;
-      if (headers != null) {
-        for (final e in headers.entries) {
-          parts.add('${e.key}: ${e.value}');
-        }
-      }
-      if (resp.body != null) parts.add(HttpEventGroup.formatBody(resp.body));
-    }
-    final error = group.error;
-    if (error != null) {
-      parts.add(error.exception.message);
-    }
-    final streamEnd = group.streamEnd;
-    if (streamEnd != null && streamEnd.body != null) {
-      parts.add(streamEnd.body!);
-    }
-    return parts.join('\n');
-  }
-
   String _curlText() => group.toCurl() ?? '';
 
-  String _overviewText() {
-    final buf = StringBuffer();
-    final body = widget.group.requestBody;
-    if (body != null) buf.write(HttpEventGroup.formatBody(body));
-
-    if (widget.group.isStream && widget.group.streamEnd?.body != null) {
-      final rawBody = widget.group.streamEnd!.body!;
-      buf.write(rawBody);
-      final parsed = parseSseEvents(rawBody);
-      final run = accumulateEvents(parsed.events);
-      for (final entry in run.entries) {
-        switch (entry) {
-          case MessageEntry(:final text):
-            buf.write(text);
-          case ToolCallEntry(:final toolName, :final args):
-            buf.write(toolName);
-            buf.write(args);
-          case ToolResultEntry(:final content):
-            buf.write(content);
-          case ThinkingEntry(:final text):
-            buf.write(text);
-          case RunStatusEntry(:final message):
-            if (message != null) buf.write(message);
-          case StateEntry():
-            break;
-        }
-      }
-    } else if (!widget.group.isStream && widget.group.response?.body != null) {
-      buf.write(HttpEventGroup.formatBody(widget.group.response!.body));
-    }
-    return buf.toString();
-  }
-
   HttpEventGroup get group => widget.group;
-
-  int _countMatches(String text, String query) {
-    if (query.isEmpty) return 0;
-    final lower = text.toLowerCase();
-    final q = query.toLowerCase();
-    var count = 0;
-    var idx = 0;
-    while (true) {
-      idx = lower.indexOf(q, idx);
-      if (idx == -1) break;
-      count++;
-      idx += q.length;
-    }
-    return count;
-  }
 
   int _matchesForScope(SearchScope scope) {
     final q = _searchController.text;
     return switch (scope) {
-      SearchScope.request => _countMatches(_requestText(), q),
-      SearchScope.response => _countMatches(_responseText(), q),
-      SearchScope.curl => _countMatches(_curlText(), q),
-      SearchScope.overview => _countMatches(_overviewText(), q),
+      SearchScope.request => countMatches(extractRequestText(group), q),
+      SearchScope.response => countMatches(extractResponseText(group), q),
+      SearchScope.curl => countMatches(_curlText(), q),
+      SearchScope.overview => countMatches(extractOverviewText(group), q),
       SearchScope.everything => 0,
     };
   }
