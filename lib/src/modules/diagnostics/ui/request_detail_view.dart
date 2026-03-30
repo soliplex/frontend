@@ -5,6 +5,20 @@ import '../../../shared/copy_button.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
 import 'http_status_display.dart';
+import 'overview_tab.dart';
+
+/// Scope options for cross-tab text search.
+enum SearchScope {
+  everything('Everything'),
+  request('Request'),
+  response('Response'),
+  curl('curl'),
+  overview('Overview');
+
+  const SearchScope(this.label);
+
+  final String label;
+}
 
 /// Displays detailed request/response information in a tabbed view.
 ///
@@ -12,33 +26,194 @@ import 'http_status_display.dart';
 /// - Request: Method, URL, headers, body
 /// - Response: Status, headers, body
 /// - curl: Generated curl command for reproduction
-class RequestDetailView extends StatelessWidget {
+/// - Overview: Structured JSON and SSE conversation view
+class RequestDetailView extends StatefulWidget {
   const RequestDetailView({required this.group, super.key});
 
   final HttpEventGroup group;
 
   @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Column(
+  State<RequestDetailView> createState() => _RequestDetailViewState();
+}
+
+class _RequestDetailViewState extends State<RequestDetailView>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  final _searchController = TextEditingController();
+  SearchScope _scope = SearchScope.everything;
+
+  static const _tabCount = 4;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabCount, vsync: this);
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() => setState(() {});
+
+  String _requestText() {
+    final group = widget.group;
+    final parts = <String>[];
+    parts.add(group.methodLabel);
+    parts.add(group.uri.toString());
+    final headers = group.requestHeaders;
+    for (final e in headers.entries) {
+      parts.add('${e.key}: ${e.value}');
+    }
+    final body = group.requestBody;
+    if (body != null) parts.add(HttpEventGroup.formatBody(body));
+    return parts.join('\n');
+  }
+
+  String _responseText() {
+    final group = widget.group;
+    final parts = <String>[];
+    final resp = group.response;
+    if (resp != null) {
+      parts.add('${resp.statusCode}');
+      if (resp.reasonPhrase != null) parts.add(resp.reasonPhrase!);
+      final headers = resp.headers;
+      if (headers != null) {
+        for (final e in headers.entries) {
+          parts.add('${e.key}: ${e.value}');
+        }
+      }
+      if (resp.body != null) parts.add(HttpEventGroup.formatBody(resp.body));
+    }
+    final error = group.error;
+    if (error != null) {
+      parts.add(error.exception.message);
+    }
+    final streamEnd = group.streamEnd;
+    if (streamEnd != null && streamEnd.body != null) {
+      parts.add(streamEnd.body!);
+    }
+    return parts.join('\n');
+  }
+
+  String _curlText() => group.toCurl() ?? '';
+
+  String _overviewText() {
+    final group = widget.group;
+    final parts = <String>[];
+    final body = group.requestBody;
+    if (body != null) parts.add(HttpEventGroup.formatBody(body));
+    final streamEnd = group.streamEnd;
+    if (streamEnd?.body != null) parts.add(streamEnd!.body!);
+    final resp = group.response;
+    if (resp?.body != null) parts.add(HttpEventGroup.formatBody(resp!.body));
+    return parts.join('\n');
+  }
+
+  HttpEventGroup get group => widget.group;
+
+  int _countMatches(String text, String query) {
+    if (query.isEmpty) return 0;
+    final lower = text.toLowerCase();
+    final q = query.toLowerCase();
+    var count = 0;
+    var idx = 0;
+    while (true) {
+      idx = lower.indexOf(q, idx);
+      if (idx == -1) break;
+      count++;
+      idx += q.length;
+    }
+    return count;
+  }
+
+  int _tabMatches(int tabIndex) {
+    final q = _searchController.text;
+    if (q.isEmpty) return 0;
+    final tabScope = switch (tabIndex) {
+      0 => SearchScope.request,
+      1 => SearchScope.response,
+      2 => SearchScope.curl,
+      3 => SearchScope.overview,
+      _ => SearchScope.request,
+    };
+    if (_scope != SearchScope.everything && _scope != tabScope) return 0;
+    return switch (tabScope) {
+      SearchScope.request => _countMatches(_requestText(), q),
+      SearchScope.response => _countMatches(_responseText(), q),
+      SearchScope.curl => _countMatches(_curlText(), q),
+      SearchScope.overview => _countMatches(_overviewText(), q),
+      SearchScope.everything => 0,
+    };
+  }
+
+  Widget _buildTab(String label, int tabIndex) {
+    final count = _tabMatches(tabIndex);
+    if (count == 0) return Tab(text: label);
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildSummaryHeader(context),
-          const TabBar(
-            tabs: [
-              Tab(text: 'Request'),
-              Tab(text: 'Response'),
-              Tab(text: 'curl'),
-            ],
-          ),
+          Text(label),
+          const SizedBox(width: 4),
+          _MatchBadge(count: count),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        border: Border(
+          bottom: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
           Expanded(
-            child: TabBarView(
-              children: [
-                _RequestTab(group: group),
-                _ResponseTab(group: group),
-                _CurlTab(group: group),
-              ],
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search…',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () => _searchController.clear(),
+                        tooltip: 'Clear search',
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
             ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<SearchScope>(
+            value: _scope,
+            underline: const SizedBox.shrink(),
+            isDense: true,
+            onChanged: (v) {
+              if (v != null) setState(() => _scope = v);
+            },
+            items: [
+              for (final scope in SearchScope.values)
+                DropdownMenuItem(
+                  value: scope,
+                  child: Text(scope.label),
+                ),
+            ],
           ),
         ],
       ),
@@ -84,6 +259,62 @@ class RequestDetailView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildSummaryHeader(context),
+        _buildSearchBar(context),
+        TabBar(
+          controller: _tabController,
+          tabs: [
+            _buildTab('Request', 0),
+            _buildTab('Response', 1),
+            _buildTab('curl', 2),
+            _buildTab('Overview', 3),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _RequestTab(group: group),
+              _ResponseTab(group: group),
+              _CurlTab(group: group),
+              OverviewTab(group: group),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MatchBadge extends StatelessWidget {
+  const _MatchBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: colorScheme.onPrimaryContainer,
+        ),
       ),
     );
   }
