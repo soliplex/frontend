@@ -10,12 +10,14 @@ class ServerSidebar extends StatelessWidget {
     required this.profiles,
     required this.onAddServer,
     required this.onSettings,
+    required this.onNetworkInspector,
   });
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final VoidCallback onAddServer;
   final VoidCallback onSettings;
+  final VoidCallback onNetworkInspector;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,7 @@ class ServerSidebar extends StatelessWidget {
         _ActionButtons(
           onAddServer: onAddServer,
           onSettings: onSettings,
+          onNetworkInspector: onNetworkInspector,
         ),
       ],
     );
@@ -97,10 +100,12 @@ class _ActionButtons extends StatelessWidget {
   const _ActionButtons({
     required this.onAddServer,
     required this.onSettings,
+    required this.onNetworkInspector,
   });
 
   final VoidCallback onAddServer;
   final VoidCallback onSettings;
+  final VoidCallback onNetworkInspector;
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +119,10 @@ class _ActionButtons extends StatelessWidget {
         TextButton(
           onPressed: onSettings,
           child: const Text('Settings'),
+        ),
+        TextButton(
+          onPressed: onNetworkInspector,
+          child: const Text('Network Inspector'),
         ),
       ],
     );

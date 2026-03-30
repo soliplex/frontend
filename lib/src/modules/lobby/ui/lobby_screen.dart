@@ -39,6 +39,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onSettings() {}
 
+  void _onNetworkInspector() => context.push('/diagnostics/network');
+
   void _onRoomTap(String serverId, String roomId) {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Room tap for unknown serverId: $serverId');
@@ -61,6 +63,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roomsByServer: roomsByServer,
                 onAddServer: _onAddServer,
                 onSettings: _onSettings,
+                onNetworkInspector: _onNetworkInspector,
                 onRoomTap: _onRoomTap,
               )
             : _NarrowLayout(
@@ -69,6 +72,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roomsByServer: roomsByServer,
                 onAddServer: _onAddServer,
                 onSettings: _onSettings,
+                onNetworkInspector: _onNetworkInspector,
                 onRoomTap: _onRoomTap,
               );
       },
@@ -83,6 +87,7 @@ class _WideLayout extends StatelessWidget {
     required this.roomsByServer,
     required this.onAddServer,
     required this.onSettings,
+    required this.onNetworkInspector,
     required this.onRoomTap,
   });
 
@@ -91,6 +96,7 @@ class _WideLayout extends StatelessWidget {
   final Map<String, ServerRooms> roomsByServer;
   final VoidCallback onAddServer;
   final VoidCallback onSettings;
+  final VoidCallback onNetworkInspector;
   final void Function(String serverId, String roomId) onRoomTap;
 
   @override
@@ -105,6 +111,7 @@ class _WideLayout extends StatelessWidget {
               profiles: profiles,
               onAddServer: onAddServer,
               onSettings: onSettings,
+              onNetworkInspector: onNetworkInspector,
             ),
           ),
           const VerticalDivider(width: 1),
@@ -129,6 +136,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.roomsByServer,
     required this.onAddServer,
     required this.onSettings,
+    required this.onNetworkInspector,
     required this.onRoomTap,
   });
 
@@ -137,6 +145,7 @@ class _NarrowLayout extends StatelessWidget {
   final Map<String, ServerRooms> roomsByServer;
   final VoidCallback onAddServer;
   final VoidCallback onSettings;
+  final VoidCallback onNetworkInspector;
   final void Function(String serverId, String roomId) onRoomTap;
 
   @override
@@ -156,6 +165,7 @@ class _NarrowLayout extends StatelessWidget {
           profiles: profiles,
           onAddServer: onAddServer,
           onSettings: onSettings,
+          onNetworkInspector: onNetworkInspector,
         ),
       ),
       body: _RoomContent(

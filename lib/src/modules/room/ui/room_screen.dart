@@ -146,6 +146,8 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onBackToLobby() => context.go('/lobby');
 
+  void _onNetworkInspector() => context.push('/diagnostics/network');
+
   void _onThreadSelected(String threadId) {
     context.go(
       '/room/${widget.serverEntry.alias}/${widget.roomId}/$threadId',
@@ -168,6 +170,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onThreadSelected: _onThreadSelected,
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
+            onNetworkInspector: _onNetworkInspector,
             onRetryThreads: () => _state.threadList.refresh(),
           );
           final content = _buildContent();
@@ -208,6 +211,10 @@ class _RoomScreenState extends State<RoomScreen> {
                     onCreateThread: () {
                       Navigator.pop(drawerContext);
                       _state.createThread();
+                    },
+                    onNetworkInspector: () {
+                      Navigator.pop(drawerContext);
+                      _onNetworkInspector();
                     },
                     onRetryThreads: () => _state.threadList.refresh(),
                   ),

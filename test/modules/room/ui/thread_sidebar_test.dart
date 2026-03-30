@@ -15,6 +15,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
+          onNetworkInspector: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -46,6 +47,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
+          onNetworkInspector: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -74,6 +76,7 @@ void main() {
           onThreadSelected: (id) => selectedId = id,
           onBackToLobby: () {},
           onCreateThread: () {},
+          onNetworkInspector: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -94,6 +97,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
+          onNetworkInspector: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -101,5 +105,27 @@ void main() {
 
     await tester.tap(find.text('Lobby'));
     expect(backCalled, isTrue);
+  });
+
+  testWidgets('shows Network Inspector button that fires callback',
+      (tester) async {
+    bool inspectorCalled = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(const []),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () => inspectorCalled = true,
+          onRetryThreads: () {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Network Inspector'));
+    expect(inspectorCalled, isTrue);
   });
 }

@@ -19,6 +19,7 @@ Widget _buildSidebar({
   Map<String, UserProfile?> profiles = const {},
   VoidCallback? onAddServer,
   VoidCallback? onSettings,
+  VoidCallback? onNetworkInspector,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -27,6 +28,7 @@ Widget _buildSidebar({
         profiles: profiles,
         onAddServer: onAddServer ?? () {},
         onSettings: onSettings ?? () {},
+        onNetworkInspector: onNetworkInspector ?? () {},
       ),
     ),
   );
@@ -92,6 +94,20 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
       await tester.tap(find.text('Settings'));
       expect(settingsTapped, isTrue);
+    });
+
+    testWidgets('shows Network Inspector button that fires callback',
+        (tester) async {
+      var inspectorTapped = false;
+
+      await tester.pumpWidget(_buildSidebar(
+        servers: const {},
+        onNetworkInspector: () => inspectorTapped = true,
+      ));
+
+      expect(find.text('Network Inspector'), findsOneWidget);
+      await tester.tap(find.text('Network Inspector'));
+      expect(inspectorTapped, isTrue);
     });
   });
 }
