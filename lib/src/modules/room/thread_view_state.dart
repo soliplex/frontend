@@ -108,20 +108,12 @@ class ThreadViewState {
     if (_sessionState.value != null) return;
     _lastSendError.value = null;
     _sessionState.value = AgentSessionState.spawning;
-    final current = _messages.value;
-    final cachedHistory = current is MessagesLoaded
-        ? ThreadHistory(
-            messages: current.messages,
-            messageStates: current.messageStates,
-          )
-        : null;
     Future<AgentSession>? spawnFuture;
     try {
       spawnFuture = runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
-        cachedHistory: cachedHistory,
       );
       _pendingSpawn = spawnFuture;
       final session = await spawnFuture;
