@@ -28,6 +28,16 @@ void main() {
       expect(constraints.supportsReentrantInterpreter, isTrue);
     });
 
+    test('maxConcurrentSessions matches maxConcurrentBridges', () {
+      const constraints = NativePlatformConstraints();
+      expect(constraints.maxConcurrentSessions, equals(4));
+    });
+
+    test('custom bridges reflects in sessions', () {
+      const constraints = NativePlatformConstraints(maxConcurrentBridges: 8);
+      expect(constraints.maxConcurrentSessions, equals(8));
+    });
+
     test('implements PlatformConstraints', () {
       const PlatformConstraints constraints = NativePlatformConstraints();
       expect(constraints, isA<PlatformConstraints>());
@@ -55,6 +65,16 @@ void main() {
       expect(constraints.supportsReentrantInterpreter, isFalse);
     });
 
+    test('defaults to 4 max concurrent sessions', () {
+      const constraints = WebPlatformConstraints();
+      expect(constraints.maxConcurrentSessions, equals(4));
+    });
+
+    test('accepts custom max concurrent sessions', () {
+      const constraints = WebPlatformConstraints(maxConcurrentSessions: 8);
+      expect(constraints.maxConcurrentSessions, equals(8));
+    });
+
     test('implements PlatformConstraints', () {
       const PlatformConstraints constraints = WebPlatformConstraints();
       expect(constraints, isA<PlatformConstraints>());
@@ -80,6 +100,11 @@ void main() {
     test('supports reentrant interpreter', () {
       const constraints = MobilePlatformConstraints();
       expect(constraints.supportsReentrantInterpreter, isTrue);
+    });
+
+    test('maxConcurrentSessions matches maxConcurrentBridges', () {
+      const constraints = MobilePlatformConstraints();
+      expect(constraints.maxConcurrentSessions, equals(2));
     });
 
     test('implements PlatformConstraints', () {

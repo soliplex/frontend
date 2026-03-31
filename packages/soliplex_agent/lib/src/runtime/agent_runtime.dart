@@ -140,7 +140,6 @@ class AgentRuntime {
     AgentSession? parent,
   }) async {
     _guardNotDisposed();
-    _guardWasmReentrancy();
     await _waitForSlot();
     _guardSpawnDepth(parent);
     final depth = parent == null ? 0 : parent.depth + 1;
@@ -232,14 +231,8 @@ class AgentRuntime {
     }
   }
 
-  void _guardWasmReentrancy() {
-    if (!_platform.supportsReentrantInterpreter && _activeCount > 0) {
-      throw StateError('WASM runtime does not support concurrent sessions');
-    }
-  }
-
   Future<void> _waitForSlot() async {
-    if (_activeCount < _platform.maxConcurrentBridges) return;
+    if (_activeCount < _platform.maxConcurrentSessions) return;
     final completer = Completer<void>();
     _spawnQueue.add(completer);
     await completer.future;
@@ -248,7 +241,7 @@ class AgentRuntime {
 
   void _drainQueue() {
     if (_spawnQueue.isEmpty) return;
-    if (_activeCount >= _platform.maxConcurrentBridges) return;
+    if (_activeCount >= _platform.maxConcurrentSessions) return;
     _spawnQueue.removeAt(0).complete();
   }
 

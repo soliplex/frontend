@@ -339,32 +339,76 @@ void main() {
     });
   });
 
-  group('WASM guard', () {
-    test('blocks second spawn on non-reentrant platform', () async {
+  group('WASM concurrent sessions', () {
+    test('allows concurrent sessions on web platform', () async {
       runtime = createRuntime(platform: const WebPlatformConstraints());
 
       stubCreateThread();
       stubCreateRun();
       stubDeleteThread();
-      final controller = StreamController<BaseEvent>();
-      stubRunAgent(stream: controller.stream);
-
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
-
-      expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'B'),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            contains('WASM'),
-          ),
+      // Non-broadcast: events buffer until the orchestrator subscribes.
+      final controllerA = StreamController<BaseEvent>();
+      final controllerB = StreamController<BaseEvent>();
+      var callCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
         ),
+      ).thenAnswer((_) {
+        callCount++;
+        return callCount == 1 ? controllerA.stream : controllerB.stream;
+      });
+
+      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
+      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+
+      expect(runtime.activeSessions, hasLength(2));
+
+      _happyPathEvents().forEach(controllerA.add);
+      _happyPathEvents().forEach(controllerB.add);
+      await controllerA.close();
+      await controllerB.close();
+
+      final resultA = await sessionA.result;
+      final resultB = await sessionB.result;
+      expect(resultA, isA<AgentSuccess>());
+      expect(resultB, isA<AgentSuccess>());
+    });
+
+    test('queues at maxConcurrentSessions limit', () async {
+      runtime = createRuntime(
+        platform: const WebPlatformConstraints(maxConcurrentSessions: 1),
       );
 
-      // Clean up
-      _happyPathEvents().forEach(controller.add);
-      await controller.close();
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      final controllerA = StreamController<BaseEvent>.broadcast();
+      stubRunAgent(stream: controllerA.stream);
+
+      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      expect(runtime.pendingSpawnCount, 0);
+
+      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      await Future<void>.delayed(Duration.zero);
+      expect(runtime.pendingSpawnCount, 1);
+
+      // Complete first → drain queue.
+      _happyPathEvents().forEach(controllerA.add);
+      await controllerA.close();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final controllerB = StreamController<BaseEvent>.broadcast();
+      stubRunAgent(stream: controllerB.stream);
+
+      final session = await spawnFuture;
+      expect(session, isNotNull);
+      expect(runtime.pendingSpawnCount, 0);
+
+      _happyPathEvents().forEach(controllerB.add);
+      await controllerB.close();
     });
   });
 
@@ -442,33 +486,6 @@ void main() {
       // Let microtasks settle.
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(caught, isA<StateError>());
-    });
-
-    test('WASM reentrant guard still throws immediately', () async {
-      runtime = createRuntime(platform: const WebPlatformConstraints());
-
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
-      final controller = StreamController<BaseEvent>.broadcast();
-      stubRunAgent(stream: controller.stream);
-
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
-
-      expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'B'),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            contains('WASM'),
-          ),
-        ),
-      );
-
-      // Clean up
-      _happyPathEvents().forEach(controller.add);
-      await controller.close();
     });
   });
 

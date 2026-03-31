@@ -21,4 +21,7 @@ class NativePlatformConstraints implements PlatformConstraints {
 
   @override
   bool get supportsReentrantInterpreter => true;
+
+  @override
+  int get maxConcurrentSessions => maxConcurrentBridges;
 }
