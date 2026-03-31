@@ -16,7 +16,7 @@ dependencies:
   flutter_riverpod: ^3.1.0
   flutter_secure_storage: ^10.0.0
   go_router: ^17.1.0
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.5.5
   web: ^1.1.1
   signals_flutter: ^6.3.0
   soliplex_agent:
