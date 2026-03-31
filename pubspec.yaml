@@ -19,24 +19,24 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_appauth: ^12.0.0
+  flutter_highlight: ^0.7.0
+  flutter_markdown_plus: ^1.0.7
   flutter_riverpod: ^3.1.0
   flutter_secure_storage: ^10.0.0
+  flutter_svg: ^2.0.17
   go_router: ^17.1.0
+  markdown: ^7.0.0
   shared_preferences: ^2.5.5
-  web: ^1.1.1
   signals_flutter: ^6.3.0
+  web: ^1.1.1
   soliplex_agent:
     path: packages/soliplex_agent
-  soliplex_logging:
-    path: packages/soliplex_logging
-  soliplex_client_native:
-    path: packages/soliplex_client_native
-  flutter_markdown_plus: ^1.0.7
-  markdown: ^7.0.0
-  flutter_highlight: ^0.7.0
-  flutter_svg: ^2.0.17
   soliplex_client:
     path: packages/soliplex_client
+  soliplex_client_native:
+    path: packages/soliplex_client_native
+  soliplex_logging:
+    path: packages/soliplex_logging
 
 dev_dependencies:
   flutter_test:
