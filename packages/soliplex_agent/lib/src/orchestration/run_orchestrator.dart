@@ -82,6 +82,11 @@ class RunOrchestrator {
   final Logger _logger;
   final int _maxToolDepth;
 
+  final CitationExtractor _citationExtractor = CitationExtractor();
+
+  Map<String, dynamic> _preRunAguiState = const {};
+  String? _userMessageId;
+
   final StreamController<RunState> _controller =
       StreamController<RunState>.broadcast();
   final StreamController<BaseEvent> _baseEventController =
@@ -191,11 +196,12 @@ class RunOrchestrator {
   void cancelRun() {
     _guardNotDisposed();
     switch (_currentState) {
-      case RunningState(:final threadKey, :final conversation):
+      case RunningState(:final threadKey, :final runId, :final conversation):
         _cancelToken?.cancel();
         _cleanup();
+        final withCitations = _extractCitations(conversation, runId);
         _setState(
-          CancelledState(threadKey: threadKey, conversation: conversation),
+          CancelledState(threadKey: threadKey, conversation: withCitations),
         );
       case ToolYieldingState(:final threadKey, :final conversation):
         _setState(
@@ -211,6 +217,8 @@ class RunOrchestrator {
     _guardNotDisposed();
     _cancelToken?.cancel();
     _cleanup();
+    _preRunAguiState = const {};
+    _userMessageId = null;
     _setState(const IdleState());
   }
 
@@ -226,6 +234,8 @@ class RunOrchestrator {
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('Cannot sync while a run is active');
     }
+    _preRunAguiState = const {};
+    _userMessageId = null;
     _setState(const IdleState());
   }
 
@@ -538,10 +548,13 @@ class RunOrchestrator {
       user: ChatUser.user,
       text: userMessage,
     );
+    final aguiState = cachedHistory?.aguiState ?? const {};
+    _preRunAguiState = aguiState;
+    _userMessageId = userMsg.id;
     return Conversation(
       threadId: key.threadId,
       messages: [...priorMessages, userMsg],
-      aguiState: cachedHistory?.aguiState ?? const {},
+      aguiState: aguiState,
       messageStates: cachedHistory?.messageStates ?? const {},
     );
   }
@@ -599,12 +612,14 @@ class RunOrchestrator {
     if (event is RunErrorEvent) {
       _receivedTerminalEvent = true;
       _cleanup();
+      final withCitations =
+          _extractCitations(result.conversation, previous.runId);
       _setState(
         FailedState(
           threadKey: previous.threadKey,
           reason: FailureReason.serverError,
           error: event.message,
-          conversation: result.conversation,
+          conversation: withCitations,
         ),
       );
       return;
@@ -621,13 +636,14 @@ class RunOrchestrator {
     _receivedTerminalEvent = true;
     _subscription = null;
     _cancelToken = null;
-    final pendingTools = _extractPendingTools(conversation);
+    final withCitations = _extractCitations(conversation, previous.runId);
+    final pendingTools = _extractPendingTools(withCitations);
     if (pendingTools.isNotEmpty) {
       _setState(
         ToolYieldingState(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          conversation: conversation,
+          conversation: withCitations,
           pendingToolCalls: pendingTools,
           toolDepth: _toolDepth,
         ),
@@ -637,10 +653,43 @@ class RunOrchestrator {
         CompletedState(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          conversation: conversation,
+          conversation: withCitations,
         ),
       );
     }
+  }
+
+  /// Extracts citations by diffing AG-UI state before/after this run segment.
+  ///
+  /// Always creates a [MessageState] with the [runId] so downstream consumers
+  /// (e.g. feedback buttons) can resolve it, even when there are no citations.
+  /// Updates [_preRunAguiState] for the next segment in a tool loop.
+  ///
+  /// In multi-segment tool loops, [runId] is overwritten each segment so the
+  /// final [MessageState] carries the last segment's run ID — the one whose
+  /// output the user sees and may submit feedback on.
+  Conversation _extractCitations(Conversation conversation, String runId) {
+    final userMessageId = _userMessageId;
+    if (userMessageId == null) return conversation;
+
+    final citations = _citationExtractor.extractNew(
+      _preRunAguiState,
+      conversation.aguiState,
+    );
+    _preRunAguiState = conversation.aguiState;
+
+    final existing = conversation.messageStates[userMessageId];
+    final mergedCitations = [
+      if (existing != null) ...existing.sourceReferences,
+      ...citations,
+    ];
+
+    final messageState = MessageState(
+      userMessageId: userMessageId,
+      sourceReferences: mergedCitations,
+      runId: runId,
+    );
+    return conversation.withMessageState(userMessageId, messageState);
   }
 
   void _onStreamDone() {
@@ -651,12 +700,14 @@ class RunOrchestrator {
     if (running is! RunningState) return;
     _cleanup();
     _logger.warning('Stream ended without terminal event');
+    final withCitations =
+        _extractCitations(running.conversation, running.runId);
     _setState(
       FailedState(
         threadKey: running.threadKey,
         reason: FailureReason.networkLost,
         error: 'Stream ended without terminal event',
-        conversation: running.conversation,
+        conversation: withCitations,
       ),
     );
   }
@@ -666,11 +717,13 @@ class RunOrchestrator {
     final running = _currentState;
     if (running is! RunningState) return;
     _cleanup();
+    final withCitations =
+        _extractCitations(running.conversation, running.runId);
     if (error is CancellationError) {
       _setState(
         CancelledState(
           threadKey: running.threadKey,
-          conversation: running.conversation,
+          conversation: withCitations,
         ),
       );
       return;
@@ -682,7 +735,7 @@ class RunOrchestrator {
         threadKey: running.threadKey,
         reason: reason,
         error: error.toString(),
-        conversation: running.conversation,
+        conversation: withCitations,
       ),
     );
   }
