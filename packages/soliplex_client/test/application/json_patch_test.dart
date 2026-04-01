@@ -57,7 +57,7 @@ void main() {
 
       test('appends to nested array using "-" syntax', () {
         final state = <String, dynamic>{
-          'haiku.rag.chat': {
+          'rag': {
             'qa_history': [
               {'question': 'Q1', 'answer': 'A1'},
             ],
@@ -66,15 +66,15 @@ void main() {
         final operations = [
           {
             'op': 'add',
-            'path': '/haiku.rag.chat/qa_history/-',
+            'path': '/rag/qa_history/-',
             'value': {'question': 'Q2', 'answer': 'A2'},
           },
         ];
 
         final result = applyJsonPatch(state, operations);
 
-        final qaHistory = (result['haiku.rag.chat']
-            as Map<String, dynamic>)['qa_history'] as List;
+        final qaHistory =
+            (result['rag'] as Map<String, dynamic>)['qa_history'] as List;
         expect(qaHistory, hasLength(2));
         expect((qaHistory[1] as Map<String, dynamic>)['question'], 'Q2');
       });
@@ -264,15 +264,15 @@ void main() {
         final operations = [
           {
             'op': 'add',
-            'path': '/haiku.rag.chat/qa_history/0',
+            'path': '/rag/qa_history/0',
             'value': {'question': 'Q1'},
           },
         ];
 
         final result = applyJsonPatch(state, operations);
 
-        final haikuRagChat = result['haiku.rag.chat'] as Map<String, dynamic>;
-        final qaHistory = haikuRagChat['qa_history'] as List<dynamic>;
+        final ragState = result['rag'] as Map<String, dynamic>;
+        final qaHistory = ragState['qa_history'] as List<dynamic>;
         expect(qaHistory, hasLength(1));
         expect((qaHistory[0] as Map<String, dynamic>)['question'], 'Q1');
       });
@@ -368,7 +368,7 @@ void main() {
 
       test('handles complex nested structures', () {
         final state = <String, dynamic>{
-          'haiku.rag.chat': {
+          'rag': {
             'qa_history': <dynamic>[
               {'question': 'Q1', 'answer': 'A1', 'citations': <dynamic>[]},
             ],
@@ -377,7 +377,7 @@ void main() {
         final operations = [
           {
             'op': 'add',
-            'path': '/haiku.rag.chat/qa_history/1',
+            'path': '/rag/qa_history/1',
             'value': {
               'question': 'Q2',
               'answer': 'A2',
@@ -390,7 +390,7 @@ void main() {
 
         final result = applyJsonPatch(state, operations);
 
-        final haikuChat = result['haiku.rag.chat'] as Map<String, dynamic>;
+        final haikuChat = result['rag'] as Map<String, dynamic>;
         final qaHistory = haikuChat['qa_history'] as List<dynamic>;
         expect(qaHistory, hasLength(2));
         final q2 = qaHistory[1] as Map<String, dynamic>;

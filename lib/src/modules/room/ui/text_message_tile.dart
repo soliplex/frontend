@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../execution_tracker.dart';
+import 'citations_section.dart';
 import 'execution/activity_indicator.dart';
 import 'execution/step_log.dart';
 import 'execution/thinking_block.dart';
@@ -14,16 +15,20 @@ class TextMessageTile extends StatelessWidget {
     super.key,
     required this.message,
     this.runId,
+    this.sourceReferences,
     this.onFeedbackSubmit,
     this.onInspect,
+    this.onShowChunkVisualization,
     this.executionTracker,
     this.streamingActivity,
   });
 
   final TextMessage message;
   final String? runId;
+  final List<SourceReference>? sourceReferences;
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
   final VoidCallback? onInspect;
+  final void Function(SourceReference)? onShowChunkVisualization;
   final ExecutionTracker? executionTracker;
   final ActivityType? streamingActivity;
 
@@ -90,6 +95,11 @@ class TextMessageTile extends StatelessWidget {
             ],
           ],
         ),
+        if (sourceReferences != null && sourceReferences!.isNotEmpty)
+          CitationsSection(
+            sourceReferences: sourceReferences!,
+            onShowChunkVisualization: onShowChunkVisualization,
+          ),
       ],
     );
   }

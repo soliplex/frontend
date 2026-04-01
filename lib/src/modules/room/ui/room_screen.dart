@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_client/soliplex_client.dart'
+    show SourceReferenceFormatting;
 import '../../auth/server_entry.dart';
 import '../../diagnostics/diagnostics_providers.dart';
 import '../../diagnostics/models/http_event_grouper.dart';
@@ -14,6 +16,7 @@ import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
 import 'chat_input.dart';
+import 'chunk_visualization_page.dart';
 import 'error_retry_panel.dart';
 import 'message_timeline.dart';
 import 'room_welcome.dart';
@@ -329,6 +332,14 @@ class _RoomScreenState extends State<RoomScreen> {
                     ),
                   );
                 },
+                onShowChunkVisualization: (ref) => ChunkVisualizationPage.show(
+                  context: context,
+                  api: widget.serverEntry.connection.api,
+                  roomId: widget.roomId,
+                  chunkId: ref.chunkId,
+                  documentTitle: ref.displayTitle,
+                  pageNumbers: ref.pageNumbers,
+                ),
               ),
           },
         ),

@@ -1233,4 +1233,340 @@ void main() {
         ..dispose(); // Second call should not throw.
     });
   });
+
+  group('citation extraction', () {
+    List<BaseEvent> citationEvents() => [
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'qa_history': [
+                  {
+                    'question': 'Q1',
+                    'answer': 'A1',
+                    'citations': [
+                      {
+                        'chunk_id': 'chunk-1',
+                        'content': 'Citation text',
+                        'document_id': 'doc-1',
+                        'document_uri': 'https://example.com/doc.pdf',
+                      },
+                    ],
+                  },
+                ],
+                'citation_registry': <String, int>{},
+              },
+            },
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ];
+
+    test('populates messageStates with citations on CompletedState', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(citationEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final messageStates = completed.conversation.messageStates;
+
+      expect(messageStates, hasLength(1));
+      final entry = messageStates.values.first;
+      expect(entry.runId, _runId);
+      expect(entry.sourceReferences, hasLength(1));
+      expect(entry.sourceReferences[0].chunkId, 'chunk-1');
+    });
+
+    test('populates messageStates with runId even without citations', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final messageStates = completed.conversation.messageStates;
+
+      expect(messageStates, hasLength(1));
+      final entry = messageStates.values.first;
+      expect(entry.runId, _runId);
+      expect(entry.sourceReferences, isEmpty);
+    });
+
+    test('extracts citations at ToolYieldingState', () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+
+      final toolCallWithCitations = <BaseEvent>[
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        const StateSnapshotEvent(
+          snapshot: {
+            'rag': {
+              'qa_history': [
+                {
+                  'question': 'Q1',
+                  'answer': 'A1',
+                  'citations': [
+                    {
+                      'chunk_id': 'chunk-1',
+                      'content': 'Citation text',
+                      'document_id': 'doc-1',
+                      'document_uri': 'https://example.com/doc.pdf',
+                    },
+                  ],
+                },
+              ],
+              'citation_registry': <String, int>{},
+            },
+          },
+        ),
+        const ToolCallStartEvent(
+          toolCallId: 'tc-1',
+          toolCallName: 'weather',
+        ),
+        const ToolCallArgsEvent(
+          toolCallId: 'tc-1',
+          delta: '{"city":"NYC"}',
+        ),
+        const ToolCallEndEvent(toolCallId: 'tc-1'),
+        const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+      ];
+
+      stubRunAgent(stream: Stream.fromIterable(toolCallWithCitations));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+      final yielding = orchestrator.currentState as ToolYieldingState;
+      final messageStates = yielding.conversation.messageStates;
+
+      expect(messageStates, hasLength(1));
+      expect(messageStates.values.first.sourceReferences, hasLength(1));
+    });
+
+    test('citations accumulate across tool-resume cycle', () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var callCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) {
+        callCount++;
+        if (callCount == 1) {
+          return Stream.fromIterable([
+            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const StateSnapshotEvent(
+              snapshot: {
+                'rag': {
+                  'qa_history': [
+                    {
+                      'question': 'Q1',
+                      'answer': 'A1',
+                      'citations': [
+                        {
+                          'chunk_id': 'chunk-1',
+                          'content': 'First citation',
+                          'document_id': 'doc-1',
+                          'document_uri': 'https://example.com/doc1.pdf',
+                        },
+                      ],
+                    },
+                  ],
+                  'citation_registry': <String, int>{},
+                },
+              },
+            ),
+            const ToolCallStartEvent(
+              toolCallId: 'tc-1',
+              toolCallName: 'weather',
+            ),
+            const ToolCallArgsEvent(
+              toolCallId: 'tc-1',
+              delta: '{"city":"NYC"}',
+            ),
+            const ToolCallEndEvent(toolCallId: 'tc-1'),
+            const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+          ]);
+        }
+        return Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-2'),
+          const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'qa_history': [
+                  {
+                    'question': 'Q1',
+                    'answer': 'A1',
+                    'citations': [
+                      {
+                        'chunk_id': 'chunk-1',
+                        'content': 'First citation',
+                        'document_id': 'doc-1',
+                        'document_uri': 'https://example.com/doc1.pdf',
+                      },
+                    ],
+                  },
+                  {
+                    'question': 'Q2',
+                    'answer': 'A2',
+                    'citations': [
+                      {
+                        'chunk_id': 'chunk-2',
+                        'content': 'Second citation',
+                        'document_id': 'doc-2',
+                        'document_uri': 'https://example.com/doc2.pdf',
+                      },
+                    ],
+                  },
+                ],
+                'citation_registry': <String, int>{},
+              },
+            },
+          ),
+          const TextMessageEndEvent(messageId: 'msg-2'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]);
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Search',
+        toolExecutor: (pending) async {
+          return pending
+              .map(
+                (tc) => tc.copyWith(
+                  status: ToolCallStatus.completed,
+                  result: 'result',
+                ),
+              )
+              .toList();
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final messageStates = completed.conversation.messageStates;
+
+      expect(messageStates, hasLength(1));
+      final entry = messageStates.values.first;
+      expect(entry.sourceReferences, hasLength(2));
+      expect(entry.sourceReferences[0].chunkId, 'chunk-1');
+      expect(entry.sourceReferences[1].chunkId, 'chunk-2');
+    });
+
+    test('reset clears citation state', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(citationEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<CompletedState>());
+
+      orchestrator.reset();
+
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final entry = completed.conversation.messageStates.values.first;
+      expect(entry.sourceReferences, isEmpty);
+    });
+
+    test('preserves runId on RunErrorEvent', () async {
+      stubCreateRun();
+
+      final events = <BaseEvent>[
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        const TextMessageStartEvent(messageId: 'msg-1'),
+        const TextMessageContentEvent(messageId: 'msg-1', delta: 'Partial'),
+        const RunErrorEvent(message: 'server error'),
+      ];
+      stubRunAgent(stream: Stream.fromIterable(events));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final messageStates = failed.conversation!.messageStates;
+      expect(messageStates, hasLength(1));
+      expect(messageStates.values.first.runId, _runId);
+    });
+
+    test('preserves runId on stream error', () async {
+      stubCreateRun();
+
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      controller.add(
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      controller.addError(Exception('network lost'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final messageStates = failed.conversation!.messageStates;
+      expect(messageStates, hasLength(1));
+      expect(messageStates.values.first.runId, _runId);
+
+      await controller.close();
+    });
+
+    test('preserves runId on cancelRun', () async {
+      stubCreateRun();
+
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      controller.add(
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      orchestrator.cancelRun();
+
+      expect(orchestrator.currentState, isA<CancelledState>());
+      final cancelled = orchestrator.currentState as CancelledState;
+      final messageStates = cancelled.conversation!.messageStates;
+      expect(messageStates, hasLength(1));
+      expect(messageStates.values.first.runId, _runId);
+
+      await controller.close();
+    });
+  });
 }

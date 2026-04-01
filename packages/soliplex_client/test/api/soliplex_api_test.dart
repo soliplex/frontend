@@ -603,7 +603,7 @@ void main() {
                 'run_id': 'run-1',
                 'run_input': <String, dynamic>{
                   'state': <String, dynamic>{
-                    'haiku.rag.chat': <String, dynamic>{
+                    'rag': <String, dynamic>{
                       'citation_registry': <String, dynamic>{},
                       'citations': <dynamic>[],
                     },
@@ -621,7 +621,7 @@ void main() {
         expect(thread.initialRunId, equals('run-1'));
         expect(
           aguiState,
-          containsPair('haiku.rag.chat', isA<Map<String, dynamic>>()),
+          containsPair('rag', isA<Map<String, dynamic>>()),
         );
       });
 
@@ -2364,7 +2364,7 @@ void main() {
                 {
                   'type': 'STATE_SNAPSHOT',
                   'snapshot': {
-                    'haiku.rag.chat': {
+                    'rag': {
                       'citation_registry': <String, int>{},
                       'qa_history': [
                         {
@@ -2431,7 +2431,7 @@ void main() {
                 {
                   'type': 'STATE_SNAPSHOT',
                   'snapshot': {
-                    'haiku.rag.chat': {
+                    'rag': {
                       'citation_registry': <String, int>{},
                       'qa_history': [
                         {

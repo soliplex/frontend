@@ -106,7 +106,7 @@ void main() {
     });
 
     group('JSON keys required for parsing', () {
-      test('parses from haiku.rag.chat state format', () {
+      test('parses from RAG state format', () {
         // The generated fromJson requires citation_registry to be present.
         // The backend always sends it (even if empty).
         final json = {

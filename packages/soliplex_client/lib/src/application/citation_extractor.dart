@@ -27,6 +27,11 @@ Never _throwFromJsonDiagnostic(
   Error.throwWithStackTrace(FormatException(message), stackTrace);
 }
 
+/// The AG-UI state namespace key for RAG state.
+///
+/// Must match the backend's `STATE_NAMESPACE` in `haiku.rag.skills.rag`.
+const ragStateKey = 'rag';
+
 /// Extracts new [SourceReference]s by comparing AG-UI state snapshots.
 ///
 /// This is the **schema firewall**: the only file that imports schema types.
@@ -52,9 +57,8 @@ class CitationExtractor {
     Map<String, dynamic> previousState,
     Map<String, dynamic> currentState,
   ) {
-    final previousData =
-        previousState['haiku.rag.chat'] as Map<String, dynamic>?;
-    final currentData = currentState['haiku.rag.chat'] as Map<String, dynamic>?;
+    final previousData = previousState[ragStateKey] as Map<String, dynamic>?;
+    final currentData = currentState[ragStateKey] as Map<String, dynamic>?;
 
     if (currentData == null) return [];
 
@@ -68,7 +72,7 @@ class CitationExtractor {
       // STATE_DELTA events that only include qa_history.
       if (!currentData.containsKey('citation_registry')) {
         developer.log(
-          'BUG: haiku.rag.chat missing citation_registry. '
+          'BUG: $ragStateKey state missing citation_registry. '
           'Keys present: ${currentData.keys.toList()}',
           name: 'soliplex_client.citation_extractor',
           level: 900,

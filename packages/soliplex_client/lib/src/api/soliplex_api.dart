@@ -313,7 +313,7 @@ class SoliplexApi {
   ///
   /// Returns a record of ([ThreadInfo], AG-UI state). The state is extracted
   /// from the initial run's `run_input.state` and contains backend-initialized
-  /// feature defaults (e.g., `haiku.rag.chat`).
+  /// feature defaults (e.g., `rag`).
   ///
   /// Throws:
   /// - [ArgumentError] if [roomId] is empty

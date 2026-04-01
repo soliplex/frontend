@@ -13,17 +13,21 @@ class MessageTile extends StatelessWidget {
     super.key,
     required this.message,
     this.runId,
+    this.sourceReferences,
     this.onFeedbackSubmit,
     this.onInspect,
+    this.onShowChunkVisualization,
     this.executionTracker,
     this.streamingActivity,
   });
 
   final ChatMessage message;
   final String? runId;
+  final List<SourceReference>? sourceReferences;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
+  final void Function(SourceReference)? onShowChunkVisualization;
   final ExecutionTracker? executionTracker;
   final ActivityType? streamingActivity;
 
@@ -35,6 +39,7 @@ class MessageTile extends StatelessWidget {
         final TextMessage m => TextMessageTile(
             message: m,
             runId: runId,
+            sourceReferences: sourceReferences,
             onFeedbackSubmit: onFeedbackSubmit != null && runId != null
                 ? (feedback, reason) =>
                     onFeedbackSubmit!(runId!, feedback, reason)
@@ -42,6 +47,7 @@ class MessageTile extends StatelessWidget {
             onInspect: onInspect != null && runId != null
                 ? () => onInspect!(runId!)
                 : null,
+            onShowChunkVisualization: onShowChunkVisualization,
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),

@@ -187,10 +187,10 @@ class ThreadViewState {
           streaming,
           session.lastExecutionEvent,
         );
-      case CompletedState(:final conversation, :final runId):
+      case CompletedState(:final conversation):
         _trackerRegistry.onRunTerminated();
         _detachSession();
-        _messages.value = _messagesLoaded(conversation, runId: runId);
+        _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final error):
         _trackerRegistry.onRunTerminated();
         _detachSession();
@@ -210,35 +210,16 @@ class ThreadViewState {
     }
   }
 
-  MessagesLoaded _messagesLoaded(Conversation conversation, {String? runId}) {
+  MessagesLoaded _messagesLoaded(Conversation conversation) {
     final existing = switch (_messages.value) {
       MessagesLoaded(:final messageStates) => messageStates,
       _ => const <String, MessageState>{},
     };
     final merged = {...existing, ...conversation.messageStates};
-    if (runId != null) {
-      final userMsgId = _lastUserMessageId(conversation);
-      if (userMsgId != null) {
-        merged[userMsgId] = MessageState(
-          userMessageId: userMsgId,
-          sourceReferences: const [],
-          runId: runId,
-        );
-      }
-    }
     return MessagesLoaded(
       messages: conversation.messages,
       messageStates: merged,
     );
-  }
-
-  static String? _lastUserMessageId(Conversation conversation) {
-    for (var i = conversation.messages.length - 1; i >= 0; i--) {
-      if (conversation.messages[i].user == ChatUser.user) {
-        return conversation.messages[i].id;
-      }
-    }
-    return null;
   }
 
   void _detachSession() {
@@ -265,8 +246,8 @@ class ThreadViewState {
 
   void _applyOutcome(RunOutcome outcome) {
     switch (outcome) {
-      case CompletedRun(:final conversation, :final runId):
-        _messages.value = _messagesLoaded(conversation, runId: runId);
+      case CompletedRun(:final conversation):
+        _messages.value = _messagesLoaded(conversation);
       case FailedRun(:final conversation, :final error):
         _lastSendError.value = SendError(error);
         if (conversation != null) {

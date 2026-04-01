@@ -32,7 +32,7 @@
 .pub/
 **/doc/api/
 **/generated_plugin_registrant.dart
-/build/
+**/build/
 /coverage/
 
 # Android related

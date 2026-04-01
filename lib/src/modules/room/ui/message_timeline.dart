@@ -6,6 +6,7 @@ import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
+import '../source_references_resolver.dart';
 import 'message_tile.dart';
 import 'room_welcome.dart';
 import 'scroll/anchored_scroll_controller.dart';
@@ -22,6 +23,7 @@ class MessageTimeline extends StatefulWidget {
     this.onSuggestionTapped,
     this.onFeedbackSubmit,
     this.onInspect,
+    this.onShowChunkVisualization,
   });
 
   final List<ChatMessage> messages;
@@ -33,6 +35,7 @@ class MessageTimeline extends StatefulWidget {
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
+  final void Function(SourceReference)? onShowChunkVisualization;
 
   @override
   State<MessageTimeline> createState() => _MessageTimelineState();
@@ -46,17 +49,26 @@ class _MessageTimelineState extends State<MessageTimeline> {
   String? _lastUserMessageId;
   bool _needsInitialScroll = true;
 
+  Map<String, String?> _runIdMap = const {};
+  Map<String, List<SourceReference>> _sourceReferencesMap = const {};
+
   @override
   void initState() {
     super.initState();
     _scrollController = AnchoredScrollController();
     _scrollToBottomController = ScrollToBottomController();
     _scrollController.addListener(_onScroll);
+    _recomputeMaps();
   }
 
   @override
   void didUpdateWidget(MessageTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (widget.messages != oldWidget.messages ||
+        widget.messageStates != oldWidget.messageStates) {
+      _recomputeMaps();
+    }
 
     final lastUserMsg = _findLastUserMessage(widget.messages);
     if (lastUserMsg != null && lastUserMsg.id != _lastUserMessageId) {
@@ -67,6 +79,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     final activeIds = widget.messages.map((m) => m.id).toSet();
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
+  }
+
+  void _recomputeMaps() {
+    _runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
+    _sourceReferencesMap =
+        buildSourceReferencesMap(widget.messages, widget.messageStates);
   }
 
   @override
@@ -162,7 +180,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
       _scrollToBottom();
     }
 
-    final runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
     final streamingActivity = widget.streamingState != null
         ? switch (widget.streamingState!) {
             AwaitingText(:final currentActivity) => currentActivity,
@@ -189,13 +206,15 @@ class _MessageTimelineState extends State<MessageTimeline> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: MessageTile(
                       message: message,
-                      runId: runIdMap[message.id] ??
+                      runId: _runIdMap[message.id] ??
                           (message is TextMessage &&
                                   message.user == ChatUser.user
                               ? widget.messageStates[message.id]?.runId
                               : null),
+                      sourceReferences: _sourceReferencesMap[message.id],
                       onFeedbackSubmit: widget.onFeedbackSubmit,
                       onInspect: widget.onInspect,
+                      onShowChunkVisualization: widget.onShowChunkVisualization,
                       executionTracker: widget.executionTrackers[message.id] ??
                           (message is LoadingMessage
                               ? widget.executionTrackers[awaitingTrackerKey]
