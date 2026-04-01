@@ -4,6 +4,7 @@ import '../../core/shell_config.dart';
 import '../auth/server_manager.dart';
 import 'agent_runtime_manager.dart';
 import 'run_registry.dart';
+import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
 
 ModuleContribution roomModule({
@@ -13,6 +14,26 @@ ModuleContribution roomModule({
 }) {
   return ModuleContribution(
     routes: [
+      GoRoute(
+        path: '/room/:serverAlias/:roomId/info',
+        redirect: (context, state) {
+          final alias = state.pathParameters['serverAlias']!;
+          final entry = serverManager.entryByAlias(alias);
+          if (entry == null || !entry.isConnected) return '/lobby';
+          return null;
+        },
+        pageBuilder: (context, state) {
+          final alias = state.pathParameters['serverAlias']!;
+          final entry = serverManager.entryByAlias(alias)!;
+          return NoTransitionPage(
+            child: RoomInfoScreen(
+              serverEntry: entry,
+              roomId: state.pathParameters['roomId']!,
+              toolRegistryResolver: runtimeManager.toolRegistryResolver,
+            ),
+          );
+        },
+      ),
       _buildRoute(
         '/room/:serverAlias/:roomId',
         serverManager,
