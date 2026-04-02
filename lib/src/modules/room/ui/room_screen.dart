@@ -119,7 +119,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _navigateToThread(String threadId) {
     if (mounted) {
       context.go(
-        '/room/${widget.serverEntry.alias}/${widget.roomId}/$threadId',
+        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
       );
     }
   }
@@ -151,9 +151,13 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onNetworkInspector() => context.push('/diagnostics/network');
 
+  void _onRoomInfo() {
+    context.push('/room/${widget.serverEntry.alias}/${widget.roomId}/info');
+  }
+
   void _onThreadSelected(String threadId) {
     context.go(
-      '/room/${widget.serverEntry.alias}/${widget.roomId}/$threadId',
+      '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
     );
   }
 
@@ -174,6 +178,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
             onNetworkInspector: _onNetworkInspector,
+            onRoomInfo: _onRoomInfo,
             onRetryThreads: () => _state.threadList.refresh(),
           );
           final content = _buildContent();
@@ -218,6 +223,10 @@ class _RoomScreenState extends State<RoomScreen> {
                     onNetworkInspector: () {
                       Navigator.pop(drawerContext);
                       _onNetworkInspector();
+                    },
+                    onRoomInfo: () {
+                      Navigator.pop(drawerContext);
+                      _onRoomInfo();
                     },
                     onRetryThreads: () => _state.threadList.refresh(),
                   ),

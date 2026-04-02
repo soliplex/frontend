@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'package:soliplex_client/src/domain/mcp_client_toolset.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
+import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 
 /// Represents a room from the backend.
@@ -19,6 +20,7 @@ class Room {
     this.enableAttachments = false,
     this.allowMcp = false,
     this.agent,
+    this.skills = const {},
     this.tools = const {},
     this.mcpClientToolsets = const {},
     this.toolDefinitions = const [],
@@ -55,6 +57,9 @@ class Room {
 
   /// Agent configuration for this room.
   final RoomAgent? agent;
+
+  /// Skills configured in this room, keyed by skill name.
+  final Map<String, RoomSkill> skills;
 
   /// Tools configured in this room, keyed by tool name.
   final Map<String, RoomTool> tools;
@@ -104,6 +109,7 @@ class Room {
     bool? enableAttachments,
     bool? allowMcp,
     RoomAgent? agent,
+    Map<String, RoomSkill>? skills,
     Map<String, RoomTool>? tools,
     Map<String, McpClientToolset>? mcpClientToolsets,
     List<Map<String, dynamic>>? toolDefinitions,
@@ -120,6 +126,7 @@ class Room {
       enableAttachments: enableAttachments ?? this.enableAttachments,
       allowMcp: allowMcp ?? this.allowMcp,
       agent: agent ?? this.agent,
+      skills: skills ?? this.skills,
       tools: tools ?? this.tools,
       mcpClientToolsets: mcpClientToolsets ?? this.mcpClientToolsets,
       toolDefinitions: toolDefinitions ?? this.toolDefinitions,

@@ -70,4 +70,35 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
+
+  testWidgets('shows error icon when clipboard fails then reverts',
+      (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        throw PlatformException(code: 'ERROR', message: 'clipboard failed');
+      }
+      return null;
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: CopyButton(text: 'hello')),
+      ),
+    );
+
+    await tester.tap(find.byType(CopyButton));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.byIcon(Icons.copy), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.byIcon(Icons.copy), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
+  });
 }

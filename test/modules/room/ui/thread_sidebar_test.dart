@@ -16,6 +16,7 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onRoomInfo: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -48,6 +49,7 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onRoomInfo: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -77,6 +79,7 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onRoomInfo: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -98,6 +101,7 @@ void main() {
           onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onRoomInfo: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -120,6 +124,7 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () => inspectorCalled = true,
+          onRoomInfo: () {},
           onRetryThreads: () {},
         ),
       ),
@@ -127,5 +132,27 @@ void main() {
 
     await tester.tap(find.text('Network Inspector'));
     expect(inspectorCalled, isTrue);
+  });
+
+  testWidgets('shows Room Info button that fires callback', (tester) async {
+    bool infoCalled = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(const []),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () => infoCalled = true,
+          onRetryThreads: () {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Room Info'));
+    expect(infoCalled, isTrue);
   });
 }

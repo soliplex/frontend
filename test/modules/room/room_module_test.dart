@@ -43,7 +43,26 @@ void main() {
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
     expect(paths, contains('/room/:serverAlias/:roomId'));
-    expect(paths, contains('/room/:serverAlias/:roomId/:threadId'));
+    expect(paths, contains('/room/:serverAlias/:roomId/thread/:threadId'));
+  });
+
+  test('contributes room info route before thread route', () {
+    final manager = _createManager();
+    final contribution = roomModule(
+      serverManager: manager,
+      runtimeManager: runtimeManager,
+      registry: registry,
+    );
+    final paths =
+        contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
+    expect(paths, contains('/room/:serverAlias/:roomId/info'));
+
+    final infoIndex = paths.indexOf('/room/:serverAlias/:roomId/info');
+    final threadIndex =
+        paths.indexOf('/room/:serverAlias/:roomId/thread/:threadId');
+    expect(infoIndex, lessThan(threadIndex),
+        reason:
+            '/info must precede /:threadId to avoid eager parameter matching');
   });
 
   test('contributes no overrides in Slice A', () {

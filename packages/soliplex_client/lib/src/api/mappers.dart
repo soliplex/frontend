@@ -6,6 +6,7 @@ import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
+import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
@@ -137,6 +138,44 @@ McpClientToolset mcpClientToolsetFromJson(Map<String, dynamic> json) {
   );
 }
 
+/// Creates a [RoomSkill] from JSON.
+RoomSkill roomSkillFromJson(String key, Map<String, dynamic> json) {
+  return RoomSkill(
+    name: (json['name'] as String?) ?? key,
+    description: (json['description'] as String?) ?? '',
+    source: json['source'] as String?,
+    license: json['license'] as String?,
+    compatibility: json['compatibility'] as String?,
+    allowedTools: _splitAllowedTools(json['allowed_tools'] as String?),
+    stateNamespace: json['state_namespace'] as String?,
+    metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
+    stateTypeSchema: json['state_type_schema'] as Map<String, dynamic>?,
+  );
+}
+
+/// Splits a space-separated allowed-tools string into a list.
+List<String>? _splitAllowedTools(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  return raw.split(' ').where((s) => s.isNotEmpty).toList();
+}
+
+/// Converts a [RoomSkill] to JSON.
+Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
+  return {
+    'name': skill.name,
+    if (skill.description.isNotEmpty) 'description': skill.description,
+    if (skill.source != null) 'source': skill.source,
+    if (skill.license != null) 'license': skill.license,
+    if (skill.compatibility != null) 'compatibility': skill.compatibility,
+    if (skill.allowedTools != null)
+      'allowed_tools': skill.allowedTools!.join(' '),
+    if (skill.stateNamespace != null) 'state_namespace': skill.stateNamespace,
+    if (skill.metadata.isNotEmpty) 'metadata': skill.metadata,
+    if (skill.stateTypeSchema != null)
+      'state_type_schema': skill.stateTypeSchema,
+  };
+}
+
 /// Parses a timestamp string, returning null on failure.
 DateTime? _tryParseTimestamp(String? raw) {
   if (raw == null) return null;
@@ -251,6 +290,26 @@ Room roomFromJson(Map<String, dynamic> json) {
     }
   }
 
+  // Parse skills — skip malformed entries
+  final skillsJson = json['skills'] as Map<String, dynamic>?;
+  final skills = <String, RoomSkill>{};
+  if (skillsJson != null) {
+    for (final entry in skillsJson.entries) {
+      if (entry.value is! Map<String, dynamic>) {
+        developer.log(
+          'Malformed skill ignored: ${entry.key}\n${entry.value}',
+          name: 'soliplex_client.room',
+          level: 900,
+        );
+        continue;
+      }
+      skills[entry.key] = roomSkillFromJson(
+        entry.key,
+        entry.value as Map<String, dynamic>,
+      );
+    }
+  }
+
   return Room(
     id: _requireString(json, 'id', 'room'),
     name: _requireString(json, 'name', 'room'),
@@ -262,6 +321,7 @@ Room roomFromJson(Map<String, dynamic> json) {
     enableAttachments: json['enable_attachments'] as bool? ?? false,
     allowMcp: json['allow_mcp'] as bool? ?? false,
     agent: agent,
+    skills: skills,
     tools: tools,
     mcpClientToolsets: mcpClientToolsets,
     toolDefinitions: toolDefinitions,
@@ -272,6 +332,10 @@ Room roomFromJson(Map<String, dynamic> json) {
 }
 
 /// Converts a [Room] to JSON.
+///
+/// This is a partial serialization — fields like [Room.agent],
+/// [Room.mcpClientToolsets], [Room.allowMcp], and [Room.suggestions]
+/// are not yet serialized. Add them here when round-trip fidelity is needed.
 Map<String, dynamic> roomToJson(Room room) {
   return {
     'id': room.id,
@@ -280,6 +344,11 @@ Map<String, dynamic> roomToJson(Room room) {
     if (room.metadata.isNotEmpty) 'metadata': room.metadata,
     if (room.welcomeMessage.isNotEmpty) 'welcome_message': room.welcomeMessage,
     if (room.enableAttachments) 'enable_attachments': room.enableAttachments,
+    if (room.skills.isNotEmpty)
+      'skills': {
+        for (final entry in room.skills.entries)
+          entry.key: roomSkillToJson(entry.value),
+      },
     if (room.toolDefinitions.isNotEmpty)
       'tools': {
         for (final tool in room.toolDefinitions)

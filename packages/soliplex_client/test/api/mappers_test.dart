@@ -3,6 +3,7 @@ import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
+import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:test/test.dart';
@@ -443,6 +444,16 @@ void main() {
         name: 'Test Room',
         description: 'A test room',
         metadata: {'key': 'value'},
+        skills: {
+          'web_search': RoomSkill(
+            name: 'Web Search',
+            description: 'Search the web',
+            source: 'filesystem',
+            license: 'MIT',
+            allowedTools: ['search', 'fetch'],
+            metadata: {'author': 'test'},
+          ),
+        },
       );
 
       final json = roomToJson(original);
@@ -452,6 +463,14 @@ void main() {
       expect(restored.name, equals(original.name));
       expect(restored.description, equals(original.description));
       expect(restored.metadata, equals(original.metadata));
+      expect(restored.skills, hasLength(1));
+      final skill = restored.skills['web_search']!;
+      expect(skill.name, equals('Web Search'));
+      expect(skill.description, equals('Search the web'));
+      expect(skill.source, equals('filesystem'));
+      expect(skill.license, equals('MIT'));
+      expect(skill.allowedTools, equals(['search', 'fetch']));
+      expect(skill.metadata, equals({'author': 'test'}));
     });
   });
 
@@ -1620,6 +1639,106 @@ void main() {
         expect(room.mcpClientToolsets.containsKey('good'), isTrue);
         expect(room.mcpClientToolsets.containsKey('also_good'), isTrue);
         expect(room.mcpClientToolsets.containsKey('bad'), isFalse);
+      });
+    });
+
+    group('roomSkillFromJson', () {
+      test('parses all fields', () {
+        final skill = roomSkillFromJson('web_search', {
+          'name': 'Web Search',
+          'description': 'Search the web',
+          'source': 'filesystem',
+          'license': 'MIT',
+          'compatibility': '>=1.0.0',
+          'allowed_tools': 'search fetch',
+          'state_namespace': 'web_search_state',
+          'metadata': {'author': 'test'},
+          'state_type_schema': {'type': 'object'},
+        });
+
+        expect(skill.name, equals('Web Search'));
+        expect(skill.description, equals('Search the web'));
+        expect(skill.source, equals('filesystem'));
+        expect(skill.license, equals('MIT'));
+        expect(skill.compatibility, equals('>=1.0.0'));
+        expect(skill.allowedTools, equals(['search', 'fetch']));
+        expect(skill.stateNamespace, equals('web_search_state'));
+        expect(skill.metadata, equals({'author': 'test'}));
+        expect(skill.stateTypeSchema, equals({'type': 'object'}));
+      });
+
+      test('defaults name to key when missing', () {
+        final skill = roomSkillFromJson('fallback_name', {
+          'description': 'A skill',
+        });
+
+        expect(skill.name, equals('fallback_name'));
+      });
+
+      test('defaults optional fields to null', () {
+        final skill = roomSkillFromJson('basic', {
+          'description': 'Basic skill',
+        });
+
+        expect(skill.description, equals('Basic skill'));
+        expect(skill.source, isNull);
+        expect(skill.license, isNull);
+        expect(skill.compatibility, isNull);
+        expect(skill.allowedTools, isNull);
+        expect(skill.stateNamespace, isNull);
+        expect(skill.metadata, isEmpty);
+        expect(skill.stateTypeSchema, isNull);
+      });
+    });
+
+    group('roomFromJson with skills', () {
+      test('parses skills map', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'skills': {
+            'web_search': {
+              'name': 'Web Search',
+              'description': 'Search the web',
+              'source': 'filesystem',
+            },
+          },
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.skills, hasLength(1));
+        final skill = room.skills['web_search']!;
+        expect(skill.name, equals('Web Search'));
+        expect(skill.description, equals('Search the web'));
+        expect(skill.source, equals('filesystem'));
+      });
+
+      test('handles missing skills field', () {
+        final json = <String, dynamic>{'id': 'room-1', 'name': 'Test Room'};
+
+        final room = roomFromJson(json);
+
+        expect(room.skills, isEmpty);
+      });
+
+      test('skips malformed skill entries', () {
+        final json = <String, dynamic>{
+          'id': 'room-1',
+          'name': 'Test Room',
+          'skills': {
+            'good': {'description': 'A good skill'},
+            'bad': 'not a map',
+            'also_good': {'description': 'Another good skill'},
+          },
+        };
+
+        final room = roomFromJson(json);
+
+        expect(room.skills, hasLength(2));
+        expect(room.skills.containsKey('good'), isTrue);
+        expect(room.skills.containsKey('also_good'), isTrue);
+        expect(room.skills.containsKey('bad'), isFalse);
       });
     });
 

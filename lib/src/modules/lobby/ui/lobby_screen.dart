@@ -48,6 +48,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
     context.go('/room/${entry.alias}/$roomId');
   }
 
+  void _onInfoTap(String serverId, String roomId) {
+    final entry = widget.serverManager.servers.value[serverId];
+    assert(entry != null, 'Info tap for unknown serverId: $serverId');
+    if (entry == null) return;
+    context.push('/room/${entry.alias}/$roomId/info');
+  }
+
   @override
   Widget build(BuildContext context) {
     final servers = widget.serverManager.servers.watch(context);
@@ -65,6 +72,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onSettings: _onSettings,
                 onNetworkInspector: _onNetworkInspector,
                 onRoomTap: _onRoomTap,
+                onInfoTap: _onInfoTap,
               )
             : _NarrowLayout(
                 servers: servers,
@@ -74,6 +82,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onSettings: _onSettings,
                 onNetworkInspector: _onNetworkInspector,
                 onRoomTap: _onRoomTap,
+                onInfoTap: _onInfoTap,
               );
       },
     );
@@ -89,6 +98,7 @@ class _WideLayout extends StatelessWidget {
     required this.onSettings,
     required this.onNetworkInspector,
     required this.onRoomTap,
+    required this.onInfoTap,
   });
 
   final Map<String, ServerEntry> servers;
@@ -98,6 +108,7 @@ class _WideLayout extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onNetworkInspector;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +131,7 @@ class _WideLayout extends StatelessWidget {
               roomsByServer: roomsByServer,
               servers: servers,
               onRoomTap: onRoomTap,
+              onInfoTap: onInfoTap,
               onAddServer: onAddServer,
             ),
           ),
@@ -138,6 +150,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onSettings,
     required this.onNetworkInspector,
     required this.onRoomTap,
+    required this.onInfoTap,
   });
 
   final Map<String, ServerEntry> servers;
@@ -147,6 +160,7 @@ class _NarrowLayout extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onNetworkInspector;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +186,7 @@ class _NarrowLayout extends StatelessWidget {
         roomsByServer: roomsByServer,
         servers: servers,
         onRoomTap: onRoomTap,
+        onInfoTap: onInfoTap,
         onAddServer: onAddServer,
       ),
     );
@@ -183,12 +198,14 @@ class _RoomContent extends StatelessWidget {
     required this.roomsByServer,
     required this.servers,
     required this.onRoomTap,
+    required this.onInfoTap,
     required this.onAddServer,
   });
 
   final Map<String, ServerRooms> roomsByServer;
   final Map<String, ServerEntry> servers;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
 
   @override
@@ -217,6 +234,7 @@ class _RoomContent extends StatelessWidget {
             serverUrl: servers[entry.key]?.serverUrl,
             serverRooms: entry.value,
             onRoomTap: onRoomTap,
+            onInfoTap: onInfoTap,
           ),
       ],
     );
@@ -229,12 +247,14 @@ class _ServerSection extends StatelessWidget {
     required this.serverUrl,
     required this.serverRooms,
     required this.onRoomTap,
+    required this.onInfoTap,
   });
 
   final String serverId;
   final Uri? serverUrl;
   final ServerRooms serverRooms;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +285,7 @@ class _ServerSection extends StatelessWidget {
                   RoomCard(
                     room: room,
                     onTap: () => onRoomTap(serverId, room.id),
-                    onInfoTap: () {},
+                    onInfoTap: () => onInfoTap(serverId, room.id),
                   ),
               ],
             ),

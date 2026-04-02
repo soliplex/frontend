@@ -16,6 +16,7 @@ export 'quiz.dart';
 export 'rag_document.dart';
 export 'room.dart';
 export 'room_agent.dart';
+export 'room_skill.dart';
 export 'room_tool.dart';
 export 'run_info.dart';
 export 'source_reference.dart';

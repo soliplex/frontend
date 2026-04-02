@@ -20,6 +20,10 @@ class AgentRuntimeManager {
       _cache = {};
   bool _isDisposed = false;
 
+  /// Resolves the [ToolRegistry] for a given room ID.
+  Future<ToolRegistry> Function(String roomId) get toolRegistryResolver =>
+      _toolRegistryResolver;
+
   /// Returns the cached [AgentRuntime] for [connection], creating it if
   /// needed.
   ///
