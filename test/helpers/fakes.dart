@@ -238,6 +238,8 @@ class TestPlatformConstraints implements PlatformConstraints {
   int get maxConcurrentBridges => 10;
   @override
   bool get supportsReentrantInterpreter => true;
+  @override
+  int get maxConcurrentSessions => maxConcurrentBridges;
 }
 
 /// In-memory server storage for tests.
