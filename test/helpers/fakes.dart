@@ -1,6 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show HttpTransport, SoliplexApi, UrlBuilder;
+    show HttpTransport, RagDocument, SoliplexApi, UrlBuilder;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
@@ -152,6 +152,11 @@ class FakeSoliplexApi extends SoliplexApi {
   Room? nextRoom;
   Exception? nextError;
 
+  List<RagDocument>? nextDocuments;
+  Exception? nextDocumentsError;
+  String? nextMcpToken;
+  Exception? nextMcpTokenError;
+
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;
   ThreadHistory? nextThreadHistory;
@@ -208,6 +213,21 @@ class FakeSoliplexApi extends SoliplexApi {
     throw StateError(
       'FakeSoliplexApi: set nextCreateThread or nextCreateThreadError',
     );
+  }
+
+  @override
+  Future<List<RagDocument>> getDocuments(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextDocumentsError != null) throw nextDocumentsError!;
+    return nextDocuments ?? const [];
+  }
+
+  @override
+  Future<String> getMcpToken(String roomId, {CancelToken? cancelToken}) async {
+    if (nextMcpTokenError != null) throw nextMcpTokenError!;
+    return nextMcpToken ?? 'fake-token';
   }
 }
 
