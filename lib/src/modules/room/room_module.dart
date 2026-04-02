@@ -41,7 +41,7 @@ ModuleContribution roomModule({
         registry,
       ),
       _buildRoute(
-        '/room/:serverAlias/:roomId/:threadId',
+        '/room/:serverAlias/:roomId/thread/:threadId',
         serverManager,
         runtimeManager,
         registry,

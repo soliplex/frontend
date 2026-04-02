@@ -119,7 +119,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _navigateToThread(String threadId) {
     if (mounted) {
       context.go(
-        '/room/${widget.serverEntry.alias}/${widget.roomId}/$threadId',
+        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
       );
     }
   }
