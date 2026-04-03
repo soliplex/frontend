@@ -112,13 +112,15 @@ class ConnectFlow {
             return;
           }
           _proceedAfterProbe(result, result.providers);
-        case ConnectionFailure(:final error):
-          state.value = UrlInput(error: _describeConnectionError(error, url));
+        case ConnectionFailure(:final error, :final attemptedUrls):
+          state.value =
+              UrlInput(error: describeConnectionError(error, attemptedUrls));
       }
     } catch (e, st) {
       debugPrint('ConnectFlow.connect: $e\n$st');
       if (!_isCancelled(gen)) {
-        state.value = UrlInput(error: 'Unexpected error: $e');
+        state.value =
+            UrlInput(error: 'Unexpected error connecting to $url: $e');
       }
     }
   }
@@ -249,19 +251,22 @@ class ConnectFlow {
     } on AuthException catch (e) {
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
-        state.value = UrlInput(error: e.message);
+        state.value = UrlInput(error: '${probeResult.serverUrl}: ${e.message}');
       }
     } on Exception catch (e, st) {
       debugPrint('ConnectFlow._authenticate: $e\n$st');
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
-        state.value = UrlInput(error: 'Authentication failed: $e');
+        state.value = UrlInput(
+          error: 'Authentication with ${probeResult.serverUrl} failed: $e',
+        );
       }
     }
   }
 }
 
-String _describeConnectionError(Object error, String url) {
+String describeConnectionError(Object error, List<Uri> attemptedUrls) {
+  final url = attemptedUrls.join(' or ');
   final String detail;
   final String? serverDetail;
   switch (error) {

@@ -32,9 +32,12 @@ class ConnectionSuccess extends ConnectionProbeResult {
 
 /// Backend could not be reached.
 class ConnectionFailure extends ConnectionProbeResult {
-  const ConnectionFailure(this.error);
+  const ConnectionFailure(this.error, {this.attemptedUrls = const []});
 
   final Object error;
+
+  /// The URLs that were actually tried before failing.
+  final List<Uri> attemptedUrls;
 }
 
 /// Probes a backend by trying HTTPS first, falling back to HTTP on network
@@ -60,7 +63,9 @@ Future<ConnectionProbeResult> probeConnection({
   }
 
   NetworkException? lastNetworkError;
+  final tried = <Uri>[];
   for (final uri in candidates) {
+    tried.add(uri);
     try {
       final providers = await discover(uri, httpClient).timeout(probeTimeout);
       return ConnectionSuccess(serverUrl: uri, providers: providers);
@@ -72,11 +77,12 @@ Future<ConnectionProbeResult> probeConnection({
         isTimeout: true,
       );
     } on Exception catch (e) {
-      return ConnectionFailure(e);
+      return ConnectionFailure(e, attemptedUrls: List.unmodifiable(tried));
     }
   }
   return ConnectionFailure(
     lastNetworkError ?? Exception('No reachable server at: $input'),
+    attemptedUrls: List.unmodifiable(tried),
   );
 }
 

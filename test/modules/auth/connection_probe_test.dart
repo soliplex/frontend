@@ -84,6 +84,8 @@ void main() {
       );
 
       expect(result, isA<ConnectionFailure>());
+      final failure = result as ConnectionFailure;
+      expect(failure.attemptedUrls, [Uri.parse('https://example.com')]);
     });
 
     test('does not fall back for explicit http:// input', () async {
@@ -119,6 +121,10 @@ void main() {
       expect(result, isA<ConnectionFailure>());
       final failure = result as ConnectionFailure;
       expect(failure.error, isA<Exception>());
+      expect(
+        failure.attemptedUrls,
+        [Uri.parse('https://example.com')],
+      );
     });
 
     test('returns failure when both HTTPS and HTTP fail with NetworkException',
@@ -134,6 +140,10 @@ void main() {
       expect(result, isA<ConnectionFailure>());
       final failure = result as ConnectionFailure;
       expect(failure.error, isA<NetworkException>());
+      expect(failure.attemptedUrls, [
+        Uri.parse('https://example.com'),
+        Uri.parse('http://example.com'),
+      ]);
     });
 
     test('trims whitespace from input', () async {
@@ -158,6 +168,8 @@ void main() {
       );
 
       expect(result, isA<ConnectionFailure>());
+      final failure = result as ConnectionFailure;
+      expect(failure.attemptedUrls, isEmpty);
     });
 
     test('times out and falls back to HTTP for schemeless input', () async {
@@ -199,6 +211,7 @@ void main() {
       final failure = result as ConnectionFailure;
       expect(failure.error, isA<NetworkException>());
       expect((failure.error as NetworkException).isTimeout, isTrue);
+      expect(failure.attemptedUrls, [Uri.parse('https://example.com')]);
     });
 
     test('normalizes URL in success result (strips trailing slash)', () async {
