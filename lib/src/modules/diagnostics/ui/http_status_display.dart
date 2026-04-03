@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../design/color/color_scheme_extensions.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
-
-extension HttpStatusColors on ColorScheme {
-  Color get warning =>
-      brightness == Brightness.light ? Colors.orange : Colors.orange.shade300;
-
-  Color get success =>
-      brightness == Brightness.light ? Colors.green : Colors.green.shade300;
-}
 
 class HttpStatusDisplay extends StatelessWidget {
   const HttpStatusDisplay({
