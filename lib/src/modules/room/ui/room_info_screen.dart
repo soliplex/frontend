@@ -96,6 +96,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
           }
           return _RoomInfoBody(
             room: snapshot.data!,
+            serverUrl: widget.serverEntry.serverUrl,
             api: widget.serverEntry.connection.api,
             roomId: widget.roomId,
             documentsFuture: _documentsFuture,
@@ -111,6 +112,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
 class _RoomInfoBody extends StatelessWidget {
   const _RoomInfoBody({
     required this.room,
+    required this.serverUrl,
     required this.api,
     required this.roomId,
     required this.documentsFuture,
@@ -119,6 +121,7 @@ class _RoomInfoBody extends StatelessWidget {
   });
 
   final Room room;
+  final Uri serverUrl;
   final SoliplexApi api;
   final String roomId;
   final Future<List<RagDocument>> documentsFuture;
@@ -132,6 +135,25 @@ class _RoomInfoBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Server',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formatServerUrl(serverUrl),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
           if (room.hasDescription)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
