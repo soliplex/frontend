@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -46,13 +47,15 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
-      home: RoomScreen(
-        serverEntry: entry,
-        roomId: 'room-1',
-        threadId: null,
-        runtimeManager: runtimeManager,
-        registry: registry,
+    await tester.pumpWidget(ProviderScope(
+      child: MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+        ),
       ),
     ));
     await tester.pumpAndSettle();

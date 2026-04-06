@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -41,12 +42,14 @@ Widget _buildScreen({
 }) {
   final fakeApi = api ?? FakeSoliplexApi();
   fakeApi.nextRoom ??= room ?? _testRoom;
-  return MaterialApp(
-    home: RoomInfoScreen(
-      serverEntry: createTestServerEntry(api: fakeApi),
-      roomId: 'room-1',
-      toolRegistryResolver:
-          toolRegistryResolver ?? (_) async => const ToolRegistry(),
+  return ProviderScope(
+    child: MaterialApp(
+      home: RoomInfoScreen(
+        serverEntry: createTestServerEntry(api: fakeApi),
+        roomId: 'room-1',
+        toolRegistryResolver:
+            toolRegistryResolver ?? (_) async => const ToolRegistry(),
+      ),
     ),
   );
 }
