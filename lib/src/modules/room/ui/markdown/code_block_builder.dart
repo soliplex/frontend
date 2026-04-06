@@ -90,10 +90,10 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
       child: SvgPicture.string(
         widget.code,
         placeholderBuilder: (_) => const SizedBox.shrink(),
-        errorBuilder: (_, __, ___) => const Icon(
+        errorBuilder: (context, _, __) => Icon(
           Icons.broken_image,
           size: 48,
-          color: Colors.grey,
+          color: Theme.of(context).colorScheme.outline,
         ),
       ),
     );
