@@ -21,6 +21,8 @@ class ShellConfig {
   final String appName;
   final Widget? logo;
   final ThemeData theme;
+  final ThemeData? darkTheme;
+  final ThemeMode themeMode;
   final String initialRoute;
   final List<ModuleContribution> modules;
   final Listenable? refreshListenable;
@@ -30,6 +32,8 @@ class ShellConfig {
     required this.appName,
     this.logo,
     required this.theme,
+    this.darkTheme,
+    this.themeMode = ThemeMode.system,
     this.initialRoute = '/',
     List<ModuleContribution> modules = const [],
     this.refreshListenable,
