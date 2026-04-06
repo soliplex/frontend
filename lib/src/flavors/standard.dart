@@ -32,6 +32,7 @@ ThemeData _defaultTheme() {
   final base = soliplexLightTheme();
   final colorScheme = base.colorScheme;
   final textTheme = base.textTheme;
+  final colors = base.extension<SoliplexTheme>()!.colors;
 
   return base.copyWith(
     extensions: [
@@ -40,21 +41,21 @@ ThemeData _defaultTheme() {
         h1: textTheme.titleLarge,
         h2: textTheme.titleMedium,
         h3: textTheme.titleSmall,
-        body: textTheme.bodyLarge,
+        body: textTheme.bodyMedium,
         code: textTheme.bodyMedium?.copyWith(
-          backgroundColor: colorScheme.surfaceContainerHigh,
+          backgroundColor: colorScheme.surfaceContainerHighest,
         ),
         link: TextStyle(
-          color: colorScheme.primary,
+          color: colors.link,
           decoration: TextDecoration.underline,
-          decorationColor: colorScheme.primary,
+          decorationColor: colors.link,
         ),
         codeBlockDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
+          color: colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
         ),
         blockquoteDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
+          color: colorScheme.surfaceContainerHighest,
           border: Border(
             left: BorderSide(
               color: colorScheme.outlineVariant,

@@ -10,14 +10,48 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
     brightness: Brightness.light,
+    // Primary
     primary: colors.primary,
     onPrimary: colors.onPrimary,
+    primaryContainer: colors.primaryContainer,
+    onPrimaryContainer: colors.onPrimaryContainer,
+    // Secondary
     secondary: colors.secondary,
     onSecondary: colors.onSecondary,
-    surface: colors.background,
-    onSurface: colors.foreground,
+    secondaryContainer: colors.muted,
+    onSecondaryContainer: colors.mutedForeground,
+    // Tertiary
+    tertiary: colors.tertiary,
+    onTertiary: colors.onTertiary,
+    tertiaryContainer: colors.tertiaryContainer,
+    onTertiaryContainer: colors.onTertiaryContainer,
+    // Error
     error: colors.destructive,
     onError: colors.onDestructive,
+    errorContainer: colors.errorContainer,
+    onErrorContainer: colors.onErrorContainer,
+    // Surface
+    surface: colors.background,
+    onSurface: colors.foreground,
+    onSurfaceVariant: colors.mutedForeground,
+    surfaceContainerLowest: colors.surfaceContainerLowest,
+    surfaceContainerLow: colors.surfaceContainerLow,
+    surfaceContainer: colors.inputBackground,
+    surfaceContainerHigh: colors.surfaceContainerHigh,
+    surfaceContainerHighest: colors.surfaceContainerHighest,
+    surfaceDim: colors.accent,
+    surfaceBright: colors.background,
+    // Outline
+    outline: colors.outline,
+    outlineVariant: colors.outlineVariant,
+    // Inverse
+    inverseSurface: colors.primary,
+    onInverseSurface: colors.onPrimary,
+    inversePrimary: colors.inversePrimary,
+    // Utility
+    shadow: const Color(0xFF000000),
+    scrim: const Color(0xFF000000),
+    surfaceTint: colors.primary,
   );
 
   return ThemeData(
@@ -46,7 +80,6 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: colors.border),
           borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
       ),
@@ -54,7 +87,6 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: colors.border),
           borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
       ),
@@ -65,6 +97,14 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
           side: BorderSide(color: colors.border),
           borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
+        ),
+        side: BorderSide(color: colors.border),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(

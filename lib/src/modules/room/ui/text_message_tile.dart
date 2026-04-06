@@ -61,11 +61,16 @@ class TextMessageTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: isUser
                 ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest,
+                : theme.colorScheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(12),
           ),
           child: isUser
-              ? SelectableText(message.text)
+              ? SelectableText(
+                  message.text,
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                )
               : message.text.isEmpty
                   ? const Text('...')
                   : FlutterMarkdownPlusRenderer(data: message.text),

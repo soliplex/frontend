@@ -30,7 +30,7 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
-                color: theme.colorScheme.tertiary,
+                color: theme.colorScheme.onSurfaceVariant,
                 width: 3,
               ),
             ),
@@ -43,7 +43,7 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
                   Icon(
                     _expanded ? Icons.expand_more : Icons.chevron_right,
                     size: 16,
-                    color: theme.colorScheme.tertiary,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -51,7 +51,7 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
                         ? 'Thinking (${thinkingBlocks.length})'
                         : 'Thinking',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.tertiary,
+                      color: theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -62,7 +62,7 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
                       height: 10,
                       child: CircularProgressIndicator(
                         strokeWidth: 1.5,
-                        color: theme.colorScheme.tertiary,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

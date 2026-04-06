@@ -76,7 +76,7 @@ class _ServerList extends StatelessWidget {
           ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: TextButton.icon(
+          child: OutlinedButton.icon(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Server'),
