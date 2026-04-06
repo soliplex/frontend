@@ -61,7 +61,7 @@ class TextMessageTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: isUser
                 ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHigh,
+                : theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
           ),
           child: isUser
