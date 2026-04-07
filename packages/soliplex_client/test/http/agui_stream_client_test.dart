@@ -300,6 +300,102 @@ void main() {
         );
       });
 
+      test('skips unknown event types and continues streaming', () async {
+        final events = [
+          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
+          {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
+          {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
+        ];
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: sseByteStream(events),
+          ),
+        );
+
+        final result = await client.runAgent(endpoint, input).toList();
+
+        expect(result, hasLength(2));
+        expect(result[0], isA<RunStartedEvent>());
+        expect(result[1], isA<RunFinishedEvent>());
+      });
+
+      test('skips bad event in batch without dropping remaining', () async {
+        final batch = [
+          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
+          {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
+          {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
+        ];
+
+        final sseBody = StringBuffer()
+          ..writeln('data: ${json.encode(batch)}')
+          ..writeln();
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(sseBody.toString())),
+          ),
+        );
+
+        final result = await client.runAgent(endpoint, input).toList();
+
+        expect(result, hasLength(2));
+        expect(result[0], isA<RunStartedEvent>());
+        expect(result[1], isA<RunFinishedEvent>());
+      });
+
+      test('skips malformed JSON and continues streaming', () async {
+        final sseBody = StringBuffer()
+          ..writeln('data: not valid json at all')
+          ..writeln()
+          ..writeln(
+            'data: ${json.encode({
+                  'type': 'RUN_STARTED',
+                  'threadId': 't-1',
+                  'runId': 'r-1',
+                })}',
+          )
+          ..writeln();
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(sseBody.toString())),
+          ),
+        );
+
+        final result = await client.runAgent(endpoint, input).toList();
+
+        expect(result, hasLength(1));
+        expect(result[0], isA<RunStartedEvent>());
+      });
+
       test('propagates CancelledException from transport', () async {
         when(
           () => mockTransport.requestStream(

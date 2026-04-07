@@ -242,6 +242,30 @@ class AwaitingApproval extends ExecutionEvent {
   int get hashCode => Object.hash(toolCallId, toolName, rationale);
 }
 
+/// A sub-agent activity snapshot from the backend.
+class ActivitySnapshot extends ExecutionEvent {
+  const ActivitySnapshot({
+    required this.activityType,
+    required this.content,
+  });
+
+  /// The kind of activity (e.g. `'skill_tool_call'`).
+  final String activityType;
+
+  /// Payload from the backend (e.g. `{'tool_name': 'search'}`).
+  final Map<String, dynamic> content;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivitySnapshot &&
+          activityType == other.activityType &&
+          _deepEq.equals(content, other.content);
+
+  @override
+  int get hashCode => Object.hash(activityType, _deepEq.hash(content));
+}
+
 /// Extension point for third-party plugins to emit custom events.
 ///
 /// Use this when a `SessionExtension` needs to communicate

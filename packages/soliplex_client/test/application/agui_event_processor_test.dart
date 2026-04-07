@@ -695,6 +695,61 @@ void main() {
         });
       });
 
+      group('ToolCallActivity equality', () {
+        test(
+            'consecutive starts of same tool produce unequal activities '
+            '(different toolCallId)', () {
+          const event1 = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'ask',
+          );
+          final result1 = processEvent(conversation, streaming, event1);
+
+          const event2 = ToolCallStartEvent(
+            toolCallId: 'tc-2',
+            toolCallName: 'ask',
+          );
+          final result2 = processEvent(
+            result1.conversation,
+            result1.streaming,
+            event2,
+          );
+
+          final activity1 =
+              (result1.streaming as app_streaming.AwaitingText).currentActivity;
+          final activity2 =
+              (result2.streaming as app_streaming.AwaitingText).currentActivity;
+          expect(activity1, isNot(equals(activity2)));
+        });
+
+        test('ToolCallStartEvent sets latestToolCallId on activity', () {
+          const event = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'search',
+          );
+
+          final result = processEvent(conversation, streaming, event);
+
+          final activity = (result.streaming as app_streaming.AwaitingText)
+              .currentActivity as app_streaming.ToolCallActivity;
+          expect(activity.latestToolCallId, equals('tc-1'));
+        });
+
+        test('ToolCallStartEvent sets timestamp on activity', () {
+          const event = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'search',
+            timestamp: 1000,
+          );
+
+          final result = processEvent(conversation, streaming, event);
+
+          final activity = (result.streaming as app_streaming.AwaitingText)
+              .currentActivity as app_streaming.ToolCallActivity;
+          expect(activity.timestamp, equals(1000));
+        });
+      });
+
       group('regression — existing behavior preserved', () {
         test('ToolCallActivity still tracks tool names', () {
           const event = ToolCallStartEvent(
@@ -765,7 +820,134 @@ void main() {
       });
     });
 
+    group('activity snapshot events', () {
+      test('skill_tool_call sets ToolCallActivity with tool name', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        final activity =
+            awaitingText.currentActivity as app_streaming.ToolCallActivity;
+        expect(activity.allToolNames, contains('search'));
+      });
+
+      test('skill_tool_call accumulates on existing ToolCallActivity', () {
+        const firstTool = app_streaming.AwaitingText(
+          currentActivity: app_streaming.ToolCallActivity(toolName: 'ask'),
+        );
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+        );
+
+        final result = processEvent(conversation, firstTool, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        final activity =
+            awaitingText.currentActivity as app_streaming.ToolCallActivity;
+        expect(activity.allToolNames, equals({'ask', 'search'}));
+      });
+
+      test('skill_tool_call with missing tool_name passes through', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'skill_tool_call',
+          content: <String, dynamic>{},
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(
+          awaitingText.currentActivity,
+          isA<app_streaming.ProcessingActivity>(),
+        );
+      });
+
+      test('unknown activityType passes through unchanged', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'unknown_activity',
+          content: {'data': 'value'},
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(
+          awaitingText.currentActivity,
+          isA<app_streaming.ProcessingActivity>(),
+        );
+      });
+
+      test('skill_tool_call sets timestamp from event', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+          timestamp: 2000,
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        final activity =
+            awaitingText.currentActivity as app_streaming.ToolCallActivity;
+        expect(activity.timestamp, equals(2000));
+      });
+
+      test('skill_tool_call without timestamp synthesizes wall-clock value',
+          () {
+        final before = DateTime.now().millisecondsSinceEpoch;
+        const event = ActivitySnapshotEvent(
+          messageId: 'msg-1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+        );
+
+        final result = processEvent(conversation, streaming, event);
+        final after = DateTime.now().millisecondsSinceEpoch;
+
+        final activity = (result.streaming as app_streaming.AwaitingText)
+            .currentActivity as app_streaming.ToolCallActivity;
+        expect(activity.timestamp, greaterThanOrEqualTo(before));
+        expect(activity.timestamp, lessThanOrEqualTo(after));
+      });
+    });
+
     group('thinking events', () {
+      test('ThinkingStartEvent sets isThinkingStreaming and activity', () {
+        const event = ThinkingStartEvent();
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(awaitingText.isThinkingStreaming, isTrue);
+        expect(
+          awaitingText.currentActivity,
+          isA<app_streaming.ThinkingActivity>(),
+        );
+      });
+
+      test('ThinkingEndEvent sets isThinkingStreaming to false', () {
+        const thinkingStreaming = app_streaming.AwaitingText(
+          isThinkingStreaming: true,
+          currentActivity: app_streaming.ThinkingActivity(),
+        );
+        const event = ThinkingEndEvent();
+
+        final result = processEvent(conversation, thinkingStreaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(awaitingText.isThinkingStreaming, isFalse);
+      });
+
       test(
         'ThinkingTextMessageStartEvent sets isThinkingStreaming and activity',
         () {
@@ -935,14 +1117,33 @@ void main() {
     });
 
     group('passthrough events', () {
-      test('CustomEvent passes through unchanged', () {
-        const event = CustomEvent(name: 'custom', value: {'data': 123});
+      final passthroughEvents = <String, BaseEvent>{
+        'CustomEvent': const CustomEvent(name: 'custom', value: {'data': 123}),
+        'TextMessageChunkEvent': const TextMessageChunkEvent(
+          messageId: 'msg-1',
+          role: TextMessageRole.assistant,
+          delta: 'Hello',
+        ),
+        'ToolCallChunkEvent': const ToolCallChunkEvent(
+          toolCallId: 'tc-1',
+          toolCallName: 'search',
+          delta: '{"q":"test"}',
+        ),
+        'MessagesSnapshotEvent': const MessagesSnapshotEvent(messages: []),
+        'StepStartedEvent': const StepStartedEvent(stepName: 'step-1'),
+        'StepFinishedEvent': const StepFinishedEvent(stepName: 'step-1'),
+        'RawEvent': const RawEvent(event: 'raw-data'),
+        'ThinkingContentEvent': const ThinkingContentEvent(delta: 'hmm'),
+      };
 
-        final result = processEvent(conversation, streaming, event);
+      for (final entry in passthroughEvents.entries) {
+        test('${entry.key} passes through unchanged', () {
+          final result = processEvent(conversation, streaming, entry.value);
 
-        expect(result.conversation, equals(conversation));
-        expect(result.streaming, equals(streaming));
-      });
+          expect(result.conversation, equals(conversation));
+          expect(result.streaming, equals(streaming));
+        });
+      }
     });
   });
 }

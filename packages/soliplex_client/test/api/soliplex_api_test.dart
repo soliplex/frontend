@@ -1925,6 +1925,86 @@ void main() {
         },
       );
 
+      test('skips undecodable events and warns', () async {
+        final warnings = <String>[];
+        final apiWithWarning = SoliplexApi(
+          transport: mockTransport,
+          urlBuilder: urlBuilder,
+          onWarning: warnings.add,
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': [
+              {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-1',
+                'delta': 'Hello',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+            ],
+          },
+        );
+
+        final history =
+            await apiWithWarning.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messages, hasLength(1));
+        expect(
+          (history.messages[0] as TextMessage).text,
+          equals('Hello'),
+        );
+        expect(warnings, hasLength(1));
+        expect(warnings[0], contains('Skipped 1 malformed event'));
+
+        apiWithWarning.close();
+      });
+
       test('calls onWarning callback on partial failure', () async {
         final warnings = <String>[];
         final apiWithWarning = SoliplexApi(

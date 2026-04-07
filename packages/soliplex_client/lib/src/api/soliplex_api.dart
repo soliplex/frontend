@@ -725,7 +725,7 @@ class SoliplexApi {
           final result = processEvent(conversation, streaming, event);
           conversation = result.conversation;
           streaming = result.streaming;
-        } on DecodeError {
+        } on DecodingError {
           skippedEventCount++;
         }
       }

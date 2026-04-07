@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 // ignore: implementation_imports
@@ -50,15 +51,44 @@ class AgUiStreamClient {
 
     await for (final message in sseMessages) {
       if (message.data == null || message.data!.isEmpty) continue;
-      final jsonData = json.decode(message.data!);
-      if (jsonData is Map<String, dynamic>) {
-        yield decoder.decodeJson(jsonData);
-      } else if (jsonData is List) {
-        for (final item in jsonData) {
-          if (item is Map<String, dynamic>) {
-            yield decoder.decodeJson(item);
+      try {
+        final jsonData = json.decode(message.data!);
+        if (jsonData is Map<String, dynamic>) {
+          yield decoder.decodeJson(jsonData);
+        } else if (jsonData is List) {
+          for (final item in jsonData) {
+            if (item is Map<String, dynamic>) {
+              try {
+                yield decoder.decodeJson(item);
+              } on DecodingError catch (e) {
+                developer.log(
+                  'Skipped undecodable AG-UI event in batch: $e',
+                  name: 'soliplex_client.agui_stream',
+                  level: 900,
+                );
+              }
+            } else {
+              developer.log(
+                'Skipped non-object item in AG-UI batch: '
+                '${item.runtimeType}',
+                name: 'soliplex_client.agui_stream',
+                level: 900,
+              );
+            }
           }
         }
+      } on FormatException catch (e) {
+        developer.log(
+          'Skipped malformed JSON in SSE event: $e',
+          name: 'soliplex_client.agui_stream',
+          level: 900,
+        );
+      } on DecodingError catch (e) {
+        developer.log(
+          'Skipped undecodable AG-UI event: $e',
+          name: 'soliplex_client.agui_stream',
+          level: 900,
+        );
       }
     }
   }
