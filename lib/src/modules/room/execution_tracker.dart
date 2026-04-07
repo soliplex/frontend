@@ -71,6 +71,7 @@ class ExecutionTracker {
             StateUpdated() ||
             StepProgress() ||
             AwaitingApproval() ||
+            ActivitySnapshot() ||
             CustomExecutionEvent():
         break;
     }

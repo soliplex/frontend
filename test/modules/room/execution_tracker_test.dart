@@ -159,6 +159,19 @@ void main() {
     expect(tracker.steps.value.length, 1);
   });
 
+  test('ActivitySnapshot does not affect steps or thinking', () {
+    events.value = const ThinkingStarted();
+    events.value = const ActivitySnapshot(
+      activityType: 'skill_tool_call',
+      content: {'tool_name': 'search'},
+    );
+
+    expect(tracker.steps.value.length, 1);
+    expect(tracker.steps.value.first.label, 'Thinking');
+    expect(tracker.steps.value.first.status, StepStatus.active);
+    expect(tracker.isThinkingStreaming.value, isTrue);
+  });
+
   test('dispose stops listening to events', () {
     tracker.dispose();
     events.value = const ThinkingStarted();

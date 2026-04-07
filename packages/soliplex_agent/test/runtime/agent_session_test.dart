@@ -905,5 +905,78 @@ void main() {
       final token = session.cancelToken;
       expect(token, isA<CancelToken>());
     });
+
+    test('ActivitySnapshotEvent bridges to ActivitySnapshot', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const ActivitySnapshotEvent(
+            messageId: 'msg-1',
+            activityType: 'skill_tool_call',
+            content: {'tool_name': 'search'},
+          ),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      final events = <ExecutionEvent>[];
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      session.lastExecutionEvent.subscribe((_) {
+        final val = session.lastExecutionEvent.value;
+        if (val != null) events.add(val);
+      });
+
+      await session.start(userMessage: 'Hi');
+      await session.result;
+
+      final snapshots = events.whereType<ActivitySnapshot>().toList();
+      expect(snapshots, hasLength(1));
+      expect(snapshots.first.activityType, equals('skill_tool_call'));
+      expect(snapshots.first.content, equals({'tool_name': 'search'}));
+    });
+
+    test('StepStartedEvent bridges to StepProgress', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StepStartedEvent(stepName: 'planning'),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      final events = <ExecutionEvent>[];
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      session.lastExecutionEvent.subscribe((_) {
+        final val = session.lastExecutionEvent.value;
+        if (val != null) events.add(val);
+      });
+
+      await session.start(userMessage: 'Hi');
+      await session.result;
+
+      final steps = events.whereType<StepProgress>().toList();
+      expect(steps, hasLength(1));
+      expect(steps.first.stepName, equals('planning'));
+    });
   });
 }

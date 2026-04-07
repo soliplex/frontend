@@ -58,7 +58,16 @@ EventProcessingResult processEvent(
         streaming: const AwaitingText(),
       ),
 
-    // Thinking events (arrive before text message)
+    // Thinking lifecycle — both outer (ThinkingStart/End) and inner
+    // (ThinkingTextMessageStart/End) use the same idempotent handlers.
+    ThinkingStartEvent() => _processThinkingStart(
+        conversation,
+        streaming,
+      ),
+    ThinkingEndEvent() => _processThinkingEnd(
+        conversation,
+        streaming,
+      ),
     ThinkingTextMessageStartEvent() => _processThinkingStart(
         conversation,
         streaming,
@@ -90,33 +99,26 @@ EventProcessingResult processEvent(
 
     // Tool call events — accumulate tool names on start, args via deltas,
     // transition to pending on end (tool stays in conversation.toolCalls).
-    ToolCallStartEvent(:final toolCallId, :final toolCallName) => () {
-        // Accumulate tool names if already in tool call activity
-        final newActivity = switch (streaming) {
-          AwaitingText(:final currentActivity) => switch (currentActivity) {
-              ToolCallActivity() => currentActivity.withToolName(toolCallName),
-              _ => ToolCallActivity(toolName: toolCallName),
-            },
-          TextStreaming(:final currentActivity) => switch (currentActivity) {
-              ToolCallActivity() => currentActivity.withToolName(toolCallName),
-              _ => ToolCallActivity(toolName: toolCallName),
-            },
-        };
-        final newStreaming = switch (streaming) {
-          AwaitingText() => streaming.copyWith(currentActivity: newActivity),
-          TextStreaming() => streaming.copyWith(currentActivity: newActivity),
-        };
-        return EventProcessingResult(
-          conversation: conversation.withToolCall(
-            ToolCallInfo(
-              id: toolCallId,
-              name: toolCallName,
-              status: ToolCallStatus.streaming,
-            ),
+    ToolCallStartEvent(
+      :final toolCallId,
+      :final toolCallName,
+      :final timestamp,
+    ) =>
+      EventProcessingResult(
+        conversation: conversation.withToolCall(
+          ToolCallInfo(
+            id: toolCallId,
+            name: toolCallName,
+            status: ToolCallStatus.streaming,
           ),
-          streaming: newStreaming,
-        );
-      }(),
+        ),
+        streaming: _withToolCallActivity(
+          streaming,
+          toolCallName,
+          latestToolCallId: toolCallId,
+          timestamp: timestamp,
+        ),
+      ),
     ToolCallArgsEvent(:final toolCallId, :final delta) => _processToolCallArgs(
         conversation,
         streaming,
@@ -144,8 +146,31 @@ EventProcessingResult processEvent(
         delta,
       ),
 
-    // All other events pass through unchanged
-    _ => EventProcessingResult(
+    // Activity snapshot events
+    ActivitySnapshotEvent(
+      :final activityType,
+      :final content,
+      :final timestamp,
+    ) =>
+      _processActivitySnapshot(
+        conversation,
+        streaming,
+        activityType,
+        content,
+        timestamp,
+      ),
+
+    // Unhandled event types — pass through unchanged.
+    // Explicit cases ensure a compile error if ag_ui adds new event types.
+    ThinkingContentEvent() ||
+    TextMessageChunkEvent() ||
+    ToolCallChunkEvent() ||
+    MessagesSnapshotEvent() ||
+    StepStartedEvent() ||
+    StepFinishedEvent() ||
+    RawEvent() ||
+    CustomEvent() =>
+      EventProcessingResult(
         conversation: conversation,
         streaming: streaming,
       ),
@@ -388,6 +413,85 @@ EventProcessingResult _processToolCallResult(
     conversation: conversation.copyWith(toolCalls: updatedToolCalls),
     streaming: streaming,
   );
+}
+
+// Activity snapshot events
+
+EventProcessingResult _processActivitySnapshot(
+  Conversation conversation,
+  StreamingState streaming,
+  String activityType,
+  Map<String, dynamic> content,
+  int? timestamp,
+) {
+  if (activityType == 'skill_tool_call') {
+    final toolName = content['tool_name'];
+    // Pass through if tool_name is missing or not a String — the backend
+    // contract requires it, so this guards against schema drift.
+    if (toolName is! String) {
+      developer.log(
+        'ActivitySnapshotEvent "skill_tool_call" missing or invalid '
+        'tool_name: ${toolName.runtimeType}',
+        name: 'soliplex_client.event_processor',
+        level: 900,
+      );
+      return EventProcessingResult(
+        conversation: conversation,
+        streaming: streaming,
+      );
+    }
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: _withToolCallActivity(
+        streaming,
+        toolName,
+        timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+  // Unknown activity types pass through unchanged.
+  developer.log(
+    'Unhandled activityType: $activityType',
+    name: 'soliplex_client.event_processor',
+    level: 800,
+  );
+  return EventProcessingResult(
+    conversation: conversation,
+    streaming: streaming,
+  );
+}
+
+// Tool call activity helper
+
+/// Returns [streaming] with [toolName] accumulated on its [ToolCallActivity].
+StreamingState _withToolCallActivity(
+  StreamingState streaming,
+  String toolName, {
+  String? latestToolCallId,
+  int? timestamp,
+}) {
+  final currentActivity = switch (streaming) {
+    AwaitingText(:final currentActivity) => currentActivity,
+    TextStreaming(:final currentActivity) => currentActivity,
+  };
+
+  final newActivity = switch (currentActivity) {
+    ToolCallActivity() => currentActivity.withToolName(
+        toolName,
+        latestToolCallId: latestToolCallId,
+        timestamp: timestamp,
+      ),
+    _ => ToolCallActivity(
+        toolName: toolName,
+        latestToolCallId: latestToolCallId,
+        timestamp: timestamp,
+      ),
+  };
+
+  return switch (streaming) {
+    AwaitingText() => streaming.copyWith(currentActivity: newActivity),
+    TextStreaming() => streaming.copyWith(currentActivity: newActivity),
+  };
 }
 
 // State events - apply JSON Patch

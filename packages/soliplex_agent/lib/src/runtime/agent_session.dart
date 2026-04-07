@@ -354,7 +354,31 @@ class AgentSession implements ToolExecutionContext {
         emitEvent(const RunCompleted());
       case RunErrorEvent(:final message):
         emitEvent(RunFailed(error: message));
-      default:
+      case ActivitySnapshotEvent(:final activityType, :final content):
+        emitEvent(
+          ActivitySnapshot(activityType: activityType, content: content),
+        );
+      case StepStartedEvent(:final stepName):
+        emitEvent(StepProgress(stepName: stepName));
+
+      // Events that don't need ExecutionEvent bridging.
+      case RunStartedEvent() ||
+            TextMessageStartEvent() ||
+            TextMessageEndEvent() ||
+            ThinkingStartEvent() ||
+            ThinkingTextMessageEndEvent() ||
+            ThinkingEndEvent() ||
+            ThinkingContentEvent() ||
+            ToolCallArgsEvent() ||
+            ToolCallEndEvent() ||
+            StateSnapshotEvent() ||
+            StateDeltaEvent() ||
+            StepFinishedEvent() ||
+            TextMessageChunkEvent() ||
+            ToolCallChunkEvent() ||
+            MessagesSnapshotEvent() ||
+            RawEvent() ||
+            CustomEvent():
         break;
     }
   }

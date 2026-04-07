@@ -49,13 +49,19 @@ class ThinkingActivity extends ActivityType {
 @immutable
 class ToolCallActivity extends ActivityType {
   /// Creates a tool call activity with a single tool name.
-  const ToolCallActivity({required String toolName})
-      : toolNames = const {},
+  const ToolCallActivity({
+    required String toolName,
+    this.latestToolCallId,
+    this.timestamp,
+  })  : toolNames = const {},
         _singleToolName = toolName;
 
   /// Creates a tool call activity with multiple tool names.
-  const ToolCallActivity.multiple({required this.toolNames})
-      : _singleToolName = null;
+  const ToolCallActivity.multiple({
+    required this.toolNames,
+    this.latestToolCallId,
+    this.timestamp,
+  }) : _singleToolName = null;
 
   /// Names of tools being/have been called in this phase.
   final Set<String> toolNames;
@@ -63,25 +69,48 @@ class ToolCallActivity extends ActivityType {
   /// Single tool name for backward compatibility constructor.
   final String? _singleToolName;
 
+  /// ID of the most recent tool call that updated this activity.
+  final String? latestToolCallId;
+
+  /// Timestamp of the most recent event that updated this activity.
+  final int? timestamp;
+
   /// All tool names (handles both constructors).
   Set<String> get allToolNames =>
       _singleToolName != null ? {_singleToolName} : toolNames;
 
   /// Creates a new activity with an additional tool name.
-  ToolCallActivity withToolName(String name) {
-    return ToolCallActivity.multiple(toolNames: {...allToolNames, name});
+  ToolCallActivity withToolName(
+    String name, {
+    String? latestToolCallId,
+    int? timestamp,
+  }) {
+    return ToolCallActivity.multiple(
+      toolNames: {...allToolNames, name},
+      latestToolCallId: latestToolCallId ?? this.latestToolCallId,
+      timestamp: timestamp ?? this.timestamp,
+    );
   }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ToolCallActivity && _setEquals(allToolNames, other.allToolNames);
+      other is ToolCallActivity &&
+          _setEquals(allToolNames, other.allToolNames) &&
+          latestToolCallId == other.latestToolCallId &&
+          timestamp == other.timestamp;
 
   @override
-  int get hashCode => Object.hash(runtimeType, Object.hashAll(allToolNames));
+  int get hashCode => Object.hash(
+        runtimeType,
+        Object.hashAll(allToolNames.toList()..sort()),
+        latestToolCallId,
+        timestamp,
+      );
 
   @override
-  String toString() => 'ToolCallActivity(toolNames: $allToolNames)';
+  String toString() => 'ToolCallActivity(toolNames: $allToolNames, '
+      'latestToolCallId: $latestToolCallId, timestamp: $timestamp)';
 
   static bool _setEquals(Set<String> a, Set<String> b) {
     if (a.length != b.length) return false;
