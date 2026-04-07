@@ -281,6 +281,8 @@ class _ServerSection extends StatelessWidget {
             child: Text(
               heading,
               style: Theme.of(context).textTheme.headlineLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
