@@ -46,7 +46,7 @@ ListTileThemeData buildListTileTheme(
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s4,
-        vertical: SoliplexSpacing.s1,
+        vertical: SoliplexSpacing.s2,
       ),
       horizontalTitleGap: 16,
       minVerticalPadding: 12,
@@ -54,7 +54,8 @@ ListTileThemeData buildListTileTheme(
       textColor: colorScheme.onSurface,
       titleTextStyle: TextStyle(
         fontFamily: fontConfig?.displayFont,
-        fontSize: 20,
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
         color: colorScheme.onSurface,
       ),
       subtitleTextStyle: TextStyle(
@@ -73,7 +74,7 @@ ListTileThemeData buildListTileTheme(
 
 /// Builds the Divider theme with custom styling.
 DividerThemeData buildDividerTheme(ColorScheme colorScheme) => DividerThemeData(
-      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+      color: colorScheme.outlineVariant.withValues(alpha: 0.8),
       thickness: 1,
       space: 0,
     );
@@ -81,32 +82,28 @@ DividerThemeData buildDividerTheme(ColorScheme colorScheme) => DividerThemeData(
 /// Builds the Dialog theme with custom styling.
 DialogThemeData buildDialogTheme(ColorScheme colorScheme) {
   return DialogThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    shape: const RoundedRectangleBorder(),
   );
 }
 
 /// Builds the InputDecoration theme with custom styling.
 InputDecorationTheme buildInputDecorationTheme(ColorScheme colorScheme) {
-  final borderRadius = BorderRadius.circular(soliplexRadii.sm);
-
   return InputDecorationTheme(
-    border: OutlineInputBorder(borderRadius: borderRadius),
+    border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
     enabledBorder: OutlineInputBorder(
-      borderRadius: borderRadius,
+      borderRadius: BorderRadius.zero,
       borderSide: BorderSide(color: colorScheme.outline),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: borderRadius,
+      borderRadius: BorderRadius.zero,
       borderSide: BorderSide(color: colorScheme.primary, width: 2),
     ),
     errorBorder: OutlineInputBorder(
-      borderRadius: borderRadius,
+      borderRadius: BorderRadius.zero,
       borderSide: BorderSide(color: colorScheme.error),
     ),
     focusedErrorBorder: OutlineInputBorder(
-      borderRadius: borderRadius,
+      borderRadius: BorderRadius.zero,
       borderSide: BorderSide(color: colorScheme.error, width: 2),
     ),
   );
@@ -115,8 +112,12 @@ InputDecorationTheme buildInputDecorationTheme(ColorScheme colorScheme) {
 /// Builds the Card theme with custom styling.
 CardThemeData buildCardTheme(ColorScheme colorScheme) {
   return CardThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
+    color: colorScheme.surface,
+    shadowColor: Colors.transparent,
+    elevation: 0,
+    margin: EdgeInsets.zero,
+    shape: Border(
+      bottom: BorderSide(color: colorScheme.outlineVariant),
     ),
     clipBehavior: Clip.antiAlias,
   );
@@ -130,7 +131,7 @@ FilledButtonThemeData buildFilledButtonTheme(
   return FilledButtonThemeData(
     style: FilledButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.zero,
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s6,
@@ -153,7 +154,7 @@ OutlinedButtonThemeData buildOutlinedButtonTheme(
   return OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.zero,
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s4,
@@ -176,7 +177,7 @@ TextButtonThemeData buildTextButtonTheme(
   return TextButtonThemeData(
     style: TextButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.zero,
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s6,
@@ -196,7 +197,7 @@ IconButtonThemeData buildIconButtonTheme(ColorScheme colorScheme) {
   return IconButtonThemeData(
     style: IconButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.zero,
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s4,
@@ -214,7 +215,7 @@ ElevatedButtonThemeData buildElevatedButtonTheme(
   return ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.zero,
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s4,
@@ -235,7 +236,7 @@ ToggleButtonsThemeData buildToggleButtonsTheme(
   FontConfig? fontConfig,
 }) {
   return ToggleButtonsThemeData(
-    borderRadius: BorderRadius.circular(soliplexRadii.sm),
+    borderRadius: BorderRadius.zero,
     textStyle: TextStyle(
       fontFamily: fontConfig?.bodyFont,
       fontSize: 14,
@@ -252,9 +253,7 @@ SegmentedButtonThemeData buildSegmentedButtonTheme(
   return SegmentedButtonThemeData(
     style: ButtonStyle(
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
-        ),
+        const RoundedRectangleBorder(),
       ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(
@@ -279,9 +278,7 @@ FloatingActionButtonThemeData buildFloatingActionButtonTheme(
   FontConfig? fontConfig,
 }) {
   return FloatingActionButtonThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    shape: const RoundedRectangleBorder(),
     extendedTextStyle: TextStyle(
       fontFamily: fontConfig?.bodyFont,
       fontWeight: FontWeight.w600,
@@ -296,9 +293,7 @@ DropdownMenuThemeData buildDropdownMenuTheme(ColorScheme colorScheme) {
     menuStyle: MenuStyle(
       visualDensity: VisualDensity.compact,
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
-        ),
+        const RoundedRectangleBorder(),
       ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
@@ -314,9 +309,7 @@ DropdownMenuThemeData buildDropdownMenuTheme(ColorScheme colorScheme) {
 /// Builds the PopupMenu theme with custom styling.
 PopupMenuThemeData buildPopupMenuTheme(ColorScheme colorScheme) {
   return PopupMenuThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
-    ),
+    shape: const RoundedRectangleBorder(),
   );
 }
 
@@ -324,7 +317,7 @@ PopupMenuThemeData buildPopupMenuTheme(ColorScheme colorScheme) {
 ChipThemeData buildChipTheme(ColorScheme colorScheme) {
   return ChipThemeData(
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
+      borderRadius: BorderRadius.zero,
       side: BorderSide(
         color: colorScheme.outline,
       ),
@@ -346,9 +339,7 @@ ChipThemeData buildChipTheme(ColorScheme colorScheme) {
 /// Builds the Checkbox theme with custom styling.
 CheckboxThemeData buildCheckboxTheme(ColorScheme colorScheme) {
   return CheckboxThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
-    ),
+    shape: const RoundedRectangleBorder(),
   );
 }
 
@@ -422,12 +413,10 @@ DatePickerThemeData buildDatePickerTheme(
   FontConfig? fontConfig,
 }) {
   return DatePickerThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    shape: const RoundedRectangleBorder(),
     dayShape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.zero,
       ),
     ),
     headerHelpStyle: TextStyle(
@@ -440,24 +429,16 @@ DatePickerThemeData buildDatePickerTheme(
 /// Builds the TimePicker theme with custom styling.
 TimePickerThemeData buildTimePickerTheme(ColorScheme colorScheme) {
   return TimePickerThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
-    hourMinuteShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
-    ),
-    dayPeriodShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
-    ),
+    shape: const RoundedRectangleBorder(),
+    hourMinuteShape: const RoundedRectangleBorder(),
+    dayPeriodShape: const RoundedRectangleBorder(),
   );
 }
 
 /// Builds the SnackBar theme with custom styling.
 SnackBarThemeData buildSnackBarTheme(ColorScheme colorScheme) {
   return SnackBarThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    shape: const RoundedRectangleBorder(),
     behavior: SnackBarBehavior.floating,
   );
 }
@@ -467,8 +448,7 @@ BottomAppBarThemeData buildBottomAppBarTheme(ColorScheme colorScheme) {
   return BottomAppBarThemeData(
     shape: AutomaticNotchedShape(
       RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(soliplexRadii.md)),
+        borderRadius: BorderRadius.zero,
       ),
     ),
     padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
@@ -479,8 +459,7 @@ BottomAppBarThemeData buildBottomAppBarTheme(ColorScheme colorScheme) {
 BottomSheetThemeData buildBottomSheetTheme(ColorScheme colorScheme) {
   return BottomSheetThemeData(
     shape: RoundedRectangleBorder(
-      borderRadius:
-          BorderRadius.vertical(top: Radius.circular(soliplexRadii.md)),
+      borderRadius: BorderRadius.zero,
     ),
     showDragHandle: true,
   );
@@ -515,9 +494,7 @@ NavigationBarThemeData buildNavigationBarTheme(
   FontConfig? fontConfig,
 }) {
   return NavigationBarThemeData(
-    indicatorShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    indicatorShape: const RoundedRectangleBorder(),
     labelTextStyle: WidgetStatePropertyAll(
       TextStyle(
         fontFamily: fontConfig?.bodyFont,
@@ -535,9 +512,7 @@ NavigationRailThemeData buildNavigationRailTheme(
   FontConfig? fontConfig,
 }) {
   return NavigationRailThemeData(
-    indicatorShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    indicatorShape: const RoundedRectangleBorder(),
     labelType: NavigationRailLabelType.all,
     groupAlignment: 0,
     minWidth: 80,
@@ -561,9 +536,7 @@ NavigationDrawerThemeData buildNavigationDrawerTheme(
   FontConfig? fontConfig,
 }) {
   return NavigationDrawerThemeData(
-    indicatorShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    indicatorShape: const RoundedRectangleBorder(),
     tileHeight: 48,
     labelTextStyle: WidgetStatePropertyAll(
       TextStyle(
@@ -579,12 +552,10 @@ NavigationDrawerThemeData buildNavigationDrawerTheme(
 DrawerThemeData buildDrawerTheme(ColorScheme colorScheme) {
   return DrawerThemeData(
     shape: RoundedRectangleBorder(
-      borderRadius:
-          BorderRadius.horizontal(right: Radius.circular(soliplexRadii.md)),
+      borderRadius: BorderRadius.zero,
     ),
     endShape: RoundedRectangleBorder(
-      borderRadius:
-          BorderRadius.horizontal(left: Radius.circular(soliplexRadii.md)),
+      borderRadius: BorderRadius.zero,
     ),
   );
 }
@@ -597,7 +568,7 @@ TooltipThemeData buildTooltipTheme(
   return TooltipThemeData(
     decoration: BoxDecoration(
       color: colorScheme.inverseSurface,
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
+      borderRadius: BorderRadius.zero,
     ),
     textStyle: TextStyle(
       fontFamily: fontConfig?.bodyFont,
@@ -635,9 +606,7 @@ MenuThemeData buildMenuTheme(ColorScheme colorScheme) {
   return MenuThemeData(
     style: MenuStyle(
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
-        ),
+        const RoundedRectangleBorder(),
       ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
@@ -651,9 +620,7 @@ MenuBarThemeData buildMenuBarTheme(ColorScheme colorScheme) {
   return MenuBarThemeData(
     style: MenuStyle(
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
-        ),
+        const RoundedRectangleBorder(),
       ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
@@ -667,9 +634,7 @@ MenuButtonThemeData buildMenuButtonTheme(ColorScheme colorScheme) {
   return MenuButtonThemeData(
     style: ButtonStyle(
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
-        ),
+        const RoundedRectangleBorder(),
       ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(
@@ -684,12 +649,8 @@ MenuButtonThemeData buildMenuButtonTheme(ColorScheme colorScheme) {
 /// Builds the ExpansionTile theme with custom styling.
 ExpansionTileThemeData buildExpansionTileTheme(ColorScheme colorScheme) {
   return ExpansionTileThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
-    collapsedShape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
-    ),
+    shape: const RoundedRectangleBorder(),
+    collapsedShape: const RoundedRectangleBorder(),
     tilePadding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
     childrenPadding: const EdgeInsets.all(SoliplexSpacing.s4),
   );
@@ -703,7 +664,7 @@ SearchBarThemeData buildSearchBarTheme(
   return SearchBarThemeData(
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.lg),
+        borderRadius: BorderRadius.zero,
       ),
     ),
     padding: const WidgetStatePropertyAll(
@@ -729,7 +690,7 @@ SearchBarThemeData buildSearchBarTheme(
 SearchViewThemeData buildSearchViewTheme(ColorScheme colorScheme) {
   return SearchViewThemeData(
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(soliplexRadii.lg),
+      borderRadius: BorderRadius.zero,
     ),
   );
 }
