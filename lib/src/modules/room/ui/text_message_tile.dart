@@ -63,9 +63,8 @@ class TextMessageTile extends StatelessWidget {
               : const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s5, vertical: SoliplexSpacing.s1),
           decoration: BoxDecoration(
             color: isUser
-                ? theme.colorScheme.primaryContainer
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
                 : theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
           ),
           child: isUser
               ? SelectableText(

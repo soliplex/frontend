@@ -183,7 +183,6 @@ class _RequestDetailViewState extends State<RequestDetailView>
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
                 ),
               ),
             ),
@@ -321,7 +320,6 @@ class _MatchBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         '$count',
@@ -355,7 +353,6 @@ class _MethodBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         method,
@@ -574,7 +571,6 @@ class _CurlTab extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
               ),
               child: SelectableText(
                 curl,
@@ -624,7 +620,6 @@ class _HeadersTable extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         children: [
@@ -691,7 +686,6 @@ class _BodyDisplay extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
       ),
       child: SelectableText(
         formattedBody,

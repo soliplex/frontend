@@ -126,7 +126,6 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
           child: Tooltip(
             message: _showSource ? 'Show preview' : 'Show source',
             child: InkWell(
-              borderRadius: BorderRadius.circular(4),
               onTap: () => setState(() => _showSource = !_showSource),
               child: Padding(
                 padding: const EdgeInsets.all(4),

@@ -298,7 +298,7 @@ MarkdownThemeExtension _markdownThemeExtension(
     ),
     codeBlockDecoration: BoxDecoration(
       color: colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
+      borderRadius: BorderRadius.zero,
     ),
     blockquoteDecoration: BoxDecoration(
       color: colorScheme.surfaceContainerHigh,

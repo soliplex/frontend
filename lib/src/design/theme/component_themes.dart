@@ -45,7 +45,7 @@ ListTileThemeData buildListTileTheme(
         ),
       ),
       contentPadding: const EdgeInsets.symmetric(
-        horizontal: SoliplexSpacing.s4,
+        horizontal: SoliplexSpacing.s5,
         vertical: SoliplexSpacing.s2,
       ),
       horizontalTitleGap: 16,
@@ -139,7 +139,7 @@ FilledButtonThemeData buildFilledButtonTheme(
       ),
       textStyle: TextStyle(
         fontFamily: fontConfig?.bodyFont,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         fontSize: defaultButtonFontSize,
       ),
     ),
@@ -162,7 +162,7 @@ OutlinedButtonThemeData buildOutlinedButtonTheme(
       ),
       textStyle: TextStyle(
         fontFamily: fontConfig?.bodyFont,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         fontSize: defaultButtonFontSize,
       ),
     ),
@@ -185,7 +185,7 @@ TextButtonThemeData buildTextButtonTheme(
       ),
       textStyle: TextStyle(
         fontFamily: fontConfig?.bodyFont,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         fontSize: defaultButtonFontSize,
       ),
     ),
@@ -223,7 +223,7 @@ ElevatedButtonThemeData buildElevatedButtonTheme(
       ),
       textStyle: TextStyle(
         fontFamily: fontConfig?.bodyFont,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         fontSize: defaultButtonFontSize,
       ),
     ),
@@ -264,7 +264,7 @@ SegmentedButtonThemeData buildSegmentedButtonTheme(
       textStyle: WidgetStatePropertyAll(
         TextStyle(
           fontFamily: fontConfig?.bodyFont,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           fontSize: defaultButtonFontSize,
         ),
       ),
