@@ -59,19 +59,14 @@ class ThreadSidebar extends StatelessWidget {
           onPressed: onRoomInfo,
           icon: const Icon(Icons.info_outline, size: 16),
           label: const Text('Room Info'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-            visualDensity: VisualDensity.comfortable,
-          ),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
+        const Divider(height: 4),
         TextButton.icon(
           onPressed: onNetworkInspector,
-          icon: const Icon(Icons.http, size: 16),
+          icon: const Icon(Icons.lan, size: 16),
           label: const Text('Network Inspector'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-            visualDensity: VisualDensity.comfortable,
-          ),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
       ],
     );

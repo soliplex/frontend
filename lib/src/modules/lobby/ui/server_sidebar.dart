@@ -139,18 +139,20 @@ class _ActionButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextButton.icon(
           onPressed: onAddServer,
           icon: const Icon(Icons.home, size: 16),
           label: const Text('Home'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
         const Divider(height: 4),
         TextButton.icon(
           onPressed: onNetworkInspector,
-          icon: const Icon(Icons.network_cell, size: 16),
+          icon: const Icon(Icons.lan, size: 16),
           label: const Text('Network Inspector'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
       ],
     );
