@@ -33,17 +33,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
     super.dispose();
   }
 
-  List<RagDocument> get _filtered {
-    if (_query.isEmpty) return widget.documents;
-    final q = _query.toLowerCase();
-    return widget.documents
-        .where(
-          (d) =>
-              documentDisplayName(d).toLowerCase().contains(q) ||
-              d.uri.toLowerCase().contains(q),
-        )
-        .toList();
-  }
+  List<RagDocument> get _filtered => filterDocuments(widget.documents, _query);
 
   void _toggle(RagDocument doc) {
     final next = Set<RagDocument>.of(widget.selected);
@@ -148,8 +138,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
 }) {
   var current = Set<RagDocument>.of(selected);
   int? filteredCount;
-  late Future<List<RagDocument>> documentsFuture;
-  documentsFuture = fetchDocuments();
+  var documentsFuture = fetchDocuments();
   return showDialog<Set<RagDocument>>(
     context: context,
     builder: (context) => StatefulBuilder(

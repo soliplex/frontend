@@ -29,52 +29,50 @@ void main() {
     });
 
     group('buildDocumentFilter', () {
-      test('single title produces equality filter', () {
+      test('single document produces equality filter', () {
         expect(
-          buildDocumentFilter(['Report']),
-          equals("title = 'Report'"),
+          buildDocumentFilter(
+            [const RagDocument(id: 'abc-123', title: 'Report')],
+          ),
+          equals("id = 'abc-123'"),
         );
       });
 
-      test('multiple titles produce IN filter', () {
+      test('multiple documents produce IN filter', () {
         expect(
-          buildDocumentFilter(['Report', 'Summary']),
-          equals("title IN ('Report', 'Summary')"),
+          buildDocumentFilter([
+            const RagDocument(id: 'abc-123', title: 'Report'),
+            const RagDocument(id: 'def-456', title: 'Summary'),
+          ]),
+          equals("id IN ('abc-123', 'def-456')"),
         );
       });
 
-      test('escapes single quotes in titles', () {
+      test('escapes single quotes in ids', () {
         expect(
-          buildDocumentFilter(["O'Brien Report"]),
-          equals("title = 'O''Brien Report'"),
+          buildDocumentFilter(
+            [const RagDocument(id: "id'inject", title: 'Report')],
+          ),
+          equals("id = 'id''inject'"),
         );
       });
 
-      test('escapes single quotes in multiple titles', () {
+      test('deduplicates by id', () {
         expect(
-          buildDocumentFilter(["O'Brien", "It's a test"]),
-          equals("title IN ('O''Brien', 'It''s a test')"),
+          buildDocumentFilter([
+            const RagDocument(id: 'abc-123', title: 'Report'),
+            const RagDocument(id: 'abc-123', title: 'Report Copy'),
+          ]),
+          equals("id = 'abc-123'"),
         );
       });
 
-      test('deduplicates identical titles', () {
+      test('works with blank titles', () {
         expect(
-          buildDocumentFilter(['Report', 'Report']),
-          equals("title = 'Report'"),
-        );
-      });
-
-      test('ignores blank titles', () {
-        expect(
-          buildDocumentFilter(['Report', '', '  ', 'Summary']),
-          equals("title IN ('Report', 'Summary')"),
-        );
-      });
-
-      test('throws when all titles are blank', () {
-        expect(
-          () => buildDocumentFilter(['', '  ']),
-          throwsArgumentError,
+          buildDocumentFilter(
+            [const RagDocument(id: 'abc-123', title: '')],
+          ),
+          equals("id = 'abc-123'"),
         );
       });
 

@@ -527,14 +527,14 @@ void main() {
         userMessage: 'test',
         toolExecutor: (_) async => [],
         stateOverlay: {
-          'rag': <String, dynamic>{'document_filter': "title = 'Report'"},
+          'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
         },
       );
 
       expect(result, isA<CompletedState>());
       final completed = result as CompletedState;
       final rag = completed.conversation.aguiState['rag'] as Map;
-      expect(rag['document_filter'], "title = 'Report'");
+      expect(rag['document_filter'], "id = 'abc-123'");
     });
 
     test('runToCompletion merges stateOverlay with cachedHistory aguiState',
@@ -558,14 +558,14 @@ void main() {
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
-          'rag': <String, dynamic>{'document_filter': "title = 'Report'"},
+          'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
         },
       );
 
       expect(result, isA<CompletedState>());
       final completed = result as CompletedState;
       final rag = completed.conversation.aguiState['rag'] as Map;
-      expect(rag['document_filter'], "title = 'Report'");
+      expect(rag['document_filter'], "id = 'abc-123'");
       expect(rag['citations'], [1, 2, 3]);
       expect(completed.conversation.aguiState['other'], 'data');
     });
@@ -625,7 +625,7 @@ void main() {
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
-          'rag': <String, dynamic>{'document_filter': "title = 'X'"},
+          'rag': <String, dynamic>{'document_filter': "id = 'x-1'"},
         },
       );
 
@@ -633,7 +633,7 @@ void main() {
       final completed = result as CompletedState;
       expect(
         completed.conversation.aguiState['rag'],
-        {'document_filter': "title = 'X'"},
+        {'document_filter': "id = 'x-1'"},
       );
     });
 

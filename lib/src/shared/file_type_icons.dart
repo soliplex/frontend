@@ -80,6 +80,21 @@ String documentIconPath(RagDocument doc) {
   return uri;
 }
 
+/// Filters [docs] by matching [query] against display name and URI.
+///
+/// Returns all documents when [query] is empty.
+List<RagDocument> filterDocuments(List<RagDocument> docs, String query) {
+  if (query.isEmpty) return docs;
+  final q = query.toLowerCase();
+  return docs
+      .where(
+        (d) =>
+            documentDisplayName(d).toLowerCase().contains(q) ||
+            d.uri.toLowerCase().contains(q),
+      )
+      .toList();
+}
+
 final _uuidPattern = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
   caseSensitive: false,

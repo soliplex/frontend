@@ -351,7 +351,7 @@ void main() {
         prompt: 'Hello',
         stateOverlay: {
           'rag': <String, dynamic>{
-            'document_filter': "title = 'Report'",
+            'document_filter': "id = 'abc-123'",
           },
         },
       );
@@ -366,7 +366,7 @@ void main() {
           'rag': <String, dynamic>{
             'citations': <dynamic>[],
             'qa_history': <dynamic>[],
-            'document_filter': "title = 'Report'",
+            'document_filter': "id = 'abc-123'",
           },
         }),
       );

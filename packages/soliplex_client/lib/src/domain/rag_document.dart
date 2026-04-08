@@ -1,25 +1,25 @@
 import 'package:meta/meta.dart';
 
-/// Builds a SQL-style filter expression for the given document [titles].
+/// Builds a LanceDB WHERE clause for the documents table from [documents].
 ///
-/// Duplicate titles are collapsed. Blank titles are ignored.
+/// Filters by document ID for exact matching. Duplicates are collapsed.
 ///
-/// Single title: `title = 'Report'`
-/// Multiple titles: `title IN ('Report', 'Summary')`
-String buildDocumentFilter(List<String> titles) {
-  final nonBlank = titles.where((t) => t.trim().isNotEmpty).toSet();
-  if (nonBlank.isEmpty) {
+/// Single document: `id = 'abc-123'`
+/// Multiple documents: `id IN ('abc-123', 'def-456')`
+String buildDocumentFilter(List<RagDocument> documents) {
+  if (documents.isEmpty) {
     throw ArgumentError.value(
-      titles,
-      'titles',
-      'must contain non-blank titles',
+      documents,
+      'documents',
+      'must not be empty',
     );
   }
-  final escaped = nonBlank.map((t) => t.replaceAll("'", "''")).toList();
+  final ids = documents.map((d) => d.id).toSet();
+  final escaped = ids.map((id) => id.replaceAll("'", "''")).toList();
   if (escaped.length == 1) {
-    return "title = '${escaped.first}'";
+    return "id = '${escaped.first}'";
   }
-  return "title IN (${escaped.map((t) => "'$t'").join(', ')})";
+  return "id IN (${escaped.map((id) => "'$id'").join(', ')})";
 }
 
 /// Represents a document available for narrowing RAG searches.

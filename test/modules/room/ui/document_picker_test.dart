@@ -219,6 +219,41 @@ void main() {
       expect(fetchCount, 2);
     });
 
+    testWidgets('Done returns selected documents', (tester) async {
+      Set<RagDocument>? result;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                result = await showDocumentPicker(
+                  context: context,
+                  fetchDocuments: () => Future.value(_docs),
+                  selected: const {},
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Select two documents.
+      await tester.tap(find.text('Report.pdf'));
+      await tester.pump();
+      await tester.tap(find.text('Data.xlsx'));
+      await tester.pump();
+
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+
+      expect(result, {_docs[0], _docs[2]});
+    });
+
     testWidgets('cancel returns null', (tester) async {
       Set<RagDocument>? result;
 

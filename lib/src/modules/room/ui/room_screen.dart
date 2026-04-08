@@ -6,6 +6,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show RagDocument, SourceReferenceFormatting, buildDocumentFilter;
 import '../../auth/server_entry.dart';
+import '../document_selections.dart';
 import '../../diagnostics/diagnostics_providers.dart';
 import '../../diagnostics/models/http_event_grouper.dart';
 import '../../diagnostics/models/run_event_filter.dart';
@@ -34,6 +35,7 @@ class RoomScreen extends StatefulWidget {
     required this.threadId,
     required this.runtimeManager,
     required this.registry,
+    required this.documentSelections,
   });
 
   final ServerEntry serverEntry;
@@ -41,6 +43,7 @@ class RoomScreen extends StatefulWidget {
   final String? threadId;
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
+  final DocumentSelections documentSelections;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -51,42 +54,43 @@ class _RoomScreenState extends State<RoomScreen> {
   void Function()? _autoSelectUnsub;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
-  Map<String?, Set<RagDocument>> _documentSelections = {};
+
+  DocumentSelections get _selections => widget.documentSelections;
 
   Set<RagDocument> get _selectedForCurrentThread =>
-      _documentSelections[widget.threadId] ?? {};
+      _selections.get(widget.roomId, widget.threadId);
 
   void _updateSelection(Set<RagDocument> selection) {
     setState(() {
-      _documentSelections = {
-        ..._documentSelections,
-        widget.threadId: selection,
-      };
+      _selections.set(widget.roomId, widget.threadId, selection);
     });
   }
 
   Future<void> _openDocumentPicker() async {
+    final roomId = widget.roomId;
     final threadId = widget.threadId;
     final result = await showDocumentPicker(
       context: context,
       fetchDocuments: () =>
-          widget.serverEntry.connection.api.getDocuments(widget.roomId),
-      selected: _documentSelections[threadId] ?? {},
+          widget.serverEntry.connection.api.getDocuments(roomId),
+      selected: _selections.get(roomId, threadId),
     );
     if (result != null && mounted) {
       setState(() {
-        _documentSelections = {..._documentSelections, threadId: result};
+        _selections.set(roomId, threadId, result);
       });
     }
   }
 
+  // TODO: If a selected document is deleted server-side before send,
+  // the backend silently returns empty results. Consider reconciling
+  // selections against the fetched document list.
   Map<String, dynamic>? _buildStateOverlay() {
     final selected = _selectedForCurrentThread;
     if (selected.isEmpty) return null;
-    final titles = selected.map((d) => d.title).toList();
     return {
       'rag': <String, dynamic>{
-        'document_filter': buildDocumentFilter(titles),
+        'document_filter': buildDocumentFilter(selected.toList()),
       },
     };
   }
@@ -111,7 +115,6 @@ class _RoomScreenState extends State<RoomScreen> {
       _cancelAutoSelect();
       _state.dispose();
       _chatController.clear();
-      _documentSelections = {};
       _state = _createRoomState();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
@@ -122,16 +125,10 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
-        // Migrate selection from no-thread view to the newly created thread.
+        // User may select documents before a thread exists; carry that
+        // selection forward into the newly created thread.
         if (oldWidget.threadId == null) {
-          final pending = _documentSelections[null];
-          if (pending != null && pending.isNotEmpty) {
-            _documentSelections = {
-              for (final e in _documentSelections.entries)
-                if (e.key != null) e.key: e.value,
-              widget.threadId: pending,
-            };
-          }
+          _selections.migrateToThread(widget.roomId, widget.threadId!);
         }
         _state.selectThread(widget.threadId!);
         setState(() {});
@@ -209,12 +206,6 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _onThreadSelected(String threadId) {
-    setState(() {
-      _documentSelections = {
-        for (final e in _documentSelections.entries)
-          if (e.key != null) e.key: e.value,
-      };
-    });
     context.go(
       '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
     );
