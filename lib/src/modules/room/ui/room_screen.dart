@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show RagDocument, SourceReferenceFormatting, buildDocumentFilter;
+    show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../../diagnostics/diagnostics_providers.dart';
@@ -16,6 +16,7 @@ import '../room_state.dart';
 import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
+import '../compute_display_messages.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'document_picker.dart';
@@ -211,10 +212,17 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  void _onQuizTapped(String quizId) {
+    final alias = widget.serverEntry.alias;
+    context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+  }
+
   @override
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
+    final roomStatus = _state.room.watch(context);
+    final room = roomStatus is RoomLoaded ? roomStatus.room : null;
 
     return Focus(
       autofocus: true,
@@ -230,8 +238,10 @@ class _RoomScreenState extends State<RoomScreen> {
             onNetworkInspector: _onNetworkInspector,
             onRoomInfo: _onRoomInfo,
             onRetryThreads: () => _state.threadList.refresh(),
+            quizzes: room?.quizzes ?? const {},
+            onQuizTapped: _onQuizTapped,
           );
-          final content = _buildContent();
+          final content = _buildContent(room);
 
           if (isWide) {
             return Scaffold(
@@ -279,6 +289,8 @@ class _RoomScreenState extends State<RoomScreen> {
                       _onRoomInfo();
                     },
                     onRetryThreads: () => _state.threadList.refresh(),
+                    quizzes: room?.quizzes ?? const {},
+                    onQuizTapped: _onQuizTapped,
                   ),
                 ),
               ),
@@ -300,15 +312,15 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(Room? room) {
     final threadView = _state.activeThreadView;
     if (threadView == null) {
-      return _buildNoThreadContent();
+      return _buildNoThreadContent(room);
     }
-    return _buildThreadContent(threadView);
+    return _buildThreadContent(threadView, room);
   }
 
-  Widget _buildNoThreadContent() {
+  Widget _buildNoThreadContent(Room? room) {
     final roomError = _state.lastError.watch(context);
     final sessionState = _state.sessionState.watch(context);
     _restoreUnsentText(roomError?.unsentText);
@@ -316,21 +328,16 @@ class _RoomScreenState extends State<RoomScreen> {
     return Column(
       children: [
         Expanded(
-          child: Builder(
-            builder: (context) {
-              final roomStatus = _state.room.watch(context);
-              final room = roomStatus is RoomLoaded ? roomStatus.room : null;
-              return RoomWelcome(
-                room: room,
-                onSuggestionTapped: sessionState != null
-                    ? null
-                    : (suggestion) => _state.sendToNewThread(
-                          suggestion,
-                          stateOverlay: _buildStateOverlay(),
-                        ),
-                fallback: const Center(child: Text('Select a thread')),
-              );
-            },
+          child: RoomWelcome(
+            room: room,
+            onSuggestionTapped: sessionState != null
+                ? null
+                : (suggestion) => _state.sendToNewThread(
+                      suggestion,
+                      stateOverlay: _buildStateOverlay(),
+                    ),
+            onQuizTapped: _onQuizTapped,
+            fallback: const Center(child: Text('Select a thread')),
           ),
         ),
         if (roomError != null)
@@ -357,11 +364,9 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Widget _buildThreadContent(ThreadViewState threadView) {
+  Widget _buildThreadContent(ThreadViewState threadView, Room? room) {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
-    final roomStatus = _state.room.watch(context);
-    final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final sendError = threadView.lastSendError.watch(context);
 
     _restoreUnsentText(sendError?.unsentText);
@@ -379,41 +384,48 @@ class _RoomScreenState extends State<RoomScreen> {
                 onRetry: threadView.refresh,
               ),
             MessagesLoaded(:final messages, :final messageStates) =>
-              MessageTimeline(
-                messages: messages,
-                messageStates: messageStates,
-                streamingState: streaming,
-                executionTrackers: threadView.executionTrackers,
-                room: room,
-                onSuggestionTapped: (suggestion) => threadView.sendMessage(
-                  suggestion,
-                  _state.runtime,
-                  stateOverlay: _buildStateOverlay(),
-                ),
-                onFeedbackSubmit: threadView.submitFeedback,
-                onInspect: (runId) {
-                  final inspector = ProviderScope.containerOf(context)
-                      .read(networkInspectorProvider);
-                  final filtered = filterEventsByRunId(
-                    inspector.events,
-                    runId,
-                  );
-                  final groups = groupHttpEvents(filtered);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => RunHttpDetailPage(groups: groups),
+              computeDisplayMessages(messages, streaming).isEmpty
+                  ? RoomWelcome(
+                      room: room,
+                      onSuggestionTapped: (suggestion) =>
+                          threadView.sendMessage(
+                        suggestion,
+                        _state.runtime,
+                        stateOverlay: _buildStateOverlay(),
+                      ),
+                      onQuizTapped: _onQuizTapped,
+                      fallback: _threadEmptyFallback(context),
+                    )
+                  : MessageTimeline(
+                      messages: messages,
+                      messageStates: messageStates,
+                      streamingState: streaming,
+                      executionTrackers: threadView.executionTrackers,
+                      onFeedbackSubmit: threadView.submitFeedback,
+                      onInspect: (runId) {
+                        final inspector = ProviderScope.containerOf(context)
+                            .read(networkInspectorProvider);
+                        final filtered = filterEventsByRunId(
+                          inspector.events,
+                          runId,
+                        );
+                        final groups = groupHttpEvents(filtered);
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => RunHttpDetailPage(groups: groups),
+                          ),
+                        );
+                      },
+                      onShowChunkVisualization: (ref) =>
+                          ChunkVisualizationPage.show(
+                        context: context,
+                        api: widget.serverEntry.connection.api,
+                        roomId: widget.roomId,
+                        chunkId: ref.chunkId,
+                        documentTitle: ref.displayTitle,
+                        pageNumbers: ref.pageNumbers,
+                      ),
                     ),
-                  );
-                },
-                onShowChunkVisualization: (ref) => ChunkVisualizationPage.show(
-                  context: context,
-                  api: widget.serverEntry.connection.api,
-                  roomId: widget.roomId,
-                  chunkId: ref.chunkId,
-                  documentTitle: ref.displayTitle,
-                  pageNumbers: ref.pageNumbers,
-                ),
-              ),
           },
         ),
         if (sendError != null)
@@ -439,6 +451,27 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  static Widget _threadEmptyFallback(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.chat_bubble_outline,
+              size: 48,
+              color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+          const SizedBox(height: 12),
+          Text(
+            'Type a message to get started',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

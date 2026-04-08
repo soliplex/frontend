@@ -8,11 +8,13 @@ class RoomWelcome extends StatelessWidget {
     super.key,
     this.room,
     this.onSuggestionTapped,
+    this.onQuizTapped,
     required this.fallback,
   });
 
   final Room? room;
   final void Function(String suggestion)? onSuggestionTapped;
+  final void Function(String quizId)? onQuizTapped;
   final Widget fallback;
 
   @override
@@ -22,7 +24,9 @@ class RoomWelcome extends StatelessWidget {
     final currentRoom = room;
     if (currentRoom == null) return fallback;
 
-    if (!currentRoom.hasWelcomeMessage && !currentRoom.hasSuggestions) {
+    if (!currentRoom.hasWelcomeMessage &&
+        !currentRoom.hasSuggestions &&
+        !currentRoom.hasQuizzes) {
       return fallback;
     }
 
@@ -65,6 +69,46 @@ class RoomWelcome extends StatelessWidget {
                             ? () => onSuggestionTapped!(suggestion)
                             : null,
                       ),
+                  ],
+                ),
+              ),
+            ],
+            if (currentRoom.hasQuizzes) ...[
+              const SizedBox(height: 24),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.quiz,
+                            size: 20, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          currentRoom.quizzes.length == 1
+                              ? 'Quiz Available'
+                              : '${currentRoom.quizzes.length} Quizzes Available',
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final entry in currentRoom.quizzes.entries)
+                          ActionChip(
+                            avatar: const Icon(Icons.play_arrow, size: 16),
+                            label: Text(entry.value),
+                            onPressed: onQuizTapped != null
+                                ? () => onQuizTapped!(entry.key)
+                                : null,
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),

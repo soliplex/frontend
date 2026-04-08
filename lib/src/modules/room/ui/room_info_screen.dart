@@ -8,6 +8,7 @@ import 'room_info/client_tools_card.dart';
 import 'room_info/documents_card.dart';
 import 'room_info/expandable_list_card.dart';
 import 'room_info/features_card.dart';
+import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
@@ -98,6 +99,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
             room: snapshot.data!,
             serverUrl: widget.serverEntry.serverUrl,
             api: widget.serverEntry.connection.api,
+            serverAlias: widget.serverEntry.alias,
             roomId: widget.roomId,
             documentsFuture: _documentsFuture,
             clientToolsFuture: _clientToolsFuture,
@@ -114,6 +116,7 @@ class _RoomInfoBody extends StatelessWidget {
     required this.room,
     required this.serverUrl,
     required this.api,
+    required this.serverAlias,
     required this.roomId,
     required this.documentsFuture,
     required this.clientToolsFuture,
@@ -123,6 +126,7 @@ class _RoomInfoBody extends StatelessWidget {
   final Room room;
   final Uri serverUrl;
   final SoliplexApi api;
+  final String serverAlias;
   final String roomId;
   final Future<List<RagDocument>> documentsFuture;
   final Future<List<Tool>> clientToolsFuture;
@@ -164,6 +168,17 @@ class _RoomInfoBody extends StatelessWidget {
             ),
           _AgentCard(agent: room.agent),
           FeaturesCard(room: room, api: api, roomId: roomId),
+          QuizzesCard(
+            quizzes: room.quizzes,
+            onQuizTapped: (quizId) {
+              final from = Uri.encodeComponent(
+                '/room/$serverAlias/$roomId/info',
+              );
+              context.go(
+                '/room/$serverAlias/$roomId/quiz/$quizId?from=$from',
+              );
+            },
+          ),
           ExpandableListCard<MapEntry<String, RoomSkill>>(
             key: const ValueKey('skills'),
             title: 'SKILLS',
