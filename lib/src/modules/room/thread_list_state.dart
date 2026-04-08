@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:developer' as dev;
+
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 sealed class ThreadListStatus {}
@@ -20,7 +23,7 @@ class ThreadListState {
     required String roomId,
   })  : _connection = connection,
         _roomId = roomId {
-    _fetch();
+    unawaited(_fetch());
   }
 
   final ServerConnection _connection;
@@ -56,7 +59,13 @@ class ThreadListState {
       if (token.isCancelled) return;
       _cancelToken = null;
       // Preserve existing loaded threads on refresh failure.
-      if (_threads.value is! ThreadsLoaded) {
+      if (_threads.value is ThreadsLoaded) {
+        dev.log(
+          'Thread refresh failed, keeping stale list',
+          error: error,
+          name: 'ThreadListState',
+        );
+      } else {
         _threads.value = ThreadsFailed(error);
       }
     }
