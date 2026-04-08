@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -55,6 +56,7 @@ void main() {
           threadId: null,
           runtimeManager: runtimeManager,
           registry: registry,
+          documentSelections: DocumentSelections(),
         ),
       ),
     ));

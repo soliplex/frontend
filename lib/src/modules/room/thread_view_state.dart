@@ -119,7 +119,11 @@ class ThreadViewState {
 
   void refresh() => _fetch();
 
-  Future<void> sendMessage(String prompt, AgentRuntime runtime) async {
+  Future<void> sendMessage(
+    String prompt,
+    AgentRuntime runtime, {
+    Map<String, dynamic>? stateOverlay,
+  }) async {
     if (_sessionState.value != null) return;
     _lastSendError.value = null;
     _sessionState.value = AgentSessionState.spawning;
@@ -129,6 +133,7 @@ class ThreadViewState {
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
+        stateOverlay: stateOverlay,
       );
       _pendingSpawn = spawnFuture;
       final session = await spawnFuture;

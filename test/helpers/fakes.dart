@@ -1,6 +1,14 @@
+import 'dart:async';
+
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show HttpTransport, RagDocument, SoliplexApi, UrlBuilder;
+    show
+        HttpTransport,
+        Quiz,
+        QuizAnswerResult,
+        RagDocument,
+        SoliplexApi,
+        UrlBuilder;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
@@ -228,6 +236,46 @@ class FakeSoliplexApi extends SoliplexApi {
   Future<String> getMcpToken(String roomId, {CancelToken? cancelToken}) async {
     if (nextMcpTokenError != null) throw nextMcpTokenError!;
     return nextMcpToken ?? 'fake-token';
+  }
+
+  Quiz? nextQuiz;
+  Exception? nextQuizError;
+  QuizAnswerResult? nextQuizAnswerResult;
+  Exception? nextQuizAnswerError;
+  Object? nextQuizAnswerThrowable;
+
+  @override
+  Future<Quiz> getQuiz(
+    String roomId,
+    String quizId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextQuizError != null) throw nextQuizError!;
+    if (nextQuiz != null) return nextQuiz!;
+    throw StateError('FakeSoliplexApi: set nextQuiz or nextQuizError');
+  }
+
+  Completer<QuizAnswerResult>? submitQuizAnswerCompleter;
+  int submitQuizAnswerCallCount = 0;
+
+  @override
+  Future<QuizAnswerResult> submitQuizAnswer(
+    String roomId,
+    String quizId,
+    String questionId,
+    String answer, {
+    CancelToken? cancelToken,
+  }) async {
+    submitQuizAnswerCallCount++;
+    if (submitQuizAnswerCompleter != null) {
+      return submitQuizAnswerCompleter!.future;
+    }
+    if (nextQuizAnswerThrowable != null) throw nextQuizAnswerThrowable!;
+    if (nextQuizAnswerError != null) throw nextQuizAnswerError!;
+    if (nextQuizAnswerResult != null) return nextQuizAnswerResult!;
+    throw StateError(
+      'FakeSoliplexApi: set nextQuizAnswerResult or nextQuizAnswerError',
+    );
   }
 }
 

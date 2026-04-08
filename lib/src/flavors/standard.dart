@@ -22,6 +22,7 @@ import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
+import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
@@ -128,7 +129,9 @@ Future<ShellConfig> standard({
         serverManager: serverManager,
         runtimeManager: runtimeManager,
         registry: registry,
+        enableDocumentFilter: false,
       ),
+      quizModule(serverManager: serverManager),
       authModule(
         serverManager: serverManager,
         authFlow: authFlow,

@@ -16,7 +16,10 @@ class ThreadSidebar extends StatelessWidget {
     required this.onCreateThread,
     required this.onNetworkInspector,
     required this.onRoomInfo,
+    required this.roomName,
     this.onRetryThreads,
+    this.quizzes = const {},
+    this.onQuizTapped,
   });
 
   final ThreadListStatus threadListStatus;
@@ -26,7 +29,10 @@ class ThreadSidebar extends StatelessWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onNetworkInspector;
   final VoidCallback onRoomInfo;
-  final VoidCallback? onRetryThreads;
+  final String roomName;
+  final Future<void> Function()? onRetryThreads;
+  final Map<String, String> quizzes;
+  final void Function(String quizId)? onQuizTapped;
 
   @override
   Widget build(BuildContext context) {
@@ -62,12 +68,19 @@ class ThreadSidebar extends StatelessWidget {
             ],
           ),
           const Divider(height: 4),
+          if (quizzes.isNotEmpty) ...[
+            _QuizRow(
+              quizzes: quizzes,
+              onQuizTapped: onQuizTapped,
+            ),
+            const Divider(height: 1),
+          ],
           Expanded(child: _buildContent(context)),
           const Divider(height: 4),
           TextButton.icon(
             onPressed: onRoomInfo,
             icon: const Icon(Icons.info_outline, size: 16),
-            label: const Text('Room Info'),
+            label: Text(roomName),
             style: TextButton.styleFrom(alignment: Alignment.centerLeft),
           ),
           const Divider(height: 4),
@@ -93,19 +106,106 @@ class ThreadSidebar extends StatelessWidget {
             onRetry: onRetryThreads,
           ),
         ),
-      ThreadsLoaded(:final threads) => threads.isEmpty
-          ? const Center(child: Text('No threads'))
-          : ListView.builder(
-              itemCount: threads.length,
-              itemBuilder: (context, index) {
-                final thread = threads[index];
-                return ThreadTile(
-                  thread: thread,
-                  isSelected: thread.id == selectedThreadId,
-                  onTap: () => onThreadSelected(thread.id),
-                );
-              },
-            ),
+      ThreadsLoaded(:final threads) => _wrapWithRefresh(
+          threads.isEmpty
+              ? ListView(
+                  children: const [
+                    Center(
+                        child: Padding(
+                      padding: EdgeInsets.only(top: 32),
+                      child: Text('No threads'),
+                    )),
+                  ],
+                )
+              : ListView.builder(
+                  itemCount: threads.length,
+                  itemBuilder: (context, index) {
+                    final thread = threads[index];
+                    return ThreadTile(
+                      thread: thread,
+                      isSelected: thread.id == selectedThreadId,
+                      onTap: () => onThreadSelected(thread.id),
+                    );
+                  },
+                ),
+        ),
     };
+  }
+
+  Widget _wrapWithRefresh(Widget child) {
+    final handler = onRetryThreads;
+    if (handler == null) return child;
+    return RefreshIndicator(
+      onRefresh: handler,
+      child: child,
+    );
+  }
+}
+
+class _QuizRow extends StatefulWidget {
+  const _QuizRow({required this.quizzes, this.onQuizTapped});
+  final Map<String, String> quizzes;
+  final void Function(String quizId)? onQuizTapped;
+
+  @override
+  State<_QuizRow> createState() => _QuizRowState();
+}
+
+class _QuizRowState extends State<_QuizRow> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.quizzes.length == 1) {
+      final entry = widget.quizzes.entries.first;
+      return _quizButton(
+        icon: Icons.quiz,
+        label: entry.value,
+        onPressed: widget.onQuizTapped != null
+            ? () => widget.onQuizTapped!(entry.key)
+            : null,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _quizButton(
+          icon: _expanded ? Icons.expand_less : Icons.expand_more,
+          label: 'Quizzes (${widget.quizzes.length})',
+          onPressed: () => setState(() => _expanded = !_expanded),
+        ),
+        if (_expanded)
+          for (final entry in widget.quizzes.entries)
+            _quizButton(
+              icon: Icons.play_arrow,
+              label: entry.value,
+              onPressed: widget.onQuizTapped != null
+                  ? () => widget.onQuizTapped!(entry.key)
+                  : null,
+              indent: true,
+            ),
+      ],
+    );
+  }
+
+  Widget _quizButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    bool indent = false,
+  }) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.symmetric(
+          horizontal: indent ? 24 : 8,
+        ),
+        visualDensity: VisualDensity.compact,
+        alignment: Alignment.centerLeft,
+      ),
+    );
   }
 }

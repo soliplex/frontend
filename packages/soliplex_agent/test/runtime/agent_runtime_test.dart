@@ -316,6 +316,61 @@ void main() {
       // After stream closes, session might complete via networkLost
       await session.result;
     });
+
+    test('spawn passes stateOverlay to backend via state merge', () async {
+      // createThread returns server-side initial state (e.g. citations)
+      final serverState = <String, dynamic>{
+        'rag': <String, dynamic>{
+          'citations': <dynamic>[],
+          'qa_history': <dynamic>[],
+        },
+      };
+      when(
+        () => api.createThread(any()),
+      ).thenAnswer(
+        (_) async => (_threadInfo(), serverState),
+      );
+      stubCreateRun();
+      stubDeleteThread();
+
+      SimpleRunAgentInput? capturedInput;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) {
+        capturedInput =
+            invocation.positionalArguments[1] as SimpleRunAgentInput;
+        return Stream.fromIterable(_happyPathEvents());
+      });
+
+      final session = await runtime.spawn(
+        roomId: _roomId,
+        prompt: 'Hello',
+        stateOverlay: {
+          'rag': <String, dynamic>{
+            'document_filter': "id = 'abc-123'",
+          },
+        },
+      );
+      await session.result;
+
+      expect(capturedInput, isNotNull);
+      // stateOverlay should be merged with server state:
+      // server's citations/qa_history preserved, client's document_filter added
+      expect(
+        capturedInput!.state,
+        equals(<String, dynamic>{
+          'rag': <String, dynamic>{
+            'citations': <dynamic>[],
+            'qa_history': <dynamic>[],
+            'document_filter': "id = 'abc-123'",
+          },
+        }),
+      );
+    });
   });
 
   group('getSession', () {

@@ -19,7 +19,8 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () {},
-          onRetryThreads: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
@@ -53,7 +54,8 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () {},
-          onRetryThreads: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
@@ -84,7 +86,8 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () {},
-          onRetryThreads: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
@@ -107,7 +110,8 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () {},
-          onRetryThreads: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
@@ -131,7 +135,8 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () => inspectorCalled = true,
           onRoomInfo: () {},
-          onRetryThreads: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
@@ -140,7 +145,7 @@ void main() {
     expect(inspectorCalled, isTrue);
   });
 
-  testWidgets('shows Room Info button that fires callback', (tester) async {
+  testWidgets('shows room name button that fires onRoomInfo', (tester) async {
     bool infoCalled = false;
 
     await tester.pumpWidget(ProviderScope(
@@ -154,12 +159,63 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () => infoCalled = true,
-          onRetryThreads: () {},
+          roomName: 'My Room',
+          onRetryThreads: () async {},
         ),
       ),
     )));
 
-    await tester.tap(find.text('Room Info'));
+    await tester.tap(find.text('My Room'));
     expect(infoCalled, isTrue);
+  });
+
+  testWidgets('wraps thread list with RefreshIndicator when callback provided',
+      (tester) async {
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Thread',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
+        ),
+      ),
+    ));
+
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+  });
+
+  testWidgets('no RefreshIndicator when onRetryThreads is null',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(const []),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+        ),
+      ),
+    ));
+
+    expect(find.byType(RefreshIndicator), findsNothing);
   });
 }

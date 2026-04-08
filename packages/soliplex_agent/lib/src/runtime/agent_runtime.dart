@@ -163,6 +163,7 @@ class AgentRuntime {
     bool ephemeral = false,
     bool autoDispose = false,
     AgentSession? parent,
+    Map<String, dynamic>? stateOverlay,
   }) async {
     _guardNotDisposed();
     await _waitForSlot();
@@ -183,6 +184,7 @@ class AgentRuntime {
         userMessage: prompt,
         existingRunId: existingRunId,
         cachedHistory: history,
+        stateOverlay: stateOverlay,
       );
     } on Object {
       parent?.removeChild(session);

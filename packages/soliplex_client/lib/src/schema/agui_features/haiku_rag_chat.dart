@@ -24,7 +24,7 @@ class HaikuRagChat {
   final Map<String, int>? citationRegistry;
   final List<Citation>? citations;
   final List<List<Citation>>? citationsHistory;
-  final List<String>? documentFilter;
+  final String? documentFilter;
   final String? initialContext;
   final List<QaResponse>? qaHistory;
   final SessionContext? sessionContext;
@@ -58,9 +58,7 @@ class HaikuRagChat {
                       List<Citation>.from(x.map((y) => Citation.fromJson(y))),
                 ),
               ),
-        documentFilter: json["document_filter"] == null
-            ? []
-            : List<String>.from(json["document_filter"]!.map((x) => x)),
+        documentFilter: json["document_filter"],
         initialContext: json["initial_context"],
         qaHistory: json["qa_history"] == null
             ? []
@@ -87,9 +85,7 @@ class HaikuRagChat {
                   (x) => List<dynamic>.from(x.map((y) => y.toJson())),
                 ),
               ),
-        "document_filter": documentFilter == null
-            ? []
-            : List<dynamic>.from(documentFilter!.map((x) => x)),
+        "document_filter": documentFilter,
         "initial_context": initialContext,
         "qa_history": qaHistory == null
             ? []

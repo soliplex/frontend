@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/shell_config.dart';
 import '../auth/server_manager.dart';
 import 'agent_runtime_manager.dart';
+import 'document_selections.dart';
 import 'run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
@@ -11,7 +12,9 @@ ModuleContribution roomModule({
   required ServerManager serverManager,
   required AgentRuntimeManager runtimeManager,
   required RunRegistry registry,
+  bool enableDocumentFilter = false,
 }) {
+  final documentSelections = DocumentSelections();
   return ModuleContribution(
     routes: [
       GoRoute(
@@ -39,12 +42,16 @@ ModuleContribution roomModule({
         serverManager,
         runtimeManager,
         registry,
+        enableDocumentFilter,
+        documentSelections,
       ),
       _buildRoute(
         '/room/:serverAlias/:roomId/thread/:threadId',
         serverManager,
         runtimeManager,
         registry,
+        enableDocumentFilter,
+        documentSelections,
       ),
     ],
   );
@@ -55,6 +62,8 @@ GoRoute _buildRoute(
   ServerManager serverManager,
   AgentRuntimeManager runtimeManager,
   RunRegistry registry,
+  bool enableDocumentFilter,
+  DocumentSelections documentSelections,
 ) {
   return GoRoute(
     path: path,
@@ -74,6 +83,8 @@ GoRoute _buildRoute(
           threadId: state.pathParameters['threadId'],
           runtimeManager: runtimeManager,
           registry: registry,
+          enableDocumentFilter: enableDocumentFilter,
+          documentSelections: documentSelections,
         ),
       );
     },

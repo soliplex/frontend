@@ -253,6 +253,7 @@ class AgentSession implements ToolExecutionContext {
     required String userMessage,
     String? existingRunId,
     ThreadHistory? cachedHistory,
+    Map<String, dynamic>? stateOverlay,
   }) async {
     await _attachExtensions();
     _subscription = _orchestrator.stateChanges.listen(_onStateChange);
@@ -264,6 +265,7 @@ class AgentSession implements ToolExecutionContext {
         toolExecutor: _executeAll,
         existingRunId: existingRunId,
         cachedHistory: cachedHistory,
+        stateOverlay: stateOverlay,
       ),
     );
   }

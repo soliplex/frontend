@@ -64,7 +64,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Room description is displayed in the body
+      // Room name and description are displayed in the body
+      expect(find.text('Test Room'), findsOneWidget);
       expect(find.text('A test room'), findsOneWidget);
     });
 

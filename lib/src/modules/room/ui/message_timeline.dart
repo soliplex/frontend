@@ -9,7 +9,6 @@ import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
 import 'message_tile.dart';
-import 'room_welcome.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
 
@@ -20,8 +19,6 @@ class MessageTimeline extends StatefulWidget {
     required this.messageStates,
     this.streamingState,
     this.executionTrackers = const {},
-    this.room,
-    this.onSuggestionTapped,
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
@@ -31,8 +28,6 @@ class MessageTimeline extends StatefulWidget {
   final Map<String, MessageState> messageStates;
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
-  final Room? room;
-  final void Function(String suggestion)? onSuggestionTapped;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
@@ -167,14 +162,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
       widget.streamingState,
     );
 
-    if (displayMessages.isEmpty) {
-      return RoomWelcome(
-        room: widget.room,
-        onSuggestionTapped: widget.onSuggestionTapped,
-        fallback: _emptyFallback(context),
-      );
-    }
-
     if (_needsInitialScroll) {
       _needsInitialScroll = false;
       _lastUserMessageId = _findLastUserMessage(widget.messages)?.id;
@@ -241,27 +228,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
           ),
         ),
       ],
-    );
-  }
-
-  static Widget _emptyFallback(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.chat_bubble_outline,
-              size: 48,
-              color: theme.colorScheme.outline.withValues(alpha: 0.3)),
-          const SizedBox(height: 12),
-          Text(
-            'Type a message to get started',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

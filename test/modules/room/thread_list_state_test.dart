@@ -101,4 +101,41 @@ void main() {
 
     state.dispose();
   });
+
+  test('refresh() returns a Future that completes after fetch', () async {
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Original',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    expect(state.threads.value, isA<ThreadsLoaded>());
+
+    // Update the fake to return a new title.
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Updated title',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    // refresh() should return a Future we can await.
+    await state.refresh();
+
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.single.name, 'Updated title');
+
+    state.dispose();
+  });
 }

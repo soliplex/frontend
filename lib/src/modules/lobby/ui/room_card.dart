@@ -21,9 +21,23 @@ class RoomCard extends StatelessWidget {
       child: ListTile(
         title: Text(room.name),
         subtitle: room.description.isNotEmpty ? Text(room.description) : null,
-        trailing: IconButton(
-          icon: const Icon(Icons.info_outline),
-          onPressed: onInfoTap,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (room.hasQuizzes)
+              Tooltip(
+                message: 'Has quizzes',
+                child: Icon(
+                  Icons.quiz,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              onPressed: onInfoTap,
+            ),
+          ],
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: SoliplexSpacing.s2,

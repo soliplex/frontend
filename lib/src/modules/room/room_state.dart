@@ -137,7 +137,10 @@ class RoomState {
     }));
   }
 
-  Future<void> sendToNewThread(String prompt) async {
+  Future<void> sendToNewThread(
+    String prompt, {
+    Map<String, dynamic>? stateOverlay,
+  }) async {
     if (_sessionState.value != null) return;
     _lastError.value = null;
     _sessionState.value = AgentSessionState.spawning;
@@ -146,6 +149,7 @@ class RoomState {
       spawnFuture = runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
+        stateOverlay: stateOverlay,
       );
       _pendingSpawn = spawnFuture;
       final session = await spawnFuture;

@@ -517,6 +517,248 @@ void main() {
     });
   });
 
+  group('stateOverlay', () {
+    test('runToCompletion merges stateOverlay into aguiState', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        stateOverlay: {
+          'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['document_filter'], "id = 'abc-123'");
+    });
+
+    test('runToCompletion merges stateOverlay with cachedHistory aguiState',
+        () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'citations': <int>[1, 2, 3],
+          },
+          'other': 'data',
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['document_filter'], "id = 'abc-123'");
+      expect(rag['citations'], [1, 2, 3]);
+      expect(completed.conversation.aguiState['other'], 'data');
+    });
+
+    test('deep-merges nested maps recursively', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'config': <String, dynamic>{
+              'maxChunks': 5,
+              'strategy': 'semantic',
+            },
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': <String, dynamic>{
+            'config': <String, dynamic>{
+              'maxChunks': 10,
+            },
+          },
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final config =
+          (completed.conversation.aguiState['rag'] as Map)['config'] as Map;
+      expect(config['maxChunks'], 10);
+      expect(config['strategy'], 'semantic');
+    });
+
+    test('overlay replaces non-map with map value', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': 'old-string-value',
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': <String, dynamic>{'document_filter': "id = 'x-1'"},
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      expect(
+        completed.conversation.aguiState['rag'],
+        {'document_filter': "id = 'x-1'"},
+      );
+    });
+
+    test('overlay scalar replaces existing map', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'config': <String, dynamic>{'maxChunks': 5},
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': <String, dynamic>{'config': null},
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['config'], isNull);
+    });
+
+    test('overlay list replaces existing list', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'citations': <int>[1, 2, 3],
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': <String, dynamic>{
+            'citations': <int>[99],
+          },
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['citations'], [99]);
+    });
+
+    test('merges untyped map literals correctly', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'existing': 'value',
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: {
+          'rag': {'new_key': 'new_value'},
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final rag = completed.conversation.aguiState['rag'] as Map;
+      expect(rag['existing'], 'value');
+      expect(rag['new_key'], 'new_value');
+    });
+
+    test('empty overlay produces no change', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          'rag': <String, dynamic>{
+            'citations': <int>[1],
+          },
+        },
+      );
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'test',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+        stateOverlay: const {},
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      expect(
+        completed.conversation.aguiState['rag'],
+        {
+          'citations': [1],
+        },
+      );
+    });
+  });
+
   group('tool yielding', () {
     test('pending client tools → ToolYieldingState', () async {
       orchestrator = RunOrchestrator(
