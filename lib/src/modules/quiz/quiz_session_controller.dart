@@ -14,9 +14,12 @@ class QuizSessionController {
   final String roomId;
   final String quizId;
 
-  final Signal<QuizSession> session =
+  final Signal<QuizSession> _session =
       Signal<QuizSession>(const QuizNotStarted());
-  final Signal<String?> submissionError = Signal<String?>(null);
+  ReadonlySignal<QuizSession> get session => _session;
+
+  final Signal<String?> _submissionError = Signal<String?>(null);
+  ReadonlySignal<String?> get submissionError => _submissionError;
 
   bool _isDisposed = false;
 
@@ -28,7 +31,7 @@ class QuizSessionController {
         'Quiz must have at least one question',
       );
     }
-    session.value = QuizInProgress(
+    _session.value = QuizInProgress(
       quiz: quiz,
       currentIndex: 0,
       results: const {},
@@ -37,31 +40,31 @@ class QuizSessionController {
   }
 
   void updateInput(QuizInput input) {
-    final current = session.value;
+    final current = _session.value;
     if (current is! QuizInProgress) return;
     if (current.questionState is Submitting ||
         current.questionState is Answered) {
       return;
     }
-    submissionError.value = null;
-    session.value = current.copyWith(questionState: Composing(input));
+    _submissionError.value = null;
+    _session.value = current.copyWith(questionState: Composing(input));
   }
 
   void clearInput() {
-    final current = session.value;
+    final current = _session.value;
     if (current is! QuizInProgress) return;
     if (current.questionState is! Composing) return;
-    session.value = current.copyWith(questionState: const AwaitingInput());
+    _session.value = current.copyWith(questionState: const AwaitingInput());
   }
 
   Future<void> submitAnswer() async {
-    final current = session.value;
+    final current = _session.value;
     if (current is! QuizInProgress) return;
     final questionState = current.questionState;
     if (questionState is! Composing || !questionState.canSubmit) return;
 
     final input = questionState.input;
-    session.value = current.copyWith(questionState: Submitting(input));
+    _session.value = current.copyWith(questionState: Submitting(input));
 
     try {
       final result = await _api.submitQuizAnswer(
@@ -72,38 +75,38 @@ class QuizSessionController {
       );
       if (_isDisposed) return;
 
-      final afterState = session.value;
+      final afterState = _session.value;
       if (afterState is! QuizInProgress) return;
 
       final newResults = {
         ...afterState.results,
         afterState.currentQuestion.id: result,
       };
-      session.value = afterState.copyWith(
+      _session.value = afterState.copyWith(
         results: newResults,
         questionState: Answered(input, result),
       );
     } catch (e) {
       if (_isDisposed) return;
-      final afterState = session.value;
+      final afterState = _session.value;
       if (afterState is! QuizInProgress) return;
-      session.value = afterState.copyWith(questionState: Composing(input));
-      submissionError.value = '$e';
+      _session.value = afterState.copyWith(questionState: Composing(input));
+      _submissionError.value = '$e';
     }
   }
 
   void nextQuestion() {
-    final current = session.value;
+    final current = _session.value;
     if (current is! QuizInProgress) return;
     if (current.questionState is! Answered) return;
 
     if (current.isLastQuestion) {
-      session.value = QuizCompleted(
+      _session.value = QuizCompleted(
         quiz: current.quiz,
         results: current.results,
       );
     } else {
-      session.value = current.copyWith(
+      _session.value = current.copyWith(
         currentIndex: current.currentIndex + 1,
         questionState: const AwaitingInput(),
       );
@@ -111,29 +114,30 @@ class QuizSessionController {
   }
 
   void reset() {
-    session.value = const QuizNotStarted();
-    submissionError.value = null;
+    _session.value = const QuizNotStarted();
+    _submissionError.value = null;
   }
 
   void retake() {
-    final current = session.value;
+    final current = _session.value;
     final quiz = switch (current) {
       QuizInProgress(:final quiz) => quiz,
       QuizCompleted(:final quiz) => quiz,
-      QuizNotStarted() => throw StateError('Cannot retake unstarted quiz'),
+      QuizNotStarted() => null,
     };
-    session.value = QuizInProgress(
+    if (quiz == null) return;
+    _session.value = QuizInProgress(
       quiz: quiz,
       currentIndex: 0,
       results: const {},
       questionState: const AwaitingInput(),
     );
-    submissionError.value = null;
+    _submissionError.value = null;
   }
 
   void dispose() {
     _isDisposed = true;
-    session.dispose();
-    submissionError.dispose();
+    _session.dispose();
+    _submissionError.dispose();
   }
 }
