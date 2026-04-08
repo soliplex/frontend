@@ -113,13 +113,13 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
             if (node.key.isNotEmpty)
               TextSpan(
                 text: '${node.key}: ',
-                style: baseStyle?.copyWith(
+                style: baseStyle.copyWith(
                   color: colorScheme.onSurface,
                 ),
               ),
             TextSpan(
               text: node.value,
-              style: baseStyle?.copyWith(color: valueColor),
+              style: baseStyle.copyWith(color: valueColor),
             ),
           ],
         ),

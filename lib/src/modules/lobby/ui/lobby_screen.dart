@@ -4,7 +4,6 @@ import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../soliplex_frontend.dart';
 import '../../auth/server_entry.dart';
-import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'room_card.dart';
 import 'server_sidebar.dart';

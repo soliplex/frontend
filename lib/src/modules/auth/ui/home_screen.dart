@@ -7,10 +7,8 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
-import '../consent_notice.dart';
 import '../connection_probe.dart';
 import '../server_entry.dart';
-import '../server_manager.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../soliplex_frontend.dart';
-import '../../../../design/theme/theme_extensions.dart';
 import '../../../../shared/copy_button.dart';
 
 class SystemPromptViewer extends StatefulWidget {

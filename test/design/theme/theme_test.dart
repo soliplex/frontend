@@ -7,12 +7,7 @@ import 'package:soliplex_frontend/src/design/theme/theme.dart';
 import 'package:soliplex_frontend/src/design/theme/theme_extensions.dart';
 
 /// Prevents google_fonts from making real HTTP requests in tests.
-class _NoopHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context);
-  }
-}
+class _NoopHttpOverrides extends HttpOverrides {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
