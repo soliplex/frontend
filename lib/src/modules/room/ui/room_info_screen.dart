@@ -171,7 +171,7 @@ class _RoomInfoBody extends StatelessWidget {
           QuizzesCard(
             quizzes: room.quizzes,
             onQuizTapped: (quizId) {
-              context.go('/room/$serverAlias/$roomId/quiz/$quizId');
+              context.push('/room/$serverAlias/$roomId/quiz/$quizId');
             },
           ),
           ExpandableListCard<MapEntry<String, RoomSkill>>(
