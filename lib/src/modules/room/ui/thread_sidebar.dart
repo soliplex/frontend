@@ -140,7 +140,9 @@ class _QuizRowState extends State<_QuizRow> {
       return _quizButton(
         icon: Icons.quiz,
         label: entry.value,
-        onPressed: () => widget.onQuizTapped?.call(entry.key),
+        onPressed: widget.onQuizTapped != null
+            ? () => widget.onQuizTapped!(entry.key)
+            : null,
       );
     }
 
@@ -157,7 +159,9 @@ class _QuizRowState extends State<_QuizRow> {
             _quizButton(
               icon: Icons.play_arrow,
               label: entry.value,
-              onPressed: () => widget.onQuizTapped?.call(entry.key),
+              onPressed: widget.onQuizTapped != null
+                  ? () => widget.onQuizTapped!(entry.key)
+                  : null,
               indent: true,
             ),
       ],
@@ -167,7 +171,7 @@ class _QuizRowState extends State<_QuizRow> {
   Widget _quizButton({
     required IconData icon,
     required String label,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     bool indent = false,
   }) {
     return TextButton.icon(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../../auth/server_entry.dart';
 import '../quiz_session.dart';
@@ -31,17 +32,35 @@ class QuizScreen extends StatefulWidget {
 class _QuizScreenState extends State<QuizScreen> {
   late Future<Quiz> _quizFuture;
   late final QuizSessionController _controller;
+  late final Logger _logger;
   final _answerController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _logger = LogManager.instance.getLogger('quiz');
     final api = widget.serverEntry.connection.api;
-    _quizFuture = api.getQuiz(widget.roomId, widget.quizId);
+    _quizFuture = _fetchQuiz();
     _controller = QuizSessionController(
       api: api,
       roomId: widget.roomId,
+      logger: _logger,
     );
+  }
+
+  Future<Quiz> _fetchQuiz() async {
+    try {
+      return await widget.serverEntry.connection.api
+          .getQuiz(widget.roomId, widget.quizId);
+    } catch (error, stackTrace) {
+      _logger.error(
+        'Failed to load quiz ${widget.quizId} '
+        'in room ${widget.roomId}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   @override
@@ -79,18 +98,39 @@ class _QuizScreenState extends State<QuizScreen> {
             }
             if (snapshot.hasError) {
               final error = snapshot.error;
-              final isNotFound = error is NotFoundException;
+              final (message, action, label) = switch (error) {
+                AuthException() => (
+                    'Your session has expired. Please sign in again.',
+                    _handleBack,
+                    'Back to Room',
+                  ),
+                NotFoundException() => (
+                    'This quiz is no longer available.',
+                    _handleBack,
+                    'Back to Room',
+                  ),
+                NetworkException() => (
+                    'Could not reach the server. Check your connection and try again.',
+                    _retryFetch,
+                    'Retry',
+                  ),
+                _ => (
+                    'Something went wrong. Please try again.',
+                    _retryFetch,
+                    'Retry',
+                  ),
+              };
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Failed to load quiz: $error'),
+                      Text(message),
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed: isNotFound ? _handleBack : _retryFetch,
-                        child: Text(isNotFound ? 'Back to Room' : 'Retry'),
+                        onPressed: action,
+                        child: Text(label),
                       ),
                     ],
                   ),
@@ -106,8 +146,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _retryFetch() {
     setState(() {
-      _quizFuture = widget.serverEntry.connection.api
-          .getQuiz(widget.roomId, widget.quizId);
+      _quizFuture = _fetchQuiz();
     });
   }
 
@@ -115,7 +154,7 @@ class _QuizScreenState extends State<QuizScreen> {
     final session = _controller.session.watch(context);
     final error = _controller.submissionError.watch(context);
 
-    // Sync text controller from state (preserve cursor position)
+    // State is the source of truth; the controller is a view-layer mirror for TextField.
     final providerText = switch (session) {
       QuizInProgress(questionState: Composing(input: TextInput(:final text))) =>
         text,

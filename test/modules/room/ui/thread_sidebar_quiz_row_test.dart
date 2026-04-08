@@ -48,6 +48,26 @@ void main() {
     expect(tapped, 'q1');
   });
 
+  testWidgets('single quiz button disabled when onQuizTapped is null',
+      (tester) async {
+    await tester.pumpWidget(buildSidebar(
+      quizzes: {'q1': 'Intro Quiz'},
+      // onQuizTapped intentionally omitted (null)
+    ));
+    // Walk up from the label text to find the enclosing TextButton.
+    final textElement = find.text('Intro Quiz').evaluate().single;
+    TextButton? quizButton;
+    textElement.visitAncestorElements((element) {
+      if (element.widget is TextButton) {
+        quizButton = element.widget as TextButton;
+        return false;
+      }
+      return true;
+    });
+    expect(quizButton, isNotNull);
+    expect(quizButton!.onPressed, isNull);
+  });
+
   testWidgets('shows expandable header for multiple quizzes', (tester) async {
     await tester.pumpWidget(buildSidebar(
       quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},

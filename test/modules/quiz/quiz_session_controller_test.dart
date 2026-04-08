@@ -17,6 +17,7 @@ void main() {
     controller = QuizSessionController(
       api: api,
       roomId: 'room-1',
+      logger: testLogger(),
     );
   });
 
@@ -173,6 +174,16 @@ void main() {
       expect(state.questionState, isA<AwaitingInput>());
     });
 
+    test('submitAnswer no-op when Composing with whitespace-only input',
+        () async {
+      controller.start(_quiz());
+      controller.updateInput(const TextInput('   '));
+      await controller.submitAnswer();
+      final state = controller.session.value as QuizInProgress;
+      expect(state.questionState, isA<Composing>());
+      expect(api.submitQuizAnswerCallCount, 0);
+    });
+
     test('submitAnswer no-op when QuizNotStarted', () async {
       await controller.submitAnswer();
       expect(controller.session.value, isA<QuizNotStarted>());
@@ -198,6 +209,30 @@ void main() {
       controller.retake();
       expect(controller.session.value, isA<QuizNotStarted>());
     });
+
+    test('updateInput rejects TextInput for MultipleChoice question', () {
+      controller.start(Quiz(
+        id: 'q',
+        title: 'MC Quiz',
+        questions: [
+          QuizQuestion(
+            id: 'q-1',
+            text: 'Pick one',
+            type: MultipleChoice(['A', 'B', 'C']),
+          ),
+        ],
+      ));
+      controller.updateInput(const TextInput('typed text'));
+      final state = controller.session.value as QuizInProgress;
+      expect(state.questionState, isA<AwaitingInput>());
+    });
+
+    test('updateInput rejects MultipleChoiceInput for FreeForm question', () {
+      controller.start(_quiz());
+      controller.updateInput(const MultipleChoiceInput('A'));
+      final state = controller.session.value as QuizInProgress;
+      expect(state.questionState, isA<AwaitingInput>());
+    });
   });
 
   test('dispose during in-flight submit does not throw', () async {
@@ -221,6 +256,79 @@ void main() {
       controller.submissionError.value,
       'Could not submit your answer. Please try again.',
     );
+  });
+
+  test('NotFoundException shows specific error message', () async {
+    api.nextQuizAnswerError = const NotFoundException(message: 'question gone');
+    controller.start(_quiz());
+    controller.updateInput(const TextInput('answer'));
+    await controller.submitAnswer();
+    expect(
+      controller.submissionError.value,
+      'This question is no longer available.',
+    );
+  });
+
+  test('NetworkException shows specific error message', () async {
+    api.nextQuizAnswerError =
+        const NetworkException(message: 'connection refused');
+    controller.start(_quiz());
+    controller.updateInput(const TextInput('answer'));
+    await controller.submitAnswer();
+    expect(
+      controller.submissionError.value,
+      'Could not reach the server. Check your connection and try again.',
+    );
+  });
+
+  test('AuthException shows session-expired message', () async {
+    api.nextQuizAnswerError = const AuthException(message: 'session expired');
+    controller.start(_quiz());
+    controller.updateInput(const TextInput('answer'));
+    await controller.submitAnswer();
+    expect(
+      controller.submissionError.value,
+      'Your session has expired. Please sign in again.',
+    );
+  });
+
+  test('non-Exception error preserves input and sets error message', () async {
+    api.nextQuizAnswerThrowable = StateError('unexpected');
+    controller.start(_quiz());
+    controller.updateInput(const TextInput('answer'));
+    await controller.submitAnswer();
+    final state = controller.session.value as QuizInProgress;
+    expect(state.questionState, isA<Composing>());
+    expect(
+      (state.questionState as Composing).input.answerText,
+      'answer',
+    );
+    expect(
+      controller.submissionError.value,
+      'An unexpected error occurred. Please try again.',
+    );
+  });
+
+  test('retake from QuizCompleted restarts quiz', () async {
+    final quiz = Quiz(
+      id: 'q',
+      title: 'One Q',
+      questions: const [
+        QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
+      ],
+    );
+    api.nextQuizAnswerResult = const CorrectAnswer();
+    controller.start(quiz);
+    controller.updateInput(const TextInput('a'));
+    await controller.submitAnswer();
+    controller.nextQuestion();
+    expect(controller.session.value, isA<QuizCompleted>());
+
+    controller.retake();
+    final state = controller.session.value as QuizInProgress;
+    expect(state.currentIndex, 0);
+    expect(state.results, isEmpty);
+    expect(state.questionState, isA<AwaitingInput>());
   });
 }
 

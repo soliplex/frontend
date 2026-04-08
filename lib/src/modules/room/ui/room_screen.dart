@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show RagDocument, SourceReferenceFormatting, buildDocumentFilter;
+    show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../../diagnostics/diagnostics_providers.dart';
@@ -212,6 +212,11 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  void _onQuizTapped(String quizId) {
+    final alias = widget.serverEntry.alias;
+    context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+  }
+
   @override
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
@@ -234,12 +239,9 @@ class _RoomScreenState extends State<RoomScreen> {
             onRoomInfo: _onRoomInfo,
             onRetryThreads: () => _state.threadList.refresh(),
             quizzes: room?.quizzes ?? const {},
-            onQuizTapped: (quizId) {
-              final alias = widget.serverEntry.alias;
-              context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
-            },
+            onQuizTapped: _onQuizTapped,
           );
-          final content = _buildContent();
+          final content = _buildContent(room);
 
           if (isWide) {
             return Scaffold(
@@ -288,10 +290,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     },
                     onRetryThreads: () => _state.threadList.refresh(),
                     quizzes: room?.quizzes ?? const {},
-                    onQuizTapped: (quizId) {
-                      final alias = widget.serverEntry.alias;
-                      context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
-                    },
+                    onQuizTapped: _onQuizTapped,
                   ),
                 ),
               ),
@@ -313,15 +312,15 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(Room? room) {
     final threadView = _state.activeThreadView;
     if (threadView == null) {
-      return _buildNoThreadContent();
+      return _buildNoThreadContent(room);
     }
-    return _buildThreadContent(threadView);
+    return _buildThreadContent(threadView, room);
   }
 
-  Widget _buildNoThreadContent() {
+  Widget _buildNoThreadContent(Room? room) {
     final roomError = _state.lastError.watch(context);
     final sessionState = _state.sessionState.watch(context);
     _restoreUnsentText(roomError?.unsentText);
@@ -329,25 +328,16 @@ class _RoomScreenState extends State<RoomScreen> {
     return Column(
       children: [
         Expanded(
-          child: Builder(
-            builder: (context) {
-              final roomStatus = _state.room.watch(context);
-              final room = roomStatus is RoomLoaded ? roomStatus.room : null;
-              return RoomWelcome(
-                room: room,
-                onSuggestionTapped: sessionState != null
-                    ? null
-                    : (suggestion) => _state.sendToNewThread(
-                          suggestion,
-                          stateOverlay: _buildStateOverlay(),
-                        ),
-                onQuizTapped: (quizId) {
-                  final alias = widget.serverEntry.alias;
-                  context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
-                },
-                fallback: const Center(child: Text('Select a thread')),
-              );
-            },
+          child: RoomWelcome(
+            room: room,
+            onSuggestionTapped: sessionState != null
+                ? null
+                : (suggestion) => _state.sendToNewThread(
+                      suggestion,
+                      stateOverlay: _buildStateOverlay(),
+                    ),
+            onQuizTapped: _onQuizTapped,
+            fallback: const Center(child: Text('Select a thread')),
           ),
         ),
         if (roomError != null)
@@ -374,11 +364,9 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Widget _buildThreadContent(ThreadViewState threadView) {
+  Widget _buildThreadContent(ThreadViewState threadView, Room? room) {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
-    final roomStatus = _state.room.watch(context);
-    final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final sendError = threadView.lastSendError.watch(context);
 
     _restoreUnsentText(sendError?.unsentText);
@@ -405,12 +393,7 @@ class _RoomScreenState extends State<RoomScreen> {
                         _state.runtime,
                         stateOverlay: _buildStateOverlay(),
                       ),
-                      onQuizTapped: (quizId) {
-                        final alias = widget.serverEntry.alias;
-                        context.go(
-                          '/room/$alias/${widget.roomId}/quiz/$quizId',
-                        );
-                      },
+                      onQuizTapped: _onQuizTapped,
                       fallback: _threadEmptyFallback(context),
                     )
                   : MessageTimeline(
@@ -470,26 +453,27 @@ class _RoomScreenState extends State<RoomScreen> {
       ],
     );
   }
-}
 
-Widget _threadEmptyFallback(BuildContext context) {
-  final theme = Theme.of(context);
-  return Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.chat_bubble_outline,
-            size: 48, color: theme.colorScheme.outline.withValues(alpha: 0.3)),
-        const SizedBox(height: 12),
-        Text(
-          'Type a message to get started',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.outline,
+  static Widget _threadEmptyFallback(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.chat_bubble_outline,
+              size: 48,
+              color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+          const SizedBox(height: 12),
+          Text(
+            'Type a message to get started',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _SendErrorBanner extends StatelessWidget {

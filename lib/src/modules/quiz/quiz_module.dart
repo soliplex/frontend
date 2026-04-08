@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/shell_config.dart';
@@ -19,7 +20,12 @@ ModuleContribution quizModule({
         },
         pageBuilder: (context, state) {
           final alias = state.pathParameters['serverAlias']!;
-          final entry = serverManager.entryByAlias(alias)!;
+          final entry = serverManager.entryByAlias(alias);
+          if (entry == null || !entry.isConnected) {
+            return const NoTransitionPage(
+              child: SizedBox.shrink(),
+            );
+          }
           return NoTransitionPage(
             child: QuizScreen(
               serverEntry: entry,

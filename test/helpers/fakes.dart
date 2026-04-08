@@ -242,6 +242,7 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextQuizError;
   QuizAnswerResult? nextQuizAnswerResult;
   Exception? nextQuizAnswerError;
+  Object? nextQuizAnswerThrowable;
 
   @override
   Future<Quiz> getQuiz(
@@ -255,6 +256,7 @@ class FakeSoliplexApi extends SoliplexApi {
   }
 
   Completer<QuizAnswerResult>? submitQuizAnswerCompleter;
+  int submitQuizAnswerCallCount = 0;
 
   @override
   Future<QuizAnswerResult> submitQuizAnswer(
@@ -264,9 +266,11 @@ class FakeSoliplexApi extends SoliplexApi {
     String answer, {
     CancelToken? cancelToken,
   }) async {
+    submitQuizAnswerCallCount++;
     if (submitQuizAnswerCompleter != null) {
       return submitQuizAnswerCompleter!.future;
     }
+    if (nextQuizAnswerThrowable != null) throw nextQuizAnswerThrowable!;
     if (nextQuizAnswerError != null) throw nextQuizAnswerError!;
     if (nextQuizAnswerResult != null) return nextQuizAnswerResult!;
     throw StateError(

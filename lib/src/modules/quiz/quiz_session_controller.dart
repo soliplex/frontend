@@ -6,11 +6,15 @@ import 'quiz_session.dart';
 class QuizSessionController {
   QuizSessionController({
     required SoliplexApi api,
-    required this.roomId,
-  }) : _api = api;
+    required String roomId,
+    required Logger logger,
+  })  : _api = api,
+        _roomId = roomId,
+        _logger = logger;
 
   final SoliplexApi _api;
-  final String roomId;
+  final String _roomId;
+  final Logger _logger;
 
   final Signal<QuizSession> _session =
       Signal<QuizSession>(const QuizNotStarted());
@@ -23,13 +27,6 @@ class QuizSessionController {
   bool get isDisposed => _isDisposed;
 
   void start(Quiz quiz) {
-    if (!quiz.hasQuestions) {
-      throw ArgumentError.value(
-        quiz,
-        'quiz',
-        'Quiz must have at least one question',
-      );
-    }
     _session.value = QuizInProgress(
       quiz: quiz,
       currentIndex: 0,
@@ -43,6 +40,19 @@ class QuizSessionController {
     if (current is! QuizInProgress) return;
     if (current.questionState is Submitting ||
         current.questionState is Answered) {
+      return;
+    }
+    final questionType = current.currentQuestion.type;
+    final validInput = switch ((questionType, input)) {
+      (MultipleChoice(), MultipleChoiceInput()) => true,
+      (FillBlank() || FreeForm(), TextInput()) => true,
+      _ => false,
+    };
+    if (!validInput) {
+      _logger.warning(
+        'Input type ${input.runtimeType} does not match '
+        'question type ${questionType.runtimeType}',
+      );
       return;
     }
     _submissionError.value = null;
@@ -67,7 +77,7 @@ class QuizSessionController {
 
     try {
       final result = await _api.submitQuizAnswer(
-        roomId,
+        _roomId,
         current.quiz.id,
         current.currentQuestion.id,
         input.answerText,
@@ -85,18 +95,43 @@ class QuizSessionController {
         results: newResults,
         questionState: Answered(input, result),
       );
-    } on Exception catch (e) {
-      if (_isDisposed) return;
-      final afterState = _session.value;
-      if (afterState is! QuizInProgress) return;
-      _session.value = afterState.copyWith(questionState: Composing(input));
-      _submissionError.value = switch (e) {
-        NotFoundException() => 'This question is no longer available.',
-        NetworkException() =>
-          'Could not reach the server. Check your connection and try again.',
-        _ => 'Could not submit your answer. Please try again.',
-      };
+    } on Exception catch (e, stackTrace) {
+      _logger.error(
+        'Failed to submit answer for question '
+        '${current.currentQuestion.id} in quiz ${current.quiz.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      _recoverFromSubmitError(
+        input,
+        switch (e) {
+          AuthException() => 'Your session has expired. Please sign in again.',
+          NotFoundException() => 'This question is no longer available.',
+          NetworkException() =>
+            'Could not reach the server. Check your connection and try again.',
+          _ => 'Could not submit your answer. Please try again.',
+        },
+      );
+    } catch (e, stackTrace) {
+      _logger.error(
+        'Unexpected error submitting answer for question '
+        '${current.currentQuestion.id} in quiz ${current.quiz.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      _recoverFromSubmitError(
+        input,
+        'An unexpected error occurred. Please try again.',
+      );
     }
+  }
+
+  void _recoverFromSubmitError(QuizInput input, String message) {
+    if (_isDisposed) return;
+    final afterState = _session.value;
+    if (afterState is! QuizInProgress) return;
+    _session.value = afterState.copyWith(questionState: Composing(input));
+    _submissionError.value = message;
   }
 
   void nextQuestion() {
