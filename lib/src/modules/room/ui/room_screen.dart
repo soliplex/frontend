@@ -123,6 +123,7 @@ class _RoomScreenState extends State<RoomScreen> {
         _autoSelectFirstThread();
       }
     } else if (widget.threadId != oldWidget.threadId) {
+      _state.threadList.refresh();
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();

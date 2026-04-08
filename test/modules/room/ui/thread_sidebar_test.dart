@@ -18,7 +18,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
@@ -52,7 +52,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
@@ -83,7 +83,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
@@ -106,7 +106,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
@@ -130,7 +130,7 @@ void main() {
           onNetworkInspector: () => inspectorCalled = true,
           onRoomInfo: () {},
           roomName: 'Test Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
@@ -153,12 +153,62 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () => infoCalled = true,
           roomName: 'My Room',
-          onRetryThreads: () {},
+          onRetryThreads: () async {},
         ),
       ),
     ));
 
     await tester.tap(find.text('My Room'));
     expect(infoCalled, isTrue);
+  });
+
+  testWidgets('wraps thread list with RefreshIndicator when callback provided',
+      (tester) async {
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Thread',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
+        ),
+      ),
+    ));
+
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+  });
+
+  testWidgets('no RefreshIndicator when onRetryThreads is null',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(const []),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+        ),
+      ),
+    ));
+
+    expect(find.byType(RefreshIndicator), findsNothing);
   });
 }

@@ -28,7 +28,7 @@ class ThreadSidebar extends StatelessWidget {
   final VoidCallback onNetworkInspector;
   final VoidCallback onRoomInfo;
   final String roomName;
-  final VoidCallback? onRetryThreads;
+  final Future<void> Function()? onRetryThreads;
   final Map<String, String> quizzes;
   final void Function(String quizId)? onQuizTapped;
 
@@ -106,20 +106,39 @@ class ThreadSidebar extends StatelessWidget {
             onRetry: onRetryThreads,
           ),
         ),
-      ThreadsLoaded(:final threads) => threads.isEmpty
-          ? const Center(child: Text('No threads'))
-          : ListView.builder(
-              itemCount: threads.length,
-              itemBuilder: (context, index) {
-                final thread = threads[index];
-                return ThreadTile(
-                  thread: thread,
-                  isSelected: thread.id == selectedThreadId,
-                  onTap: () => onThreadSelected(thread.id),
-                );
-              },
-            ),
+      ThreadsLoaded(:final threads) => _wrapWithRefresh(
+          threads.isEmpty
+              ? ListView(
+                  children: const [
+                    Center(
+                        child: Padding(
+                      padding: EdgeInsets.only(top: 32),
+                      child: Text('No threads'),
+                    )),
+                  ],
+                )
+              : ListView.builder(
+                  itemCount: threads.length,
+                  itemBuilder: (context, index) {
+                    final thread = threads[index];
+                    return ThreadTile(
+                      thread: thread,
+                      isSelected: thread.id == selectedThreadId,
+                      onTap: () => onThreadSelected(thread.id),
+                    );
+                  },
+                ),
+        ),
     };
+  }
+
+  Widget _wrapWithRefresh(Widget child) {
+    final handler = onRetryThreads;
+    if (handler == null) return child;
+    return RefreshIndicator(
+      onRefresh: handler,
+      child: child,
+    );
   }
 }
 
