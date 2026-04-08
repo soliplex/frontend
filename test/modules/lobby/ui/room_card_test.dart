@@ -53,6 +53,22 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('shows quiz icon when room has quizzes', (tester) async {
+      const room = Room(id: 'r1', name: 'Room 1', quizzes: {'q1': 'Quiz'});
+
+      await tester.pumpWidget(_buildCard(room: room));
+
+      expect(find.byIcon(Icons.quiz), findsOneWidget);
+    });
+
+    testWidgets('hides quiz icon when no quizzes', (tester) async {
+      const room = Room(id: 'r1', name: 'Room 1');
+
+      await tester.pumpWidget(_buildCard(room: room));
+
+      expect(find.byIcon(Icons.quiz), findsNothing);
+    });
+
     testWidgets('has info icon button that calls onInfoTap', (tester) async {
       var infoTapped = false;
       const room = Room(id: 'r1', name: 'Test Room');
