@@ -180,7 +180,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -194,14 +195,15 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(RefreshIndicator), findsOneWidget);
   });
 
   testWidgets('no RefreshIndicator when onRetryThreads is null',
       (tester) async {
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
@@ -214,7 +216,7 @@ void main() {
           roomName: 'Test Room',
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(RefreshIndicator), findsNothing);
   });
