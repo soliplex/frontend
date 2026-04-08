@@ -70,6 +70,24 @@ void main() {
       expect(result, isEmpty);
     });
 
+    testWidgets('clear all resets selection', (tester) async {
+      Set<RagDocument>? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentPicker(
+              documents: _docs,
+              selected: {_docs[0], _docs[1]},
+              onChanged: (s) => result = s,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Clear all'));
+      expect(result, isEmpty);
+    });
+
     testWidgets('search filters documents', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

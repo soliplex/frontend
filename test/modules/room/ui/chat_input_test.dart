@@ -125,6 +125,65 @@ void main() {
     sessionState.dispose();
   });
 
+  testWidgets('Enter key does not send during active run', (tester) async {
+    String? sentText;
+    final sessionState = signal<AgentSessionState?>(AgentSessionState.running);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatInput(
+          onSend: (text) => sentText = text,
+          onCancel: () {},
+          sessionState: sessionState,
+        ),
+      ),
+    ));
+
+    // Enter text via controller since TextField is readOnly during active run.
+    tester.widget<TextField>(find.byType(TextField)).controller!.text =
+        'Draft message';
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(sentText, isNull);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Draft message',
+    );
+
+    sessionState.dispose();
+  });
+
+  testWidgets('chip deletion disabled during active run', (tester) async {
+    const doc = RagDocument(id: '1', title: 'Report.pdf');
+    RagDocument? removed;
+    final sessionState = signal<AgentSessionState?>(AgentSessionState.running);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatInput(
+            onSend: (_) {},
+            onCancel: () {},
+            sessionState: sessionState,
+            selectedDocuments: {doc},
+            onDocumentRemoved: (d) => removed = d,
+          ),
+        ),
+      ),
+    );
+
+    // The close icon should still be present but the chip's onDeleted
+    // should be null, so tapping it should have no effect.
+    final chip = tester.widget<Chip>(find.byType(Chip));
+    expect(chip.onDeleted, isNull);
+    expect(removed, isNull);
+
+    sessionState.dispose();
+  });
+
   group('document chips', () {
     testWidgets('displays selected document chips', (tester) async {
       final docs = {

@@ -72,6 +72,7 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _openDocumentPicker() async {
+    _fetchDocuments();
     final threadId = widget.threadId;
     final result = await showDocumentPicker(
       context: context,
@@ -101,7 +102,6 @@ class _RoomScreenState extends State<RoomScreen> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
     _state = _createRoomState();
-    _fetchDocuments();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
     } else {
@@ -119,7 +119,6 @@ class _RoomScreenState extends State<RoomScreen> {
       _chatController.clear();
       _documentSelections = {};
       _state = _createRoomState();
-      _fetchDocuments();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -131,9 +130,13 @@ class _RoomScreenState extends State<RoomScreen> {
         _chatController.clear();
         // Migrate selection from no-thread view to the newly created thread.
         if (oldWidget.threadId == null) {
-          final pending = _documentSelections.remove(null);
+          final pending = _documentSelections[null];
           if (pending != null && pending.isNotEmpty) {
-            _documentSelections[widget.threadId] = pending;
+            _documentSelections = {
+              for (final e in _documentSelections.entries)
+                if (e.key != null) e.key: e.value,
+              widget.threadId: pending,
+            };
           }
         }
         _state.selectThread(widget.threadId!);
@@ -147,8 +150,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _autoSelectFirstThread() {
     final current = _state.threadList.threads.value;
     if (current is ThreadsLoaded && current.threads.isNotEmpty) {
-      _state.selectThread(current.threads.first.id);
-      setState(() {});
+      _navigateToThread(current.threads.first.id, replace: true);
       return;
     }
 
@@ -157,8 +159,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (!mounted || targetState != _state) return;
       if (status is ThreadsLoaded && status.threads.isNotEmpty) {
         _cancelAutoSelect();
-        _state.selectThread(status.threads.first.id);
-        setState(() {});
+        _navigateToThread(status.threads.first.id, replace: true);
       }
     });
   }
@@ -171,11 +172,14 @@ class _RoomScreenState extends State<RoomScreen> {
         onNavigateToThread: _navigateToThread,
       );
 
-  void _navigateToThread(String threadId) {
-    if (mounted) {
-      context.go(
-        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
-      );
+  void _navigateToThread(String threadId, {bool replace = false}) {
+    if (!mounted) return;
+    final path =
+        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId';
+    if (replace) {
+      context.replace(path);
+    } else {
+      context.go(path);
     }
   }
 
@@ -211,7 +215,12 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _onThreadSelected(String threadId) {
-    _documentSelections.remove(null);
+    setState(() {
+      _documentSelections = {
+        for (final e in _documentSelections.entries)
+          if (e.key != null) e.key: e.value,
+      };
+    });
     context.go(
       '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
     );

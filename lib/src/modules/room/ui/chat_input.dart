@@ -116,25 +116,31 @@ class _ChatInputState extends State<ChatInput> {
           if (widget.selectedDocuments.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  for (final doc in widget.selectedDocuments)
-                    Chip(
-                      avatar: Icon(
-                        getFileTypeIcon(documentIconPath(doc)),
-                        size: 16,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final doc in widget.selectedDocuments)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Chip(
+                          avatar: Icon(
+                            getFileTypeIcon(documentIconPath(doc)),
+                            size: 16,
+                          ),
+                          label: Text(documentDisplayName(doc)),
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          onDeleted:
+                              widget.onDocumentRemoved == null || disabled
+                                  ? null
+                                  : () => widget.onDocumentRemoved!(doc),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ),
-                      label: Text(documentDisplayName(doc)),
-                      deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: widget.onDocumentRemoved == null
-                          ? null
-                          : () => widget.onDocumentRemoved!(doc),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           Row(

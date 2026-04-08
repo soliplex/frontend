@@ -104,13 +104,12 @@ class _DocumentPickerState extends State<DocumentPicker> {
           ),
         Flexible(
           child: ListView.builder(
-            shrinkWrap: true,
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final doc = filtered[index];
               final selected = widget.selected.contains(doc);
-              return ListTile(
-                leading: Icon(getFileTypeIcon(documentIconPath(doc))),
+              return CheckboxListTile(
+                secondary: Icon(getFileTypeIcon(documentIconPath(doc))),
                 title: Text(
                   documentDisplayName(doc),
                   overflow: TextOverflow.ellipsis,
@@ -123,10 +122,8 @@ class _DocumentPickerState extends State<DocumentPicker> {
                         ),
                       )
                     : null,
-                trailing: selected
-                    ? Icon(Icons.check_box, color: theme.colorScheme.primary)
-                    : const Icon(Icons.check_box_outline_blank),
-                onTap: () => _toggle(doc),
+                value: selected,
+                onChanged: (_) => _toggle(doc),
               );
             },
           ),
@@ -151,10 +148,10 @@ Future<Set<RagDocument>?> showDocumentPicker({
   int? filteredCount;
   return showDialog<Set<RagDocument>>(
     context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) => FutureBuilder<List<RagDocument>>(
-        future: documentsFuture,
-        builder: (context, snapshot) {
+    builder: (context) => FutureBuilder<List<RagDocument>>(
+      future: documentsFuture,
+      builder: (context, snapshot) => StatefulBuilder(
+        builder: (context, setDialogState) {
           final docs = snapshot.data;
           final String title;
           if (docs == null) {
@@ -168,7 +165,10 @@ Future<Set<RagDocument>?> showDocumentPicker({
 
           final Widget content;
           if (snapshot.connectionState == ConnectionState.waiting) {
-            content = const Center(child: CircularProgressIndicator());
+            content = const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()),
+            );
           } else if (snapshot.hasError) {
             content = Center(
               child: Text(

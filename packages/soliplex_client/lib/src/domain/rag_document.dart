@@ -8,7 +8,7 @@ String buildDocumentFilter(List<String> titles) {
   if (titles.isEmpty) {
     throw ArgumentError.value(titles, 'titles', 'must not be empty');
   }
-  final escaped = titles.map((t) => t.replaceAll("'", "''")).toList();
+  final escaped = titles.toSet().map((t) => t.replaceAll("'", "''")).toList();
   if (escaped.length == 1) {
     return "title = '${escaped.first}'";
   }

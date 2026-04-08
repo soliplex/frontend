@@ -57,6 +57,13 @@ void main() {
         );
       });
 
+      test('deduplicates identical titles', () {
+        expect(
+          buildDocumentFilter(['Report', 'Report']),
+          equals("title = 'Report'"),
+        );
+      });
+
       test('throws on empty list', () {
         expect(
           () => buildDocumentFilter([]),
