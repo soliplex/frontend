@@ -26,11 +26,6 @@ AppBarTheme buildAppBarTheme(
           color: colorScheme.outlineVariant.withValues(alpha: 0.8),
         ),
       ),
-      titleTextStyle: TextStyle(
-        fontFamily: fontConfig?.displayFont,
-        fontSize: 28,
-        color: colorScheme.onSurface,
-      ),
     );
 
 /// Builds the ListTile theme with custom styling.
@@ -52,9 +47,11 @@ ListTileThemeData buildListTileTheme(
       minVerticalPadding: 12,
       iconColor: colorScheme.onSurfaceVariant,
       textColor: colorScheme.onSurface,
+      selectedColor: colorScheme.onSurface,
+      selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.5),
       titleTextStyle: TextStyle(
         fontFamily: fontConfig?.displayFont,
-        fontSize: 22,
+        fontSize: 16,
         fontWeight: FontWeight.w600,
         color: colorScheme.onSurface,
       ),
@@ -156,9 +153,10 @@ OutlinedButtonThemeData buildOutlinedButtonTheme(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
       ),
+      side: BorderSide(color: colorScheme.primary),
       padding: const EdgeInsets.symmetric(
-        horizontal: SoliplexSpacing.s4,
-        vertical: SoliplexSpacing.s3,
+        horizontal: SoliplexSpacing.s6,
+        vertical: SoliplexSpacing.s4,
       ),
       textStyle: TextStyle(
         fontFamily: fontConfig?.bodyFont,

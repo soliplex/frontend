@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../tokens/breakpoints.dart';
 import '../tokens/radii.dart';
 import '../tokens/typography.dart';
 
@@ -103,5 +104,18 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
       fontFamily: family,
       fontFamilyFallback: const ['monospace'],
     );
+  }
+
+  /// Returns a responsive AppBar title [TextStyle] based on screen width.
+  ///
+  /// Uses [headlineSmall] on compact screens (below tablet breakpoint)
+  /// and [headlineMedium] on wider screens.
+  static TextStyle? appBarTitleStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    final isCompact =
+        MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
+    return isCompact
+        ? theme.textTheme.headlineSmall
+        : theme.textTheme.headlineMedium;
   }
 }

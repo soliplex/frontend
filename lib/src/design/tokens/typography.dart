@@ -51,21 +51,21 @@ TextTheme buildSoliplexTextTheme({String? bodyFont, String? displayFont}) {
       fontWeight: FontWeight.w700,
       fontSize: 32,
       letterSpacing: 0,
-      height: 2,
+      height: 1.4,
     ),
     headlineMedium: TextStyle(
       fontFamily: bodyFont,
       fontWeight: FontWeight.w600,
       fontSize: 28,
       letterSpacing: 0,
-      height: 2.4,
+      height: 2,
     ),
     headlineSmall: TextStyle(
       fontFamily: bodyFont,
       fontWeight: FontWeight.w600,
       fontSize: 24,
       letterSpacing: 0,
-      height: 2.4,
+      height: 2,
     ),
 
     // Title styles - card titles, list headers
