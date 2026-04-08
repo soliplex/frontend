@@ -77,7 +77,7 @@ ThemeMode reactive via themeModeProvider (persisted to SharedPreferences)
 ### Key files added or changed
 
 | File | Status | Purpose |
-|------|--------|---------|
+| ------ | -------- | --------- |
 | `lib/core/models/color_config.dart` | **New** | `ColorPalette` and `ColorConfig` models |
 | `lib/core/models/font_config.dart` | **New** | `FontConfig` model with 3 font roles |
 | `lib/core/models/theme_config.dart` | Modified | Now holds `ColorConfig?` + `FontConfig?` instead of `SoliplexColors` |
@@ -101,7 +101,7 @@ Each `ColorPalette` defines a complete brand color set for one brightness mode.
 **7 required roles:**
 
 | Role | Purpose |
-|------|---------|
+| ---- | ------- |
 | `primary` | Brand primary — buttons, links, focus rings |
 | `secondary` | Secondary brand — FAB, nav indicators |
 | `background` | Main background |
@@ -113,7 +113,7 @@ Each `ColorPalette` defines a complete brand color set for one brightness mode.
 **6 optional roles** (auto-computed when null):
 
 | Role | Default behavior |
-|------|-----------------|
+| ---- | ---------------- |
 | `tertiary` | Falls back to neutral grey `#7B7486` |
 | `error` | Falls back to Material red `#BA1A1A` |
 | `onPrimary` | Luminance-based contrast (black or white) |
@@ -161,7 +161,7 @@ gives precise control over every color:
 Three font roles that map to the typographic hierarchy:
 
 | Role | Usage | Default |
-|------|-------|---------|
+| ---- | ----- | ------- |
 | `bodyFont` | UI text, paragraphs, labels, buttons | Material sans-serif |
 | `displayFont` | Display text, AppBar titles, ListTile titles | Material sans-serif |
 | `brandFont` | Reserved for special brand uses | Material sans-serif |
@@ -174,7 +174,7 @@ defaults apply.
 The branch bundles three custom font families in `fonts/`:
 
 | Family | Files | Role |
-|--------|-------|------|
+| ------ | ----- | ---- |
 | Inter | Variable weight + italic | Body font |
 | Hyprsalvo | Regular + Bold Condensed | Display font |
 | Tactical | Regular | Brand font |
@@ -292,7 +292,7 @@ MaterialApp(
 Two new `SoliplexConfig` flags control AppBar branding:
 
 | Flag | Default | Effect |
-|------|---------|--------|
+| ---- | ------- | ------ |
 | `showLogoInAppBar` | `false` | Renders the configured logo left-aligned |
 | `showAppNameInAppBar` | `true` | Shows app name next to logo (only when logo is shown) |
 
@@ -360,7 +360,7 @@ These use the Material 3 tonal system for automatic light/dark adaptation.
 with font family support:
 
 | Category | Styles | Font |
-|----------|--------|------|
+| -------- | ------ | ---- |
 | Display | `displayLarge` (48), `displayMedium` (32), `displaySmall` (28) | `displayFont` |
 | Headline | `headlineLarge` (28), `headlineMedium` (24), `headlineSmall` (20) | `bodyFont` |
 | Title | `titleLarge` (24), `titleMedium` (18), `titleSmall` (14) | `bodyFont` |
@@ -426,7 +426,7 @@ names, thread titles, and other variable-length text.
 The branch adds comprehensive test coverage for all new models and providers:
 
 | Test file | Coverage |
-|-----------|----------|
+| --------- | -------- |
 | `test/core/models/color_config_test.dart` | 369 lines — `ColorPalette`, `ColorConfig`, defaults, equality, copyWith |
 | `test/core/models/font_config_test.dart` | 140 lines — `FontConfig` defaults, equality, copyWith, clear flags |
 | `test/core/models/theme_config_test.dart` | Modified — updated for new `ColorConfig`/`FontConfig` fields |

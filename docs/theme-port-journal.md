@@ -11,17 +11,17 @@ architecture.
 
 ## Repo Architecture Delta
 
-| Aspect | `flutter` | `frontend` |
-|---|---|---|
-| Lib structure | `lib/` flat | `lib/src/` nested |
-| Features | 11 modules in `lib/features/` | 4 modules in `lib/src/modules/` |
-| Core | `lib/core/` with auth, logging, models, providers, router, services | `lib/src/core/` minimal: router, shell, signal_listenable |
-| State management | Riverpod only (22 providers) | Riverpod + Signals hybrid |
-| App entry | `lib/app.dart` with `MaterialApp` directly | `ShellConfig` + `standard()` flavor factory |
-| Design system | `lib/design/` | Did not exist; created as `lib/src/design/` |
-| Shared widgets | 13 in `lib/shared/widgets/` | 2 in `lib/src/shared/` (flat, no `widgets/` subdir) |
-| Packages | 3 (`soliplex_client`, `_native`, `_logging`) | 4 (added `soliplex_agent`) |
-| SDK constraint | `>=3.5.0 <4.0.0` | `^3.6.0` |
+| Aspect           | `flutter`                                                           | `frontend`                                                |
+|------------------|---------------------------------------------------------------------|-----------------------------------------------------------|
+| Lib structure    | `lib/` flat                                                         | `lib/src/` nested                                         |
+| Features         | 11 modules in `lib/features/`                                       | 4 modules in `lib/src/modules/`                           |
+| Core             | `lib/core/` with auth, logging, models, providers, router, services | `lib/src/core/` minimal: router, shell, signal_listenable |
+| State management | Riverpod only (22 providers)                                        | Riverpod + Signals hybrid                                 |
+| App entry        | `lib/app.dart` with `MaterialApp` directly                          | `ShellConfig` + `standard()` flavor factory               |
+| Design system    | `lib/design/`                                                       | Did not exist; created as `lib/src/design/`               |
+| Shared widgets   | 13 in `lib/shared/widgets/`                                         | 2 in `lib/src/shared/` (flat, no `widgets/` subdir)       |
+| Packages         | 3 (`soliplex_client`, `_native`, `_logging`)                        | 4 (added `soliplex_agent`)                                |
+| SDK constraint   | `>=3.5.0 <4.0.0`                                                    | `^3.6.0`                                                  |
 
 ---
 
@@ -70,11 +70,11 @@ The `flutter` repo places code directly under `lib/` (`lib/design/`,
 
 **Mapping:**
 
-| `flutter` path | `frontend` path |
-|---|---|
-| `lib/design/` | `lib/src/design/` |
-| `lib/core/models/` | `lib/src/core/models/` |
-| `lib/core/providers/` | `lib/src/core/providers/` |
+| `flutter` path                                | `frontend` path                           |
+| --------------------------------------------- | ----------------------------------------- |
+| `lib/design/`                                 | `lib/src/design/`                         |
+| `lib/core/models/`                            | `lib/src/core/models/`                    |
+| `lib/core/providers/`                         | `lib/src/core/providers/`                 |
 | `lib/shared/widgets/theme_toggle_button.dart` | `lib/src/shared/theme_toggle_button.dart` |
 
 The `frontend` repo's `shared/` directory is flat (no `widgets/` subdirectory), so
@@ -165,11 +165,11 @@ listed as a dependency but never actually imported in code — font names in
 
 The `frontend` port uses a **hybrid approach** to demonstrate both methods:
 
-| Font | Role | Resolution |
-|---|---|---|
-| Inter | Body | Bundled asset (registered in `pubspec.yaml` `flutter.fonts`) |
-| Oswald | Display | `google_fonts` package (fetched + cached at runtime) |
-| Squada One | Brand | `google_fonts` package (fetched + cached at runtime) |
+| Font        | Role    | Resolution                                                   |
+| ----------- | ------- | ------------------------------------------------------------ |
+| Inter       | Body    | Bundled asset (registered in `pubspec.yaml` `flutter.fonts`) |
+| Oswald      | Display | `google_fonts` package (fetched + cached at runtime)         |
+| Squada One  | Brand   | `google_fonts` package (fetched + cached at runtime)         |
 
 **Code change in `theme.dart`:**
 
@@ -266,7 +266,7 @@ SharedPreferences before the first frame.
 These files from the `flutter` repo's theme system were intentionally excluded:
 
 | File | Reason |
-|---|---|
+| ---- | ------ |
 | `lib/core/models/soliplex_config.dart` | `frontend` uses `ShellConfig` instead; `showLogoInAppBar`/`showAppNameInAppBar` flags are specific to the `flutter` repo's AppBar layout |
 | `lib/shared/widgets/overflow_tooltip.dart` | Utility widget created alongside the theme but not part of the theme system itself |
 | `lib/shared/widgets/app_shell.dart` changes | AppBar layout with brand logo/toggle is specific to `flutter` repo's screen structure |
@@ -278,7 +278,7 @@ These files from the `flutter` repo's theme system were intentionally excluded:
 ## Summary of New Dependencies
 
 | Package | Version | Purpose |
-|---|---|---|
+| ------- | ------- | ------- |
 | `google_fonts` | `^6.2.1` | Runtime font resolution for Oswald and Squada One |
 | `meta` | `^1.17.0` | `@immutable` annotations in model classes (was transitive, now direct) |
 
@@ -288,7 +288,7 @@ These files from the `flutter` repo's theme system were intentionally excluded:
 
 ### 15 New Files
 
-```
+```text
 lib/src/core/models/color_config.dart
 lib/src/core/models/font_config.dart
 lib/src/core/models/theme_config.dart
@@ -308,7 +308,7 @@ lib/src/shared/theme_toggle_button.dart
 
 ### 6 Modified Files
 
-```
+```text
 pubspec.yaml                        — google_fonts + meta deps, Inter font registration
 lib/src/core/shell_config.dart      — darkTheme, themeMode fields
 lib/src/core/shell.dart             — _ThemedApp ConsumerWidget extraction
