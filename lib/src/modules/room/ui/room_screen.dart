@@ -215,6 +215,8 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
+    final roomStatus = _state.room.watch(context);
+    final room = roomStatus is RoomLoaded ? roomStatus.room : null;
 
     return Focus(
       autofocus: true,
@@ -230,6 +232,11 @@ class _RoomScreenState extends State<RoomScreen> {
             onNetworkInspector: _onNetworkInspector,
             onRoomInfo: _onRoomInfo,
             onRetryThreads: () => _state.threadList.refresh(),
+            quizzes: room?.quizzes ?? const {},
+            onQuizTapped: (quizId) {
+              final alias = widget.serverEntry.alias;
+              context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+            },
           );
           final content = _buildContent();
 
@@ -279,6 +286,12 @@ class _RoomScreenState extends State<RoomScreen> {
                       _onRoomInfo();
                     },
                     onRetryThreads: () => _state.threadList.refresh(),
+                    quizzes: room?.quizzes ?? const {},
+                    onQuizTapped: (quizId) {
+                      Navigator.pop(drawerContext);
+                      final alias = widget.serverEntry.alias;
+                      context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+                    },
                   ),
                 ),
               ),
@@ -328,6 +341,10 @@ class _RoomScreenState extends State<RoomScreen> {
                           suggestion,
                           stateOverlay: _buildStateOverlay(),
                         ),
+                onQuizTapped: (quizId) {
+                  final alias = widget.serverEntry.alias;
+                  context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+                },
                 fallback: const Center(child: Text('Select a thread')),
               );
             },
