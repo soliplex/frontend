@@ -14,6 +14,7 @@ class ThreadSidebar extends StatelessWidget {
     required this.onCreateThread,
     required this.onNetworkInspector,
     required this.onRoomInfo,
+    required this.roomName,
     this.onRetryThreads,
     this.quizzes = const {},
     this.onQuizTapped,
@@ -26,7 +27,8 @@ class ThreadSidebar extends StatelessWidget {
   final VoidCallback onCreateThread;
   final VoidCallback onNetworkInspector;
   final VoidCallback onRoomInfo;
-  final VoidCallback? onRetryThreads;
+  final String roomName;
+  final Future<void> Function()? onRetryThreads;
   final Map<String, String> quizzes;
   final void Function(String quizId)? onQuizTapped;
 
@@ -74,7 +76,7 @@ class ThreadSidebar extends StatelessWidget {
         TextButton.icon(
           onPressed: onRoomInfo,
           icon: const Icon(Icons.info_outline, size: 16),
-          label: const Text('Room Info'),
+          label: Text(roomName),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             visualDensity: VisualDensity.compact,
@@ -104,20 +106,39 @@ class ThreadSidebar extends StatelessWidget {
             onRetry: onRetryThreads,
           ),
         ),
-      ThreadsLoaded(:final threads) => threads.isEmpty
-          ? const Center(child: Text('No threads'))
-          : ListView.builder(
-              itemCount: threads.length,
-              itemBuilder: (context, index) {
-                final thread = threads[index];
-                return ThreadTile(
-                  thread: thread,
-                  isSelected: thread.id == selectedThreadId,
-                  onTap: () => onThreadSelected(thread.id),
-                );
-              },
-            ),
+      ThreadsLoaded(:final threads) => _wrapWithRefresh(
+          threads.isEmpty
+              ? ListView(
+                  children: const [
+                    Center(
+                        child: Padding(
+                      padding: EdgeInsets.only(top: 32),
+                      child: Text('No threads'),
+                    )),
+                  ],
+                )
+              : ListView.builder(
+                  itemCount: threads.length,
+                  itemBuilder: (context, index) {
+                    final thread = threads[index];
+                    return ThreadTile(
+                      thread: thread,
+                      isSelected: thread.id == selectedThreadId,
+                      onTap: () => onThreadSelected(thread.id),
+                    );
+                  },
+                ),
+        ),
     };
+  }
+
+  Widget _wrapWithRefresh(Widget child) {
+    final handler = onRetryThreads;
+    if (handler == null) return child;
+    return RefreshIndicator(
+      onRefresh: handler,
+      child: child,
+    );
   }
 }
 

@@ -12,8 +12,9 @@ ModuleContribution roomModule({
   required ServerManager serverManager,
   required AgentRuntimeManager runtimeManager,
   required RunRegistry registry,
-  required DocumentSelections documentSelections,
+  bool enableDocumentFilter = false,
 }) {
+  final documentSelections = DocumentSelections();
   return ModuleContribution(
     routes: [
       GoRoute(
@@ -41,6 +42,7 @@ ModuleContribution roomModule({
         serverManager,
         runtimeManager,
         registry,
+        enableDocumentFilter,
         documentSelections,
       ),
       _buildRoute(
@@ -48,6 +50,7 @@ ModuleContribution roomModule({
         serverManager,
         runtimeManager,
         registry,
+        enableDocumentFilter,
         documentSelections,
       ),
     ],
@@ -59,6 +62,7 @@ GoRoute _buildRoute(
   ServerManager serverManager,
   AgentRuntimeManager runtimeManager,
   RunRegistry registry,
+  bool enableDocumentFilter,
   DocumentSelections documentSelections,
 ) {
   return GoRoute(
@@ -79,6 +83,7 @@ GoRoute _buildRoute(
           threadId: state.pathParameters['threadId'],
           runtimeManager: runtimeManager,
           registry: registry,
+          enableDocumentFilter: enableDocumentFilter,
           documentSelections: documentSelections,
         ),
       );

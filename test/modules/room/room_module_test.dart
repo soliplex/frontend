@@ -4,7 +4,6 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
-import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
@@ -40,7 +39,6 @@ void main() {
       serverManager: manager,
       runtimeManager: runtimeManager,
       registry: registry,
-      documentSelections: DocumentSelections(),
     );
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -54,7 +52,6 @@ void main() {
       serverManager: manager,
       runtimeManager: runtimeManager,
       registry: registry,
-      documentSelections: DocumentSelections(),
     );
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -74,7 +71,6 @@ void main() {
       serverManager: manager,
       runtimeManager: runtimeManager,
       registry: registry,
-      documentSelections: DocumentSelections(),
     );
     expect(contribution.overrides, isEmpty);
   });

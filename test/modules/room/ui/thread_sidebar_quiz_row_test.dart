@@ -19,6 +19,7 @@ void main() {
           onCreateThread: () {},
           onNetworkInspector: () {},
           onRoomInfo: () {},
+          roomName: 'Test Room',
           quizzes: quizzes,
           onQuizTapped: onQuizTapped,
         ),
