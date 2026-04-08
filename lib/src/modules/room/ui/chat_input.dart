@@ -88,7 +88,11 @@ class _ChatInputState extends State<ChatInput> {
 
   void _send() {
     final text = _controller.text.trim();
-    if (text.isEmpty || !widget.enabled) return;
+    if (text.isEmpty ||
+        !widget.enabled ||
+        _isActive(widget.sessionState?.peek())) {
+      return;
+    }
     widget.onSend(text);
     _controller.clear();
     _focusNode.requestFocus();
