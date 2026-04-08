@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -184,8 +185,6 @@ class _QuizScreenState extends State<QuizScreen> {
       );
       if (confirmed != true || !mounted) return;
     }
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
+    if (mounted) context.pop();
   }
 }
