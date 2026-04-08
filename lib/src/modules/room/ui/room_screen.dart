@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show SourceReferenceFormatting;
+    show RagDocument, SourceReferenceFormatting, buildDocumentFilter;
 import '../../auth/server_entry.dart';
+import '../document_selections.dart';
 import '../../diagnostics/diagnostics_providers.dart';
 import '../../diagnostics/models/http_event_grouper.dart';
 import '../../diagnostics/models/run_event_filter.dart';
@@ -17,6 +18,7 @@ import '../thread_list_state.dart';
 import '../thread_view_state.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
+import 'document_picker.dart';
 import 'error_retry_panel.dart';
 import 'message_timeline.dart';
 import 'room_welcome.dart';
@@ -33,6 +35,7 @@ class RoomScreen extends StatefulWidget {
     required this.threadId,
     required this.runtimeManager,
     required this.registry,
+    required this.documentSelections,
   });
 
   final ServerEntry serverEntry;
@@ -40,6 +43,7 @@ class RoomScreen extends StatefulWidget {
   final String? threadId;
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
+  final DocumentSelections documentSelections;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -50,6 +54,46 @@ class _RoomScreenState extends State<RoomScreen> {
   void Function()? _autoSelectUnsub;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
+
+  DocumentSelections get _selections => widget.documentSelections;
+
+  Set<RagDocument> get _selectedForCurrentThread =>
+      _selections.get(widget.roomId, widget.threadId);
+
+  void _updateSelection(Set<RagDocument> selection) {
+    setState(() {
+      _selections.set(widget.roomId, widget.threadId, selection);
+    });
+  }
+
+  Future<void> _openDocumentPicker() async {
+    final roomId = widget.roomId;
+    final threadId = widget.threadId;
+    final result = await showDocumentPicker(
+      context: context,
+      fetchDocuments: () =>
+          widget.serverEntry.connection.api.getDocuments(roomId),
+      selected: _selections.get(roomId, threadId),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _selections.set(roomId, threadId, result);
+      });
+    }
+  }
+
+  // TODO: If a selected document is deleted server-side before send,
+  // the backend silently returns empty results. Consider reconciling
+  // selections against the fetched document list.
+  Map<String, dynamic> _buildStateOverlay() {
+    final selected = _selectedForCurrentThread;
+    return {
+      'rag': <String, dynamic>{
+        'document_filter':
+            selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
+      },
+    };
+  }
 
   @override
   void initState() {
@@ -81,6 +125,11 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
+        // User may select documents before a thread exists; carry that
+        // selection forward into the newly created thread.
+        if (oldWidget.threadId == null) {
+          _selections.migrateToThread(widget.roomId, widget.threadId!);
+        }
         _state.selectThread(widget.threadId!);
         setState(() {});
       } else {
@@ -92,8 +141,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _autoSelectFirstThread() {
     final current = _state.threadList.threads.value;
     if (current is ThreadsLoaded && current.threads.isNotEmpty) {
-      _state.selectThread(current.threads.first.id);
-      setState(() {});
+      _navigateToThread(current.threads.first.id, replace: true);
       return;
     }
 
@@ -102,8 +150,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (!mounted || targetState != _state) return;
       if (status is ThreadsLoaded && status.threads.isNotEmpty) {
         _cancelAutoSelect();
-        _state.selectThread(status.threads.first.id);
-        setState(() {});
+        _navigateToThread(status.threads.first.id, replace: true);
       }
     });
   }
@@ -116,11 +163,14 @@ class _RoomScreenState extends State<RoomScreen> {
         onNavigateToThread: _navigateToThread,
       );
 
-  void _navigateToThread(String threadId) {
-    if (mounted) {
-      context.go(
-        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
-      );
+  void _navigateToThread(String threadId, {bool replace = false}) {
+    if (!mounted) return;
+    final path =
+        '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId';
+    if (replace || widget.threadId == null) {
+      context.replace(path);
+    } else {
+      context.go(path);
     }
   }
 
@@ -274,7 +324,10 @@ class _RoomScreenState extends State<RoomScreen> {
                 room: room,
                 onSuggestionTapped: sessionState != null
                     ? null
-                    : (suggestion) => _state.sendToNewThread(suggestion),
+                    : (suggestion) => _state.sendToNewThread(
+                          suggestion,
+                          stateOverlay: _buildStateOverlay(),
+                        ),
                 fallback: const Center(child: Text('Select a thread')),
               );
             },
@@ -286,11 +339,19 @@ class _RoomScreenState extends State<RoomScreen> {
             onDismiss: _state.clearError,
           ),
         ChatInput(
-          onSend: (text) => _state.sendToNewThread(text),
+          onSend: (text) => _state.sendToNewThread(
+            text,
+            stateOverlay: _buildStateOverlay(),
+          ),
           onCancel: _state.cancelSpawn,
           sessionState: _state.sessionState,
           controller: _chatController,
           focusNode: _chatFocusNode,
+          selectedDocuments: _selectedForCurrentThread,
+          onFilterTap: _openDocumentPicker,
+          onDocumentRemoved: (doc) => _updateSelection(
+            Set.of(_selectedForCurrentThread)..remove(doc),
+          ),
         ),
       ],
     );
@@ -324,8 +385,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 streamingState: streaming,
                 executionTrackers: threadView.executionTrackers,
                 room: room,
-                onSuggestionTapped: (suggestion) =>
-                    threadView.sendMessage(suggestion, _state.runtime),
+                onSuggestionTapped: (suggestion) => threadView.sendMessage(
+                  suggestion,
+                  _state.runtime,
+                  stateOverlay: _buildStateOverlay(),
+                ),
                 onFeedbackSubmit: threadView.submitFeedback,
                 onInspect: (runId) {
                   final inspector = ProviderScope.containerOf(context)
@@ -358,12 +422,21 @@ class _RoomScreenState extends State<RoomScreen> {
             onDismiss: () => threadView.clearSendError(),
           ),
         ChatInput(
-          onSend: (text) => threadView.sendMessage(text, _state.runtime),
+          onSend: (text) => threadView.sendMessage(
+            text,
+            _state.runtime,
+            stateOverlay: _buildStateOverlay(),
+          ),
           onCancel: threadView.cancelRun,
           sessionState: threadView.sessionState,
           controller: _chatController,
           focusNode: _chatFocusNode,
           enabled: status is MessagesLoaded,
+          selectedDocuments: _selectedForCurrentThread,
+          onFilterTap: _openDocumentPicker,
+          onDocumentRemoved: (doc) => _updateSelection(
+            Set.of(_selectedForCurrentThread)..remove(doc),
+          ),
         ),
       ],
     );

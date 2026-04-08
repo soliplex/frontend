@@ -1,5 +1,27 @@
 import 'package:meta/meta.dart';
 
+/// Builds a LanceDB WHERE clause for the documents table from [documents].
+///
+/// Filters by document ID for exact matching. Duplicates are collapsed.
+///
+/// Single document: `id = 'abc-123'`
+/// Multiple documents: `id IN ('abc-123', 'def-456')`
+String buildDocumentFilter(List<RagDocument> documents) {
+  if (documents.isEmpty) {
+    throw ArgumentError.value(
+      documents,
+      'documents',
+      'must not be empty',
+    );
+  }
+  final ids = documents.map((d) => d.id).toSet();
+  final escaped = ids.map((id) => id.replaceAll("'", "''")).toList();
+  if (escaped.length == 1) {
+    return "id = '${escaped.first}'";
+  }
+  return "id IN (${escaped.map((id) => "'$id'").join(', ')})";
+}
+
 /// Represents a document available for narrowing RAG searches.
 ///
 /// Documents are fetched from a room and can be selected to limit

@@ -32,15 +32,8 @@ class _DocumentsCardState extends State<DocumentsCard> {
     super.dispose();
   }
 
-  List<RagDocument> _filterDocs(List<RagDocument> docs) {
-    if (_searchQuery.isEmpty) return docs;
-    final query = _searchQuery.toLowerCase();
-    return docs
-        .where(
-          (d) => documentDisplayName(d).toLowerCase().contains(query),
-        )
-        .toList();
-  }
+  List<RagDocument> _filterDocs(List<RagDocument> docs) =>
+      filterDocuments(docs, _searchQuery);
 
   @override
   Widget build(BuildContext context) {

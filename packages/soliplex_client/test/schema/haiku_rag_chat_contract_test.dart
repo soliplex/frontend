@@ -105,6 +105,27 @@ void main() {
       });
     });
 
+    group('documentFilter field', () {
+      test('documentFilter is String? and defaults to null', () {
+        final ragChat = HaikuRagChat();
+        final filter = ragChat.documentFilter;
+        expect(filter, isNull);
+      });
+
+      test('documentFilter roundtrips through JSON', () {
+        final original = HaikuRagChat(
+          citationRegistry: const {},
+          documentFilter: "id = 'abc-123'",
+        );
+
+        final json = original.toJson();
+        expect(json['document_filter'], equals("id = 'abc-123'"));
+
+        final decoded = HaikuRagChat.fromJson(json);
+        expect(decoded.documentFilter, equals("id = 'abc-123'"));
+      });
+    });
+
     group('JSON keys required for parsing', () {
       test('parses from RAG state format', () {
         // The generated fromJson requires citation_registry to be present.
