@@ -226,38 +226,36 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Future<void> _showRenameDialog(String threadId) async {
     final threadListStatus = _state.threadList.threads.value;
-    if (threadListStatus is! ThreadsLoaded) return;
+    if (threadListStatus is! ThreadsLoaded) {
+      debugPrint('Rename ignored: threads not loaded');
+      return;
+    }
     final thread =
         threadListStatus.threads.where((t) => t.id == threadId).firstOrNull;
-    if (thread == null) return;
+    if (thread == null) {
+      debugPrint('Rename ignored: thread $threadId not found');
+      return;
+    }
 
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        final nav = Navigator.of(dialogContext);
-        return _RenameDialog(
-          initialName: thread.name,
-          onSave: (name) async {
-            await _state.renameThread(threadId, name);
-            nav.pop();
-          },
-        );
-      },
+      builder: (_) => _RenameDialog(
+        initialName: thread.name,
+        onAction: (name) => _state.renameThread(threadId, name),
+      ),
     );
   }
 
   Future<void> _showDeleteDialog(String threadId) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        final nav = Navigator.of(dialogContext);
-        return _DeleteDialog(
-          onConfirm: () async {
-            await _state.deleteThread(threadId);
-            nav.pop();
-          },
-        );
-      },
+      builder: (_) => _AsyncActionDialog(
+        title: 'Delete Thread',
+        content: const Text('Delete this thread? This cannot be undone.'),
+        actionLabel: 'Delete',
+        isDestructive: true,
+        onAction: () => _state.deleteThread(threadId),
+      ),
     );
   }
 
@@ -576,14 +574,117 @@ class _SendErrorBanner extends StatelessWidget {
   }
 }
 
+/// Dialog that runs an async action with loading/error states.
+///
+/// Shows a spinner while in progress, inline error on failure,
+/// and pops itself on success.
+class _AsyncActionDialog extends StatefulWidget {
+  const _AsyncActionDialog({
+    required this.title,
+    required this.content,
+    required this.actionLabel,
+    required this.onAction,
+    this.isDestructive = false,
+    this.canSubmit = true,
+  });
+
+  final String title;
+  final Widget content;
+  final String actionLabel;
+  final Future<void> Function() onAction;
+  final bool isDestructive;
+
+  /// External gate (e.g., text field validation). The action button is
+  /// disabled when false, independent of the in-progress state.
+  final bool canSubmit;
+
+  @override
+  State<_AsyncActionDialog> createState() => _AsyncActionDialogState();
+}
+
+class _AsyncActionDialogState extends State<_AsyncActionDialog> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _run() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.onAction();
+      if (mounted) Navigator.pop(context);
+    } on Exception catch (e) {
+      debugPrint('${widget.title} failed: $e');
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          widget.content,
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        if (_busy)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else
+          TextButton(
+            onPressed: widget.canSubmit ? _run : null,
+            style: widget.isDestructive
+                ? TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  )
+                : null,
+            child: Text(widget.actionLabel),
+          ),
+      ],
+    );
+  }
+}
+
+/// Rename dialog: wraps [_AsyncActionDialog] with a pre-filled text field.
 class _RenameDialog extends StatefulWidget {
   const _RenameDialog({
     required this.initialName,
-    required this.onSave,
+    required this.onAction,
   });
 
   final String initialName;
-  final Future<void> Function(String name) onSave;
+  final Future<void> Function(String name) onAction;
 
   @override
   State<_RenameDialog> createState() => _RenameDialogState();
@@ -591,11 +692,8 @@ class _RenameDialog extends StatefulWidget {
 
 class _RenameDialogState extends State<_RenameDialog> {
   late final TextEditingController _controller;
-  bool _isSaving = false;
-  String? _error;
 
   bool get _canSave =>
-      !_isSaving &&
       _controller.text.trim().isNotEmpty &&
       _controller.text.trim() != widget.initialName;
 
@@ -607,7 +705,7 @@ class _RenameDialogState extends State<_RenameDialog> {
       baseOffset: 0,
       extentOffset: _controller.text.length,
     );
-    _controller.addListener(_onTextChanged);
+    _controller.addListener(() => setState(() {}));
   }
 
   @override
@@ -616,153 +714,18 @@ class _RenameDialogState extends State<_RenameDialog> {
     super.dispose();
   }
 
-  void _onTextChanged() => setState(() {});
-
-  Future<void> _save() async {
-    setState(() {
-      _isSaving = true;
-      _error = null;
-    });
-    try {
-      await widget.onSave(_controller.text.trim());
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-          _error = e.toString();
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
-      title: const Text('Rename Thread'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Thread name',
-            ),
-            onSubmitted: _canSave ? (_) => _save() : null,
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ),
-        ],
+    return _AsyncActionDialog(
+      title: 'Rename Thread',
+      actionLabel: 'Save',
+      canSubmit: _canSave,
+      onAction: () => widget.onAction(_controller.text.trim()),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Thread name'),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        if (_isSaving)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else
-          TextButton(
-            onPressed: _canSave ? _save : null,
-            child: const Text('Save'),
-          ),
-      ],
-    );
-  }
-}
-
-class _DeleteDialog extends StatefulWidget {
-  const _DeleteDialog({required this.onConfirm});
-
-  final Future<void> Function() onConfirm;
-
-  @override
-  State<_DeleteDialog> createState() => _DeleteDialogState();
-}
-
-class _DeleteDialogState extends State<_DeleteDialog> {
-  bool _isDeleting = false;
-  String? _error;
-
-  Future<void> _delete() async {
-    setState(() {
-      _isDeleting = true;
-      _error = null;
-    });
-    try {
-      await widget.onConfirm();
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() {
-          _isDeleting = false;
-          _error = e.toString();
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
-      title: const Text('Delete Thread'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Delete this thread? This cannot be undone.'),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isDeleting ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        if (_isDeleting)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else
-          TextButton(
-            onPressed: _delete,
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-      ],
     );
   }
 }

@@ -38,6 +38,7 @@ class ThreadListState {
   Future<void> refresh() => _fetch();
 
   Future<void> deleteThread(String threadId) async {
+    if (_isDisposed) return;
     await _connection.api.deleteThread(_roomId, threadId);
 
     final current = _threads.value;
@@ -48,13 +49,27 @@ class ThreadListState {
   }
 
   Future<void> renameThread(String threadId, String name) async {
+    if (_isDisposed) return;
+
+    // The backend replaces all metadata on update, so we must re-send
+    // existing fields to avoid losing them.
+    final current = _threads.value;
+    String? description;
+    if (current is ThreadsLoaded) {
+      final raw = current.threads
+          .where((t) => t.id == threadId)
+          .firstOrNull
+          ?.description;
+      if (raw != null && raw.isNotEmpty) description = raw;
+    }
+
     await _connection.api.updateThreadMetadata(
       _roomId,
       threadId,
       name: name,
+      description: description,
     );
 
-    final current = _threads.value;
     if (current is ThreadsLoaded) {
       final updated = current.threads.map((t) {
         if (t.id == threadId) return t.copyWith(name: name);

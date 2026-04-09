@@ -399,10 +399,6 @@ class SoliplexApi {
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
   /// - [threadId]: The thread ID (must not be empty)
-  /// - [name]: New thread name (null leaves unchanged)
-  /// - [description]: New thread description (null leaves unchanged)
-  ///
-  /// The backend returns 205 (Reset Content) on success.
   ///
   /// Throws:
   /// - [ArgumentError] if [roomId] or [threadId] is empty

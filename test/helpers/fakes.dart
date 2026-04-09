@@ -180,6 +180,7 @@ class FakeSoliplexApi extends SoliplexApi {
   int updateMetadataCallCount = 0;
   String? lastUpdatedThreadId;
   String? lastUpdatedName;
+  String? lastUpdatedDescription;
 
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
@@ -254,6 +255,7 @@ class FakeSoliplexApi extends SoliplexApi {
     updateMetadataCallCount++;
     lastUpdatedThreadId = threadId;
     lastUpdatedName = name;
+    lastUpdatedDescription = description;
     if (nextUpdateMetadataError != null) throw nextUpdateMetadataError!;
   }
 

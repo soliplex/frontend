@@ -867,7 +867,7 @@ void main() {
           capturedUri?.path,
           equals('/api/v1/rooms/room-123/agui/thread-456/meta'),
         );
-        expect(capturedBody, {'name': 'New Name', 'description': null});
+        expect(capturedBody, {'name': 'New Name'});
       });
 
       test('validates non-empty roomId', () {

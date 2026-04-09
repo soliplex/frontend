@@ -272,4 +272,216 @@ void main() {
 
     state.dispose();
   });
+
+  group('deleteThread', () {
+    test('navigates to next thread after deletion', () async {
+      final threads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second',
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = threads;
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      String? navigatedId;
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        onNavigateToThread: (id) => navigatedId = id,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.selectThread('thread-1');
+      expect(state.activeThreadView!.threadId, 'thread-1');
+
+      // After delete, list returns only thread-2.
+      api.nextThreads = [threads[1]];
+      await state.deleteThread('thread-1');
+
+      expect(state.activeThreadView!.threadId, 'thread-2');
+      expect(navigatedId, 'thread-2');
+
+      state.dispose();
+    });
+
+    test('navigates to null when last thread deleted', () async {
+      final threads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Only',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = threads;
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      String? navigatedId = 'not-called';
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        onNavigateToThread: (id) => navigatedId = id,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.selectThread('thread-1');
+
+      await state.deleteThread('thread-1');
+
+      expect(state.activeThreadView, isNull);
+      expect(navigatedId, isNull);
+
+      state.dispose();
+    });
+
+    test('preserves active view on API error', () async {
+      final threads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Test',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = threads;
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.selectThread('thread-1');
+      final viewBefore = state.activeThreadView;
+
+      api.nextDeleteThreadError = Exception('server error');
+      expect(
+        () => state.deleteThread('thread-1'),
+        throwsA(isA<Exception>()),
+      );
+
+      // Active view must be preserved on failure.
+      expect(state.activeThreadView, same(viewBefore));
+
+      state.dispose();
+    });
+
+    test('non-selected thread deletion preserves selection', () async {
+      final threads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second',
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = threads;
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      String? navigatedId = 'sentinel';
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        onNavigateToThread: (id) => navigatedId = id,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.selectThread('thread-1');
+
+      // Delete the non-selected thread.
+      await state.deleteThread('thread-2');
+
+      // thread-1 should still be selected, no navigation fired.
+      expect(state.activeThreadView!.threadId, 'thread-1');
+      expect(navigatedId, 'sentinel');
+
+      state.dispose();
+    });
+  });
+
+  group('renameThread', () {
+    test('delegates to threadList', () async {
+      final threads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Old Name',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = threads;
+
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await state.renameThread('thread-1', 'New Name');
+
+      expect(api.updateMetadataCallCount, 1);
+      expect(api.lastUpdatedName, 'New Name');
+
+      state.dispose();
+    });
+
+    test('propagates API error', () async {
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Test',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+
+      final state = RoomState(
+        connection: connection,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      api.nextUpdateMetadataError = Exception('server error');
+      expect(
+        () => state.renameThread('thread-1', 'New'),
+        throwsA(isA<Exception>()),
+      );
+
+      state.dispose();
+    });
+  });
 }

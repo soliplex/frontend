@@ -165,12 +165,13 @@ void main() {
     state.dispose();
   });
 
-  test('renameThread updates thread name in list', () async {
+  test('renameThread updates name and preserves description', () async {
     api.nextThreads = [
       ThreadInfo(
         id: 'thread-1',
         roomId: 'room-1',
         name: 'Old Name',
+        description: 'Important context',
         createdAt: DateTime(2026, 3, 1),
       ),
     ];
@@ -188,6 +189,7 @@ void main() {
     expect(api.updateMetadataCallCount, 1);
     expect(api.lastUpdatedThreadId, 'thread-1');
     expect(api.lastUpdatedName, 'New Name');
+    expect(api.lastUpdatedDescription, 'Important context');
 
     state.dispose();
   });
