@@ -1,4 +1,5 @@
 import 'package:soliplex_client/src/application/citation_extractor.dart';
+import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -17,7 +18,6 @@ void main() {
           'rag': {
             'qa_history': qaHistory,
             'citations': <Map<String, dynamic>>[],
-            'citation_registry': <String, int>{},
           },
         };
       }
@@ -175,7 +175,7 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('extracts citations from STATE_DELTA without citation_registry', () {
+      test('extracts citations from STATE_DELTA with minimal keys', () {
         final previous = createState();
         final current = <String, dynamic>{
           'rag': {
@@ -222,7 +222,6 @@ void main() {
                 'citations': <Map<String, dynamic>>[],
               },
             ],
-            'citation_registry': <String, int>{},
           },
         };
         final current = <String, dynamic>{
@@ -234,7 +233,6 @@ void main() {
                 'citations': <Map<String, dynamic>>[],
               },
             ],
-            'citation_registry': <String, int>{},
           },
         };
 
@@ -243,7 +241,7 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('returns citations when citation_registry is absent', () {
+      test('returns empty when new entry has no citations', () {
         final previous = <String, dynamic>{};
         final current = <String, dynamic>{
           'rag': {
@@ -260,6 +258,69 @@ void main() {
         final refs = extractor.extractNew(previous, current);
         expect(refs, isEmpty);
       });
+
+      test('returns empty when rag key is not a Map', () {
+        final previous = <String, dynamic>{};
+        final current = <String, dynamic>{'rag': 'not a map'};
+
+        final refs = extractor.extractNew(previous, current);
+        expect(refs, isEmpty);
+      });
+
+      test('returns empty when previous rag key is not a Map', () {
+        final previous = <String, dynamic>{'rag': 42};
+        final current = <String, dynamic>{
+          'rag': {
+            'qa_history': [
+              {
+                'question': 'Q1',
+                'answer': 'A1',
+                'citations': <Map<String, dynamic>>[],
+              },
+            ],
+          },
+        };
+
+        // Treats previous as empty (length 0), extracts from current
+        final refs = extractor.extractNew(previous, current);
+        expect(refs, isEmpty);
+      });
+
+      test('returns empty when qa_history is not a List', () {
+        final previous = <String, dynamic>{};
+        final current = <String, dynamic>{
+          'rag': {'qa_history': 'not a list'},
+        };
+
+        // qa_history length treated as 0 for both, no growth detected
+        final refs = extractor.extractNew(previous, current);
+        expect(refs, isEmpty);
+      });
+
+      test('returns empty on malformed qa_history entry', () {
+        final previous = <String, dynamic>{};
+        final current = <String, dynamic>{
+          'rag': {
+            'qa_history': [
+              {'question': 'Q1'},
+            ],
+          },
+        };
+
+        final refs = extractor.extractNew(previous, current);
+        expect(refs, isEmpty);
+      });
+    });
+
+    test('knownRagKeys matches Rag schema keys', () {
+      final schemaKeys = Rag().toJson().keys.toSet();
+      // _knownRagKeys is private; verify via ragStateKey-adjacent constant.
+      // Rag.toJson() uses snake_case keys matching the backend schema.
+      expect(
+        schemaKeys,
+        equals(knownRagKeys),
+        reason: '_knownRagKeys must stay in sync with Rag schema fields',
+      );
     });
   });
 }

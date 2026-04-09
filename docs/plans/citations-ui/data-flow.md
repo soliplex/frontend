@@ -57,8 +57,7 @@ Example payload:
         ]
       }
     ],
-    "citations": [ ... ],
-    "citation_registry": { ... }
+    "citations": [ ... ]
   }
 }
 ```
@@ -154,6 +153,6 @@ Python Citation (snake_case) → JSON → Dart Citation (generated, camelCase)
 | Conversation storage | `conversation.dart` |
 | Citation extraction | `citation_extractor.dart` |
 | Orchestrator coordination | `run_orchestrator.dart` |
-| Generated schema | `haiku_rag_chat.dart` |
+| Generated schema | `rag.dart` |
 | Domain: citations | `source_reference.dart` |
 | Domain: message metadata | `message_state.dart` |
