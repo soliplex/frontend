@@ -224,6 +224,51 @@ class _RoomScreenState extends State<RoomScreen> {
     context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
   }
 
+  Future<void> _showRenameDialog(String threadId) async {
+    final threadListStatus = _state.threadList.threads.value;
+    if (threadListStatus is! ThreadsLoaded) return;
+    final thread =
+        threadListStatus.threads.where((t) => t.id == threadId).firstOrNull;
+    if (thread == null) return;
+
+    final controller = TextEditingController(text: thread.name);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final nav = Navigator.of(dialogContext);
+        return _RenameDialog(
+          controller: controller,
+          originalName: thread.name,
+          onSave: (name) async {
+            await _state.renameThread(threadId, name);
+            nav.pop();
+          },
+        );
+      },
+    );
+    controller.dispose();
+  }
+
+  Future<void> _showDeleteDialog(String threadId) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final nav = Navigator.of(dialogContext);
+        return _DeleteDialog(
+          onConfirm: () async {
+            await _state.deleteThread(threadId);
+            nav.pop();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
@@ -249,6 +294,8 @@ class _RoomScreenState extends State<RoomScreen> {
             onRetryThreads: () => _state.threadList.refresh(),
             quizzes: room?.quizzes ?? const {},
             onQuizTapped: _onQuizTapped,
+            onRenameThread: _showRenameDialog,
+            onDeleteThread: _showDeleteDialog,
           );
           final content = _buildContent(room);
 
@@ -301,6 +348,14 @@ class _RoomScreenState extends State<RoomScreen> {
                     onRetryThreads: () => _state.threadList.refresh(),
                     quizzes: room?.quizzes ?? const {},
                     onQuizTapped: _onQuizTapped,
+                    onRenameThread: (id) {
+                      Navigator.pop(drawerContext);
+                      _showRenameDialog(id);
+                    },
+                    onDeleteThread: (id) {
+                      Navigator.pop(drawerContext);
+                      _showDeleteDialog(id);
+                    },
                   ),
                 ),
               ),
@@ -525,6 +580,193 @@ class _SendErrorBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({
+    required this.controller,
+    required this.originalName,
+    required this.onSave,
+  });
+
+  final TextEditingController controller;
+  final String originalName;
+  final Future<void> Function(String name) onSave;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  bool _isSaving = false;
+  String? _error;
+
+  bool get _canSave =>
+      !_isSaving &&
+      widget.controller.text.trim().isNotEmpty &&
+      widget.controller.text.trim() != widget.originalName;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTextChanged);
+    super.dispose();
+  }
+
+  void _onTextChanged() => setState(() {});
+
+  Future<void> _save() async {
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(widget.controller.text.trim());
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Rename Thread'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: widget.controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Thread name',
+            ),
+            onSubmitted: _canSave ? (_) => _save() : null,
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        if (_isSaving)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else
+          TextButton(
+            onPressed: _canSave ? _save : null,
+            child: const Text('Save'),
+          ),
+      ],
+    );
+  }
+}
+
+class _DeleteDialog extends StatefulWidget {
+  const _DeleteDialog({required this.onConfirm});
+
+  final Future<void> Function() onConfirm;
+
+  @override
+  State<_DeleteDialog> createState() => _DeleteDialogState();
+}
+
+class _DeleteDialogState extends State<_DeleteDialog> {
+  bool _isDeleting = false;
+  String? _error;
+
+  Future<void> _delete() async {
+    setState(() {
+      _isDeleting = true;
+      _error = null;
+    });
+    try {
+      await widget.onConfirm();
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Delete Thread'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Delete this thread? This cannot be undone.'),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isDeleting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        if (_isDeleting)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else
+          TextButton(
+            onPressed: _delete,
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+      ],
     );
   }
 }
