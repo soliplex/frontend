@@ -482,6 +482,33 @@ void main() {
         await controller.close();
         client.close();
       });
+
+      test('propagates refreshIfExpiringSoon error to caller', () async {
+        when(
+          () => mockRefresher.refreshIfExpiringSoon(),
+        ).thenThrow(const AuthException(message: 'Token expired'));
+
+        final client = RefreshingHttpClient(
+          inner: mockClient,
+          refresher: mockRefresher,
+        );
+
+        await expectLater(
+          client.requestStream('GET', Uri.parse('https://example.com/stream')),
+          throwsA(isA<AuthException>()),
+        );
+
+        verifyNever(
+          () => mockClient.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        );
+
+        client.close();
+      });
     });
 
     group('parameter forwarding', () {
