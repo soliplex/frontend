@@ -194,8 +194,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      final actionButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Go'),
+      final actionButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Go'),
       );
       expect(actionButton.onPressed, isNull);
     });
@@ -225,17 +225,20 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      final actionButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Delete'),
+      final actionButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Delete'),
       );
       final theme = Theme.of(
         tester.element(find.text('Delete').last),
       );
-      // The button style should set foreground to error color
+      // The destructive style fills with error and uses onError for the label.
       expect(actionButton.style, isNotNull);
-      final resolved =
+      final background =
+          actionButton.style!.backgroundColor!.resolve(<WidgetState>{});
+      final foreground =
           actionButton.style!.foregroundColor!.resolve(<WidgetState>{});
-      expect(resolved, theme.colorScheme.error);
+      expect(background, theme.colorScheme.error);
+      expect(foreground, theme.colorScheme.onError);
     });
   });
 
@@ -262,8 +265,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      final saveButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final saveButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Save'),
       );
       expect(saveButton.onPressed, isNull);
     });
@@ -293,8 +296,8 @@ void main() {
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
 
-      final saveButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final saveButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Save'),
       );
       expect(saveButton.onPressed, isNull);
     });
@@ -324,8 +327,8 @@ void main() {
       await tester.enterText(find.byType(TextField), '   ');
       await tester.pump();
 
-      final saveButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final saveButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Save'),
       );
       expect(saveButton.onPressed, isNull);
     });
@@ -355,8 +358,8 @@ void main() {
       await tester.enterText(find.byType(TextField), 'New Name');
       await tester.pump();
 
-      final saveButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final saveButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Save'),
       );
       expect(saveButton.onPressed, isNotNull);
     });

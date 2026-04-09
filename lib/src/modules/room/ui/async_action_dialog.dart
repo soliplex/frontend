@@ -108,11 +108,12 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
             ),
           )
         else
-          TextButton(
+          FilledButton(
             onPressed: widget.canSubmit ? _run : null,
             style: widget.isDestructive
-                ? TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
+                ? FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
                   )
                 : null,
             child: Text(widget.actionLabel),
@@ -168,11 +169,14 @@ class _RenameDialogState extends State<RenameDialog> {
       actionLabel: 'Save',
       canSubmit: _canSave,
       onAction: () => widget.onAction(_controller.text.trim()),
-      contentBuilder: (onSubmit) => TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: 'Thread name'),
-        onSubmitted: onSubmit != null ? (_) => onSubmit() : null,
+      contentBuilder: (onSubmit) => SizedBox(
+        width: 360,
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Thread name'),
+          onSubmitted: onSubmit != null ? (_) => onSubmit() : null,
+        ),
       ),
     );
   }
