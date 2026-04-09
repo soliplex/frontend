@@ -344,6 +344,52 @@ void main() {
     state.dispose();
   });
 
+  test('deleteThread skips API call when disposed', () async {
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Test',
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    ];
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    state.dispose();
+    await state.deleteThread('thread-1');
+
+    expect(api.deleteThreadCallCount, 0);
+  });
+
+  test(
+      'deleteThread when threads still loading calls API but skips local update',
+      () async {
+    // Never resolve the initial fetch — threads stay in loading state.
+    api.nextThreadsError = Exception('slow network');
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(state.threads.value, isA<ThreadsFailed>());
+
+    // Clear the error so deleteThread itself succeeds.
+    api.nextThreadsError = null;
+    await state.deleteThread('thread-1');
+
+    expect(api.deleteThreadCallCount, 1);
+    // Threads status unchanged — no optimistic removal possible.
+    expect(state.threads.value, isA<ThreadsFailed>());
+
+    state.dispose();
+  });
+
   test('refresh() returns a Future that completes after fetch', () async {
     api.nextThreads = [
       ThreadInfo(

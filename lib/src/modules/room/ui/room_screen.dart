@@ -225,23 +225,11 @@ class _RoomScreenState extends State<RoomScreen> {
     context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
   }
 
-  Future<void> _showRenameDialog(String threadId) async {
-    final threadListStatus = _state.threadList.threads.value;
-    if (threadListStatus is! ThreadsLoaded) {
-      debugPrint('Rename ignored: threads not loaded');
-      return;
-    }
-    final thread =
-        threadListStatus.threads.where((t) => t.id == threadId).firstOrNull;
-    if (thread == null) {
-      debugPrint('Rename ignored: thread $threadId not found');
-      return;
-    }
-
+  Future<void> _showRenameDialog(String threadId, String currentName) async {
     await showDialog<void>(
       context: context,
       builder: (_) => RenameDialog(
-        initialName: thread.name,
+        initialName: currentName,
         onAction: (name) => _state.renameThread(threadId, name),
       ),
     );
@@ -340,9 +328,9 @@ class _RoomScreenState extends State<RoomScreen> {
                     onRetryThreads: () => _state.threadList.refresh(),
                     quizzes: room?.quizzes ?? const {},
                     onQuizTapped: _onQuizTapped,
-                    onRenameThread: (id) {
+                    onRenameThread: (id, name) {
                       Navigator.pop(drawerContext);
-                      _showRenameDialog(id);
+                      _showRenameDialog(id, name);
                     },
                     onDeleteThread: (id) {
                       Navigator.pop(drawerContext);
