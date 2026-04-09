@@ -150,7 +150,7 @@ Future<ShellConfig> standard({
         serverManager: serverManager,
         runtimeManager: runtimeManager,
         registry: registry,
-        enableDocumentFilter: false,
+        enableDocumentFilter: true,
       ),
       quizModule(serverManager: serverManager),
       authModule(
