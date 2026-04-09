@@ -68,9 +68,7 @@ class _ThreadTileState extends State<ThreadTile> {
       icon: Icon(
         Icons.more_vert,
         size: 18,
-        color: widget.isSelected || _isHovered
-            ? theme.colorScheme.onSurface
-            : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+        color: theme.colorScheme.onSurfaceVariant,
       ),
       tooltip: 'Thread options',
       padding: EdgeInsets.zero,
