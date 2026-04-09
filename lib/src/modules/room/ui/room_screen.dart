@@ -231,19 +231,12 @@ class _RoomScreenState extends State<RoomScreen> {
         threadListStatus.threads.where((t) => t.id == threadId).firstOrNull;
     if (thread == null) return;
 
-    final controller = TextEditingController(text: thread.name);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
-    );
-
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         final nav = Navigator.of(dialogContext);
         return _RenameDialog(
-          controller: controller,
-          originalName: thread.name,
+          initialName: thread.name,
           onSave: (name) async {
             await _state.renameThread(threadId, name);
             nav.pop();
@@ -251,7 +244,6 @@ class _RoomScreenState extends State<RoomScreen> {
         );
       },
     );
-    controller.dispose();
   }
 
   Future<void> _showDeleteDialog(String threadId) async {
@@ -586,13 +578,11 @@ class _SendErrorBanner extends StatelessWidget {
 
 class _RenameDialog extends StatefulWidget {
   const _RenameDialog({
-    required this.controller,
-    required this.originalName,
+    required this.initialName,
     required this.onSave,
   });
 
-  final TextEditingController controller;
-  final String originalName;
+  final String initialName;
   final Future<void> Function(String name) onSave;
 
   @override
@@ -600,23 +590,29 @@ class _RenameDialog extends StatefulWidget {
 }
 
 class _RenameDialogState extends State<_RenameDialog> {
+  late final TextEditingController _controller;
   bool _isSaving = false;
   String? _error;
 
   bool get _canSave =>
       !_isSaving &&
-      widget.controller.text.trim().isNotEmpty &&
-      widget.controller.text.trim() != widget.originalName;
+      _controller.text.trim().isNotEmpty &&
+      _controller.text.trim() != widget.initialName;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onTextChanged);
+    _controller = TextEditingController(text: widget.initialName);
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
+    _controller.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onTextChanged);
+    _controller.dispose();
     super.dispose();
   }
 
@@ -628,7 +624,7 @@ class _RenameDialogState extends State<_RenameDialog> {
       _error = null;
     });
     try {
-      await widget.onSave(widget.controller.text.trim());
+      await widget.onSave(_controller.text.trim());
     } on Object catch (e) {
       if (mounted) {
         setState(() {
@@ -649,7 +645,7 @@ class _RenameDialogState extends State<_RenameDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
-            controller: widget.controller,
+            controller: _controller,
             autofocus: true,
             decoration: const InputDecoration(
               labelText: 'Thread name',
