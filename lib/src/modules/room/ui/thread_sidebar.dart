@@ -125,6 +125,8 @@ class ThreadSidebar extends StatelessWidget {
                       thread: thread,
                       isSelected: thread.id == selectedThreadId,
                       onTap: () => onThreadSelected(thread.id),
+                      onRename: () {},
+                      onDelete: () {},
                     );
                   },
                 ),

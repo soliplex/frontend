@@ -1,35 +1,111 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-class ThreadTile extends StatelessWidget {
+enum _ThreadAction { rename, delete }
+
+class ThreadTile extends StatefulWidget {
   const ThreadTile({
     super.key,
     required this.thread,
     required this.isSelected,
     required this.onTap,
+    required this.onRename,
+    required this.onDelete,
   });
 
   final ThreadInfo thread;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+
+  @override
+  State<ThreadTile> createState() => _ThreadTileState();
+}
+
+class _ThreadTileState extends State<ThreadTile> {
+  bool _isHovered = false;
+
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS ||
+        TargetPlatform.windows ||
+        TargetPlatform.linux =>
+          true,
+        _ => false,
+      };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer,
-      title: Text(
-        thread.hasName ? thread.name : 'Untitled',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    final showMenu = widget.isSelected || _isHovered || !_isDesktop;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: ListTile(
+        selected: widget.isSelected,
+        selectedTileColor: theme.colorScheme.primaryContainer,
+        title: Text(
+          widget.thread.hasName ? widget.thread.name : 'Untitled',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          _formatRelativeTime(widget.thread.createdAt),
+          style: theme.textTheme.bodySmall,
+        ),
+        dense: true,
+        onTap: widget.onTap,
+        trailing: showMenu ? _buildMenu(theme) : null,
       ),
-      subtitle: Text(
-        _formatRelativeTime(thread.createdAt),
-        style: theme.textTheme.bodySmall,
+    );
+  }
+
+  Widget _buildMenu(ThemeData theme) {
+    return PopupMenuButton<_ThreadAction>(
+      icon: Icon(
+        Icons.more_vert,
+        size: 18,
+        color: widget.isSelected || _isHovered
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
       ),
-      dense: true,
-      onTap: onTap,
+      tooltip: 'Thread options',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      onSelected: (action) {
+        switch (action) {
+          case _ThreadAction.rename:
+            widget.onRename();
+          case _ThreadAction.delete:
+            widget.onDelete();
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: _ThreadAction.rename,
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 18),
+              SizedBox(width: 12),
+              Text('Rename'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _ThreadAction.delete,
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline,
+                  size: 18, color: theme.colorScheme.error),
+              SizedBox(width: 12),
+              Text('Delete', style: TextStyle(color: theme.colorScheme.error)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
