@@ -232,7 +232,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -248,7 +249,7 @@ void main() {
           onDeleteThread: (_) {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -269,7 +270,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -285,7 +287,7 @@ void main() {
           onDeleteThread: (id) => deletedId = id,
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
