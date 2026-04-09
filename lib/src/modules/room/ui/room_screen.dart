@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -620,6 +621,19 @@ class _AsyncActionDialogState extends State<_AsyncActionDialog> {
         setState(() {
           _busy = false;
           _error = e.toString();
+        });
+      }
+    } catch (e, st) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: e,
+        stack: st,
+        library: 'room_screen',
+        context: ErrorDescription('during ${widget.title}'),
+      ));
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = kDebugMode ? 'BUG: $e' : 'An unexpected error occurred.';
         });
       }
     }

@@ -41,9 +41,9 @@ class ThreadListState {
     if (_isDisposed) return;
     await _connection.api.deleteThread(_roomId, threadId);
 
-    final current = _threads.value;
-    if (current is ThreadsLoaded) {
-      final updated = current.threads.where((t) => t.id != threadId).toList();
+    final latest = _threads.value;
+    if (latest is ThreadsLoaded) {
+      final updated = latest.threads.where((t) => t.id != threadId).toList();
       _threads.value = ThreadsLoaded(updated);
     }
   }
@@ -70,8 +70,9 @@ class ThreadListState {
       description: description,
     );
 
-    if (current is ThreadsLoaded) {
-      final updated = current.threads.map((t) {
+    final latest = _threads.value;
+    if (latest is ThreadsLoaded) {
+      final updated = latest.threads.map((t) {
         if (t.id == threadId) return t.copyWith(name: name);
         return t;
       }).toList();

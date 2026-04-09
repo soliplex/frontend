@@ -124,9 +124,11 @@ class RoomState {
   /// thread. Navigates to the next available thread, or null if none.
   Future<void> deleteThread(String threadId) async {
     await threadList.deleteThread(threadId);
+    unawaited(threadList.refresh());
 
     if (_activeThreadView?.threadId != threadId) return;
 
+    _activeThreadView?.cancelRun();
     _activeThreadView?.dispose();
     _activeThreadView = null;
 
@@ -142,6 +144,7 @@ class RoomState {
 
   Future<void> renameThread(String threadId, String name) async {
     await threadList.renameThread(threadId, name);
+    unawaited(threadList.refresh());
   }
 
   /// Implicit thread creation (send message with no thread selected).
