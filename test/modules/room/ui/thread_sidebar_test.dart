@@ -211,4 +211,78 @@ void main() {
 
     expect(find.byType(RefreshIndicator), findsNothing);
   });
+
+  testWidgets('rename callback propagates from ThreadTile', (tester) async {
+    String? renamedId;
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Thread One',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
+          onRenameThread: (id) => renamedId = id,
+          onDeleteThread: (_) {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+
+    expect(renamedId, 't-1');
+  });
+
+  testWidgets('delete callback propagates from ThreadTile', (tester) async {
+    String? deletedId;
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Thread One',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          onRetryThreads: () async {},
+          onRenameThread: (_) {},
+          onDeleteThread: (id) => deletedId = id,
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(deletedId, 't-1');
+  });
 }
