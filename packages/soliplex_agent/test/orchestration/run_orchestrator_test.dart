@@ -1723,6 +1723,153 @@ void main() {
       expect(entry.sourceReferences[1].chunkId, 'chunk-2');
     });
 
+    test('duplicate chunks across segments are deduplicated', () async {
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var callCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) {
+        callCount++;
+        if (callCount == 1) {
+          // Segment 1: ask() returns chunk-1 and chunk-2.
+          return Stream.fromIterable([
+            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const StateSnapshotEvent(
+              snapshot: {
+                'rag': {
+                  'qa_history': [
+                    {
+                      'question': 'Q1',
+                      'answer': 'A1',
+                      'citations': [
+                        {
+                          'chunk_id': 'chunk-1',
+                          'content': 'First',
+                          'document_id': 'doc-1',
+                          'document_uri': 'file:///doc1.pdf',
+                        },
+                        {
+                          'chunk_id': 'chunk-2',
+                          'content': 'Second',
+                          'document_id': 'doc-1',
+                          'document_uri': 'file:///doc1.pdf',
+                        },
+                      ],
+                    },
+                  ],
+                  'citation_registry': <String, int>{},
+                },
+              },
+            ),
+            const ToolCallStartEvent(
+              toolCallId: 'tc-1',
+              toolCallName: 'weather',
+            ),
+            const ToolCallArgsEvent(
+              toolCallId: 'tc-1',
+              delta: '{"city":"NYC"}',
+            ),
+            const ToolCallEndEvent(toolCallId: 'tc-1'),
+            const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+          ]);
+        }
+        // Segment 2: ask() returns chunk-2 (duplicate) and chunk-3 (new).
+        return Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-2'),
+          const TextMessageContentEvent(
+            messageId: 'msg-2',
+            delta: 'Done',
+          ),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'qa_history': [
+                  {
+                    'question': 'Q1',
+                    'answer': 'A1',
+                    'citations': [
+                      {
+                        'chunk_id': 'chunk-1',
+                        'content': 'First',
+                        'document_id': 'doc-1',
+                        'document_uri': 'file:///doc1.pdf',
+                      },
+                      {
+                        'chunk_id': 'chunk-2',
+                        'content': 'Second',
+                        'document_id': 'doc-1',
+                        'document_uri': 'file:///doc1.pdf',
+                      },
+                    ],
+                  },
+                  {
+                    'question': 'Q2',
+                    'answer': 'A2',
+                    'citations': [
+                      {
+                        'chunk_id': 'chunk-2',
+                        'content': 'Second',
+                        'document_id': 'doc-1',
+                        'document_uri': 'file:///doc1.pdf',
+                      },
+                      {
+                        'chunk_id': 'chunk-3',
+                        'content': 'Third',
+                        'document_id': 'doc-2',
+                        'document_uri': 'file:///doc2.pdf',
+                      },
+                    ],
+                  },
+                ],
+                'citation_registry': <String, int>{},
+              },
+            },
+          ),
+          const TextMessageEndEvent(messageId: 'msg-2'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]);
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Search',
+        toolExecutor: (pending) async {
+          return pending
+              .map(
+                (tc) => tc.copyWith(
+                  status: ToolCallStatus.completed,
+                  result: 'result',
+                ),
+              )
+              .toList();
+        },
+      );
+
+      expect(result, isA<CompletedState>());
+      final completed = result as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+
+      // chunk-2 appeared in both segments; should appear only once.
+      expect(refs, hasLength(3));
+      expect(refs[0].chunkId, 'chunk-1');
+      expect(refs[1].chunkId, 'chunk-2');
+      expect(refs[2].chunkId, 'chunk-3');
+    });
+
     test('reset clears citation state', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(citationEvents()));

@@ -719,10 +719,16 @@ class RunOrchestrator {
     _preRunAguiState = conversation.aguiState;
 
     final existing = conversation.messageStates[userMessageId];
-    final mergedCitations = [
+    final seenChunkIds = <String>{};
+    final mergedCitations = <SourceReference>[];
+    for (final ref in [
       if (existing != null) ...existing.sourceReferences,
       ...citations,
-    ];
+    ]) {
+      if (seenChunkIds.add(ref.chunkId)) {
+        mergedCitations.add(ref);
+      }
+    }
 
     final messageState = MessageState(
       userMessageId: userMessageId,
