@@ -46,7 +46,7 @@ class RoomState {
   final String _roomId;
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
-  final void Function(String threadId)? onNavigateToThread;
+  final void Function(String? threadId)? onNavigateToThread;
 
   final ThreadListState threadList;
   ThreadViewState? _activeThreadView;
@@ -118,6 +118,31 @@ class RoomState {
       _lastError.value = SendError(error);
       return null;
     }
+  }
+
+  /// Deletes a thread. Disposes the active view if it belongs to this
+  /// thread. Navigates to the next available thread, or null if none.
+  Future<void> deleteThread(String threadId) async {
+    if (_activeThreadView?.threadId == threadId) {
+      _activeThreadView?.dispose();
+      _activeThreadView = null;
+    }
+
+    await threadList.deleteThread(threadId);
+
+    final current = threadList.threads.value;
+    if (current is ThreadsLoaded && current.threads.isNotEmpty) {
+      final nextId = current.threads.first.id;
+      selectThread(nextId);
+      onNavigateToThread?.call(nextId);
+    } else {
+      onNavigateToThread?.call(null);
+    }
+  }
+
+  /// Renames a thread.
+  Future<void> renameThread(String threadId, String name) async {
+    await threadList.renameThread(threadId, name);
   }
 
   /// Implicit thread creation (send message with no thread selected).

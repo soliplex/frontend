@@ -168,7 +168,7 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
         runtimeManager: widget.runtimeManager,
         registry: widget.registry,
-        onNavigateToThread: _navigateToThread,
+        onNavigateToThread: (id) => _navigateToThread(id!),
       );
 
   void _navigateToThread(String threadId, {bool replace = false}) {
