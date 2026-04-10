@@ -445,6 +445,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final allEntries = [...roomEntries, ...threadEntries];
     final hasFiles = allEntries.isNotEmpty;
     final anyUploading = allEntries.any((e) => e.status is UploadUploading);
+    final anyFailed = allEntries.any((e) => e.status is UploadError);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -472,6 +473,12 @@ class _RoomScreenState extends State<RoomScreen> {
                         color: theme.colorScheme.primary,
                       ),
                     )
+                  else if (anyFailed)
+                    Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: theme.colorScheme.error,
+                    )
                   else
                     Icon(
                       Icons.attach_file,
@@ -485,13 +492,17 @@ class _RoomScreenState extends State<RoomScreen> {
                       threadEntries.length,
                     ),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
+                      color: anyFailed
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
                     ),
                   ),
                   Icon(
                     _filesExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
-                    color: theme.colorScheme.primary,
+                    color: anyFailed
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
                   ),
                 ],
               ),

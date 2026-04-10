@@ -55,7 +55,7 @@ void main() {
       expect(updated.first.status, isA<UploadSuccess>());
     });
 
-    test('tracks upload error', () async {
+    test('tracks upload error from API exception', () async {
       when(
         () => mockApi.uploadFileToRoom(
           any(),
@@ -85,6 +85,38 @@ void main() {
       expect(
         (entries.first.status as UploadError).message,
         contains('Server error'),
+      );
+    });
+
+    test('tracks upload error from network exception', () async {
+      when(
+        () => mockApi.uploadFileToRoom(
+          any(),
+          filename: any(named: 'filename'),
+          fileBytes: any(named: 'fileBytes'),
+          mimeType: any(named: 'mimeType'),
+        ),
+      ).thenAnswer(
+        (_) async => throw NetworkException(
+          message: 'Connection refused',
+        ),
+      );
+
+      tracker.uploadToRoom(
+        api: mockApi,
+        roomId: 'room-1',
+        filename: 'fail.txt',
+        fileBytes: [0],
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final entries = tracker.roomUploads('room-1').value;
+      expect(entries, hasLength(1));
+      expect(entries.first.status, isA<UploadError>());
+      expect(
+        (entries.first.status as UploadError).message,
+        contains('Connection refused'),
       );
     });
   });
