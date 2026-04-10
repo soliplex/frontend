@@ -6,6 +6,16 @@ import 'inline_code_builder.dart';
 import 'markdown_renderer.dart';
 import 'markdown_theme_extension.dart';
 
+final _brTag = RegExp(r'<br\s*/?>');
+
+String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
+
+String monospaceFont(TargetPlatform platform) {
+  final isApple =
+      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+  return isApple ? 'SF Mono' : 'Roboto Mono';
+}
+
 class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   const FlutterMarkdownPlusRenderer({
     required super.data,
@@ -17,10 +27,13 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   @override
   Widget build(BuildContext context) {
     final markdownTheme = Theme.of(context).extension<MarkdownThemeExtension>();
-    final monoStyle = _monospaceStyle(context);
+    final monoStyle = TextStyle(
+      fontFamily: monospaceFont(Theme.of(context).platform),
+      fontFamilyFallback: const ['monospace'],
+    );
 
     return MarkdownBody(
-      data: _sanitize(data),
+      data: sanitizeMarkdown(data),
       selectable: true,
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
@@ -38,18 +51,4 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       },
     );
   }
-
-  static TextStyle _monospaceStyle(BuildContext context) {
-    final platform = Theme.of(context).platform;
-    final isApple =
-        platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
-    return TextStyle(
-      fontFamily: isApple ? 'SF Mono' : 'Roboto Mono',
-      fontFamilyFallback: const ['monospace'],
-    );
-  }
-
-  static final _brTag = RegExp(r'<br\s*/?>');
-
-  static String _sanitize(String markdown) => markdown.replaceAll(_brTag, '\n');
 }
