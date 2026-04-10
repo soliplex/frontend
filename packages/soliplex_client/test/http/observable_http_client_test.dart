@@ -1288,6 +1288,33 @@ void main() {
           expect(responseEvent.body, isNot(contains('secret123')));
         },
       );
+
+      test('redacts binary upload body without decoding', () async {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(
+            statusCode: 204,
+            bodyBytes: Uint8List(0),
+          ),
+        );
+
+        await observableClient.request(
+          'POST',
+          Uri.parse('https://example.com/uploads/room-1'),
+          headers: {'content-type': 'multipart/form-data; boundary=abc123'},
+          body: List<int>.filled(1000, 0xFF),
+        );
+
+        final requestEvent = recorder.eventsOfType<HttpRequestEvent>().first;
+        expect(requestEvent.body, equals('<binary upload: 1000 bytes>'));
+      });
     });
 
     group('SSE stream request data', () {
