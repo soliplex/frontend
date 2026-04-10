@@ -284,4 +284,83 @@ void main() {
       expect(removed, doc);
     });
   });
+
+  group('attach file button', () {
+    testWidgets('shows when onAttachFile provided', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              onAttachFile: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
+
+    testWidgets('hidden when onAttachFile is null', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.attach_file), findsNothing);
+    });
+
+    testWidgets('disabled during active run', (tester) async {
+      bool attachCalled = false;
+      final sessionState =
+          signal<AgentSessionState?>(AgentSessionState.running);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              sessionState: sessionState,
+              onAttachFile: () => attachCalled = true,
+            ),
+          ),
+        ),
+      );
+
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.attach_file),
+      );
+      expect(button.onPressed, isNull);
+      expect(attachCalled, isFalse);
+
+      sessionState.dispose();
+    });
+
+    testWidgets('calls onAttachFile when tapped', (tester) async {
+      bool attachCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              onAttachFile: () => attachCalled = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.attach_file));
+      expect(attachCalled, isTrue);
+    });
+  });
 }

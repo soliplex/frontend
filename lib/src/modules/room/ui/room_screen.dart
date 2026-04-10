@@ -33,6 +33,17 @@ import '../upload_tracker.dart';
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;
 
+/// Builds the label for the file indicator chip in the room header.
+///
+/// Shows separate counts for room and thread uploads.
+String uploadChipLabel(int roomCount, int threadCount) {
+  if (roomCount > 0 && threadCount > 0) {
+    return '$roomCount room \u00b7 $threadCount thread';
+  }
+  if (roomCount > 0) return '$roomCount room';
+  return '$threadCount thread';
+}
+
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
     super.key,
@@ -519,13 +530,8 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  String _chipLabel(int roomCount, int threadCount) {
-    if (roomCount > 0 && threadCount > 0) {
-      return '$roomCount room \u00b7 $threadCount thread';
-    }
-    if (roomCount > 0) return '$roomCount room';
-    return '$threadCount thread';
-  }
+  String _chipLabel(int roomCount, int threadCount) =>
+      uploadChipLabel(roomCount, threadCount);
 
   Widget _buildFilePanel(
     List<UploadEntry> roomEntries,
