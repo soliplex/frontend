@@ -18,6 +18,7 @@ import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
+import 'package:soliplex_client/src/http/multipart_encoder.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 
@@ -973,6 +974,59 @@ class SoliplexApi {
     final schemas = response['schemas'] as Map<String, dynamic>?;
     if (schemas == null) return {};
     return schemas.map((k, v) => MapEntry(k, v as String));
+  }
+
+  // ============================================================
+  // Uploads
+  // ============================================================
+
+  /// Uploads a file to a room's shared upload directory.
+  ///
+  /// The backend stores the file at `{upload_path}/rooms/{roomId}/`.
+  /// Requires admin access.
+  Future<void> uploadFileToRoom(
+    String roomId, {
+    required String filename,
+    required List<int> fileBytes,
+    String mimeType = 'application/octet-stream',
+  }) async {
+    final encoded = encodeMultipart(
+      fieldName: 'upload_file',
+      filename: filename,
+      fileBytes: fileBytes,
+      mimeType: mimeType,
+    );
+    await _transport.request<void>(
+      'POST',
+      _urlBuilder.build(pathSegments: ['uploads', roomId]),
+      body: encoded.bodyBytes,
+      headers: {'content-type': encoded.contentType},
+    );
+  }
+
+  /// Uploads a file to a thread's upload directory.
+  ///
+  /// The backend stores the file at `{upload_path}/threads/{threadId}/`.
+  /// Requires room membership and a valid thread ID.
+  Future<void> uploadFileToThread(
+    String roomId,
+    String threadId, {
+    required String filename,
+    required List<int> fileBytes,
+    String mimeType = 'application/octet-stream',
+  }) async {
+    final encoded = encodeMultipart(
+      fieldName: 'upload_file',
+      filename: filename,
+      fileBytes: fileBytes,
+      mimeType: mimeType,
+    );
+    await _transport.request<void>(
+      'POST',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]),
+      body: encoded.bodyBytes,
+      headers: {'content-type': encoded.contentType},
+    );
   }
 
   // ============================================================

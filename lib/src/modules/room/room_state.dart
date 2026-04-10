@@ -7,6 +7,7 @@ import 'agent_runtime_manager.dart';
 import 'run_registry.dart';
 import 'thread_list_state.dart';
 import 'thread_view_state.dart';
+import 'upload_tracker.dart';
 
 export 'send_error.dart';
 
@@ -38,7 +39,8 @@ class RoomState {
         threadList = ThreadListState(
           connection: connection,
           roomId: roomId,
-        ) {
+        ),
+        uploadTracker = UploadTracker() {
     _fetchRoom();
   }
 
@@ -49,6 +51,7 @@ class RoomState {
   final void Function(String? threadId)? onNavigateToThread;
 
   final ThreadListState threadList;
+  final UploadTracker uploadTracker;
   ThreadViewState? _activeThreadView;
   CancelToken? _roomFetchToken;
   Future<AgentSession>? _pendingSpawn;
@@ -205,6 +208,7 @@ class RoomState {
   void dispose() {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
+    uploadTracker.dispose();
     threadList.dispose();
     _activeThreadView?.dispose();
   }

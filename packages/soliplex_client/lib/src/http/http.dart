@@ -4,6 +4,7 @@ export 'dart_http_client.dart';
 export 'http_observer.dart';
 export 'http_response.dart';
 export 'http_transport.dart';
+export 'multipart_encoder.dart';
 export 'observable_http_client.dart';
 export 'refreshing_http_client.dart';
 export 'soliplex_http_adapter.dart';
