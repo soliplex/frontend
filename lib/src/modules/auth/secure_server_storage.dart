@@ -33,17 +33,28 @@ class SecureServerStorage implements ServerStorage {
   @override
   Future<Map<String, PersistedServer>> loadAll() async {
     final all = await _storage.readAll();
-    final result = <String, PersistedServer>{};
-    for (final entry in all.entries) {
-      if (!entry.key.startsWith(_prefix)) continue;
-      try {
-        final serverId = entry.key.substring(_prefix.length);
-        final json = jsonDecode(entry.value) as Map<String, dynamic>;
-        result[serverId] = PersistedServer.fromJson(json);
-      } catch (e, st) {
-        debugPrint('Failed to load stored session ${entry.key}: $e\n$st');
-      }
-    }
-    return result;
+    return deserializeStorageEntries(all, prefix: _prefix);
   }
+}
+
+/// Deserializes raw storage entries into [PersistedServer] instances.
+///
+/// Filters to keys matching [prefix], strips the prefix to recover the
+/// server ID, and silently skips entries that fail JSON deserialization.
+Map<String, PersistedServer> deserializeStorageEntries(
+  Map<String, String> raw, {
+  required String prefix,
+}) {
+  final result = <String, PersistedServer>{};
+  for (final entry in raw.entries) {
+    if (!entry.key.startsWith(prefix)) continue;
+    try {
+      final serverId = entry.key.substring(prefix.length);
+      final json = jsonDecode(entry.value) as Map<String, dynamic>;
+      result[serverId] = PersistedServer.fromJson(json);
+    } catch (e, st) {
+      debugPrint('Failed to load stored session ${entry.key}: $e\n$st');
+    }
+  }
+  return result;
 }
