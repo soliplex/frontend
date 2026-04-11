@@ -11,7 +11,7 @@ dependencies:
   dart_monty:
     git:
       url: https://github.com/runyaga/dart_monty.git
-      ref: feat/api-design
+      ref: fix/fresh-interpreter-per-execute
   meta: ^1.9.0
   soliplex_client:
     path: ../soliplex_client
