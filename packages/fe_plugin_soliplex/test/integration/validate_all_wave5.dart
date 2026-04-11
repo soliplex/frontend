@@ -67,10 +67,13 @@ thread
     session,
     '1. BASELINE',
     'Read monty-rules.md for coding rules. Read baseline.txt for the problem. '
+        'The experiment data is also available in the sandbox at /data/baseline.txt — '
+        'you can read it with Path("/data/baseline.txt").read_text(). '
         'Write a monty program that solves the construction scheduling. '
         'Rules: use = not :=, use enumerate(x) not enumerate(x, start=N), '
-        'use d["key"] not d.key. '
+        'use d["key"] not d.key, no open(), no % formatting. '
         'Track jobs as dict, loop day by day, check weather/deps/workers. '
+        'IMPORTANT: collect all assignments for a day FIRST, then mark jobs done AFTER the day loop. '
         'Last expression = the schedule dict.',
   );
 
@@ -78,9 +81,11 @@ thread
   await _runExperiment(
     session,
     '2. OPTIMAL SCHEDULE',
-    'Read schedule.txt. Write monty code for OPTIMAL scheduling — finish ASAP. '
+    'Read schedule.txt (also at /data/schedule.txt in sandbox). '
+        'Write monty code for OPTIMAL scheduling — finish ALL jobs ASAP. '
         'Same rules. Greedy: each day assign max ready jobs. '
-        'Remember: = not :=, enumerate(x) not enumerate(x, start=1), d["key"] not d.key. '
+        'IMPORTANT: collect day assignments first, mark done AFTER. '
+        'Remember: = not :=, enumerate(x), d["key"], no open(), no %. '
         'Last expression = schedule dict.',
   );
 
@@ -88,9 +93,12 @@ thread
   await _runExperiment(
     session,
     '3. DISRUPTION',
-    'Read disruption.txt. Simulate day-by-day with disruptions. '
+    'Read disruption.txt (also at /data/disruption.txt in sandbox). '
+        'Simulate day-by-day with disruptions. '
         'Alice the framer is sick on day 2 — skip her jobs that day. '
-        'Same rules: = not :=, enumerate(x), d["key"]. '
+        'Use Path("/data/disruption.txt").read_text() if you need to read the file. '
+        'No open()! Same rules: = not :=, enumerate(x), d["key"], no %. '
+        'IMPORTANT: collect day assignments first, mark done AFTER. '
         'Track executed_schedule and disruptions list. '
         'Last expression = {"executed_schedule": ..., "disruptions": [...]}.',
   );
@@ -99,11 +107,11 @@ thread
   await _runExperiment(
     session,
     '4. INFEASIBLE ANALYSIS',
-    'Read infeasible.txt. 5 houses x 3 jobs = 15 jobs, 3 workers, 3-day deadline, day 1 rain. '
-        'Do NOT try to schedule — analyze feasibility mathematically. '
-        'Count: max worker-days = 3 workers x 3 days = 9 slots. '
-        'But 15 jobs needed. 9 < 15, so infeasible. '
-        'Same rules: = not :=, d["key"]. '
+    'Read infeasible.txt (also at /data/infeasible.txt in sandbox). '
+        '5 houses x 3 jobs = 15 jobs, 3 workers, 3-day deadline, day 1 rain. '
+        'Analyze feasibility mathematically — do NOT try to build a schedule. '
+        'Count slots: max worker-days = 3 workers x 3 days = 9. Need 15. 9 < 15. '
+        'Same rules: = not :=, d["key"], no %, use f-strings. '
         'Last expression = {"status": "infeasible"/"feasible", "reason": "...", "analysis": {...}}.',
   );
 
@@ -115,12 +123,17 @@ thread
 Future<void> _upload(AgentSession session, String name, String content) async {
   final escaped =
       content.replaceAll('\\', '\\\\').replaceAll("'''", "\\'\\'\\'");
+  // Upload to server thread (bwrap agent reads this)
+  // AND write to monty sandbox filesystem (generated code reads this)
   await session.execute("""
 import json
+from pathlib import Path
 soliplex_upload_to_thread("local", "bwrap_sandbox", thread, "$name", '''$escaped''')
+Path("/data").mkdir(parents=True, exist_ok=True)
+Path("/data/$name").write_text('''$escaped''')
 "ok"
 """);
-  print('  Uploaded $name');
+  print('  Uploaded $name (server + sandbox /data/$name)');
 }
 
 Future<void> _runExperiment(
