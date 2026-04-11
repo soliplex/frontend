@@ -88,5 +88,7 @@
 		</dict>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Soliplex needs access to select documents and images for upload to conversations.</string>
 	</dict>
 </plist>
