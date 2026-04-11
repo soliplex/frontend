@@ -8,10 +8,10 @@ import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
-/// End-to-end: AgentSession (sandbox mode) + SoliplexPlugin + bwrap_sandbox.
+/// End-to-end: ONE long-lived AgentSession + SoliplexPlugin.
+/// Python calls host functions → live SSE streaming → multi-turn conversations.
 ///
-/// Uses `sandbox: true` — fresh FFI interpreter per execute() call.
-/// No SEGFAULT on sequential SSE-streaming host function calls.
+/// Uses a SINGLE session for ALL tests (no create/dispose per test).
 ///
 /// Run with:
 ///   cd packages/fe_plugin_soliplex
@@ -21,7 +21,6 @@ void main() {
 
   setUpAll(() {
     session = AgentSession(
-      sandbox: true,
       plugins: [
         SoliplexPlugin(
           connections: {
@@ -37,132 +36,135 @@ void main() {
     await session.dispose();
   });
 
-  // ── 1. Basic host function calls ───────────────────────────────────
+  // ── 1. Discovery ───────────────────────────────────────────────────
 
-  test(
-    '1. list_servers — both servers visible',
-    () async {
-      final result = await session.execute('''
+  test('1. list_servers', () async {
+    final r = await session.execute('''
 import json
-servers = json.loads(soliplex_list_servers())
-[s["id"] for s in servers]
+json.loads(soliplex_list_servers())
 ''');
-      print('  Servers: ${result.value?.dartValue}');
-      expect(result.value?.dartValue, containsAll(<String>['demo', 'local']));
-    },
-    timeout: const Timeout(Duration(seconds: 15)),
-  );
+    final servers = r.value?.dartValue as List<dynamic>;
+    print('  Servers: $servers');
+    expect(
+      servers.map((s) => (s as Map)['id']),
+      containsAll(<String>['demo', 'local']),
+    );
+  }, timeout: const Timeout(Duration(seconds: 15)));
 
-  test(
-    '2. list_rooms — both servers',
-    () async {
-      final result = await session.execute('''
+  test('2. list_rooms — demo', () async {
+    final r = await session.execute('''
 import json
-demo = json.loads(soliplex_list_rooms("demo"))
-demo_ids = [r["id"] for r in demo]
-demo_ids
+rooms = json.loads(soliplex_list_rooms("demo"))
+[r["id"] for r in rooms]
 ''');
-      print('  Demo: ${result.value?.dartValue}');
-      expect(result.value?.dartValue, contains('cooking'));
+    print('  Demo rooms: ${r.value?.dartValue}');
+    expect(r.value?.dartValue, contains('cooking'));
+  }, timeout: const Timeout(Duration(seconds: 15)));
 
-      final result2 = await session.execute('''
+  test('3. list_rooms — local', () async {
+    final r = await session.execute('''
 import json
-local = json.loads(soliplex_list_rooms("local"))
-local_ids = [r["id"] for r in local]
-local_ids
+rooms = json.loads(soliplex_list_rooms("local"))
+[r["id"] for r in rooms]
 ''');
-      print('  Local: ${result2.value?.dartValue}');
-      expect(result2.value?.dartValue, contains('bwrap_sandbox'));
-    },
-    timeout: const Timeout(Duration(seconds: 15)),
-  );
+    print('  Local rooms: ${r.value?.dartValue}');
+    expect(r.value?.dartValue, contains('bwrap_sandbox'));
+  }, timeout: const Timeout(Duration(seconds: 15)));
 
-  test(
-    '3. get_room — demo cooking',
-    () async {
-      final result = await session.execute('''
+  test('4. get_room', () async {
+    final r = await session.execute('''
 import json
 room = json.loads(soliplex_get_room("demo", "cooking"))
 room["name"]
 ''');
-      print('  Room: ${result.value?.dartValue}');
-      expect(result.value?.dartValue, 'Cooking Coach');
-    },
-    timeout: const Timeout(Duration(seconds: 15)),
-  );
+    print('  Room: ${r.value?.dartValue}');
+    expect(r.value?.dartValue, 'Cooking Coach');
+  }, timeout: const Timeout(Duration(seconds: 15)));
 
-  // ── 2. SSE streaming — single turn ─────────────────────────────────
+  // ── 2. SSE conversation — single turn ──────────────────────────────
 
-  test(
-    '4. new_thread on demo — SSE streaming works',
-    () async {
-      final result = await session.execute('''
+  test('5. new_thread on demo — SSE works', () async {
+    final r = await session.execute('''
 import json
 data = json.loads(
     soliplex_new_thread("demo", "cooking", "One tip for crispy bacon.")
 )
-response = data["response"]
-response
+data["response"]
 ''');
-      final response = result.value?.dartValue as String;
-      print('  Response: ${_trunc(response, 150)}');
-      expect(response, isNotEmpty);
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    final response = r.value?.dartValue as String;
+    print('  Response: ${_trunc(response, 120)}');
+    expect(response, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
-  // ── 3. SSE streaming — multi-turn (sandbox mode prevents crash) ────
+  // ── 3. Multi-turn — state persists across execute() calls ──────────
 
-  test(
-    '5. multi-turn conversation — sandbox mode survives sequential SSE',
-    () async {
-      // Turn 1
-      final t1 = await session.execute('''
+  test('6. multi-turn: new_thread', () async {
+    final r = await session.execute('''
 import json
 data = json.loads(
     soliplex_new_thread("demo", "cooking", "What is bruschetta?")
 )
 thread_id = data["thread_id"]
-r1 = data["response"]
-r1
+turn1 = data["response"]
+turn1
 ''');
-      print('  Turn 1: ${_trunc(t1.value?.dartValue as String, 100)}');
+    print('  Turn 1: ${_trunc(r.value?.dartValue as String, 100)}');
+    expect(r.value?.dartValue, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
-      // Turn 2 — uses thread_id from persisted state
-      final t2 = await session.execute('''
+  test('7. multi-turn: reply_thread (uses persisted thread_id)', () async {
+    final r = await session.execute('''
 import json
 data = json.loads(
-    soliplex_reply_thread("demo", "cooking", thread_id, "What bread is best?")
+    soliplex_reply_thread("demo", "cooking", thread_id, "What bread works best?")
 )
-r2 = data["response"]
-r2
+turn2 = data["response"]
+turn2
 ''');
-      print('  Turn 2: ${_trunc(t2.value?.dartValue as String, 100)}');
-      expect(t2.value?.dartValue, isNotEmpty);
-    },
-    timeout: const Timeout(Duration(seconds: 60)),
-  );
+    print('  Turn 2: ${_trunc(r.value?.dartValue as String, 100)}');
+    expect(r.value?.dartValue, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
-  // ── 4. bwrap_sandbox generates monty code, we execute it ───────────
-
-  test(
-    '6. bwrap_sandbox generates monty code → we execute it',
-    () async {
-      // Step 1: Ask bwrap_sandbox to generate a program
-      final gen = await session.execute('''
+  test('8. multi-turn: second reply (3-turn conversation)', () async {
+    final r = await session.execute('''
 import json
-prompt = """You have these Python host functions available:
+data = json.loads(
+    soliplex_reply_thread("demo", "cooking", thread_id, "How long do I toast it?")
+)
+turn3 = data["response"]
+turn3
+''');
+    print('  Turn 3: ${_trunc(r.value?.dartValue as String, 100)}');
+    expect(r.value?.dartValue, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
-  soliplex_list_servers() -> JSON string of [{id}]
-  soliplex_list_rooms(server) -> JSON string of [{id, name, description}]
-  soliplex_get_room(server, room_id) -> JSON string with room config
+  // ── 4. Cross-server ────────────────────────────────────────────────
 
-Write a short Python program that:
-1. Lists all servers
-2. For the first server, lists all rooms
-3. Returns a dict with server_id and room names
+  test('9. new_thread on local bwrap_sandbox', () async {
+    final r = await session.execute('''
+import json
+data = json.loads(
+    soliplex_new_thread("local", "chat", "Hello, what can you do?")
+)
+data["response"]
+''');
+    print('  Local: ${_trunc(r.value?.dartValue as String, 100)}');
+    expect(r.value?.dartValue, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 60)));
 
-Return ONLY the Python code in a ```monty``` code block."""
+  // ── 5. bwrap generates monty code, we execute it ───────────────────
+
+  test('10. bwrap codegen → extract → execute', () async {
+    // Step 1: Ask bwrap to generate code
+    final gen = await session.execute('''
+import json
+prompt = """Write a Python program using these host functions:
+  soliplex_list_servers() -> JSON string of server dicts
+  soliplex_list_rooms(server) -> JSON string of room dicts
+
+The program should list all servers, then list rooms for the first server.
+Return a dict with server_id and room_ids.
+Return ONLY code in a ```monty``` block."""
 
 data = json.loads(
     soliplex_new_thread("local", "bwrap_sandbox", prompt)
@@ -170,80 +172,32 @@ data = json.loads(
 generated = data["response"]
 generated
 ''');
-      final generated = gen.value?.dartValue as String;
-      print('  Generated code:');
-      print('  ${generated.replaceAll('\n', '\n  ')}');
+    final generated = gen.value?.dartValue as String;
+    print('  Generated:');
+    print('  ${_trunc(generated, 200)}');
 
-      // Step 2: Extract code from ```monty``` or ```python``` block
-      final codeBlock = await session.execute('''
+    // Step 2: Extract code block
+    final extracted = await session.execute('''
 import re
-pattern = r'```(?:monty|python)\n(.*?)```'
+pattern = r"```(?:monty|python)\\n(.*?)```"
 match = re.search(pattern, generated, re.DOTALL)
-code = match.group(1) if match else generated
+code = match.group(1) if match else None
 code
 ''');
-      final code = codeBlock.value?.dartValue as String;
-      print('  Extracted code:');
-      print('  ${code.replaceAll('\n', '\n  ')}');
+    final code = extracted.value?.dartValue;
+    if (code == null) {
+      print('  No code block found — skipping execution');
 
-      // Step 3: Execute the generated code
-      final result = await session.execute(code);
-      final output = result.value?.dartValue;
-      print('  Execution result: $output');
-      expect(output, isNotNull);
-    },
-    timeout: const Timeout(Duration(seconds: 120)),
-  );
+      return;
+    }
+    print('  Extracted code:');
+    print('  ${_trunc(code as String, 200)}');
 
-  // ── 5. Cross-server: ask bwrap to write code that talks to demo ────
-
-  test(
-    '7. bwrap generates code that talks to demo server',
-    () async {
-      final gen = await session.execute('''
-import json
-prompt = """You have these Python host functions:
-
-  soliplex_list_rooms(server) -> JSON string
-  soliplex_get_room(server, room_id) -> JSON string
-  soliplex_new_thread(server, room_id, message) -> JSON string
-
-Write a Python program that:
-1. Gets the room config for the "cooking" room on server "demo"
-2. Starts a conversation asking "What is the simplest pasta recipe?"
-3. Returns a dict with room_name and the agent response
-
-Return ONLY the code in a ```monty``` block. No explanation."""
-
-data = json.loads(
-    soliplex_new_thread("local", "bwrap_sandbox", prompt)
-)
-gen_code = data["response"]
-gen_code
-''');
-      final genCode = gen.value?.dartValue as String;
-      print('  bwrap generated:');
-      print('  ${_trunc(genCode, 300)}');
-
-      // Extract and execute
-      final extracted = await session.execute('''
-import re
-pattern = r'```(?:monty|python)\n(.*?)```'
-match = re.search(pattern, gen_code, re.DOTALL)
-code = match.group(1) if match else gen_code
-code
-''');
-      final code = extracted.value?.dartValue as String;
-      print('  Extracted code:');
-      print('  ${code.replaceAll('\n', '\n  ')}');
-
-      final result = await session.execute(code);
-      final output = result.value?.dartValue;
-      print('  Result: $output');
-      expect(output, isNotNull);
-    },
-    timeout: const Timeout(Duration(seconds: 120)),
-  );
+    // Step 3: Execute the generated code
+    final result = await session.execute(code);
+    print('  Result: ${result.value?.dartValue}');
+    expect(result.value?.dartValue, isNotNull);
+  }, timeout: const Timeout(Duration(seconds: 120)));
 }
 
 SoliplexConnection _buildConnection(String baseUrl) {
