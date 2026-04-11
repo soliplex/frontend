@@ -18,6 +18,11 @@ void main() {
 
   setUpAll(() {
     session = AgentSession(
+      os: OsProvider.compose({
+        'Path.': MemoryFsProvider(),
+        'date.': TimeOsProvider(),
+        'datetime.': TimeOsProvider(),
+      }),
       plugins: [
         SoliplexPlugin(
           connections: {
@@ -25,6 +30,8 @@ void main() {
             'local': _buildConnection('http://localhost:8000'),
           },
         ),
+        DinjaTemplatePlugin(),
+        MessageBusPlugin(),
       ],
     );
   });
@@ -454,10 +461,257 @@ extracted_code
     timeout: const Timeout(Duration(seconds: 120)),
   );
 
-  // ── 9. Original test 8 ─────────────────────────────────────────────
+  // ── 9. Upload expanded ruleset with ALL plugins ─────────────────────
 
   test(
-    '9. bwrap inline codegen',
+    '9. Upload full ruleset with all plugins',
+    () async {
+      await session.execute('''
+import json
+
+# Create a fresh thread for advanced codegen
+t = json.loads(soliplex_new_thread("local", "bwrap_sandbox", "Setting up environment."))
+adv_thread = t["thread_id"]
+
+ruleset = """# Monty Sandbox — Complete API Reference
+
+You are writing code for Monty, a sandboxed Python interpreter with host functions.
+
+## RULES
+1. All host functions that return data return JSON STRINGS. Use json.loads().
+2. import json at the top.
+3. The last expression is the return value.
+4. Return code in a ```monty``` code block ONLY. No explanation outside it.
+
+## Host Functions
+
+### Soliplex — Server Communication
+- soliplex_list_servers() -> JSON [{id}]
+- soliplex_list_rooms(server) -> JSON [{id, name, description}]
+- soliplex_get_room(server, room_id) -> JSON {id, name, description, skills, tools}
+- soliplex_new_thread(server, room_id, message) -> JSON {thread_id, run_id, response}
+- soliplex_reply_thread(server, room_id, thread_id, message) -> JSON {thread_id, run_id, response}
+- soliplex_upload_file(server, room_id, filename, content) -> JSON {uploaded, room_id}
+- soliplex_upload_to_thread(server, room_id, thread_id, filename, content) -> JSON
+- soliplex_list_threads(server, room_id) -> JSON of thread list
+
+### Template Engine (Jinja2-style)
+- tmpl_render(template_string, context_dict) -> rendered string (NOT JSON)
+  Example: tmpl_render("Hello {{ name }}!", {"name": "World"}) -> "Hello World!"
+
+### Message Bus (inter-step FIFO queues)
+- msg_send(channel, message) -> None (fire-and-forget)
+- msg_recv(channel) -> message string (blocks until available)
+- msg_peek(channel) -> message or None (non-blocking)
+
+### Filesystem (in-memory sandbox)
+- from pathlib import Path
+- Path("/path").write_text(content) — write file
+- Path("/path").read_text() — read file
+- Path("/path").mkdir(parents=True, exist_ok=True) — create dirs
+- Path("/path").exists() — check existence
+
+## Servers
+- "demo" — demo.toughserv.com: cooking, chat, image_generation, soliplex (RAG)
+- "local" — localhost:8000: analysis, bwrap_sandbox, chat, search, feedback
+
+## Patterns
+
+### Pipeline with message bus
+```monty
+import json
+# Step 1: get data
+msg_send("pipeline", json.dumps({"step": "fetch", "data": "..."}))
+# Step 2: process
+raw = msg_recv("pipeline")
+# Step 3: template
+result = tmpl_render("Report: {{ data }}", {"data": raw})
+```
+
+### File caching
+```monty
+from pathlib import Path
+import json
+if not Path("/cache/rooms.json").exists():
+    rooms = soliplex_list_rooms("demo")
+    Path("/cache").mkdir(parents=True, exist_ok=True)
+    Path("/cache/rooms.json").write_text(rooms)
+cached = json.loads(Path("/cache/rooms.json").read_text())
+```
+"""
+
+soliplex_upload_to_thread("local", "bwrap_sandbox", adv_thread, "monty-complete-rules.md", ruleset)
+adv_thread
+''');
+      print('  Advanced thread: ${session.state['adv_thread'] ?? 'set'}');
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  // ── 10. Generate pipeline: fetch → cache → template → report ───────
+
+  test(
+    '10. Codegen: data pipeline with caching and templates',
+    () async {
+      final gen = await session.execute('''
+import json
+resp = json.loads(soliplex_reply_thread(
+    "local", "bwrap_sandbox", adv_thread,
+    "Read monty-complete-rules.md. Write a program that: "
+    "1) Fetches all rooms from demo server, "
+    "2) Saves the raw JSON to /cache/demo_rooms.json using pathlib, "
+    "3) Uses tmpl_render to create a markdown report listing each room name and description, "
+    "4) Saves the report to /reports/rooms.md, "
+    "5) Sends the report to msg_send on channel 'reports', "
+    "6) Reads it back with msg_recv, "
+    "7) Returns {cached: True, report_len: len, channel: 'reports'}"
+))
+gen_response = resp["response"]
+gen_response
+''');
+      final genText = gen.value?.dartValue;
+      if (genText == null) {
+        print('  null response — skipping');
+
+        return;
+      }
+      print('  Agent: ${_trunc(genText as String, 200)}');
+
+      // Extract and execute
+      final code = await _extractCode(session);
+      if (code == null) {
+        print('  No code extracted');
+
+        return;
+      }
+      print('  Code: ${_trunc(code, 200)}');
+
+      final result = await session.execute(code);
+      print('  Result: ${result.value?.dartValue}');
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
+
+  // ── 11. Generate: cross-server intelligence gathering ──────────────
+
+  test(
+    '11. Codegen: gather intel from both servers, write report',
+    () async {
+      final gen = await session.execute('''
+import json
+resp = json.loads(soliplex_reply_thread(
+    "local", "bwrap_sandbox", adv_thread,
+    "Write a program that: "
+    "1) Lists rooms on BOTH demo and local servers, "
+    "2) For each room with skills, gets the room config, "
+    "3) Builds a comparison dict: {server: [{room, skills, tools, has_rag: bool}]}, "
+    "4) Uses tmpl_render to make a text summary like 'Server X has N rooms, Y with RAG', "
+    "5) Writes the summary to /reports/comparison.txt, "
+    "6) Returns the comparison dict. "
+    "Remember json.loads() on all host function returns."
+))
+gen_response = resp["response"]
+gen_response
+''');
+      if (gen.value?.dartValue == null) {
+        print('  null — skipping');
+
+        return;
+      }
+      print('  Agent: ${_trunc(gen.value!.dartValue as String, 200)}');
+
+      final code = await _extractCode(session);
+      if (code == null) return;
+      print('  Code: ${_trunc(code, 200)}');
+
+      final result = await session.execute(code);
+      print('  Result: ${result.value?.dartValue}');
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
+
+  // ── 12. Generate: conversation → file → template report ────────────
+
+  test(
+    '12. Codegen: ask demo cooking, save recipe, generate report',
+    () async {
+      final gen = await session.execute('''
+import json
+resp = json.loads(soliplex_reply_thread(
+    "local", "bwrap_sandbox", adv_thread,
+    "Write a program that: "
+    "1) Asks the demo cooking room for a simple soup recipe, "
+    "2) Saves the recipe to /recipes/soup.txt, "
+    "3) Uses tmpl_render to create a formatted card: "
+    "   'Recipe Card\\n===========\\nSource: {{ server }}\\nRoom: {{ room }}\\n\\n{{ recipe }}', "
+    "4) Sends the card to msg_send('cards'), "
+    "5) Reads it back with msg_recv('cards'), "
+    "6) Returns {recipe_file: '/recipes/soup.txt', card_len: N, card_preview: first 100 chars}. "
+    "Use json.loads() on all host function returns."
+))
+gen_response = resp["response"]
+gen_response
+''');
+      if (gen.value?.dartValue == null) {
+        print('  null — skipping');
+
+        return;
+      }
+      print('  Agent: ${_trunc(gen.value!.dartValue as String, 200)}');
+
+      final code = await _extractCode(session);
+      if (code == null) return;
+      print('  Code: ${_trunc(code, 200)}');
+
+      final result = await session.execute(code);
+      print('  Result: ${result.value?.dartValue}');
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
+
+  // ── 13. Generate: multi-server conversation orchestrator ────────────
+
+  test(
+    '13. Codegen: orchestrate conversations across servers',
+    () async {
+      final gen = await session.execute('''
+import json
+resp = json.loads(soliplex_reply_thread(
+    "local", "bwrap_sandbox", adv_thread,
+    "Write a program that: "
+    "1) Asks demo cooking room: 'What goes well with pasta?', "
+    "2) Takes the response and asks local chat room: 'Summarize this in 10 words: ' + the response, "
+    "3) Saves both responses to /conversations/cross-server.txt, "
+    "4) Uses tmpl_render to make a comparison: "
+    "   'Demo said ({{ demo_len }} chars): {{ demo_preview }}\\n"
+    "Local said ({{ local_len }} chars): {{ local_preview }}', "
+    "5) Returns {demo_thread, local_thread, template_output}. "
+    "Use json.loads() on all host function returns."
+))
+gen_response = resp["response"]
+gen_response
+''');
+      if (gen.value?.dartValue == null) {
+        print('  null — skipping');
+
+        return;
+      }
+      print('  Agent: ${_trunc(gen.value!.dartValue as String, 200)}');
+
+      final code = await _extractCode(session);
+      if (code == null) return;
+      print('  Code: ${_trunc(code, 200)}');
+
+      final result = await session.execute(code);
+      print('  Result: ${result.value?.dartValue}');
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
+
+  // ── OLD test 8 (renamed to 14) ────────────────────────────────────
+
+  test(
+    '14. inline codegen (no ruleset)',
     () async {
       final r = await session.execute('''
 import json
@@ -490,7 +744,7 @@ codegen_code[:200] if codegen_code else "no code block"
   );
 
   test(
-    '9b. Execute generated code',
+    '14b. Execute generated code',
     () async {
       final r = await session.execute('''
 result = None
@@ -524,6 +778,36 @@ SoliplexConnection _buildConnection(String baseUrl) {
       urlBuilder: urlBuilder,
     ),
   );
+}
+
+Future<String?> _extractCode(AgentSession session) async {
+  final r = await session.execute(r'''
+import re
+pattern = r"```(?:monty|python)\s*\n(.*?)```"
+match = re.search(pattern, gen_response, re.DOTALL)
+if match:
+    extracted_code = match.group(1).strip()
+elif gen_response.strip().startswith("```"):
+    lines = gen_response.strip().split("\n")
+    code_lines = []
+    started = False
+    for line in lines:
+        if not started and line.strip().startswith("```"):
+            started = True
+            continue
+        if started and line.strip() == "```":
+            break
+        if started:
+            code_lines.append(line)
+    extracted_code = "\n".join(code_lines) if code_lines else None
+elif "import json" in gen_response:
+    extracted_code = gen_response.strip()
+else:
+    extracted_code = None
+extracted_code
+''');
+
+  return r.value?.dartValue as String?;
 }
 
 String _trunc(String s, int max) =>
