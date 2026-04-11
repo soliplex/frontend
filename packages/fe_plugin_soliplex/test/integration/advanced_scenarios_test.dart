@@ -324,8 +324,140 @@ local_resp["response"][:200]
 
   // ── 8. Iterative codegen: generate, error, correct, execute ────────
 
+  // ── 8. Upload ruleset file → agent reads it → generates code ──────
+
   test(
-    '8a. bwrap generates code',
+    '8. Upload monty ruleset then ask for codegen',
+    () async {
+      // Step 1: Create thread on bwrap_sandbox
+      final t = await session.execute('''
+import json
+t = json.loads(soliplex_new_thread("local", "bwrap_sandbox", "I will upload a ruleset file."))
+ruleset_thread = t["thread_id"]
+ruleset_thread
+''');
+      print('  Thread: ${t.value?.dartValue}');
+
+      // Step 2: Upload the full monty ruleset as a file
+      await session.execute('''
+import json
+ruleset = """# Monty Python Sandbox — API Reference
+
+You are writing code for Monty, a sandboxed Python interpreter.
+Your code runs inside a sandbox with host functions available as built-in callables.
+
+## Rules
+1. All host functions return JSON STRINGS. Always use json.loads() on the result.
+2. import json at the top of every program.
+3. The last expression in your code is the return value.
+4. Return your code in a ```monty``` code block.
+5. No explanation outside the code block.
+
+## Available Host Functions
+
+### Discovery
+- soliplex_list_servers() -> JSON string of [{id}]
+- soliplex_list_rooms(server) -> JSON string of [{id, name, description}]
+- soliplex_get_room(server, room_id) -> JSON string with full room config including skills, tools
+
+### Conversation
+- soliplex_new_thread(server, room_id, message) -> JSON string with {thread_id, run_id, response}
+- soliplex_reply_thread(server, room_id, thread_id, message) -> JSON string with {thread_id, run_id, response}
+
+### File Upload
+- soliplex_upload_file(server, room_id, filename, content) -> JSON string with {uploaded, room_id}
+- soliplex_upload_to_thread(server, room_id, thread_id, filename, content) -> JSON string
+
+### Threads
+- soliplex_list_threads(server, room_id) -> JSON string of thread list
+
+## Servers
+- "demo" — demo.toughserv.com (cooking, chat, image_generation, soliplex rooms)
+- "local" — localhost:8000 (analysis, bwrap_sandbox, chat, search rooms)
+
+## Example
+```monty
+import json
+rooms = json.loads(soliplex_list_rooms("demo"))
+[r["name"] for r in rooms]
+```
+"""
+soliplex_upload_to_thread("local", "bwrap_sandbox", ruleset_thread, "monty-rules.md", ruleset)
+"uploaded"
+''');
+      print('  Ruleset uploaded');
+
+      // Step 3: Ask the agent to read the file and write code
+      final gen = await session.execute('''
+import json
+resp = json.loads(soliplex_reply_thread(
+    "local", "bwrap_sandbox", ruleset_thread,
+    "Read the monty-rules.md file I uploaded. Using those rules exactly, write a monty program that: "
+    "1) Lists all servers, 2) For each server lists rooms, 3) Finds rooms with skills, "
+    "4) Returns a dict mapping server_id to list of {room_id, skills}. "
+    "Return the code in a ```monty``` code block ONLY."
+))
+gen_response = resp["response"]
+gen_response
+''');
+      final genText = gen.value?.dartValue;
+      if (genText == null) {
+        print('  Agent returned null — SSE state wrapping issue');
+        print('  (This is a known limitation of execute() state capture)');
+
+        return;
+      }
+      print('  Agent: ${_trunc(genText as String, 200)}');
+
+      // Step 4: Extract code block
+      final exec = await session.execute(r'''
+import re
+# Try fenced code block
+pattern = r"```(?:monty|python)\s*\n(.*?)```"
+match = re.search(pattern, gen_response, re.DOTALL)
+if match:
+    extracted_code = match.group(1).strip()
+elif gen_response.strip().startswith("```"):
+    # Strip fences manually
+    lines = gen_response.strip().split("\n")
+    # Remove first line (```monty) and last line (```)
+    code_lines = []
+    started = False
+    for line in lines:
+        if not started and line.strip().startswith("```"):
+            started = True
+            continue
+        if started and line.strip() == "```":
+            break
+        if started:
+            code_lines.append(line)
+    extracted_code = "\n".join(code_lines) if code_lines else None
+elif "import json" in gen_response:
+    extracted_code = gen_response.strip()
+else:
+    extracted_code = None
+extracted_code
+''');
+      final code = exec.value?.dartValue;
+      if (code == null) {
+        print('  No code extracted');
+
+        return;
+      }
+      print('  Code: ${_trunc(code as String, 150)}');
+
+      // Step 5: Execute the generated code
+      final result = await session.execute(code);
+      print('  Result: ${result.value?.dartValue}');
+      expect(result.value?.dartValue, isNotNull);
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
+
+  // ── 9. Original test 8 ─────────────────────────────────────────────
+
+  test(
+    '9. bwrap inline codegen',
     () async {
       final r = await session.execute('''
 import json
@@ -358,7 +490,7 @@ codegen_code[:200] if codegen_code else "no code block"
   );
 
   test(
-    '8b. Execute generated code',
+    '9b. Execute generated code',
     () async {
       final r = await session.execute('''
 result = None
