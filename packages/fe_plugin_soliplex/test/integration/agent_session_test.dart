@@ -138,9 +138,59 @@ turn3
     expect(r.value?.dartValue, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  // ── 4. Cross-server ────────────────────────────────────────────────
+  // ── 4. Uploads ─────────────────────────────────────────────────────
 
-  test('9. new_thread on local bwrap_sandbox', () async {
+  test('9. upload_file to room', () async {
+    final r = await session.execute('''
+import json
+result = json.loads(
+    soliplex_upload_file("local", "bwrap_sandbox", "agent-test.txt", "Hello from AgentSession!")
+)
+result
+''');
+    final result = r.value?.dartValue as Map?;
+    if (result != null && result.containsKey('uploaded')) {
+      print('  Uploaded: ${result['uploaded']} to ${result['room_id']}');
+      expect(result['uploaded'], 'agent-test.txt');
+    } else {
+      print('  Upload not available: ${r.value?.dartValue ?? r.error}');
+    }
+  }, timeout: const Timeout(Duration(seconds: 15)));
+
+  test('10a. create local thread for upload', () async {
+    final r = await session.execute('''
+import json
+t = json.loads(soliplex_new_thread("local", "chat", "Hello"))
+local_tid = t["thread_id"]
+local_tid
+''');
+    print('  Local thread: ${r.value?.dartValue}');
+    expect(r.value?.dartValue, isA<String>());
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  test('10b. upload_to_thread', () async {
+    final r = await session.execute('''
+import json
+result = json.loads(
+    soliplex_upload_to_thread("local", "chat", local_tid, "thread-notes.txt", "Notes from agent")
+)
+result
+''');
+    final result = r.value?.dartValue as Map?;
+    if (result != null && result.containsKey('uploaded')) {
+      print(
+        '  Uploaded: ${result['uploaded']} '
+        'to thread ${result['thread_id']}',
+      );
+      expect(result['uploaded'], 'thread-notes.txt');
+    } else {
+      print('  Upload not available: ${r.value?.dartValue ?? r.error}');
+    }
+  }, timeout: const Timeout(Duration(seconds: 15)));
+
+  // ── 5. Cross-server ────────────────────────────────────────────────
+
+  test('11. new_thread on local', () async {
     final r = await session.execute('''
 import json
 data = json.loads(
@@ -154,7 +204,7 @@ data["response"]
 
   // ── 5. bwrap generates monty code, we execute it ───────────────────
 
-  test('10. bwrap codegen → extract → execute', () async {
+  test('12. bwrap codegen → extract → execute', () async {
     // Step 1: Ask bwrap to generate code
     final gen = await session.execute('''
 import json
