@@ -183,7 +183,23 @@ code
     // Execute
     final result = await session.execute(code);
     if (result.error != null) {
-      print('EXECUTION ERROR: ${result.error}\n');
+      final err = result.error!;
+      print('EXECUTION ERROR:');
+      print('  Type: ${err.excType}');
+      print('  Message: ${err.message}');
+      if (err.filename != null) print('  File: ${err.filename}');
+      if (err.lineNumber != null) print('  Line: ${err.lineNumber}');
+      if (err.columnNumber != null) print('  Column: ${err.columnNumber}');
+      if (err.sourceCode != null) {
+        print('  Source: ${err.sourceCode}');
+      }
+      if (err.traceback.isNotEmpty) {
+        print('  Traceback:');
+        for (final frame in err.traceback) {
+          print('    $frame');
+        }
+      }
+      print('');
     } else {
       print('RESULT: ${result.value?.dartValue}\n');
     }
