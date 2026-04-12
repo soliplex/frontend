@@ -10,7 +10,7 @@ environment:
   flutter: ">=3.27.0"
 
 workspace:
-  - packages/fe_plugin_soliplex
+  - packages/soliplex_monty_plugin
   - packages/soliplex_agent
   - packages/soliplex_client
   - packages/soliplex_client_native

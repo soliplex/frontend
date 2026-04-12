@@ -1,5 +1,5 @@
-name: fe_plugin_soliplex
-description: MontyPlugin that bridges sandboxed Python to the Soliplex server API.
+name: soliplex_monty_plugin
+description: MontyPlugin that bridges dart_monty to the Soliplex server API.
 version: 0.1.0
 publish_to: none
 resolution: workspace

@@ -658,4 +658,15 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
   MontyPlugin? createChildInstance({ChildSpawnContext? context}) {
     return SoliplexPlugin(connections: _connections);
   }
+
+  // -- Lifecycle -------------------------------------------------------------
+
+  @override
+  Future<void> onDispose() async {
+    await super.onDispose();
+    for (final conn in _connections.values) {
+      conn.api.close();
+      conn.streamClient.close();
+    }
+  }
 }
