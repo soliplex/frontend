@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';

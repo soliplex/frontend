@@ -3,16 +3,27 @@
 @Tags(['integration'])
 library;
 
+import 'dart:io';
+
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
 /// Advanced cross-server scenarios exercising the full pipeline:
 /// AgentSession → SoliplexPlugin → multiple servers → SSE → codegen → execute
 ///
+/// Configure via environment variables:
+///   SOLIPLEX_DEMO_URL  — cloud server base URL
+///   SOLIPLEX_LOCAL_URL — local server base URL (default: http://localhost:8000)
+///
 /// Run:
 ///   dart test test/integration/advanced_scenarios_test.dart -t integration --reporter expanded
+final _demoUrl =
+    Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
+final _localUrl =
+    Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
+
 void main() {
   late AgentSession session;
 
@@ -26,8 +37,8 @@ void main() {
       plugins: [
         SoliplexPlugin(
           connections: {
-            'demo': _buildConnection('https://demo.toughserv.com'),
-            'local': _buildConnection('http://localhost:8000'),
+            'demo': _buildConnection(_demoUrl),
+            'local': _buildConnection(_localUrl),
           },
         ),
         DinjaTemplatePlugin(),
@@ -379,8 +390,8 @@ Your code runs inside a sandbox with host functions available as built-in callab
 - soliplex_list_threads(server, room_id) -> JSON string of thread list
 
 ## Servers
-- "demo" — demo.toughserv.com (cooking, chat, image_generation, soliplex rooms)
-- "local" — localhost:8000 (analysis, bwrap_sandbox, chat, search rooms)
+- "demo" — cloud server (cooking, chat, image_generation, soliplex rooms)
+- "local" — local server (analysis, bwrap_sandbox, chat, search rooms)
 
 ## Example
 ```monty
@@ -512,8 +523,8 @@ You are writing code for Monty, a sandboxed Python interpreter with host functio
 - Path("/path").exists() — check existence
 
 ## Servers
-- "demo" — demo.toughserv.com: cooking, chat, image_generation, soliplex (RAG)
-- "local" — localhost:8000: analysis, bwrap_sandbox, chat, search, feedback
+- "demo" — cloud server: cooking, chat, image_generation, soliplex (RAG)
+- "local" — local server: analysis, bwrap_sandbox, chat, search, feedback
 
 ## Patterns
 

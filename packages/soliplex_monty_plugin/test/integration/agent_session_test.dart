@@ -3,8 +3,10 @@
 @Tags(['integration'])
 library;
 
+import 'dart:io';
+
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
@@ -13,9 +15,18 @@ import 'package:test/test.dart';
 ///
 /// Uses a SINGLE session for ALL tests (no create/dispose per test).
 ///
+/// Configure via environment variables:
+///   SOLIPLEX_DEMO_URL  — cloud server base URL
+///   SOLIPLEX_LOCAL_URL — local server base URL (default: http://localhost:8000)
+///
 /// Run with:
-///   cd packages/fe_plugin_soliplex
+///   cd packages/soliplex_monty_plugin
 ///   dart test test/integration/agent_session_test.dart -t integration --reporter expanded
+final _demoUrl =
+    Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
+final _localUrl =
+    Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
+
 void main() {
   late AgentSession session;
 
@@ -24,8 +35,8 @@ void main() {
       plugins: [
         SoliplexPlugin(
           connections: {
-            'demo': _buildConnection('https://demo.toughserv.com'),
-            'local': _buildConnection('http://localhost:8000'),
+            'demo': _buildConnection(_demoUrl),
+            'local': _buildConnection(_localUrl),
           },
         ),
       ],

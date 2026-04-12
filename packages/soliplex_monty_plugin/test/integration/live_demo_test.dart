@@ -4,17 +4,25 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
-/// Multi-server integration test against:
-///   - demo.toughserv.com (cloud, no auth)
-///   - localhost:8000 (local, no auth)
+/// Multi-server integration test.
+///
+/// Configure via environment variables:
+///   SOLIPLEX_DEMO_URL  — cloud server base URL (e.g. https://demo.example.com)
+///   SOLIPLEX_LOCAL_URL — local server base URL (default: http://localhost:8000)
 ///
 /// Run with:
 ///   dart test test/integration/live_demo_test.dart -t integration --reporter expanded
+final _demoUrl =
+    Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
+final _localUrl =
+    Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
+
 void main() {
   late SoliplexPlugin plugin;
   late HttpTransport demoTransport;
@@ -33,8 +41,8 @@ void main() {
   }
 
   setUpAll(() {
-    final demoConn = buildConnection('https://demo.toughserv.com');
-    final localConn = buildConnection('http://localhost:8000');
+    final demoConn = buildConnection(_demoUrl);
+    final localConn = buildConnection(_localUrl);
     demoTransport = HttpTransport(client: DartHttpClient());
     localTransport = HttpTransport(client: DartHttpClient());
 
@@ -255,7 +263,7 @@ void main() {
           'server': 'local',
           'room_id': 'chat',
           'filename': 'integration-test.txt',
-          'content': 'Hello from fe_plugin_soliplex integration test!',
+          'content': 'Hello from soliplex_monty_plugin integration test!',
         }),
       );
       print('  ✓ Uploaded: ${result['uploaded']}');

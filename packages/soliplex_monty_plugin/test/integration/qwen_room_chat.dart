@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_print
 /// Two Qwen rooms talking to each other — 8B asks questions, 35B answers
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 Future<void> main() async {

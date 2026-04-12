@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:fe_plugin_soliplex/src/soliplex_connection.dart';
+import 'soliplex_connection.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 /// Per-thread conversation state managed internally by the plugin.

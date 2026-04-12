@@ -6,7 +6,7 @@ library;
 import 'dart:io';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:fe_plugin_soliplex/fe_plugin_soliplex.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
@@ -18,8 +18,21 @@ import 'package:test/test.dart';
 /// - "oracle" → soliplex_new_thread to ask the LLM for reasoning
 /// - "bb_dump" → write final state to file + return as dict
 ///
+/// Configure via environment variables:
+///   SOLIPLEX_DEMO_URL     — cloud server base URL
+///   SOLIPLEX_LOCAL_URL    — local server base URL (default: http://localhost:8000)
+///   IOI_EXPERIMENTS_DIR   — directory containing wave5 experiment .txt files
+///   MONTY_DOCS_DIR        — directory containing monty-prompt-rules.md
+///
 /// Run:
 ///   dart test test/integration/wave5_construction_test.dart -t integration --reporter expanded
+final _demoUrl =
+    Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
+final _localUrl =
+    Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
+final String? _ioiDir = Platform.environment['IOI_EXPERIMENTS_DIR'];
+final String? _montyDocsDir = Platform.environment['MONTY_DOCS_DIR'];
+
 void main() {
   late AgentSession session;
 
@@ -31,8 +44,8 @@ void main() {
       plugins: [
         SoliplexPlugin(
           connections: {
-            'demo': _buildConnection('https://demo.toughserv.com'),
-            'local': _buildConnection('http://localhost:8000'),
+            'demo': _buildConnection(_demoUrl),
+            'local': _buildConnection(_localUrl),
           },
         ),
         DinjaTemplatePlugin(),
@@ -48,14 +61,17 @@ void main() {
   test(
     '1. Upload ruleset + baseline experiment',
     () async {
+      if (_ioiDir == null || _montyDocsDir == null) {
+        markTestSkipped('Set IOI_EXPERIMENTS_DIR and MONTY_DOCS_DIR to run file-based tests');
+        return;
+      }
       // Read the experiment files
       final baseline = File(
-        '/Users/runyaga/dev/soliplex-plans/tui-experiments'
-        '/ioi-experiments/wave5-construction-baseline.txt',
+        '$_ioiDir/wave5-construction-baseline.txt',
       ).readAsStringSync();
 
       final rules = File(
-        '/Users/runyaga/dev/dart_monty/main/docs/monty-prompt-rules.md',
+        '$_montyDocsDir/monty-prompt-rules.md',
       ).readAsStringSync();
 
       // Create thread and upload files
@@ -143,9 +159,12 @@ gen_response
   test(
     '3. Upload and solve schedule optimization',
     () async {
+      if (_ioiDir == null) {
+        markTestSkipped('Set IOI_EXPERIMENTS_DIR to run file-based tests');
+        return;
+      }
       final schedule = File(
-        '/Users/runyaga/dev/soliplex-plans/tui-experiments'
-        '/ioi-experiments/wave5-construction-schedule.txt',
+        '$_ioiDir/wave5-construction-schedule.txt',
       ).readAsStringSync();
 
       await session.execute('''
@@ -188,9 +207,12 @@ gen_response
   test(
     '4. Upload and solve disruption scenario',
     () async {
+      if (_ioiDir == null) {
+        markTestSkipped('Set IOI_EXPERIMENTS_DIR to run file-based tests');
+        return;
+      }
       final disruption = File(
-        '/Users/runyaga/dev/soliplex-plans/tui-experiments'
-        '/ioi-experiments/wave5-construction-disruption.txt',
+        '$_ioiDir/wave5-construction-disruption.txt',
       ).readAsStringSync();
 
       await session.execute('''
@@ -230,9 +252,12 @@ gen_response
   test(
     '5. Upload and analyze infeasible scenario',
     () async {
+      if (_ioiDir == null) {
+        markTestSkipped('Set IOI_EXPERIMENTS_DIR to run file-based tests');
+        return;
+      }
       final infeasible = File(
-        '/Users/runyaga/dev/soliplex-plans/tui-experiments'
-        '/ioi-experiments/wave5-construction-infeasible.txt',
+        '$_ioiDir/wave5-construction-infeasible.txt',
       ).readAsStringSync();
 
       await session.execute('''
