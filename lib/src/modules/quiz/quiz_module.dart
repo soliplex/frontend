@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/shell_config.dart';
+import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
 import 'ui/quiz_screen.dart';
 
@@ -12,12 +13,10 @@ ModuleContribution quizModule({
     routes: [
       GoRoute(
         path: '/room/:serverAlias/:roomId/quiz/:quizId',
-        redirect: (context, state) {
-          final alias = state.pathParameters['serverAlias']!;
-          final entry = serverManager.entryByAlias(alias);
-          if (entry == null || !entry.isConnected) return '/lobby';
-          return null;
-        },
+        redirect: (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
         pageBuilder: (context, state) {
           final alias = state.pathParameters['serverAlias']!;
           final entry = serverManager.entryByAlias(alias);

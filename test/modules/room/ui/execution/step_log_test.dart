@@ -1,0 +1,171 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
+
+import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/step_log.dart';
+
+Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+void main() {
+  late Signal<ExecutionEvent?> events;
+  late ExecutionTracker tracker;
+
+  setUp(() {
+    events = Signal<ExecutionEvent?>(null);
+    tracker = ExecutionTracker(executionEvents: events);
+  });
+
+  tearDown(() => tracker.dispose());
+
+  testWidgets('returns empty widget when tracker has no steps', (tester) async {
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    expect(find.byType(GestureDetector), findsNothing);
+  });
+
+  testWidgets('shows singular "step" for one step', (tester) async {
+    events.value = const ThinkingStarted();
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    expect(find.text('1 step'), findsOneWidget);
+  });
+
+  testWidgets('shows plural "steps" for multiple steps', (tester) async {
+    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    expect(find.text('2 steps'), findsOneWidget);
+  });
+
+  testWidgets('tap expands to show step details', (tester) async {
+    events.value = const ThinkingStarted();
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    expect(find.text('Thinking'), findsNothing);
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.text('Thinking'), findsOneWidget);
+  });
+
+  testWidgets('tap again collapses step details', (tester) async {
+    events.value = const ThinkingStarted();
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.text('Thinking'), findsOneWidget);
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.text('Thinking'), findsNothing);
+  });
+
+  testWidgets('active step shows CircularProgressIndicator', (tester) async {
+    events.value = const ThinkingStarted();
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('completed step shows check_circle icon', (tester) async {
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+    events.value = const ServerToolCallCompleted(
+      toolCallId: 'tc-1',
+      result: 'done',
+    );
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+  });
+
+  testWidgets('failed step shows error icon', (tester) async {
+    events.value = const ThinkingStarted();
+    events.value = const RunFailed(error: 'oops');
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.error), findsOneWidget);
+  });
+
+  testWidgets('duration formatted as seconds with 1 decimal', (tester) async {
+    final step = ExecutionStep(
+      label: 'search',
+      type: StepType.toolCall,
+      status: StepStatus.completed,
+      timestamp: const Duration(milliseconds: 1250),
+    );
+
+    final stepsSignal = Signal<List<ExecutionStep>>([step]);
+    final fakeTracker = _FakeTracker(stepsSignal);
+
+    await tester.pumpWidget(wrap(StepLog(tracker: fakeTracker)));
+    await tester.pump();
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pump();
+
+    expect(find.text('1.3s'), findsOneWidget);
+  });
+}
+
+/// Minimal tracker that exposes a pre-built steps signal for testing.
+class _FakeTracker implements ExecutionTracker {
+  _FakeTracker(this._stepsSignal);
+
+  final Signal<List<ExecutionStep>> _stepsSignal;
+
+  @override
+  ReadonlySignal<List<ExecutionStep>> get steps => _stepsSignal;
+
+  @override
+  ReadonlySignal<List<String>> get thinkingBlocks =>
+      Signal<List<String>>(const []);
+
+  @override
+  ReadonlySignal<bool> get isThinkingStreaming => Signal<bool>(false);
+
+  @override
+  bool get isFrozen => false;
+
+  @override
+  void freeze() {}
+
+  @override
+  void dispose() {}
+}

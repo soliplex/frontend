@@ -10,6 +10,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../../../../soliplex_frontend.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
+import '../pick_file.dart';
 import '../../diagnostics/diagnostics_providers.dart';
 import '../../diagnostics/models/http_event_grouper.dart';
 import '../../diagnostics/models/run_event_filter.dart';
@@ -28,9 +29,21 @@ import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import '../upload_tracker.dart';
 
 const double _sidebarWidth = 280;
 const double _wideBreakpoint = SoliplexBreakpoints.tablet;
+
+/// Builds the label for the file indicator chip in the room header.
+///
+/// Shows separate counts for room and thread uploads.
+String uploadChipLabel(int roomCount, int threadCount) {
+  if (roomCount > 0 && threadCount > 0) {
+    return '$roomCount room \u00b7 $threadCount thread';
+  }
+  if (roomCount > 0) return '$roomCount room';
+  return '$threadCount thread';
+}
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
@@ -61,6 +74,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void Function()? _autoSelectUnsub;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
+  bool _filesExpanded = false;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -215,6 +229,48 @@ class _RoomScreenState extends State<RoomScreen> {
     context.push('/room/${widget.serverEntry.alias}/${widget.roomId}/info');
   }
 
+  Future<void> _pickAndUploadToRoom(Room room) async {
+    final file = await pickFile();
+    if (file == null || !mounted) return;
+    _state.uploadTracker.uploadToRoom(
+      api: widget.serverEntry.connection.api,
+      roomId: widget.roomId,
+      filename: file.name,
+      fileBytes: file.bytes,
+      mimeType: file.mimeType,
+    );
+  }
+
+  Future<void> _pickAndUploadToThread(Room room, String threadId) async {
+    final file = await pickFile();
+    if (file == null || !mounted) return;
+    _state.uploadTracker.uploadToThread(
+      api: widget.serverEntry.connection.api,
+      roomId: widget.roomId,
+      threadId: threadId,
+      filename: file.name,
+      fileBytes: file.bytes,
+      mimeType: file.mimeType,
+    );
+  }
+
+  Future<void> _pickAndUploadToNewThread(Room room) async {
+    final file = await pickFile();
+    if (file == null || !mounted) return;
+
+    final threadId = await _state.createThread();
+    if (threadId == null || !mounted) return;
+
+    _state.uploadTracker.uploadToThread(
+      api: widget.serverEntry.connection.api,
+      roomId: widget.roomId,
+      threadId: threadId,
+      filename: file.name,
+      fileBytes: file.bytes,
+      mimeType: file.mimeType,
+    );
+  }
+
   void _onThreadSelected(String threadId) {
     context.go(
       '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
@@ -300,7 +356,7 @@ class _RoomScreenState extends State<RoomScreen> {
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
-              title: Text(widget.roomId),
+              title: Text(roomName),
               titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
             ),
             drawer: Drawer(
@@ -361,13 +417,231 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _buildContent(Room? room) {
     final threadView = _state.activeThreadView;
-    if (threadView == null) {
-      return _buildNoThreadContent(room);
-    }
-    return _buildThreadContent(threadView, room);
+    final attachEnabled = room?.enableAttachments ?? false;
+
+    final roomEntries = attachEnabled
+        ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
+        : <UploadEntry>[];
+    final threadId = threadView?.threadId;
+    final threadEntries = attachEnabled && threadId != null
+        ? _state.uploadTracker
+            .threadUploads(widget.roomId, threadId)
+            .watch(context)
+        : <UploadEntry>[];
+
+    return Column(
+      children: [
+        _buildRoomHeader(
+          room,
+          attachEnabled,
+          roomEntries,
+          threadEntries,
+        ),
+        if (_filesExpanded) _buildFilePanel(roomEntries, threadEntries),
+        Expanded(
+          child: threadView == null
+              ? _buildNoThreadBody(room)
+              : _buildThreadBody(threadView, room),
+        ),
+      ],
+    );
   }
 
-  Widget _buildNoThreadContent(Room? room) {
+  Widget _buildRoomHeader(
+    Room? room,
+    bool attachEnabled,
+    List<UploadEntry> roomEntries,
+    List<UploadEntry> threadEntries,
+  ) {
+    final theme = Theme.of(context);
+    final roomName = room?.name ?? widget.roomId;
+    final allEntries = [...roomEntries, ...threadEntries];
+    final hasFiles = allEntries.isNotEmpty;
+    final anyUploading = allEntries.any((e) => e.status is UploadUploading);
+    final anyFailed = allEntries.any((e) => e.status is UploadError);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              roomName,
+              style: theme.textTheme.titleMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (hasFiles)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _filesExpanded = !_filesExpanded),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (anyUploading)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  else if (anyFailed)
+                    Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: theme.colorScheme.error,
+                    )
+                  else
+                    Icon(
+                      Icons.attach_file,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _chipLabel(
+                      roomEntries.length,
+                      threadEntries.length,
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: anyFailed
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
+                  Icon(
+                    _filesExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: anyFailed
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          if (attachEnabled && room != null)
+            IconButton(
+              icon: const Icon(Icons.upload_file, size: 20),
+              tooltip: 'Upload file to room',
+              onPressed: () => _pickAndUploadToRoom(room),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _chipLabel(int roomCount, int threadCount) =>
+      uploadChipLabel(roomCount, threadCount);
+
+  Widget _buildFilePanel(
+    List<UploadEntry> roomEntries,
+    List<UploadEntry> threadEntries,
+  ) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (roomEntries.isNotEmpty) ...[
+              Text(
+                'Room',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+              for (final e in roomEntries) _buildFileRow(e),
+            ],
+            if (roomEntries.isNotEmpty && threadEntries.isNotEmpty)
+              const Divider(height: 12),
+            if (threadEntries.isNotEmpty) ...[
+              Text(
+                'Thread',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+              for (final e in threadEntries) _buildFileRow(e),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileRow(UploadEntry entry) {
+    final theme = Theme.of(context);
+    final (icon, color) = switch (entry.status) {
+      UploadUploading() => (null, theme.colorScheme.primary),
+      UploadSuccess() => (
+          Icons.check_circle_outline,
+          theme.colorScheme.primary
+        ),
+      UploadError() => (Icons.error_outline, theme.colorScheme.error),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          if (icon != null)
+            Icon(icon, size: 16, color: color)
+          else
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: color,
+              ),
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.filename,
+                  style: theme.textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (entry.status is UploadError)
+                  Text(
+                    (entry.status as UploadError).message,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          if (entry.status is! UploadUploading)
+            IconButton(
+              icon: const Icon(Icons.close, size: 14),
+              onPressed: () => _state.uploadTracker.dismiss(entry.id),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoThreadBody(Room? room) {
     final roomError = _state.lastError.watch(context);
     final sessionState = _state.sessionState.watch(context);
     _restoreUnsentText(roomError?.unsentText);
@@ -408,15 +682,19 @@ class _RoomScreenState extends State<RoomScreen> {
                     Set.of(_selectedDocuments)..remove(doc),
                   )
               : null,
+          onAttachFile: (room?.enableAttachments ?? false) && room != null
+              ? () => _pickAndUploadToNewThread(room)
+              : null,
         ),
       ],
     );
   }
 
-  Widget _buildThreadContent(ThreadViewState threadView, Room? room) {
+  Widget _buildThreadBody(ThreadViewState threadView, Room? room) {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
+    final attachEnabled = room?.enableAttachments ?? false;
 
     _restoreUnsentText(sendError?.unsentText);
 
@@ -499,6 +777,9 @@ class _RoomScreenState extends State<RoomScreen> {
               ? (doc) => _updateSelection(
                     Set.of(_selectedDocuments)..remove(doc),
                   )
+              : null,
+          onAttachFile: attachEnabled && room != null
+              ? () => _pickAndUploadToThread(room, threadView.threadId)
               : null,
         ),
       ],

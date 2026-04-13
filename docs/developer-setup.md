@@ -78,6 +78,13 @@ Your `Local.xcconfig` should contain:
 DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
 ```
 
+#### Privacy Descriptions (Info.plist)
+
+The `file_picker` dependency links against `Photos.framework`, so iOS requires
+`NSPhotoLibraryUsageDescription` in `ios/Runner/Info.plist`. This is already
+configured — if you add new plugins that access protected resources (camera,
+microphone, location, etc.), add the corresponding `NS*UsageDescription` keys.
+
 #### Simulator vs Device
 
 - **Simulator:** No signing required for debug builds
@@ -168,4 +175,5 @@ cd macos && pod deintegrate && pod install && cd ..
 | `macos/Runner/Configs/Local.xcconfig` | Your macOS signing config (gitignored) |
 | `ios/Runner/Configs/Local.xcconfig.template` | Template for iOS signing |
 | `ios/Runner/Configs/Local.xcconfig` | Your iOS signing config (gitignored) |
+| `ios/Runner/Info.plist` | iOS privacy descriptions and app config |
 | `.gitignore` | Excludes `**/Local.xcconfig` |

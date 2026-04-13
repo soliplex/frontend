@@ -97,4 +97,83 @@ void main() {
     expect(find.text('Research Bot'), findsOneWidget);
     expect(find.text('Welcome! Ask me anything.'), findsOneWidget);
   });
+
+  testWidgets('shows suggestion chips when room has suggestions',
+      (tester) async {
+    await tester.pumpWidget(wrap(
+      RoomWelcome(
+        room: const Room(
+          id: 'room-1',
+          name: 'Test Room',
+          suggestions: ['What can you do?', 'Tell me a joke'],
+        ),
+        fallback: const Text('fallback'),
+      ),
+    ));
+    expect(find.text('What can you do?'), findsOneWidget);
+    expect(find.text('Tell me a joke'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping suggestion chip calls onSuggestionTapped with correct text',
+      (tester) async {
+    String? tapped;
+    await tester.pumpWidget(wrap(
+      RoomWelcome(
+        room: const Room(
+          id: 'room-1',
+          name: 'Test Room',
+          suggestions: ['What can you do?'],
+        ),
+        fallback: const Text('fallback'),
+        onSuggestionTapped: (s) => tapped = s,
+      ),
+    ));
+    await tester.tap(find.text('What can you do?'));
+    expect(tapped, 'What can you do?');
+  });
+
+  testWidgets('hides suggestion section when suggestions empty',
+      (tester) async {
+    await tester.pumpWidget(wrap(
+      const RoomWelcome(
+        room: Room(
+          id: 'room-1',
+          name: 'Test Room',
+          welcomeMessage: 'Hello!',
+        ),
+        fallback: Text('fallback'),
+      ),
+    ));
+    // The welcome message is shown but no suggestion chips
+    expect(find.text('Hello!'), findsOneWidget);
+    expect(find.byType(InkWell), findsNothing);
+  });
+
+  testWidgets('renders welcome message, suggestions, and quizzes together',
+      (tester) async {
+    String? tappedSuggestion;
+    String? tappedQuizId;
+    await tester.pumpWidget(wrap(
+      RoomWelcome(
+        room: const Room(
+          id: 'room-1',
+          name: 'Test Room',
+          welcomeMessage: 'Welcome!',
+          suggestions: ['Ask me anything'],
+          quizzes: {'q1': 'Intro Quiz'},
+        ),
+        fallback: const Text('fallback'),
+        onSuggestionTapped: (s) => tappedSuggestion = s,
+        onQuizTapped: (id) => tappedQuizId = id,
+      ),
+    ));
+    expect(find.text('Welcome!'), findsOneWidget);
+    expect(find.text('Ask me anything'), findsOneWidget);
+    expect(find.text('Intro Quiz'), findsOneWidget);
+    await tester.tap(find.text('Ask me anything'));
+    expect(tappedSuggestion, 'Ask me anything');
+    await tester.tap(find.text('Intro Quiz'));
+    expect(tappedQuizId, 'q1');
+  });
 }

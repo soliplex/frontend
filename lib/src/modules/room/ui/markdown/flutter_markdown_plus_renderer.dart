@@ -7,6 +7,10 @@ import 'inline_code_builder.dart';
 import 'markdown_renderer.dart';
 import 'markdown_theme_extension.dart';
 
+final _brTag = RegExp(r'<br\s*/?>');
+
+String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
+
 class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   const FlutterMarkdownPlusRenderer({
     required super.data,
@@ -21,7 +25,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     final monoStyle = SoliplexTheme.codeStyle(context);
 
     return MarkdownBody(
-      data: _sanitize(data),
+      data: sanitizeMarkdown(data),
       selectable: true,
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
@@ -39,8 +43,4 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       },
     );
   }
-
-  static final _brTag = RegExp(r'<br\s*/?>');
-
-  static String _sanitize(String markdown) => markdown.replaceAll(_brTag, '\n');
 }

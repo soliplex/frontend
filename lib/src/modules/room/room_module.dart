@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/shell_config.dart';
+import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
 import 'agent_runtime_manager.dart';
 import 'document_selections.dart';
@@ -19,12 +20,10 @@ ModuleContribution roomModule({
     routes: [
       GoRoute(
         path: '/room/:serverAlias/:roomId/info',
-        redirect: (context, state) {
-          final alias = state.pathParameters['serverAlias']!;
-          final entry = serverManager.entryByAlias(alias);
-          if (entry == null || !entry.isConnected) return '/lobby';
-          return null;
-        },
+        redirect: (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
         pageBuilder: (context, state) {
           final alias = state.pathParameters['serverAlias']!;
           final entry = serverManager.entryByAlias(alias)!;
@@ -67,12 +66,10 @@ GoRoute _buildRoute(
 ) {
   return GoRoute(
     path: path,
-    redirect: (context, state) {
-      final alias = state.pathParameters['serverAlias']!;
-      final entry = serverManager.entryByAlias(alias);
-      if (entry == null || !entry.isConnected) return '/lobby';
-      return null;
-    },
+    redirect: (context, state) => requireConnectedServer(
+      serverManager,
+      state.pathParameters['serverAlias'],
+    ),
     pageBuilder: (context, state) {
       final alias = state.pathParameters['serverAlias']!;
       final entry = serverManager.entryByAlias(alias)!;

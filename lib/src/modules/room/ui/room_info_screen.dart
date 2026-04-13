@@ -5,6 +5,8 @@ import '../../../shared/theme_toggle_button.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_client/soliplex_client.dart' hide Room, State;
 
+import '../pick_file.dart';
+
 import '../../auth/server_entry.dart';
 import 'room_info/client_tools_card.dart';
 import 'room_info/documents_card.dart';
@@ -226,6 +228,10 @@ class _RoomInfoBody extends StatelessWidget {
             contentOf: (e) => _buildToolsetContent(e.value),
           ),
           ClientToolsCard(clientToolsFuture: clientToolsFuture),
+          if (room.enableAttachments)
+            // TODO(backend): Replace with fetched file list once
+            // GET /v1/uploads/{room_id} endpoint exists.
+            _UploadedFilesCard(api: api, roomId: roomId),
           DocumentsCard(
             documentsFuture: documentsFuture,
             onRetry: onRetryDocuments,
@@ -332,4 +338,152 @@ class _AgentCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _UploadedFilesCard extends StatefulWidget {
+  const _UploadedFilesCard({
+    required this.api,
+    required this.roomId,
+  });
+
+  final SoliplexApi api;
+  final String roomId;
+
+  @override
+  State<_UploadedFilesCard> createState() => _UploadedFilesCardState();
+}
+
+class _UploadedFilesCardState extends State<_UploadedFilesCard> {
+  final _uploads = <_UploadInfo>[];
+  bool _uploading = false;
+  int _nextId = 0;
+
+  Future<void> _pickAndUpload() async {
+    final file = await pickFile();
+    if (file == null || !mounted) return;
+
+    final id = _nextId++;
+    setState(() {
+      _uploading = true;
+      _uploads.add(_UploadInfo(id, file.name, _UploadStatus.uploading));
+    });
+
+    try {
+      await widget.api.uploadFileToRoom(
+        widget.roomId,
+        filename: file.name,
+        fileBytes: file.bytes,
+        mimeType: file.mimeType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _updateStatus(id, file.name, _UploadStatus.success);
+        _uploading = false;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _updateStatus(id, file.name, _UploadStatus.error, '$e');
+        _uploading = false;
+      });
+    }
+  }
+
+  void _updateStatus(
+    int id,
+    String filename,
+    _UploadStatus status, [
+    String? error,
+  ]) {
+    final i = _uploads.indexWhere((u) => u.id == id);
+    if (i >= 0) {
+      _uploads[i] = _UploadInfo(id, filename, status, error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final successCount =
+        _uploads.where((u) => u.status == _UploadStatus.success).length;
+    final title =
+        successCount > 0 ? 'UPLOADED FILES ($successCount)' : 'UPLOADED FILES';
+    return SectionCard(
+      title: title,
+      children: [
+        if (_uploads.isEmpty)
+          const EmptyMessage(label: 'uploaded files (pending backend)'),
+        if (_uploads.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (final upload in _uploads)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  if (upload.status == _UploadStatus.uploading)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  else if (upload.status == _UploadStatus.success)
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    )
+                  else
+                    Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: theme.colorScheme.error,
+                    ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      upload.filename,
+                      style: theme.textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (upload.error != null)
+                    Expanded(
+                      child: Text(
+                        upload.error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _uploading ? null : _pickAndUpload,
+            icon: const Icon(Icons.upload_file, size: 18),
+            label: const Text('Upload file to room'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _UploadStatus { uploading, success, error }
+
+class _UploadInfo {
+  _UploadInfo(this.id, this.filename, this.status, [this.error]);
+  final int id;
+  final String filename;
+  final _UploadStatus status;
+  final String? error;
 }

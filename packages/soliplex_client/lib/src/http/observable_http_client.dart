@@ -78,7 +78,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
     // Redact sensitive data before emitting to observers
     final redactedUri = HttpRedactor.redactUri(uri);
     final redactedHeaders = HttpRedactor.redactHeaders(headers ?? const {});
-    final redactedBody = _redactRequestBody(body, uri);
+    final redactedBody = _redactRequestBody(body, headers, uri);
 
     // Notify request start
     _notifyObservers((observer) {
@@ -169,7 +169,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
     // Redact sensitive data before emitting to observers
     final redactedUri = HttpRedactor.redactUri(uri);
     final redactedHeaders = HttpRedactor.redactHeaders(headers ?? const {});
-    final redactedBody = _redactRequestBody(body, uri);
+    final redactedBody = _redactRequestBody(body, headers, uri);
 
     // Notify stream start
     _notifyObservers((observer) {
@@ -266,13 +266,22 @@ class ObservableHttpClient implements SoliplexHttpClient {
   }
 
   /// Redacts the request body based on content type and URI.
-  dynamic _redactRequestBody(Object? body, Uri uri) {
+  dynamic _redactRequestBody(
+    Object? body,
+    Map<String, String>? headers,
+    Uri uri,
+  ) {
     if (body == null) return null;
 
-    // If body is raw bytes, decode to string first
+    // If body is raw bytes, check content-type before decoding
     if (body is List<int>) {
+      final contentType = headers?['content-type']?.toLowerCase() ?? '';
+      if (contentType.contains('multipart/form-data') ||
+          contentType.contains('application/octet-stream')) {
+        return '<binary upload: ${body.length} bytes>';
+      }
       final decoded = utf8.decode(body, allowMalformed: true);
-      return _redactRequestBody(decoded, uri);
+      return _redactRequestBody(decoded, headers, uri);
     }
 
     // If body is already a map (JSON-like), redact it directly

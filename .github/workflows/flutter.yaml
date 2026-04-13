@@ -62,11 +62,23 @@ jobs:
         id: seed
         run: echo "value=$RANDOM" >> "$GITHUB_OUTPUT"
 
-      - name: Run tests
+      - name: Run app tests
         run: |
           SEED="${{ steps.seed.outputs.value }}"
           echo "::notice::Test ordering seed: $SEED"
           flutter test --test-randomize-ordering-seed="$SEED" --coverage
+
+      - name: Run package tests
+        run: |
+          # Exclude integration-tagged tests (require a live backend)
+          for pkg in packages/soliplex_agent packages/soliplex_client packages/soliplex_logging; do
+            echo "::group::Testing $pkg"
+            (cd "$pkg" && dart test --exclude-tags integration)
+            echo "::endgroup::"
+          done
+          echo "::group::Testing packages/soliplex_client_native"
+          (cd packages/soliplex_client_native && flutter test)
+          echo "::endgroup::"
 
       - name: Report seed on failure
         if: failure()

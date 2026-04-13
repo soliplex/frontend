@@ -111,6 +111,27 @@ void main() {
         expect(refs[0].index, 1);
       });
 
+      test('defaults headings and pageNumbers to empty lists when absent', () {
+        final previous = createState();
+        final current = createState(
+          qaHistory: [
+            createQaEntry(
+              question: 'Q1',
+              answer: 'A1',
+              citations: [
+                createCitation(chunkId: 'c1'),
+              ],
+            ),
+          ],
+        );
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs, hasLength(1));
+        expect(refs[0].headings, isEmpty);
+        expect(refs[0].pageNumbers, isEmpty);
+      });
+
       test('extracts only new entries when qa_history grows', () {
         final previous = createState(
           qaHistory: [

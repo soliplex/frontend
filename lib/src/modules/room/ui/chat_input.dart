@@ -18,6 +18,7 @@ class ChatInput extends StatefulWidget {
     this.selectedDocuments = const {},
     this.onFilterTap,
     this.onDocumentRemoved,
+    this.onAttachFile,
   });
 
   final void Function(String text) onSend;
@@ -29,6 +30,7 @@ class ChatInput extends StatefulWidget {
   final Set<RagDocument> selectedDocuments;
   final VoidCallback? onFilterTap;
   final void Function(RagDocument doc)? onDocumentRemoved;
+  final VoidCallback? onAttachFile;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -227,6 +229,12 @@ class _ChatInputState extends State<ChatInput> {
                   ),
                   tooltip: 'Filter documents',
                   onPressed: disabled ? null : widget.onFilterTap,
+                ),
+              if (widget.onAttachFile != null)
+                IconButton(
+                  icon: const Icon(Icons.attach_file),
+                  tooltip: 'Upload file to thread',
+                  onPressed: disabled ? null : widget.onAttachFile,
                 ),
               Expanded(
                 child: CallbackShortcuts(
