@@ -10,5 +10,6 @@
 /// ```
 library;
 
+export 'src/monty_script_environment.dart';
 export 'src/soliplex_connection.dart';
 export 'src/soliplex_plugin.dart';

@@ -174,8 +174,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: "feat/api-design"
-      resolved-ref: "93cc6177b6b4ff7f6251eeefb927492f54a8ce0f"
+      ref: "25bb7de"
+      resolved-ref: "25bb7deb38345880bc03fa76fdf33c4397a9a2cc"
       url: "https://github.com/runyaga/dart_monty.git"
     source: git
     version: "0.20.0"

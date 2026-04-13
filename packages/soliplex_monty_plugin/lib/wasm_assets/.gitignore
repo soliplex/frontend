@@ -1,0 +1,4 @@
+# dart_monty_native.wasm is a binary build artifact (~5 MB).
+# Build it with: cd <dart_monty_pub_cache>/native && cargo build --release --target wasm32-wasip1
+# Then copy: cp <dart_monty_pub_cache>/packages/dart_monty_wasm/assets/dart_monty_native.wasm lib/wasm_assets/
+dart_monty_native.wasm
