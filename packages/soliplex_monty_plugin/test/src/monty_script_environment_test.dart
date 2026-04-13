@@ -71,6 +71,13 @@ MontyResult _errorResult(String message) => MontyResult(
 // Tests
 // ---------------------------------------------------------------------------
 
+// Reused across multiple groups.
+const toolCall = ToolCallInfo(
+  id: 'tc-1',
+  name: 'execute_python',
+  arguments: r'{"code": "x = 42\nx"}',
+);
+
 void main() {
   late _MockDmAgentSession mockSession;
   late MontyScriptEnvironment env;
@@ -78,6 +85,9 @@ void main() {
   setUp(() {
     mockSession = _MockDmAgentSession();
     when(() => mockSession.dispose()).thenAnswer((_) async {});
+    // schemas is accessed when _tools is first read; return empty list so
+    // the test env exposes only the execute_python tool.
+    when(() => mockSession.schemas).thenReturn([]);
     env = MontyScriptEnvironment.forTest(mockSession);
   });
 
@@ -140,22 +150,19 @@ void main() {
           ..dispose(); // must not throw
       });
 
-      test('calls dm.AgentSession.dispose() once', () {
+      test('calls dm.AgentSession.dispose() once', () async {
         env
           ..dispose()
           ..dispose(); // second call must be no-op
 
+        // The drain is scheduled via _executeMutex.protect — pump the
+        // event loop so it runs before we verify.
+        await Future<void>.delayed(Duration.zero);
         verify(() => mockSession.dispose()).called(1);
       });
     });
 
     group('execute_python tool', () {
-      const toolCall = ToolCallInfo(
-        id: 'tc-1',
-        name: 'execute_python',
-        arguments: r'{"code": "x = 42\nx"}',
-      );
-
       test('returns string representation of value', () async {
         when(() => mockSession.execute(any()))
             .thenAnswer((_) async => _resultOf(const MontyInt(42)));
@@ -283,6 +290,340 @@ void main() {
 
         expect(env.scriptingState.value, equals(ScriptingState.disposed));
       });
+    });
+
+    // -------------------------------------------------------------------------
+    // Timeout
+    //
+    // Will FAIL until _executePython wraps execute() with Future.timeout().
+    // -------------------------------------------------------------------------
+
+    group('timeout', () {
+      // Uses a short timeout env so tests don't wait 30 s.
+      late _MockDmAgentSession timeoutMock;
+      late MontyScriptEnvironment timeoutEnv;
+
+      setUp(() {
+        timeoutMock = _MockDmAgentSession();
+        when(() => timeoutMock.dispose()).thenAnswer((_) async {});
+        when(() => timeoutMock.schemas).thenReturn([]);
+        timeoutEnv = MontyScriptEnvironment.forTest(
+          timeoutMock,
+          executionTimeout: const Duration(milliseconds: 500),
+        );
+      });
+
+      tearDown(() => timeoutEnv.dispose());
+
+      test(
+        'throws TimeoutException when execute never completes',
+        () async {
+          when(() => timeoutMock.execute(any()))
+              .thenAnswer((_) => Completer<MontyResult>().future);
+
+          await expectLater(
+            () => timeoutEnv.tools.first.executor(toolCall, _StubContext()),
+            throwsA(isA<TimeoutException>()),
+          );
+        },
+        timeout: const Timeout(Duration(seconds: 5)),
+      );
+
+      test(
+        'restores idle state after timeout',
+        () async {
+          when(() => timeoutMock.execute(any()))
+              .thenAnswer((_) => Completer<MontyResult>().future);
+
+          await expectLater(
+            () => timeoutEnv.tools.first.executor(toolCall, _StubContext()),
+            throwsA(isA<TimeoutException>()),
+          );
+
+          expect(
+            timeoutEnv.scriptingState.value,
+            equals(ScriptingState.idle),
+          );
+        },
+        timeout: const Timeout(Duration(seconds: 5)),
+      );
+
+      test(
+        'second call succeeds after first times out',
+        () async {
+          // Ensures the mutex is released on timeout — not left locked.
+          var callCount = 0;
+          when(() => timeoutMock.execute(any())).thenAnswer((_) async {
+            callCount++;
+            if (callCount == 1) {
+              return Completer<MontyResult>().future; // hangs
+            }
+            return _resultOf(const MontyInt(99));
+          });
+
+          await expectLater(
+            () => timeoutEnv.tools.first.executor(toolCall, _StubContext()),
+            throwsA(isA<TimeoutException>()),
+          );
+
+          final result = await timeoutEnv.tools.first.executor(
+            toolCall,
+            _StubContext(),
+          );
+          expect(result, equals('99'));
+        },
+        timeout: const Timeout(Duration(seconds: 10)),
+      );
+    });
+
+    // -------------------------------------------------------------------------
+    // Concurrency — validates that the Mutex serialises concurrent execute()
+    // calls and that exceptions/timeouts don't leave the mutex locked.
+    // -------------------------------------------------------------------------
+
+    group('concurrency', () {
+      test('serialises concurrent execute() calls', () async {
+        final callOrder = <String>[];
+
+        when(() => mockSession.execute(any())).thenAnswer((_) async {
+          callOrder.add('start');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          callOrder.add('end');
+          return _resultOf(const MontyNull());
+        });
+
+        await Future.wait([
+          env.tools.first.executor(toolCall, _StubContext()),
+          env.tools.first.executor(toolCall, _StubContext()),
+        ]);
+
+        // Serialised: start, end, start, end (not start, start, end, end).
+        expect(callOrder, hasLength(4));
+        expect(callOrder[0], equals('start'));
+        expect(callOrder[1], equals('end'));
+        expect(callOrder[2], equals('start'));
+        expect(callOrder[3], equals('end'));
+      });
+
+      test('exception in first call does not prevent second', () async {
+        var callCount = 0;
+        when(() => mockSession.execute(any())).thenAnswer((_) async {
+          callCount++;
+          if (callCount == 1) throw Exception('first call failed');
+          return _resultOf(const MontyInt(42));
+        });
+
+        await expectLater(
+          () => env.tools.first.executor(toolCall, _StubContext()),
+          throwsA(isA<Exception>()),
+        );
+
+        final result = await env.tools.first.executor(toolCall, _StubContext());
+        expect(result, equals('42'));
+      });
+
+      test('state returns to idle after each serialised call', () async {
+        final states = <ScriptingState>[];
+        final sub = env.scriptingState.subscribe(states.add);
+        addTearDown(sub);
+
+        when(() => mockSession.execute(any()))
+            .thenAnswer((_) async => _resultOf(const MontyNull()));
+
+        await env.tools.first.executor(toolCall, _StubContext());
+        await env.tools.first.executor(toolCall, _StubContext());
+
+        // idle(initial), executing, idle, executing, idle
+        expect(
+          states,
+          containsAllInOrder([
+            ScriptingState.idle,
+            ScriptingState.executing,
+            ScriptingState.idle,
+            ScriptingState.executing,
+            ScriptingState.idle,
+          ]),
+        );
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Dispose safety
+    //
+    // Will FAIL until dispose() drains _executeMutex before calling
+    // _montySession.dispose(), and _executePython re-checks _disposed inside
+    // the protected block.
+    // -------------------------------------------------------------------------
+
+    group('dispose safety', () {
+      test(
+        'waits for in-flight execute before calling session dispose',
+        () async {
+          final executeStarted = Completer<void>();
+          final executeLatch = Completer<MontyResult>();
+          final disposeCompleted = Completer<void>();
+
+          when(() => mockSession.execute(any())).thenAnswer((_) async {
+            executeStarted.complete();
+            return executeLatch.future;
+          });
+          when(() => mockSession.dispose()).thenAnswer((_) async {
+            disposeCompleted.complete();
+          });
+
+          // Start execute — it will block at executeLatch.
+          final firstFuture =
+              env.tools.first.executor(toolCall, _StubContext());
+          await executeStarted.future;
+
+          // Call dispose while execute is in flight.
+          env.dispose();
+
+          // session.dispose() must NOT have been called yet.
+          verifyNever(() => mockSession.dispose());
+
+          // Release the in-flight execute.
+          executeLatch.complete(_resultOf(const MontyNull()));
+          await firstFuture;
+
+          // Now the drain should have run.
+          await disposeCompleted.future;
+          verify(() => mockSession.dispose()).called(1);
+        },
+      );
+
+      test(
+        'calls queued while dispose is pending throw StateError',
+        () async {
+          final executeStarted = Completer<void>();
+          final executeLatch = Completer<MontyResult>();
+          final disposeCompleted = Completer<void>();
+
+          when(() => mockSession.execute(any())).thenAnswer((_) async {
+            executeStarted.complete();
+            return executeLatch.future;
+          });
+          when(() => mockSession.dispose()).thenAnswer((_) async {
+            disposeCompleted.complete();
+          });
+
+          // First call holds the mutex.
+          final firstFuture =
+              env.tools.first.executor(toolCall, _StubContext());
+          await executeStarted.future;
+
+          // Second call is queued behind the mutex.
+          final secondFuture =
+              env.tools.first.executor(toolCall, _StubContext());
+
+          // dispose() queues the drain after the second call.
+          env.dispose();
+
+          // Release first — second acquires mutex, must see _disposed=true.
+          executeLatch.complete(_resultOf(const MontyNull()));
+          await firstFuture;
+
+          // Second call must be rejected.
+          await expectLater(secondFuture, throwsA(isA<StateError>()));
+          await disposeCompleted.future;
+        },
+      );
+    });
+
+    // -------------------------------------------------------------------------
+    // Isolation — deterministic unit-test replacement for the LLM-mediated T7.
+    // -------------------------------------------------------------------------
+
+    group('isolation', () {
+      test('two environments have independent Python state', () async {
+        when(() => mockSession.execute(any()))
+            .thenAnswer((_) async => _resultOf(const MontyInt(7777)));
+
+        const markerCall = ToolCallInfo(
+          id: 'tc-7a',
+          name: 'execute_python',
+          arguments: r'{"code": "isolation_marker = 7777\nisolation_marker"}',
+        );
+        final result1 =
+            await env.tools.first.executor(markerCall, _StubContext());
+        expect(result1, equals('7777'));
+
+        // env2 is a completely independent environment.
+        final mock2 = _MockDmAgentSession();
+        when(mock2.dispose).thenAnswer((_) async {});
+        when(() => mock2.schemas).thenReturn([]);
+        // Its session has no knowledge of isolation_marker.
+        when(() => mock2.execute(any()))
+            .thenAnswer((_) async => _resultOf(const MontyString('absent')));
+        final env2 = MontyScriptEnvironment.forTest(mock2);
+        addTearDown(env2.dispose);
+
+        const checkCall = ToolCallInfo(
+          id: 'tc-7b',
+          name: 'execute_python',
+          arguments: '''{"code": "vars().get('isolation_marker', 'absent')"}''',
+        );
+        final result2 =
+            await env2.tools.first.executor(checkCall, _StubContext());
+
+        expect(result2, isNot(contains('7777')));
+        expect(result2, equals('absent'));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Corner cases
+    // -------------------------------------------------------------------------
+
+    group('corner cases', () {
+      test('handles large string result without truncation', () async {
+        final largeStr = 'x' * 10000;
+        when(() => mockSession.execute(any()))
+            .thenAnswer((_) async => _resultOf(MontyString(largeStr)));
+
+        final result = await env.tools.first.executor(toolCall, _StubContext());
+
+        expect(result.length, equals(10000));
+        expect(result, equals(largeStr));
+      });
+
+      test('missing code key defaults to empty string', () async {
+        const noCode = ToolCallInfo(
+          id: 'tc-nc',
+          name: 'execute_python',
+          arguments: '{"not_code": "irrelevant"}',
+        );
+        when(() => mockSession.execute('')).thenAnswer(
+          (_) async => _resultOf(const MontyNull()),
+        );
+
+        final result = await env.tools.first.executor(noCode, _StubContext());
+
+        expect(result, equals(''));
+        verify(() => mockSession.execute('')).called(1);
+      });
+
+      test(
+        'mid-flight cancel is not observed — documents current design',
+        () async {
+          // Cancellation is only checked once, before the mutex.
+          // An execute() in progress runs to completion even if the token
+          // is cancelled partway through.
+          final cancelToken = CancelToken();
+          final ctx = _StubContext(cancelToken: cancelToken);
+
+          when(() => mockSession.execute(any())).thenAnswer((_) async {
+            cancelToken.cancel('cancelled mid-flight');
+            return _resultOf(const MontyInt(1));
+          });
+
+          final result = await env.tools.first.executor(toolCall, ctx);
+
+          // Result is returned, not ''. Mid-flight cancel is intentionally
+          // ignored — the Python execution is already in the background thread.
+          expect(result, equals('1'));
+        },
+      );
     });
   });
 }

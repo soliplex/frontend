@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async' show TimeoutException, unawaited;
 import 'dart:convert';
 
 import 'package:dart_monty/dart_monty_bridge.dart' as dm;
@@ -51,27 +51,42 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   /// [connections] are used to build Soliplex host functions registered
   /// directly on the dart_monty bridge.
   /// [os] is an optional OS provider for the Python interpreter.
+  /// [executionTimeout] caps each `execute_python` call; defaults to 30 s.
   MontyScriptEnvironment({
     required Map<String, SoliplexConnection> connections,
     dm.OsProvider? os,
+    Duration executionTimeout = const Duration(seconds: 30),
   })  : _connections = Map.unmodifiable(connections),
-        _montySession = dm.AgentSession(os: os) {
+        _montySession = dm.AgentSession(os: os),
+        _executionTimeout = executionTimeout {
     _registerSoliplexFunctions();
   }
 
   /// Creates a [MontyScriptEnvironment] with an explicit [session].
   ///
   /// Only for testing. Avoids loading the Python runtime.
+  /// [executionTimeout] defaults to 2 s so tests don't wait 30 s for
+  /// a hanging mock.
   @visibleForTesting
-  MontyScriptEnvironment.forTest(dm.AgentSession session)
-      : _connections = const {},
-        _montySession = session;
+  MontyScriptEnvironment.forTest(
+    dm.AgentSession session, {
+    Duration executionTimeout = const Duration(seconds: 2),
+  })  : _connections = const {},
+        _montySession = session,
+        _executionTimeout = executionTimeout;
 
   final Map<String, SoliplexConnection> _connections;
   final dm.AgentSession _montySession;
 
   final Signal<ScriptingState> _stateSignal = signal(ScriptingState.idle);
   bool _disposed = false;
+
+  /// Maximum wall-clock time allowed for a single `execute_python` call.
+  ///
+  /// If `_montySession.execute()` does not return within this duration a
+  /// [TimeoutException] is thrown and the mutex is released so subsequent
+  /// calls can proceed.
+  final Duration _executionTimeout;
 
   /// Direct handler lookup — avoids routing Dart invocations through Python.
   final Map<String, dm.HostFunctionHandler> _handlers = {};
@@ -110,7 +125,11 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     if (_disposed) return;
     _disposed = true;
     _stateSignal.set(ScriptingState.disposed);
-    unawaited(_montySession.dispose());
+    // Drain the execute mutex before tearing down the Python interpreter.
+    // Any in-flight execute() holds the mutex; we queue our dispose() call
+    // behind it so the session is only destroyed after all active Python
+    // execution has completed.
+    unawaited(_executeMutex.protect(_montySession.dispose));
   }
 
   // ---------------------------------------------------------------------------
@@ -194,9 +213,21 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
     _stateSignal.set(ScriptingState.executing);
     try {
-      final result = await _executeMutex.protect(
-        () => _montySession.execute(code),
-      );
+      final result = await _executeMutex.protect(() {
+        // Re-check after acquiring the mutex: dispose() may have been called
+        // while this request was queued. Calling execute() on a disposed
+        // dm.AgentSession is unsafe, so we bail out here instead.
+        if (_disposed) {
+          throw StateError('MontyScriptEnvironment has been disposed');
+        }
+        return _montySession.execute(code).timeout(
+              _executionTimeout,
+              onTimeout: () => throw TimeoutException(
+                'execute_python timed out after $_executionTimeout',
+                _executionTimeout,
+              ),
+            );
+      });
 
       if (result.error != null) {
         throw Exception('Python error: ${result.error!.message}');
