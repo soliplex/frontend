@@ -1,9 +1,10 @@
+// Uses print for debug output in manual test scripts.
 // ignore_for_file: avoid_print
 import 'package:dart_monty/dart_monty_bridge.dart';
 
 Future<void> main() async {
   final session = AgentSession();
-  final result = await session.execute(r'''
+  final result = await session.execute('''
 schedule = {}
 disruption_list = []
 weather = {1:"rain",2:"sunny",3:"sunny",4:"sunny",5:"sunny"}
@@ -63,26 +64,28 @@ for d in range(1,6):
     return;
   }
 
-  final r = result.value?.dartValue as Map;
-  final sched = r["executed_schedule"] as Map;
-  final disrupt = r["disruptions"] as List;
+  final r = result.value!.dartValue! as Map;
+  final sched = r['executed_schedule'] as Map;
+  final disrupt = r['disruptions'] as List;
 
   print('\nSchedule:');
-  for (final e in sched.entries) print('  Day ${e.key}: ${e.value}');
+  for (final e in sched.entries) {
+    print('  Day ${e.key}: ${e.value}');
+  }
   print('Disruptions: $disrupt');
 
   // Validate
   final jobDays = <String, int>{};
   for (final e in sched.entries) {
     for (final a in e.value as List) {
-      jobDays[(a as Map)["job"] as String] = e.key as int;
+      jobDays[(a as Map)['job'] as String] = e.key as int;
     }
   }
   print('\nJob days: $jobDays');
 
   // Check Alice not assigned on day 2
   final day2 = sched[2] as List;
-  final aliceOnDay2 = day2.any((a) => (a as Map)["worker"] == "Alice");
+  final aliceOnDay2 = day2.any((a) => (a as Map)['worker'] == 'Alice');
   print('Alice on day 2: $aliceOnDay2 (should be false)');
 
   // Check deps
@@ -95,8 +98,8 @@ for d in range(1,6):
   final day1 = sched[1] as List;
   final noRain = day1.isEmpty ||
       !day1.any((a) {
-        final j = (a as Map)["job"] as String;
-        return j.contains("FND") || j.contains("ROF");
+        final j = (a as Map)['job'] as String;
+        return j.contains('FND') || j.contains('ROF');
       });
   print('No outdoor rain: $noRain');
 

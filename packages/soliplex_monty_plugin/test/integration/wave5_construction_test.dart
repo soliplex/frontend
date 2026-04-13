@@ -6,8 +6,8 @@ library;
 import 'dart:io';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
 
 /// Upload wave5 construction experiments to bwrap_sandbox, have the agent
@@ -26,9 +26,9 @@ import 'package:test/test.dart';
 ///
 /// Run:
 ///   dart test test/integration/wave5_construction_test.dart -t integration --reporter expanded
-final _demoUrl =
+final String _demoUrl =
     Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
-final _localUrl =
+final String _localUrl =
     Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
 final String? _ioiDir = Platform.environment['IOI_EXPERIMENTS_DIR'];
 final String? _montyDocsDir = Platform.environment['MONTY_DOCS_DIR'];
@@ -63,7 +63,8 @@ void main() {
     () async {
       if (_ioiDir == null || _montyDocsDir == null) {
         markTestSkipped(
-            'Set IOI_EXPERIMENTS_DIR and MONTY_DOCS_DIR to run file-based tests');
+          'Set IOI_EXPERIMENTS_DIR and MONTY_DOCS_DIR to run file-based tests',
+        );
         return;
       }
       // Read the experiment files
@@ -344,7 +345,7 @@ String _trunc(String s, int max) =>
 
 String _pyStr(String s) {
   // Triple-quote Python string with escapes
-  final escaped = s.replaceAll('\\', '\\\\').replaceAll('"""', '\\"\\"\\"');
+  final escaped = s.replaceAll(r'\', r'\\').replaceAll('"""', r'\"\"\"');
 
   return '"""$escaped"""';
 }

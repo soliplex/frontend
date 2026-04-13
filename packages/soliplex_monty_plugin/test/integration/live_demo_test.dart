@@ -6,8 +6,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
 
 /// Multi-server integration test.
@@ -18,9 +18,9 @@ import 'package:test/test.dart';
 ///
 /// Run with:
 ///   dart test test/integration/live_demo_test.dart -t integration --reporter expanded
-final _demoUrl =
+final String _demoUrl =
     Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
-final _localUrl =
+final String _localUrl =
     Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
 
 void main() {

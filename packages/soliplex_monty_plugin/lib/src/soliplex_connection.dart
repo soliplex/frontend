@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 /// Bundles a [SoliplexApi] and [AgUiStreamClient] for a single server.
@@ -12,6 +13,18 @@ class SoliplexConnection {
     required this.api,
     required this.streamClient,
   });
+
+  /// Creates a connection from a [ServerConnection].
+  ///
+  /// Convenience factory for callers that already have a [ServerConnection]
+  /// (from `soliplex_agent`) and want to pass it into `MontyScriptEnvironment`
+  /// without importing `soliplex_client` directly.
+  factory SoliplexConnection.fromServerConnection(ServerConnection conn) {
+    return SoliplexConnection(
+      api: conn.api,
+      streamClient: conn.agUiStreamClient,
+    );
+  }
 
   /// REST API client for CRUD operations.
   final SoliplexApi api;

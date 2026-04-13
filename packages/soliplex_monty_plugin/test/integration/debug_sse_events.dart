@@ -1,11 +1,11 @@
+// Uses print for debug output in manual test scripts.
 // ignore_for_file: avoid_print
-/// Debug SSE event flow — traces every event from the stream
-/// to find where null returns come from.
+// Debug SSE event flow — traces every event from the stream
+// to find where null returns come from.
 import 'dart:convert';
 
-import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
 Future<void> main() async {
   // Create a raw connection to trace SSE events directly
@@ -30,7 +30,10 @@ Future<void> main() async {
     threadId: threadId,
     runId: runId,
     messages: [
-      UserMessage(id: 'user_1', content: 'Write a short Python hello world'),
+      const UserMessage(
+        id: 'user_1',
+        content: 'Write a short Python hello world',
+      ),
     ],
     state: aguiState,
   );
@@ -46,7 +49,6 @@ Future<void> main() async {
 
   await for (final event in stream) {
     eventCount++;
-    final type = event.runtimeType.toString();
     switch (event) {
       case RunStartedEvent(:final threadId, :final runId):
         print('  [$eventCount] RunStarted thread=$threadId run=$runId');
@@ -77,7 +79,9 @@ Future<void> main() async {
   print('  Message ID: $lastMessageId');
   print('  Buffer length: ${buffer.length}');
   print(
-      '  Response: ${buffer.toString().substring(0, buffer.length.clamp(0, 200))}');
+    '  Response: '
+    '${buffer.toString().substring(0, buffer.length.clamp(0, 200))}',
+  );
 
   // Step 4: Now do a SECOND run on same thread (reply)
   print('\n=== Second run (reply) ===');
@@ -89,9 +93,15 @@ Future<void> main() async {
     threadId: threadId,
     runId: runId2,
     messages: [
-      UserMessage(id: 'user_1', content: 'Write a short Python hello world'),
+      const UserMessage(
+        id: 'user_1',
+        content: 'Write a short Python hello world',
+      ),
       AssistantMessage(id: lastMessageId ?? 'a_1', content: buffer.toString()),
-      UserMessage(id: 'user_2', content: 'Now make it print goodbye too'),
+      const UserMessage(
+        id: 'user_2',
+        content: 'Now make it print goodbye too',
+      ),
     ],
     state: aguiState,
   );
@@ -120,7 +130,8 @@ Future<void> main() async {
   print('  Events: $eventCount2');
   print('  Buffer: ${buffer2.length} chars');
   print(
-    '  Response: ${buffer2.toString().substring(0, buffer2.length.clamp(0, 200))}',
+    '  Response: '
+    '${buffer2.toString().substring(0, buffer2.length.clamp(0, 200))}',
   );
 
   // Step 5: Test through the plugin

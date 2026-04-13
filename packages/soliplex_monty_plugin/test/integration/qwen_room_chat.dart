@@ -1,8 +1,9 @@
+// Uses print for debug output in manual test scripts.
 // ignore_for_file: avoid_print
-/// Two Qwen rooms talking to each other — 8B asks questions, 35B answers
+// Two Qwen rooms talking to each other — 8B asks questions, 35B answers
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
 Future<void> main() async {
   final transport = HttpTransport(client: DartHttpClient());

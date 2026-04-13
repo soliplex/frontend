@@ -6,8 +6,8 @@ library;
 import 'dart:io';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
 
 /// Advanced cross-server scenarios exercising the full pipeline:
@@ -19,9 +19,9 @@ import 'package:test/test.dart';
 ///
 /// Run:
 ///   dart test test/integration/advanced_scenarios_test.dart -t integration --reporter expanded
-final _demoUrl =
+final String _demoUrl =
     Platform.environment['SOLIPLEX_DEMO_URL'] ?? 'http://localhost:8000';
-final _localUrl =
+final String _localUrl =
     Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
 
 void main() {
@@ -654,7 +654,7 @@ resp = json.loads(soliplex_reply_thread(
     "1) Asks the demo cooking room for a simple soup recipe, "
     "2) Saves the recipe to /recipes/soup.txt, "
     "3) Uses tmpl_render to create a formatted card: "
-    "   'Recipe Card\\n===========\\nSource: {{ server }}\\nRoom: {{ room }}\\n\\n{{ recipe }}', "
+    r"   'Recipe Card\n===========\nSource: {{ server }}\nRoom: {{ room }}\n\n{{ recipe }}', "
     "4) Sends the card to msg_send('cards'), "
     "5) Reads it back with msg_recv('cards'), "
     "6) Returns {recipe_file: '/recipes/soup.txt', card_len: N, card_preview: first 100 chars}. "
@@ -694,7 +694,7 @@ resp = json.loads(soliplex_reply_thread(
     "2) Takes the response and asks local chat room: 'Summarize this in 10 words: ' + the response, "
     "3) Saves both responses to /conversations/cross-server.txt, "
     "4) Uses tmpl_render to make a comparison: "
-    "   'Demo said ({{ demo_len }} chars): {{ demo_preview }}\\n"
+    r"   'Demo said ({{ demo_len }} chars): {{ demo_preview }}\n"
     "Local said ({{ local_len }} chars): {{ local_preview }}', "
     "5) Returns {demo_thread, local_thread, template_output}. "
     "Use json.loads() on all host function returns."

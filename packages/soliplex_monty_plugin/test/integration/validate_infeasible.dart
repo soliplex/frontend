@@ -1,3 +1,4 @@
+// Uses print for debug output in manual test scripts.
 // ignore_for_file: avoid_print
 import 'package:dart_monty/dart_monty_bridge.dart';
 
@@ -17,7 +18,7 @@ Future<void> main() async {
   print('concat: ${r.value?.dartValue} / ${r.error}');
 
   // Now the actual infeasible code
-  r = await session.execute(r'''
+  r = await session.execute('''
 num_houses = 5
 jobs_per_house = 3
 total_jobs = num_houses * jobs_per_house

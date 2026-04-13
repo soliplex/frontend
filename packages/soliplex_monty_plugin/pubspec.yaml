@@ -21,5 +21,7 @@ dependencies:
 
 dev_dependencies:
   mocktail: ^1.0.0
+  soliplex_logging:
+    path: ../soliplex_logging
   test: ^1.24.0
   very_good_analysis: ^10.0.0

@@ -1,9 +1,8 @@
+// Uses print for debug output in manual test scripts.
 // ignore_for_file: avoid_print
-import 'dart:io';
-import 'package:dart_monty/dart_monty.dart';
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
 Future<void> main() async {
   final transport = HttpTransport(client: DartHttpClient());
@@ -11,15 +10,17 @@ Future<void> main() async {
 
   final session = AgentSession(
     plugins: [
-      SoliplexPlugin(connections: {
-        'local': SoliplexConnection(
-          api: SoliplexApi(transport: transport, urlBuilder: urlBuilder),
-          streamClient: AgUiStreamClient(
-            httpTransport: transport,
-            urlBuilder: urlBuilder,
+      SoliplexPlugin(
+        connections: {
+          'local': SoliplexConnection(
+            api: SoliplexApi(transport: transport, urlBuilder: urlBuilder),
+            streamClient: AgUiStreamClient(
+              httpTransport: transport,
+              urlBuilder: urlBuilder,
+            ),
           ),
-        ),
-      }),
+        },
+      ),
     ],
   );
 

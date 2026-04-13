@@ -731,8 +731,8 @@ void main() {
     test('closes all connections', () async {
       final mockApi2 = MockSoliplexApi();
       final mockStream2 = MockAgUiStreamClient();
-      when(() => mockApi2.close()).thenReturn(null);
-      when(() => mockStream2.close()).thenReturn(null);
+      when(mockApi2.close).thenReturn(null);
+      when(mockStream2.close).thenReturn(null);
       when(() => mockApi.close()).thenReturn(null);
       when(() => mockStream.close()).thenReturn(null);
 
@@ -746,8 +746,8 @@ void main() {
 
       verify(() => mockApi.close()).called(1);
       verify(() => mockStream.close()).called(1);
-      verify(() => mockApi2.close()).called(1);
-      verify(() => mockStream2.close()).called(1);
+      verify(mockApi2.close).called(1);
+      verify(mockStream2.close).called(1);
     });
   });
 
@@ -767,10 +767,10 @@ void main() {
         () => mockStream.runAgent(any(), any()),
       ).thenAnswer(
         (_) => Stream.fromIterable([
-          RunStartedEvent(threadId: _threadId, runId: _runId),
-          TextMessageContentEvent(messageId: 'msg-x', delta: 'hi'),
-          TextMessageEndEvent(messageId: 'msg-x'),
-          RunFinishedEvent(threadId: _threadId, runId: _runId),
+          const RunStartedEvent(threadId: _threadId, runId: _runId),
+          const TextMessageContentEvent(messageId: 'msg-x', delta: 'hi'),
+          const TextMessageEndEvent(messageId: 'msg-x'),
+          const RunFinishedEvent(threadId: _threadId, runId: _runId),
         ]),
       );
 
