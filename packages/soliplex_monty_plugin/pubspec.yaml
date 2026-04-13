@@ -13,6 +13,7 @@ dependencies:
       url: https://github.com/runyaga/dart_monty.git
       ref: 25bb7de
   meta: ^1.9.0
+  mutex: ^3.1.0
   signals_core: ^6.2.0
   soliplex_agent:
     path: ../soliplex_agent

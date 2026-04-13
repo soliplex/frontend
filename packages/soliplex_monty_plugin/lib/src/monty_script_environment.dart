@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dart_monty/dart_monty_bridge.dart' as dm;
 import 'package:meta/meta.dart';
+import 'package:mutex/mutex.dart';
 import 'package:signals_core/signals_core.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -74,6 +75,15 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
   /// Direct handler lookup — avoids routing Dart invocations through Python.
   final Map<String, dm.HostFunctionHandler> _handlers = {};
+
+  /// Serialises concurrent `execute()` calls on the dart_monty bridge.
+  ///
+  /// A single `AgentSession` owns one Python interpreter (Dart Isolate on FFI,
+  /// Web Worker on WASM). Concurrent `execute()` calls on the same session
+  /// interleave variable mutations inside that interpreter. The mutex ensures
+  /// only one `execute()` runs at a time so Python state is never stomped by a
+  /// racing call.
+  final Mutex _executeMutex = Mutex();
 
   /// Per-thread conversation state for multi-turn Soliplex conversations.
   final Map<String, _ThreadState> _threadStates = {};
@@ -184,7 +194,9 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
     _stateSignal.set(ScriptingState.executing);
     try {
-      final result = await _montySession.execute(code);
+      final result = await _executeMutex.protect(
+        () => _montySession.execute(code),
+      );
 
       if (result.error != null) {
         throw Exception('Python error: ${result.error!.message}');

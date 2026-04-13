@@ -74,8 +74,12 @@ class ScriptEnvironmentExtension implements SessionExtension {
 
 /// Converts a [ScriptEnvironmentFactory] into a [SessionExtensionFactory].
 ///
-/// Each invocation creates a single [ScriptEnvironmentExtension] wrapping
-/// the environment produced by [factory].
+/// Each invocation creates a fresh [ScriptEnvironment] and wraps it in a
+/// [ScriptEnvironmentExtension]. The environment is **owned by the session**
+/// and is disposed when the session ends.
+///
+/// Use this for fire-and-forget sessions that each get an isolated interpreter.
+/// For a shared, long-lived environment see [wrapSharedScriptEnvironment].
 SessionExtensionFactory wrapScriptEnvironmentFactory(
   ScriptEnvironmentFactory factory,
 ) {
@@ -83,4 +87,51 @@ SessionExtensionFactory wrapScriptEnvironmentFactory(
     final env = await factory();
     return [ScriptEnvironmentExtension(env)];
   };
+}
+
+/// Wraps a **shared** [ScriptEnvironment] as a [SessionExtensionFactory].
+///
+/// Unlike [wrapScriptEnvironmentFactory], the environment is **not disposed**
+/// when a session ends — the caller retains ownership and must call
+/// [ScriptEnvironment.dispose] at shutdown.
+///
+/// Use this when sharing one interpreter across many sessions (e.g. a
+/// persistent Python state across all turns for one room). Sessions must be
+/// spawned with `autoDispose: false` (the default) so the shared environment
+/// is not irrevocably destroyed when any individual session completes.
+///
+/// Example:
+/// ```dart
+/// final env = MontyScriptEnvironment(connections: {'demo': conn});
+/// final runtime = AgentRuntime(
+///   extensionFactory: wrapSharedScriptEnvironment(env),
+///   // ...
+/// );
+/// // At shutdown:
+/// env.dispose();
+/// await runtime.dispose();
+/// ```
+SessionExtensionFactory wrapSharedScriptEnvironment(ScriptEnvironment env) {
+  return () async => [_SharedScriptEnvironmentExtension(env)];
+}
+
+/// Extension that wraps a shared [ScriptEnvironment] without taking ownership.
+///
+/// [onDispose] is intentionally a no-op — the shared environment's lifecycle
+/// is managed by whoever created it, not by the session.
+class _SharedScriptEnvironmentExtension implements SessionExtension {
+  _SharedScriptEnvironmentExtension(this._environment);
+
+  final ScriptEnvironment _environment;
+
+  @override
+  List<ClientTool> get tools => _environment.tools;
+
+  @override
+  Future<void> onAttach(AgentSession session) => _environment.onAttach(session);
+
+  @override
+  void onDispose() {
+    // Shared environment — lifecycle owned by the caller, not this session.
+  }
 }

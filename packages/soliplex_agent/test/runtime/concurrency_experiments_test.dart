@@ -12,6 +12,7 @@ library;
 import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
+import 'package:signals_core/signals_core.dart' show signal;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart'
@@ -80,6 +81,13 @@ class _FakeBridgeScriptEnvironment implements ScriptEnvironment {
 
   final _FakeBridge _bridge;
   final Duration? workDuration;
+
+  @override
+  ReadonlySignal<ScriptingState> get scriptingState =>
+      signal(ScriptingState.idle).readonly();
+
+  @override
+  Future<void> onAttach(AgentSession session) async {}
 
   @override
   List<ClientTool> get tools => [

@@ -3,6 +3,8 @@
 @Tags(['integration'])
 library;
 
+import 'dart:async' show Timer;
+
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
@@ -161,16 +163,44 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 60)),
     );
+
+    test(
+      'T7: each fire-and-forget session has isolated Python state',
+      () async {
+        // Session 1: set a distinctive marker and confirm the value.
+        final s1 = await ask(
+          'Use execute_python to run this code and reply with ONLY the '
+          'number it returns: isolation_marker = 7777; isolation_marker',
+        );
+        print('  T7-s1 → "$s1"');
+        expect(s1, contains('7777'));
+
+        // Session 2 is a fresh interpreter — isolation_marker must not exist.
+        // vars().get() returns 'absent' without raising NameError.
+        final s2 = await ask(
+          'Use execute_python to run this code and reply with ONLY the '
+          "word it returns: vars().get('isolation_marker', 'absent')",
+        );
+        print('  T7-s2 → "$s2"');
+        // Must not see 7777 — that would mean state leaked from session 1.
+        expect(
+          s2,
+          isNot(contains('7777')),
+          reason: 'Python variable from session 1 visible in session 2 — '
+              'interpreters are not isolated',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
   });
 
   // ──────────────────────────────────────────────────────────────────────────
   // Stateful — single MontyScriptEnvironment shared across sessions.
   //
-  // extensionFactory always returns a ScriptEnvironmentExtension wrapping
-  // the same env instance.  autoDispose: false so onDispose() is not called
-  // between tests — only when tearDownAll disposes the runtime.  Multiple
-  // extensions wrapping the same env all call env.dispose() at teardown,
-  // which is safe because MontyScriptEnvironment.dispose() is idempotent.
+  // wrapSharedScriptEnvironment wraps the env WITHOUT taking ownership:
+  // onDispose() is a no-op, so the shared env survives each session ending.
+  // tearDownAll owns env.dispose().  autoDispose defaults to false so the
+  // session does not attempt to dispose extensions on completion.
   // ──────────────────────────────────────────────────────────────────────────
 
   group('stateful (persistent Python interpreter)', () {
@@ -183,8 +213,10 @@ void main() {
           'demo': SoliplexConnection.fromServerConnection(_conn('inner')),
         },
       );
+      // wrapSharedScriptEnvironment: env is NOT disposed when a session ends.
+      // Caller (tearDownAll) owns env.dispose().
       runtime = _runtime(
-        extensionFactory: wrapScriptEnvironmentFactory(() async => env),
+        extensionFactory: wrapSharedScriptEnvironment(env),
       );
     });
 
@@ -246,6 +278,46 @@ void main() {
         );
       },
       timeout: const Timeout(Duration(seconds: 60)),
+    );
+
+    test(
+      'T5: Dart event loop is not blocked during Python execution',
+      () async {
+        // Regression guard for the dart_monty background-thread guarantee.
+        // dm.AgentSession.execute() offloads Python to a Dart Isolate (FFI)
+        // or Web Worker (WASM) — the calling event loop must remain free.
+        //
+        // A Timer.periodic at 100ms fires on the Dart/JS event loop.
+        // ask() takes ~20-60s total (LLM + Python + LLM).  If the event loop
+        // were blocked for >100ms at any point, the heartbeat count would be
+        // far below what a fully-free event loop would accumulate.
+        var heartbeatCount = 0;
+        final timer = Timer.periodic(
+          const Duration(milliseconds: 100),
+          (_) => heartbeatCount++,
+        );
+        addTearDown(timer.cancel);
+
+        final output = await ask(
+          'Use execute_python to compute '
+          'sum(i * i for i in range(5000000)). '
+          'Reply only with the numeric result.',
+        );
+        print('  T5 → $output (heartbeats: $heartbeatCount)');
+
+        // A 100ms heartbeat fires once per event-loop cycle. ask() takes at
+        // least ~1s in any network environment.  Requiring >5 heartbeats means
+        // the event loop ran at least 6 times — conclusive proof it was not
+        // blocked. (A blocked isolate would deliver 0 heartbeats until after
+        // execute() returned.)
+        expect(
+          heartbeatCount,
+          greaterThan(5),
+          reason: 'Event loop was starved — dart_monty may be blocking the '
+              'calling thread instead of using a background Isolate/Worker',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
     );
   });
 }

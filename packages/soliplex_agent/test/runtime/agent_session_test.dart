@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
+import 'package:signals_core/signals_core.dart' show signal;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
@@ -83,6 +84,13 @@ class _TestScriptEnvironment implements ScriptEnvironment {
 
   @override
   List<ClientTool> get tools => const [];
+
+  @override
+  ReadonlySignal<ScriptingState> get scriptingState =>
+      signal(ScriptingState.idle).readonly();
+
+  @override
+  Future<void> onAttach(AgentSession session) async {}
 
   @override
   void dispose() => disposeCount++;
