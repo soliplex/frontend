@@ -18,12 +18,12 @@ import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 /// Stores message history and AG-UI state so that reply calls can send full
 /// context on each turn without requiring the caller to manage history.
 class _ThreadState {
-  _ThreadState({required this.threadId, dynamic state})
-      : state = state ?? <String, dynamic>{};
+  _ThreadState({required this.threadId, Object? state})
+      : state = state ?? <String, Object?>{};
 
   final String threadId;
   final List<Message> messages = [];
-  dynamic state;
+  Object? state;
   int _counter = 0;
 
   String nextId(String prefix) => '${prefix}_${++_counter}';
@@ -103,28 +103,29 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   /// Per-thread conversation state for multi-turn Soliplex conversations.
   final Map<String, _ThreadState> _threadStates = {};
 
-  // Lazily built: execute_python + all registered host function schemas.
-  late final List<ClientTool> _tools = [
-    _buildExecutePythonTool(),
-    ..._montySession.schemas
-        .where((s) => !s.name.startsWith('_'))
-        .map(_projectToClientTool),
-  ];
+  List<ClientTool>? _tools;
 
   @override
-  List<ClientTool> get tools => _tools;
+  List<ClientTool> get tools => _tools ??= [
+        _buildExecutePythonTool(),
+        ..._montySession.schemas
+            .where((s) => !s.name.startsWith('_'))
+            .map(_projectToClientTool),
+      ];
 
   @override
   ReadonlySignal<ScriptingState> get scriptingState => _stateSignal.readonly();
 
   @override
-  Future<void> onAttach(AgentSession session) async {}
+  Future<void> onAttach(AgentSession session) => Future.value();
 
   @override
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _stateSignal.set(ScriptingState.disposed);
+    _stateSignal
+      ..set(ScriptingState.disposed)
+      ..dispose();
     // Drain the execute mutex before tearing down the Python interpreter.
     // Any in-flight execute() holds the mutex; we queue our dispose() call
     // behind it so the session is only destroyed after all active Python
@@ -160,6 +161,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         _stateSignal.set(ScriptingState.executing);
         try {
           final result = await _handlers[schema.name]!(args);
+
           return switch (result) {
             null => '',
             final String s => s,
@@ -220,6 +222,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         if (_disposed) {
           throw StateError('MontyScriptEnvironment has been disposed');
         }
+
         return _montySession.execute(code).timeout(
               _executionTimeout,
               onTimeout: () => throw TimeoutException(
@@ -229,8 +232,9 @@ class MontyScriptEnvironment implements ScriptEnvironment {
             );
       });
 
-      if (result.error != null) {
-        throw Exception('Python error: ${result.error!.message}');
+      final pythonError = result.error;
+      if (pythonError != null) {
+        throw Exception('Python error: ${pythonError.message}');
       }
 
       return result.value?.dartValue?.toString() ?? '';
@@ -274,6 +278,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         handler: (args) async {
           final rooms =
               await _connection(args['server']! as String).api.getRooms();
+
           return jsonEncode(
             rooms
                 .map(
@@ -311,6 +316,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
           final threads = await _connection(args['server']! as String)
               .api
               .getThreads(args['room_id']! as String);
+
           return jsonEncode(
             threads
                 .map(
@@ -485,6 +491,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         'Available: ${_connections.keys.join(', ')}',
       );
     }
+
     return conn;
   }
 
@@ -520,6 +527,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         content: responseText,
       ),
     );
+
     return responseText;
   }
 }

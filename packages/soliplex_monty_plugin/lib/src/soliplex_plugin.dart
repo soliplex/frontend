@@ -11,12 +11,12 @@ import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 class _ThreadState {
   _ThreadState({
     required this.threadId,
-    dynamic state,
+    Object? state,
   }) : state = state ?? <String, dynamic>{};
 
   final String threadId;
   final List<Message> messages = [];
-  dynamic state;
+  Object? state;
   int _counter = 0;
 
   String nextId(String prefix) => '${prefix}_${++_counter}';
@@ -114,60 +114,6 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
         _uploadToThread,
       ];
 
-  // -- Helpers ---------------------------------------------------------------
-
-  SoliplexConnection _connection(String serverId) {
-    final conn = _connections[serverId];
-    if (conn == null) {
-      throw ArgumentError(
-        'Unknown server "$serverId". '
-        'Available: ${_connections.keys.join(', ')}',
-      );
-    }
-    return conn;
-  }
-
-  /// Consumes an AG-UI event stream, accumulating the assistant's response.
-  ///
-  /// Updates [threadState] with the assistant's message and any state snapshots
-  /// received during the stream.
-  Future<String> _consumeStream(
-    Stream<BaseEvent> stream,
-    _ThreadState threadState,
-  ) async {
-    final buffer = StringBuffer();
-    String? lastMessageId;
-
-    await for (final event in stream) {
-      switch (event) {
-        case TextMessageStartEvent(:final messageId):
-          lastMessageId = messageId;
-        case TextMessageContentEvent(:final delta):
-          buffer.write(delta);
-        case StateSnapshotEvent(:final snapshot):
-          threadState.state = snapshot;
-        case RunErrorEvent(:final message):
-          throw Exception('Agent run failed: $message');
-        case TextMessageEndEvent():
-        case RunStartedEvent():
-        case RunFinishedEvent():
-        case _:
-          break;
-      }
-    }
-
-    final responseText = buffer.toString();
-
-    threadState.messages.add(
-      AssistantMessage(
-        id: lastMessageId ?? threadState.nextId('assistant'),
-        content: responseText,
-      ),
-    );
-
-    return responseText;
-  }
-
   // -- Server Discovery ------------------------------------------------------
 
   HostFunction get _listServers => HostFunction(
@@ -197,6 +143,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
         handler: (args) async {
           final rooms =
               await _connection(args['server']! as String).api.getRooms();
+
           return jsonEncode(
             rooms
                 .map(
@@ -233,6 +180,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
           final conn = _connection(args['server']! as String);
           final roomId = args['room_id']! as String;
           final room = await conn.api.getRoom(roomId);
+
           return jsonEncode({
             'id': room.id,
             'name': room.name,
@@ -271,6 +219,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
           final conn = _connection(args['server']! as String);
           final roomId = args['room_id']! as String;
           final docs = await conn.api.getDocuments(roomId);
+
           return jsonEncode(
             docs
                 .map(
@@ -314,6 +263,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
           final roomId = args['room_id']! as String;
           final chunkId = args['chunk_id']! as String;
           final chunk = await conn.api.getChunkVisualization(roomId, chunkId);
+
           return jsonEncode({
             'chunk_id': chunk.chunkId,
             'document_uri': chunk.documentUri,
@@ -345,6 +295,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
           final conn = _connection(args['server']! as String);
           final roomId = args['room_id']! as String;
           final threads = await conn.api.getThreads(roomId);
+
           return jsonEncode(
             threads
                 .map(
@@ -389,45 +340,6 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
         handler: _handleNewThread,
       );
 
-  Future<Object?> _handleNewThread(Map<String, Object?> args) async {
-    final conn = _connection(args['server']! as String);
-    final roomId = args['room_id']! as String;
-    final message = args['message']! as String;
-
-    // Create thread (includes an initial run).
-    final (threadInfo, aguiState) = await conn.api.createThread(roomId);
-    final threadId = threadInfo.id;
-    final runId = threadInfo.initialRunId;
-
-    // Initialize thread state.
-    final threadState = _ThreadState(threadId: threadId, state: aguiState);
-    _threadStates[threadId] = threadState;
-
-    // Build user message and add to history.
-    final userMsg = UserMessage(
-      id: threadState.nextId('user'),
-      content: message,
-    );
-    threadState.messages.add(userMsg);
-
-    // Execute the run via SSE.
-    final input = SimpleRunAgentInput(
-      threadId: threadId,
-      runId: runId,
-      messages: List.unmodifiable(threadState.messages),
-      state: threadState.state,
-    );
-    final endpoint = 'rooms/$roomId/agui/$threadId/$runId';
-    final stream = conn.streamClient.runAgent(endpoint, input);
-    final responseText = await _consumeStream(stream, threadState);
-
-    return jsonEncode({
-      'thread_id': threadId,
-      'run_id': runId,
-      'response': responseText,
-    });
-  }
-
   HostFunction get _replyThread => HostFunction(
         schema: const HostFunctionSchema(
           name: 'soliplex_reply_thread',
@@ -461,47 +373,6 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
         ),
         handler: _handleReplyThread,
       );
-
-  Future<Object?> _handleReplyThread(Map<String, Object?> args) async {
-    final conn = _connection(args['server']! as String);
-    final roomId = args['room_id']! as String;
-    final threadId = args['thread_id']! as String;
-    final message = args['message']! as String;
-
-    // Look up or create thread state.
-    final threadState = _threadStates.putIfAbsent(
-      threadId,
-      () => _ThreadState(threadId: threadId),
-    );
-
-    // Create a new run for this turn.
-    final runInfo = await conn.api.createRun(roomId, threadId);
-    final runId = runInfo.id;
-
-    // Append user message to history.
-    final userMsg = UserMessage(
-      id: threadState.nextId('user'),
-      content: message,
-    );
-    threadState.messages.add(userMsg);
-
-    // Execute the run via SSE.
-    final input = SimpleRunAgentInput(
-      threadId: threadId,
-      runId: runId,
-      messages: List.unmodifiable(threadState.messages),
-      state: threadState.state,
-    );
-    final endpoint = 'rooms/$roomId/agui/$threadId/$runId';
-    final stream = conn.streamClient.runAgent(endpoint, input);
-    final responseText = await _consumeStream(stream, threadState);
-
-    return jsonEncode({
-      'thread_id': threadId,
-      'run_id': runId,
-      'response': responseText,
-    });
-  }
 
   // -- Uploads ---------------------------------------------------------------
 
@@ -553,6 +424,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
             fileBytes: utf8.encode(content),
             mimeType: mimeType,
           );
+
           return jsonEncode({'uploaded': filename, 'room_id': roomId});
         },
       );
@@ -612,6 +484,7 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
             fileBytes: utf8.encode(content),
             mimeType: mimeType,
           );
+
           return jsonEncode({
             'uploaded': filename,
             'room_id': roomId,
@@ -636,5 +509,140 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
       conn.api.close();
       conn.streamClient.close();
     }
+  }
+
+  // -- Helpers ---------------------------------------------------------------
+
+  SoliplexConnection _connection(String serverId) {
+    final conn = _connections[serverId];
+    if (conn == null) {
+      throw ArgumentError(
+        'Unknown server "$serverId". '
+        'Available: ${_connections.keys.join(', ')}',
+      );
+    }
+
+    return conn;
+  }
+
+  /// Consumes an AG-UI event stream, accumulating the assistant's response.
+  ///
+  /// Updates [threadState] with the assistant's message and any state snapshots
+  /// received during the stream.
+  Future<String> _consumeStream(
+    Stream<BaseEvent> stream,
+    _ThreadState threadState,
+  ) async {
+    final buffer = StringBuffer();
+    String? lastMessageId;
+
+    await for (final event in stream) {
+      switch (event) {
+        case TextMessageStartEvent(:final messageId):
+          lastMessageId = messageId;
+        case TextMessageContentEvent(:final delta):
+          buffer.write(delta);
+        case StateSnapshotEvent(:final snapshot):
+          threadState.state = snapshot;
+        case RunErrorEvent(:final message):
+          throw Exception('Agent run failed: $message');
+        case TextMessageEndEvent():
+        case RunStartedEvent():
+        case RunFinishedEvent():
+        case _:
+          break;
+      }
+    }
+
+    final responseText = buffer.toString();
+
+    threadState.messages.add(
+      AssistantMessage(
+        id: lastMessageId ?? threadState.nextId('assistant'),
+        content: responseText,
+      ),
+    );
+
+    return responseText;
+  }
+
+  Future<Object?> _handleNewThread(Map<String, Object?> args) async {
+    final conn = _connection(args['server']! as String);
+    final roomId = args['room_id']! as String;
+    final message = args['message']! as String;
+
+    // Create thread (includes an initial run).
+    final (threadInfo, aguiState) = await conn.api.createThread(roomId);
+    final threadId = threadInfo.id;
+    final runId = threadInfo.initialRunId;
+
+    // Initialize thread state.
+    final threadState = _ThreadState(threadId: threadId, state: aguiState);
+    _threadStates[threadId] = threadState;
+
+    // Build user message and add to history.
+    final userMsg = UserMessage(
+      id: threadState.nextId('user'),
+      content: message,
+    );
+    threadState.messages.add(userMsg);
+
+    // Execute the run via SSE.
+    final input = SimpleRunAgentInput(
+      threadId: threadId,
+      runId: runId,
+      messages: List.unmodifiable(threadState.messages),
+      state: threadState.state,
+    );
+    final endpoint = 'rooms/$roomId/agui/$threadId/$runId';
+    final stream = conn.streamClient.runAgent(endpoint, input);
+    final responseText = await _consumeStream(stream, threadState);
+
+    return jsonEncode({
+      'thread_id': threadId,
+      'run_id': runId,
+      'response': responseText,
+    });
+  }
+
+  Future<Object?> _handleReplyThread(Map<String, Object?> args) async {
+    final conn = _connection(args['server']! as String);
+    final roomId = args['room_id']! as String;
+    final threadId = args['thread_id']! as String;
+    final message = args['message']! as String;
+
+    // Look up or create thread state.
+    final threadState = _threadStates.putIfAbsent(
+      threadId,
+      () => _ThreadState(threadId: threadId),
+    );
+
+    // Create a new run for this turn.
+    final runInfo = await conn.api.createRun(roomId, threadId);
+    final runId = runInfo.id;
+
+    // Append user message to history.
+    final userMsg = UserMessage(
+      id: threadState.nextId('user'),
+      content: message,
+    );
+    threadState.messages.add(userMsg);
+
+    // Execute the run via SSE.
+    final input = SimpleRunAgentInput(
+      threadId: threadId,
+      runId: runId,
+      messages: List.unmodifiable(threadState.messages),
+      state: threadState.state,
+    );
+    final endpoint = 'rooms/$roomId/agui/$threadId/$runId';
+    final stream = conn.streamClient.runAgent(endpoint, input);
+    final responseText = await _consumeStream(stream, threadState);
+
+    return jsonEncode({
+      'thread_id': threadId,
+      'run_id': runId,
+      'response': responseText,
+    });
   }
 }
