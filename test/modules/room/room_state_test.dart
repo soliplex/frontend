@@ -4,6 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -122,6 +123,38 @@ void main() {
     state.dispose();
   });
 
+  test('sendToNewThread adds thread to list locally', () async {
+    final createdThread = ThreadInfo(
+      id: 'spawned-thread',
+      roomId: 'room-1',
+      name: '',
+      createdAt: DateTime(2026, 3, 25),
+    );
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextCreateThread = (createdThread, <String, dynamic>{});
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      connection: connection,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    await state.sendToNewThread('Hello');
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    final loaded = state.threadList.threads.value as ThreadsLoaded;
+    expect(loaded.threads.any((t) => t.id == 'spawned-thread'), isTrue);
+
+    state.dispose();
+  });
+
   test('sessionState is spawning during sendToNewThread', () async {
     api.nextRoom = Room(id: 'room-1', name: 'Test');
     api.nextThreads = [];
@@ -175,7 +208,7 @@ void main() {
     expect(state.lastError.value, isNull);
   });
 
-  test('createThread calls API, refreshes list, and selects thread', () async {
+  test('createThread adds thread to list locally and selects it', () async {
     final createdThread = ThreadInfo(
       id: 'new-thread',
       roomId: 'room-1',
@@ -198,14 +231,12 @@ void main() {
 
     await Future<void>.delayed(Duration.zero);
 
-    // After create, set list to return the new thread
-    api.nextThreads = [createdThread];
-
     final threadId = await state.createThread();
     expect(threadId, 'new-thread');
 
-    // Wait for thread list refresh
-    await Future<void>.delayed(Duration.zero);
+    // Thread should appear in the local list without a server refresh.
+    final loaded = state.threadList.threads.value as ThreadsLoaded;
+    expect(loaded.threads.any((t) => t.id == 'new-thread'), isTrue);
 
     expect(state.activeThreadView, isNotNull);
     expect(state.activeThreadView!.threadId, 'new-thread');
@@ -306,8 +337,6 @@ void main() {
       state.selectThread('thread-1');
       expect(state.activeThreadView!.threadId, 'thread-1');
 
-      // After delete, list returns only thread-2.
-      api.nextThreads = [threads[1]];
       await state.deleteThread('thread-1');
 
       expect(state.activeThreadView!.threadId, 'thread-2');
@@ -422,64 +451,6 @@ void main() {
       // thread-1 should still be selected, no navigation fired.
       expect(state.activeThreadView!.threadId, 'thread-1');
       expect(navigatedId, 'sentinel');
-
-      state.dispose();
-    });
-  });
-
-  group('renameThread', () {
-    test('delegates to threadList', () async {
-      final threads = [
-        ThreadInfo(
-          id: 'thread-1',
-          roomId: 'room-1',
-          name: 'Old Name',
-          createdAt: DateTime(2026, 3, 1),
-        ),
-      ];
-      api.nextRoom = Room(id: 'room-1', name: 'Test');
-      api.nextThreads = threads;
-
-      final state = RoomState(
-        connection: connection,
-        roomId: 'room-1',
-        runtimeManager: runtimeManager,
-        registry: registry,
-      );
-      await Future<void>.delayed(Duration.zero);
-
-      await state.renameThread('thread-1', 'New Name');
-
-      expect(api.updateMetadataCallCount, 1);
-      expect(api.lastUpdatedName, 'New Name');
-
-      state.dispose();
-    });
-
-    test('propagates API error', () async {
-      api.nextRoom = Room(id: 'room-1', name: 'Test');
-      api.nextThreads = [
-        ThreadInfo(
-          id: 'thread-1',
-          roomId: 'room-1',
-          name: 'Test',
-          createdAt: DateTime(2026, 3, 1),
-        ),
-      ];
-
-      final state = RoomState(
-        connection: connection,
-        roomId: 'room-1',
-        runtimeManager: runtimeManager,
-        registry: registry,
-      );
-      await Future<void>.delayed(Duration.zero);
-
-      api.nextUpdateMetadataError = Exception('server error');
-      expect(
-        () => state.renameThread('thread-1', 'New'),
-        throwsA(isA<Exception>()),
-      );
 
       state.dispose();
     });

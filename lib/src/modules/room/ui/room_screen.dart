@@ -146,7 +146,6 @@ class _RoomScreenState extends State<RoomScreen> {
         _autoSelectFirstThread();
       }
     } else if (widget.threadId != oldWidget.threadId) {
-      unawaited(_state.threadList.refresh());
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
@@ -286,7 +285,7 @@ class _RoomScreenState extends State<RoomScreen> {
       context: context,
       builder: (_) => RenameDialog(
         initialName: currentName,
-        onAction: (name) => _state.renameThread(threadId, name),
+        onAction: (name) => _state.threadList.renameThread(threadId, name),
       ),
     );
   }

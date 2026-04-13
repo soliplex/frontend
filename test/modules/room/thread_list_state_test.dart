@@ -367,9 +367,9 @@ void main() {
   });
 
   test(
-      'deleteThread when threads still loading calls API but skips local update',
-      () async {
-    // Never resolve the initial fetch — threads stay in loading state.
+      'deleteThread from non-loaded state calls the API and schedules a '
+      'fresh fetch to reconcile', () async {
+    // Initial fetch fails: state ends up in ThreadsFailed.
     api.nextThreadsError = Exception('slow network');
 
     final state = ThreadListState(
@@ -379,15 +379,149 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(state.threads.value, isA<ThreadsFailed>());
 
-    // Clear the error so deleteThread itself succeeds.
+    // Clear the error and seed the next fetch with the post-delete
+    // server state.
     api.nextThreadsError = null;
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-other',
+        roomId: 'room-1',
+        name: 'Other',
+        createdAt: DateTime(2026, 2, 1),
+      ),
+    ];
+
     await state.deleteThread('thread-1');
+    // deleteThread scheduled a fresh fetch; let it resolve.
+    await Future<void>.delayed(Duration.zero);
 
     expect(api.deleteThreadCallCount, 1);
-    // Threads status unchanged — no optimistic removal possible.
-    expect(state.threads.value, isA<ThreadsFailed>());
+    expect(state.threads.value, isA<ThreadsLoaded>());
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.single.id, 'thread-other');
 
     state.dispose();
+  });
+
+  group('noteSpawnedThread', () {
+    test('inserts thread into loaded list sorted by createdAt descending',
+        () async {
+      final existing = ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Existing',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      api.nextThreads = [existing];
+
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final newer = ThreadInfo(
+        id: 'thread-2',
+        roomId: 'room-1',
+        name: 'Newer',
+        createdAt: DateTime(2026, 3, 1),
+      );
+      state.noteSpawnedThread(newer);
+
+      final loaded = state.threads.value as ThreadsLoaded;
+      expect(loaded.threads.length, 2);
+      expect(loaded.threads.first.id, 'thread-2'); // newer first
+      expect(loaded.threads.last.id, 'thread-1');
+
+      state.dispose();
+    });
+
+    test('ignores duplicate thread id', () async {
+      final existing = ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Existing',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      api.nextThreads = [existing];
+
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.noteSpawnedThread(existing);
+
+      final loaded = state.threads.value as ThreadsLoaded;
+      expect(loaded.threads.length, 1);
+
+      state.dispose();
+    });
+
+    test(
+        'from non-loaded state, defers to a fresh fetch instead of '
+        'clobbering with a single-element list', () async {
+      // Initial fetch fails: state ends up in ThreadsFailed.
+      api.nextThreadsError = Exception('slow network');
+
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(state.threads.value, isA<ThreadsFailed>());
+
+      // Now the server has the user's newly-created thread plus the
+      // pre-existing ones. A subsequent fetch should bring them all in.
+      final newThread = ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'New',
+        createdAt: DateTime(2026, 3, 1),
+      );
+      final preExisting = ThreadInfo(
+        id: 'thread-0',
+        roomId: 'room-1',
+        name: 'Pre-existing',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      api.nextThreadsError = null;
+      api.nextThreads = [preExisting, newThread];
+
+      state.noteSpawnedThread(newThread);
+      // noteSpawnedThread does not transition to Loaded synchronously — it
+      // schedules a fetch.
+      expect(state.threads.value, isA<ThreadsLoading>());
+
+      await Future<void>.delayed(Duration.zero);
+
+      final loaded = state.threads.value as ThreadsLoaded;
+      expect(loaded.threads.map((t) => t.id).toSet(), {'thread-0', 'thread-1'});
+
+      state.dispose();
+    });
+
+    test('does nothing when disposed', () async {
+      api.nextThreads = [];
+
+      final state = ThreadListState(
+        connection: connection,
+        roomId: 'room-1',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.dispose();
+      state.noteSpawnedThread(ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'New',
+        createdAt: DateTime(2026, 3, 1),
+      ));
+
+      final loaded = state.threads.value as ThreadsLoaded;
+      expect(loaded.threads, isEmpty);
+    });
   });
 
   test('refresh() returns a Future that completes after fetch', () async {

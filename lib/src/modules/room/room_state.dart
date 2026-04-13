@@ -108,11 +108,11 @@ class RoomState {
   Future<String?> createThread() async {
     _lastError.value = null;
     try {
-      final (threadInfo, aguiState) =
-          await _connection.api.createThread(_roomId);
+      final result = await threadList.createThread();
+      if (result == null) return null; // disposed
+      final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
       runtime.seedThreadState(threadInfo.id, aguiState);
-      threadList.refresh();
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
@@ -142,13 +142,6 @@ class RoomState {
         onNavigateToThread?.call(null);
       }
     }
-
-    unawaited(threadList.refresh());
-  }
-
-  Future<void> renameThread(String threadId, String name) async {
-    await threadList.renameThread(threadId, name);
-    unawaited(threadList.refresh());
   }
 
   /// Implicit thread creation (send message with no thread selected).
@@ -190,7 +183,16 @@ class RoomState {
       final key = session.threadKey;
       _registry.register(key, session);
       if (_isDisposed) return;
-      threadList.refresh();
+      // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
+      // the sidebar reflects the new thread immediately. The backend
+      // generates the thread's name lazily after the run finishes; the
+      // sidebar picks that up on the next natural refresh (room change,
+      // pull-to-refresh, re-entry).
+      threadList.noteSpawnedThread(ThreadInfo(
+        id: key.threadId,
+        roomId: _roomId,
+        createdAt: DateTime.now(),
+      ));
       selectThread(key.threadId);
       _activeThreadView!.attachSession(session);
       onNavigateToThread?.call(key.threadId);
