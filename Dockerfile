@@ -71,7 +71,7 @@ COPY --from=builder /app/build/web /app/build/web
 #------------------------------------------------------------------------------
 # Copy nginx configuration
 #------------------------------------------------------------------------------
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 9000
 
