@@ -62,7 +62,8 @@ void main() {
     '1. Upload ruleset + baseline experiment',
     () async {
       if (_ioiDir == null || _montyDocsDir == null) {
-        markTestSkipped('Set IOI_EXPERIMENTS_DIR and MONTY_DOCS_DIR to run file-based tests');
+        markTestSkipped(
+            'Set IOI_EXPERIMENTS_DIR and MONTY_DOCS_DIR to run file-based tests');
         return;
       }
       // Read the experiment files

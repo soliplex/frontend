@@ -76,7 +76,8 @@ Future<void> main() async {
   print('  Events: $eventCount');
   print('  Message ID: $lastMessageId');
   print('  Buffer length: ${buffer.length}');
-  print('  Response: ${buffer.toString().substring(0, buffer.length.clamp(0, 200))}');
+  print(
+      '  Response: ${buffer.toString().substring(0, buffer.length.clamp(0, 200))}');
 
   // Step 4: Now do a SECOND run on same thread (reply)
   print('\n=== Second run (reply) ===');

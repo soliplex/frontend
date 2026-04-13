@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
@@ -626,24 +626,6 @@ void main() {
     });
   });
 
-  // -- MCP -------------------------------------------------------------------
-
-  group('soliplex_get_mcp_token', () {
-    test('returns token', () async {
-      when(() => mockApi.getMcpToken(_roomId)).thenAnswer(
-        (_) async => 'tok-123',
-      );
-
-      final result = decodeJson(
-        await call('soliplex_get_mcp_token', {
-          'server': _server,
-          'room_id': _roomId,
-        }),
-      );
-      expect(result['mcp_token'], 'tok-123');
-    });
-  });
-
   // -- Error handling --------------------------------------------------------
 
   group('error handling', () {
@@ -724,8 +706,8 @@ void main() {
       expect(plugin.namespace, 'soliplex');
     });
 
-    test('has 11 functions', () {
-      expect(plugin.functions, hasLength(11));
+    test('has 10 functions', () {
+      expect(plugin.functions, hasLength(10));
     });
 
     test('systemPromptContext mentions all servers', () {
@@ -733,6 +715,74 @@ void main() {
         plugin.systemPromptContext,
         contains(_server),
       );
+    });
+
+    test('systemPromptContext omits MCP token section', () {
+      expect(
+        plugin.systemPromptContext,
+        isNot(contains('soliplex_get_mcp_token')),
+      );
+    });
+  });
+
+  // -- Dispose ---------------------------------------------------------------
+
+  group('onDispose', () {
+    test('closes all connections', () async {
+      final mockApi2 = MockSoliplexApi();
+      final mockStream2 = MockAgUiStreamClient();
+      when(() => mockApi2.close()).thenReturn(null);
+      when(() => mockStream2.close()).thenReturn(null);
+      when(() => mockApi.close()).thenReturn(null);
+      when(() => mockStream.close()).thenReturn(null);
+
+      final multi = SoliplexPlugin(
+        connections: {
+          'a': SoliplexConnection(api: mockApi, streamClient: mockStream),
+          'b': SoliplexConnection(api: mockApi2, streamClient: mockStream2),
+        },
+      );
+      await multi.onDispose();
+
+      verify(() => mockApi.close()).called(1);
+      verify(() => mockStream.close()).called(1);
+      verify(() => mockApi2.close()).called(1);
+      verify(() => mockStream2.close()).called(1);
+    });
+  });
+
+  // -- Edge cases ------------------------------------------------------------
+
+  group('edge cases', () {
+    test('response without TextMessageStartEvent uses generated message id',
+        () async {
+      when(
+        () => mockApi.createThread(_roomId, name: any(named: 'name')),
+      ).thenAnswer(
+        (_) async => (_threadInfo(), <String, dynamic>{}),
+      );
+
+      // Stream without TextMessageStartEvent — lastMessageId stays null.
+      when(
+        () => mockStream.runAgent(any(), any()),
+      ).thenAnswer(
+        (_) => Stream.fromIterable([
+          RunStartedEvent(threadId: _threadId, runId: _runId),
+          TextMessageContentEvent(messageId: 'msg-x', delta: 'hi'),
+          TextMessageEndEvent(messageId: 'msg-x'),
+          RunFinishedEvent(threadId: _threadId, runId: _runId),
+        ]),
+      );
+
+      final result = decodeJson(
+        await call('soliplex_new_thread', {
+          'server': _server,
+          'room_id': _roomId,
+          'message': 'Hello',
+        }),
+      );
+      // Response still contains the text.
+      expect(result['response'], 'hi');
     });
   });
 }

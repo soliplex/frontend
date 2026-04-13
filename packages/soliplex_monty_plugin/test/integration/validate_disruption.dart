@@ -93,10 +93,11 @@ for d in range(1,6):
 
   // No outdoor on rain day 1
   final day1 = sched[1] as List;
-  final noRain = day1.isEmpty || !day1.any((a) {
-    final j = (a as Map)["job"] as String;
-    return j.contains("FND") || j.contains("ROF");
-  });
+  final noRain = day1.isEmpty ||
+      !day1.any((a) {
+        final j = (a as Map)["job"] as String;
+        return j.contains("FND") || j.contains("ROF");
+      });
   print('No outdoor rain: $noRain');
 
   final allDone = jobDays.length == 5;

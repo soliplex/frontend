@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
-import 'soliplex_connection.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 
 /// Per-thread conversation state managed internally by the plugin.
 ///
@@ -98,9 +98,6 @@ Uploads:
   soliplex_upload_to_thread(server, room_id, thread_id, filename, content)
       — upload scoped to a single thread
 
-MCP:
-  soliplex_get_mcp_token(server, room_id)      — get MCP access token
-
 Use help("soliplex_new_thread") for detailed parameter info on any function.''';
 
   @override
@@ -115,7 +112,6 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
         _replyThread,
         _uploadToRoom,
         _uploadToThread,
-        _getMcpToken,
       ];
 
   // -- Helpers ---------------------------------------------------------------
@@ -621,34 +617,6 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
             'room_id': roomId,
             'thread_id': threadId,
           });
-        },
-      );
-
-  // -- MCP -------------------------------------------------------------------
-
-  HostFunction get _getMcpToken => HostFunction(
-        schema: const HostFunctionSchema(
-          name: 'soliplex_get_mcp_token',
-          description: 'Get an MCP access token for a room. '
-              'Only works for rooms with allow_mcp enabled.',
-          params: [
-            HostParam(
-              name: 'server',
-              type: HostParamType.string,
-              description: 'Server ID.',
-            ),
-            HostParam(
-              name: 'room_id',
-              type: HostParamType.string,
-              description: 'Room ID.',
-            ),
-          ],
-        ),
-        handler: (args) async {
-          final conn = _connection(args['server']! as String);
-          final roomId = args['room_id']! as String;
-          final token = await conn.api.getMcpToken(roomId);
-          return jsonEncode({'room_id': roomId, 'mcp_token': token});
         },
       );
 
