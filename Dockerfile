@@ -3,15 +3,13 @@
 ###############################################################################
 # Usage:
 #
-# 1. Build the image:
+# 1. Build the image (from the frontend directory):
 #
 #    $ docker build . -t soliplex-frontend:latest
 #
 # 2. Run the Soliplex front-end client:
 #
-#    $ docker run --rm --env-file .env -p 8000:8000 soliplex-backend:v0.31
-#
-#    (the '.env' file should contain the 'OLLAMA_BASE_URL' mapping).
+#    $ docker run --rm -p 9000:9000 soliplex-frontend:latest
 #
 ###############################################################################
 
@@ -19,8 +17,6 @@
 # Build stage
 ###############################################################################
 FROM ubuntu:focal AS builder
-
-ARG CHECKOUT_REPOS
 
 #------------------------------------------------------------------------------
 # Install system utilities / prereqs.
@@ -47,10 +43,9 @@ RUN export FLUTTER=flutter_linux_3.38.4-stable.tar.xz && \
     rm $FLUTTER
 
 #------------------------------------------------------------------------------
-# Clone Soliplex flutter app.
+# Copy local source into the build context.
 #------------------------------------------------------------------------------
-RUN echo "Cloning 'soliplex/flutter' at 'main'" && \
-    git clone "https://github.com/soliplex/flutter.git" /app
+COPY . /app
 
 #------------------------------------------------------------------------------
 # Build flutter web app
