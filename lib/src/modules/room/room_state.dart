@@ -126,6 +126,12 @@ class RoomState {
   /// Deletes a thread. Disposes the active view if it belongs to this
   /// thread. Navigates to the next available thread, or null if none.
   Future<void> deleteThread(String threadId) async {
+    // Pick the next thread BEFORE the mutation. threadList.deleteThread
+    // may flip the list into a transient Loading state (its non-Loaded
+    // fallback path calls _fetch()); reading after the await would miss
+    // the list we actually had and land the user on an empty screen.
+    final nextThreadId = _pickNextThreadId(excluding: threadId);
+
     await threadList.deleteThread(threadId);
 
     if (_activeThreadView?.threadId == threadId) {
@@ -133,15 +139,18 @@ class RoomState {
       _activeThreadView?.dispose();
       _activeThreadView = null;
 
-      final current = threadList.threads.value;
-      if (current is ThreadsLoaded && current.threads.isNotEmpty) {
-        final nextId = current.threads.first.id;
-        selectThread(nextId);
-        onNavigateToThread?.call(nextId);
-      } else {
-        onNavigateToThread?.call(null);
-      }
+      if (nextThreadId != null) selectThread(nextThreadId);
+      onNavigateToThread?.call(nextThreadId);
     }
+  }
+
+  String? _pickNextThreadId({required String excluding}) {
+    final current = threadList.threads.value;
+    if (current is! ThreadsLoaded) return null;
+    for (final t in current.threads) {
+      if (t.id != excluding) return t.id;
+    }
+    return null;
   }
 
   /// Implicit thread creation (send message with no thread selected).

@@ -100,9 +100,7 @@ class ThreadListState {
   }
 
   Future<void> renameThread(String threadId, String name) async {
-    if (name.trim().isEmpty) {
-      throw ArgumentError.value(name, 'name', 'must not be empty');
-    }
+    assert(name.trim().isNotEmpty, 'caller must not submit an empty name');
     if (_isDisposed) return;
 
     // The backend replaces all metadata on update, so we must re-send

@@ -50,7 +50,7 @@ class _ThreadTileState extends State<ThreadTile> {
         selected: widget.isSelected,
         selectedTileColor: theme.colorScheme.primaryContainer,
         title: Text(
-          widget.thread.hasName ? widget.thread.name : 'Untitled',
+          widget.thread.hasName ? widget.thread.name : 'New Thread',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

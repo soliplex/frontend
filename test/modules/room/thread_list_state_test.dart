@@ -194,56 +194,6 @@ void main() {
     state.dispose();
   });
 
-  test('renameThread rejects empty name', () async {
-    api.nextThreads = [
-      ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'Test',
-        createdAt: DateTime(2026, 3, 1),
-      ),
-    ];
-
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(
-      () => state.renameThread('thread-1', ''),
-      throwsA(isA<ArgumentError>()),
-    );
-    expect(api.updateMetadataCallCount, 0);
-
-    state.dispose();
-  });
-
-  test('renameThread rejects whitespace-only name', () async {
-    api.nextThreads = [
-      ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'Test',
-        createdAt: DateTime(2026, 3, 1),
-      ),
-    ];
-
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(
-      () => state.renameThread('thread-1', '   '),
-      throwsA(isA<ArgumentError>()),
-    );
-    expect(api.updateMetadataCallCount, 0);
-
-    state.dispose();
-  });
-
   test('renameThread throws StateError when threads not loaded', () async {
     api.nextThreadsError = Exception('network error');
 
