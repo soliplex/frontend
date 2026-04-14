@@ -43,7 +43,7 @@ class ScriptEnvironmentExtension implements SessionExtension {
   List<ClientTool> get tools => _environment.tools;
 
   @override
-  void onDispose() => _environment.dispose();
+  void dispose() => _environment.dispose();
 }
 
 /// Converts a [ScriptEnvironmentFactory] into a [SessionExtensionFactory].

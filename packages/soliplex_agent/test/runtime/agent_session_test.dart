@@ -733,9 +733,9 @@ void main() {
       expect(ext.disposeCount, equals(1));
     });
 
-    test('ScriptEnvironment satisfies SessionExtension', () {
+    test('ScriptEnvironmentExtension adapter lifecycle', () {
       final env = _TestScriptEnvironment();
-      final SessionExtension ext = env;
+      final ext = ScriptEnvironmentExtension(env);
 
       expect(ext.tools, isEmpty);
       ext.dispose();

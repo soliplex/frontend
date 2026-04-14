@@ -604,9 +604,11 @@ void main() {
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
         extensionFactory: () async => [
-          _FakeBridgeScriptEnvironment(
-            sharedBridge,
-            workDuration: const Duration(milliseconds: 100),
+          ScriptEnvironmentExtension(
+            _FakeBridgeScriptEnvironment(
+              sharedBridge,
+              workDuration: const Duration(milliseconds: 100),
+            ),
           ),
         ],
       );
@@ -662,9 +664,11 @@ void main() {
           final bridge = _FakeBridge();
           bridges.add(bridge);
           return [
-            _FakeBridgeScriptEnvironment(
-              bridge,
-              workDuration: const Duration(milliseconds: 200),
+            ScriptEnvironmentExtension(
+              _FakeBridgeScriptEnvironment(
+                bridge,
+                workDuration: const Duration(milliseconds: 200),
+              ),
             ),
           ];
         },
@@ -719,7 +723,9 @@ void main() {
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
         extensionFactory: () async => [
-          _FakeBridgeScriptEnvironment(sharedBridge),
+          ScriptEnvironmentExtension(
+            _FakeBridgeScriptEnvironment(sharedBridge),
+          ),
         ],
       );
 
@@ -764,9 +770,11 @@ void main() {
       runtime = createRuntime(
         platform: const NativePlatformConstraints(maxConcurrentBridges: 1),
         extensionFactory: () async => [
-          _FakeBridgeScriptEnvironment(
-            sharedBridge,
-            workDuration: const Duration(milliseconds: 50),
+          ScriptEnvironmentExtension(
+            _FakeBridgeScriptEnvironment(
+              sharedBridge,
+              workDuration: const Duration(milliseconds: 50),
+            ),
           ),
         ],
       );
@@ -824,9 +832,11 @@ void main() {
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
         extensionFactory: () async => [
-          _FakeBridgeScriptEnvironment(
-            sharedBridge,
-            workDuration: toolDuration,
+          ScriptEnvironmentExtension(
+            _FakeBridgeScriptEnvironment(
+              sharedBridge,
+              workDuration: toolDuration,
+            ),
           ),
         ],
       );
@@ -890,7 +900,12 @@ void main() {
         extensionFactory: () async {
           final bridge = _FakeBridge();
           return [
-            _FakeBridgeScriptEnvironment(bridge, workDuration: toolDuration),
+            ScriptEnvironmentExtension(
+              _FakeBridgeScriptEnvironment(
+                bridge,
+                workDuration: toolDuration,
+              ),
+            ),
           ];
         },
       );
