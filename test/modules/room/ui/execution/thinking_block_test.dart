@@ -71,7 +71,7 @@ void main() {
 
       expect(find.text('Let me think about this'), findsNothing);
 
-      await tester.tap(find.byType(GestureDetector));
+      await tester.tap(find.textContaining('Thinking'));
       await tester.pump();
 
       expect(find.text('Let me think about this'), findsOneWidget);
@@ -84,12 +84,12 @@ void main() {
       await tester.pumpWidget(wrap(ExecutionThinkingBlock(tracker: tracker)));
       await tester.pump();
 
-      await tester.tap(find.byType(GestureDetector));
+      await tester.tap(find.textContaining('Thinking'));
       await tester.pump();
 
       expect(find.text('Let me think about this'), findsOneWidget);
 
-      await tester.tap(find.byType(GestureDetector));
+      await tester.tap(find.textContaining('Thinking'));
       await tester.pump();
 
       expect(find.text('Let me think about this'), findsNothing);
@@ -132,7 +132,7 @@ void main() {
       await tester.pumpWidget(wrap(ExecutionThinkingBlock(tracker: tracker)));
       await tester.pump();
 
-      await tester.tap(find.byType(GestureDetector));
+      await tester.tap(find.textContaining('Thinking'));
       await tester.pump();
 
       // Only the non-empty block should appear

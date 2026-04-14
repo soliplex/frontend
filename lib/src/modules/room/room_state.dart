@@ -108,11 +108,11 @@ class RoomState {
   Future<String?> createThread() async {
     _lastError.value = null;
     try {
-      final (threadInfo, aguiState) =
-          await _connection.api.createThread(_roomId);
+      final result = await threadList.createThread();
+      if (result == null) return null; // disposed
+      final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
       runtime.seedThreadState(threadInfo.id, aguiState);
-      threadList.refresh();
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
@@ -126,6 +126,12 @@ class RoomState {
   /// Deletes a thread. Disposes the active view if it belongs to this
   /// thread. Navigates to the next available thread, or null if none.
   Future<void> deleteThread(String threadId) async {
+    // Pick the next thread from the list we can *see now*. Reading after
+    // the await risks seeing a list that a concurrent fetch has replaced
+    // (e.g., with ThreadsLoading). If we can't see a Loaded list now,
+    // there's no successor to pick and we'll navigate to null.
+    final nextThreadId = _pickNextThreadId(excluding: threadId);
+
     await threadList.deleteThread(threadId);
 
     if (_activeThreadView?.threadId == threadId) {
@@ -133,22 +139,18 @@ class RoomState {
       _activeThreadView?.dispose();
       _activeThreadView = null;
 
-      final current = threadList.threads.value;
-      if (current is ThreadsLoaded && current.threads.isNotEmpty) {
-        final nextId = current.threads.first.id;
-        selectThread(nextId);
-        onNavigateToThread?.call(nextId);
-      } else {
-        onNavigateToThread?.call(null);
-      }
+      if (nextThreadId != null) selectThread(nextThreadId);
+      onNavigateToThread?.call(nextThreadId);
     }
-
-    unawaited(threadList.refresh());
   }
 
-  Future<void> renameThread(String threadId, String name) async {
-    await threadList.renameThread(threadId, name);
-    unawaited(threadList.refresh());
+  String? _pickNextThreadId({required String excluding}) {
+    final current = threadList.threads.value;
+    if (current is! ThreadsLoaded) return null;
+    for (final t in current.threads) {
+      if (t.id != excluding) return t.id;
+    }
+    return null;
   }
 
   /// Implicit thread creation (send message with no thread selected).
@@ -190,7 +192,16 @@ class RoomState {
       final key = session.threadKey;
       _registry.register(key, session);
       if (_isDisposed) return;
-      threadList.refresh();
+      // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
+      // the sidebar reflects the new thread immediately. The backend
+      // generates the thread's name lazily after the run finishes; the
+      // sidebar picks that up on the next natural refresh (room change,
+      // pull-to-refresh, re-entry).
+      threadList.noteSpawnedThread(ThreadInfo(
+        id: key.threadId,
+        roomId: _roomId,
+        createdAt: DateTime.now(),
+      ));
       selectThread(key.threadId);
       _activeThreadView!.attachSession(session);
       onNavigateToThread?.call(key.threadId);

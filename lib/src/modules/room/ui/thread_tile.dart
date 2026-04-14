@@ -28,6 +28,7 @@ class ThreadTile extends StatefulWidget {
 
 class _ThreadTileState extends State<ThreadTile> {
   bool _isHovered = false;
+  bool _isMenuOpen = false;
 
   static bool get _isDesktop => switch (defaultTargetPlatform) {
         TargetPlatform.macOS ||
@@ -40,7 +41,8 @@ class _ThreadTileState extends State<ThreadTile> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showMenu = widget.isSelected || _isHovered || !_isDesktop;
+    final showMenu =
+        widget.isSelected || _isHovered || _isMenuOpen || !_isDesktop;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -49,7 +51,7 @@ class _ThreadTileState extends State<ThreadTile> {
         selected: widget.isSelected,
         textColor: theme.colorScheme.onSurfaceVariant,
         title: Text(
-          widget.thread.hasName ? widget.thread.name : 'Untitled',
+          widget.thread.hasName ? widget.thread.name : 'New Thread',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -74,7 +76,15 @@ class _ThreadTileState extends State<ThreadTile> {
       tooltip: 'Thread options',
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
+      // Keep the menu button "shown" while the popup overlay is open, so
+      // the button isn't unmounted when the pointer leaves the tile. If the
+      // button unmounts while the popup is open, the showMenu future's
+      // completion callback short-circuits on `!mounted` and silently drops
+      // onSelected for non-selected threads on desktop.
+      onOpened: () => setState(() => _isMenuOpen = true),
+      onCanceled: () => setState(() => _isMenuOpen = false),
       onSelected: (action) {
+        setState(() => _isMenuOpen = false);
         switch (action) {
           case _ThreadAction.rename:
             widget.onRename();
