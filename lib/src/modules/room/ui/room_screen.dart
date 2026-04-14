@@ -721,6 +721,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       fallback: _threadEmptyFallback(context),
                     )
                   : MessageTimeline(
+                      key: ValueKey(threadView.threadId),
                       messages: messages,
                       messageStates: messageStates,
                       streamingState: streaming,

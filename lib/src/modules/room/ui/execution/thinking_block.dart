@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../execution_tracker.dart';
+import '../copy_button.dart';
 
 class ExecutionThinkingBlock extends StatefulWidget {
   const ExecutionThinkingBlock({super.key, required this.tracker});
@@ -66,6 +67,12 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
                       ),
                     ),
                   ],
+                  const Spacer(),
+                  CopyButton(
+                    text: thinkingBlocks.join('\n\n'),
+                    tooltip: 'Copy thinking',
+                    iconSize: 16,
+                  ),
                 ],
               ),
               if (_expanded) ...[

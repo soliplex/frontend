@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
 
 import 'code_block_builder.dart';
 import 'inline_code_builder.dart';
@@ -38,6 +39,8 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
       ),
+      blockSyntaxes: [LatexBlockSyntax()],
+      inlineSyntaxes: [LatexInlineSyntax()],
       onTapLink: onLinkTap == null
           ? null
           : (_, href, title) {
@@ -48,6 +51,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
         'pre': CodeBlockBuilder(
           preferredStyle: monoStyle.copyWith(fontSize: 14),
         ),
+        'latex': LatexElementBuilder(),
       },
     );
   }
