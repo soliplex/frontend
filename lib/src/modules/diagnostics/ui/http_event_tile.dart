@@ -27,15 +27,15 @@ class HttpEventTile extends StatelessWidget {
       label: group.semanticLabel,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: dense ? SoliplexSpacing.s2 : SoliplexSpacing.s3,
-          vertical: dense ? SoliplexSpacing.s1 : SoliplexSpacing.s2,
+          horizontal: dense ? SoliplexSpacing.s2 : SoliplexSpacing.s4,
+          vertical: dense ? SoliplexSpacing.s2 : SoliplexSpacing.s4,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildRequestLine(theme),
-            SizedBox(height: dense ? 2 : 4),
+            SizedBox(height: dense ? 0 : SoliplexSpacing.s1),
             _buildResultLine(theme),
           ],
         ),
