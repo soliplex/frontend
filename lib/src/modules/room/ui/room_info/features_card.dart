@@ -104,8 +104,8 @@ class _McpTokenRowState extends State<McpTokenRow> {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
             child: SizedBox(
-              height: 20,
-              width: 20,
+              height: SoliplexSpacing.s5,
+              width: SoliplexSpacing.s5,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );

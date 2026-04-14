@@ -72,14 +72,14 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             size: 64,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           Text(
             'No HTTP requests yet',
             style: theme.textTheme.titleMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           Text(
             'Requests will appear here as you use the app',
             style: theme.textTheme.bodyMedium?.copyWith(

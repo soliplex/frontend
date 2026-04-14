@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../quiz_session.dart';
 import 'quiz_answer_input.dart';
 import 'quiz_feedback.dart';
@@ -65,22 +66,22 @@ class QuizQuestionView extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: SoliplexSpacing.s2),
                     Text(question.text, style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: SoliplexSpacing.s4),
                     _buildInput(question, questionState, selectedOption),
                     if (submissionError != null) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: SoliplexSpacing.s4),
                       QuizErrorFeedback(
                         message: submissionError!,
                         onRetry: onRetry,
                       ),
                     ],
                     if (questionState case Answered(:final result)) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: SoliplexSpacing.s4),
                       QuizAnswerFeedback(result: result),
                     ],
-                    const SizedBox(height: 16),
+                    const SizedBox(height: SoliplexSpacing.s4),
                     _buildActionButton(questionState),
                   ],
                 ),
@@ -126,8 +127,8 @@ class QuizQuestionView extends StatelessWidget {
       Submitting() => const FilledButton(
           onPressed: null,
           child: SizedBox(
-            width: 20,
-            height: 20,
+            width: SoliplexSpacing.s5,
+            height: SoliplexSpacing.s5,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),

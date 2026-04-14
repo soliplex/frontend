@@ -414,7 +414,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         if (_uploads.isEmpty)
           const EmptyMessage(label: 'uploaded files (pending backend)'),
         if (_uploads.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           for (final upload in _uploads)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
@@ -422,8 +422,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
                 children: [
                   if (upload.status == _UploadStatus.uploading)
                     const SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: SoliplexSpacing.s4,
+                      height: SoliplexSpacing.s4,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                       ),
@@ -440,7 +440,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
                       size: 16,
                       color: theme.colorScheme.error,
                     ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   Expanded(
                     child: Text(
                       upload.filename,
@@ -464,7 +464,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
               ),
             ),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(

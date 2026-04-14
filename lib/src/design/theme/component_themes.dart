@@ -539,7 +539,7 @@ NavigationDrawerThemeData buildNavigationDrawerTheme(
 }) {
   return NavigationDrawerThemeData(
     indicatorShape: const RoundedRectangleBorder(),
-    tileHeight: 48,
+    tileHeight: SoliplexSpacing.s9,
     labelTextStyle: WidgetStatePropertyAll(
       TextStyle(
         fontFamily: fontConfig?.bodyFont,
@@ -703,7 +703,7 @@ ProgressIndicatorThemeData buildProgressIndicatorTheme(
 ) {
   return ProgressIndicatorThemeData(
     linearTrackColor: colorScheme.surfaceContainerHighest,
-    linearMinHeight: 4,
+    linearMinHeight: SoliplexSpacing.s1,
     circularTrackColor: colorScheme.surfaceContainerHighest,
   );
 }
@@ -743,7 +743,7 @@ DataTableThemeData buildDataTableTheme(
     ),
     horizontalMargin: SoliplexSpacing.s4,
     columnSpacing: SoliplexSpacing.s6,
-    dataRowMinHeight: 48,
+    dataRowMinHeight: SoliplexSpacing.s9,
     headingRowHeight: 60,
   );
 }

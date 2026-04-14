@@ -59,7 +59,7 @@ class _ExecutionThinkingBlockState extends State<ExecutionThinkingBlock> {
                     ),
                   ),
                   if (isStreaming) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: SoliplexSpacing.s2),
                     SizedBox(
                       width: 10,
                       height: 10,

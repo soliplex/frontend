@@ -103,8 +103,8 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
             child: SizedBox(
-              width: 16,
-              height: 16,
+              width: SoliplexSpacing.s4,
+              height: SoliplexSpacing.s4,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           )

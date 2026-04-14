@@ -498,8 +498,8 @@ class _RoomScreenState extends State<RoomScreen> {
                   children: [
                     if (anyUploading)
                       SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: SoliplexSpacing.s5,
+                        height: SoliplexSpacing.s5,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: theme.colorScheme.primary,
@@ -517,7 +517,7 @@ class _RoomScreenState extends State<RoomScreen> {
                         size: 20,
                         color: theme.colorScheme.primary,
                       ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: SoliplexSpacing.s1),
                     Text(
                       _chipLabel(
                         roomEntries.length,
@@ -628,7 +628,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     color: color,
                   ),
                 ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

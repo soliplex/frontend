@@ -212,8 +212,8 @@ class _CountdownIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SizedBox(
-      width: 22,
-      height: 22,
+      width: SoliplexSpacing.s6,
+      height: SoliplexSpacing.s6,
       child: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {

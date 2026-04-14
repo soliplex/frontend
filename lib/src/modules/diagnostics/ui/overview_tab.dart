@@ -56,7 +56,7 @@ class _OverviewTabState extends State<OverviewTab> {
       children: [
         if (hasRequestBody) ...[
           _JsonSection(title: 'Request Body', body: body),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
         ],
         if (group.isStream)
           _StreamSection(
@@ -130,7 +130,7 @@ class _StreamSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         if (parseResult.wasTruncated) _TruncationBanner(),
         if (view == _StreamView.conversation)
           _ConversationView(run: accumulatedRun)
@@ -160,7 +160,7 @@ class _TruncationBanner extends StatelessWidget {
             size: 16,
             color: colorScheme.onTertiaryContainer,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Text(
             'Earlier stream content was truncated',
             style: TextStyle(
@@ -268,7 +268,7 @@ class _RunEntryCard extends StatelessWidget {
             _RoleBadge(
                 label: label, color: badgeColor, textColor: badgeTextColor),
             if (content.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s2),
               SelectableText(
                 content,
                 style: theme.textTheme.bodySmall,
@@ -371,7 +371,7 @@ class _SseEventCardState extends State<_SseEventCard> {
               child: Row(
                 children: [
                   _EventTypeBadge(type: widget.event.type),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   if (summary.isNotEmpty)
                     Expanded(
                       child: Text(
@@ -457,7 +457,7 @@ class _JsonSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),

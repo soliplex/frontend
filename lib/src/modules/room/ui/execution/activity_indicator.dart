@@ -14,8 +14,8 @@ class ActivityIndicator extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(
-            width: 16,
-            height: 16,
+            width: SoliplexSpacing.s4,
+            height: SoliplexSpacing.s4,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: SoliplexSpacing.s2),

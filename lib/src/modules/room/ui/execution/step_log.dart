@@ -92,8 +92,8 @@ class _StepLogState extends State<StepLog> {
     switch (step.status) {
       case StepStatus.active:
         return SizedBox(
-          width: 12,
-          height: 12,
+          width: SoliplexSpacing.s3,
+          height: SoliplexSpacing.s3,
           child: CircularProgressIndicator(
             strokeWidth: 1.5,
             color: theme.colorScheme.primary,

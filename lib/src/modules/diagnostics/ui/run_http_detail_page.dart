@@ -49,7 +49,7 @@ class RunHttpDetailPage extends StatelessWidget {
             size: 48,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             'No HTTP traffic found for this run',
             style: theme.textTheme.bodyMedium?.copyWith(

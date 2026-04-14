@@ -225,7 +225,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('id', style: labelStyle),
-            const SizedBox(height: 2),
+            const SizedBox(height: SoliplexSpacing.s1),
             SelectableText(
               doc.id,
               style: SoliplexTheme.mergeCode(context, valueStyle),
@@ -234,7 +234,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
               const SizedBox(height: SoliplexSpacing.s2),
             if (doc.uri.isNotEmpty) ...[
               Text('uri', style: labelStyle),
-              const SizedBox(height: 2),
+              const SizedBox(height: SoliplexSpacing.s1),
               SelectableText(
                 doc.uri,
                 style: SoliplexTheme.mergeCode(context, valueStyle),
@@ -254,7 +254,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(label, style: labelStyle),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: SoliplexSpacing.s1),
                           SelectableText(
                             value,
                             style: valueStyle,
@@ -344,7 +344,7 @@ class MetadataDialog extends StatelessWidget {
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: SoliplexSpacing.s1),
                           formatDynamicValue(
                             context,
                             entry.value,

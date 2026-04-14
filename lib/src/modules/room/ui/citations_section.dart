@@ -56,7 +56,7 @@ class _CitationsSectionState extends State<CitationsSection> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 Icon(
                   _sectionExpanded ? Icons.expand_less : Icons.expand_more,
                   size: 16,
@@ -122,8 +122,8 @@ class _SourceReferenceRow extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 24,
-                    height: 24,
+                    width: SoliplexSpacing.s6,
+                    height: SoliplexSpacing.s6,
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(6),

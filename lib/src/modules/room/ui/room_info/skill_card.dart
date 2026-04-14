@@ -32,7 +32,7 @@ class SkillContentColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: labelStyle),
-          const SizedBox(height: 2),
+          const SizedBox(height: SoliplexSpacing.s1),
           Text(
             isNone ? 'None' : value,
             style: isNone ? noneStyle : valueStyle,
@@ -111,7 +111,7 @@ class SkillDetailDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(entry.key, style: labelStyle),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: SoliplexSpacing.s1),
                         formatDynamicValue(
                           context,
                           entry.value,

@@ -64,7 +64,7 @@ class HttpEventTile extends StatelessWidget {
     return Row(
       children: [
         Text(group.methodLabel, style: methodStyle),
-        const SizedBox(width: 6),
+        const SizedBox(width: SoliplexSpacing.s2),
         Expanded(
           child: Text(
             group.pathWithQuery,
@@ -90,9 +90,9 @@ class HttpEventTile extends StatelessWidget {
       children: [
         if (!dense) ...[
           Text(group.timestamp.toHttpTimeString(), style: metaStyle),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
           Text('→', style: metaStyle),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
         ],
         Expanded(
           child: HttpStatusDisplay(group: group, isSelected: isSelected),

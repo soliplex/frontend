@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/theme/theme_extensions.dart';
+import '../../../../soliplex_frontend.dart';
 import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.
@@ -156,7 +156,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 SelectableText(
                   _expanded ? expandedLabel : label,
                   style: baseStyle,
