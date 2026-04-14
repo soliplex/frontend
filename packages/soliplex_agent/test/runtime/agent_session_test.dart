@@ -111,7 +111,7 @@ class _TestExtension implements SessionExtension {
   List<ClientTool> get tools => const [];
 
   @override
-  void onDispose() => disposeCount++;
+  void dispose() => disposeCount++;
 }
 
 class _TestExtensionWithTool implements SessionExtension {
@@ -128,7 +128,7 @@ class _TestExtensionWithTool implements SessionExtension {
   List<ClientTool> get tools => [_tool];
 
   @override
-  void onDispose() => disposeCount++;
+  void dispose() => disposeCount++;
 }
 
 // ---------------------------------------------------------------------------
@@ -660,7 +660,7 @@ void main() {
       expect(callCount, equals(2));
     });
 
-    test('onDispose called on session dispose', () {
+    test('dispose called on session dispose', () {
       final ext = _TestExtension();
       createSession(
         api: api,
@@ -741,12 +741,12 @@ void main() {
       expect(ext.disposeCount, equals(1));
     });
 
-    test('ScriptEnvironmentExtension adapter lifecycle', () {
+    test('ScriptEnvironment satisfies SessionExtension', () {
       final env = _TestScriptEnvironment();
-      final ext = ScriptEnvironmentExtension(env);
+      final SessionExtension ext = env;
 
       expect(ext.tools, isEmpty);
-      ext.onDispose();
+      ext.dispose();
       expect(env.disposeCount, equals(1));
     });
   });

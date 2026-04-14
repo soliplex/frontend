@@ -20,7 +20,7 @@ abstract interface class SessionExtension {
   List<ClientTool> get tools;
 
   /// Called when the session is disposed. Must be idempotent.
-  void onDispose();
+  void dispose();
 }
 
 /// Factory that creates extensions for each new session.
