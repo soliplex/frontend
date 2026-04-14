@@ -1,8 +1,12 @@
+import 'dart:async' show unawaited;
+import 'dart:developer' as developer;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
+import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
 import '../design/design.dart';
 import '../core/shell_config.dart';
@@ -25,6 +29,9 @@ import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
+import '../modules/tools/confirm_action_tool.dart';
+import '../modules/tools/get_clipboard_tool.dart';
+import '../modules/tools/get_device_info_tool.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
@@ -122,11 +129,29 @@ Future<ShellConfig> standard({
     platform: kIsWeb
         ? const WebPlatformConstraints()
         : const NativePlatformConstraints(),
-    toolRegistryResolver: (_) async => const ToolRegistry(),
+    toolRegistryResolver: (_) async => const ToolRegistry()
+        .register(buildGetDeviceInfoTool())
+        .register(buildConfirmActionTool())
+        .register(buildGetClipboardTool()),
     logger: LogManager.instance.getLogger('room'),
+    extensionFactoryBuilder: (connection) => toOwnedFactory(
+      () async => MontyScriptEnvironment(
+        plugins: [
+          SoliplexPlugin(
+            connections: {
+              connection.serverId:
+                  SoliplexConnection.fromServerConnection(connection),
+            },
+          ),
+        ],
+      ),
+    ),
   );
 
   final registry = RunRegistry();
+
+  // Fire-and-forget startup validation: detect broken Python runtime early.
+  unawaited(_probeMontyRuntime(LogManager.instance.getLogger('monty')));
 
   return ShellConfig(
     appName: appName,
@@ -165,4 +190,24 @@ Future<ShellConfig> standard({
       ),
     ],
   );
+}
+
+/// Probes the Python runtime by creating a throwaway [MontyScriptEnvironment],
+/// running `1 + 1`, and logging the outcome.
+///
+/// Failures are logged as warnings — they do not crash the app. The probe runs
+/// fire-and-forget; call it with [unawaited] during startup.
+Future<void> _probeMontyRuntime(Logger logger) async {
+  const name = 'MontyProbe';
+  final env = MontyScriptEnvironment();
+  try {
+    await env.probe();
+    logger.info('Python runtime probe passed');
+    developer.log('Python runtime probe passed', name: name);
+  } on Object catch (e) {
+    logger.warning('Python runtime probe failed: $e');
+    developer.log('Python runtime probe FAILED: $e', name: name);
+  } finally {
+    env.dispose();
+  }
 }

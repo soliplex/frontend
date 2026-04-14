@@ -70,6 +70,7 @@ class ExecutionTracker {
       case TextDelta() ||
             StateUpdated() ||
             StepProgress() ||
+            PlatformConsentNotice() ||
             AwaitingApproval() ||
             ActivitySnapshot() ||
             CustomExecutionEvent():

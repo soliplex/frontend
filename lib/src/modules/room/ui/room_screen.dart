@@ -28,6 +28,7 @@ import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import 'tool_approval_banner.dart';
 import '../upload_tracker.dart';
 
 const double _sidebarWidth = 300;
@@ -752,6 +753,11 @@ class _RoomScreenState extends State<RoomScreen> {
                       ),
                     ),
           },
+        ),
+        ToolApprovalSlot(
+          pendingApproval: threadView.pendingApproval,
+          onApprove: threadView.approveToolCall,
+          onDeny: threadView.denyToolCall,
         ),
         if (sendError != null)
           _SendErrorBanner(
