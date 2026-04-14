@@ -39,7 +39,7 @@ class _TestExtension implements SessionExtension {
   List<ClientTool> get tools => toolList;
 
   @override
-  void onDispose() => disposeCount++;
+  void dispose() => disposeCount++;
 }
 
 class _ThrowingExtension implements SessionExtension {
@@ -51,7 +51,7 @@ class _ThrowingExtension implements SessionExtension {
   List<ClientTool> get tools => const [];
 
   @override
-  void onDispose() {}
+  void dispose() {}
 }
 
 // ---------------------------------------------------------------------------
