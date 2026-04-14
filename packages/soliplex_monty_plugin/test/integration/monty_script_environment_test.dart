@@ -5,6 +5,8 @@
 @Tags(['monty'])
 library;
 
+import 'dart:convert';
+
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
@@ -53,7 +55,7 @@ void main() {
   late MontyScriptEnvironment env;
 
   setUp(() {
-    env = MontyScriptEnvironment(connections: {});
+    env = MontyScriptEnvironment();
   });
 
   tearDown(() => env.dispose());
@@ -145,6 +147,49 @@ void main() {
               (e) => e.toString(),
               'message',
               contains('Python error'),
+            ),
+          ),
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test(
+      'execute_python error messages must not leak Rust interpreter internals',
+      () async {
+        // Bubble sort uses subscript tuple-swap:
+        //   arr[j], arr[j+1] = arr[j+1], arr[j]
+        // Monty does not support subscript targets in tuple unpacking.
+        // The error must be a Python-level SyntaxError, NOT a raw Rust
+        // Debug dump leaking ExprSubscript, NodeIndex, etc.
+        final code = jsonEncode({
+          'code': 'def bubble_sort(arr):\n'
+              '    n = len(arr)\n'
+              '    for i in range(n):\n'
+              '        for j in range(0, n-i-1):\n'
+              '            if arr[j] > arr[j+1]:\n'
+              '                arr[j], arr[j+1] = arr[j+1], arr[j]\n'
+              '    return arr\n'
+              '\n'
+              'bubble_sort([3, 1, 2])',
+        });
+
+        await expectLater(
+          () => env.tools.first.executor(
+            ToolCallInfo(id: 'tc-5', name: 'execute_python', arguments: code),
+            _StubContext(),
+          ),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'error message must be human-readable, not Rust Debug output',
+              allOf([
+                contains('Python error'),
+                isNot(contains('NodeIndex')),
+                isNot(contains('ExprSubscript')),
+                isNot(contains('ExprName')),
+                isNot(contains('node_index:')),
+              ]),
             ),
           ),
         );

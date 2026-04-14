@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Resolves the default backend URL using platform logic.
@@ -20,10 +21,16 @@ abstract final class DefaultBackendUrlStorage {
   static const _key = 'backend_base_url';
 
   static Future<String?> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString(_key);
-    if (url == null || url.isEmpty) return null;
-    return url;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final url = prefs.getString(_key);
+      if (url == null || url.isEmpty) return null;
+      return url;
+    } on MissingPluginException {
+      // shared_preferences plugin not available (e.g. first run after clean).
+      // Fall back to the caller-supplied default URL.
+      return null;
+    }
   }
 
   static Future<void> save(String url) async {

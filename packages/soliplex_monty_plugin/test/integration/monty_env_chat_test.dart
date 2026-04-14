@@ -110,11 +110,15 @@ void main() {
     setUpAll(() {
       final innerConn = _conn('inner');
       runtime = _runtime(
-        extensionFactory: wrapScriptEnvironmentFactory(
+        extensionFactory: toOwnedFactory(
           () async => MontyScriptEnvironment(
-            connections: {
-              'demo': SoliplexConnection.fromServerConnection(innerConn),
-            },
+            plugins: [
+              SoliplexPlugin(
+                connections: {
+                  'demo': SoliplexConnection.fromServerConnection(innerConn),
+                },
+              ),
+            ],
           ),
         ),
       );
@@ -197,8 +201,8 @@ void main() {
   // ──────────────────────────────────────────────────────────────────────────
   // Stateful — single MontyScriptEnvironment shared across sessions.
   //
-  // wrapSharedScriptEnvironment wraps the env WITHOUT taking ownership:
-  // onDispose() is a no-op, so the shared env survives each session ending.
+  // toSharedFactory wraps the env WITHOUT taking ownership:
+  // dispose() is a no-op, so the shared env survives each session ending.
   // tearDownAll owns env.dispose().  autoDispose defaults to false so the
   // session does not attempt to dispose extensions on completion.
   // ──────────────────────────────────────────────────────────────────────────
@@ -209,14 +213,18 @@ void main() {
 
     setUpAll(() {
       env = MontyScriptEnvironment(
-        connections: {
-          'demo': SoliplexConnection.fromServerConnection(_conn('inner')),
-        },
+        plugins: [
+          SoliplexPlugin(
+            connections: {
+              'demo': SoliplexConnection.fromServerConnection(_conn('inner')),
+            },
+          ),
+        ],
       );
-      // wrapSharedScriptEnvironment: env is NOT disposed when a session ends.
+      // toSharedFactory: env is NOT disposed when a session ends.
       // Caller (tearDownAll) owns env.dispose().
       runtime = _runtime(
-        extensionFactory: wrapSharedScriptEnvironment(env),
+        extensionFactory: toSharedFactory(env),
       );
     });
 
