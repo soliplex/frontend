@@ -84,6 +84,7 @@ class ApiException extends SoliplexException {
     required this.statusCode,
     this.serverMessage,
     this.body,
+    this.retryAfter,
     super.originalError,
     super.stackTrace,
   });
@@ -98,6 +99,22 @@ class ApiException extends SoliplexException {
 
   /// The response body, if available.
   final String? body;
+
+  /// Server-suggested retry delay from the `Retry-After` header.
+  ///
+  /// Present on 429 responses when the server specifies how long to wait.
+  /// Null when the header is absent or unparseable.
+  final Duration? retryAfter;
+
+  /// Whether this error is transient and the request can be retried.
+  ///
+  /// True for 429 (rate limited), 502 (bad gateway), 503 (service
+  /// unavailable), and 504 (gateway timeout).
+  bool get isRetryable =>
+      statusCode == 429 ||
+      statusCode == 502 ||
+      statusCode == 503 ||
+      statusCode == 504;
 
   @override
   String toString() => 'ApiException($statusCode): $message';

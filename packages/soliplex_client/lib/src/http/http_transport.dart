@@ -264,7 +264,11 @@ class HttpTransport {
       throw NotFoundException(message: message, resource: uri.path);
     }
 
-    throw ApiException(message: message, statusCode: statusCode);
+    throw ApiException(
+      message: message,
+      statusCode: statusCode,
+      retryAfter: _parseRetryAfter(response.headers),
+    );
   }
 
   /// Throws appropriate exception for HTTP error status codes.
@@ -301,7 +305,20 @@ class HttpTransport {
       statusCode: statusCode,
       serverMessage: serverMessage,
       body: body.isNotEmpty ? body : null,
+      retryAfter: _parseRetryAfter(response.headers),
     );
+  }
+
+  /// Parses the `Retry-After` header into a [Duration].
+  ///
+  /// Supports the delay-seconds form (e.g. `120`). Returns null if the
+  /// header is absent, empty, or not a valid integer.
+  static Duration? _parseRetryAfter(Map<String, String> headers) {
+    final value = headers['retry-after'];
+    if (value == null || value.isEmpty) return null;
+    final seconds = int.tryParse(value);
+    if (seconds == null || seconds <= 0) return null;
+    return Duration(seconds: seconds);
   }
 
   /// Attempts to extract an error message from a JSON response body.

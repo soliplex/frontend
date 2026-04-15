@@ -7,6 +7,7 @@ export 'http_transport.dart';
 export 'multipart_encoder.dart';
 export 'observable_http_client.dart';
 export 'refreshing_http_client.dart';
+export 'retrying_http_client.dart';
 export 'soliplex_http_adapter.dart';
 export 'soliplex_http_client.dart';
 export 'token_refresher.dart';

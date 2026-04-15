@@ -82,6 +82,7 @@ class ThreadViewState {
   Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
   bool _isDisposed = false;
+  String? _lastPrompt;
 
   final Signal<ThreadViewStatus> _messages =
       Signal<ThreadViewStatus>(MessagesLoading());
@@ -126,6 +127,7 @@ class ThreadViewState {
   }) async {
     if (_sessionState.value != null) return;
     _lastSendError.value = null;
+    _lastPrompt = prompt;
     _sessionState.value = AgentSessionState.spawning;
     Future<AgentSession>? spawnFuture;
     try {
@@ -210,7 +212,10 @@ class ThreadViewState {
       case FailedState(:final conversation, :final error):
         _trackerRegistry.onRunTerminated();
         _detachSession();
-        _lastSendError.value = SendError(error);
+        _lastSendError.value = SendError(
+          error,
+          unsentText: _lastPrompt,
+        );
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
