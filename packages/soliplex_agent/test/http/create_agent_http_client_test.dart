@@ -5,7 +5,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         AuthenticatedHttpClient,
         DartHttpClient,
         ObservableHttpClient,
-        RefreshingHttpClient;
+        RefreshingHttpClient,
+        RetryingHttpClient;
 import 'package:test/test.dart';
 
 class _MockHttpClient extends Mock implements SoliplexHttpClient {}
@@ -16,32 +17,33 @@ class _MockTokenRefresher extends Mock implements TokenRefresher {}
 
 void main() {
   group('createAgentHttpClient', () {
-    test('no args returns a DartHttpClient', () {
+    test('no args wraps DartHttpClient with RetryingHttpClient', () {
       final client = createAgentHttpClient();
       addTearDown(client.close);
-      expect(client, isA<DartHttpClient>());
+      expect(client, isA<RetryingHttpClient>());
     });
 
-    test('with innerClient uses the provided client', () {
+    test('with innerClient wraps in RetryingHttpClient', () {
       final inner = _MockHttpClient();
       final client = createAgentHttpClient(innerClient: inner);
-      expect(client, same(inner));
+      addTearDown(client.close);
+      expect(client, isA<RetryingHttpClient>());
     });
 
-    test('with observers wraps in ObservableHttpClient', () {
+    test('with observers wraps Observable then Retrying', () {
       final observer = _MockObserver();
       final client = createAgentHttpClient(observers: [observer]);
       addTearDown(client.close);
-      expect(client, isA<ObservableHttpClient>());
+      expect(client, isA<RetryingHttpClient>());
     });
 
-    test('with empty observers does not wrap', () {
+    test('with empty observers wraps in RetryingHttpClient only', () {
       final client = createAgentHttpClient(observers: <HttpObserver>[]);
       addTearDown(client.close);
-      expect(client, isA<DartHttpClient>());
+      expect(client, isA<RetryingHttpClient>());
     });
 
-    test('with innerClient and observers wraps provided client', () {
+    test('with innerClient and observers wraps both', () {
       final inner = _MockHttpClient();
       final observer = _MockObserver();
       final client = createAgentHttpClient(
@@ -49,7 +51,7 @@ void main() {
         observers: [observer],
       );
       addTearDown(client.close);
-      expect(client, isA<ObservableHttpClient>());
+      expect(client, isA<RetryingHttpClient>());
     });
 
     test('close cascades through decorator stack', () {
