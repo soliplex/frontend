@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
@@ -10,7 +11,7 @@ import 'package:soliplex_client/src/utils/cancel_token.dart';
 const _retryableStatusCodes = {429, 502, 503, 504};
 
 /// HTTP client decorator that retries transient failures with exponential
-/// backoff.
+/// backoff and limits concurrency.
 ///
 /// Retries on:
 /// - HTTP 429 (rate limited), 502, 503, 504
@@ -23,6 +24,13 @@ const _retryableStatusCodes = {429, 502, 503, 504};
 ///
 /// For 429 responses, the `Retry-After` header value is used as a floor
 /// for the backoff delay when present.
+///
+/// ## Concurrency
+///
+/// At most [maxConcurrent] requests are in-flight simultaneously. Excess
+/// requests queue in FIFO order and proceed as earlier requests complete.
+/// This provides natural back-pressure and reduces the likelihood of
+/// triggering server-side rate limits.
 ///
 /// ## Streaming requests
 ///
@@ -47,14 +55,17 @@ class RetryingHttpClient implements SoliplexHttpClient {
   /// - [inner]: The wrapped HTTP client.
   /// - [maxRetries]: Maximum number of retry attempts (default 3).
   /// - [maxBackoff]: Ceiling for backoff delay (default 30 seconds).
+  /// - [maxConcurrent]: Maximum in-flight requests (default 6).
   /// - [random]: Optional [Random] for jitter (injectable for tests).
   RetryingHttpClient({
     required SoliplexHttpClient inner,
     this.maxRetries = 3,
     this.maxBackoff = const Duration(seconds: 30),
+    this.maxConcurrent = 6,
     Random? random,
   })  : _inner = inner,
-        _random = random ?? Random();
+        _random = random ?? Random(),
+        _semaphore = _Semaphore(maxConcurrent);
 
   final SoliplexHttpClient _inner;
 
@@ -64,10 +75,35 @@ class RetryingHttpClient implements SoliplexHttpClient {
   /// Upper bound for backoff delay.
   final Duration maxBackoff;
 
+  /// Maximum number of concurrent in-flight requests.
+  final int maxConcurrent;
+
   final Random _random;
+  final _Semaphore _semaphore;
 
   @override
   Future<HttpResponse> request(
+    String method,
+    Uri uri, {
+    Map<String, String>? headers,
+    Object? body,
+    Duration? timeout,
+  }) async {
+    await _semaphore.acquire();
+    try {
+      return await _requestWithRetry(
+        method,
+        uri,
+        headers: headers,
+        body: body,
+        timeout: timeout,
+      );
+    } finally {
+      _semaphore.release();
+    }
+  }
+
+  Future<HttpResponse> _requestWithRetry(
     String method,
     Uri uri, {
     Map<String, String>? headers,
@@ -128,6 +164,30 @@ class RetryingHttpClient implements SoliplexHttpClient {
     Object? body,
     CancelToken? cancelToken,
   }) async {
+    await _semaphore.acquire();
+    try {
+      return await _requestStreamWithRetry(
+        method,
+        uri,
+        headers: headers,
+        body: body,
+        cancelToken: cancelToken,
+      );
+    } on Object {
+      // Only release on error — successful streams release when the
+      // body completes or is cancelled (see _wrapBodyWithRelease).
+      _semaphore.release();
+      rethrow;
+    }
+  }
+
+  Future<StreamedHttpResponse> _requestStreamWithRetry(
+    String method,
+    Uri uri, {
+    Map<String, String>? headers,
+    Object? body,
+    CancelToken? cancelToken,
+  }) async {
     Object? lastError;
     StackTrace? lastStackTrace;
 
@@ -160,7 +220,14 @@ class RetryingHttpClient implements SoliplexHttpClient {
           continue;
         }
 
-        return response;
+        // Wrap the body stream so the semaphore is released when the
+        // stream finishes, errors, or is cancelled.
+        return StreamedHttpResponse(
+          statusCode: response.statusCode,
+          headers: response.headers,
+          reasonPhrase: response.reasonPhrase,
+          body: _wrapBodyWithRelease(response.body),
+        );
       } on NetworkException catch (e, st) {
         lastError = e;
         lastStackTrace = st;
@@ -171,6 +238,45 @@ class RetryingHttpClient implements SoliplexHttpClient {
     }
 
     Error.throwWithStackTrace(lastError!, lastStackTrace!);
+  }
+
+  /// Wraps a stream body so the semaphore slot is released when the
+  /// stream completes, errors, or is cancelled.
+  Stream<List<int>> _wrapBodyWithRelease(Stream<List<int>> source) {
+    var released = false;
+    void releaseOnce() {
+      if (!released) {
+        released = true;
+        _semaphore.release();
+      }
+    }
+
+    late StreamController<List<int>> controller;
+    StreamSubscription<List<int>>? subscription;
+
+    controller = StreamController<List<int>>(
+      onListen: () {
+        subscription = source.listen(
+          controller.add,
+          onError: (Object error, StackTrace stackTrace) {
+            releaseOnce();
+            controller.addError(error, stackTrace);
+          },
+          onDone: () {
+            releaseOnce();
+            controller.close();
+          },
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () {
+        releaseOnce();
+        return subscription?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   @override
@@ -207,5 +313,41 @@ class RetryingHttpClient implements SoliplexHttpClient {
     final seconds = int.tryParse(value);
     if (seconds == null || seconds <= 0) return null;
     return Duration(seconds: seconds);
+  }
+}
+
+/// FIFO semaphore that limits concurrency to [maxCount] permits.
+///
+/// [acquire] returns immediately if a permit is available, otherwise the
+/// caller is queued and the returned future completes when a permit is
+/// released.
+class _Semaphore {
+  _Semaphore(this.maxCount) : _available = maxCount;
+
+  /// Maximum number of concurrent permits.
+  final int maxCount;
+
+  int _available;
+  final _waiters = Queue<Completer<void>>();
+
+  /// Acquires a permit. Returns immediately if one is available,
+  /// otherwise waits in FIFO order.
+  Future<void> acquire() {
+    if (_available > 0) {
+      _available--;
+      return Future<void>.value();
+    }
+    final completer = Completer<void>.sync();
+    _waiters.add(completer);
+    return completer.future;
+  }
+
+  /// Releases a permit and unblocks the next waiter, if any.
+  void release() {
+    if (_waiters.isNotEmpty) {
+      _waiters.removeFirst().complete();
+    } else {
+      _available++;
+    }
   }
 }
