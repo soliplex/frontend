@@ -85,6 +85,7 @@ class AgentSession implements ToolExecutionContext {
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
   final Signal<PendingApprovalRequest?> _pendingApprovalSignal = signal(null);
   final Map<String, Completer<bool>> _pendingApprovals = {};
+  bool _userDenied = false;
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -153,11 +154,13 @@ class AgentSession implements ToolExecutionContext {
 
   /// Denies the pending tool call identified by [toolCallId].
   ///
-  /// The tool receives a "User denied tool execution" error result and the
-  /// agent sees it as a failed tool call. No-op if not currently pending.
+  /// Cancels the entire session — the LLM would otherwise see
+  /// "User denied" as a tool result and retry. No-op if not pending.
   void denyToolCall(String toolCallId) {
+    _userDenied = true;
     _pendingApprovals.remove(toolCallId)?.complete(false);
     _pendingApprovalSignal.set(null);
+    cancel();
   }
 
   /// Waits for the session result with an optional timeout.
@@ -457,8 +460,32 @@ class AgentSession implements ToolExecutionContext {
   // Tool execution (callback for runToCompletion)
   // ---------------------------------------------------------------------------
 
-  Future<List<ToolCallInfo>> _executeAll(List<ToolCallInfo> pendingTools) {
-    return Future.wait(pendingTools.map(_executeSingle));
+  Future<List<ToolCallInfo>> _executeAll(
+    List<ToolCallInfo> pendingTools,
+  ) async {
+    // Tools that require user approval must run serially: concurrent approval
+    // requests would race to set _pendingApprovalSignal and all but the last
+    // would silently deadlock waiting for a banner that is never shown.
+    // Non-approval tools continue to run concurrently.
+    //
+    // If the user denies any approval-required tool, _userDenied is set and
+    // the loop exits immediately — the session is cancelled by denyToolCall.
+    final results = <ToolCallInfo>[];
+    final concurrent = <ToolCallInfo>[];
+    for (final tc in pendingTools) {
+      if (_userDenied) break;
+      final tool = _toolRegistry.lookup(tc.name);
+      if (tool.requiresApproval) {
+        results.add(await _executeSingle(tc));
+        if (_userDenied) break;
+      } else {
+        concurrent.add(tc);
+      }
+    }
+    if (!_userDenied) {
+      results.addAll(await Future.wait(concurrent.map(_executeSingle)));
+    }
+    return results;
   }
 
   Future<ToolCallInfo> _executeSingle(ToolCallInfo toolCall) async {

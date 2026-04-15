@@ -1,7 +1,73 @@
+import 'dart:async';
+
+import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
+import 'package:soliplex_client/soliplex_client.dart'
+    show AgUiStreamClient, SoliplexApi;
 import 'package:test/test.dart';
 
+// ---------------------------------------------------------------------------
+// Mocks / fixtures (minimal — only what the concurrent-approval test needs)
+// ---------------------------------------------------------------------------
+
+class _MockSoliplexApi extends Mock implements SoliplexApi {}
+
+class _MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
+
+class _MockLogger extends Mock implements Logger {}
+
+class _FakeSimpleRunAgentInput extends Fake implements SimpleRunAgentInput {}
+
+class _FakeCancelToken extends Fake implements CancelToken {}
+
+const ({String roomId, String serverId, String threadId}) _key = (
+  serverId: 'srv',
+  roomId: 'room',
+  threadId: 'thread',
+);
+const _runId = 'run-1';
+
+RunInfo _runInfo() =>
+    RunInfo(id: _runId, threadId: 'thread', createdAt: DateTime(2026));
+
+List<BaseEvent> _approvalTextEvents() => const [
+      RunStartedEvent(threadId: 'thread', runId: _runId),
+      TextMessageStartEvent(messageId: 'msg-done'),
+      TextMessageContentEvent(messageId: 'msg-done', delta: 'Done'),
+      TextMessageEndEvent(messageId: 'msg-done'),
+      RunFinishedEvent(threadId: 'thread', runId: _runId),
+    ];
+
+AgentSession _makeSession(
+  _MockSoliplexApi api,
+  _MockAgUiStreamClient stream,
+  _MockLogger logger,
+  ToolRegistry registry,
+) {
+  final orchestrator = RunOrchestrator(
+    llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: stream),
+    toolRegistry: registry,
+    logger: logger,
+  );
+  return AgentSession(
+    threadKey: _key,
+    ephemeral: false,
+    depth: 0,
+    runtime: _MockAgentRuntime(),
+    orchestrator: orchestrator,
+    toolRegistry: registry,
+    logger: logger,
+  );
+}
+
+class _MockAgentRuntime extends Mock implements AgentRuntime {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_FakeSimpleRunAgentInput());
+    registerFallbackValue(_FakeCancelToken());
+  });
   // ── requiresApproval flag ─────────────────────────────────────────────────
 
   group('ClientTool.requiresApproval', () {
@@ -199,5 +265,107 @@ void main() {
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
     });
+  });
+
+  // ── Concurrent approval serialisation ────────────────────────────────────
+  //
+  // When the LLM returns N tool calls at once and all have
+  // requiresApproval: true,
+  // _executeAll must not run them concurrently.  Concurrent execution causes
+  // _pendingApprovalSignal to be overwritten N times; only the last survives in
+  // the UI and the first N-1 deadlock silently.
+  //
+  // The fix serialises approval-required tools: tc-2 is not started until tc-1
+  // has been approved/denied, so the signal never has more than one live request.
+
+  group('concurrent approval serialisation', () {
+    late _MockSoliplexApi api;
+    late _MockAgUiStreamClient agUiStream;
+    late _MockLogger logger;
+
+    setUp(() {
+      api = _MockSoliplexApi();
+      agUiStream = _MockAgUiStreamClient();
+      logger = _MockLogger();
+    });
+
+    test(
+      'three concurrent approval-required tools are shown one at a time',
+      () async {
+        // LLM returns three execute_python calls in a single turn.
+        const firstTurn = [
+          RunStartedEvent(threadId: 'thread', runId: _runId),
+          ToolCallStartEvent(
+              toolCallId: 'tc-1', toolCallName: 'execute_python',),
+          ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"code":"1+1"}'),
+          ToolCallEndEvent(toolCallId: 'tc-1'),
+          ToolCallStartEvent(
+              toolCallId: 'tc-2', toolCallName: 'execute_python',),
+          ToolCallArgsEvent(toolCallId: 'tc-2', delta: '{"code":"2+2"}'),
+          ToolCallEndEvent(toolCallId: 'tc-2'),
+          ToolCallStartEvent(
+              toolCallId: 'tc-3', toolCallName: 'execute_python',),
+          ToolCallArgsEvent(toolCallId: 'tc-3', delta: '{"code":"3+3"}'),
+          ToolCallEndEvent(toolCallId: 'tc-3'),
+          RunFinishedEvent(threadId: 'thread', runId: _runId),
+        ];
+
+        when(() => api.createRun(any(), any()))
+            .thenAnswer((_) async => _runInfo());
+
+        var turn = 0;
+        when(
+          () => agUiStream.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) {
+          turn++;
+          return turn == 1
+              ? Stream.fromIterable(firstTurn)
+              : Stream.fromIterable(_approvalTextEvents());
+        });
+
+        final registry = const ToolRegistry().register(
+          ClientTool(
+            definition: const Tool(name: 'execute_python', description: ''),
+            executor: (_, __) async => 'ok',
+            requiresApproval: true,
+          ),
+        );
+
+        final session = _makeSession(api, agUiStream, logger, registry);
+        addTearDown(session.dispose);
+
+        // Track the order in which approval requests appear in the signal.
+        final approvedIds = <String>[];
+        final unsub = session.pendingApproval.subscribe((req) {
+          if (req != null) {
+            approvedIds.add(req.toolCallId);
+            // Approve each request as soon as it appears, driving the queue.
+            unawaited(
+              Future.microtask(
+                () => session.approveToolCall(req.toolCallId),
+              ),
+            );
+          }
+        });
+        addTearDown(unsub);
+
+        unawaited(session.start(userMessage: 'sort'));
+        final result = await session.result.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw TimeoutException(
+            'Session did not complete — '
+            'likely a deadlock in the approval queue',
+          ),
+        );
+
+        expect(result, isA<AgentSuccess>());
+        // All three were shown, in order, one at a time.
+        expect(approvedIds, equals(['tc-1', 'tc-2', 'tc-3']));
+      },
+    );
   });
 }

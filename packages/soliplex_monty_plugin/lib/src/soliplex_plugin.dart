@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dart_monty/dart_monty_bridge.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 
@@ -56,7 +57,10 @@ class SoliplexPlugin extends MontyPlugin {
   final Map<String, SoliplexConnection> _connections;
 
   /// Per-thread conversation state (message history + AG-UI state).
-  final Map<String, _ThreadState> _threadStates = {};
+  ///
+  /// Keyed by [ThreadKey] — the (serverId, roomId, threadId) triple — so
+  /// thread IDs that happen to collide across servers or rooms stay isolated.
+  final Map<ThreadKey, _ThreadState> _threadStates = {};
 
   @override
   String get namespace => 'soliplex';
@@ -67,7 +71,7 @@ Soliplex connects you to remote servers, each hosting rooms with AI agents
 that have RAG access to uploaded documents. Every function requires an
 explicit server and room_id — there are no defaults.
 
-Available servers: ${_connections.keys.join(', ')}
+Available servers: ${_connections.values.map((c) => '${c.alias} (${c.serverId})').join(', ')}
 
 Workflow: discover servers → pick a room → converse with its agent.
 
@@ -98,7 +102,7 @@ Uploads:
   soliplex_upload_to_thread(server, room_id, thread_id, filename, content)
       — upload scoped to a single thread
 
-Use help("soliplex_new_thread") for detailed parameter info on any function.''';
+All functions follow the pattern: soliplex_<action>(server, room_id, ...).''';
 
   @override
   List<HostFunction> get functions => [
@@ -122,7 +126,15 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
           description: 'List all connected Soliplex servers.',
         ),
         handler: (args) async => jsonEncode(
-          _connections.keys.map((id) => {'id': id}).toList(),
+          _connections.values
+              .map(
+                (c) => {
+                  'id': c.serverId,
+                  'alias': c.alias,
+                  'url': c.serverUrl,
+                },
+              )
+              .toList(),
         ),
       );
 
@@ -238,8 +250,8 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
   HostFunction get _getChunk => HostFunction(
         schema: const HostFunctionSchema(
           name: 'soliplex_get_chunk',
-          description: 'Get page images for a RAG chunk with text highlighted. '
-              'Returns base64-encoded images.',
+          description: 'Get metadata for a RAG chunk: chunk ID, document URI, '
+              'and page count.',
           params: [
             HostParam(
               name: 'server',
@@ -505,10 +517,9 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
   @override
   Future<void> onDispose() async {
     await super.onDispose();
-    for (final conn in _connections.values) {
-      conn.api.close();
-      conn.streamClient.close();
-    }
+    // Connections are owned by the caller (e.g. ServerManager) — do not close
+    // them here. Closing shared connections would break all other sessions
+    // using the same server.
   }
 
   // -- Helpers ---------------------------------------------------------------
@@ -567,7 +578,8 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
   }
 
   Future<Object?> _handleNewThread(Map<String, Object?> args) async {
-    final conn = _connection(args['server']! as String);
+    final serverId = args['server']! as String;
+    final conn = _connection(serverId);
     final roomId = args['room_id']! as String;
     final message = args['message']! as String;
 
@@ -576,9 +588,10 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
     final threadId = threadInfo.id;
     final runId = threadInfo.initialRunId;
 
-    // Initialize thread state.
+    // Initialize thread state, keyed by the full (server, room, thread) triple.
+    final key = (serverId: serverId, roomId: roomId, threadId: threadId);
     final threadState = _ThreadState(threadId: threadId, state: aguiState);
-    _threadStates[threadId] = threadState;
+    _threadStates[key] = threadState;
 
     // Build user message and add to history.
     final userMsg = UserMessage(
@@ -606,14 +619,16 @@ Use help("soliplex_new_thread") for detailed parameter info on any function.''';
   }
 
   Future<Object?> _handleReplyThread(Map<String, Object?> args) async {
-    final conn = _connection(args['server']! as String);
+    final serverId = args['server']! as String;
+    final conn = _connection(serverId);
     final roomId = args['room_id']! as String;
     final threadId = args['thread_id']! as String;
     final message = args['message']! as String;
 
-    // Look up or create thread state.
+    // Look up or create thread state by the full (server, room, thread) triple.
+    final key = (serverId: serverId, roomId: roomId, threadId: threadId);
     final threadState = _threadStates.putIfAbsent(
-      threadId,
+      key,
       () => _ThreadState(threadId: threadId),
     );
 

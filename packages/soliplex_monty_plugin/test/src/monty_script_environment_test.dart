@@ -61,6 +61,9 @@ const _zeroUsage = MontyResourceUsage(
 MontyResult _resultOf(MontyValue value) =>
     MontyResult(usage: _zeroUsage, value: value);
 
+MontyResult _resultWithPrint(MontyValue value, String printOutput) =>
+    MontyResult(usage: _zeroUsage, value: value, printOutput: printOutput);
+
 MontyResult _errorResult(String message) => MontyResult(
       usage: _zeroUsage,
       value: const MontyNull(),
@@ -95,19 +98,22 @@ void main() {
 
   group('MontyScriptEnvironment', () {
     group('tools', () {
-      test('exposes exactly one tool', () {
-        expect(env.tools, hasLength(1));
+      test('exposes run_script and repl_python tools', () {
+        expect(env.tools, hasLength(2));
+        final names = env.tools.map((t) => t.definition.name).toList();
+        expect(names, containsAll(['run_script', 'repl_python']));
       });
 
-      test('tool name is execute_python', () {
-        expect(env.tools.first.definition.name, equals('execute_python'));
-      });
-
-      test('tool has code parameter', () {
-        final params =
-            env.tools.first.definition.parameters as Map<String, dynamic>;
-        final props = params['properties'] as Map<String, dynamic>;
-        expect(props.keys, contains('code'));
+      test('each tool has code parameter', () {
+        for (final tool in env.tools) {
+          final params = tool.definition.parameters as Map<String, dynamic>;
+          final props = params['properties'] as Map<String, dynamic>;
+          expect(
+            props.keys,
+            contains('code'),
+            reason: '${tool.definition.name} missing code param',
+          );
+        }
       });
 
       test('tools list is stable across calls', () {
@@ -173,31 +179,46 @@ void main() {
         expect(result, equals('42'));
       });
 
-      test('throws on Python error', () async {
+      test('returns error string on Python error (does not throw)', () async {
         when(() => mockSession.execute(any()))
             .thenAnswer((_) async => _errorResult('NameError: x'));
 
         final executor = env.tools.first.executor;
-        expect(
-          () => executor(toolCall, _StubContext()),
-          throwsA(
-            isA<Exception>().having(
-              (e) => e.toString(),
-              'message',
-              contains('NameError: x'),
-            ),
-          ),
-        );
+        final result = await executor(toolCall, _StubContext());
+
+        // Python errors are returned as output, not thrown — throwing would
+        // set status:failed and cause the LLM to retry unconditionally.
+        expect(result, contains('Error:'));
+        expect(result, contains('NameError: x'));
       });
 
-      test('returns empty string when result is None', () async {
+      test('Python error with prior print output includes both', () async {
+        when(() => mockSession.execute(any())).thenAnswer(
+          (_) async => const MontyResult(
+            usage: _zeroUsage,
+            value: MontyNull(),
+            printOutput: 'step 1 done',
+            error: MontyException(message: 'ZeroDivisionError'),
+          ),
+        );
+
+        final executor = env.tools.first.executor;
+        final result = await executor(toolCall, _StubContext());
+
+        expect(result, contains('step 1 done'));
+        expect(result, contains('ZeroDivisionError'));
+      });
+
+      test('returns "None" when result is None and no print output', () async {
         when(() => mockSession.execute(any()))
             .thenAnswer((_) async => _resultOf(const MontyNull()));
 
         final executor = env.tools.first.executor;
         final result = await executor(toolCall, _StubContext());
 
-        expect(result, equals(''));
+        // None return with no print output → "None" so the LLM knows the
+        // call succeeded (e.g. arr.sort()) rather than seeing '' and retrying.
+        expect(result, equals('None'));
       });
 
       test('returns empty string on cancellation before execute', () async {
@@ -259,7 +280,7 @@ void main() {
         final executor = env.tools.first.executor;
         final result = await executor(emptyArgs, _StubContext());
 
-        expect(result, equals(''));
+        expect(result, equals('None'));
       });
 
       test('throws StateError when disposed', () async {
@@ -531,6 +552,127 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // Output formatting
+    //
+    // execute_python combines printOutput + return value so the LLM always
+    // sees the full result. Missing either must not cause the LLM to retry.
+    // -------------------------------------------------------------------------
+
+    group('output formatting', () {
+      test('print-only: returns print output when value is None', () async {
+        when(() => mockSession.execute(any())).thenAnswer(
+          (_) async =>
+              _resultWithPrint(const MontyNull(), '[1, 2, 3]'),
+        );
+
+        final result =
+            await env.tools.first.executor(toolCall, _StubContext());
+
+        expect(result, equals('[1, 2, 3]'));
+      });
+
+      test('value-only: returns value when no print output', () async {
+        when(() => mockSession.execute(any()))
+            .thenAnswer((_) async => _resultOf(const MontyInt(42)));
+
+        final result =
+            await env.tools.first.executor(toolCall, _StubContext());
+
+        expect(result, equals('42'));
+      });
+
+      test(
+        'both: combines print output and value with newline',
+        () async {
+          when(() => mockSession.execute(any())).thenAnswer(
+            (_) async => _resultWithPrint(const MontyInt(6), 'step done'),
+          );
+
+          final result =
+              await env.tools.first.executor(toolCall, _StubContext());
+
+          expect(result, equals('step done\n6'));
+        },
+      );
+
+      test(
+        'neither: returns "None" so LLM knows call succeeded',
+        () async {
+          // Simulates arr.sort() — in-place, returns None, no print.
+          when(() => mockSession.execute(any()))
+              .thenAnswer((_) async => _resultOf(const MontyNull()));
+
+          final result =
+              await env.tools.first.executor(toolCall, _StubContext());
+
+          expect(result, equals('None'));
+        },
+      );
+
+      test('empty print output is treated as absent', () async {
+        when(() => mockSession.execute(any())).thenAnswer(
+          (_) async => _resultWithPrint(const MontyNull(), ''),
+        );
+
+        final result =
+            await env.tools.first.executor(toolCall, _StubContext());
+
+        // Empty printOutput → falls through to None.
+        expect(result, equals('None'));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // State persistence across runs
+    //
+    // The Python interpreter is shared across all execute_python calls within
+    // the same MontyScriptEnvironment. Variables assigned in one call are
+    // visible in subsequent calls.
+    // -------------------------------------------------------------------------
+
+    group('state persistence across runs', () {
+      test('variable set in first call is visible in second', () async {
+        var callCount = 0;
+        when(() => mockSession.execute(any())).thenAnswer((_) async {
+          callCount++;
+          // Simulates: first call sets x=10 (returns None), second reads it.
+          return callCount == 1
+              ? _resultOf(const MontyNull())
+              : _resultOf(const MontyInt(10));
+        });
+
+        const setCall = ToolCallInfo(
+          id: 'tc-set',
+          name: 'execute_python',
+          arguments: '{"code": "x = 10"}',
+        );
+        const getCall = ToolCallInfo(
+          id: 'tc-get',
+          name: 'execute_python',
+          arguments: '{"code": "x"}',
+        );
+
+        await env.tools.first.executor(setCall, _StubContext());
+        final result =
+            await env.tools.first.executor(getCall, _StubContext());
+
+        expect(result, equals('10'));
+        expect(callCount, equals(2));
+      });
+
+      test('both calls go to the same dm.AgentSession', () async {
+        when(() => mockSession.execute(any()))
+            .thenAnswer((_) async => _resultOf(const MontyNull()));
+
+        await env.tools.first.executor(toolCall, _StubContext());
+        await env.tools.first.executor(toolCall, _StubContext());
+
+        // Same session used for both — not two separate interpreters.
+        verify(() => mockSession.execute(any())).called(2);
+      });
+    });
+
+    // -------------------------------------------------------------------------
     // Isolation — deterministic unit-test replacement for the LLM-mediated T7.
     // -------------------------------------------------------------------------
 
@@ -599,7 +741,7 @@ void main() {
 
         final result = await env.tools.first.executor(noCode, _StubContext());
 
-        expect(result, equals(''));
+        expect(result, equals('None'));
         verify(() => mockSession.execute('')).called(1);
       });
 

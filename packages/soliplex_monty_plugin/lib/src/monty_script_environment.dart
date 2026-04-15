@@ -6,6 +6,9 @@ import 'package:meta/meta.dart';
 import 'package:mutex/mutex.dart';
 import 'package:signals_core/signals_core.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _log = LogManager.instance.getLogger('MontyScriptEnvironment');
 
 // ---------------------------------------------------------------------------
 // MontyScriptEnvironment
@@ -88,7 +91,8 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
   @override
   List<ClientTool> get tools => _tools ??= [
-        _buildExecutePythonTool(),
+        _buildRunScriptTool(),
+        _buildReplPythonTool(),
         ..._montySession.schemas
             .where((s) => !s.name.startsWith('_'))
             .map(_projectToClientTool),
@@ -175,22 +179,69 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   }
 
   // ---------------------------------------------------------------------------
-  // execute_python tool
+  // Python tools
   // ---------------------------------------------------------------------------
 
-  ClientTool _buildExecutePythonTool() {
+  /// One-shot script execution.
+  ///
+  /// Use this when the task can be expressed as a complete, self-contained
+  /// program. Write all logic in a single call; do not rely on variables
+  /// from previous calls. The interpreter is shared with [_buildReplPythonTool]
+  /// so prior state is technically accessible, but callers should treat each
+  /// invocation as if the namespace were fresh.
+  ClientTool _buildRunScriptTool() {
     return ClientTool(
       definition: const Tool(
-        name: 'execute_python',
-        description: 'Execute Python code in a sandboxed interpreter. '
-            'Variables persist across calls. '
-            'Returns the last expression value as a string.',
+        name: 'run_script',
+        description:
+            'Run a complete, self-contained Python script in a sandboxed '
+            'interpreter. Write all logic — setup, computation, output — in '
+            'one call. Do not rely on variables from previous calls. '
+            'Returns combined print() output and the last-expression value. '
+            'Sandbox limits: subscript unpacking is not supported '
+            '(`a[i], a[j] = a[j], a[i]` raises SyntaxError). '
+            'Use a temp variable instead: '
+            '`tmp = a[i]; a[i] = a[j]; a[j] = tmp`.',
         parameters: {
           'type': 'object',
           'properties': {
             'code': {
               'type': 'string',
-              'description': 'Python code to execute.',
+              'description': 'Complete Python script to run.',
+            },
+          },
+          'required': ['code'],
+        },
+      ),
+      executor: _executePython,
+      requiresApproval: true,
+    );
+  }
+
+  /// Persistent REPL — feed snippets to a live interpreter.
+  ///
+  /// Variables, functions, and imports from previous calls remain in scope.
+  /// Use this for multi-step exploration where each step builds on the last
+  /// (e.g. load data → transform → inspect → visualise).
+  ClientTool _buildReplPythonTool() {
+    return ClientTool(
+      definition: const Tool(
+        name: 'repl_python',
+        description:
+            'Feed a snippet to the persistent Python REPL. Variables and '
+            'functions from previous calls are still in scope — use this for '
+            'multi-step exploration where each step builds on the last. '
+            'Returns combined print() output and the last-expression value. '
+            'Sandbox limits: subscript unpacking is not supported '
+            '(`a[i], a[j] = a[j], a[i]` raises SyntaxError). '
+            'Use a temp variable instead: '
+            '`tmp = a[i]; a[i] = a[j]; a[j] = tmp`.',
+        parameters: {
+          'type': 'object',
+          'properties': {
+            'code': {
+              'type': 'string',
+              'description': 'Python snippet to feed to the REPL.',
             },
           },
           'required': ['code'],
@@ -228,7 +279,7 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     if (err != null) {
       throw Exception('Python runtime probe failed: ${err.message}');
     }
-    final value = result.value?.dartValue?.toString();
+    final value = result.value.dartValue?.toString();
     if (value != '2') {
       throw Exception(
         'Python runtime probe returned unexpected value: $value',
@@ -246,6 +297,12 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     final args = (rawArgs.isEmpty ? <String, dynamic>{} : jsonDecode(rawArgs))
         as Map<String, dynamic>;
     final code = args['code'] as String? ?? '';
+    final callId = toolCall.id;
+
+    _log.debug(
+      '[$callId] python queued '
+      '(mutex locked=${_executeMutex.isLocked})',
+    );
 
     if (context.cancelToken.isCancelled) return '';
 
@@ -259,22 +316,70 @@ class MontyScriptEnvironment implements ScriptEnvironment {
           throw StateError('MontyScriptEnvironment has been disposed');
         }
 
+        _log.debug(
+          '[$callId] python mutex acquired, calling execute()',
+        );
         return _montySession.execute(code).timeout(
               _executionTimeout,
               onTimeout: () => throw TimeoutException(
-                'execute_python timed out after $_executionTimeout',
+                'python timed out after $_executionTimeout',
                 _executionTimeout,
               ),
             );
       });
 
-      final pythonError = result.error;
-      if (pythonError != null) {
-        throw Exception('Python error: ${pythonError.message}');
+      _log.debug(
+        '[$callId] python completed '
+        '(error=${result.error?.message}, '
+        'printOutput=${result.printOutput})',
+      );
+
+      // Capture output before checking for errors so print() lines emitted
+      // before a crash are included in the result.
+      final printOut = result.printOutput;
+      final returnVal = result.value.dartValue?.toString();
+      if (printOut != null && printOut.isNotEmpty) {
+        _log.debug('[$callId] Python print output: $printOut');
       }
 
-      return result.value?.dartValue?.toString() ?? '';
+      final pythonError = result.error;
+      if (pythonError != null) {
+        // Python-level error: return it as tool output rather than throwing.
+        // Throwing would mark the tool as failed (status: failed), causing the
+        // LLM to retry unconditionally. Returning it as output gives the LLM
+        // the error message so it can decide whether to fix and retry, without
+        // triggering the automatic retry that a failed-status tool causes.
+        // Also include any print() output that occurred before the error.
+        final errorMsg = 'Error: ${pythonError.message}';
+        _log.debug('[$callId] Python error (returned as output): $errorMsg');
+        final parts = [
+          if (printOut != null && printOut.isNotEmpty) printOut,
+          errorMsg,
+        ];
+        return parts.join('\n');
+      }
+
+      // Return print() output and/or the last-expression value.
+      // When neither is present the code ran but produced no output (e.g.
+      // arr.sort() returns None). Return "None" so the LLM knows execution
+      // succeeded rather than seeing '' and retrying.
+      final parts = [
+        if (printOut != null && printOut.isNotEmpty) printOut,
+        if (returnVal != null && returnVal.isNotEmpty) returnVal,
+      ];
+      return parts.isEmpty ? 'None' : parts.join('\n');
+    } catch (e, st) {
+      _log.warning(
+        '[$callId] python threw: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
     } finally {
+      _log.debug(
+        '[$callId] python finally '
+        '(disposed=$_disposed, mutex locked=${_executeMutex.isLocked})',
+      );
       if (!_disposed) {
         _stateSignal.set(ScriptingState.idle);
       }

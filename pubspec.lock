@@ -174,8 +174,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: "25bb7de"
-      resolved-ref: "25bb7deb38345880bc03fa76fdf33c4397a9a2cc"
+      ref: "chore/monty-0.0.12-upgrade"
+      resolved-ref: "927b9ff7c988c762314772af757798f9657c92c6"
       url: "https://github.com/runyaga/dart_monty.git"
     source: git
     version: "0.20.0"
@@ -280,6 +280,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.7"
+  flutter_markdown_plus_latex:
+    dependency: "direct main"
+    description:
+      name: flutter_markdown_plus_latex
+      sha256: "2e7698b291f0657ca445efab730bb25a8c5851037e882cb7bf47d16a5c218de7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.5"
+  flutter_math_fork:
+    dependency: transitive
+    description:
+      name: flutter_math_fork
+      sha256: "6d5f2f1aa57ae539ffb0a04bb39d2da67af74601d685a161aff7ce5bda5fa407"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.4"
   flutter_native_splash:
     dependency: "direct dev"
     description:
@@ -594,6 +610,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.17.6"
+  nested:
+    dependency: transitive
+    description:
+      name: nested
+      sha256: "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   node_preamble:
     dependency: transitive
     description:
@@ -730,6 +754,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.4"
+  provider:
+    dependency: transitive
+    description:
+      name: provider
+      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.5+1"
   pub_semver:
     dependency: transitive
     description:
@@ -951,6 +983,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.16"
+  tuple:
+    dependency: transitive
+    description:
+      name: tuple
+      sha256: a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.2"
   typed_data:
     dependency: transitive
     description:

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
-import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
 import '../design/design.dart';
@@ -85,6 +85,9 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Widget? logo,
 }) async {
+  LogManager.instance
+    ..minimumLevel = LogLevel.debug
+    ..addSink(StdoutSink());
   logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
   final inspector = NetworkInspector();
 
@@ -139,8 +142,12 @@ Future<ShellConfig> standard({
         plugins: [
           SoliplexPlugin(
             connections: {
-              connection.serverId:
-                  SoliplexConnection.fromServerConnection(connection),
+              for (final entry in serverManager.servers.value.values)
+                entry.serverId: SoliplexConnection.fromServerConnection(
+                  entry.connection,
+                  alias: entry.alias,
+                  serverUrl: entry.serverUrl.toString(),
+                ),
             },
           ),
         ],

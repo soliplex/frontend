@@ -11,7 +11,7 @@ dependencies:
   dart_monty:
     git:
       url: https://github.com/runyaga/dart_monty.git
-      ref: 25bb7de
+      ref: chore/monty-0.0.12-upgrade
   meta: ^1.9.0
   mutex: ^3.1.0
   signals_core: ^6.2.0
@@ -19,10 +19,10 @@ dependencies:
     path: ../soliplex_agent
   soliplex_client:
     path: ../soliplex_client
+  soliplex_logging:
+    path: ../soliplex_logging
 
 dev_dependencies:
   mocktail: ^1.0.0
-  soliplex_logging:
-    path: ../soliplex_logging
   test: ^1.24.0
   very_good_analysis: ^10.0.0
