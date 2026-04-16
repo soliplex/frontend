@@ -1,19 +1,15 @@
 import 'package:meta/meta.dart';
-// ignore: unused_import
-import 'package:soliplex_client/src/http/http_observer.dart';
-// ignore: unused_import
-import 'package:soliplex_client/src/http/observable_http_client.dart';
 
 /// Observer interface for the concurrency limiter.
 ///
 /// Implementations receive [HttpConcurrencyWaitEvent] notifications when a
-/// request acquires a slot from the semaphore. Kept separate from
-/// [HttpObserver] so existing observer implementations don't need to
-/// change (Dart `implements` strips default method bodies, making
-/// additive changes to existing interfaces a breaking change).
+/// request acquires a slot from the semaphore.
 ///
-/// An observer that wants both HTTP and concurrency visibility can
-/// `implements HttpObserver, ConcurrencyObserver` side-by-side.
+/// Kept separate from `HttpObserver` because Dart `implements` does not
+/// carry default method bodies, so adding a method to `HttpObserver`
+/// would be a breaking change for every implementer. An observer that
+/// wants both HTTP and concurrency visibility can implement both
+/// interfaces side-by-side.
 ///
 /// Example:
 /// ```dart
@@ -40,14 +36,14 @@ abstract interface class ConcurrencyObserver {
 /// Event emitted by the concurrency limiter when a request acquires a
 /// slot from the semaphore.
 ///
-/// `waitDuration` is zero for requests that acquired immediately (no
+/// [waitDuration] is zero for requests that acquired immediately (no
 /// queue contention).
 ///
 /// Note: [requestId] is generated inside the limiter and does NOT
-/// correlate with the `requestId` that [ObservableHttpClient] generates
-/// for the same logical request — the two decorators run independent
-/// ID generators. Observers that want to correlate events across layers
-/// should match by [uri] + [timestamp] proximity.
+/// correlate with the `requestId` that other HTTP observers use for the
+/// same logical request — the limiter and the observable decorator run
+/// independent ID generators. Observers that want to correlate events
+/// across layers should match by [uri] + [timestamp] proximity.
 @immutable
 class HttpConcurrencyWaitEvent {
   /// Creates a concurrency-wait event.
@@ -75,8 +71,8 @@ class HttpConcurrencyWaitEvent {
   /// Zero when a slot was available immediately.
   final Duration waitDuration;
 
-  /// Number of requests already queued ahead of this one when it
-  /// arrived. Zero when the queue was empty.
+  /// Number of requests already in the system (in-flight + waiting) when
+  /// this request arrived. Zero when the system was idle.
   final int queueDepthAtEnqueue;
 
   /// Number of in-flight slots occupied immediately after this request
@@ -86,10 +82,23 @@ class HttpConcurrencyWaitEvent {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is HttpConcurrencyWaitEvent && requestId == other.requestId;
+      other is HttpConcurrencyWaitEvent &&
+          requestId == other.requestId &&
+          timestamp == other.timestamp &&
+          uri == other.uri &&
+          waitDuration == other.waitDuration &&
+          queueDepthAtEnqueue == other.queueDepthAtEnqueue &&
+          slotsInUseAfterAcquire == other.slotsInUseAfterAcquire;
 
   @override
-  int get hashCode => requestId.hashCode;
+  int get hashCode => Object.hash(
+        requestId,
+        timestamp,
+        uri,
+        waitDuration,
+        queueDepthAtEnqueue,
+        slotsInUseAfterAcquire,
+      );
 
   @override
   String toString() => 'HttpConcurrencyWaitEvent('

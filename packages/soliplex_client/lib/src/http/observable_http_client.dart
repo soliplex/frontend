@@ -226,6 +226,9 @@ class ObservableHttpClient implements SoliplexHttpClient {
     late StreamController<List<int>> controller;
     StreamSubscription<List<int>>? subscription;
 
+    // `sync: true` avoids a per-chunk microtask hop on high-rate byte
+    // streams (e.g. SSE). Backpressure is propagated by the explicit
+    // `onPause`/`onResume` forwarding below, not by the sync mode.
     controller = StreamController<List<int>>(
       sync: true,
       onListen: () {

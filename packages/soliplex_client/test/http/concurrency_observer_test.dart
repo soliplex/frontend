@@ -29,10 +29,33 @@ void main() {
       expect(event.slotsInUseAfterAcquire, equals(6));
     });
 
-    test('events with same requestId compare equal', () {
+    test('events with identical fields are equal', () {
+      final now = DateTime.now();
       final a = HttpConcurrencyWaitEvent(
         requestId: 'req-1',
-        timestamp: DateTime.now(),
+        timestamp: now,
+        uri: Uri.parse('https://api.example.com/x'),
+        waitDuration: const Duration(milliseconds: 100),
+        queueDepthAtEnqueue: 2,
+        slotsInUseAfterAcquire: 5,
+      );
+      final b = HttpConcurrencyWaitEvent(
+        requestId: 'req-1',
+        timestamp: now,
+        uri: Uri.parse('https://api.example.com/x'),
+        waitDuration: const Duration(milliseconds: 100),
+        queueDepthAtEnqueue: 2,
+        slotsInUseAfterAcquire: 5,
+      );
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('events differing in waitDuration are not equal', () {
+      final now = DateTime.now();
+      final a = HttpConcurrencyWaitEvent(
+        requestId: 'req-1',
+        timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: Duration.zero,
         queueDepthAtEnqueue: 0,
@@ -40,14 +63,34 @@ void main() {
       );
       final b = HttpConcurrencyWaitEvent(
         requestId: 'req-1',
-        timestamp: DateTime.now().add(const Duration(seconds: 1)),
-        uri: Uri.parse('https://api.example.com/y'),
+        timestamp: now,
+        uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 500),
-        queueDepthAtEnqueue: 5,
-        slotsInUseAfterAcquire: 6,
+        queueDepthAtEnqueue: 0,
+        slotsInUseAfterAcquire: 1,
       );
-      expect(a, equals(b));
-      expect(a.hashCode, equals(b.hashCode));
+      expect(a, isNot(equals(b)));
+    });
+
+    test('events with different requestId are not equal', () {
+      final now = DateTime.now();
+      final a = HttpConcurrencyWaitEvent(
+        requestId: 'req-1',
+        timestamp: now,
+        uri: Uri.parse('https://api.example.com/x'),
+        waitDuration: Duration.zero,
+        queueDepthAtEnqueue: 0,
+        slotsInUseAfterAcquire: 1,
+      );
+      final b = HttpConcurrencyWaitEvent(
+        requestId: 'req-2',
+        timestamp: now,
+        uri: Uri.parse('https://api.example.com/x'),
+        waitDuration: Duration.zero,
+        queueDepthAtEnqueue: 0,
+        slotsInUseAfterAcquire: 1,
+      );
+      expect(a, isNot(equals(b)));
     });
 
     test('toString includes key fields', () {

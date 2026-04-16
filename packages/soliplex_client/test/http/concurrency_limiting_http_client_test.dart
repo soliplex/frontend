@@ -582,7 +582,7 @@ void main() {
   test('close delegates to inner', () {
     var closed = 0;
     final inner = _CloseCounter(() => closed++);
-    ConcurrencyLimitingHttpClient(inner: inner).close();
+    ConcurrencyLimitingHttpClient(inner: inner, maxConcurrent: 1).close();
     expect(closed, 1);
   });
 }

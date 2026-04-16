@@ -7,6 +7,7 @@ class NetworkInspector
     implements HttpObserver, ConcurrencyObserver {
   final List<HttpEvent> _events = [];
   final List<HttpConcurrencyWaitEvent> _concurrencyEvents = [];
+  bool _disposed = false;
 
   List<HttpEvent> get events => List.unmodifiable(_events);
 
@@ -14,14 +15,22 @@ class NetworkInspector
       List.unmodifiable(_concurrencyEvents);
 
   void clear() {
+    if (_disposed) return;
     _events.clear();
     _concurrencyEvents.clear();
     notifyListeners();
   }
 
   void _add(HttpEvent event) {
+    if (_disposed) return;
     _events.add(event);
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   @override
@@ -41,6 +50,7 @@ class NetworkInspector
 
   @override
   void onConcurrencyWait(HttpConcurrencyWaitEvent event) {
+    if (_disposed) return;
     _concurrencyEvents.add(event);
     notifyListeners();
   }

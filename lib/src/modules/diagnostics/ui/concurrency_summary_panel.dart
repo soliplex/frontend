@@ -6,8 +6,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 /// Compact header strip showing aggregate queue health from the HTTP
 /// concurrency limiter.
 ///
-/// Renders nothing when [events] is empty — the inspector's HTTP event
-/// pipeline runs unchanged until the limiter actually queues a request.
+/// Renders nothing until the limiter has emitted at least one event
+/// (i.e. at least one HTTP request has acquired a slot).
 class ConcurrencySummaryPanel extends StatelessWidget {
   const ConcurrencySummaryPanel({required this.events, super.key});
 
