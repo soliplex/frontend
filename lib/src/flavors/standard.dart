@@ -90,6 +90,7 @@ Future<ShellConfig> standard({
         observers: [inspector],
         getToken: getToken,
         tokenRefresher: tokenRefresher,
+        maxConcurrent: 10,
       );
 
   final plainClient = buildClient();
