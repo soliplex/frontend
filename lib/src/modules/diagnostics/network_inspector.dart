@@ -1,17 +1,28 @@
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 /// Collects HTTP events for the network inspector UI.
+///
+/// Events are bounded per list: on overflow, the oldest event is dropped
+/// so a long-running dev session cannot grow memory without bound.
 class NetworkInspector
     with ChangeNotifier
     implements HttpObserver, ConcurrencyObserver {
-  final List<HttpEvent> _events = [];
-  final List<HttpConcurrencyWaitEvent> _concurrencyEvents = [];
+  NetworkInspector({int maxEvents = 1000})
+      : assert(maxEvents > 0, 'maxEvents must be positive'),
+        _maxEvents = maxEvents;
+
+  final int _maxEvents;
+  final ListQueue<HttpEvent> _events = ListQueue<HttpEvent>();
+  final ListQueue<ConcurrencyWaitEvent> _concurrencyEvents =
+      ListQueue<ConcurrencyWaitEvent>();
   bool _disposed = false;
 
   List<HttpEvent> get events => List.unmodifiable(_events);
 
-  List<HttpConcurrencyWaitEvent> get concurrencyEvents =>
+  List<ConcurrencyWaitEvent> get concurrencyEvents =>
       List.unmodifiable(_concurrencyEvents);
 
   void clear() {
@@ -23,7 +34,8 @@ class NetworkInspector
 
   void _add(HttpEvent event) {
     if (_disposed) return;
-    _events.add(event);
+    _events.addLast(event);
+    if (_events.length > _maxEvents) _events.removeFirst();
     notifyListeners();
   }
 
@@ -50,9 +62,12 @@ class NetworkInspector
   void onStreamEnd(HttpStreamEndEvent event) => _add(event);
 
   @override
-  void onConcurrencyWait(HttpConcurrencyWaitEvent event) {
+  void onConcurrencyWait(ConcurrencyWaitEvent event) {
     if (_disposed) return;
-    _concurrencyEvents.add(event);
+    _concurrencyEvents.addLast(event);
+    if (_concurrencyEvents.length > _maxEvents) {
+      _concurrencyEvents.removeFirst();
+    }
     notifyListeners();
   }
 }

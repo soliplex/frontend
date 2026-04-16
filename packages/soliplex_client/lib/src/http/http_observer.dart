@@ -4,9 +4,10 @@ import 'package:soliplex_client/src/errors/exceptions.dart';
 /// Observer interface for HTTP traffic monitoring.
 ///
 /// Implementations can log requests, track metrics, or display debug info.
-/// Observers should NOT modify requests/responses or throw exceptions that
-/// would break the request flow. Any exceptions thrown by observers are
-/// caught and ignored by `ObservableHttpClient`.
+/// Observers should not modify requests/responses. Observers that throw
+/// do not break the request flow — exceptions are routed to the
+/// `HttpDiagnosticHandler` configured on `ObservableHttpClient` — but
+/// throwing observers obscure real issues, so treat exceptions as bugs.
 ///
 /// Example:
 /// ```dart

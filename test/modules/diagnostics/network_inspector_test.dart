@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/network_inspector.dart';
 
 import '../../helpers/http_event_factories.dart';
@@ -144,6 +145,52 @@ void main() {
 
       inspector.clear();
       expect(notifyCount, 1);
+    });
+  });
+
+  group('NetworkInspector bounded queues', () {
+    test('events queue caps at maxEvents and drops the oldest first', () {
+      final inspector = NetworkInspector(maxEvents: 3);
+      addTearDown(inspector.dispose);
+
+      final events =
+          List.generate(5, (i) => createRequestEvent(requestId: 'r$i'));
+      for (final e in events) {
+        inspector.onRequest(e);
+      }
+
+      expect(inspector.events, hasLength(3));
+      expect(
+        inspector.events.map((e) => (e as HttpRequestEvent).requestId),
+        ['r2', 'r3', 'r4'],
+        reason: 'oldest entries must drop first (FIFO)',
+      );
+    });
+
+    test('concurrencyEvents queue caps independently of events queue', () {
+      final inspector = NetworkInspector(maxEvents: 2);
+      addTearDown(inspector.dispose);
+
+      for (var i = 0; i < 4; i++) {
+        inspector.onConcurrencyWait(createConcurrencyWaitEvent());
+      }
+      for (var i = 0; i < 4; i++) {
+        inspector.onRequest(createRequestEvent());
+      }
+
+      expect(inspector.concurrencyEvents, hasLength(2));
+      expect(inspector.events, hasLength(2));
+    });
+
+    test('rejects non-positive maxEvents', () {
+      expect(
+        () => NetworkInspector(maxEvents: 0),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(
+        () => NetworkInspector(maxEvents: -1),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }

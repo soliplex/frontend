@@ -363,6 +363,73 @@ void main() {
 
     group('stream lifecycle - error', () {
       test(
+        'sync-throw on response.body.listen emits onStreamEnd(error) and '
+        'surfaces the error to the caller',
+        () async {
+          // A single-subscription stream that has already been listened
+          // to elsewhere will throw a synchronous StateError on the
+          // ObservableHttpClient's listen call. Without protection, the
+          // decorator leaks a dangling onStreamStart (no onStreamEnd).
+          final innerController = StreamController<List<int>>();
+          innerController.stream.listen((_) {});
+
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer(
+            (_) async => StreamedHttpResponse(
+              statusCode: 200,
+              body: innerController.stream,
+            ),
+          );
+
+          final response = await observableClient.requestStream(
+            'GET',
+            Uri.parse('https://example.com/stream'),
+          );
+
+          final errors = <Object>[];
+          final completer = Completer<void>();
+
+          response.body.listen(
+            (_) {},
+            onError: (Object e) {
+              errors.add(e);
+              if (!completer.isCompleted) completer.complete();
+            },
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+          );
+
+          await completer.future;
+
+          expect(
+            errors,
+            hasLength(1),
+            reason: 'Caller must still see the synchronous listen error — '
+                'the protection must not mask the bug.',
+          );
+          expect(errors.single, isA<StateError>());
+
+          final endEvents = recorder.eventsOfType<HttpStreamEndEvent>();
+          expect(
+            endEvents,
+            hasLength(1),
+            reason: 'onStreamEnd must fire so observers do not see a '
+                'dangling onStreamStart when the inner body is not listenable.',
+          );
+          expect(endEvents.single.isSuccess, isFalse);
+
+          await innerController.close();
+        },
+      );
+
+      test(
         'notifies observer on stream error with SoliplexException',
         () async {
           final controller = StreamController<List<int>>();
@@ -515,6 +582,94 @@ void main() {
             endEvents,
             hasLength(1),
             reason: 'Should emit exactly one onStreamEnd, not two',
+          );
+        },
+      );
+
+      test(
+        'emits onStreamEnd when requestStream itself throws after '
+        'onStreamStart',
+        () async {
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenThrow(const NetworkException(message: 'connect refused'));
+
+          await expectLater(
+            () => observableClient.requestStream(
+              'GET',
+              Uri.parse('https://example.com/stream'),
+            ),
+            throwsA(isA<NetworkException>()),
+          );
+
+          final startEvents = recorder.eventsOfType<HttpStreamStartEvent>();
+          final endEvents = recorder.eventsOfType<HttpStreamEndEvent>();
+          expect(startEvents, hasLength(1));
+          expect(
+            endEvents,
+            hasLength(1),
+            reason: 'onStreamStart must have a matching onStreamEnd; '
+                'otherwise observers see a forever-open request',
+          );
+          expect(endEvents.first.error, isA<NetworkException>());
+        },
+      );
+
+      test(
+        'redacts URI secrets when wrapping non-SoliplexException in '
+        'NetworkException.message',
+        () async {
+          final controller = StreamController<List<int>>();
+
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer(
+            (_) async =>
+                StreamedHttpResponse(statusCode: 200, body: controller.stream),
+          );
+
+          // Auth-endpoint URI triggers full-body redaction in HttpRedactor.
+          final response = await observableClient.requestStream(
+            'GET',
+            Uri.parse('https://example.com/oauth/token?code=secret-abc-123'),
+          );
+
+          final completer = Completer<void>();
+          response.body.listen(
+            (_) {},
+            onError: (_) {},
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+          );
+
+          // A non-SoliplexException whose toString contains the full URI.
+          controller.addError(
+            Exception(
+              'fetch failed for '
+              'https://example.com/oauth/token?code=secret-abc-123',
+            ),
+          );
+          await controller.close();
+          await completer.future;
+
+          final endEvent = recorder.eventsOfType<HttpStreamEndEvent>().first;
+          final message = (endEvent.error! as NetworkException).message;
+          expect(
+            message,
+            isNot(contains('secret-abc-123')),
+            reason: 'NetworkException.message must be URI-redacted before '
+                'emission so tokens do not leak through observers',
           );
         },
       );

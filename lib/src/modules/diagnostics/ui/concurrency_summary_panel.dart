@@ -11,7 +11,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 class ConcurrencySummaryPanel extends StatelessWidget {
   const ConcurrencySummaryPanel({required this.events, super.key});
 
-  final List<HttpConcurrencyWaitEvent> events;
+  final List<ConcurrencyWaitEvent> events;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +72,7 @@ class _ConcurrencyStats {
     required this.maxWaitMs,
   });
 
-  factory _ConcurrencyStats.from(List<HttpConcurrencyWaitEvent> events) {
+  factory _ConcurrencyStats.from(List<ConcurrencyWaitEvent> events) {
     var maxDepth = 0;
     var peakSlots = 0;
     var maxWaitMs = 0;

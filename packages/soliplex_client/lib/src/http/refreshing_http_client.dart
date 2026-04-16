@@ -19,7 +19,8 @@ import 'package:soliplex_client/src/utils/cancel_token.dart';
 /// is cleared synchronously before completing to ensure subsequent requests
 /// start fresh refresh attempts if needed.
 ///
-/// Decorator order: `Refreshing -> Authenticated -> Observable -> Platform`
+/// Decorator order:
+/// `Concurrency -> Refreshing -> Authenticated -> Observable -> Platform`
 class RefreshingHttpClient implements SoliplexHttpClient {
   /// Creates a refreshing HTTP client.
   ///
@@ -103,10 +104,9 @@ class RefreshingHttpClient implements SoliplexHttpClient {
   /// afterward `.future` returns the cached result forever. Without clearing,
   /// new 401s would receive stale results instead of refreshing.
   Future<bool> _tryRefreshOnce() async {
-    // If refresh already in progress, wait for it.
-    // Race condition safety: Dart's single-threaded event loop guarantees no
-    // interleaving between the null check and assignment below. Code only
-    // yields at `await` points, so this check-then-assign is atomic.
+    // Dart's single-threaded event loop guarantees no interleaving
+    // between the null check and assignment below — code only yields
+    // at `await` points, so this check-then-assign is atomic.
     if (_refreshInProgress != null) {
       return _refreshInProgress!.future;
     }
@@ -116,15 +116,11 @@ class RefreshingHttpClient implements SoliplexHttpClient {
     try {
       final result = await _refresher.tryRefresh();
       completer.complete(result);
-      // REQUIRED: Clear the Completer reference after completion.
-      // A Completer can only complete once—after that, .future returns the
-      // cached result forever. Without clearing, subsequent 401s would get
-      // stale results instead of triggering fresh refresh attempts.
       _refreshInProgress = null;
       return result;
-    } catch (e) {
-      completer.completeError(e);
-      _refreshInProgress = null; // Same reason: allow fresh attempts
+    } catch (e, stackTrace) {
+      completer.completeError(e, stackTrace);
+      _refreshInProgress = null;
       rethrow;
     }
   }

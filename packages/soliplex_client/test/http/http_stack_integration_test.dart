@@ -291,27 +291,6 @@ void main() {
       },
     );
 
-    test('SSE connection error propagates through all layers', () async {
-      platform.nextStreamError = const NetworkException(
-        message: 'SSE connection failed',
-      );
-
-      Object? caughtError;
-      try {
-        await transport.requestStream('GET', testUri);
-      } catch (e) {
-        caughtError = e;
-      }
-
-      expect(caughtError, isA<NetworkException>());
-
-      // Observer fires onStreamStart but the connection error
-      // propagates before the stream body is set up, so no
-      // onStreamEnd or onError event is emitted.
-      final starts = observer.ofType<HttpStreamStartEvent>();
-      expect(starts, hasLength(1));
-    });
-
     test('SSE 401 on connection throws AuthException from transport', () async {
       final controller = StreamController<List<int>>();
       platform.nextStreamResponse = StreamedHttpResponse(
@@ -417,7 +396,8 @@ void main() {
     );
 
     test(
-      'observer sees stream start but no end for connection error',
+      'connection error during requestStream emits both onStreamStart and '
+      'onStreamEnd(error)',
       () async {
         platform.nextStreamError = const NetworkException(
           message: 'Stream setup failed',
@@ -427,14 +407,17 @@ void main() {
           await transport.requestStream('GET', testUri);
         } catch (_) {}
 
-        // Connection errors occur during await of requestStream,
-        // after onStreamStart but before the body stream is wrapped.
-        // No onStreamEnd is emitted in this case.
         final starts = observer.ofType<HttpStreamStartEvent>();
         expect(starts, hasLength(1));
 
         final ends = observer.ofType<HttpStreamEndEvent>();
-        expect(ends, isEmpty);
+        expect(
+          ends,
+          hasLength(1),
+          reason: 'onStreamEnd must fire even when the inner requestStream '
+              'throws, so observers do not see a dangling open request',
+        );
+        expect(ends.single.error, isA<NetworkException>());
       },
     );
   });

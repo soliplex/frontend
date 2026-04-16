@@ -2,18 +2,18 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
 class _RecordingObserver implements ConcurrencyObserver {
-  final events = <HttpConcurrencyWaitEvent>[];
+  final events = <ConcurrencyWaitEvent>[];
 
   @override
-  void onConcurrencyWait(HttpConcurrencyWaitEvent event) => events.add(event);
+  void onConcurrencyWait(ConcurrencyWaitEvent event) => events.add(event);
 }
 
 void main() {
-  group('HttpConcurrencyWaitEvent', () {
+  group('ConcurrencyWaitEvent', () {
     test('stores all required fields', () {
       final now = DateTime.now();
-      final event = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final event = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 250),
@@ -21,7 +21,7 @@ void main() {
         slotsInUseAfterAcquire: 6,
       );
 
-      expect(event.requestId, equals('req-1'));
+      expect(event.acquisitionId, equals('req-1'));
       expect(event.timestamp, equals(now));
       expect(event.uri.toString(), equals('https://api.example.com/x'));
       expect(event.waitDuration, equals(const Duration(milliseconds: 250)));
@@ -31,16 +31,16 @@ void main() {
 
     test('events with identical fields are equal', () {
       final now = DateTime.now();
-      final a = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final a = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 100),
         queueDepthAtEnqueue: 2,
         slotsInUseAfterAcquire: 5,
       );
-      final b = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final b = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 100),
@@ -53,16 +53,16 @@ void main() {
 
     test('events differing in waitDuration are not equal', () {
       final now = DateTime.now();
-      final a = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final a = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: Duration.zero,
         queueDepthAtEnqueue: 0,
         slotsInUseAfterAcquire: 1,
       );
-      final b = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final b = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 500),
@@ -72,18 +72,18 @@ void main() {
       expect(a, isNot(equals(b)));
     });
 
-    test('events with different requestId are not equal', () {
+    test('events with different acquisitionId are not equal', () {
       final now = DateTime.now();
-      final a = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final a = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: Duration.zero,
         queueDepthAtEnqueue: 0,
         slotsInUseAfterAcquire: 1,
       );
-      final b = HttpConcurrencyWaitEvent(
-        requestId: 'req-2',
+      final b = ConcurrencyWaitEvent(
+        acquisitionId: 'req-2',
         timestamp: now,
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: Duration.zero,
@@ -94,8 +94,8 @@ void main() {
     });
 
     test('toString includes key fields', () {
-      final event = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final event = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: DateTime.now(),
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 250),
@@ -107,11 +107,55 @@ void main() {
     });
   });
 
+  group('ConcurrencyWaitEvent invariants', () {
+    test('rejects empty acquisitionId', () {
+      expect(
+        () => ConcurrencyWaitEvent(
+          acquisitionId: '',
+          timestamp: DateTime.now(),
+          uri: Uri.parse('https://x/y'),
+          waitDuration: Duration.zero,
+          queueDepthAtEnqueue: 0,
+          slotsInUseAfterAcquire: 1,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('rejects negative queueDepthAtEnqueue', () {
+      expect(
+        () => ConcurrencyWaitEvent(
+          acquisitionId: 'req-1',
+          timestamp: DateTime.now(),
+          uri: Uri.parse('https://x/y'),
+          waitDuration: Duration.zero,
+          queueDepthAtEnqueue: -1,
+          slotsInUseAfterAcquire: 1,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('rejects slotsInUseAfterAcquire below 1', () {
+      expect(
+        () => ConcurrencyWaitEvent(
+          acquisitionId: 'req-1',
+          timestamp: DateTime.now(),
+          uri: Uri.parse('https://x/y'),
+          waitDuration: Duration.zero,
+          queueDepthAtEnqueue: 0,
+          slotsInUseAfterAcquire: 0,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
   group('ConcurrencyObserver', () {
     test('observers receive events via onConcurrencyWait', () {
       final observer = _RecordingObserver();
-      final event = HttpConcurrencyWaitEvent(
-        requestId: 'req-1',
+      final event = ConcurrencyWaitEvent(
+        acquisitionId: 'req-1',
         timestamp: DateTime.now(),
         uri: Uri.parse('https://api.example.com/x'),
         waitDuration: const Duration(milliseconds: 100),

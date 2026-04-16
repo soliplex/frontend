@@ -95,16 +95,16 @@ HttpStreamEndEvent createStreamEndEvent({
   );
 }
 
-HttpConcurrencyWaitEvent createConcurrencyWaitEvent({
-  String requestId = 'cc-1',
+ConcurrencyWaitEvent createConcurrencyWaitEvent({
+  String acquisitionId = 'acq-1',
   DateTime? timestamp,
   Uri? uri,
   Duration waitDuration = const Duration(milliseconds: 50),
   int queueDepthAtEnqueue = 0,
   int slotsInUseAfterAcquire = 1,
 }) {
-  return HttpConcurrencyWaitEvent(
-    requestId: requestId,
+  return ConcurrencyWaitEvent(
+    acquisitionId: acquisitionId,
     timestamp: timestamp ?? DateTime.utc(2026, 4, 16, 12),
     uri: uri ?? Uri.parse('https://api.example.com/x'),
     waitDuration: waitDuration,

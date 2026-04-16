@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/concurrency_observer.dart';
+import 'package:soliplex_client/src/http/http_diagnostic.dart';
 import 'package:soliplex_client/src/http/http_redactor.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
@@ -14,32 +15,17 @@ import 'package:soliplex_client/src/utils/cancel_token.dart';
 /// release their slots. Queued stream requests drop out of the queue
 /// immediately when their [CancelToken] fires — no slot is acquired.
 ///
-/// Emits [HttpConcurrencyWaitEvent] to observers on every slot
+/// Emits [ConcurrencyWaitEvent] to observers on every slot
 /// acquisition, including acquisitions with `waitDuration == 0`.
-///
-/// ## Streams
 ///
 /// [requestStream] holds its slot for the response body's entire
 /// lifetime — released when the body stream completes, errors, or is
 /// cancelled. This accurately models what the upstream sees (an open
 /// connection).
 ///
-/// ## Observer correlation
-///
-/// The [HttpConcurrencyWaitEvent.requestId] is generated inside this
-/// decorator and does NOT correlate with the `requestId` used by
-/// other HTTP observers for the same logical request. Observers that
-/// need cross-layer correlation should match by URI + timestamp.
-///
-/// ## Decorator order
-///
-/// Place below `AuthenticatedHttpClient` so queued requests don't hold
-/// stale tokens, and above `ObservableHttpClient` so each wire attempt
-/// is observed individually.
-///
-/// ```text
-/// Refreshing -> Authenticated -> Concurrency -> Observable -> Platform
-/// ```
+/// Place at the outermost layer of the auth-aware stack so per-request
+/// auth work (token fetch, proactive refresh) runs at dispatch time, not
+/// at enqueue time — queued requests therefore never hold stale tokens.
 class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   /// Creates a concurrency-limiting HTTP client.
   ///
@@ -47,45 +33,58 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   /// - [maxConcurrent]: Maximum in-flight requests. Must be at least 1.
   ///   Sized to match the upstream's connection limit.
   /// - [observers]: Observers notified of queue-wait events.
-  /// - [generateRequestId]: Optional ID generator; defaults to a
-  ///   per-instance timestamp+counter scheme.
-  /// - [clock]: Test injection point for deterministic `waitDuration`.
+  /// - [generateAcquisitionId]: Optional ID generator.
+  /// - [clock]: Optional clock override (tests only).
+  /// - [onDiagnostic]: Handler for contained internal errors.
   ConcurrencyLimitingHttpClient({
     required SoliplexHttpClient inner,
-    required this.maxConcurrent,
+    required int maxConcurrent,
     List<ConcurrencyObserver> observers = const [],
-    String Function()? generateRequestId,
+    String Function()? generateAcquisitionId,
     DateTime Function()? clock,
-  })  : _inner = inner,
+    HttpDiagnosticHandler? onDiagnostic,
+  })  : maxConcurrent = maxConcurrent >= 1
+            ? maxConcurrent
+            : throw RangeError.range(
+                maxConcurrent,
+                1,
+                null,
+                'maxConcurrent',
+              ),
+        _inner = inner,
         _observers = List.unmodifiable(observers),
-        _overrideGenerateRequestId = generateRequestId,
+        _overrideGenerateAcquisitionId = generateAcquisitionId,
         _clock = clock ?? DateTime.now,
-        _semaphore = _Semaphore(maxConcurrent) {
-    if (maxConcurrent < 1) {
-      throw RangeError.range(maxConcurrent, 1, null, 'maxConcurrent');
-    }
-  }
+        _onDiagnostic = onDiagnostic ?? defaultHttpDiagnosticHandler,
+        _semaphore = _Semaphore(maxCount: maxConcurrent);
 
   final SoliplexHttpClient _inner;
   final List<ConcurrencyObserver> _observers;
-  final String Function()? _overrideGenerateRequestId;
+  final String Function()? _overrideGenerateAcquisitionId;
   final DateTime Function() _clock;
   final _Semaphore _semaphore;
+  final HttpDiagnosticHandler _onDiagnostic;
+
+  /// Monotonic counter that never resets — it tie-breaks IDs within a
+  /// single millisecond. Resetting would risk collisions when a new
+  /// epoch's counter coincides with a prior timestamp, and an `int`
+  /// takes fixed memory regardless of magnitude.
   int _counter = 0;
 
   /// Maximum in-flight requests.
   final int maxConcurrent;
 
-  String _generateRequestId() =>
-      _overrideGenerateRequestId?.call() ??
-      'cc-${DateTime.now().millisecondsSinceEpoch}-${_counter++}';
+  String _generateAcquisitionId() =>
+      _overrideGenerateAcquisitionId?.call() ??
+      'acq-${_clock().millisecondsSinceEpoch}-${_counter++}';
 
   /// Performs a one-shot HTTP request, respecting the concurrency cap.
   ///
   /// [SoliplexHttpClient.request] has no `CancelToken`, so queued
   /// non-stream requests cannot be cancelled at this layer — they wait
   /// for their slot, dispatch, and can only be cancelled by a timeout
-  /// on the inner client. For cancel-aware behavior use [requestStream].
+  /// on the inner client. Note that the timeout governs only the
+  /// post-acquisition request, not queue-wait time.
   @override
   Future<HttpResponse> request(
     String method,
@@ -94,24 +93,24 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     Object? body,
     Duration? timeout,
   }) async {
-    final requestId = _generateRequestId();
+    final acquisitionId = _generateAcquisitionId();
     final enqueuedAt = _clock();
     final depthAtEnqueue = _semaphore.inUseCount + _semaphore.waitingCount;
 
-    final outcome = await _semaphore.acquire();
-
-    final acquiredAt = _clock();
-    _emitConcurrencyWait(
-      requestId: requestId,
-      uri: uri,
-      timestamp: acquiredAt,
-      waitDuration: outcome == _AcquireOutcome.queued
-          ? acquiredAt.difference(enqueuedAt)
-          : Duration.zero,
-      queueDepthAtEnqueue: depthAtEnqueue,
-    );
+    final slot = await _semaphore.acquire();
 
     try {
+      final acquiredAt = _clock();
+      _emitConcurrencyWait(
+        acquisitionId: acquisitionId,
+        uri: uri,
+        timestamp: acquiredAt,
+        waitDuration: slot.outcome == _AcquireOutcome.queued
+            ? _nonNegative(acquiredAt.difference(enqueuedAt))
+            : Duration.zero,
+        queueDepthAtEnqueue: depthAtEnqueue,
+      );
+
       return await _inner.request(
         method,
         uri,
@@ -120,7 +119,7 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
         timeout: timeout,
       );
     } finally {
-      _semaphore.release();
+      slot.release();
     }
   }
 
@@ -129,8 +128,11 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   /// body completes, errors, or is cancelled.
   ///
   /// **Precondition:** callers MUST listen to the returned
-  /// [StreamedHttpResponse.body]. An unlistened body stream will hold
-  /// the semaphore slot indefinitely, starving other requests.
+  /// [StreamedHttpResponse.body]. An unlistened body holds the
+  /// semaphore slot indefinitely, starving other requests and
+  /// eventually exhausting the pool. A debug-only detector logs after
+  /// 10 seconds to catch this during development; release builds do
+  /// not detect the leak.
   @override
   Future<StreamedHttpResponse> requestStream(
     String method,
@@ -141,11 +143,11 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   }) async {
     cancelToken?.throwIfCancelled();
 
-    final requestId = _generateRequestId();
+    final acquisitionId = _generateAcquisitionId();
     final enqueuedAt = _clock();
     final depthAtEnqueue = _semaphore.inUseCount + _semaphore.waitingCount;
 
-    final outcome = await _semaphore.acquire(cancelToken: cancelToken);
+    final slot = await _semaphore.acquire(cancelToken: cancelToken);
 
     StreamedHttpResponse response;
     try {
@@ -153,11 +155,11 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
 
       final acquiredAt = _clock();
       _emitConcurrencyWait(
-        requestId: requestId,
+        acquisitionId: acquisitionId,
         uri: uri,
         timestamp: acquiredAt,
-        waitDuration: outcome == _AcquireOutcome.queued
-            ? acquiredAt.difference(enqueuedAt)
+        waitDuration: slot.outcome == _AcquireOutcome.queued
+            ? _nonNegative(acquiredAt.difference(enqueuedAt))
             : Duration.zero,
         queueDepthAtEnqueue: depthAtEnqueue,
       );
@@ -170,7 +172,7 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
         cancelToken: cancelToken,
       );
     } on Object {
-      _semaphore.release();
+      slot.release();
       rethrow;
     }
 
@@ -178,60 +180,105 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
       statusCode: response.statusCode,
       headers: response.headers,
       reasonPhrase: response.reasonPhrase,
-      body: _wrapBodyWithRelease(response.body),
+      body: _wrapBodyWithRelease(response.body, uri, slot),
     );
   }
 
-  /// Wraps a body stream so the semaphore slot is released when the
-  /// stream completes, errors, or is cancelled.
+  /// Wraps a body stream so [slot] is released when the stream
+  /// completes, errors, or is cancelled. [_SlotHandle.release] is
+  /// idempotent, so multiple callback paths (onDone + onCancel,
+  /// onListen-catch + onCancel) are safe.
   ///
-  /// Uses `sync: true` to avoid a per-chunk microtask hop on high-rate
-  /// byte streams (e.g., SSE). Backpressure is propagated by the
-  /// explicit `onPause`/`onResume` forwarding below, not by the sync
-  /// mode.
-  Stream<List<int>> _wrapBodyWithRelease(Stream<List<int>> source) {
-    var released = false;
-    void releaseOnce() {
-      if (!released) {
-        released = true;
-        _semaphore.release();
-      }
-    }
-
+  /// `sync: true` avoids a per-chunk microtask hop on high-rate byte
+  /// streams (e.g., SSE). Backpressure is propagated by the explicit
+  /// `onPause`/`onResume` forwarding below, not by the sync mode.
+  Stream<List<int>> _wrapBodyWithRelease(
+    Stream<List<int>> source,
+    Uri uri,
+    _SlotHandle slot,
+  ) {
     late StreamController<List<int>> controller;
     StreamSubscription<List<int>>? subscription;
+    Timer? leakDetector;
 
     controller = StreamController<List<int>>(
       sync: true,
       onListen: () {
-        subscription = source.listen(
-          controller.add,
-          onError: (Object error, StackTrace stackTrace) {
-            releaseOnce();
-            controller.addError(error, stackTrace);
-          },
-          onDone: () {
-            releaseOnce();
-            controller.close();
-          },
+        assert(
+          () {
+            leakDetector?.cancel();
+            return true;
+          }(),
+          'cancel leak detector on listen',
         );
+        try {
+          subscription = source.listen(
+            controller.add,
+            onError: (Object error, StackTrace stackTrace) {
+              slot.release();
+              controller.addError(error, stackTrace);
+            },
+            onDone: () {
+              slot.release();
+              controller.close();
+            },
+          );
+        } on Object catch (error, stackTrace) {
+          // source.listen can throw synchronously (e.g. StateError on
+          // double-listen). Without this catch, no onDone/onError ever
+          // fires and the slot leaks permanently.
+          slot.release();
+          controller
+            ..addError(error, stackTrace)
+            ..close();
+        }
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
       onCancel: () {
-        releaseOnce();
+        assert(
+          () {
+            leakDetector?.cancel();
+            return true;
+          }(),
+          'cancel leak detector on body cancel',
+        );
+        slot.release();
         return subscription?.cancel();
       },
+    );
+
+    assert(
+      () {
+        leakDetector = Timer(const Duration(seconds: 10), () {
+          if (!controller.hasListener) {
+            _onDiagnostic(
+              StateError(
+                'Concurrency slot held by unlistened response body for >10s. '
+                'Callers must listen to StreamedHttpResponse.body.',
+              ),
+              StackTrace.current,
+              message: 'Unlistened body stream leak (URI: '
+                  '${HttpRedactor.redactUri(uri)})',
+            );
+          }
+        });
+        return true;
+      }(),
+      'install debug-only unlistened-body leak detector',
     );
 
     return controller.stream;
   }
 
   @override
-  void close() => _inner.close();
+  void close() {
+    _semaphore.closeAndDrain();
+    _inner.close();
+  }
 
   void _emitConcurrencyWait({
-    required String requestId,
+    required String acquisitionId,
     required Uri uri,
     required DateTime timestamp,
     required Duration waitDuration,
@@ -240,32 +287,51 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     if (_observers.isEmpty) return;
 
     final redactedUri = HttpRedactor.redactUri(uri);
-    final event = HttpConcurrencyWaitEvent(
-      requestId: requestId,
-      timestamp: timestamp,
-      uri: redactedUri,
-      waitDuration: waitDuration,
-      queueDepthAtEnqueue: queueDepthAtEnqueue,
-      slotsInUseAfterAcquire: _semaphore.inUseCount,
-    );
+    final ConcurrencyWaitEvent event;
+    try {
+      event = ConcurrencyWaitEvent(
+        acquisitionId: acquisitionId,
+        timestamp: timestamp,
+        uri: redactedUri,
+        waitDuration: waitDuration,
+        queueDepthAtEnqueue: queueDepthAtEnqueue,
+        slotsInUseAfterAcquire: _semaphore.inUseCount,
+      );
+    } on Object catch (error, stackTrace) {
+      // Construction invariant violated (debug assert fired, or a
+      // future runtime check). Skip this event rather than crash the
+      // in-flight request.
+      _onDiagnostic(
+        error,
+        stackTrace,
+        message: 'ConcurrencyWaitEvent construction failed',
+      );
+      return;
+    }
 
     for (final observer in _observers) {
       try {
         observer.onConcurrencyWait(event);
       } on Object catch (error, stackTrace) {
-        // Observer failures must not disrupt the request flow, but
-        // surface the error in debug so a broken observer is visible.
-        assert(
-          () {
-            // ignore: avoid_print
-            print('ConcurrencyObserver ${observer.runtimeType} threw: '
-                '$error\n$stackTrace');
-            return true;
-          }(),
-          'observer logging assert',
+        _onDiagnostic(
+          error,
+          stackTrace,
+          message: 'ConcurrencyObserver ${observer.runtimeType} threw',
         );
       }
     }
+  }
+
+  /// Clamps negative durations from clock skew (e.g., NTP adjustments)
+  /// to [Duration.zero]. Logs the skew so it is visible in diagnostics.
+  Duration _nonNegative(Duration duration) {
+    if (!duration.isNegative) return duration;
+    _onDiagnostic(
+      StateError('Negative waitDuration from clock skew: $duration'),
+      StackTrace.current,
+      message: 'Clock went backward during request; clamping waitDuration',
+    );
+    return Duration.zero;
   }
 }
 
@@ -273,29 +339,57 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
 /// or acquired a permit immediately.
 enum _AcquireOutcome { immediate, queued }
 
+/// Represents ownership of a single semaphore permit. [release] is
+/// idempotent: calling it more than once is a no-op. Ownership lives
+/// only within the file; handles are never exposed to library callers.
+class _SlotHandle {
+  _SlotHandle._(this._semaphore, this.outcome);
+
+  final _Semaphore _semaphore;
+  final _AcquireOutcome outcome;
+  bool _released = false;
+
+  void release() {
+    if (_released) return;
+    _released = true;
+    _semaphore._onSlotReleased();
+  }
+}
+
 /// Cancel-aware FIFO semaphore.
 ///
-/// [acquire] returns immediately if a permit is available; otherwise
-/// the caller is queued. If a [CancelToken] is passed and fires while
-/// the caller is queued, the completer is removed from the queue and
-/// completed with a [CancelledException] — no permit is acquired.
+/// [acquire] returns a [_SlotHandle] immediately if a permit is
+/// available; otherwise the caller is queued. If a [CancelToken] is
+/// passed and fires while the caller is queued, the completer is
+/// removed from the queue and completed with a [CancelledException] —
+/// no permit is acquired.
+///
+/// After [closeAndDrain], all queued waiters and future acquires error
+/// with [CancelledException].
 class _Semaphore {
-  _Semaphore(this.maxCount) : _available = maxCount;
+  _Semaphore({required this.maxCount}) : _available = maxCount;
 
   final int maxCount;
   int _available;
   final Queue<Completer<void>> _waiters = Queue<Completer<void>>();
+  bool _closed = false;
 
   int get inUseCount => maxCount - _available;
 
   int get waitingCount => _waiters.length;
 
-  /// Returns [_AcquireOutcome.queued] if the caller had to wait, or
-  /// [_AcquireOutcome.immediate] if a permit was available.
-  Future<_AcquireOutcome> acquire({CancelToken? cancelToken}) {
+  Future<_SlotHandle> acquire({CancelToken? cancelToken}) {
+    if (_closed) {
+      return Future<_SlotHandle>.error(
+        const CancelledException(reason: 'HTTP client closed'),
+      );
+    }
+
     if (_available > 0) {
       _available--;
-      return Future<_AcquireOutcome>.value(_AcquireOutcome.immediate);
+      return Future<_SlotHandle>.value(
+        _SlotHandle._(this, _AcquireOutcome.immediate),
+      );
     }
     cancelToken?.throwIfCancelled();
 
@@ -303,33 +397,50 @@ class _Semaphore {
     _waiters.add(completer);
 
     if (cancelToken != null) {
-      // The callback runs as a single synchronous block with no await,
-      // so the isCompleted check and subsequent completeError cannot be
-      // interleaved by a concurrent release() — Dart microtasks never
-      // preempt synchronous execution.
-      cancelToken.whenCancelled.then((_) {
-        if (!completer.isCompleted) {
-          _waiters.remove(completer);
-          completer.completeError(
-            CancelledException(reason: cancelToken.reason),
-          );
-        }
-      });
+      // Dart's single-threaded run-to-completion guarantees no
+      // interleaving between the isCompleted check and completeError.
+      unawaited(
+        cancelToken.whenCancelled.then((_) {
+          if (!completer.isCompleted) {
+            _waiters.remove(completer);
+            completer.completeError(
+              CancelledException(reason: cancelToken.reason),
+            );
+          }
+        }),
+      );
     }
 
-    return completer.future.then((_) => _AcquireOutcome.queued);
+    return completer.future
+        .then((_) => _SlotHandle._(this, _AcquireOutcome.queued));
   }
 
-  void release() {
-    // Invariant: every completer in [_waiters] is uncompleted. The
-    // cancel handler in [acquire] atomically removes a completer from
-    // the queue and completes it with an error, so completed completers
-    // never linger. That lets release() hand the permit to the head
-    // without a skip-loop.
+  /// Hands the permit to the next queued waiter, or returns it to
+  /// the pool.
+  void _onSlotReleased() {
+    // Invariant: every completer in [_waiters] is uncompleted (the
+    // cancel handler in [acquire] removes completed completers from the
+    // queue before completing them). So we can hand the permit to the
+    // head without a skip-loop.
     if (_waiters.isNotEmpty) {
       _waiters.removeFirst().complete();
       return;
     }
     _available++;
+  }
+
+  /// Errors out all queued waiters and refuses future acquires.
+  /// Idempotent. In-flight slots are left alone — they release normally
+  /// when their requests complete.
+  void closeAndDrain() {
+    if (_closed) return;
+    _closed = true;
+    while (_waiters.isNotEmpty) {
+      _waiters.removeFirst().completeError(
+            const CancelledException(
+              reason: 'HTTP client closed before slot acquired',
+            ),
+          );
+    }
   }
 }

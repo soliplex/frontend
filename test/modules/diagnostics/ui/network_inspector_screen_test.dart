@@ -102,10 +102,10 @@ void main() {
         'clear button clears concurrency events and hides the summary panel',
         (tester) async {
       inspector
-        ..onConcurrencyWait(createConcurrencyWaitEvent(requestId: 'cc-1'))
+        ..onConcurrencyWait(createConcurrencyWaitEvent(acquisitionId: 'acq-1'))
         ..onConcurrencyWait(
           createConcurrencyWaitEvent(
-            requestId: 'cc-2',
+            acquisitionId: 'acq-2',
             waitDuration: const Duration(milliseconds: 120),
             queueDepthAtEnqueue: 2,
           ),

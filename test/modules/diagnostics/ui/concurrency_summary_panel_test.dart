@@ -7,7 +7,7 @@ import '../../../helpers/http_event_factories.dart';
 
 Future<void> _pump(
   WidgetTester tester,
-  List<HttpConcurrencyWaitEvent> events,
+  List<ConcurrencyWaitEvent> events,
 ) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -31,19 +31,19 @@ void main() {
     testWidgets('renders totals, peak slots, and max depth', (tester) async {
       await _pump(tester, [
         createConcurrencyWaitEvent(
-          requestId: 'cc-1',
+          acquisitionId: 'acq-1',
           waitDuration: Duration.zero,
           queueDepthAtEnqueue: 0,
           slotsInUseAfterAcquire: 1,
         ),
         createConcurrencyWaitEvent(
-          requestId: 'cc-2',
+          acquisitionId: 'acq-2',
           waitDuration: const Duration(milliseconds: 200),
           queueDepthAtEnqueue: 3,
           slotsInUseAfterAcquire: 4,
         ),
         createConcurrencyWaitEvent(
-          requestId: 'cc-3',
+          acquisitionId: 'acq-3',
           waitDuration: const Duration(milliseconds: 100),
           queueDepthAtEnqueue: 2,
           slotsInUseAfterAcquire: 5,
@@ -59,11 +59,11 @@ void main() {
     testWidgets('computes avg wait across queued events only', (tester) async {
       await _pump(tester, [
         createConcurrencyWaitEvent(
-          requestId: 'cc-fast',
+          acquisitionId: 'acq-fast',
           waitDuration: Duration.zero,
         ),
         createConcurrencyWaitEvent(
-          requestId: 'cc-slow',
+          acquisitionId: 'acq-slow',
           waitDuration: const Duration(milliseconds: 100),
         ),
       ]);
@@ -76,7 +76,7 @@ void main() {
     testWidgets('omits avg when nothing was queued', (tester) async {
       await _pump(tester, [
         createConcurrencyWaitEvent(
-          requestId: 'cc-fast',
+          acquisitionId: 'acq-fast',
           waitDuration: Duration.zero,
         ),
       ]);

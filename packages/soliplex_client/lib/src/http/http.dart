@@ -3,6 +3,7 @@ export 'authenticated_http_client.dart';
 export 'concurrency_limiting_http_client.dart';
 export 'concurrency_observer.dart';
 export 'dart_http_client.dart';
+export 'http_diagnostic.dart';
 export 'http_observer.dart';
 export 'http_response.dart';
 export 'http_transport.dart';
