@@ -1,5 +1,6 @@
 export 'agui_stream_client.dart';
 export 'authenticated_http_client.dart';
+export 'concurrency_observer.dart';
 export 'dart_http_client.dart';
 export 'http_observer.dart';
 export 'http_response.dart';
