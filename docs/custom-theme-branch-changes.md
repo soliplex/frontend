@@ -20,14 +20,16 @@ repo, see [`custom-theme-branch-implementation.md`](custom-theme-branch-implemen
 7. [Component Themes](#component-themes)
 8. [Theme Extensions](#theme-extensions)
 9. [Semantic Colors](#semantic-colors)
-10. [Typography](#typography)
-11. [Theme Mode Persistence and Toggle](#theme-mode-persistence-and-toggle)
-12. [Shell Integration](#shell-integration)
-13. [Flavor Wiring (`standard()`)](#flavor-wiring-standard)
-14. [Public API Surface](#public-api-surface)
-15. [File Inventory](#file-inventory)
-16. [Test Coverage](#test-coverage)
-17. [Things Intentionally Out of Scope](#things-intentionally-out-of-scope)
+10. [Layout Tokens](#layout-tokens)
+11. [Typography](#typography)
+12. [Theme Mode Persistence and Toggle](#theme-mode-persistence-and-toggle)
+13. [Shell Integration](#shell-integration)
+14. [Flavor Wiring (`standard()`)](#flavor-wiring-standard)
+15. [Public API Surface](#public-api-surface)
+16. [File Inventory](#file-inventory)
+17. [Test Coverage](#test-coverage)
+18. [Platform Workarounds](#platform-workarounds)
+19. [Things Intentionally Out of Scope](#things-intentionally-out-of-scope)
 
 ---
 
@@ -65,8 +67,11 @@ Key capabilities introduced:
 - **Shell wiring** — `ShellConfig` gained `darkTheme` and `themeMode` fields;
   `SoliplexShell` extracts an internal `_ThemedApp ConsumerWidget` (so it can
   watch `themeModeProvider` from inside the `ProviderScope`).
-
-Branch totals vs `main`: 90 files changed, +4,221 / −660 lines.
+- **Square-first surfaces** — the branch replaces rounded corners with
+  minimal or zero radii across themed components. `soliplexRadii` defaults
+  to `SoliplexRadii(sm: 2, md: 8, lg: 12, xl: 20)` and markdown code blocks,
+  dialogs, sidebars, and buttons use `BorderRadius.zero` where previously
+  rounded.
 
 ---
 
@@ -271,7 +276,7 @@ modifying a component theme is a one-place change.
 
 ## Component Themes
 
-`lib/src/design/theme/component_themes.dart` (749 lines) contains a builder
+`lib/src/design/theme/component_themes.dart` contains a builder
 function for nearly every Material component. Each builder takes a
 `ColorScheme` first and optionally a `FontConfig?` for text-bearing
 components, and reads sizing from `soliplexRadii` and `SoliplexSpacing`
@@ -353,6 +358,55 @@ adaptation is automatic.
 
 ---
 
+## Layout Tokens
+
+Three layout-level token sets under `lib/src/design/tokens/` are used across
+component themes and module UIs in place of hardcoded literals.
+
+### Spacing (`spacing.dart`)
+
+`SoliplexSpacing` exposes a 4-pixel-based scale. Every `EdgeInsets` /
+`SizedBox` in the branch's themed surfaces and migrated module widgets
+references one of these constants.
+
+| Token | Value |
+| ----- | ----- |
+| `s1` | 4 |
+| `s2` | 8 |
+| `s3` | 12 |
+| `s4` | 16 |
+| `s5` | 20 |
+| `s6` | 24 |
+| `s7` | 28 |
+| `s8` | 32 |
+| `s9` | 48 |
+
+### Radii (`radii.dart`)
+
+`SoliplexRadii` is a `const` class with a static `lerp(a, b, t)` so it can
+participate in `ThemeExtension.lerp`. The top-level `soliplexRadii` default
+is tuned for the square-first aesthetic:
+
+| Field | Value |
+| ----- | ----- |
+| `sm` | 2 |
+| `md` | 8 |
+| `lg` | 12 |
+| `xl` | 20 |
+
+### Breakpoints (`breakpoints.dart`)
+
+`SoliplexBreakpoints` defines width thresholds used by responsive helpers
+such as `SoliplexTheme.appBarTitleStyle`:
+
+| Field | Pixels |
+| ----- | ------ |
+| `mobile` | 320 |
+| `tablet` | 600 |
+| `desktop` | 840 |
+
+---
+
 ## Typography
 
 `buildSoliplexTextTheme({bodyFont, displayFont})` defines the complete 15-style
@@ -370,9 +424,14 @@ and `height`:
 Colors are applied via `textTheme.apply(bodyColor:, displayColor:)` from the
 generated `ColorScheme` rather than being hardcoded.
 
-A separate `lib/src/design/tokens/typography_x.dart` adds platform-aware text
-helpers (Cupertino vs Material), inlined as a private helper to avoid
-introducing a `shared/utils/` directory for one function.
+A separate `lib/src/design/tokens/typography_x.dart` exposes
+`appMonospaceTextStyle(BuildContext)` — a `bodyMedium`-based monospace
+`TextStyle` that adapts to the platform (`SF Mono` + `Menlo` fallback on
+iOS/macOS, `Roboto Mono` + `monospace` fallback elsewhere) — plus a
+`TypographyX on BuildContext` extension exposing `context.monospace`. Both
+are currently unreferenced by production code on this branch; they exist as
+a direct-monospace path for future use sites that do not route through
+`SoliplexTheme.codeStyle`.
 
 ---
 
@@ -570,16 +629,31 @@ follow-on cleanup, not part of the core theme architecture.
 
 ## Test Coverage
 
-| Test file | Lines | Coverage |
-| --------- | ----- | -------- |
-| `test/core/models/color_config_test.dart` | 320 | `ColorPalette` and `ColorConfig` defaults, `effective*` getters, equality, `copyWith` (including `clear*` flags) |
-| `test/core/models/font_config_test.dart` | 133 | `FontConfig` defaults, equality, `copyWith`, `clear*` flags |
-| `test/core/providers/theme_provider_test.dart` | 125 | `initializeTheme()`, `ThemeModeNotifier` toggle, `ThemeMode.system` resolution, persistence |
-| `test/design/theme/theme_test.dart` | 127 | `generateColorScheme()` mapping, light/dark `_buildTheme` smoke tests |
-| `test/shared/theme_toggle_button_test.dart` | 100 | Icon selection, semantics labels, tap-to-toggle, system-mode resolution |
+| Test file | Coverage |
+| --------- | -------- |
+| `test/core/models/color_config_test.dart` | `ColorPalette` and `ColorConfig` defaults, `effective*` getters, equality, `copyWith` (including `clear*` flags) |
+| `test/core/models/font_config_test.dart` | `FontConfig` defaults, equality, `copyWith`, `clear*` flags |
+| `test/core/providers/theme_provider_test.dart` | `initializeTheme()`, `ThemeModeNotifier` toggle, `ThemeMode.system` resolution, persistence |
+| `test/design/theme/theme_test.dart` | `generateColorScheme()` mapping, light/dark `_buildTheme` smoke tests |
+| `test/shared/theme_toggle_button_test.dart` | Icon selection, semantics labels, tap-to-toggle, system-mode resolution |
 
 Existing module and screen tests were updated as part of the migration to the
 new theme types where they previously asserted on hardcoded colors.
+
+---
+
+## Platform Workarounds
+
+### macOS merged platform/UI thread
+
+`macos/Runner/Info.plist` sets `FLTEnableMergedPlatformUIThread` to `false`.
+Without this flag, button taps on macOS can intermittently fail to register
+against widgets that rebuild through Riverpod `ref.watch` — including the
+reactive theme toggle introduced by this branch. Setting it to `false` opts
+out of Flutter's merged platform/UI thread optimization on macOS and
+restores reliable tap handling. This is a runtime behavioural fix, not a
+theming change, but it lives on this branch because the theme toggle was
+the first widget that surfaced the issue.
 
 ---
 
@@ -605,3 +679,9 @@ theming architecture was inspired by, because they did not fit the
   reference `Theme.of(context).colorScheme` directly, so no large-scale
   migration was needed; the legacy `SoliplexColors` in
   `lib/src/design/tokens/colors.dart` is now unused dead code.
+- **Extra bundled font assets** — `fonts/HYPRSALVO.otf`,
+  `fonts/HYPRSALVO-BoldCondensed.otf`, `fonts/OPERATORZ.otf`, and
+  `fonts/TACTICAL.otf` live in the repo but are not registered under
+  `flutter.fonts` in `pubspec.yaml` and are not referenced by `FontFamilies`.
+  They are retained as raw assets for future brand variants; the default
+  theme does not load them.

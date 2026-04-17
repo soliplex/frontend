@@ -28,7 +28,7 @@ Add the following dependencies to `pubspec.yaml`:
 ```yaml
 dependencies:
   flutter_riverpod: ^3.1.0
-  google_fonts: ^6.2.1
+  google_fonts: ^8.0.2
   meta: ^1.17.0
   shared_preferences: ^2.5.5
 ```
@@ -144,17 +144,27 @@ Create `lib/src/core/providers/theme_provider.dart`:
 
 Create the following under `lib/src/design/tokens/`:
 
-- **`breakpoints.dart`** — width thresholds (`compact`, `tablet`, `desktop`,
-  etc.) used for responsive layouts.
-- **`spacing.dart`** — `SoliplexSpacing` constants (`s1`–`sN`) used by
-  component themes for consistent padding.
+- **`breakpoints.dart`** — width thresholds used for responsive layouts.
+  The `frontend` branch uses
+  `class SoliplexBreakpoints { mobile = 320; tablet = 600; desktop = 840; }`.
+- **`spacing.dart`** — `SoliplexSpacing` constants on a 4-pixel-based scale
+  used by component themes for consistent padding. The `frontend` branch
+  uses `s1=4, s2=8, s3=12, s4=16, s5=20, s6=24, s7=28, s8=32, s9=48`; adjust
+  to taste, but keep them as `static const double` so they compose inside
+  `const EdgeInsets.symmetric(...)`.
 - **`radii.dart`** — a `SoliplexRadii` class with `sm` / `md` / `lg` / `xl`
-  fields, plus a `lerp(a, b, t)` static method (so it can participate in
-  `ThemeExtension.lerp`).
+  `double` fields, plus a `lerp(a, b, t)` static method (so it can
+  participate in `ThemeExtension.lerp`). The `frontend` branch ships a
+  top-level `const soliplexRadii = SoliplexRadii(sm: 2, md: 8, lg: 12, xl: 20)`
+  for a square-leaning look; for a more Material-default feel, try
+  `sm: 6, md: 12, lg: 16, xl: 24`.
 - **`typography.dart`** — see Step 6a below.
-- **`typography_x.dart`** — optional platform-aware text helpers (Cupertino
-  vs Material). Inline any small helper rather than introducing a
-  `shared/utils/` directory for one function.
+- **`typography_x.dart`** — optional. Exposes
+  `TextStyle appMonospaceTextStyle(BuildContext)` that adapts to platform
+  (SF Mono + Menlo on Apple, Roboto Mono elsewhere) and a
+  `TypographyX on BuildContext` extension giving `context.monospace`. Useful
+  for direct-monospace sites that do not route through
+  `SoliplexTheme.codeStyle`; skip the file if you do not have any.
 
 ### Step 6a — `typography.dart`
 
