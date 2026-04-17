@@ -32,6 +32,14 @@ class RecordingObserver implements HttpObserver {
   List<T> eventsOfType<T extends HttpEvent>() => events.whereType<T>().toList();
 }
 
+/// Object whose toString throws. Used to exercise the redaction
+/// safety-net's outermost catch: _redactRequestBody falls through to
+/// body.toString() for unknown types.
+class _ThrowingToStringBody {
+  @override
+  String toString() => throw StateError('toString is broken');
+}
+
 /// Observer that throws on every callback.
 class ThrowingObserver implements HttpObserver {
   @override
@@ -363,6 +371,73 @@ void main() {
 
     group('stream lifecycle - error', () {
       test(
+        'sync-throw on response.body.listen emits onStreamEnd(error) and '
+        'surfaces the error to the caller',
+        () async {
+          // A single-subscription stream that has already been listened
+          // to elsewhere will throw a synchronous StateError on the
+          // ObservableHttpClient's listen call. Without protection, the
+          // decorator leaks a dangling onStreamStart (no onStreamEnd).
+          final innerController = StreamController<List<int>>();
+          innerController.stream.listen((_) {});
+
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer(
+            (_) async => StreamedHttpResponse(
+              statusCode: 200,
+              body: innerController.stream,
+            ),
+          );
+
+          final response = await observableClient.requestStream(
+            'GET',
+            Uri.parse('https://example.com/stream'),
+          );
+
+          final errors = <Object>[];
+          final completer = Completer<void>();
+
+          response.body.listen(
+            (_) {},
+            onError: (Object e) {
+              errors.add(e);
+              if (!completer.isCompleted) completer.complete();
+            },
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+          );
+
+          await completer.future;
+
+          expect(
+            errors,
+            hasLength(1),
+            reason: 'Caller must still see the synchronous listen error — '
+                'the protection must not mask the bug.',
+          );
+          expect(errors.single, isA<StateError>());
+
+          final endEvents = recorder.eventsOfType<HttpStreamEndEvent>();
+          expect(
+            endEvents,
+            hasLength(1),
+            reason: 'onStreamEnd must fire so observers do not see a '
+                'dangling onStreamStart when the inner body is not listenable.',
+          );
+          expect(endEvents.single.isSuccess, isFalse);
+
+          await innerController.close();
+        },
+      );
+
+      test(
         'notifies observer on stream error with SoliplexException',
         () async {
           final controller = StreamController<List<int>>();
@@ -519,6 +594,94 @@ void main() {
         },
       );
 
+      test(
+        'emits onStreamEnd when requestStream itself throws after '
+        'onStreamStart',
+        () async {
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenThrow(const NetworkException(message: 'connect refused'));
+
+          await expectLater(
+            () => observableClient.requestStream(
+              'GET',
+              Uri.parse('https://example.com/stream'),
+            ),
+            throwsA(isA<NetworkException>()),
+          );
+
+          final startEvents = recorder.eventsOfType<HttpStreamStartEvent>();
+          final endEvents = recorder.eventsOfType<HttpStreamEndEvent>();
+          expect(startEvents, hasLength(1));
+          expect(
+            endEvents,
+            hasLength(1),
+            reason: 'onStreamStart must have a matching onStreamEnd; '
+                'otherwise observers see a forever-open request',
+          );
+          expect(endEvents.first.error, isA<NetworkException>());
+        },
+      );
+
+      test(
+        'redacts URI secrets when wrapping non-SoliplexException in '
+        'NetworkException.message',
+        () async {
+          final controller = StreamController<List<int>>();
+
+          when(
+            () => mockClient.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer(
+            (_) async =>
+                StreamedHttpResponse(statusCode: 200, body: controller.stream),
+          );
+
+          // Auth-endpoint URI triggers full-body redaction in HttpRedactor.
+          final response = await observableClient.requestStream(
+            'GET',
+            Uri.parse('https://example.com/oauth/token?code=secret-abc-123'),
+          );
+
+          final completer = Completer<void>();
+          response.body.listen(
+            (_) {},
+            onError: (_) {},
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+          );
+
+          // A non-SoliplexException whose toString contains the full URI.
+          controller.addError(
+            Exception(
+              'fetch failed for '
+              'https://example.com/oauth/token?code=secret-abc-123',
+            ),
+          );
+          await controller.close();
+          await completer.future;
+
+          final endEvent = recorder.eventsOfType<HttpStreamEndEvent>().first;
+          final message = (endEvent.error! as NetworkException).message;
+          expect(
+            message,
+            isNot(contains('secret-abc-123')),
+            reason: 'NetworkException.message must be URI-redacted before '
+                'emission so tokens do not leak through observers',
+          );
+        },
+      );
+
       test('canceling stream emits successful onStreamEnd', () async {
         final controller = StreamController<List<int>>();
 
@@ -632,6 +795,144 @@ void main() {
         // Both recording observers should still receive events
         expect(recorder1.events, hasLength(2));
         expect(recorder2.events, hasLength(2));
+
+        observableClient.close();
+      });
+
+      test(
+          'request body redaction failure yields <redaction failed> '
+          'placeholder, logs a diagnostic, and does not break the request',
+          () async {
+        // Regression for the outer try/catch around _redactRequestBody:
+        // if the redactor throws on pathological input (here: an object
+        // whose toString throws), observers must see a placeholder and
+        // the request must still complete.
+        final diagnostics = <String>[];
+        final observableClient = ObservableHttpClient(
+          client: mockClient,
+          observers: [recorder],
+          onDiagnostic: (_, __, {required message}) => diagnostics.add(message),
+        );
+
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)),
+        );
+
+        await observableClient.request(
+          'POST',
+          Uri.parse('https://example.com/api'),
+          body: _ThrowingToStringBody(),
+        );
+
+        final requests = recorder.eventsOfType<HttpRequestEvent>();
+        expect(requests, hasLength(1));
+        expect(
+          requests.single.body,
+          '<redaction failed>',
+          reason: 'Observer must receive the placeholder when redaction '
+              'throws — never the raw body, never a missing event.',
+        );
+        expect(
+          diagnostics,
+          contains('Request body redaction failed unexpectedly'),
+          reason: 'Redaction failure must be visible in diagnostics so '
+              'the bug can be found in production logs.',
+        );
+
+        observableClient.close();
+      });
+
+      test(
+          'response body redaction failure yields <redaction failed> '
+          'placeholder when the body getter throws on invalid UTF-8', () async {
+        // HttpResponse.body calls utf8.decode(bodyBytes); invalid UTF-8
+        // throws FormatException. With content-type application/json,
+        // the inner method catches FormatException from jsonDecode but
+        // then calls redactString which re-invokes the body getter —
+        // the second throw escapes the inner method and is caught by
+        // the outer safety net.
+        final diagnostics = <String>[];
+        final observableClient = ObservableHttpClient(
+          client: mockClient,
+          observers: [recorder],
+          onDiagnostic: (_, __, {required message}) => diagnostics.add(message),
+        );
+
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(const [0xFF, 0xFE, 0xFD]),
+            headers: const {'content-type': 'application/json'},
+          ),
+        );
+
+        await observableClient.request(
+          'GET',
+          Uri.parse('https://example.com/api'),
+        );
+
+        final responses = recorder.eventsOfType<HttpResponseEvent>();
+        expect(responses, hasLength(1));
+        expect(
+          responses.single.body,
+          '<redaction failed>',
+          reason: 'Observer must receive the placeholder when body '
+              'decoding fails during redaction.',
+        );
+        expect(
+          diagnostics,
+          contains('Response body redaction failed unexpectedly'),
+        );
+
+        observableClient.close();
+      });
+
+      test(
+          'request completes when the diagnostic handler itself throws — the '
+          'safety wrapper must contain a broken sink', () async {
+        // ThrowingObserver forces the decorator to call _onDiagnostic.
+        // The handler then throws, simulating a transient Sentry failure.
+        final observableClient = ObservableHttpClient(
+          client: mockClient,
+          observers: [ThrowingObserver()],
+          onDiagnostic: (_, __, {required message}) {
+            throw StateError('diagnostic sink down');
+          },
+        );
+
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)),
+        );
+
+        await expectLater(
+          observableClient.request('GET', Uri.parse('https://example.com')),
+          completes,
+          reason: 'A broken diagnostic sink must not break request flow.',
+        );
 
         observableClient.close();
       });

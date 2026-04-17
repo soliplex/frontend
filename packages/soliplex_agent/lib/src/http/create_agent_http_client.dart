@@ -1,30 +1,29 @@
 import 'package:soliplex_client/soliplex_client.dart';
 
-/// Creates an HTTP client for agent connections with optional observability
-/// and authentication.
+/// Creates an HTTP client for agent connections with observability,
+/// concurrency limiting, and authentication.
 ///
-/// Layers are applied inside-out in this order:
-/// 1. [innerClient] (or `DartHttpClient()` by default)
-/// 2. [ObservableHttpClient] — when [observers] is non-empty
-/// 3. [AuthenticatedHttpClient] — when [getToken] is provided
-/// 4. [RefreshingHttpClient] — when [tokenRefresher] is provided
+/// [tokenRefresher] must use a SEPARATE HTTP client (not this one) to
+/// avoid deadlock — a refresh triggered while the pool is exhausted
+/// would try to acquire a slot from the pool it's unblocking.
 ///
-/// Observer is innermost so the network inspector sees what actually hits
-/// the wire, including Bearer headers and retried requests after refresh.
+/// [maxConcurrent] caps simultaneous in-flight requests. The default of
+/// 6 aligns with the per-host HTTP/1.1 connection cap that browsers,
+/// `URLSession`, and Dart's `HttpClient` all impose, which makes this
+/// layer's queue the authoritative one — queue-wait events surface in
+/// observer diagnostics instead of being absorbed silently by the
+/// platform client. 6 sits under the backend's per-client 10-connection
+/// cap with headroom. Raise it when moving to an HTTP/2 backend.
 ///
-/// [innerClient] defaults to a [DartHttpClient] when not provided.
-/// For platform-specific clients, pass one from `soliplex_client_native`.
-///
-/// [tokenRefresher] requires [getToken] — without token injection, refresh
-/// retries go out unauthenticated.
-///
-/// The caller owns the returned client and must call `close()` when done.
-/// Closing cascades through the entire decorator stack.
+/// See `package:soliplex_client/CLAUDE.md` for the decorator stack
+/// rationale.
 SoliplexHttpClient createAgentHttpClient({
   SoliplexHttpClient? innerClient,
   List<HttpObserver>? observers,
   String? Function()? getToken,
   TokenRefresher? tokenRefresher,
+  int maxConcurrent = 6,
+  HttpDiagnosticHandler? onDiagnostic,
 }) {
   assert(
     tokenRefresher == null || getToken != null,
@@ -34,7 +33,11 @@ SoliplexHttpClient createAgentHttpClient({
   var client = innerClient ?? DartHttpClient();
 
   if (observers != null && observers.isNotEmpty) {
-    client = ObservableHttpClient(client: client, observers: observers);
+    client = ObservableHttpClient(
+      client: client,
+      observers: observers,
+      onDiagnostic: onDiagnostic,
+    );
   }
 
   if (getToken != null) {
@@ -45,5 +48,13 @@ SoliplexHttpClient createAgentHttpClient({
     client = RefreshingHttpClient(inner: client, refresher: tokenRefresher);
   }
 
-  return client;
+  // Observers that implement both [HttpObserver] and [ConcurrencyObserver]
+  // receive both kinds of events. Observers implementing only one are
+  // silently filtered from the other channel.
+  return ConcurrencyLimitingHttpClient(
+    inner: client,
+    maxConcurrent: maxConcurrent,
+    observers: observers?.whereType<ConcurrencyObserver>().toList() ?? const [],
+    onDiagnostic: onDiagnostic,
+  );
 }

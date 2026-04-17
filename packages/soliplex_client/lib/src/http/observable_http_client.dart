@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
+import 'package:soliplex_client/src/http/http_diagnostic.dart';
 import 'package:soliplex_client/src/http/http_observer.dart';
 import 'package:soliplex_client/src/http/http_redactor.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
@@ -17,8 +18,8 @@ import 'package:soliplex_client/src/utils/cancel_token.dart';
 /// before being emitted to observers. Sensitive data never crosses the
 /// observer boundary.
 ///
-/// Observers that throw exceptions are caught and ignored to prevent
-/// disrupting the request flow.
+/// Observer exceptions are routed to the [HttpDiagnosticHandler] and
+/// do not disrupt the request flow.
 ///
 /// Example:
 /// ```dart
@@ -45,21 +46,23 @@ class ObservableHttpClient implements SoliplexHttpClient {
     required SoliplexHttpClient client,
     List<HttpObserver> observers = const [],
     String Function()? generateRequestId,
+    HttpDiagnosticHandler? onDiagnostic,
   })  : _client = client,
         _observers = List.unmodifiable(observers),
-        _generateRequestId = generateRequestId ?? _defaultRequestIdGenerator;
+        _generateRequestId = generateRequestId ?? _defaultRequestIdGenerator,
+        _onDiagnostic = safeDiagnosticHandler(
+          onDiagnostic ?? defaultHttpDiagnosticHandler,
+        );
 
   final SoliplexHttpClient _client;
   final List<HttpObserver> _observers;
   final String Function() _generateRequestId;
+  final HttpDiagnosticHandler _onDiagnostic;
 
-  /// Counter for request ID generation.
   static int _requestCounter = 0;
 
-  /// Maximum buffer size for SSE streams (500KB).
   static const _maxStreamBufferSize = 500 * 1024;
 
-  /// Default request ID generator using timestamp and counter.
   static String _defaultRequestIdGenerator() {
     return '${DateTime.now().millisecondsSinceEpoch}-${_requestCounter++}';
   }
@@ -75,12 +78,10 @@ class ObservableHttpClient implements SoliplexHttpClient {
     final requestId = _generateRequestId();
     final startTime = DateTime.now();
 
-    // Redact sensitive data before emitting to observers
     final redactedUri = HttpRedactor.redactUri(uri);
     final redactedHeaders = HttpRedactor.redactHeaders(headers ?? const {});
     final redactedBody = _redactRequestBody(body, headers, uri);
 
-    // Notify request start
     _notifyObservers((observer) {
       observer.onRequest(
         HttpRequestEvent(
@@ -106,13 +107,11 @@ class ObservableHttpClient implements SoliplexHttpClient {
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
 
-      // Capture and redact response
       final redactedResponseBody = _redactResponseBody(response, uri);
       final redactedResponseHeaders = HttpRedactor.redactHeaders(
         response.headers,
       );
 
-      // Notify successful response
       _notifyObservers((observer) {
         observer.onResponse(
           HttpResponseEvent(
@@ -129,11 +128,18 @@ class ObservableHttpClient implements SoliplexHttpClient {
       });
 
       return response;
-    } on SoliplexException catch (e) {
+    } on Object catch (error, stackTrace) {
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
 
-      // Notify error (URI already redacted)
+      final exception = error is SoliplexException
+          ? error
+          : NetworkException(
+              message: 'Unexpected error: $error',
+              originalError: error,
+              stackTrace: stackTrace,
+            );
+
       _notifyObservers((observer) {
         observer.onError(
           HttpErrorEvent(
@@ -141,7 +147,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
             timestamp: endTime,
             method: method,
             uri: redactedUri,
-            exception: e,
+            exception: exception,
             duration: duration,
           ),
         );
@@ -163,15 +169,12 @@ class ObservableHttpClient implements SoliplexHttpClient {
     final startTime = DateTime.now();
     var bytesReceived = 0;
 
-    // SSE buffer with rolling truncation
     final streamBuffer = _StreamBuffer(_maxStreamBufferSize);
 
-    // Redact sensitive data before emitting to observers
     final redactedUri = HttpRedactor.redactUri(uri);
     final redactedHeaders = HttpRedactor.redactHeaders(headers ?? const {});
     final redactedBody = _redactRequestBody(body, headers, uri);
 
-    // Notify stream start
     _notifyObservers((observer) {
       observer.onStreamStart(
         HttpStreamStartEvent(
@@ -185,14 +188,6 @@ class ObservableHttpClient implements SoliplexHttpClient {
       );
     });
 
-    final response = await _client.requestStream(
-      method,
-      uri,
-      headers: headers,
-      body: body,
-      cancelToken: cancelToken,
-    );
-
     var emittedEnd = false;
 
     void emitEnd({Object? error, StackTrace? stackTrace}) {
@@ -205,7 +200,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
           : (error is SoliplexException
               ? error
               : NetworkException(
-                  message: error.toString(),
+                  message: HttpRedactor.redactString(error.toString(), uri),
                   originalError: error,
                   stackTrace: stackTrace,
                 ));
@@ -223,26 +218,58 @@ class ObservableHttpClient implements SoliplexHttpClient {
       });
     }
 
+    final StreamedHttpResponse response;
+    try {
+      response = await _client.requestStream(
+        method,
+        uri,
+        headers: headers,
+        body: body,
+        cancelToken: cancelToken,
+      );
+    } on Object catch (error, stackTrace) {
+      // Inner call failed after onStreamStart. Emit onStreamEnd so
+      // observers don't see a dangling "stream open" forever.
+      emitEnd(error: error, stackTrace: stackTrace);
+      rethrow;
+    }
+
     late StreamController<List<int>> controller;
     StreamSubscription<List<int>>? subscription;
 
+    // `sync: true` avoids a per-chunk microtask hop on high-rate byte
+    // streams (e.g. SSE). Backpressure is propagated by the explicit
+    // `onPause`/`onResume` forwarding below, not by the sync mode.
     controller = StreamController<List<int>>(
+      sync: true,
       onListen: () {
-        subscription = response.body.listen(
-          (data) {
-            bytesReceived += data.length;
-            streamBuffer.add(data);
-            controller.add(data);
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            emitEnd(error: error, stackTrace: stackTrace);
-            controller.addError(error, stackTrace);
-          },
-          onDone: () {
-            emitEnd();
-            controller.close();
-          },
-        );
+        try {
+          subscription = response.body.listen(
+            (data) {
+              bytesReceived += data.length;
+              streamBuffer.add(data);
+              controller.add(data);
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              emitEnd(error: error, stackTrace: stackTrace);
+              controller.addError(error, stackTrace);
+            },
+            onDone: () {
+              emitEnd();
+              controller.close();
+            },
+          );
+        } on Object catch (error, stackTrace) {
+          // response.body.listen can throw synchronously (e.g.
+          // StateError when the inner stream was already listened to).
+          // Without this catch, emitEnd never fires and observers see a
+          // dangling onStreamStart. The error is forwarded to the
+          // caller via controller.addError so the bug is not masked.
+          emitEnd(error: error, stackTrace: stackTrace);
+          controller
+            ..addError(error, stackTrace)
+            ..close();
+        }
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
@@ -265,15 +292,34 @@ class ObservableHttpClient implements SoliplexHttpClient {
     _client.close();
   }
 
-  /// Redacts the request body based on content type and URI.
+  /// Redacts the request body based on content type and URI. Never
+  /// throws; redaction failures are logged and yield
+  /// `'<redaction failed>'` so observer dispatch and the request itself
+  /// both proceed.
   dynamic _redactRequestBody(
+    Object? body,
+    Map<String, String>? headers,
+    Uri uri,
+  ) {
+    try {
+      return _redactRequestBodyInner(body, headers, uri);
+    } on Object catch (error, stackTrace) {
+      _onDiagnostic(
+        error,
+        stackTrace,
+        message: 'Request body redaction failed unexpectedly',
+      );
+      return '<redaction failed>';
+    }
+  }
+
+  dynamic _redactRequestBodyInner(
     Object? body,
     Map<String, String>? headers,
     Uri uri,
   ) {
     if (body == null) return null;
 
-    // If body is raw bytes, check content-type before decoding
     if (body is List<int>) {
       final contentType = headers?['content-type']?.toLowerCase() ?? '';
       if (contentType.contains('multipart/form-data') ||
@@ -281,76 +327,70 @@ class ObservableHttpClient implements SoliplexHttpClient {
         return '<binary upload: ${body.length} bytes>';
       }
       final decoded = utf8.decode(body, allowMalformed: true);
-      return _redactRequestBody(decoded, headers, uri);
+      return _redactRequestBodyInner(decoded, headers, uri);
     }
 
-    // If body is already a map (JSON-like), redact it directly
-    // Note: List<int> is handled above, so this is only for decoded JSON lists
+    // List<int> is handled above, so this branch is only for decoded
+    // JSON lists (not raw bytes).
     if (body is Map || (body is List && body is! List<int>)) {
       return HttpRedactor.redactJsonBody(body, uri);
     }
 
-    // If body is a string, check if it's JSON
     if (body is String) {
       try {
         final parsed = jsonDecode(body);
         return HttpRedactor.redactJsonBody(parsed, uri);
-      } catch (_) {
-        // Not JSON - redact as string for auth endpoints
+      } on FormatException {
         return HttpRedactor.redactString(body, uri);
       }
     }
 
-    // For other types, just return a string representation
     return body.toString();
   }
 
-  /// Redacts the response body based on content type and URI.
+  /// Redacts the response body based on content type and URI. See
+  /// [_redactRequestBody]: same contract (never throws; failures
+  /// become `'<redaction failed>'`).
   dynamic _redactResponseBody(HttpResponse response, Uri uri) {
+    try {
+      return _redactResponseBodyInner(response, uri);
+    } on Object catch (error, stackTrace) {
+      _onDiagnostic(
+        error,
+        stackTrace,
+        message: 'Response body redaction failed unexpectedly',
+      );
+      return '<redaction failed>';
+    }
+  }
+
+  dynamic _redactResponseBodyInner(HttpResponse response, Uri uri) {
     final contentType = response.headers['content-type'] ?? '';
 
-    // Check if it's JSON content
     if (contentType.contains('application/json')) {
       try {
         final parsed = jsonDecode(response.body);
         return HttpRedactor.redactJsonBody(parsed, uri);
-      } catch (_) {
-        // JSON parse failed - redact as string for auth endpoints
+      } on FormatException {
         return HttpRedactor.redactString(response.body, uri);
       }
     }
 
-    // For text content, return as string (redact for auth endpoints)
-    if (contentType.contains('text/')) {
-      return HttpRedactor.redactString(response.body, uri);
-    }
-
-    // For other content types, apply string redaction as fallback
     return HttpRedactor.redactString(response.body, uri);
   }
 
-  /// Safely notifies all observers, catching and ignoring any exceptions.
-  ///
-  /// Observer exceptions should never break the request flow.
+  /// Safely notifies all observers. Observer exceptions are caught and
+  /// routed to [_onDiagnostic] so they never break the request flow but
+  /// remain visible in production logs.
   void _notifyObservers(void Function(HttpObserver observer) notify) {
     for (final observer in _observers) {
       try {
         notify(observer);
-      } catch (e, stackTrace) {
-        // Observer threw exception - log but don't break request flow.
-        // Use assert pattern to only log in debug mode (assertions enabled).
-        assert(
-          () {
-            // ignore: avoid_print
-            print(
-              'Warning: HttpObserver ${observer.runtimeType} '
-              'threw exception: $e',
-            );
-            // ignore: avoid_print
-            print(stackTrace);
-            return true;
-          }(),
-          'Observer exception logged',
+      } on Object catch (error, stackTrace) {
+        _onDiagnostic(
+          error,
+          stackTrace,
+          message: 'HttpObserver ${observer.runtimeType} threw',
         );
       }
     }

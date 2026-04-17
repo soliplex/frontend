@@ -80,6 +80,15 @@ Future<ShellConfig> standard({
 }) async {
   logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
   final inspector = NetworkInspector();
+  final httpLogger = LogManager.instance.getLogger('http_stack');
+
+  void onHttpDiagnostic(
+    Object error,
+    StackTrace stackTrace, {
+    required String message,
+  }) {
+    httpLogger.error(message, error: error, stackTrace: stackTrace);
+  }
 
   SoliplexHttpClient buildClient({
     String? Function()? getToken,
@@ -90,6 +99,7 @@ Future<ShellConfig> standard({
         observers: [inspector],
         getToken: getToken,
         tokenRefresher: tokenRefresher,
+        onDiagnostic: onHttpDiagnostic,
       );
 
   final plainClient = buildClient();
@@ -142,6 +152,7 @@ Future<ShellConfig> standard({
       plainClient.close();
       runtimeManager.dispose();
       registry.dispose();
+      inspector.dispose();
     },
     modules: [
       diagnosticsModule(inspector: inspector),
