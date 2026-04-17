@@ -5,6 +5,7 @@ import '../../../shared/theme_toggle_button.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
 import '../network_inspector.dart';
+import 'concurrency_summary_panel.dart';
 import 'http_event_tile.dart';
 import 'request_detail_view.dart';
 
@@ -35,7 +36,8 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: widget.inspector.events.isEmpty
+                onPressed: widget.inspector.events.isEmpty &&
+                        widget.inspector.concurrencyEvents.isEmpty
                     ? null
                     : () {
                         widget.inspector.clear();
@@ -46,15 +48,26 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
               const ThemeToggleButton(),
             ],
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              if (sortedGroups.isEmpty) return _buildEmptyState(context);
-              final isWide = constraints.maxWidth >= 600;
-              if (isWide) {
-                return _buildMasterDetailLayout(context, sortedGroups);
-              }
-              return _buildListLayout(context, sortedGroups);
-            },
+          body: Column(
+            children: [
+              ConcurrencySummaryPanel(
+                events: widget.inspector.concurrencyEvents,
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (sortedGroups.isEmpty) {
+                      return _buildEmptyState(context);
+                    }
+                    final isWide = constraints.maxWidth >= 600;
+                    if (isWide) {
+                      return _buildMasterDetailLayout(context, sortedGroups);
+                    }
+                    return _buildListLayout(context, sortedGroups);
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },

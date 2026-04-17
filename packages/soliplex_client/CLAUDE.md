@@ -36,12 +36,14 @@ error, stream start, stream end.
 ## HTTP Decorator Chain
 
 ```text
-HttpTransport -> RefreshingHttpClient -> AuthenticatedHttpClient
-  -> ObservableHttpClient -> Platform Client
+HttpTransport -> ConcurrencyLimitingHttpClient -> RefreshingHttpClient
+  -> AuthenticatedHttpClient -> ObservableHttpClient -> Platform Client
 ```
 
 Each decorator implements `SoliplexHttpClient` and delegates to an inner
-client. See `docs/architecture/http-stack.md` for full details.
+client. Concurrency is outermost so that per-request auth work (token
+fetch, proactive refresh) runs at dispatch time rather than at enqueue
+time — keeping queued requests from holding stale tokens.
 
 ## Directory Structure
 

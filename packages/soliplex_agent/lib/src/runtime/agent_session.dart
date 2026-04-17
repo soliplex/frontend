@@ -337,52 +337,8 @@ class AgentSession implements ToolExecutionContext {
   /// consumers observing [lastExecutionEvent] see streaming text, thinking,
   /// server tool calls, and terminal events without polling [runState].
   void _bridgeBaseEvent(BaseEvent event) {
-    switch (event) {
-      case TextMessageContentEvent(:final delta):
-        emitEvent(TextDelta(delta: delta));
-      case ThinkingTextMessageStartEvent():
-        emitEvent(const ThinkingStarted());
-      case ThinkingTextMessageContentEvent(:final delta):
-        emitEvent(ThinkingContent(delta: delta));
-      case ToolCallStartEvent(:final toolCallId, :final toolCallName):
-        emitEvent(
-          ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
-        );
-      case ToolCallResultEvent(:final toolCallId, :final content):
-        emitEvent(
-          ServerToolCallCompleted(toolCallId: toolCallId, result: content),
-        );
-      case RunFinishedEvent():
-        emitEvent(const RunCompleted());
-      case RunErrorEvent(:final message):
-        emitEvent(RunFailed(error: message));
-      case ActivitySnapshotEvent(:final activityType, :final content):
-        emitEvent(
-          ActivitySnapshot(activityType: activityType, content: content),
-        );
-      case StepStartedEvent(:final stepName):
-        emitEvent(StepProgress(stepName: stepName));
-
-      // Events that don't need ExecutionEvent bridging.
-      case RunStartedEvent() ||
-            TextMessageStartEvent() ||
-            TextMessageEndEvent() ||
-            ThinkingStartEvent() ||
-            ThinkingTextMessageEndEvent() ||
-            ThinkingEndEvent() ||
-            ThinkingContentEvent() ||
-            ToolCallArgsEvent() ||
-            ToolCallEndEvent() ||
-            StateSnapshotEvent() ||
-            StateDeltaEvent() ||
-            StepFinishedEvent() ||
-            TextMessageChunkEvent() ||
-            ToolCallChunkEvent() ||
-            MessagesSnapshotEvent() ||
-            RawEvent() ||
-            CustomEvent():
-        break;
-    }
+    final executionEvent = bridgeBaseEvent(event);
+    if (executionEvent != null) emitEvent(executionEvent);
   }
 
   // ---------------------------------------------------------------------------
@@ -513,4 +469,58 @@ class AgentSession implements ToolExecutionContext {
       _state == AgentSessionState.completed ||
       _state == AgentSessionState.failed ||
       _state == AgentSessionState.cancelled;
+}
+
+/// Translates a raw AG-UI [BaseEvent] into the [ExecutionEvent] that
+/// consumers of [AgentSession.lastExecutionEvent] should observe, or
+/// `null` when the event does not map to an execution-event emission.
+///
+/// Exposed for testing the translation table independently of the
+/// [AgentSession] fixture overhead.
+@visibleForTesting
+ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
+  return switch (event) {
+    TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
+    ThinkingTextMessageStartEvent() ||
+    ReasoningMessageStartEvent() =>
+      const ThinkingStarted(),
+    ThinkingTextMessageContentEvent(:final delta) ||
+    ReasoningMessageContentEvent(:final delta) =>
+      ThinkingContent(delta: delta),
+    ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
+      ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
+    ToolCallResultEvent(:final toolCallId, :final content) =>
+      ServerToolCallCompleted(toolCallId: toolCallId, result: content),
+    RunFinishedEvent() => const RunCompleted(),
+    RunErrorEvent(:final message) => RunFailed(error: message),
+    ActivitySnapshotEvent(:final activityType, :final content) =>
+      ActivitySnapshot(activityType: activityType, content: content),
+    StepStartedEvent(:final stepName) => StepProgress(stepName: stepName),
+
+    // Events that don't need ExecutionEvent bridging.
+    RunStartedEvent() ||
+    TextMessageStartEvent() ||
+    TextMessageEndEvent() ||
+    ThinkingStartEvent() ||
+    ThinkingTextMessageEndEvent() ||
+    ThinkingEndEvent() ||
+    ThinkingContentEvent() ||
+    ToolCallArgsEvent() ||
+    ToolCallEndEvent() ||
+    StateSnapshotEvent() ||
+    StateDeltaEvent() ||
+    StepFinishedEvent() ||
+    TextMessageChunkEvent() ||
+    ToolCallChunkEvent() ||
+    MessagesSnapshotEvent() ||
+    RawEvent() ||
+    CustomEvent() ||
+    ReasoningStartEvent() ||
+    ReasoningEndEvent() ||
+    ReasoningMessageEndEvent() ||
+    ReasoningMessageChunkEvent() ||
+    ReasoningEncryptedValueEvent() ||
+    ActivityDeltaEvent() =>
+      null,
+  };
 }

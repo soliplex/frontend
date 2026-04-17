@@ -1091,6 +1091,62 @@ void main() {
       );
     });
 
+    group('reasoning events', () {
+      test('ReasoningStartEvent sets isThinkingStreaming and activity', () {
+        const event = ReasoningStartEvent(messageId: 'reas-1');
+
+        final result = processEvent(conversation, streaming, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(awaitingText.isThinkingStreaming, isTrue);
+        expect(
+          awaitingText.currentActivity,
+          isA<app_streaming.ThinkingActivity>(),
+        );
+      });
+
+      test('ReasoningEndEvent sets isThinkingStreaming to false', () {
+        const reasoningState = app_streaming.AwaitingText(
+          isThinkingStreaming: true,
+          currentActivity: app_streaming.ThinkingActivity(),
+        );
+        const event = ReasoningEndEvent(messageId: 'reas-1');
+
+        final result = processEvent(conversation, reasoningState, event);
+
+        final awaitingText = result.streaming as app_streaming.AwaitingText;
+        expect(awaitingText.isThinkingStreaming, isFalse);
+      });
+
+      test(
+        'TextMessageEndEvent preserves reasoning-sourced thinkingText',
+        () {
+          const event = ReasoningMessageContentEvent(
+            messageId: 'reas-1',
+            delta: 'Inner reasoning',
+          );
+          final afterReasoning = processEvent(conversation, streaming, event);
+
+          const textStart = TextMessageStartEvent(messageId: 'msg-1');
+          final afterStart = processEvent(
+            afterReasoning.conversation,
+            afterReasoning.streaming,
+            textStart,
+          );
+
+          const textEnd = TextMessageEndEvent(messageId: 'msg-1');
+          final result = processEvent(
+            afterStart.conversation,
+            afterStart.streaming,
+            textEnd,
+          );
+
+          final message = result.conversation.messages.first as TextMessage;
+          expect(message.thinkingText, equals('Inner reasoning'));
+        },
+      );
+    });
+
     group('state events', () {
       test('StateSnapshotEvent replaces aguiState', () {
         const event = StateSnapshotEvent(snapshot: {'key': 'value'});
