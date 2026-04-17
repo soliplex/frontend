@@ -106,10 +106,15 @@ void main() {
       inspector.onConcurrencyWait(createConcurrencyWaitEvent());
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        ProviderScope(
+          child:
+              MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        ),
       );
 
-      final button = tester.widget<IconButton>(find.byType(IconButton));
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.delete_outline),
+      );
       expect(
         button.onPressed,
         isNotNull,
@@ -132,13 +137,16 @@ void main() {
         );
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        ProviderScope(
+          child:
+              MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        ),
       );
 
       // Panel is visible when concurrency events exist.
       expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
 
-      await tester.tap(find.byType(IconButton));
+      await tester.tap(find.byTooltip('Clear all requests'));
       await tester.pump();
 
       // Panel hides itself when the list is empty.
