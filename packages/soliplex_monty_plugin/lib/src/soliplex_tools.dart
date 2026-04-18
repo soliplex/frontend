@@ -107,7 +107,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
         },
         'required': ['server'],
       },
@@ -133,7 +137,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
         },
         'required': ['server', 'room_id'],
@@ -163,7 +171,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
         },
         'required': ['server', 'room_id'],
@@ -192,7 +204,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
           'chunk_id': {
             'type': 'string',
@@ -221,7 +237,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
         },
         'required': ['server', 'room_id'],
@@ -252,7 +272,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
           'message': {
             'type': 'string',
@@ -308,7 +332,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
           'thread_id': {
             'type': 'string',
@@ -367,7 +395,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
           'filename': {'type': 'string', 'description': 'Filename.'},
           'content': {
@@ -405,7 +437,11 @@ List<SoliplexTool> buildSoliplexTools(
       parameters: {
         'type': 'object',
         'properties': {
-          'server': {'type': 'string', 'description': 'Server ID.'},
+          'server': {
+            'type': 'string',
+            'description':
+                "Server ID — use the 'id' field from soliplex_list_servers().",
+          },
           'room_id': {'type': 'string', 'description': 'Room ID.'},
           'thread_id': {'type': 'string', 'description': 'Thread ID.'},
           'filename': {'type': 'string', 'description': 'Filename.'},
