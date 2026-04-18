@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/ui/execution/args_block.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
 
 Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
@@ -79,8 +80,7 @@ void main() {
     await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
-    expect(find.text('Arguments'), findsOneWidget);
-    expect(find.text(args), findsOneWidget);
+    expect(find.textContaining('query: flutter test'), findsOneWidget);
   });
 
   testWidgets('expansion shows result when hasResult', (tester) async {
@@ -103,8 +103,7 @@ void main() {
     await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
-    expect(find.text('Result'), findsOneWidget);
-    expect(find.text(result), findsOneWidget);
+    expect(find.textContaining('status: ok'), findsOneWidget);
   });
 
   testWidgets('hides arguments section when empty', (tester) async {
@@ -125,7 +124,7 @@ void main() {
     await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
-    expect(find.text('Arguments'), findsNothing);
+    expect(find.byType(ArgsBlock), findsNothing);
   });
 
   testWidgets('hides result section when empty', (tester) async {
@@ -146,6 +145,6 @@ void main() {
     await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
-    expect(find.text('Result'), findsNothing);
+    expect(find.byType(ArgsBlock), findsNothing);
   });
 }

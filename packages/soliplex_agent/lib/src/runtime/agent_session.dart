@@ -496,6 +496,8 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ActivitySnapshotEvent(:final activityType, :final content) =>
       ActivitySnapshot(activityType: activityType, content: content),
     StepStartedEvent(:final stepName) => StepProgress(stepName: stepName),
+    ToolCallArgsEvent(:final toolCallId, :final delta) =>
+      ServerToolCallArgsUpdated(toolCallId: toolCallId, argsDelta: delta),
 
     // Events that don't need ExecutionEvent bridging.
     RunStartedEvent() ||
@@ -505,7 +507,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ThinkingTextMessageEndEvent() ||
     ThinkingEndEvent() ||
     ThinkingContentEvent() ||
-    ToolCallArgsEvent() ||
     ToolCallEndEvent() ||
     StateSnapshotEvent() ||
     StateDeltaEvent() ||

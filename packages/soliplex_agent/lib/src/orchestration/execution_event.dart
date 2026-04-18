@@ -78,6 +78,27 @@ class ServerToolCallStarted extends ExecutionEvent {
   int get hashCode => Object.hash(toolName, toolCallId);
 }
 
+/// Incremental args delta for a server-side tool call (from TOOL_CALL_ARGS).
+class ServerToolCallArgsUpdated extends ExecutionEvent {
+  const ServerToolCallArgsUpdated({
+    required this.toolCallId,
+    required this.argsDelta,
+  });
+
+  final String toolCallId;
+  final String argsDelta;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerToolCallArgsUpdated &&
+          toolCallId == other.toolCallId &&
+          argsDelta == other.argsDelta;
+
+  @override
+  int get hashCode => Object.hash(toolCallId, argsDelta);
+}
+
 /// A server-side tool call has completed.
 class ServerToolCallCompleted extends ExecutionEvent {
   const ServerToolCallCompleted({
