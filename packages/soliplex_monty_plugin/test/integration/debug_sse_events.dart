@@ -2,8 +2,7 @@
 // ignore_for_file: avoid_print
 // Debug SSE event flow — traces every event from the stream
 // to find where null returns come from.
-import 'dart:convert';
-
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 
@@ -134,24 +133,31 @@ Future<void> main() async {
     '${buffer2.toString().substring(0, buffer2.length.clamp(0, 200))}',
   );
 
-  // Step 5: Test through the plugin
-  print('\n=== Through SoliplexPlugin ===');
-  final plugin = SoliplexPlugin(
-    connections: {
-      'local': SoliplexConnection(api: api, streamClient: streamClient),
-    },
+  // Step 5: Test through buildSoliplexTools
+  print('\n=== Through buildSoliplexTools ===');
+  final conn = SoliplexConnection(
+    serverId: 'local',
+    alias: 'local',
+    serverUrl: 'http://localhost:8000',
+    api: api,
+    streamClient: streamClient,
   );
-  final handler = plugin.functions
-      .firstWhere((f) => f.schema.name == 'soliplex_new_thread')
-      .handler;
-  final pluginResult = await handler({
+  final tools = buildSoliplexTools(
+    const SessionContext(serverId: 'local', roomId: 'bwrap_sandbox'),
+    {'local': conn},
+  );
+  final handler =
+      tools.firstWhere((t) => t.name == 'soliplex_new_thread').handler;
+  final pluginResult = (await handler({
     'server': 'local',
     'room_id': 'bwrap_sandbox',
     'message': 'Say hello',
-  });
-  final decoded = json.decode(pluginResult! as String) as Map<String, dynamic>;
-  print('  thread_id: ${decoded['thread_id']}');
-  print('  response: ${(decoded['response'] as String).substring(0, 100)}');
+  }))! as Map<String, dynamic>;
+  print('  thread_id: ${pluginResult['thread_id']}');
+  print(
+    '  response: '
+    '${(pluginResult['response'] as String).substring(0, 100)}',
+  );
 
   transport.close();
   print('\nDONE');

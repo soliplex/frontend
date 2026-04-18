@@ -128,6 +128,8 @@ Future<ShellConfig> standard({
   final authListenable = SignalListenable(serverManager.authState);
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
+  final roomEnvRegistry = RoomEnvironmentRegistry();
+
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
         ? const WebPlatformConstraints()
@@ -137,28 +139,35 @@ Future<ShellConfig> standard({
         .register(buildConfirmActionTool())
         .register(buildGetClipboardTool()),
     logger: LogManager.instance.getLogger('room'),
-    extensionFactoryBuilder: (connection) => toOwnedFactory(
-      () async => MontyScriptEnvironment(
-        plugins: [
-          SoliplexPlugin(
-            connections: {
-              for (final entry in serverManager.servers.value.values)
-                entry.serverId: SoliplexConnection.fromServerConnection(
-                  entry.connection,
-                  alias: entry.alias,
-                  serverUrl: entry.serverUrl.toString(),
-                ),
-            },
-          ),
-        ],
-      ),
+    extensionFactoryBuilder: (connection) => toRoomSharedFactory(
+      roomEnvRegistry,
+      (ctx) async {
+        final connections = {
+          for (final entry in serverManager.servers.value.values)
+            entry.serverId: SoliplexConnection.fromServerConnection(
+              entry.connection,
+              alias: entry.alias,
+              serverUrl: entry.serverUrl.toString(),
+            ),
+        };
+        final soliplexTools = buildSoliplexTools(ctx, connections);
+        return MontyScriptEnvironment(
+          tools: [
+            ...soliplexTools,
+            buildHelpTool(soliplexTools),
+          ],
+        );
+      },
     ),
   );
 
   final registry = RunRegistry();
 
   // Fire-and-forget startup validation: detect broken Python runtime early.
-  unawaited(_probeMontyRuntime(LogManager.instance.getLogger('monty')));
+  unawaited(_probeMontyRuntime(
+    LogManager.instance.getLogger('monty'),
+    serverManager,
+  ));
 
   return ShellConfig(
     appName: appName,
@@ -174,6 +183,7 @@ Future<ShellConfig> standard({
       plainClient.close();
       runtimeManager.dispose();
       registry.dispose();
+      roomEnvRegistry.dispose();
     },
     modules: [
       diagnosticsModule(inspector: inspector),
@@ -204,9 +214,27 @@ Future<ShellConfig> standard({
 ///
 /// Failures are logged as warnings — they do not crash the app. The probe runs
 /// fire-and-forget; call it with [unawaited] during startup.
-Future<void> _probeMontyRuntime(Logger logger) async {
+Future<void> _probeMontyRuntime(
+  Logger logger,
+  ServerManager serverManager,
+) async {
   const name = 'MontyProbe';
-  final env = MontyScriptEnvironment();
+  final ctx = const SessionContext(serverId: 'probe', roomId: 'probe');
+  final connections = {
+    for (final entry in serverManager.servers.value.values)
+      entry.serverId: SoliplexConnection.fromServerConnection(
+        entry.connection,
+        alias: entry.alias,
+        serverUrl: entry.serverUrl.toString(),
+      ),
+  };
+  final soliplexTools = buildSoliplexTools(ctx, connections);
+  final env = MontyScriptEnvironment(
+    tools: [
+      ...soliplexTools,
+      buildHelpTool(soliplexTools),
+    ],
+  );
   try {
     await env.probe();
     logger.info('Python runtime probe passed');

@@ -9,9 +9,7 @@ environment:
 
 dependencies:
   dart_monty:
-    git:
-      url: https://github.com/runyaga/dart_monty.git
-      ref: chore/monty-0.0.12-upgrade
+    path: ../../../dart_monty/main
   meta: ^1.9.0
   mutex: ^3.1.0
   signals_core: ^6.2.0

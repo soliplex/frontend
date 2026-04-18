@@ -11,6 +11,7 @@ import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
 import 'package:soliplex_agent/src/runtime/server_connection.dart';
+import 'package:soliplex_agent/src/runtime/session_context.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ThreadHistory;
@@ -318,7 +319,8 @@ class AgentRuntime {
     required int depth,
   }) async {
     var toolRegistry = await _toolRegistryResolver(roomId);
-    final extensions = await _createExtensions();
+    final ctx = SessionContext(serverId: serverId, roomId: roomId);
+    final extensions = await _createExtensions(ctx);
     for (final ext in extensions) {
       for (final tool in ext.tools) {
         toolRegistry = toolRegistry.register(tool);
@@ -341,9 +343,9 @@ class AgentRuntime {
     );
   }
 
-  Future<List<SessionExtension>> _createExtensions() async {
+  Future<List<SessionExtension>> _createExtensions(SessionContext ctx) async {
     if (_extensionFactory == null) return const [];
-    return _extensionFactory();
+    return _extensionFactory(ctx);
   }
 
   // ---------------------------------------------------------------------------
