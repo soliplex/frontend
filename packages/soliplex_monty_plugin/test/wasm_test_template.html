@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{testName}}</title>
+  <!--
+    dart_monty_bridge.js loads as a classic script so that document.currentScript
+    is non-null when the IIFE runs. The bridge uses currentScript.src to
+    compute _bridgeBase, which resolves dart_monty_worker.js and
+    dart_monty_native.wasm from the same directory.
+
+    Both the bridge JS and worker JS are committed to lib/wasm_assets/.
+    dart_monty_native.wasm is gitignored (binary build artifact, ~5 MB).
+    See lib/wasm_assets/.gitignore for the build command.
+  -->
+  <script src="packages/soliplex_monty_plugin/wasm_assets/dart_monty_bridge.js"></script>
+  <script src="packages/test/dart.js"></script>
+</head>
+<body>
+  {{testScript}}
+</body>
+</html>

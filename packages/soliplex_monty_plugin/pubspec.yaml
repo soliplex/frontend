@@ -1,0 +1,26 @@
+name: soliplex_monty_plugin
+description: MontyPlugin that bridges dart_monty to the Soliplex server API.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  dart_monty:
+    path: ../../../dart_monty/main
+  meta: ^1.9.0
+  mutex: ^3.1.0
+  signals_core: ^6.2.0
+  soliplex_agent:
+    path: ../soliplex_agent
+  soliplex_client:
+    path: ../soliplex_client
+  soliplex_logging:
+    path: ../soliplex_logging
+
+dev_dependencies:
+  mocktail: ^1.0.0
+  test: ^1.24.0
+  very_good_analysis: ^10.0.0
