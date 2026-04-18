@@ -58,29 +58,23 @@ EventProcessingResult processEvent(
         streaming: const AwaitingText(),
       ),
 
-    // Thinking lifecycle — both outer (ThinkingStart/End) and inner
-    // (ThinkingTextMessageStart/End) use the same idempotent handlers.
-    ThinkingStartEvent() => _processThinkingStart(
-        conversation,
-        streaming,
-      ),
-    ThinkingEndEvent() => _processThinkingEnd(
-        conversation,
-        streaming,
-      ),
-    ThinkingTextMessageStartEvent() => _processThinkingStart(
-        conversation,
-        streaming,
-      ),
-    ThinkingTextMessageContentEvent(:final delta) => _processThinkingContent(
-        conversation,
-        streaming,
-        delta,
-      ),
-    ThinkingTextMessageEndEvent() => _processThinkingEnd(
-        conversation,
-        streaming,
-      ),
+    // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
+    // inner thinking (ThinkingTextMessageStart/End), and reasoning message
+    // (ReasoningMessageStart/Content/End) all route through the same
+    // idempotent handlers.
+    ThinkingStartEvent() ||
+    ReasoningStartEvent() ||
+    ThinkingTextMessageStartEvent() ||
+    ReasoningMessageStartEvent() =>
+      _processThinkingStart(conversation, streaming),
+    ThinkingEndEvent() ||
+    ReasoningEndEvent() ||
+    ThinkingTextMessageEndEvent() ||
+    ReasoningMessageEndEvent() =>
+      _processThinkingEnd(conversation, streaming),
+    ThinkingTextMessageContentEvent(:final delta) ||
+    ReasoningMessageContentEvent(:final delta) =>
+      _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
@@ -160,6 +154,18 @@ EventProcessingResult processEvent(
         timestamp,
       ),
 
+    // Opaque provider-signed blob anchoring a reasoning message to the LLM
+    // provider on follow-up turns. Round-trip preservation requires an
+    // encryptedValue field on TextMessage (and on ag_ui's Message). See
+    // github.com/soliplex/frontend/issues/117.
+    ReasoningEncryptedValueEvent(:final entityId) =>
+      _processReasoningEncryptedValue(conversation, streaming, entityId),
+
+    // JSON Patch against an activity's state; requires a per-message
+    // activity store that does not exist in the domain.
+    ActivityDeltaEvent(:final messageId, :final activityType) =>
+      _processActivityDelta(conversation, streaming, messageId, activityType),
+
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
     ThinkingContentEvent() ||
@@ -169,7 +175,8 @@ EventProcessingResult processEvent(
     StepStartedEvent() ||
     StepFinishedEvent() ||
     RawEvent() ||
-    CustomEvent() =>
+    CustomEvent() ||
+    ReasoningMessageChunkEvent() =>
       EventProcessingResult(
         conversation: conversation,
         streaming: streaming,
@@ -504,6 +511,45 @@ EventProcessingResult _processStateDelta(
   final newState = applyJsonPatch(conversation.aguiState, delta);
   return EventProcessingResult(
     conversation: conversation.copyWith(aguiState: newState),
+    streaming: streaming,
+  );
+}
+
+// Logged pass-through for events we do not yet integrate into the domain.
+
+EventProcessingResult _processReasoningEncryptedValue(
+  Conversation conversation,
+  StreamingState streaming,
+  String entityId,
+) {
+  developer.log(
+    'ReasoningEncryptedValueEvent dropped (entityId=$entityId): '
+    'round-trip preservation requires encryptedValue on TextMessage '
+    '— see github.com/soliplex/frontend/issues/117',
+    name: 'soliplex_client.event_processor',
+    level: 900,
+  );
+  return EventProcessingResult(
+    conversation: conversation,
+    streaming: streaming,
+  );
+}
+
+EventProcessingResult _processActivityDelta(
+  Conversation conversation,
+  StreamingState streaming,
+  String messageId,
+  String activityType,
+) {
+  developer.log(
+    'ActivityDeltaEvent dropped '
+    '(messageId=$messageId, activityType=$activityType): '
+    'no per-message activity store in the domain',
+    name: 'soliplex_client.event_processor',
+    level: 800,
+  );
+  return EventProcessingResult(
+    conversation: conversation,
     streaming: streaming,
   );
 }

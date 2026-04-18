@@ -14,6 +14,7 @@ export 'package:signals_core/signals_core.dart'
 export 'package:soliplex_client/soliplex_client.dart'
     hide
         AuthenticatedHttpClient,
+        ConcurrencyLimitingHttpClient,
         DartHttpClient,
         HttpTransport,
         ObservableHttpClient,

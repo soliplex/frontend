@@ -14,7 +14,7 @@ packages:
     description:
       path: "sdks/community/dart"
       ref: HEAD
-      resolved-ref: "18087b3926d7bbea19564dfa577f4f44ae88c6fc"
+      resolved-ref: "29ae5b90c763ef4df3117b8e6f3b863755f41e7e"
       url: "https://github.com/soliplex/ag-ui.git"
     source: git
     version: "0.1.0"
