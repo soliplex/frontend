@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_activity.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/step_log.dart';
@@ -23,7 +24,7 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    expect(find.byType(GestureDetector), findsNothing);
+    expect(find.byType(InkWell), findsNothing);
   });
 
   testWidgets('shows singular "step" for one step', (tester) async {
@@ -32,7 +33,7 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    expect(find.text('1 step'), findsOneWidget);
+    expect(find.text('1 tool call'), findsOneWidget);
   });
 
   testWidgets('shows plural "steps" for multiple steps', (tester) async {
@@ -45,7 +46,7 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    expect(find.text('2 steps'), findsOneWidget);
+    expect(find.text('2 tool calls'), findsOneWidget);
   });
 
   testWidgets('tap expands to show step details', (tester) async {
@@ -56,7 +57,7 @@ void main() {
 
     expect(find.text('Thinking'), findsNothing);
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
     expect(find.text('Thinking'), findsOneWidget);
@@ -68,12 +69,12 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
     expect(find.text('Thinking'), findsOneWidget);
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
     expect(find.text('Thinking'), findsNothing);
@@ -85,7 +86,7 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -104,10 +105,10 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
   });
 
   testWidgets('failed step shows error icon', (tester) async {
@@ -117,10 +118,10 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.byIcon(Icons.error), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
   testWidgets('duration formatted as seconds with 1 decimal', (tester) async {
@@ -137,7 +138,7 @@ void main() {
     await tester.pumpWidget(wrap(StepLog(tracker: fakeTracker)));
     await tester.pump();
 
-    await tester.tap(find.byType(GestureDetector));
+    await tester.tap(find.byType(InkWell));
     await tester.pump();
 
     expect(find.text('1.3s'), findsOneWidget);
@@ -159,6 +160,14 @@ class _FakeTracker implements ExecutionTracker {
 
   @override
   ReadonlySignal<bool> get isThinkingStreaming => Signal<bool>(false);
+
+  @override
+  ReadonlySignal<List<ActivityEntry>> get activities =>
+      Signal<List<ActivityEntry>>(const []);
+
+  @override
+  ReadonlySignal<Map<String, dynamic>> get aguiState =>
+      Signal<Map<String, dynamic>>(const {});
 
   @override
   bool get isFrozen => false;

@@ -1,5 +1,6 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'execution_activity.dart';
 import 'execution_step.dart';
 
 class ExecutionTracker {
@@ -25,6 +26,14 @@ class ExecutionTracker {
   final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
   ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
 
+  final Signal<List<ActivityEntry>> _activities =
+      Signal<List<ActivityEntry>>(const []);
+  ReadonlySignal<List<ActivityEntry>> get activities => _activities;
+
+  final Signal<Map<String, dynamic>> _aguiState =
+      Signal<Map<String, dynamic>>(const {});
+  ReadonlySignal<Map<String, dynamic>> get aguiState => _aguiState;
+
   void freeze() {
     _unsub?.call();
     _unsub = null;
@@ -49,12 +58,23 @@ class ExecutionTracker {
             blocks.last + delta,
           ];
         }
-      case ServerToolCallStarted(:final toolName):
+      case ServerToolCallStarted(:final toolName, :final toolCallId):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
+        _addStep(toolName, StepType.toolCall, toolCallId: toolCallId);
       case ServerToolCallCompleted():
         _completeActiveStep();
+      case ServerToolCallArgsUpdated(:final toolCallId, :final argsDelta):
+        final steps = _steps.value;
+        final idx = steps.lastIndexWhere((s) => s.toolCallId == toolCallId);
+        if (idx != -1) {
+          final step = steps[idx];
+          _steps.value = [
+            ...steps.sublist(0, idx),
+            step.copyWith(args: (step.args ?? '') + argsDelta),
+            ...steps.sublist(idx + 1),
+          ];
+        }
       case ClientToolExecuting(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
@@ -67,17 +87,26 @@ class ExecutionTracker {
       case RunFailed() || RunCancelled():
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
+      case ActivitySnapshot(:final activityType, :final content):
+        _activities.value = [
+          ..._activities.value,
+          ActivityEntry(
+            activityType: activityType,
+            content: content,
+            timestamp: _stopwatch.elapsed,
+          ),
+        ];
+      case StateUpdated(:final aguiState):
+        _aguiState.value = aguiState;
       case TextDelta() ||
-            StateUpdated() ||
             StepProgress() ||
             AwaitingApproval() ||
-            ActivitySnapshot() ||
             CustomExecutionEvent():
         break;
     }
   }
 
-  void _addStep(String label, StepType type) {
+  void _addStep(String label, StepType type, {String? toolCallId}) {
     _steps.value = [
       ..._steps.value,
       ExecutionStep(
@@ -85,6 +114,7 @@ class ExecutionTracker {
         type: type,
         status: StepStatus.active,
         timestamp: _stopwatch.elapsed,
+        toolCallId: toolCallId,
       ),
     ];
   }

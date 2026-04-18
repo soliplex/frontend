@@ -4,6 +4,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import '../execution_tracker.dart';
 import 'citations_section.dart';
 import 'execution/activity_indicator.dart';
+import 'execution/activity_log.dart';
+import 'execution/state_panel.dart';
 import 'execution/step_log.dart';
 import 'execution/thinking_block.dart';
 import 'copy_button.dart';
@@ -45,6 +47,7 @@ class TextMessageTile extends StatelessWidget {
         if (streamingActivity != null)
           ActivityIndicator(activity: streamingActivity!),
         if (hasTracker) StepLog(tracker: executionTracker!),
+        if (hasTracker) ActivityLog(tracker: executionTracker!),
         if (hasTracker)
           ExecutionThinkingBlock(tracker: executionTracker!)
         else if (!isUser && message.hasThinkingText)
@@ -100,6 +103,7 @@ class TextMessageTile extends StatelessWidget {
             ],
           ],
         ),
+        if (hasTracker) StatePanel(tracker: executionTracker!),
         if (sourceReferences != null && sourceReferences!.isNotEmpty)
           CitationsSection(
             sourceReferences: sourceReferences!,

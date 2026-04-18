@@ -67,7 +67,7 @@ void main() {
       ),
     ));
 
-    expect(find.text('2 steps'), findsOneWidget);
+    expect(find.text('2 tool calls'), findsOneWidget);
 
     tracker.dispose();
   });
