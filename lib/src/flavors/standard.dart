@@ -89,6 +89,10 @@ Future<ShellConfig> standard({
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
   Widget? logo,
+  // Access policy and HITL are off by default until server-side room config
+  // is wired. Set to true to enable tool filtering, host filtering, OsCall
+  // filtering, and the HITL approval dialog for sensitive tools.
+  bool enableAccessPolicy = false,
 }) async {
   final navigatorKey = GlobalKey<NavigatorState>();
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -175,7 +179,11 @@ Future<ShellConfig> standard({
       ),
       plugins: roomUiPlugin != null ? [roomUiPlugin] : [],
     );
-    env.registerMiddleware(PolicyEnforcementMiddleware(AccessPolicy.permissive));
+    if (enableAccessPolicy) {
+      env.registerMiddleware(
+        PolicyEnforcementMiddleware(AccessPolicy.permissive),
+      );
+    }
     return env;
   }
 
@@ -190,7 +198,9 @@ Future<ShellConfig> standard({
   }
 
   final navigatorKey = GlobalKey<NavigatorState>();
-  final uiDelegate = RoomUiDelegate(navigatorKey: navigatorKey);
+  final uiDelegate = enableAccessPolicy
+      ? RoomUiDelegate(navigatorKey: navigatorKey)
+      : null;
 
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
