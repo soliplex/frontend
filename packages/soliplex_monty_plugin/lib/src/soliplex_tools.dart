@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:soliplex_agent/soliplex_agent.dart'
     show SessionContext, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/src/notify_tool.dart';
 import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 import 'package:soliplex_monty_plugin/src/soliplex_tool.dart';
 
@@ -488,58 +489,92 @@ List<SoliplexTool> buildSoliplexTools(
   ];
 }
 
+/// Builds the full Soliplex tool set: API tools + help + optional notify.
+///
+/// Prefer this over calling [buildSoliplexTools], [buildHelpTool], and
+/// [buildNotifyTool] separately.
+List<SoliplexTool> buildSoliplexToolset(
+  SessionContext ctx,
+  Map<String, SoliplexConnection> Function() getConnections, {
+  void Function(NotifyEvent)? onNotify,
+}) {
+  final tools = buildSoliplexTools(ctx, getConnections);
+  return [
+    ...tools,
+    buildHelpTool(tools),
+    if (onNotify != null) buildNotifyTool(onNotify),
+  ];
+}
+
 /// Helper to build the introspection tool (help).
 SoliplexTool buildHelpTool(List<SoliplexTool> tools) {
+  String signature(SoliplexTool t) {
+    final props = t.parameters['properties'] as Map<String, dynamic>? ?? {};
+    final required =
+        (t.parameters['required'] as List<dynamic>? ?? []).cast<String>();
+    final params = props.keys.map((k) {
+      final req = required.contains(k);
+      return req ? k : '[$k]';
+    }).join(', ');
+    return '${t.name}($params)';
+  }
+
   return SoliplexTool(
     name: 'help',
-    description: 'Show detailed information about available tools.',
+    description: 'List available functions or show details for one. '
+        'help() — list all.  help(name="fn") — details for fn.',
     parameters: {
       'type': 'object',
       'properties': {
         'name': {
           'type': 'string',
-          'description': 'Tool name to look up. Omit to list all.',
+          'description': 'Function name to look up. Omit to list all.',
         },
       },
     },
     handler: (args) async {
       final name = args['name'] as String?;
       if (name == null) {
-        final allTools = [
-          ...tools,
-          SoliplexTool(
-            name: 'help',
-            description: 'Show detailed information about available tools.',
-            parameters: const {},
-            handler: (_) async => '',
-          ),
-        ];
-        final buf = StringBuffer('Available tools:\n\n');
-        for (final t in allTools) {
-          buf
-            ..writeln('  ${t.name}')
-            ..writeln('    ${t.description}');
+        final sb = StringBuffer('Available functions:\n\n');
+        for (final t in tools) {
+          sb
+            ..write('  ')
+            ..writeln(signature(t))
+            ..write('    ')
+            ..writeln(t.description)
+            ..writeln();
         }
-        return buf.toString().trimRight();
+        sb
+          ..write('  help([name])\n')
+          ..write('    List all functions or show details for one.\n');
+        return sb.toString().trimRight();
       }
       final tool = tools.firstWhere(
         (t) => t.name == name,
-        orElse: () => throw ArgumentError('Unknown tool: $name'),
+        orElse: () => throw ArgumentError(
+          'Unknown function "$name". '
+          'Call help() to list all available functions.',
+        ),
       );
-      final buf = StringBuffer()
-        ..writeln(tool.name)
-        ..writeln('  ${tool.description}');
       final props =
-          (tool.parameters['properties'] as Map?)?.cast<String, dynamic>();
-      if (props != null && props.isNotEmpty) {
-        buf.writeln('\n  Parameters:');
+          tool.parameters['properties'] as Map<String, dynamic>? ?? {};
+      final required =
+          (tool.parameters['required'] as List<dynamic>? ?? []).cast<String>();
+      final sb = StringBuffer()
+        ..writeln(signature(tool))
+        ..writeln()
+        ..writeln(tool.description);
+      if (props.isNotEmpty) {
+        sb.writeln('\nParameters:');
         for (final entry in props.entries) {
-          final desc = (entry.value as Map?)?['description'] ?? '';
-          final type = (entry.value as Map?)?['type'] ?? '';
-          buf.writeln('    ${entry.key} ($type): $desc');
+          final meta = entry.value as Map<String, dynamic>? ?? {};
+          final req = required.contains(entry.key) ? '' : ' (optional)';
+          final desc = meta['description'] as String? ?? '';
+          final type = meta['type'] as String? ?? 'any';
+          sb.writeln('  ${entry.key} ($type)$req — $desc');
         }
       }
-      return buf.toString().trimRight();
+      return sb.toString().trimRight();
     },
   );
 }

@@ -252,8 +252,7 @@ class _ReplTabState extends State<_ReplTab> with AutomaticKeepAliveClientMixin {
                     textInputAction: TextInputAction.newline,
                     readOnly: _running,
                     decoration: InputDecoration(
-                      hintText:
-                          'notify_show(kind="success", title="Hi", body="")',
+                      hintText: 'help()',
                       hintStyle: mono?.copyWith(color: cs.outline),
                       border: const OutlineInputBorder(),
                       isDense: true,
@@ -294,20 +293,27 @@ class _ReplTabState extends State<_ReplTab> with AutomaticKeepAliveClientMixin {
 typedef _Snippet = ({String label, String code});
 
 const _kSnippets = <_Snippet>[
+  (label: 'help', code: 'help()'),
   (
     label: 'notify',
-    code: "notify_show(kind='success', title='Hello', body='from Python')"
+    code: "ui_notify(kind='success', title='Hello', body='from Python')"
   ),
-  (label: 'modal', code: "ui_show_modal('Info', 'This is a modal message.')"),
-  (label: 'confirm', code: "ui_request_confirm('delete', 'Delete this item?')"),
+  (
+    label: 'modal',
+    code: "ui_show_modal(title='Info', body='This is a modal.', actions=['OK'])"
+  ),
+  (label: 'inject', code: 'ui_inject_message(content="**Hello** from Python!")'),
+  (
+    label: 'confirm',
+    code: "ui_request_confirm(verb='delete', message='Delete this item?')"
+  ),
   (
     label: 'form',
     code:
-        "ui_show_form({'key':'prefs','fields':[{'key':'name','label':'Your name','type':'text'}]})"
+        "ui_show_form(schema={'properties':{'name':{'type':'string'}}})"
   ),
   (label: 'list_servers', code: 'soliplex_list_servers()'),
   (label: 'list_rooms', code: "soliplex_list_rooms(server='<id>')"),
-  (label: 'help', code: 'help()'),
   (label: '1+1', code: '1 + 1'),
 ];
 
