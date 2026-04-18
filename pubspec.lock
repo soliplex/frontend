@@ -180,9 +180,18 @@ packages:
     source: git
     version: "0.20.0"
   dart_monty_core:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "."
+      ref: main
+      resolved-ref: c3d7a069066a794441486c55e82f669503bfaf21
+      url: "https://github.com/runyaga/dart_monty_core.git"
+    source: git
+    version: "0.0.1"
+  dart_monty_flutter:
+    dependency: "direct main"
+    description:
+      path: "packages/dart_monty_flutter"
       ref: main
       resolved-ref: c3d7a069066a794441486c55e82f669503bfaf21
       url: "https://github.com/runyaga/dart_monty_core.git"
