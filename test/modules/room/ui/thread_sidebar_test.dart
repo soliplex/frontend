@@ -115,9 +115,9 @@ void main() {
     expect(backCalled, isTrue);
   });
 
-  testWidgets('shows Network Inspector button that fires callback',
+  testWidgets('shows Debug Console button that fires callback',
       (tester) async {
-    bool inspectorCalled = false;
+    bool consoleCalled = false;
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -127,7 +127,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onDebugConsole: () => inspectorCalled = true,
+          onDebugConsole: () => consoleCalled = true,
           onRoomInfo: () {},
           roomName: 'Test Room',
           onRetryThreads: () async {},
@@ -135,8 +135,8 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('Network Inspector'));
-    expect(inspectorCalled, isTrue);
+    await tester.tap(find.text('Debug Console'));
+    expect(consoleCalled, isTrue);
   });
 
   testWidgets('shows room name button that fires onRoomInfo', (tester) async {

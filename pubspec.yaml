@@ -36,6 +36,11 @@ dependencies:
   mime: ^2.0.0
   url_launcher: ^6.3.1
   web: ^1.1.1
+  dart_monty_flutter:
+    git:
+      url: https://github.com/runyaga/dart_monty_core.git
+      ref: main
+      path: packages/dart_monty_flutter
   soliplex_agent:
     path: packages/soliplex_agent
   soliplex_monty_plugin:
@@ -50,6 +55,12 @@ dependencies:
     path: packages/ui_plugin
   ui_renderer_soliplex:
     path: packages/ui_renderer_soliplex
+
+dependency_overrides:
+  dart_monty_core:
+    git:
+      url: https://github.com/runyaga/dart_monty_core.git
+      ref: main
 
 dev_dependencies:
   flutter_test:

@@ -92,7 +92,6 @@ Future<ShellConfig> standard({
     navigatorKey: navigatorKey,
     scaffoldMessengerKey: scaffoldMessengerKey,
   );
-  final debugUiPlugin = kDebugMode ? UiPlugin(renderer: uiRenderer) : null;
   LogManager.instance
     ..minimumLevel = LogLevel.debug
     ..addSink(StdoutSink());
@@ -158,14 +157,17 @@ Future<ShellConfig> standard({
               serverUrl: entry.serverUrl.toString(),
             ),
         };
-    final soliplexTools = buildSoliplexTools(ctx, getConnections);
+    final roomKey = '${ctx.serverId}:${ctx.roomId}';
+    final roomUiPlugin = kDebugMode
+        ? UiPlugin(renderer: RoomScopedUiRenderer(uiRenderer, roomKey))
+        : null;
     return MontyScriptEnvironment(
-      tools: [
-        ...soliplexTools,
-        buildHelpTool(soliplexTools),
-        buildNotifyTool(notifyController.add),
-      ],
-      plugins: debugUiPlugin != null ? [debugUiPlugin] : [],
+      tools: buildSoliplexToolset(
+        ctx,
+        getConnections,
+        onNotify: notifyController.add,
+      ),
+      plugins: roomUiPlugin != null ? [roomUiPlugin] : [],
     );
   }
 
@@ -226,11 +228,9 @@ Future<ShellConfig> standard({
         runtimeManager: runtimeManager,
         registry: registry,
         enableDocumentFilter: true,
-        injectedMessages: uiRenderer.injectedMessages,
-        onRoomChanged: uiRenderer.clearInjectedMessages,
-        debugPanel: debugUiPlugin != null
-            ? DebugUiPanel(plugin: debugUiPlugin, renderer: uiRenderer)
-            : null,
+        injectedMessages: uiRenderer.messagesFor,
+        onRoomChanged: uiRenderer.clearAllMessages,
+        debugPanel: null,
         notifyStream: notifyController.stream,
         envRegistry: roomEnvRegistry,
         replExecutor: replExecutor,
@@ -264,12 +264,8 @@ Future<void> _probeMontyRuntime(
             serverUrl: entry.serverUrl.toString(),
           ),
       };
-  final soliplexTools = buildSoliplexTools(ctx, getConnections);
   final env = MontyScriptEnvironment(
-    tools: [
-      ...soliplexTools,
-      buildHelpTool(soliplexTools),
-    ],
+    tools: buildSoliplexToolset(ctx, getConnections),
   );
   try {
     await env.probe();

@@ -72,12 +72,15 @@ class RoomScreen extends StatefulWidget {
   final DocumentSelections documentSelections;
   final Stream<NotifyEvent>? notifyStream;
 
-  /// Ephemeral client-only messages injected by [UiPlugin.ui_inject_message].
-  /// Signal persists across room navigation; cleared when switching rooms.
-  final ReadonlySignal<List<InjectedMessage>>? injectedMessages;
+  /// Returns the reactive message list for the given room key.
+  ///
+  /// Called with `'$serverId:$roomId'` to retrieve messages scoped to this
+  /// room. Only messages injected into this room via [UiPlugin.ui_inject_message]
+  /// are shown — other rooms' messages are not visible here.
+  final ReadonlySignal<List<InjectedMessage>> Function(String roomKey)?
+      injectedMessages;
 
-  /// Called when the room changes so the injected messages signal can be
-  /// cleared. Provided by the flavor (e.g. `renderer.clearInjectedMessages`).
+  /// Called when the room changes so injected messages can be cleared.
   final VoidCallback? onRoomChanged;
 
   /// Optional debug panel mounted as a collapsible overlay. Only shown when
@@ -502,24 +505,13 @@ class _RoomScreenState extends State<RoomScreen> {
     return Stack(
       children: [
         body,
-        Positioned(
-          right: 8,
-          bottom: 80,
-          width: 320,
-          child: _debugExpanded ? widget.debugPanel! : const SizedBox.shrink(),
-        ),
-        Positioned(
-          right: 8,
-          bottom: 44,
-          child: FloatingActionButton.small(
-            heroTag: 'debugToggle',
-            tooltip: 'Toggle debug panel',
-            onPressed: () => setState(() => _debugExpanded = !_debugExpanded),
-            child: Icon(
-              _debugExpanded ? Icons.bug_report : Icons.bug_report_outlined,
-            ),
+        if (_debugExpanded)
+          Positioned(
+            right: 8,
+            bottom: 8,
+            width: 320,
+            child: widget.debugPanel!,
           ),
-        ),
       ],
     );
   }
@@ -598,15 +590,26 @@ class _RoomScreenState extends State<RoomScreen> {
                 ],
               ),
             ),
+          if (widget.debugPanel != null)
+            IconButton(
+              icon: Icon(
+                _debugExpanded ? Icons.terminal : Icons.terminal_outlined,
+                size: 20,
+              ),
+              tooltip: 'Toggle debug panel',
+              onPressed: () => setState(() => _debugExpanded = !_debugExpanded),
+            ),
           if (widget.notifyStream != null)
             IconButton(
               icon: const Icon(Icons.notifications_outlined, size: 20),
               tooltip: 'Test notify_show',
-              onPressed: () => _onNotify(const NotifyEvent(
-                kind: 'success',
-                title: 'notify_show works',
-                body: 'Python can call this tool to show SnackBars.',
-              ),),
+              onPressed: () => _onNotify(
+                const NotifyEvent(
+                  kind: 'success',
+                  title: 'notify_show works',
+                  body: 'Python can call this tool to show SnackBars.',
+                ),
+              ),
             ),
           if (attachEnabled && room != null)
             IconButton(
@@ -781,7 +784,15 @@ class _RoomScreenState extends State<RoomScreen> {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
-    final injected = widget.injectedMessages?.watch(context) ?? const [];
+    // Key at thread level when a thread is selected, room level otherwise.
+    // Python injects at room level (env is per room), so room-level messages
+    // appear in all threads; thread-level messages appear only in that thread.
+    final tid = widget.threadId;
+    final scopeKey = tid != null
+        ? '${widget.serverEntry.serverId}:${widget.roomId}:$tid'
+        : '${widget.serverEntry.serverId}:${widget.roomId}';
+    final injected =
+        widget.injectedMessages?.call(scopeKey).watch(context) ?? const [];
     final attachEnabled = room?.enableAttachments ?? false;
 
     _restoreUnsentText(sendError?.unsentText);

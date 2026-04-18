@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# Runs MontyScriptEnvironment integration tests against demo.toughserv.com (WASM/Chrome).
+# Runs all @monty integration tests against Chrome (WASM backend).
 #
-# Requires Chrome and dart_monty_native.wasm.
+# dart_monty_native.wasm is a binary build artifact and gitignored.
+# Build it once before running:
+#
+#   CORE=$(dart pub deps --json 2>/dev/null | \
+#     python3 -c "import sys,json; d=json.load(sys.stdin); \
+#     [print(p['rootUri'].replace('file://','')) \
+#     for p in d['packages'] if p['name']=='dart_monty_core']")
+#   cargo build --release --target wasm32-wasip1 --manifest-path "$CORE/native/Cargo.toml"
+#   cp "$CORE/native/target/wasm32-wasip1/release/dart_monty_native.wasm" lib/wasm_assets/
+#
 # Usage: bash tool/test_integration_wasm.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 WASM_ASSET="lib/wasm_assets/dart_monty_native.wasm"
 if [[ ! -f "$WASM_ASSET" ]]; then
-  echo "ERROR: $WASM_ASSET missing."
-  echo "  Build: cd ~/.pub-cache/git/dart_monty-*/native && cargo build --release --target wasm32-wasip1"
-  echo "  Copy:  cp target/wasm32-wasip1/release/dart_monty_native.wasm <plugin>/lib/wasm_assets/"
+  echo "ERROR: $WASM_ASSET missing. See comments at top of this script for build instructions."
   exit 1
 fi
 
-echo "=== Integration Tests (WASM) ==="
+echo "=== Integration Tests (WASM / Chrome) ==="
 dart test \
-  test/integration/monty_env_chat_test.dart \
+  test/integration/ \
   --platform chrome \
-  --run-skipped \
-  --tags=integration \
-  --reporter expanded
+  --tags=monty \
+  --reporter failures-only
 echo "=== Integration Tests (WASM) PASSED ==="

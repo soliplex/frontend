@@ -143,15 +143,17 @@ void main() {
     }
 
     test(
-      'T1: Soliplex host functions appear in server LLM tool list',
+      'T1: Python tool appears in server LLM tool list',
       () async {
+        // Soliplex host functions are Python-callable (host functions on the
+        // dart_monty bridge) — not ClientTools. The server LLM sees only the
+        // execute_python ClientTool; Soliplex APIs are reached from Python.
         final output = await ask(
           'List every tool name you have access to. '
           'Reply with only a comma-separated list of tool names.',
         );
         print('  T1 → $output');
-        expect(output, contains('soliplex_new_thread'));
-        expect(output, contains('soliplex_list_rooms'));
+        expect(output, contains('execute_python'));
       },
       timeout: const Timeout(Duration(seconds: 60)),
     );

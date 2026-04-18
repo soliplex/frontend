@@ -1,3 +1,6 @@
+import 'package:dart_monty/dart_monty.dart' as dm;
+import 'package:dart_monty/dart_monty_bridge.dart'
+    show HostFunction, HostFunctionSchema;
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -7,6 +10,8 @@ import 'package:test/test.dart';
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
+
+class MockAgentSession extends Mock implements dm.AgentSession {}
 
 // -- Fixtures ----------------------------------------------------------------
 
@@ -72,6 +77,12 @@ void main() {
   setUpAll(() {
     registerFallbackValue(
       const SimpleRunAgentInput(threadId: '', runId: ''),
+    );
+    registerFallbackValue(
+      HostFunction(
+        schema: const HostFunctionSchema(name: '_fallback', description: ''),
+        handler: (_) async => null,
+      ),
     );
   });
 
@@ -593,8 +604,84 @@ void main() {
   // -- Tool count ------------------------------------------------------------
 
   group('tool count', () {
-    test('buildSoliplexTools returns 9 tools', () {
-      expect(tools, hasLength(9));
+    test('buildSoliplexTools returns 10 tools', () {
+      expect(tools, hasLength(10));
+    });
+  });
+
+  // -- Duplicate registration ------------------------------------------------
+
+  group('MontyScriptEnvironment duplicate registration', () {
+    SoliplexTool makeTool(String name) => SoliplexTool(
+          name: name,
+          description: 'Test tool',
+          parameters: {
+            'type': 'object',
+            'properties': <String, dynamic>{},
+          },
+          handler: (args) async => null,
+        );
+
+    MockAgentSession mockSession({List<String> existingNames = const []}) {
+      final session = MockAgentSession();
+      when(() => session.schemas).thenReturn([
+        for (final n in existingNames)
+          HostFunctionSchema(name: n, description: 'built-in'),
+      ]);
+      when(() => session.register(any())).thenReturn(null);
+      return session;
+    }
+
+    test(
+      'throws StateError when two tools in the list share the same name',
+      () {
+        final session = mockSession();
+        expect(
+          () => MontyScriptEnvironment.forTest(
+            session,
+            tools: [makeTool('foo'), makeTool('foo')],
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('"foo"'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'throws StateError when a tool name conflicts with a bridge built-in',
+      () {
+        // Simulate the dart_monty bridge having already registered 'help'.
+        final session = mockSession(existingNames: ['help']);
+        expect(
+          () => MontyScriptEnvironment.forTest(
+            session,
+            tools: [makeTool('help')],
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('"help"'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('succeeds when all names are unique and conflict-free', () {
+      final session = mockSession(existingNames: ['built_in_foo']);
+      expect(
+        () => MontyScriptEnvironment.forTest(
+          session,
+          tools: [makeTool('my_tool'), makeTool('other_tool')],
+        ),
+        returnsNormally,
+      );
     });
   });
 }

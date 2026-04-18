@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:soliplex_agent/soliplex_agent.dart'
     show SessionContext, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_monty_plugin/src/notify_tool.dart';
 import 'package:soliplex_monty_plugin/src/soliplex_connection.dart';
 import 'package:soliplex_monty_plugin/src/soliplex_tool.dart';
 
@@ -488,60 +489,20 @@ List<SoliplexTool> buildSoliplexTools(
   ];
 }
 
-/// Helper to build the introspection tool (help).
-SoliplexTool buildHelpTool(List<SoliplexTool> tools) {
-  return SoliplexTool(
-    name: 'help',
-    description: 'Show detailed information about available tools.',
-    parameters: {
-      'type': 'object',
-      'properties': {
-        'name': {
-          'type': 'string',
-          'description': 'Tool name to look up. Omit to list all.',
-        },
-      },
-    },
-    handler: (args) async {
-      final name = args['name'] as String?;
-      if (name == null) {
-        final allTools = [
-          ...tools,
-          SoliplexTool(
-            name: 'help',
-            description: 'Show detailed information about available tools.',
-            parameters: const {},
-            handler: (_) async => '',
-          ),
-        ];
-        final buf = StringBuffer('Available tools:\n\n');
-        for (final t in allTools) {
-          buf
-            ..writeln('  ${t.name}')
-            ..writeln('    ${t.description}');
-        }
-        return buf.toString().trimRight();
-      }
-      final tool = tools.firstWhere(
-        (t) => t.name == name,
-        orElse: () => throw ArgumentError('Unknown tool: $name'),
-      );
-      final buf = StringBuffer()
-        ..writeln(tool.name)
-        ..writeln('  ${tool.description}');
-      final props =
-          (tool.parameters['properties'] as Map?)?.cast<String, dynamic>();
-      if (props != null && props.isNotEmpty) {
-        buf.writeln('\n  Parameters:');
-        for (final entry in props.entries) {
-          final desc = (entry.value as Map?)?['description'] ?? '';
-          final type = (entry.value as Map?)?['type'] ?? '';
-          buf.writeln('    ${entry.key} ($type): $desc');
-        }
-      }
-      return buf.toString().trimRight();
-    },
-  );
+/// Builds the full Soliplex tool set: API tools + optional notify.
+///
+/// Prefer this over calling [buildSoliplexTools] and [buildNotifyTool]
+/// separately. A `help()` introspection function is automatically registered
+/// by the dart_monty bridge — no Soliplex-level help tool is needed.
+List<SoliplexTool> buildSoliplexToolset(
+  SessionContext ctx,
+  Map<String, SoliplexConnection> Function() getConnections, {
+  void Function(NotifyEvent)? onNotify,
+}) {
+  return [
+    ...buildSoliplexTools(ctx, getConnections),
+    if (onNotify != null) buildNotifyTool(onNotify),
+  ];
 }
 
 Future<String> _consumeStream(

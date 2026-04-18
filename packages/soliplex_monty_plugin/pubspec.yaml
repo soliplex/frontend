@@ -11,7 +11,7 @@ dependencies:
   dart_monty:
     git:
       url: https://github.com/runyaga/dart_monty.git
-      ref: main
+      ref: feat/repl-platform
   meta: ^1.9.0
   mutex: ^3.1.0
   signals_core: ^6.2.0
@@ -21,6 +21,8 @@ dependencies:
     path: ../soliplex_client
   soliplex_logging:
     path: ../soliplex_logging
+  ui_plugin:
+    path: ../ui_plugin
 
 dev_dependencies:
   mocktail: ^1.0.0

@@ -12,9 +12,9 @@ import 'widgets/ui_modal_dialog.dart';
 /// [GlobalKey<ScaffoldMessengerState>] (for SnackBar toasts). Both are
 /// wired into [MaterialApp.router] via [ShellConfig].
 ///
-/// [injectedMessages] is a reactive signal — consumers (e.g.
-/// [computeDisplayMessages]) subscribe to it to render ephemeral
-/// client-only messages inline in the chat area.
+/// Use [messagesForRoom] to get a per-room reactive signal of ephemeral
+/// messages. Pass [RoomScopedUiRenderer] to [UiPlugin] so each room's
+/// messages are stored separately.
 class SoliplexUiRenderer implements UiRenderer {
   SoliplexUiRenderer({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -25,14 +25,67 @@ class SoliplexUiRenderer implements UiRenderer {
   final GlobalKey<NavigatorState> _navigatorKey;
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey;
 
-  final Signal<List<InjectedMessage>> _injectedMessages = signal(const []);
-  ReadonlySignal<List<InjectedMessage>> get injectedMessages =>
-      _injectedMessages;
-
+  final Map<String, Signal<List<InjectedMessage>>> _roomMessages = {};
   int _messageCounter = 0;
 
   BuildContext? get _context => _navigatorKey.currentContext;
   ScaffoldMessengerState? get _messenger => _scaffoldMessengerKey.currentState;
+
+  // ---------------------------------------------------------------------------
+  // Scoped message storage
+  //
+  // The scope key can be at any granularity:
+  //   room level:   '$serverId:$roomId'
+  //   thread level: '$serverId:$roomId:$threadId'
+  //
+  // Callers choose the key; the renderer stores and retrieves by exact match.
+  // ---------------------------------------------------------------------------
+
+  Signal<List<InjectedMessage>> _signalFor(String scopeKey) =>
+      _roomMessages.putIfAbsent(scopeKey, () => signal(const []));
+
+  /// Returns the reactive message list for [scopeKey].
+  ///
+  /// Creates an empty signal the first time [scopeKey] is seen. Always returns
+  /// the same signal object for the same key, so [watch] subscriptions survive
+  /// across rebuilds.
+  ReadonlySignal<List<InjectedMessage>> messagesFor(String scopeKey) =>
+      _signalFor(scopeKey);
+
+  /// Injects an ephemeral message into [scopeKey]'s message list.
+  void injectMessageFor(
+    String scopeKey, {
+    required String content,
+    String? format,
+  }) {
+    final sig = _signalFor(scopeKey);
+    final id = 'injected_${_messageCounter++}';
+    sig.value = [
+      ...sig.value,
+      InjectedMessage(
+        id: id,
+        content: content,
+        format: format ?? 'markdown',
+        createdAt: DateTime.now(),
+      ),
+    ];
+  }
+
+  /// Clears all injected messages for [scopeKey].
+  void clearMessagesFor(String scopeKey) {
+    _roomMessages[scopeKey]?.value = const [];
+  }
+
+  /// Clears injected messages for every scope.
+  void clearAllMessages() {
+    for (final sig in _roomMessages.values) {
+      sig.value = const [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // UiRenderer — modals / toasts / confirm
+  // ---------------------------------------------------------------------------
 
   @override
   Future<String?> showModal({
@@ -97,16 +150,9 @@ class SoliplexUiRenderer implements UiRenderer {
 
   @override
   void injectMessage({required String content, String? format}) {
-    final id = 'injected_${_messageCounter++}';
-    _injectedMessages.value = [
-      ..._injectedMessages.value,
-      InjectedMessage(
-        id: id,
-        content: content,
-        format: format ?? 'markdown',
-        createdAt: DateTime.now(),
-      ),
-    ];
+    // Called when UiPlugin is not scoped. Use a fallback key so messages
+    // still appear (they'll be visible in any scope watching '_default').
+    injectMessageFor('_default', content: content, format: format);
   }
 
   @override
@@ -124,7 +170,65 @@ class SoliplexUiRenderer implements UiRenderer {
       target: target,
     );
   }
+}
 
-  /// Remove all injected messages (e.g. on navigation or session end).
-  void clearInjectedMessages() => _injectedMessages.value = const [];
+// ---------------------------------------------------------------------------
+// RoomScopedUiRenderer
+// ---------------------------------------------------------------------------
+
+/// A [UiRenderer] wrapper that scopes [injectMessage] to a specific scope key.
+///
+/// Pass one of these to each [UiPlugin] created inside `buildEnv` so that
+/// Python's `ui_inject_message` calls are stored under the given scope key
+/// and only shown in the matching view.
+///
+/// The scope key can be at any granularity:
+///   - room level:   `'$serverId:$roomId'`
+///   - thread level: `'$serverId:$roomId:$threadId'`
+///
+/// All other renderer operations (modals, toasts, confirm) are delegated to
+/// the underlying [SoliplexUiRenderer] unchanged — they are app-level
+/// interactions that don't need scope isolation.
+class RoomScopedUiRenderer implements UiRenderer {
+  /// Creates a renderer scoped to [scopeKey] backed by [base].
+  RoomScopedUiRenderer(this._base, this.scopeKey);
+
+  final SoliplexUiRenderer _base;
+
+  /// The scope key this renderer injects messages under.
+  final String scopeKey;
+
+  @override
+  void injectMessage({required String content, String? format}) =>
+      _base.injectMessageFor(scopeKey, content: content, format: format);
+
+  @override
+  Future<String?> showModal({
+    required String title,
+    required String body,
+    List<String>? actions,
+  }) =>
+      _base.showModal(title: title, body: body, actions: actions);
+
+  @override
+  Future<Map<String, Object?>?> showForm({
+    required Map<String, Object?> schema,
+  }) =>
+      _base.showForm(schema: schema);
+
+  @override
+  void notify({
+    required String kind,
+    required String title,
+    String? body,
+  }) =>
+      _base.notify(kind: kind, title: title, body: body);
+
+  @override
+  Future<bool> requestConfirm({
+    required String verb,
+    required String message,
+    String? target,
+  }) =>
+      _base.requestConfirm(verb: verb, message: message, target: target);
 }
