@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../copy_button.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
-/// Styled scrollable block for displaying a raw/JSON payload as rendered markdown.
+/// Styled scrollable block for displaying a raw/JSON payload as plain monospace text.
 class ArgsBlock extends StatefulWidget {
   const ArgsBlock({
     super.key,
@@ -35,10 +35,10 @@ class _ArgsBlockState extends State<ArgsBlock> {
     super.dispose();
   }
 
-  static String _toMarkdown(String s) {
+  static String _prettyPrint(String s) {
     try {
       final obj = jsonDecode(s);
-      if (obj is Map<String, dynamic>) return _mapToMarkdown(obj);
+      if (obj is Map<String, dynamic>) return _renderMap(obj, 0);
       if (obj is String) return obj;
       return const JsonEncoder.withIndent('  ').convert(obj);
     } catch (_) {
@@ -46,26 +46,32 @@ class _ArgsBlockState extends State<ArgsBlock> {
     }
   }
 
-  static String _mapToMarkdown(Map<String, dynamic> map) {
+  static String _renderMap(Map<String, dynamic> map, int depth) {
+    final pad = '  ' * depth;
     final parts = <String>[];
     for (final e in map.entries) {
       final v = e.value;
       if (v is String && v.contains('\n')) {
-        parts.add('${e.key}:\n\n```\n${v.trimRight()}\n```');
-      } else if (v is Map || v is List) {
+        final indented =
+            v.trimRight().split('\n').map((l) => '$pad  $l').join('\n');
+        parts.add('$pad${e.key}:\n$indented');
+      } else if (v is Map<String, dynamic>) {
+        parts.add('$pad${e.key}:\n${_renderMap(v, depth + 1)}');
+      } else if (v is List) {
         final json = const JsonEncoder.withIndent('  ').convert(v);
-        parts.add('${e.key}:\n\n```json\n$json\n```');
+        final indented = json.split('\n').map((l) => '$pad  $l').join('\n');
+        parts.add('$pad${e.key}:\n$indented');
       } else {
-        parts.add('${e.key}: $v');
+        parts.add('$pad${e.key}: $v');
       }
     }
-    return parts.join('\n\n');
+    return parts.join('\n');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final display = _toMarkdown(widget.raw);
+    final display = _prettyPrint(widget.raw);
 
     return Padding(
       padding: EdgeInsets.only(left: widget.indent, top: 4, bottom: 4),
@@ -104,7 +110,7 @@ class _ArgsBlockState extends State<ArgsBlock> {
                 ],
               ),
             ),
-            // scrollable markdown body
+            // scrollable monospace body
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 300),
               child: Scrollbar(
@@ -113,7 +119,16 @@ class _ArgsBlockState extends State<ArgsBlock> {
                 child: SingleChildScrollView(
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-                  child: FlutterMarkdownPlusRenderer(data: display),
+                  child: SelectableText(
+                    display,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: monospaceFont(Theme.of(context).platform),
+                      fontFamilyFallback: const ['monospace'],
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                      height: 1.5,
+                    ),
+                  ),
                 ),
               ),
             ),

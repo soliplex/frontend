@@ -24,7 +24,6 @@ class _ActivityLogState extends State<ActivityLog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final all = widget.tracker.activities.watch(context);
-    // Only show activities that have something useful to display
     final activities = all.where(_isUseful).toList();
     if (activities.isEmpty) return const SizedBox.shrink();
 
@@ -88,23 +87,14 @@ class _ActivityLogState extends State<ActivityLog> {
   }
 
   static bool _isUseful(ActivityEntry entry) {
-    switch (entry.activityType) {
-      case 'skill_tool_call':
-        final args = entry.content['args'];
-        return args is String && args.isNotEmpty;
-      case 'skill_tool_result':
-        final result = _extractResult(entry.content);
-        return result != null && result.trim().isNotEmpty;
-      default:
-        return false; // unknown types hidden unless we explicitly handle them
-    }
-  }
-
-  static String? _extractResult(Map<String, dynamic> content) {
-    final r = content['result'];
-    if (r == null) return null;
-    if (r is String) return r.isEmpty ? null : r;
-    return const JsonEncoder.withIndent('  ').convert(r);
+    if (entry.activityType != 'skill_tool_call') return false;
+    final args = entry.content['args'];
+    if (args is! String || args.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(args);
+      if (decoded is Map && decoded.isEmpty) return false;
+    } catch (_) {}
+    return true;
   }
 }
 
@@ -124,7 +114,6 @@ class _ActivityRowState extends State<_ActivityRow> {
   Widget build(BuildContext context) {
     final entry = widget.entry;
     final theme = widget.theme;
-    final isResult = entry.activityType == 'skill_tool_result';
     final (primaryLabel, secondaryLabel) = _labelParts(entry);
     final payload = _payload(entry);
 
@@ -141,13 +130,9 @@ class _ActivityRowState extends State<_ActivityRow> {
             child: Row(
               children: [
                 Icon(
-                  isResult
-                      ? Icons.call_received_outlined
-                      : Icons.call_made_outlined,
+                  Icons.call_made_outlined,
                   size: 13,
-                  color: isResult
-                      ? theme.colorScheme.tertiary
-                      : theme.colorScheme.secondary,
+                  color: theme.colorScheme.secondary,
                 ),
                 const SizedBox(width: 6),
                 if (payload != null) ...[
@@ -199,7 +184,6 @@ class _ActivityRowState extends State<_ActivityRow> {
             ArgsBlock(
               raw: payload,
               indent: 18,
-              accentColor: isResult ? theme.colorScheme.tertiary : null,
             ),
         ],
       ),
@@ -217,18 +201,8 @@ class _ActivityRowState extends State<_ActivityRow> {
   }
 
   static String? _payload(ActivityEntry entry) {
-    final c = entry.content;
-    switch (entry.activityType) {
-      case 'skill_tool_call':
-        final args = c['args'];
-        if (args is String && args.isNotEmpty) return args;
-        return null;
-      case 'skill_tool_result':
-        final r = c['result'];
-        if (r == null) return null;
-        if (r is String) return r.isEmpty ? null : r;
-        return const JsonEncoder.withIndent('  ').convert(r);
-    }
+    final args = entry.content['args'];
+    if (args is String && args.isNotEmpty) return args;
     return null;
   }
 
