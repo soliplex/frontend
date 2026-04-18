@@ -174,8 +174,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: main
-      resolved-ref: "121c74cd90e09741325ac5462b8d975ddcf91fcb"
+      ref: "feat/repl-platform"
+      resolved-ref: "56f52c30a699a563e2f3a1ebef14c86e5fa375e9"
       url: "https://github.com/runyaga/dart_monty.git"
     source: git
     version: "0.20.0"
