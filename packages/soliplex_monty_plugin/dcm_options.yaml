@@ -1,0 +1,213 @@
+# =============================================================================
+# DCM Configuration — soliplex_monty_plugin
+# =============================================================================
+# Rules adapted from dart_monty. Package-internal file-level exclusions have
+# been stripped; only general patterns (test/**, *.g.dart) are retained.
+# Documentation: https://dcm.dev/docs/configuration
+# =============================================================================
+
+dcm:
+  # ---------------------------------------------------------------------------
+  # Metrics Thresholds
+  # ---------------------------------------------------------------------------
+
+  metrics:
+    cyclomatic-complexity:
+      threshold: 10
+
+    lines-of-code:
+      threshold: 50
+
+    number-of-parameters:
+      threshold: 6
+
+    maximum-nesting-level:
+      threshold: 4
+
+    number-of-methods:
+      threshold: 15
+
+    weight-of-a-class:
+      threshold: 15.0
+
+  # ---------------------------------------------------------------------------
+  # Global Exclusions
+  # ---------------------------------------------------------------------------
+
+  exclude:
+    metrics:
+      - "**/*.g.dart"
+      - "**/*.freezed.dart"
+      - "build/**"
+      - "test/**"
+    rules:
+      - "**/*.g.dart"
+      - "**/*.freezed.dart"
+
+  # ---------------------------------------------------------------------------
+  # Rules
+  # ---------------------------------------------------------------------------
+
+  rules:
+    # --- Bug Prevention ---
+    - avoid-throw-in-finally-block
+    - avoid-unsafe-collection-methods
+    - avoid-missing-completer-stack-trace
+    - avoid-uncaught-future-errors
+    - avoid-recursive-calls
+    - avoid-contradictory-expressions
+    - avoid-self-assignment
+    - avoid-unused-assignment
+    - avoid-unassigned-late-fields
+    - no-equal-arguments
+    - no-equal-conditions
+
+    # --- Code Quality ---
+    - avoid-collapsible-if
+    - avoid-redundant-else
+    - avoid-unnecessary-conditionals
+    - avoid-unnecessary-overrides
+    - avoid-shadowing
+    - avoid-only-rethrow
+    - avoid-identical-exception-handling-blocks
+    - prefer-early-return
+    - prefer-returning-condition
+    - move-variable-closer-to-its-usage
+
+    # --- Error Handling & Variables ---
+    - avoid-throw-objects-without-tostring
+    - avoid-non-final-exception-class-fields
+    - prefer-correct-error-name
+    - avoid-unnecessary-local-variable
+    - avoid-unnecessary-reassignment
+    - avoid-mutating-parameters
+    - avoid-unused-local-variable
+    - avoid-nested-try-statements
+    - avoid-missing-interpolation
+    - prefer-correct-identifier-length
+
+    # --- Robustness & Correctness ---
+    - avoid-unsafe-reduce
+    - avoid-map-keys-contains
+    - prefer-contains
+    - avoid-duplicate-map-keys
+    - avoid-duplicate-patterns
+    - avoid-equal-expressions
+    - avoid-constant-conditions
+    - no-equal-switch-case
+    - no-equal-switch-expression-cases
+    - no-equal-nested-conditions
+
+    # --- Common Anti-Patterns ---
+    - avoid-unused-parameters
+    - avoid-nested-conditional-expressions
+    - avoid-missing-enum-constant-in-map
+    - avoid-unnecessary-type-assertions
+    - avoid-unnecessary-type-casts
+    - avoid-unrelated-type-assertions
+    - avoid-redundant-async
+    - avoid-duplicate-exports
+    - avoid-collection-methods-with-unrelated-types
+    - avoid-passing-async-when-sync-expected
+
+    # --- Style & Formatting ---
+    - prefer-match-file-name:
+        exclude:
+          - "test/**"
+    - prefer-immediate-return
+    - prefer-commenting-analyzer-ignores
+    - prefer-conditional-expressions
+    - prefer-trailing-comma
+    - prefer-moving-to-variable
+    - newline-before-return
+    - no-boolean-literal-compare
+    - no-empty-block
+    - no-equal-then-else
+    - prefer-first
+    - prefer-last
+    - binary-expression-operand-order
+    - double-literal-format
+
+    # --- Style Consistency ---
+    - prefer-switch-expression
+    - avoid-unnecessary-parentheses
+    - prefer-async-await
+    - avoid-adjacent-strings
+    - prefer-declaring-const-constructor
+    - format-comment
+
+    # --- Immutability ---
+    - prefer-final-fields
+
+    # --- Async & Type Safety ---
+    - avoid-nested-futures
+    - avoid-nested-streams-and-futures
+    - prefer-return-await
+    - avoid-type-casts
+    - avoid-inferrable-type-arguments
+    - avoid-unnecessary-futures
+    - prefer-correct-future-return-type
+    - avoid-future-tostring
+    - avoid-nullable-tostring
+    - dispose-class-fields:
+        exclude:
+          # _montySession is disposed via _executeMutex.protect(_montySession.dispose)
+          # in MontyScriptEnvironment.dispose(). The tearoff through unawaited(protect())
+          # is not traceable by DCM static analysis.
+          - "lib/src/monty_script_environment.dart"
+
+    # --- Null Safety & Types ---
+    - avoid-late-keyword:
+        exclude:
+          - "test/**"
+    - avoid-dynamic:
+        exclude:
+          - "test/**"
+    - avoid-non-null-assertion:
+        exclude:
+          - "test/**"
+
+    # --- Class Design & Architecture ---
+    - avoid-accessing-other-classes-private-members
+    - avoid-default-tostring
+    - prefer-abstract-final-static-class
+    - avoid-suspicious-super-overrides
+    - avoid-unnecessary-constructor
+    - avoid-shadowed-extension-methods
+    - avoid-duplicate-mixins
+    - avoid-referencing-subclasses
+    - match-getter-setter-field-names
+    - avoid-declaring-call-method
+
+    # --- Import Safety ---
+    - avoid-banned-imports:
+        entries:
+          - paths: ["lib/"]
+            deny:
+              - "package:flutter/material.dart"
+              - "package:flutter/widgets.dart"
+              - "package:flutter/cupertino.dart"
+            message: "This is a pure Dart package. Do not import Flutter."
+    - avoid-global-state
+
+    # --- Member Ordering ---
+    - member-ordering:
+        order:
+          - constructors
+          - public-fields
+          - private-fields
+          - get-setters
+          - public-methods
+          - private-methods
+          - overridden-methods
+
+    # --- Testing ---
+    - prefer-test-matcher
+    - prefer-correct-test-file-name:
+        exclude:
+          # Debug/utility scripts — not package:test files
+          - "test/**/*debug*.dart"
+          - "test/**/*live*.dart"
+          - "test/**/*qwen*.dart"
+          - "test/**/*validate*.dart"
+          - "test/**/*wave5*.dart"

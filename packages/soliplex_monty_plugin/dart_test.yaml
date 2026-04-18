@@ -1,0 +1,7 @@
+tags:
+  monty:
+    timeout: 30s
+  integration:
+    skip: "Skipped by default (requires live services). Run: dart test --run-skipped --tags=integration"
+
+custom_html_template_path: test/wasm_test_template.html
