@@ -230,6 +230,44 @@ class StepProgress extends ExecutionEvent {
   int get hashCode => stepName.hashCode;
 }
 
+/// A client-side tool is about to trigger a platform-level consent dialog.
+///
+/// Emitted immediately before tool execution when the tool's
+/// `platformConsentNote` callback returns a non-null string on the current
+/// platform.
+///
+/// Unlike [AwaitingApproval], this does NOT suspend execution — it is purely
+/// informational so the UI can warn the user before the OS dialog appears
+/// (e.g. "This tool will request clipboard access from the browser").
+class PlatformConsentNotice extends ExecutionEvent {
+  const PlatformConsentNotice({
+    required this.toolCallId,
+    required this.toolName,
+    required this.note,
+  });
+
+  /// The tool call that will trigger the OS consent dialog.
+  final String toolCallId;
+
+  /// Name of the tool.
+  final String toolName;
+
+  /// Human-readable description of the platform consent that will be requested
+  /// (e.g. "Clipboard access requires browser permission on web").
+  final String note;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlatformConsentNotice &&
+          toolCallId == other.toolCallId &&
+          toolName == other.toolName &&
+          note == other.note;
+
+  @override
+  int get hashCode => Object.hash(toolCallId, toolName, note);
+}
+
 /// A tool is awaiting user approval before executing a sensitive action.
 ///
 /// Emitted by `AgentSession.requestApproval` so UI layers can display

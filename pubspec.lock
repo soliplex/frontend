@@ -174,20 +174,11 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: main
-      resolved-ref: "121c74cd90e09741325ac5462b8d975ddcf91fcb"
+      ref: "chore/monty-0.0.12-upgrade"
+      resolved-ref: "927b9ff7c988c762314772af757798f9657c92c6"
       url: "https://github.com/runyaga/dart_monty.git"
     source: git
     version: "0.20.0"
-  dart_monty_core:
-    dependency: transitive
-    description:
-      path: "."
-      ref: main
-      resolved-ref: c3d7a069066a794441486c55e82f669503bfaf21
-      url: "https://github.com/runyaga/dart_monty_core.git"
-    source: git
-    version: "0.0.1"
   dbus:
     dependency: transitive
     description:

@@ -81,6 +81,7 @@ class ThreadViewState {
   AgentSession? _activeSession;
   Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
+  void Function()? _approvalUnsub;
   bool _isDisposed = false;
 
   final Signal<ThreadViewStatus> _messages =
@@ -100,6 +101,11 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
+
+  final Signal<PendingApprovalRequest?> _pendingApproval =
+      Signal<PendingApprovalRequest?>(null);
+  ReadonlySignal<PendingApprovalRequest?> get pendingApproval =>
+      _pendingApproval;
 
   final TrackerRegistry _trackerRegistry = TrackerRegistry();
   Map<String, ExecutionTracker> get executionTrackers =>
@@ -162,6 +168,12 @@ class ThreadViewState {
     _activeSession?.cancel();
   }
 
+  void approveToolCall(String toolCallId) =>
+      _activeSession?.approveToolCall(toolCallId);
+
+  void denyToolCall(String toolCallId) =>
+      _activeSession?.denyToolCall(toolCallId);
+
   /// Cancels a pending spawn if one exists. Returns true if a spawn was
   /// cancelled, false if there was nothing pending.
   bool _cancelPendingSpawn() {
@@ -185,6 +197,8 @@ class ThreadViewState {
     _activeSession = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    _approvalUnsub =
+        session.pendingApproval.subscribe((r) => _pendingApproval.value = r);
   }
 
   void _onRunState(RunState runState) {
@@ -241,9 +255,12 @@ class ThreadViewState {
   void _detachSession() {
     _runStateUnsub?.call();
     _runStateUnsub = null;
+    _approvalUnsub?.call();
+    _approvalUnsub = null;
     _activeSession = null;
     _streamingState.value = null;
     _sessionState.value = null;
+    _pendingApproval.value = null;
   }
 
   bool _restoreFromRegistry() {

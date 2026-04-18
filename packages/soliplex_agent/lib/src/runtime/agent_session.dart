@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:meta/meta.dart';
 import 'package:signals_core/signals_core.dart';
@@ -10,7 +11,7 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_runtime.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
-import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
+import 'package:soliplex_agent/src/runtime/pending_approval.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_execution_context.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
@@ -43,12 +44,10 @@ class AgentSession implements ToolExecutionContext {
     required ToolRegistry toolRegistry,
     required Logger logger,
     List<SessionExtension> extensions = const [],
-    AgentUiDelegate? uiDelegate,
   })  : _runtime = runtime,
         _orchestrator = orchestrator,
         _toolRegistry = toolRegistry,
         _extensions = extensions,
-        _uiDelegate = uiDelegate,
         _logger = logger,
         id = '${threadKey.threadId}-'
             '${DateTime.now().microsecondsSinceEpoch}';
@@ -69,7 +68,6 @@ class AgentSession implements ToolExecutionContext {
   final RunOrchestrator _orchestrator;
   final ToolRegistry _toolRegistry;
   final List<SessionExtension> _extensions;
-  final AgentUiDelegate? _uiDelegate;
   final Logger _logger;
 
   static const _toolTimeout = Duration(seconds: 60);
@@ -85,6 +83,9 @@ class AgentSession implements ToolExecutionContext {
     AgentSessionState.spawning,
   );
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
+  final Signal<PendingApprovalRequest?> _pendingApprovalSignal = signal(null);
+  final Map<String, Completer<bool>> _pendingApprovals = {};
+  bool _userDenied = false;
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -124,6 +125,43 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the most recent [ExecutionEvent].
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent =>
       _executionEventSignal.readonly();
+
+  /// Reactive signal tracking a tool call that is suspended pending approval.
+  ///
+  /// Non-null when a [ClientTool] with [ClientTool.requiresApproval] `true`
+  /// has been called but not yet approved or denied. The tool execution loop
+  /// is suspended until [approveToolCall] or [denyToolCall] is called.
+  ///
+  /// Returns to `null` after resolution or session cancellation.
+  ///
+  /// ## Approval categories
+  ///
+  /// - `execute_python` — agent-level gate, this signal fires.
+  /// - `get_location` — OS shows its own consent dialog; this signal is
+  ///   never emitted because `requiresApproval` is `false`.
+  /// - `render_widget` — no approval at any level; this signal is never
+  ///   emitted.
+  ReadonlySignal<PendingApprovalRequest?> get pendingApproval =>
+      _pendingApprovalSignal.readonly();
+
+  /// Approves the pending tool call identified by [toolCallId].
+  ///
+  /// No-op if [toolCallId] is not currently pending.
+  void approveToolCall(String toolCallId) {
+    _pendingApprovals.remove(toolCallId)?.complete(true);
+    _pendingApprovalSignal.set(null);
+  }
+
+  /// Denies the pending tool call identified by [toolCallId].
+  ///
+  /// Cancels the entire session — the LLM would otherwise see
+  /// "User denied" as a tool result and retry. No-op if not pending.
+  void denyToolCall(String toolCallId) {
+    _userDenied = true;
+    _pendingApprovals.remove(toolCallId)?.complete(false);
+    _pendingApprovalSignal.set(null);
+    cancel();
+  }
 
   /// Waits for the session result with an optional timeout.
   Future<AgentResult> awaitResult({Duration? timeout}) {
@@ -170,22 +208,46 @@ class AgentSession implements ToolExecutionContext {
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
-  }) async {
-    if (_uiDelegate == null) return false;
+  }) =>
+      _awaitApproval(
+        toolCallId: toolCallId,
+        toolName: toolName,
+        arguments: arguments,
+      );
+
+  // ---------------------------------------------------------------------------
+  // Internal approval gate
+  // ---------------------------------------------------------------------------
+
+  /// Suspends execution until the caller approves or denies [toolCallId].
+  ///
+  /// Emits [AwaitingApproval] on [lastExecutionEvent] and
+  /// [PendingApprovalRequest] on [pendingApproval].
+  /// Auto-denies if the session is cancelled while waiting.
+  Future<bool> _awaitApproval({
+    required String toolCallId,
+    required String toolName,
+    required Map<String, dynamic> arguments,
+  }) {
+    if (_disposed) return Future.value(false);
+    final completer = Completer<bool>();
+    _pendingApprovals[toolCallId] = completer;
+    _pendingApprovalSignal.set(
+      PendingApprovalRequest(
+        toolCallId: toolCallId,
+        toolName: toolName,
+        arguments: arguments,
+      ),
+    );
     emitEvent(
       AwaitingApproval(
         toolCallId: toolCallId,
         toolName: toolName,
-        rationale: rationale,
+        rationale: 'Approval required before executing $toolName',
       ),
     );
     return Future.any([
-      _uiDelegate.requestToolApproval(
-        session: this,
-        toolName: toolName,
-        arguments: arguments,
-        rationale: rationale,
-      ),
+      completer.future,
       cancelToken.whenCancelled.then((_) => false),
     ]);
   }
@@ -288,9 +350,18 @@ class AgentSession implements ToolExecutionContext {
     _baseEventSubscription = null;
     _orchestrator.dispose();
     _completeIfPending();
+    _denyAllPendingApprovals();
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
     _executionEventSignal.dispose();
+    _pendingApprovalSignal.dispose();
+  }
+
+  void _denyAllPendingApprovals() {
+    for (final completer in _pendingApprovals.values) {
+      if (!completer.isCompleted) completer.complete(false);
+    }
+    _pendingApprovals.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -345,14 +416,75 @@ class AgentSession implements ToolExecutionContext {
   // Tool execution (callback for runToCompletion)
   // ---------------------------------------------------------------------------
 
-  Future<List<ToolCallInfo>> _executeAll(List<ToolCallInfo> pendingTools) {
-    return Future.wait(pendingTools.map(_executeSingle));
+  Future<List<ToolCallInfo>> _executeAll(
+    List<ToolCallInfo> pendingTools,
+  ) async {
+    // Tools that require user approval must run serially: concurrent approval
+    // requests would race to set _pendingApprovalSignal and all but the last
+    // would silently deadlock waiting for a banner that is never shown.
+    // Non-approval tools continue to run concurrently.
+    //
+    // If the user denies any approval-required tool, _userDenied is set and
+    // the loop exits immediately — the session is cancelled by denyToolCall.
+    final results = <ToolCallInfo>[];
+    final concurrent = <ToolCallInfo>[];
+    for (final tc in pendingTools) {
+      if (_userDenied) break;
+      final tool = _toolRegistry.lookup(tc.name);
+      if (tool.requiresApproval) {
+        results.add(await _executeSingle(tc));
+        if (_userDenied) break;
+      } else {
+        concurrent.add(tc);
+      }
+    }
+    if (!_userDenied) {
+      results.addAll(await Future.wait(concurrent.map(_executeSingle)));
+    }
+    return results;
   }
 
   Future<ToolCallInfo> _executeSingle(ToolCallInfo toolCall) async {
     emitEvent(
       ClientToolExecuting(toolName: toolCall.name, toolCallId: toolCall.id),
     );
+
+    // HITL gate: tools with requiresApproval:true suspend here until the UI
+    // calls approveToolCall / denyToolCall on this session.
+    //
+    // Tools with requiresApproval:false (default) skip this entirely:
+    //   - get_location: OS shows its own consent dialog inside the executor
+    //   - render_widget: no approval needed at any level
+    final tool = _toolRegistry.lookup(toolCall.name);
+    if (tool.requiresApproval) {
+      final args = toolCall.arguments.isEmpty
+          ? <String, dynamic>{}
+          : (jsonDecode(toolCall.arguments) as Map<String, dynamic>);
+      final approved = await _awaitApproval(
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        arguments: args,
+      );
+      if (!approved) {
+        return _handleToolDenied(toolCall);
+      }
+    }
+
+    // Platform consent notice: non-blocking, informational only.
+    // Fires when a tool may trigger an OS-level consent dialog on the current
+    // platform (e.g. clipboard on web). Execution proceeds immediately after
+    // the event is emitted — the OS handles the actual consent gate.
+    final consentNote = tool.platformConsentNote?.call();
+    if (consentNote != null) {
+      emitEvent(
+        PlatformConsentNotice(
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          note: consentNote,
+        ),
+      );
+    }
+
     try {
       final result =
           await _toolRegistry.execute(toolCall, this).timeout(_toolTimeout);
@@ -370,6 +502,18 @@ class AgentSession implements ToolExecutionContext {
     } on Object catch (error, stackTrace) {
       return _handleToolError(toolCall, error, stackTrace);
     }
+  }
+
+  ToolCallInfo _handleToolDenied(ToolCallInfo toolCall) {
+    const result = 'User denied tool execution.';
+    emitEvent(
+      ClientToolCompleted(
+        toolCallId: toolCall.id,
+        result: result,
+        status: ToolCallStatus.failed,
+      ),
+    );
+    return toolCall.copyWith(status: ToolCallStatus.failed, result: result);
   }
 
   ToolCallInfo _handleToolError(

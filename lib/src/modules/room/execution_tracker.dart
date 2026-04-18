@@ -81,6 +81,7 @@ class ExecutionTracker {
         _aguiState.value = aguiState;
       case TextDelta() ||
             StepProgress() ||
+            PlatformConsentNotice() ||
             AwaitingApproval() ||
             CustomExecutionEvent():
         break;

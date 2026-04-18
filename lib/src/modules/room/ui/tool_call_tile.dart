@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:flutter/services.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'execution/args_block.dart';
 
@@ -54,19 +57,110 @@ class _ToolCallCard extends StatelessWidget {
         ),
         dense: true,
         children: [
-          if (toolCall.hasArguments)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ArgsBlock(raw: toolCall.arguments),
-            ),
+          if (toolCall.hasArguments) ..._argumentBlocks(toolCall),
           if (toolCall.hasResult)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ArgsBlock(
-                raw: toolCall.result,
-                accentColor: theme.colorScheme.tertiary,
+            _CodeBlock(label: 'Result', text: toolCall.result),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _argumentBlocks(ToolCallInfo toolCall) {
+    final raw = toolCall.arguments;
+    if (raw.isEmpty) return const [];
+
+    // Python tools: show the code directly, not JSON-wrapped.
+    const pythonTools = {'run_script', 'repl_python', 'execute_python'};
+    if (pythonTools.contains(toolCall.name)) {
+      try {
+        final args = jsonDecode(raw) as Map<String, dynamic>;
+        final code = args['code'] as String?;
+        if (code != null) return [_CodeBlock(label: 'Code', text: code)];
+      } catch (_) {}
+    }
+
+    // All other tools: pretty-print the JSON so it's readable.
+    try {
+      final decoded = jsonDecode(raw);
+      const encoder = JsonEncoder.withIndent('  ');
+      return [_CodeBlock(label: 'Arguments', text: encoder.convert(decoded))];
+    } catch (_) {
+      return [_CodeBlock(label: 'Arguments', text: raw)];
+    }
+  }
+}
+
+class _CodeBlock extends StatefulWidget {
+  const _CodeBlock({required this.label, required this.text});
+  final String label;
+  final String text;
+
+  @override
+  State<_CodeBlock> createState() => _CodeBlockState();
+}
+
+class _CodeBlockState extends State<_CodeBlock> {
+  bool _copied = false;
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                widget.label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              const Spacer(),
+              _copied
+                  ? Text(
+                      'Copied',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : InkWell(
+                      onTap: _copy,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Icon(
+                        Icons.copy_rounded,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
             ),
+            child: SelectableText(
+              widget.text,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontFamily: 'monospace'),
+            ),
+          ),
         ],
       ),
     );

@@ -21,10 +21,44 @@ const Map<String, Object> emptyToolParameters = {
 };
 
 /// A client-side tool definition paired with its executor.
+///
+/// ## Approval model
+///
+/// Tools fall into two categories based on [requiresApproval]:
+///
+/// **Agent-gated tools** (`requiresApproval: true`) — the agent framework
+/// suspends execution and emits a `PendingApprovalRequest` on
+/// `AgentSession.pendingApproval`. The UI must call
+/// `AgentSession.approveToolCall` or `AgentSession.denyToolCall` to resume.
+/// Use this for operations the user should consciously authorise, such as
+/// running arbitrary Python code.
+///
+/// ```dart
+/// ClientTool(requiresApproval: true, ...)  // execute_python
+/// ```
+///
+/// **Platform-gated or ungated tools** (`requiresApproval: false`, the
+/// default) — the tool executor runs immediately. No agent-level approval
+/// dialog is shown. Two sub-cases:
+///
+/// - *OS-level permission*: the tool executor itself calls a platform API that
+///   triggers the OS consent dialog (e.g., iOS "Allow location access?" for
+///   `get_location`). The agent is not involved; the OS handles consent.
+/// - *No approval needed*: purely additive operations like rendering a widget
+///   or logging that have no side-effects requiring user consent.
+///
+/// ```dart
+/// ClientTool(requiresApproval: false, ...)  // get_location, render_widget
+/// ```
 @immutable
 class ClientTool {
   /// Creates a client-side tool from a pre-built [Tool] definition.
-  const ClientTool({required this.definition, required this.executor});
+  const ClientTool({
+    required this.definition,
+    required this.executor,
+    this.requiresApproval = false,
+    this.platformConsentNote,
+  });
 
   /// Creates a client-side tool with sensible defaults.
   ///
@@ -35,6 +69,8 @@ class ClientTool {
     required String description,
     required this.executor,
     dynamic parameters = emptyToolParameters,
+    this.requiresApproval = false,
+    this.platformConsentNote,
   }) : definition = Tool(
           name: name,
           description: description,
@@ -47,6 +83,40 @@ class ClientTool {
 
   /// Function that executes the tool and returns a result string.
   final ToolExecutor executor;
+
+  /// Whether the agent framework must obtain user approval before executing.
+  ///
+  /// `true` — suspends execution and emits `PendingApprovalRequest` on
+  /// `AgentSession.pendingApproval`. Example: `execute_python`.
+  ///
+  /// `false` (default) — executes immediately. The OS or tool executor may
+  /// still show their own consent dialogs independently. Example:
+  /// `get_location` (OS dialog), `render_widget` (no dialog).
+  final bool requiresApproval;
+
+  /// Optional callback that returns a human-readable description of the
+  /// OS-level consent this tool may trigger on the current platform.
+  ///
+  /// Called immediately before tool execution. If it returns a non-null
+  /// string, `AgentSession` emits a `PlatformConsentNotice` event so the UI
+  /// can warn the user before the OS dialog appears. Execution is NOT
+  /// suspended — this is purely informational.
+  ///
+  /// Return `null` when the current platform requires no special consent.
+  ///
+  /// The callback is defined at the call site (Flutter code) so it can
+  /// reference platform predicates such as `kIsWeb` without coupling this
+  /// package to Flutter:
+  ///
+  /// ```dart
+  /// ClientTool(
+  ///   platformConsentNote: () => kIsWeb
+  ///       ? 'Clipboard access requires browser permission'
+  ///       : null,
+  ///   ...
+  /// )
+  /// ```
+  final String? Function()? platformConsentNote;
 }
 
 /// Immutable registry of client-side tools.
