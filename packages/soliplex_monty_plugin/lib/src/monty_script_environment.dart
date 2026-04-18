@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:dart_monty/dart_monty.dart' as dm;
 import 'package:dart_monty/dart_monty_bridge.dart'
     show
+        BridgeMiddleware,
+        CallRole,
         HostFunction,
         HostFunctionSchema,
         HostParam,
@@ -113,6 +115,14 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
   @override
   Future<void> onAttach(AgentSession session) => Future.value();
+
+  /// Registers a [BridgeMiddleware] on the underlying dart_monty bridge.
+  ///
+  /// Middleware intercepts every Python tool call. Inspect [CallRole] to
+  /// skip infrastructure calls. Only effective in shared (non-sandbox) mode.
+  void registerMiddleware(BridgeMiddleware middleware) {
+    _montySession.bridge?.use(middleware);
+  }
 
   @override
   void dispose() {

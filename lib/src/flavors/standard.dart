@@ -27,7 +27,9 @@ import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
 import '../modules/quiz/quiz_module.dart';
+import '../modules/room/access_policy.dart';
 import '../modules/room/agent_runtime_manager.dart';
+import '../modules/room/policy_enforcement_middleware.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
@@ -161,7 +163,7 @@ Future<ShellConfig> standard({
     final roomUiPlugin = kDebugMode
         ? UiPlugin(renderer: RoomScopedUiRenderer(uiRenderer, roomKey))
         : null;
-    return MontyScriptEnvironment(
+    final env = MontyScriptEnvironment(
       tools: buildSoliplexToolset(
         ctx,
         getConnections,
@@ -169,6 +171,8 @@ Future<ShellConfig> standard({
       ),
       plugins: roomUiPlugin != null ? [roomUiPlugin] : [],
     );
+    env.registerMiddleware(PolicyEnforcementMiddleware(AccessPolicy.permissive));
+    return env;
   }
 
   Future<String> replExecutor(
