@@ -192,12 +192,16 @@ class MontyScriptEnvironment implements ScriptEnvironment {
             'interpreter. Write all logic in one call. Returns print() '
             'output and the last-expression value.\n\n'
             'LIMITATIONS (Monty subset of Python):\n'
-            '- No tuple unpacking in for-loops. Use indexing instead: '
-            '`for pair in items: a, b = pair[0], pair[1]`\n'
+            '- Every if/else/for/while block must have a body. '
+            'Use `pass` for intentionally empty blocks.\n'
+            '- No chained assignment: write `a=0; b=0` not `a=b=0`.\n'
+            '- No str.format() or %% formatting. Use f-strings: '
+            '`f"value={x}"`.\n'
             '- No imports. Standard library unavailable.\n'
             '- No classes, generators, decorators, or async/await.\n'
-            '- Arithmetic, lists, dicts, strings, if/else, for/while, '
-            'functions (def), and closures all work.',
+            '- Everything else works: f-strings, list/dict comprehensions, '
+            'lambda, try/except, tuple unpacking, zip, sorted, sum, '
+            'min, max, abs, int(), str(), split(), append(), etc.',
         parameters: {
           'type': 'object',
           'properties': {
@@ -218,8 +222,9 @@ class MontyScriptEnvironment implements ScriptEnvironment {
             'Feed a snippet to the persistent Python REPL. Variables from '
             'previous calls remain in scope.\n\n'
             'LIMITATIONS (Monty subset of Python):\n'
-            '- No tuple unpacking in for-loops. Use indexing: '
-            '`for pair in items: a, b = pair[0], pair[1]`\n'
+            '- Every block must have a body (use pass if needed).\n'
+            '- No chained assignment (`a=b=0`). '
+            'No str.format()/%%—use f-strings.\n'
             '- No imports. No classes, generators, decorators, async/await.',
         parameters: {
           'type': 'object',
