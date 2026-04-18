@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 
@@ -163,5 +162,109 @@ void main() {
       toolCallId: 'tc-1',
     );
     expect(tracker.steps.value, isEmpty);
+  });
+
+  // -----------------------------------------------------------------------
+  // AwaitingApproval
+  // -----------------------------------------------------------------------
+
+  group('AwaitingApproval', () {
+    test('sets awaitingApprovalFor to the tool call ID', () {
+      events.value = const ClientToolExecuting(
+        toolName: 'get_clipboard',
+        toolCallId: 'tc-3',
+      );
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-3',
+        toolName: 'get_clipboard',
+        rationale: 'Read clipboard',
+      );
+
+      expect(tracker.awaitingApprovalFor.value, 'tc-3');
+    });
+
+    test('upserts tool call with awaitingApproval status', () {
+      events.value = const ClientToolExecuting(
+        toolName: 'get_clipboard',
+        toolCallId: 'tc-3',
+      );
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-3',
+        toolName: 'get_clipboard',
+        rationale: 'Read clipboard',
+      );
+
+      final tc = tracker.toolCalls.value.firstWhere((t) => t.id == 'tc-3');
+      expect(tc.status, ToolCallStatus.awaitingApproval);
+    });
+
+    test('adds new ToolCallInfo when not previously tracked', () {
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-new',
+        toolName: 'some_tool',
+        rationale: 'Needs approval',
+      );
+
+      expect(tracker.awaitingApprovalFor.value, 'tc-new');
+      final tc = tracker.toolCalls.value.firstWhere((t) => t.id == 'tc-new');
+      expect(tc.name, 'some_tool');
+      expect(tc.status, ToolCallStatus.awaitingApproval);
+    });
+
+    test('ClientToolCompleted clears awaitingApprovalFor', () {
+      events.value = const ClientToolExecuting(
+        toolName: 'get_clipboard',
+        toolCallId: 'tc-3',
+      );
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-3',
+        toolName: 'get_clipboard',
+        rationale: 'Read clipboard',
+      );
+      expect(tracker.awaitingApprovalFor.value, 'tc-3');
+
+      events.value = const ClientToolCompleted(
+        toolCallId: 'tc-3',
+        result: 'ok',
+        status: ToolCallStatus.completed,
+      );
+      expect(tracker.awaitingApprovalFor.value, isNull);
+    });
+
+    test('RunCompleted clears awaitingApprovalFor', () {
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-4',
+        toolName: 'some_tool',
+        rationale: 'Approval needed',
+      );
+      expect(tracker.awaitingApprovalFor.value, 'tc-4');
+
+      events.value = const RunCompleted();
+      expect(tracker.awaitingApprovalFor.value, isNull);
+    });
+
+    test('RunFailed clears awaitingApprovalFor', () {
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-5',
+        toolName: 'some_tool',
+        rationale: 'Approval needed',
+      );
+      events.value = const RunFailed(error: 'boom');
+      expect(tracker.awaitingApprovalFor.value, isNull);
+    });
+
+    test('RunCancelled clears awaitingApprovalFor', () {
+      events.value = const AwaitingApproval(
+        toolCallId: 'tc-6',
+        toolName: 'some_tool',
+        rationale: 'Approval needed',
+      );
+      events.value = const RunCancelled();
+      expect(tracker.awaitingApprovalFor.value, isNull);
+    });
+
+    test('starts as null', () {
+      expect(tracker.awaitingApprovalFor.value, isNull);
+    });
   });
 }

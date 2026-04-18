@@ -286,6 +286,33 @@ void main() {
     });
   });
 
+  group('PolicyException', () {
+    test('creates with required message', () {
+      const msg = 'Connection to "evil.com" is not permitted';
+      const exception = PolicyException(message: msg);
+
+      expect(exception.message, equals(msg));
+    });
+
+    test('toString returns PolicyException prefix', () {
+      const exception = PolicyException(message: 'Host not allowed');
+
+      expect(exception.toString(), equals('PolicyException: Host not allowed'));
+    });
+
+    test('is SoliplexException', () {
+      const exception = PolicyException(message: 'Test');
+
+      expect(exception, isA<SoliplexException>());
+    });
+
+    test('is Exception', () {
+      const exception = PolicyException(message: 'Test');
+
+      expect(exception, isA<Exception>());
+    });
+  });
+
   group('SoliplexException hierarchy', () {
     test('all exceptions can be caught as SoliplexException', () {
       final exceptions = <SoliplexException>[
@@ -294,6 +321,7 @@ void main() {
         const ApiException(message: 'API error', statusCode: 500),
         const NotFoundException(message: 'Not found'),
         const CancelledException(),
+        const PolicyException(message: 'Policy error'),
       ];
 
       for (final exception in exceptions) {
