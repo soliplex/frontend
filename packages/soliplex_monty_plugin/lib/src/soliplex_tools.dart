@@ -489,94 +489,20 @@ List<SoliplexTool> buildSoliplexTools(
   ];
 }
 
-/// Builds the full Soliplex tool set: API tools + help + optional notify.
+/// Builds the full Soliplex tool set: API tools + optional notify.
 ///
-/// Prefer this over calling [buildSoliplexTools], [buildHelpTool], and
-/// [buildNotifyTool] separately.
+/// Prefer this over calling [buildSoliplexTools] and [buildNotifyTool]
+/// separately. A `help()` introspection function is automatically registered
+/// by the dart_monty bridge — no Soliplex-level help tool is needed.
 List<SoliplexTool> buildSoliplexToolset(
   SessionContext ctx,
   Map<String, SoliplexConnection> Function() getConnections, {
   void Function(NotifyEvent)? onNotify,
 }) {
-  final tools = buildSoliplexTools(ctx, getConnections);
   return [
-    ...tools,
-    buildHelpTool(tools),
+    ...buildSoliplexTools(ctx, getConnections),
     if (onNotify != null) buildNotifyTool(onNotify),
   ];
-}
-
-/// Helper to build the introspection tool (help).
-SoliplexTool buildHelpTool(List<SoliplexTool> tools) {
-  String signature(SoliplexTool t) {
-    final props = t.parameters['properties'] as Map<String, dynamic>? ?? {};
-    final required =
-        (t.parameters['required'] as List<dynamic>? ?? []).cast<String>();
-    final params = props.keys.map((k) {
-      final req = required.contains(k);
-      return req ? k : '[$k]';
-    }).join(', ');
-    return '${t.name}($params)';
-  }
-
-  return SoliplexTool(
-    name: 'help',
-    description: 'List available functions or show details for one. '
-        'help() — list all.  help(name="fn") — details for fn.',
-    parameters: {
-      'type': 'object',
-      'properties': {
-        'name': {
-          'type': 'string',
-          'description': 'Function name to look up. Omit to list all.',
-        },
-      },
-    },
-    handler: (args) async {
-      final name = args['name'] as String?;
-      if (name == null) {
-        final sb = StringBuffer('Available functions:\n\n');
-        for (final t in tools) {
-          sb
-            ..write('  ')
-            ..writeln(signature(t))
-            ..write('    ')
-            ..writeln(t.description)
-            ..writeln();
-        }
-        sb
-          ..write('  help([name])\n')
-          ..write('    List all functions or show details for one.\n');
-        return sb.toString().trimRight();
-      }
-      final tool = tools.firstWhere(
-        (t) => t.name == name,
-        orElse: () => throw ArgumentError(
-          'Unknown function "$name". '
-          'Call help() to list all available functions.',
-        ),
-      );
-      final props =
-          tool.parameters['properties'] as Map<String, dynamic>? ?? {};
-      final required =
-          (tool.parameters['required'] as List<dynamic>? ?? []).cast<String>();
-      final sb = StringBuffer()
-        ..writeln(signature(tool))
-        ..writeln()
-        ..writeln(tool.description);
-      if (props.isNotEmpty) {
-        sb.writeln('\nParameters:');
-        for (final entry in props.entries) {
-          final meta = entry.value as Map<String, dynamic>? ?? {};
-          final req = required.contains(entry.key) ? '' : ' (optional)';
-          final desc = meta['description'] as String? ?? '';
-          final type = meta['type'] as String? ?? 'any';
-          sb.writeln('  ${entry.key} ($type)$req — $desc');
-        }
-      }
-      return sb.toString().trimRight();
-    },
-  );
 }
 
 Future<String> _consumeStream(

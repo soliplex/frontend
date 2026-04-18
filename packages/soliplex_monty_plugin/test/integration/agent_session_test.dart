@@ -36,10 +36,7 @@ void main() {
     final soliplexTools = buildSoliplexTools(ctx, () => connections);
 
     env = MontyScriptEnvironment(
-      tools: [
-        ...soliplexTools,
-        buildHelpTool(soliplexTools),
-      ],
+      tools: soliplexTools,
     );
   });
 

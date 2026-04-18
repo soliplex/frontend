@@ -70,7 +70,6 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   @override
   List<ClientTool> get tools => [
         _buildExecutePythonTool(),
-        _buildReplPythonTool(),
       ];
 
   /// Executes Python [code] directly in the interpreter.
@@ -137,14 +136,33 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   // ---------------------------------------------------------------------------
 
   void _registerTools() {
+    final registered = _montySession.schemas.map((s) => s.name).toSet();
+
     for (final tool in _tools) {
+      if (!registered.add(tool.name)) {
+        throw StateError(
+          'Tool "${tool.name}" conflicts with an already-registered host '
+          'function on the dart_monty bridge. Rename the tool or remove '
+          'the conflicting registration.',
+        );
+      }
       _montySession.register(_toHostFunction(tool));
     }
+
     // Plugins register their host functions directly. PluginRegistry lifecycle
     // (onRegister, sibling lookups) is not used here — plugins must not call
     // sibling() or access registry in their handlers.
     for (final plugin in _plugins) {
-      plugin.functions.forEach(_montySession.register);
+      for (final fn in plugin.functions) {
+        if (!registered.add(fn.schema.name)) {
+          throw StateError(
+            'Plugin function "${fn.schema.name}" conflicts with an '
+            'already-registered host function. Rename the function or '
+            'remove the conflicting registration.',
+          );
+        }
+        _montySession.register(fn);
+      }
     }
   }
 
@@ -212,30 +230,6 @@ class MontyScriptEnvironment implements ScriptEnvironment {
           'type': 'object',
           'properties': {
             'code': {'type': 'string', 'description': 'Python script to run.'},
-          },
-          'required': ['code'],
-        },
-      ),
-      executor: _executePython,
-    );
-  }
-
-  ClientTool _buildReplPythonTool() {
-    return ClientTool(
-      definition: const Tool(
-        name: 'repl_python',
-        description:
-            'Feed a snippet to the persistent Python REPL. Variables from '
-            'previous calls remain in scope.\n\n'
-            'LIMITATIONS (Monty subset of Python):\n'
-            '- Every block must have a body (use pass if needed).\n'
-            '- No chained assignment (`a=b=0`). '
-            'No str.format()/%%—use f-strings.\n'
-            '- No imports. No classes, generators, decorators, async/await.',
-        parameters: {
-          'type': 'object',
-          'properties': {
-            'code': {'type': 'string', 'description': 'Python snippet.'},
           },
           'required': ['code'],
         },
@@ -327,9 +321,21 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     }
     final parts = [
       if (printOut != null && printOut.isNotEmpty) printOut,
-      if (returnVal != null && returnVal.isNotEmpty) returnVal,
+      if (returnVal != null && returnVal.isNotEmpty) _prettyValue(returnVal),
     ];
     return parts.isEmpty ? 'None' : parts.join('\n');
+  }
+
+  /// Pretty-prints [s] if it is a JSON object or array; otherwise returns [s].
+  static String _prettyValue(String s) {
+    final trimmed = s.trimLeft();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return s;
+    try {
+      final decoded = jsonDecode(s);
+      return const JsonEncoder.withIndent('  ').convert(decoded);
+    } on FormatException {
+      return s;
+    }
   }
 }
 
