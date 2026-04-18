@@ -29,6 +29,7 @@ import '../modules/lobby/lobby_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/access_policy.dart';
 import '../modules/room/agent_runtime_manager.dart';
+import '../modules/room/host_filtering_http_client.dart';
 import '../modules/room/policy_enforcement_middleware.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
@@ -113,12 +114,14 @@ Future<ShellConfig> standard({
     String? Function()? getToken,
     TokenRefresher? tokenRefresher,
   }) =>
-      createAgentHttpClient(
-        innerClient: createPlatformClient(),
-        observers: [inspector],
-        getToken: getToken,
-        tokenRefresher: tokenRefresher,
-        onDiagnostic: onHttpDiagnostic,
+      HostFilteringHttpClient(
+        inner: createAgentHttpClient(
+          innerClient: createPlatformClient(),
+          observers: [inspector],
+          getToken: getToken,
+          tokenRefresher: tokenRefresher,
+          onDiagnostic: onHttpDiagnostic,
+        ),
       );
 
   final plainClient = buildClient();

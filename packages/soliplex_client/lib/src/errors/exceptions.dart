@@ -133,6 +133,21 @@ class NotFoundException extends SoliplexException {
   }
 }
 
+/// Exception thrown when an operation is blocked by the session access policy.
+///
+/// Raised by `HostFilteringHttpClient` when a host is denied, and by
+/// `PolicyEnforcementMiddleware` when a tool call is blocked by the
+/// room's `AccessPolicy`.
+///
+/// UI should surface this as a non-retryable access error.
+class PolicyException extends SoliplexException {
+  /// Creates a policy exception.
+  const PolicyException({required super.message});
+
+  @override
+  String toString() => 'PolicyException: $message';
+}
+
 /// Exception thrown when an operation is cancelled by the user.
 ///
 /// UI should handle silently.
