@@ -5,6 +5,42 @@ import 'package:flutter/material.dart';
 import '../copy_button.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
+/// Converts a raw JSON/text string to a human-readable plain-text representation.
+///
+/// Used by [ArgsBlock] and activity log rows.
+String prettyPrintArgs(String s) {
+  try {
+    final obj = jsonDecode(s);
+    if (obj is Map<String, dynamic>) return _renderMap(obj, 0);
+    if (obj is String) return obj;
+    return const JsonEncoder.withIndent('  ').convert(obj);
+  } catch (_) {
+    return s;
+  }
+}
+
+String _renderMap(Map<String, dynamic> map, int depth) {
+  final pad = '  ' * depth;
+  final parts = <String>[];
+  for (final e in map.entries) {
+    final v = e.value;
+    if (v is String && v.contains('\n')) {
+      final indented =
+          v.trimRight().split('\n').map((l) => '$pad  $l').join('\n');
+      parts.add('$pad${e.key}:\n$indented');
+    } else if (v is Map<String, dynamic>) {
+      parts.add('$pad${e.key}:\n${_renderMap(v, depth + 1)}');
+    } else if (v is List) {
+      final json = const JsonEncoder.withIndent('  ').convert(v);
+      final indented = json.split('\n').map((l) => '$pad  $l').join('\n');
+      parts.add('$pad${e.key}:\n$indented');
+    } else {
+      parts.add('$pad${e.key}: $v');
+    }
+  }
+  return parts.join('\n');
+}
+
 /// Styled scrollable block for displaying a raw/JSON payload as plain monospace text.
 class ArgsBlock extends StatefulWidget {
   const ArgsBlock({
@@ -35,43 +71,10 @@ class _ArgsBlockState extends State<ArgsBlock> {
     super.dispose();
   }
 
-  static String _prettyPrint(String s) {
-    try {
-      final obj = jsonDecode(s);
-      if (obj is Map<String, dynamic>) return _renderMap(obj, 0);
-      if (obj is String) return obj;
-      return const JsonEncoder.withIndent('  ').convert(obj);
-    } catch (_) {
-      return s;
-    }
-  }
-
-  static String _renderMap(Map<String, dynamic> map, int depth) {
-    final pad = '  ' * depth;
-    final parts = <String>[];
-    for (final e in map.entries) {
-      final v = e.value;
-      if (v is String && v.contains('\n')) {
-        final indented =
-            v.trimRight().split('\n').map((l) => '$pad  $l').join('\n');
-        parts.add('$pad${e.key}:\n$indented');
-      } else if (v is Map<String, dynamic>) {
-        parts.add('$pad${e.key}:\n${_renderMap(v, depth + 1)}');
-      } else if (v is List) {
-        final json = const JsonEncoder.withIndent('  ').convert(v);
-        final indented = json.split('\n').map((l) => '$pad  $l').join('\n');
-        parts.add('$pad${e.key}:\n$indented');
-      } else {
-        parts.add('$pad${e.key}: $v');
-      }
-    }
-    return parts.join('\n');
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final display = _prettyPrint(widget.raw);
+    final display = prettyPrintArgs(widget.raw);
 
     return Padding(
       padding: EdgeInsets.only(left: widget.indent, top: 4, bottom: 4),

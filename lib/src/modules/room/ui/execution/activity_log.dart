@@ -7,7 +7,7 @@ import '../markdown/flutter_markdown_plus_renderer.dart';
 
 import '../../execution_activity.dart';
 import '../../execution_tracker.dart';
-import 'args_block.dart';
+import 'args_block.dart' show prettyPrintArgs;
 
 class ActivityLog extends StatefulWidget {
   const ActivityLog({super.key, required this.tracker});
@@ -118,7 +118,7 @@ class _ActivityRowState extends State<_ActivityRow> {
     final payload = _payload(entry);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -181,9 +181,18 @@ class _ActivityRowState extends State<_ActivityRow> {
             ),
           ),
           if (_expanded && payload != null)
-            ArgsBlock(
-              raw: payload,
-              indent: 18,
+            Padding(
+              padding: const EdgeInsets.only(left: 18, top: 2, bottom: 2),
+              child: SelectableText(
+                prettyPrintArgs(payload),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontFamily: monospaceFont(Theme.of(context).platform),
+                  fontFamilyFallback: const ['monospace'],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                  height: 1.5,
+                ),
+              ),
             ),
         ],
       ),

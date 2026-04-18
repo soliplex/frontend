@@ -15,59 +15,37 @@ void main() {
 
   tearDown(() => tracker.dispose());
 
-  test('starts with empty steps and no thinking', () {
+  test('starts with empty steps', () {
     expect(tracker.steps.value, isEmpty);
-    expect(tracker.thinkingBlocks.value, isEmpty);
-    expect(tracker.isThinkingStreaming.value, isFalse);
   });
 
-  test('ThinkingStarted adds an active thinking step', () {
+  test('ThinkingStarted does not add a step', () {
     events.value = const ThinkingStarted();
+
+    expect(tracker.steps.value, isEmpty);
+  });
+
+  test('ServerToolCallStarted adds an active step', () {
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
 
     expect(tracker.steps.value.length, 1);
-    expect(tracker.steps.value.first.label, 'Thinking');
+    expect(tracker.steps.value.first.label, 'search');
     expect(tracker.steps.value.first.status, StepStatus.active);
-    expect(tracker.isThinkingStreaming.value, isTrue);
   });
 
-  test('ThinkingContent accumulates in current thinking block', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'Hello ');
-    events.value = const ThinkingContent(delta: 'world');
-
-    expect(tracker.thinkingBlocks.value, ['Hello world']);
-  });
-
-  test('multiple thinking phases create separate blocks', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'first');
-    events.value = const ServerToolCallStarted(
-      toolName: 'search',
-      toolCallId: 'tc-1',
-    );
-    events.value = const ServerToolCallCompleted(
-      toolCallId: 'tc-1',
-      result: 'done',
-    );
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'second');
-
-    expect(tracker.thinkingBlocks.value, ['first', 'second']);
-  });
-
-  test('ServerToolCallStarted completes previous step and adds new', () {
+  test('ThinkingStarted then ServerToolCallStarted adds one step', () {
     events.value = const ThinkingStarted();
     events.value = const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
     );
 
-    expect(tracker.steps.value.length, 2);
-    expect(tracker.steps.value[0].status, StepStatus.completed);
-    expect(tracker.steps.value[0].label, 'Thinking');
-    expect(tracker.steps.value[1].status, StepStatus.active);
-    expect(tracker.steps.value[1].label, 'search');
-    expect(tracker.isThinkingStreaming.value, isFalse);
+    expect(tracker.steps.value.length, 1);
+    expect(tracker.steps.value.first.label, 'search');
+    expect(tracker.steps.value.first.status, StepStatus.active);
   });
 
   test('ServerToolCallCompleted marks step completed', () {
@@ -110,7 +88,6 @@ void main() {
   });
 
   test('RunCompleted marks all steps completed', () {
-    events.value = const ThinkingStarted();
     events.value = const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
@@ -120,11 +97,13 @@ void main() {
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.completed);
     }
-    expect(tracker.isThinkingStreaming.value, isFalse);
   });
 
   test('RunFailed marks all active steps as failed', () {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
     events.value = const RunFailed(error: 'oops');
 
     for (final step in tracker.steps.value) {
@@ -133,7 +112,10 @@ void main() {
   });
 
   test('RunCancelled marks all active steps as failed', () {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
     events.value = const RunCancelled();
 
     for (final step in tracker.steps.value) {
@@ -142,39 +124,44 @@ void main() {
   });
 
   test('freeze stops listening but preserves data', () {
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'hello');
-    tracker.freeze();
-
-    // Data is preserved
-    expect(tracker.steps.value.length, 1);
-    expect(tracker.thinkingBlocks.value, ['hello']);
-    expect(tracker.isFrozen, isTrue);
-
-    // New events are ignored
     events.value = const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
     );
+    tracker.freeze();
+
+    expect(tracker.steps.value.length, 1);
+    expect(tracker.isFrozen, isTrue);
+
+    // New events are ignored after freeze
+    events.value = const ServerToolCallStarted(
+      toolName: 'other',
+      toolCallId: 'tc-2',
+    );
     expect(tracker.steps.value.length, 1);
   });
 
-  test('ActivitySnapshot does not affect steps or thinking', () {
-    events.value = const ThinkingStarted();
+  test('ActivitySnapshot does not affect steps', () {
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
     events.value = const ActivitySnapshot(
       activityType: 'skill_tool_call',
       content: {'tool_name': 'search'},
     );
 
     expect(tracker.steps.value.length, 1);
-    expect(tracker.steps.value.first.label, 'Thinking');
+    expect(tracker.steps.value.first.label, 'search');
     expect(tracker.steps.value.first.status, StepStatus.active);
-    expect(tracker.isThinkingStreaming.value, isTrue);
   });
 
   test('dispose stops listening to events', () {
     tracker.dispose();
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
     expect(tracker.steps.value, isEmpty);
   });
 }

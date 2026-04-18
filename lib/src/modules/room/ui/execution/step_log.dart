@@ -169,9 +169,7 @@ class _StepRowState extends State<_StepRow> {
         return Icon(
           Icons.check_circle_outline,
           size: 14,
-          color: step.type == StepType.thinking
-              ? theme.colorScheme.tertiary
-              : theme.colorScheme.primary,
+          color: theme.colorScheme.primary,
         );
     }
   }

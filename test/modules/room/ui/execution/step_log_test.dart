@@ -27,8 +27,20 @@ void main() {
     expect(find.byType(InkWell), findsNothing);
   });
 
-  testWidgets('shows singular "step" for one step', (tester) async {
+  testWidgets('ThinkingStarted does not add a step', (tester) async {
     events.value = const ThinkingStarted();
+
+    await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
+    await tester.pump();
+
+    expect(find.byType(InkWell), findsNothing);
+  });
+
+  testWidgets('shows singular label for one tool call', (tester) async {
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
@@ -36,11 +48,14 @@ void main() {
     expect(find.text('1 tool call'), findsOneWidget);
   });
 
-  testWidgets('shows plural "steps" for multiple steps', (tester) async {
-    events.value = const ThinkingStarted();
+  testWidgets('shows plural label for multiple tool calls', (tester) async {
     events.value = const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
+    );
+    events.value = const ServerToolCallStarted(
+      toolName: 'read_file',
+      toolCallId: 'tc-2',
     );
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
@@ -50,21 +65,27 @@ void main() {
   });
 
   testWidgets('tap expands to show step details', (tester) async {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
 
-    expect(find.text('Thinking'), findsNothing);
+    expect(find.text('search'), findsNothing);
 
     await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.text('search'), findsOneWidget);
   });
 
   testWidgets('tap again collapses step details', (tester) async {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
@@ -72,16 +93,19 @@ void main() {
     await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.text('search'), findsOneWidget);
 
     await tester.tap(find.byType(InkWell));
     await tester.pump();
 
-    expect(find.text('Thinking'), findsNothing);
+    expect(find.text('search'), findsNothing);
   });
 
   testWidgets('active step shows CircularProgressIndicator', (tester) async {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
     await tester.pump();
@@ -112,7 +136,10 @@ void main() {
   });
 
   testWidgets('failed step shows error icon', (tester) async {
-    events.value = const ThinkingStarted();
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
     events.value = const RunFailed(error: 'oops');
 
     await tester.pumpWidget(wrap(StepLog(tracker: tracker)));
@@ -127,7 +154,6 @@ void main() {
   testWidgets('duration formatted as seconds with 1 decimal', (tester) async {
     final step = ExecutionStep(
       label: 'search',
-      type: StepType.toolCall,
       status: StepStatus.completed,
       timestamp: const Duration(milliseconds: 1250),
     );
@@ -153,13 +179,6 @@ class _FakeTracker implements ExecutionTracker {
 
   @override
   ReadonlySignal<List<ExecutionStep>> get steps => _stepsSignal;
-
-  @override
-  ReadonlySignal<List<String>> get thinkingBlocks =>
-      Signal<List<String>>(const []);
-
-  @override
-  ReadonlySignal<bool> get isThinkingStreaming => Signal<bool>(false);
 
   @override
   ReadonlySignal<List<ActivityEntry>> get activities =>

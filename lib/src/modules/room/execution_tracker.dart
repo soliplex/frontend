@@ -20,12 +20,6 @@ class ExecutionTracker {
       Signal<List<ExecutionStep>>(const []);
   ReadonlySignal<List<ExecutionStep>> get steps => _steps;
 
-  final Signal<List<String>> _thinkingBlocks = Signal<List<String>>(const []);
-  ReadonlySignal<List<String>> get thinkingBlocks => _thinkingBlocks;
-
-  final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
-  ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
-
   final Signal<List<ActivityEntry>> _activities =
       Signal<List<ActivityEntry>>(const []);
   ReadonlySignal<List<ActivityEntry>> get activities => _activities;
@@ -47,21 +41,11 @@ class ExecutionTracker {
     switch (event) {
       case ThinkingStarted():
         _completeActiveStep();
-        _addStep('Thinking', StepType.thinking);
-        _thinkingBlocks.value = [..._thinkingBlocks.value, ''];
-        _isThinkingStreaming.value = true;
-      case ThinkingContent(:final delta):
-        final blocks = _thinkingBlocks.value;
-        if (blocks.isNotEmpty) {
-          _thinkingBlocks.value = [
-            ...blocks.sublist(0, blocks.length - 1),
-            blocks.last + delta,
-          ];
-        }
+      case ThinkingContent():
+        break;
       case ServerToolCallStarted(:final toolName, :final toolCallId):
         _completeActiveStep();
-        _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall, toolCallId: toolCallId);
+        _addStep(toolName, toolCallId: toolCallId);
       case ServerToolCallCompleted():
         _completeActiveStep();
       case ServerToolCallArgsUpdated(:final toolCallId, :final argsDelta):
@@ -77,16 +61,13 @@ class ExecutionTracker {
         }
       case ClientToolExecuting(:final toolName):
         _completeActiveStep();
-        _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
+        _addStep(toolName);
       case ClientToolCompleted():
         _completeActiveStep();
       case RunCompleted():
         _completeAllSteps(StepStatus.completed);
-        _isThinkingStreaming.value = false;
       case RunFailed() || RunCancelled():
         _completeAllSteps(StepStatus.failed);
-        _isThinkingStreaming.value = false;
       case ActivitySnapshot(:final activityType, :final content):
         _activities.value = [
           ..._activities.value,
@@ -106,12 +87,11 @@ class ExecutionTracker {
     }
   }
 
-  void _addStep(String label, StepType type, {String? toolCallId}) {
+  void _addStep(String label, {String? toolCallId}) {
     _steps.value = [
       ..._steps.value,
       ExecutionStep(
         label: label,
-        type: type,
         status: StepStatus.active,
         timestamp: _stopwatch.elapsed,
         toolCallId: toolCallId,
