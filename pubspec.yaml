@@ -15,6 +15,8 @@ workspace:
   - packages/soliplex_client_native
   - packages/soliplex_logging
   - packages/soliplex_monty_plugin
+  - packages/ui_plugin
+  - packages/ui_renderer_soliplex
 
 dependencies:
   flutter:
@@ -44,6 +46,10 @@ dependencies:
     path: packages/soliplex_client_native
   soliplex_logging:
     path: packages/soliplex_logging
+  ui_plugin:
+    path: packages/ui_plugin
+  ui_renderer_soliplex:
+    path: packages/ui_renderer_soliplex
 
 dev_dependencies:
   flutter_test:

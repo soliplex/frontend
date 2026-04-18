@@ -92,6 +92,7 @@ String _canonicalPath(String path) {
 /// Expects routes to be non-empty (enforced by [validateRoutes]).
 GoRouter buildRouter(ShellConfig config) {
   return GoRouter(
+    navigatorKey: config.navigatorKey,
     initialLocation: config.initialRoute,
     routes: config.routes,
     refreshListenable: config.refreshListenable,

@@ -32,7 +32,8 @@ List<Message> convertToAgui(List<ChatMessage> chatMessages) {
 
       case ErrorMessage():
       case LoadingMessage():
-        // Skip transient messages
+      case SystemInfoMessage():
+        // Skip transient/client-only messages
         continue;
     }
   }

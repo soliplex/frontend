@@ -5,6 +5,7 @@ import '../execution_tracker.dart';
 import 'error_message_tile.dart';
 import 'gen_ui_tile.dart';
 import 'loading_message_tile.dart';
+import 'system_info_tile.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
 
@@ -53,6 +54,7 @@ class MessageTile extends StatelessWidget {
           ),
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),
+        final SystemInfoMessage m => SystemInfoTile(message: m),
         final GenUiMessage m => GenUiTile(message: m),
         LoadingMessage() => LoadingMessageTile(
             executionTracker: executionTracker,

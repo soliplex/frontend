@@ -410,6 +410,7 @@ void main() {
         return switch (m) {
           TextMessage() => 'text',
           ErrorMessage() => 'error',
+          SystemInfoMessage() => 'systemInfo',
           ToolCallMessage() => 'toolCall',
           GenUiMessage() => 'genUi',
           LoadingMessage() => 'loading',
