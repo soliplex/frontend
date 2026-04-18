@@ -201,7 +201,6 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         },
       ),
       executor: _executePython,
-      requiresApproval: true,
     );
   }
 
@@ -221,7 +220,6 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         },
       ),
       executor: _executePython,
-      requiresApproval: true,
     );
   }
 
