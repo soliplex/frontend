@@ -21,10 +21,10 @@ runs:
       with:
         path: ~/.pub-cache
         key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pub-
 
     - name: Install dependencies
       working-directory: ${{ inputs.working-directory }}
       shell: bash
-      run: ${{ inputs.runner }} pub get
+      run: |
+        rm -rf .dart_tool
+        ${{ inputs.runner }} pub get

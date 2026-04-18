@@ -84,7 +84,7 @@ class _FakeBridgeScriptEnvironment implements ScriptEnvironment {
 
   @override
   ReadonlySignal<ScriptingState> get scriptingState =>
-      signal(ScriptingState.idle).readonly();
+      signal(ScriptingState.idle);
 
   @override
   Future<void> onAttach(AgentSession session) async {}
@@ -611,7 +611,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
+        extensionFactory: (_) async => [
           _FakeBridgeScriptEnvironment(
             sharedBridge,
             workDuration: const Duration(milliseconds: 100),
@@ -666,7 +666,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const NativePlatformConstraints(),
-        extensionFactory: () async {
+        extensionFactory: (_) async {
           final bridge = _FakeBridge();
           bridges.add(bridge);
           return [
@@ -726,7 +726,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
+        extensionFactory: (_) async => [
           _FakeBridgeScriptEnvironment(sharedBridge),
         ],
       );
@@ -771,7 +771,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const NativePlatformConstraints(maxConcurrentBridges: 1),
-        extensionFactory: () async => [
+        extensionFactory: (_) async => [
           _FakeBridgeScriptEnvironment(
             sharedBridge,
             workDuration: const Duration(milliseconds: 50),
@@ -831,7 +831,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
+        extensionFactory: (_) async => [
           _FakeBridgeScriptEnvironment(
             sharedBridge,
             workDuration: toolDuration,
@@ -895,7 +895,7 @@ void main() {
 
       runtime = createRuntime(
         platform: const NativePlatformConstraints(maxConcurrentBridges: n),
-        extensionFactory: () async {
+        extensionFactory: (_) async {
           final bridge = _FakeBridge();
           return [
             _FakeBridgeScriptEnvironment(bridge, workDuration: toolDuration),

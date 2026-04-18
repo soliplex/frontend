@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
-import 'package:signals_core/signals_core.dart' show signal;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_client/soliplex_client.dart'
@@ -78,23 +77,6 @@ ToolRegistry _registryWith({
 // ---------------------------------------------------------------------------
 // Test doubles
 // ---------------------------------------------------------------------------
-
-class _TestScriptEnvironment implements ScriptEnvironment {
-  int disposeCount = 0;
-
-  @override
-  List<ClientTool> get tools => const [];
-
-  @override
-  ReadonlySignal<ScriptingState> get scriptingState =>
-      signal(ScriptingState.idle).readonly();
-
-  @override
-  Future<void> onAttach(AgentSession session) async {}
-
-  @override
-  void dispose() => disposeCount++;
-}
 
 class _TestExtension implements SessionExtension {
   int attachCount = 0;
@@ -739,15 +721,6 @@ void main() {
         ..dispose();
 
       expect(ext.disposeCount, equals(1));
-    });
-
-    test('ScriptEnvironment satisfies SessionExtension', () {
-      final env = _TestScriptEnvironment();
-      final SessionExtension ext = env;
-
-      expect(ext.tools, isEmpty);
-      ext.dispose();
-      expect(env.disposeCount, equals(1));
     });
   });
 

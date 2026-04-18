@@ -108,18 +108,19 @@ void main() {
     late AgentRuntime runtime;
 
     setUpAll(() {
-      final innerConn = _conn('inner');
       runtime = _runtime(
         extensionFactory: toOwnedFactory(
-          () async => MontyScriptEnvironment(
-            plugins: [
-              SoliplexPlugin(
-                connections: {
-                  'demo': SoliplexConnection.fromServerConnection(innerConn),
-                },
-              ),
-            ],
-          ),
+          (ctx) async {
+            final innerConn = _conn('inner');
+            final soliplexConn = SoliplexConnection.fromServerConnection(
+              innerConn,
+              alias: 'inner',
+              serverUrl: _demoUrl,
+            );
+            return MontyScriptEnvironment(
+              tools: buildSoliplexTools(ctx, {'inner': soliplexConn}),
+            );
+          },
         ),
       );
     });
@@ -212,14 +213,17 @@ void main() {
     late MontyScriptEnvironment env;
 
     setUpAll(() {
+      final innerConn = _conn('inner');
+      final soliplexConn = SoliplexConnection.fromServerConnection(
+        innerConn,
+        alias: 'inner',
+        serverUrl: _demoUrl,
+      );
       env = MontyScriptEnvironment(
-        plugins: [
-          SoliplexPlugin(
-            connections: {
-              'demo': SoliplexConnection.fromServerConnection(_conn('inner')),
-            },
-          ),
-        ],
+        tools: buildSoliplexTools(
+          const SessionContext(serverId: 'inner', roomId: 'chat'),
+          {'inner': soliplexConn},
+        ),
       );
       // toSharedFactory: env is NOT disposed when a session ends.
       // Caller (tearDownAll) owns env.dispose().

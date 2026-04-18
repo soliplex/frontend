@@ -1018,7 +1018,7 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(),
         logger: logger,
-        extensionFactory: () async => [_ThrowingExtension()],
+        extensionFactory: (_) async => [_ThrowingExtension()],
       );
 
       stubCreateThread();
@@ -1050,7 +1050,7 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(maxConcurrentBridges: 1),
         logger: logger,
-        extensionFactory: () async => [_ThrowingExtension()],
+        extensionFactory: (_) async => [_ThrowingExtension()],
       );
 
       stubCreateThread();
@@ -1130,7 +1130,7 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(),
         logger: logger,
-        extensionFactory: () async => [
+        extensionFactory: (_) async => [
           _TestExtension(toolList: [tool]),
         ],
       );
@@ -1197,7 +1197,7 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(),
         logger: logger,
-        extensionFactory: () async => throw StateError('WASM init failed'),
+        extensionFactory: (_) async => throw StateError('WASM init failed'),
       );
 
       stubCreateThread();
@@ -1225,7 +1225,7 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(),
         logger: logger,
-        extensionFactory: () async {
+        extensionFactory: (_) async {
           factoryCalled = true;
           return [_TestExtension()];
         },

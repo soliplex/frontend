@@ -52,7 +52,9 @@ abstract interface class ScriptEnvironment implements SessionExtension {
 ///
 /// The closure captures app-level dependencies (server connections,
 /// OS provider, etc.) so callers only need to invoke it.
-typedef ScriptEnvironmentFactory = Future<ScriptEnvironment> Function();
+typedef ScriptEnvironmentFactory = Future<ScriptEnvironment> Function(
+  SessionContext ctx,
+);
 
 /// Wraps a [ScriptEnvironmentFactory] as a [SessionExtensionFactory].
 ///
@@ -63,7 +65,7 @@ typedef ScriptEnvironmentFactory = Future<ScriptEnvironment> Function();
 /// Use this for fire-and-forget sessions that each get an isolated
 /// interpreter. For a shared, long-lived environment see [toSharedFactory].
 SessionExtensionFactory toOwnedFactory(ScriptEnvironmentFactory factory) {
-  return () async => [await factory()];
+  return (ctx) async => [await factory(ctx)];
 }
 
 /// Wraps a **shared** [ScriptEnvironment] as a [SessionExtensionFactory].
@@ -80,7 +82,7 @@ SessionExtensionFactory toOwnedFactory(ScriptEnvironmentFactory factory) {
 ///
 /// Example:
 /// ```dart
-/// final env = MontyScriptEnvironment(plugins: [SoliplexPlugin(...)]);
+/// final env = MontyScriptEnvironment(tools: soliplexTools);
 /// final runtime = AgentRuntime(
 ///   extensionFactory: toSharedFactory(env),
 ///   // ...
@@ -90,14 +92,14 @@ SessionExtensionFactory toOwnedFactory(ScriptEnvironmentFactory factory) {
 /// await runtime.dispose();
 /// ```
 SessionExtensionFactory toSharedFactory(ScriptEnvironment env) {
-  return () async => [_SharedScriptEnvironmentProxy(env)];
+  return (_) async => [SharedScriptEnvironmentProxy(env)];
 }
 
 /// Wraps a [ScriptEnvironment] as a [SessionExtension] without taking
 /// ownership. [dispose] is intentionally a no-op — lifecycle is managed
 /// by whoever created the environment.
-class _SharedScriptEnvironmentProxy implements SessionExtension {
-  _SharedScriptEnvironmentProxy(this._env);
+class SharedScriptEnvironmentProxy implements SessionExtension {
+  SharedScriptEnvironmentProxy(this._env);
 
   final ScriptEnvironment _env;
 

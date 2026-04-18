@@ -55,7 +55,7 @@ void main() {
   late MontyScriptEnvironment env;
 
   setUp(() {
-    env = MontyScriptEnvironment();
+    env = MontyScriptEnvironment(tools: const []);
   });
 
   tearDown(() => env.dispose());

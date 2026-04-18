@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import 'execution/args_block.dart';
+
 class ToolCallTile extends StatelessWidget {
   const ToolCallTile({super.key, required this.message});
   final ToolCallMessage message;
@@ -38,8 +40,10 @@ class _ToolCallCard extends StatelessWidget {
                 toolCall.name,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w500),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
             const SizedBox(width: 8),

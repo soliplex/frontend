@@ -3,9 +3,9 @@
 @Tags(['integration'])
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
@@ -24,14 +24,21 @@ final String _localUrl =
     Platform.environment['SOLIPLEX_LOCAL_URL'] ?? 'http://localhost:8000';
 
 void main() {
-  late SoliplexPlugin plugin;
+  late List<SoliplexTool> tools;
   late HttpTransport demoTransport;
   late HttpTransport localTransport;
 
-  SoliplexConnection buildConnection(String baseUrl) {
+  SoliplexConnection buildConnection(
+    String serverId,
+    String alias,
+    String baseUrl,
+  ) {
     final transport = HttpTransport(client: DartHttpClient());
     final urlBuilder = UrlBuilder('$baseUrl/api/v1');
     return SoliplexConnection(
+      serverId: serverId,
+      alias: alias,
+      serverUrl: baseUrl,
       api: SoliplexApi(transport: transport, urlBuilder: urlBuilder),
       streamClient: AgUiStreamClient(
         httpTransport: transport,
@@ -41,16 +48,16 @@ void main() {
   }
 
   setUpAll(() {
-    final demoConn = buildConnection(_demoUrl);
-    final localConn = buildConnection(_localUrl);
     demoTransport = HttpTransport(client: DartHttpClient());
     localTransport = HttpTransport(client: DartHttpClient());
 
-    plugin = SoliplexPlugin(
-      connections: {
-        'demo': demoConn,
-        'local': localConn,
-      },
+    final connections = {
+      'demo': buildConnection('demo', 'demo', _demoUrl),
+      'local': buildConnection('local', 'local', _localUrl),
+    };
+    tools = buildSoliplexTools(
+      const SessionContext(serverId: 'demo', roomId: 'chat'),
+      connections,
     );
   });
 
@@ -60,24 +67,17 @@ void main() {
   });
 
   Future<Object?> call(String name, Map<String, Object?> args) {
-    final fn = plugin.functions.firstWhere(
-      (f) => f.schema.name == name,
-    );
-    return fn.handler(args);
+    final tool = tools.firstWhere((t) => t.name == name);
+    return tool.handler(args);
   }
 
-  Map<String, dynamic> decodeJson(Object? r) =>
-      json.decode(r! as String) as Map<String, dynamic>;
-
-  List<dynamic> decodeJsonList(Object? r) =>
-      json.decode(r! as String) as List<dynamic>;
+  Map<String, dynamic> asMap(Object? r) => r! as Map<String, dynamic>;
+  List<dynamic> asList(Object? r) => r! as List<dynamic>;
 
   // ── 1. list_servers — both servers visible ─────────────────────────
 
   test('1. list_servers shows both demo and local', () async {
-    final result = decodeJsonList(
-      await call('soliplex_list_servers', {}),
-    );
+    final result = asList(await call('soliplex_list_servers', {}));
     final ids =
         result.cast<Map<String, dynamic>>().map((e) => e['id']).toList();
     expect(ids, containsAll(['demo', 'local']));
@@ -87,12 +87,10 @@ void main() {
   // ── 2. list_rooms — each server has different rooms ────────────────
 
   test('2. list_rooms from both servers', () async {
-    final demoRooms = decodeJsonList(
-      await call('soliplex_list_rooms', {'server': 'demo'}),
-    );
-    final localRooms = decodeJsonList(
-      await call('soliplex_list_rooms', {'server': 'local'}),
-    );
+    final demoRooms =
+        asList(await call('soliplex_list_rooms', {'server': 'demo'}));
+    final localRooms =
+        asList(await call('soliplex_list_rooms', {'server': 'local'}));
 
     final demoIds =
         demoRooms.cast<Map<String, dynamic>>().map((r) => r['id']).toList();
@@ -109,8 +107,7 @@ void main() {
   // ── 3. get_room — compare same concept across servers ──────────────
 
   test('3. get_room from each server', () async {
-    // Demo: cooking room.
-    final demoRoom = decodeJson(
+    final demoRoom = asMap(
       await call('soliplex_get_room', {
         'server': 'demo',
         'room_id': 'cooking',
@@ -120,8 +117,7 @@ void main() {
     print('    Skills: ${demoRoom['skills']}');
     print('    Tools: ${demoRoom['tools']}');
 
-    // Local: chat room.
-    final localRoom = decodeJson(
+    final localRoom = asMap(
       await call('soliplex_get_room', {
         'server': 'local',
         'room_id': 'chat',
@@ -135,13 +131,13 @@ void main() {
   // ── 4. list_threads — both servers ─────────────────────────────────
 
   test('4. list_threads from both servers', () async {
-    final demoThreads = decodeJsonList(
+    final demoThreads = asList(
       await call('soliplex_list_threads', {
         'server': 'demo',
         'room_id': 'cooking',
       }),
     );
-    final localThreads = decodeJsonList(
+    final localThreads = asList(
       await call('soliplex_list_threads', {
         'server': 'local',
         'room_id': 'chat',
@@ -156,7 +152,6 @@ void main() {
   test(
     '5. new_thread on demo AND local at the same time',
     () async {
-      // Fire both in parallel.
       final results = await Future.wait([
         call('soliplex_new_thread', {
           'server': 'demo',
@@ -170,8 +165,8 @@ void main() {
         }),
       ]);
 
-      final demoResult = decodeJson(results[0]);
-      final localResult = decodeJson(results[1]);
+      final demoResult = asMap(results[0]);
+      final localResult = asMap(results[1]);
 
       expect(demoResult['response'], isNotEmpty);
       expect(localResult['response'], isNotEmpty);
@@ -189,8 +184,7 @@ void main() {
   test(
     '6. interleaved conversation across servers',
     () async {
-      // Turn 1: start on demo.
-      final t1 = decodeJson(
+      final t1 = asMap(
         await call('soliplex_new_thread', {
           'server': 'demo',
           'room_id': 'cooking',
@@ -200,9 +194,8 @@ void main() {
       final demoThreadId = t1['thread_id'] as String;
       print('  ✓ Demo turn 1: ${_truncate(t1['response'] as String, 80)}');
 
-      // Interlude: ask local something (may fail if local backend errors).
       try {
-        final local1 = decodeJson(
+        final local1 = asMap(
           await call('soliplex_new_thread', {
             'server': 'local',
             'room_id': 'chat',
@@ -217,8 +210,7 @@ void main() {
         print('  ⊘ Local interlude failed: $e');
       }
 
-      // Turn 2: reply on demo — proves history survived the interlude.
-      final t2 = decodeJson(
+      final t2 = asMap(
         await call('soliplex_reply_thread', {
           'server': 'demo',
           'room_id': 'cooking',
@@ -238,7 +230,7 @@ void main() {
 
   test('7. get_documents from local server', () async {
     try {
-      final result = decodeJsonList(
+      final result = asList(
         await call('soliplex_get_documents', {
           'server': 'local',
           'room_id': 'chat',
@@ -258,7 +250,7 @@ void main() {
 
   test('8. upload_file to local server', () async {
     try {
-      final result = decodeJson(
+      final result = asMap(
         await call('soliplex_upload_file', {
           'server': 'local',
           'room_id': 'chat',
@@ -272,27 +264,9 @@ void main() {
     }
   });
 
-  // ── 9. MCP token from demo ─────────────────────────────────────────
+  // ── 9. error: wrong server name ───────────────────────────────────
 
-  test('9. get_mcp_token from demo', () async {
-    try {
-      final result = decodeJson(
-        await call('soliplex_get_mcp_token', {
-          'server': 'demo',
-          'room_id': 'image_generation',
-        }),
-      );
-      print(
-        '  ✓ MCP token: ${_truncate(result['mcp_token'] as String, 30)}',
-      );
-    } on SoliplexException catch (e) {
-      print('  ⊘ MCP not available: $e');
-    }
-  });
-
-  // ── 10. error: wrong server name ───────────────────────────────────
-
-  test('10. error: unknown server', () {
+  test('9. error: unknown server', () {
     expect(
       () => call('soliplex_list_rooms', {'server': 'nope'}),
       throwsA(

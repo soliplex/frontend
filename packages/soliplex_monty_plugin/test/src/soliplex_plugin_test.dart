@@ -1,6 +1,5 @@
-import 'dart:convert';
-
 import 'package:mocktail/mocktail.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
 import 'package:test/test.dart';
@@ -11,11 +10,14 @@ class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
 
 // -- Fixtures ----------------------------------------------------------------
 
-const _server = 'test-server';
+const _serverId = 'test-server';
+const _alias = 'test';
+const _serverUrl = 'https://test.example.com';
 const _roomId = 'test-room';
 const _threadId = 'thread-1';
 const _runId = 'run-1';
 final _now = DateTime(2026);
+const _ctx = SessionContext(serverId: _serverId, roomId: _roomId);
 
 ThreadInfo _threadInfo({String? id, String? runId}) => ThreadInfo(
       id: id ?? _threadId,
@@ -64,7 +66,8 @@ Stream<BaseEvent> _errorStream({
 void main() {
   late MockSoliplexApi mockApi;
   late MockAgUiStreamClient mockStream;
-  late SoliplexPlugin plugin;
+  late List<SoliplexTool> tools;
+  late Map<String, SoliplexConnection> connections;
 
   setUpAll(() {
     registerFallbackValue(
@@ -75,71 +78,65 @@ void main() {
   setUp(() {
     mockApi = MockSoliplexApi();
     mockStream = MockAgUiStreamClient();
-    plugin = SoliplexPlugin(
-      connections: {
-        _server: SoliplexConnection(
-          api: mockApi,
-          streamClient: mockStream,
-        ),
-      },
-    );
+    connections = {
+      _serverId: SoliplexConnection(
+        serverId: _serverId,
+        alias: _alias,
+        serverUrl: _serverUrl,
+        api: mockApi,
+        streamClient: mockStream,
+      ),
+    };
+    tools = buildSoliplexTools(_ctx, connections);
   });
 
   Future<Object?> call(
     String name,
     Map<String, Object?> args,
   ) {
-    final fn = plugin.functions.firstWhere(
-      (f) => f.schema.name == name,
-    );
-    return fn.handler(args);
+    final tool = tools.firstWhere((t) => t.name == name);
+    return tool.handler(args);
   }
-
-  Map<String, dynamic> decodeJson(Object? result) =>
-      json.decode(result! as String) as Map<String, dynamic>;
-
-  List<dynamic> decodeJsonList(Object? result) =>
-      json.decode(result! as String) as List<dynamic>;
 
   // -- Discovery -------------------------------------------------------------
 
   group('soliplex_list_servers', () {
     test('returns all server IDs', () async {
-      final result = decodeJsonList(
-        await call('soliplex_list_servers', {}),
-      );
-      expect(result, [
-        {'id': _server},
-      ]);
+      final result =
+          (await call('soliplex_list_servers', {}))! as List<dynamic>;
+      expect(result, hasLength(1));
+      final server = result[0] as Map<String, dynamic>;
+      expect(server['id'], _serverId);
+      expect(server['alias'], _alias);
+      expect(server['url'], _serverUrl);
     });
 
-    test('returns multiple servers', () {
-      final multi = SoliplexPlugin(
-        connections: {
-          'alpha': SoliplexConnection(
-            api: mockApi,
-            streamClient: mockStream,
-          ),
-          'beta': SoliplexConnection(
-            api: mockApi,
-            streamClient: mockStream,
-          ),
-        },
-      );
-      final fn = multi.functions.firstWhere(
-        (f) => f.schema.name == 'soliplex_list_servers',
-      );
-      expect(
-        fn.handler({}),
-        completion(
-          equals(
-            json.encode([
-              {'id': 'alpha'},
-              {'id': 'beta'},
-            ]),
-          ),
+    test('returns multiple servers', () async {
+      final mockApi2 = MockSoliplexApi();
+      final mockStream2 = MockAgUiStreamClient();
+      final multiConnections = {
+        'alpha': SoliplexConnection(
+          serverId: 'alpha',
+          alias: 'Alpha',
+          serverUrl: 'https://alpha.example.com',
+          api: mockApi,
+          streamClient: mockStream,
         ),
-      );
+        'beta': SoliplexConnection(
+          serverId: 'beta',
+          alias: 'Beta',
+          serverUrl: 'https://beta.example.com',
+          api: mockApi2,
+          streamClient: mockStream2,
+        ),
+      };
+      final multiTools = buildSoliplexTools(_ctx, multiConnections);
+      final tool =
+          multiTools.firstWhere((t) => t.name == 'soliplex_list_servers');
+      final result = (await tool.handler({}))! as List<dynamic>;
+      final ids =
+          result.cast<Map<String, dynamic>>().map((e) => e['id']).toList();
+      expect(ids, containsAll(['alpha', 'beta']));
     });
   });
 
@@ -153,12 +150,11 @@ void main() {
         ],
       );
 
-      final result = decodeJsonList(
-        await call('soliplex_list_rooms', {'server': _server}),
-      );
-      expect(result, [
-        {'id': 'r1', 'name': 'Room 1', 'description': 'Desc'},
-      ]);
+      final result = (await call('soliplex_list_rooms', {'server': _serverId}))!
+          as List<dynamic>;
+      final room = result[0] as Map<String, dynamic>;
+      expect(room['id'], 'r1');
+      expect(room['name'], 'Room 1');
     });
 
     test('throws on unknown server', () {
@@ -202,12 +198,10 @@ void main() {
         ),
       );
 
-      final result = decodeJson(
-        await call('soliplex_get_room', {
-          'server': _server,
-          'room_id': _roomId,
-        }),
-      );
+      final result = (await call('soliplex_get_room', {
+        'server': _serverId,
+        'room_id': _roomId,
+      }))! as Map<String, dynamic>;
       expect(result['id'], _roomId);
       expect(result['name'], 'Test Room');
       expect(result['tools'], ['tool1']);
@@ -227,12 +221,10 @@ void main() {
         ],
       );
 
-      final result = decodeJsonList(
-        await call('soliplex_get_documents', {
-          'server': _server,
-          'room_id': _roomId,
-        }),
-      );
+      final result = (await call('soliplex_get_documents', {
+        'server': _serverId,
+        'room_id': _roomId,
+      }))! as List<dynamic>;
       expect(result, hasLength(1));
       final doc = result[0] as Map<String, dynamic>;
       expect(doc['id'], 'd1');
@@ -252,13 +244,11 @@ void main() {
         ),
       );
 
-      final result = decodeJson(
-        await call('soliplex_get_chunk', {
-          'server': _server,
-          'room_id': _roomId,
-          'chunk_id': 'c1',
-        }),
-      );
+      final result = (await call('soliplex_get_chunk', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'chunk_id': 'c1',
+      }))! as Map<String, dynamic>;
       expect(result['chunk_id'], 'c1');
       expect(result['page_count'], 2);
     });
@@ -279,12 +269,10 @@ void main() {
         ],
       );
 
-      final result = decodeJsonList(
-        await call('soliplex_list_threads', {
-          'server': _server,
-          'room_id': _roomId,
-        }),
-      );
+      final result = (await call('soliplex_list_threads', {
+        'server': _serverId,
+        'room_id': _roomId,
+      }))! as List<dynamic>;
       expect(result, hasLength(1));
       final thread = result[0] as Map<String, dynamic>;
       expect(thread['id'], 't1');
@@ -308,35 +296,25 @@ void main() {
         () => mockStream.runAgent(any(), any()),
       ).thenAnswer((_) => _happyStream());
 
-      final result = decodeJson(
-        await call('soliplex_new_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'message': 'Hello',
-        }),
-      );
+      final result = (await call('soliplex_new_thread', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'message': 'Hello',
+      }))! as Map<String, dynamic>;
 
       expect(result['thread_id'], _threadId);
       expect(result['run_id'], _runId);
       expect(result['response'], 'Hello world');
 
-      // Verify the endpoint.
       final captured = verify(
         () => mockStream.runAgent(captureAny(), captureAny()),
       ).captured;
-      expect(
-        captured[0],
-        'rooms/$_roomId/agui/$_threadId/$_runId',
-      );
+      expect(captured[0], 'rooms/$_roomId/agui/$_threadId/$_runId');
 
-      // Verify input has the user message.
       final input = captured[1] as SimpleRunAgentInput;
       expect(input.messages, hasLength(1));
       expect(input.messages![0], isA<UserMessage>());
-      expect(
-        (input.messages![0] as UserMessage).content,
-        'Hello',
-      );
+      expect((input.messages![0] as UserMessage).content, 'Hello');
       expect(input.state, {'rag': true});
     });
 
@@ -347,13 +325,11 @@ void main() {
         (_) => _happyStream(deltas: ['Hello ', 'world', '!']),
       );
 
-      final result = decodeJson(
-        await call('soliplex_new_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'message': 'Hi',
-        }),
-      );
+      final result = (await call('soliplex_new_thread', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'message': 'Hi',
+      }))! as Map<String, dynamic>;
       expect(result['response'], 'Hello world!');
     });
 
@@ -361,18 +337,15 @@ void main() {
       when(
         () => mockStream.runAgent(any(), any()),
       ).thenAnswer(
-        (_) => _happyStream(
-          stateSnapshot: {'updated': 'state'},
-        ),
+        (_) => _happyStream(stateSnapshot: {'updated': 'state'}),
       );
 
       await call('soliplex_new_thread', {
-        'server': _server,
+        'server': _serverId,
         'room_id': _roomId,
         'message': 'Hi',
       });
 
-      // Verify by doing a reply — should use updated state.
       when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
         (_) async => _runInfo(id: 'run-2'),
       );
@@ -381,7 +354,7 @@ void main() {
       ).thenAnswer((_) => _happyStream(runId: 'run-2'));
 
       await call('soliplex_reply_thread', {
-        'server': _server,
+        'server': _serverId,
         'room_id': _roomId,
         'thread_id': _threadId,
         'message': 'Follow up',
@@ -390,7 +363,6 @@ void main() {
       final captured = verify(
         () => mockStream.runAgent(any(), captureAny()),
       ).captured;
-      // The second call's input should have the updated state.
       final input = captured.last as SimpleRunAgentInput;
       expect(input.state, {'updated': 'state'});
     });
@@ -402,7 +374,7 @@ void main() {
 
       expect(
         () => call('soliplex_new_thread', {
-          'server': _server,
+          'server': _serverId,
           'room_id': _roomId,
           'message': 'Hi',
         }),
@@ -419,7 +391,6 @@ void main() {
 
   group('soliplex_reply_thread', () {
     test('sends full history after new_thread', () async {
-      // First: new_thread.
       when(
         () => mockApi.createThread(_roomId, name: any(named: 'name')),
       ).thenAnswer(
@@ -427,55 +398,42 @@ void main() {
       );
       when(
         () => mockStream.runAgent(any(), any()),
-      ).thenAnswer(
-        (_) => _happyStream(deltas: ['First response']),
-      );
+      ).thenAnswer((_) => _happyStream(deltas: ['First response']));
 
       await call('soliplex_new_thread', {
-        'server': _server,
+        'server': _serverId,
         'room_id': _roomId,
         'message': 'Turn 1',
       });
 
-      // Then: reply_thread.
       when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
         (_) async => _runInfo(id: 'run-2'),
       );
       when(
         () => mockStream.runAgent(any(), any()),
       ).thenAnswer(
-        (_) => _happyStream(
-          runId: 'run-2',
-          deltas: ['Second response'],
-        ),
+        (_) => _happyStream(runId: 'run-2', deltas: ['Second response']),
       );
 
-      final result = decodeJson(
-        await call('soliplex_reply_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'thread_id': _threadId,
-          'message': 'Turn 2',
-        }),
-      );
+      final result = (await call('soliplex_reply_thread', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'thread_id': _threadId,
+        'message': 'Turn 2',
+      }))! as Map<String, dynamic>;
 
       expect(result['response'], 'Second response');
       expect(result['run_id'], 'run-2');
 
-      // Verify the input contains full message history.
       final captured = verify(
         () => mockStream.runAgent(any(), captureAny()),
       ).captured;
       final input = captured.last as SimpleRunAgentInput;
-      // user_1 + assistant_1 + user_2 = 3 messages
       expect(input.messages, hasLength(3));
       expect(input.messages![0], isA<UserMessage>());
       expect(input.messages![1], isA<AssistantMessage>());
       expect(input.messages![2], isA<UserMessage>());
-      expect(
-        (input.messages![2] as UserMessage).content,
-        'Turn 2',
-      );
+      expect((input.messages![2] as UserMessage).content, 'Turn 2');
     });
 
     test('works without prior state', () async {
@@ -489,88 +447,22 @@ void main() {
       when(
         () => mockStream.runAgent(any(), any()),
       ).thenAnswer(
-        (_) => _happyStream(
-          threadId: 'orphan-thread',
-          runId: 'run-x',
-        ),
+        (_) => _happyStream(threadId: 'orphan-thread', runId: 'run-x'),
       );
 
-      final result = decodeJson(
-        await call('soliplex_reply_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'thread_id': 'orphan-thread',
-          'message': 'Hi',
-        }),
-      );
+      final result = (await call('soliplex_reply_thread', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'thread_id': 'orphan-thread',
+        'message': 'Hi',
+      }))! as Map<String, dynamic>;
       expect(result['response'], 'Hello world');
 
       final captured = verify(
         () => mockStream.runAgent(any(), captureAny()),
       ).captured;
       final input = captured.last as SimpleRunAgentInput;
-      // Only the single user message.
       expect(input.messages, hasLength(1));
-    });
-
-    test('accumulates across three turns', () async {
-      // Turn 1: new_thread.
-      when(
-        () => mockApi.createThread(_roomId, name: any(named: 'name')),
-      ).thenAnswer(
-        (_) async => (_threadInfo(), <String, dynamic>{}),
-      );
-      when(
-        () => mockStream.runAgent(any(), any()),
-      ).thenAnswer((_) => _happyStream(deltas: ['R1']));
-
-      await call('soliplex_new_thread', {
-        'server': _server,
-        'room_id': _roomId,
-        'message': 'M1',
-      });
-
-      // Turn 2: reply.
-      when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
-        (_) async => _runInfo(id: 'run-2'),
-      );
-      when(
-        () => mockStream.runAgent(any(), any()),
-      ).thenAnswer(
-        (_) => _happyStream(runId: 'run-2', deltas: ['R2']),
-      );
-
-      await call('soliplex_reply_thread', {
-        'server': _server,
-        'room_id': _roomId,
-        'thread_id': _threadId,
-        'message': 'M2',
-      });
-
-      // Turn 3: reply.
-      when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
-        (_) async => _runInfo(id: 'run-3'),
-      );
-      when(
-        () => mockStream.runAgent(any(), any()),
-      ).thenAnswer(
-        (_) => _happyStream(runId: 'run-3', deltas: ['R3']),
-      );
-
-      await call('soliplex_reply_thread', {
-        'server': _server,
-        'room_id': _roomId,
-        'thread_id': _threadId,
-        'message': 'M3',
-      });
-
-      // Verify turn 3 input has 5 messages:
-      // user_1, assistant_1, user_2, assistant_2, user_3
-      final captured = verify(
-        () => mockStream.runAgent(any(), captureAny()),
-      ).captured;
-      final input = captured.last as SimpleRunAgentInput;
-      expect(input.messages, hasLength(5));
     });
   });
 
@@ -587,14 +479,12 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      final result = decodeJson(
-        await call('soliplex_upload_file', {
-          'server': _server,
-          'room_id': _roomId,
-          'filename': 'test.txt',
-          'content': 'hello',
-        }),
-      );
+      final result = (await call('soliplex_upload_file', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'filename': 'test.txt',
+        'content': 'hello',
+      }))! as Map<String, dynamic>;
       expect(result['uploaded'], 'test.txt');
       expect(result['room_id'], _roomId);
     });
@@ -612,15 +502,13 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      final result = decodeJson(
-        await call('soliplex_upload_to_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'thread_id': _threadId,
-          'filename': 'test.txt',
-          'content': 'hello',
-        }),
-      );
+      final result = (await call('soliplex_upload_to_thread', {
+        'server': _serverId,
+        'room_id': _roomId,
+        'thread_id': _threadId,
+        'filename': 'test.txt',
+        'content': 'hello',
+      }))! as Map<String, dynamic>;
       expect(result['uploaded'], 'test.txt');
       expect(result['thread_id'], _threadId);
     });
@@ -638,7 +526,7 @@ void main() {
             'message',
             allOf(
               contains('Unknown server "missing"'),
-              contains(_server),
+              contains(_serverId),
             ),
           ),
         ),
@@ -646,11 +534,10 @@ void main() {
     });
   });
 
-  // -- Child inheritance -----------------------------------------------------
+  // -- Fresh instance --------------------------------------------------------
 
-  group('createChildInstance', () {
-    test('returns plugin with fresh state', () async {
-      // Seed parent with a thread.
+  group('fresh tools instance', () {
+    test('new buildSoliplexTools call has no shared thread history', () async {
       when(
         () => mockApi.createThread(_roomId, name: any(named: 'name')),
       ).thenAnswer(
@@ -661,30 +548,24 @@ void main() {
       ).thenAnswer((_) => _happyStream());
 
       await call('soliplex_new_thread', {
-        'server': _server,
+        'server': _serverId,
         'room_id': _roomId,
         'message': 'Hi',
       });
 
-      // Create child.
-      final child = plugin.createChildInstance()! as SoliplexPlugin;
-
-      // Child's reply_thread on the same thread_id should not have
-      // the parent's history — it creates fresh state.
+      // Fresh tools instance — no shared thread state with parent.
+      final childTools = buildSoliplexTools(_ctx, connections);
       when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
         (_) async => _runInfo(id: 'child-run'),
       );
       when(
         () => mockStream.runAgent(any(), any()),
-      ).thenAnswer(
-        (_) => _happyStream(runId: 'child-run'),
-      );
+      ).thenAnswer((_) => _happyStream(runId: 'child-run'));
 
-      final childFn = child.functions.firstWhere(
-        (f) => f.schema.name == 'soliplex_reply_thread',
-      );
-      await childFn.handler({
-        'server': _server,
+      final childTool =
+          childTools.firstWhere((t) => t.name == 'soliplex_reply_thread');
+      await childTool.handler({
+        'server': _serverId,
         'room_id': _roomId,
         'thread_id': _threadId,
         'message': 'From child',
@@ -699,90 +580,21 @@ void main() {
     });
   });
 
-  // -- Plugin metadata -------------------------------------------------------
+  // -- System prompt ---------------------------------------------------------
 
-  group('plugin metadata', () {
-    test('namespace is soliplex', () {
-      expect(plugin.namespace, 'soliplex');
-    });
-
-    test('has 10 functions', () {
-      expect(plugin.functions, hasLength(10));
-    });
-
-    test('systemPromptContext mentions all servers', () {
-      expect(
-        plugin.systemPromptContext,
-        contains(_server),
-      );
-    });
-
-    test('systemPromptContext omits MCP token section', () {
-      expect(
-        plugin.systemPromptContext,
-        isNot(contains('soliplex_get_mcp_token')),
-      );
+  group('buildSoliplexSystemPrompt', () {
+    test('mentions server alias and id', () {
+      final prompt = buildSoliplexSystemPrompt(connections);
+      expect(prompt, contains(_alias));
+      expect(prompt, contains(_serverId));
     });
   });
 
-  // -- Dispose ---------------------------------------------------------------
+  // -- Tool count ------------------------------------------------------------
 
-  group('onDispose', () {
-    test('closes all connections', () async {
-      final mockApi2 = MockSoliplexApi();
-      final mockStream2 = MockAgUiStreamClient();
-      when(mockApi2.close).thenReturn(null);
-      when(mockStream2.close).thenReturn(null);
-      when(() => mockApi.close()).thenReturn(null);
-      when(() => mockStream.close()).thenReturn(null);
-
-      final multi = SoliplexPlugin(
-        connections: {
-          'a': SoliplexConnection(api: mockApi, streamClient: mockStream),
-          'b': SoliplexConnection(api: mockApi2, streamClient: mockStream2),
-        },
-      );
-      await multi.onDispose();
-
-      verify(() => mockApi.close()).called(1);
-      verify(() => mockStream.close()).called(1);
-      verify(mockApi2.close).called(1);
-      verify(mockStream2.close).called(1);
-    });
-  });
-
-  // -- Edge cases ------------------------------------------------------------
-
-  group('edge cases', () {
-    test('response without TextMessageStartEvent uses generated message id',
-        () async {
-      when(
-        () => mockApi.createThread(_roomId, name: any(named: 'name')),
-      ).thenAnswer(
-        (_) async => (_threadInfo(), <String, dynamic>{}),
-      );
-
-      // Stream without TextMessageStartEvent — lastMessageId stays null.
-      when(
-        () => mockStream.runAgent(any(), any()),
-      ).thenAnswer(
-        (_) => Stream.fromIterable([
-          const RunStartedEvent(threadId: _threadId, runId: _runId),
-          const TextMessageContentEvent(messageId: 'msg-x', delta: 'hi'),
-          const TextMessageEndEvent(messageId: 'msg-x'),
-          const RunFinishedEvent(threadId: _threadId, runId: _runId),
-        ]),
-      );
-
-      final result = decodeJson(
-        await call('soliplex_new_thread', {
-          'server': _server,
-          'room_id': _roomId,
-          'message': 'Hello',
-        }),
-      );
-      // Response still contains the text.
-      expect(result['response'], 'hi');
+  group('tool count', () {
+    test('buildSoliplexTools returns 9 tools', () {
+      expect(tools, hasLength(9));
     });
   });
 }

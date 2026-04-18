@@ -1,5 +1,8 @@
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
+import 'package:soliplex_agent/src/runtime/session_context.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
+
+export 'package:soliplex_agent/src/runtime/session_context.dart';
 
 /// A capability bound to the lifecycle of an [AgentSession].
 ///
@@ -24,4 +27,6 @@ abstract interface class SessionExtension {
 }
 
 /// Factory that creates extensions for each new session.
-typedef SessionExtensionFactory = Future<List<SessionExtension>> Function();
+typedef SessionExtensionFactory = Future<List<SessionExtension>> Function(
+  SessionContext ctx,
+);
