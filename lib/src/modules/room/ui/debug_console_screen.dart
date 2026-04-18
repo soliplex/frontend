@@ -31,8 +31,7 @@ class DebugConsoleScreen extends ConsumerStatefulWidget {
   final Future<String> Function(String code)? pythonExecutor;
 
   @override
-  ConsumerState<DebugConsoleScreen> createState() =>
-      _DebugConsoleScreenState();
+  ConsumerState<DebugConsoleScreen> createState() => _DebugConsoleScreenState();
 }
 
 class _DebugConsoleScreenState extends ConsumerState<DebugConsoleScreen>
@@ -104,8 +103,7 @@ class _ReplTab extends StatefulWidget {
   State<_ReplTab> createState() => _ReplTabState();
 }
 
-class _ReplTabState extends State<_ReplTab>
-    with AutomaticKeepAliveClientMixin {
+class _ReplTabState extends State<_ReplTab> with AutomaticKeepAliveClientMixin {
   final List<_HistoryEntry> _history = [];
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
@@ -185,8 +183,8 @@ class _ReplTabState extends State<_ReplTab>
               ? Center(
                   child: Text(
                     'Type Python code below and press Enter',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: cs.outline),
+                    style:
+                        theme.textTheme.bodySmall?.copyWith(color: cs.outline),
                   ),
                 )
               : ListView.builder(
@@ -215,14 +213,11 @@ class _ReplTabState extends State<_ReplTab>
                           ),
                           if (e.output.isNotEmpty)
                             Padding(
-                              padding:
-                                  const EdgeInsets.only(top: 4, left: 32),
+                              padding: const EdgeInsets.only(top: 4, left: 32),
                               child: Text(
                                 e.output,
                                 style: mono?.copyWith(
-                                  color: e.isError
-                                      ? cs.error
-                                      : cs.onSurface,
+                                  color: e.isError ? cs.error : cs.onSurface,
                                 ),
                               ),
                             ),
@@ -232,6 +227,11 @@ class _ReplTabState extends State<_ReplTab>
                   },
                 ),
         ),
+        const Divider(height: 1),
+        _SnippetBar(onSelected: (s) {
+          _controller.text = s;
+          _focusNode.requestFocus();
+        }),
         const Divider(height: 1),
         Padding(
           padding: const EdgeInsets.all(8),
@@ -285,6 +285,58 @@ class _ReplTabState extends State<_ReplTab>
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Snippet bar ─────────────────────────────────────────────────────────────
+
+typedef _Snippet = ({String label, String code});
+
+const _kSnippets = <_Snippet>[
+  (
+    label: 'notify',
+    code: "notify_show(kind='success', title='Hello', body='from Python')"
+  ),
+  (label: 'modal', code: "ui_show_modal('Info', 'This is a modal message.')"),
+  (label: 'confirm', code: "ui_request_confirm('delete', 'Delete this item?')"),
+  (
+    label: 'form',
+    code:
+        "ui_show_form('prefs', [{'key':'name','label':'Your name','type':'text'}])"
+  ),
+  (label: 'list_servers', code: 'soliplex_list_servers()'),
+  (label: 'list_rooms', code: "soliplex_list_rooms(server='<id>')"),
+  (label: 'help', code: 'help()'),
+  (label: '1+1', code: '1 + 1'),
+];
+
+class _SnippetBar extends StatelessWidget {
+  const _SnippetBar({required this.onSelected});
+
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        itemCount: _kSnippets.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (_, i) {
+          final s = _kSnippets[i];
+          return ActionChip(
+            label: Text(s.label),
+            labelStyle: TextStyle(fontSize: 11, color: cs.primary),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => onSelected(s.code),
+          );
+        },
+      ),
     );
   }
 }
@@ -350,8 +402,7 @@ class _SessionsTabState extends State<_SessionsTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final currentKey =
-        '${widget.currentServerId}:${widget.currentRoomId}';
+    final currentKey = '${widget.currentServerId}:${widget.currentRoomId}';
     final envs = widget.registry.environments;
     final platform = kIsWeb ? 'WASM' : 'FFI';
 
@@ -364,8 +415,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             children: [
               Text(
                 'Python ($platform)',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: cs.outline),
+                style: theme.textTheme.labelSmall?.copyWith(color: cs.outline),
               ),
               const Spacer(),
               IconButton(
@@ -384,8 +434,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             child: Center(
               child: Text(
                 'No active interpreters — send a message first.',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: cs.outline),
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.outline),
               ),
             ),
           )
@@ -400,10 +449,8 @@ class _SessionsTabState extends State<_SessionsTab> {
                 final env = envs.values.elementAt(i);
                 final isCurrent = key == currentKey;
                 final scriptingState = env.scriptingState.watch(context);
-                final isExecuting =
-                    scriptingState == ScriptingState.executing;
-                final isDisposed =
-                    scriptingState == ScriptingState.disposed;
+                final isExecuting = scriptingState == ScriptingState.executing;
+                final isDisposed = scriptingState == ScriptingState.disposed;
 
                 return Container(
                   padding: const EdgeInsets.all(12),
@@ -431,9 +478,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                             : DecoratedBox(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: isDisposed
-                                      ? cs.outline
-                                      : cs.primary,
+                                  color: isDisposed ? cs.outline : cs.primary,
                                 ),
                               ),
                       ),
@@ -446,9 +491,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                               key,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontFamily: 'monospace',
-                                fontWeight: isCurrent
-                                    ? FontWeight.bold
-                                    : null,
+                                fontWeight: isCurrent ? FontWeight.bold : null,
                               ),
                             ),
                             Text(
