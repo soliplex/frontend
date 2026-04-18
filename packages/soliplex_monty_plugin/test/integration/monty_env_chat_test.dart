@@ -118,7 +118,7 @@ void main() {
               serverUrl: _demoUrl,
             );
             return MontyScriptEnvironment(
-              tools: buildSoliplexTools(ctx, {'inner': soliplexConn}),
+              tools: buildSoliplexTools(ctx, () => {'inner': soliplexConn}),
             );
           },
         ),
@@ -222,7 +222,7 @@ void main() {
       env = MontyScriptEnvironment(
         tools: buildSoliplexTools(
           const SessionContext(serverId: 'inner', roomId: 'chat'),
-          {'inner': soliplexConn},
+          () => {'inner': soliplexConn},
         ),
       );
       // toSharedFactory: env is NOT disposed when a session ends.

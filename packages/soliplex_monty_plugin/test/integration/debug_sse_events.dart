@@ -144,7 +144,7 @@ Future<void> main() async {
   );
   final tools = buildSoliplexTools(
     const SessionContext(serverId: 'local', roomId: 'bwrap_sandbox'),
-    {'local': conn},
+    () => {'local': conn},
   );
   final handler =
       tools.firstWhere((t) => t.name == 'soliplex_new_thread').handler;

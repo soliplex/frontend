@@ -67,13 +67,10 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   /// Serialises concurrent `execute()` calls on the dart_monty bridge.
   final Mutex _executeMutex = Mutex();
 
-  List<ClientTool>? _clientTools;
-
   @override
-  List<ClientTool> get tools => _clientTools ??= [
-        _buildRunScriptTool(),
+  List<ClientTool> get tools => [
+        _buildExecutePythonTool(),
         _buildReplPythonTool(),
-        ..._tools.map(_projectToClientTool),
       ];
 
   /// Executes Python [code] directly in the interpreter.
@@ -87,6 +84,29 @@ class MontyScriptEnvironment implements ScriptEnvironment {
       }
       return _montySession.execute(code).timeout(_executionTimeout);
     });
+  }
+
+  /// Executes Python [code] and returns a formatted output string.
+  ///
+  /// Combines print output and the last-expression value. Python errors are
+  /// returned as `Error: …` strings rather than thrown. Sets [scriptingState]
+  /// to [ScriptingState.executing] for the duration of the call.
+  Future<String> executeFormatted(String code) async {
+    if (_disposed) throw StateError('MontyScriptEnvironment has been disposed');
+    _stateSignal.set(ScriptingState.executing);
+    try {
+      final result = await _executeMutex.protect(() {
+        if (_disposed) {
+          throw StateError('MontyScriptEnvironment has been disposed');
+        }
+        return _montySession.execute(code).timeout(_executionTimeout);
+      });
+      return _formatResult(result);
+    } on TimeoutException {
+      return 'Error: Python execution timed out after $_executionTimeout';
+    } finally {
+      if (!_disposed) _stateSignal.set(ScriptingState.idle);
+    }
   }
 
   @override
@@ -165,47 +185,14 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   // ClientTool projection
   // ---------------------------------------------------------------------------
 
-  ClientTool _projectToClientTool(SoliplexTool tool) {
-    return ClientTool(
-      definition: Tool(
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      ),
-      executor: (toolCall, context) async {
-        if (_disposed) {
-          throw StateError('MontyScriptEnvironment has been disposed');
-        }
-        if (context.cancelToken.isCancelled) return '';
-
-        final args = toolCall.arguments.isEmpty
-            ? <String, Object?>{}
-            : (jsonDecode(toolCall.arguments) as Map<String, dynamic>)
-                .cast<String, Object?>();
-
-        _stateSignal.set(ScriptingState.executing);
-        try {
-          final result = await tool.handler(args);
-          return switch (result) {
-            null => '',
-            final String s => s,
-            _ => jsonEncode(result),
-          };
-        } finally {
-          if (!_disposed) _stateSignal.set(ScriptingState.idle);
-        }
-      },
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // Python tools
   // ---------------------------------------------------------------------------
 
-  ClientTool _buildRunScriptTool() {
+  ClientTool _buildExecutePythonTool() {
     return ClientTool(
       definition: const Tool(
-        name: 'run_script',
+        name: 'execute_python',
         description:
             'Run a complete, self-contained Python script in a sandboxed '
             'interpreter. Write all logic in one call. Returns print() '
@@ -310,25 +297,11 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         return _montySession.execute(code).timeout(_executionTimeout);
       });
 
-      final printOut = result.printOutput;
-      final returnVal = result.value.dartValue?.toString();
-
-      final pythonError = result.error;
-      if (pythonError != null) {
-        final errorMsg = 'Error: ${pythonError.message}';
-        _log.debug('[$callId] Python error (returned as output): $errorMsg');
-        final parts = [
-          if (printOut != null && printOut.isNotEmpty) printOut,
-          errorMsg,
-        ];
-        return parts.join('\n');
+      if (result.error != null) {
+        _log.debug('[$callId] Python error (returned as output): '
+            '${result.error!.message}');
       }
-
-      final parts = [
-        if (printOut != null && printOut.isNotEmpty) printOut,
-        if (returnVal != null && returnVal.isNotEmpty) returnVal,
-      ];
-      return parts.isEmpty ? 'None' : parts.join('\n');
+      return _formatResult(result);
     } on TimeoutException {
       return 'Error: Python execution timed out after $_executionTimeout';
     } catch (e, st) {
@@ -339,6 +312,24 @@ class MontyScriptEnvironment implements ScriptEnvironment {
         _stateSignal.set(ScriptingState.idle);
       }
     }
+  }
+
+  static String _formatResult(dm.MontyResult result) {
+    final printOut = result.printOutput;
+    final returnVal = result.value.dartValue?.toString();
+    final pythonError = result.error;
+    if (pythonError != null) {
+      final parts = [
+        if (printOut != null && printOut.isNotEmpty) printOut,
+        'Error: ${pythonError.message}',
+      ];
+      return parts.join('\n');
+    }
+    final parts = [
+      if (printOut != null && printOut.isNotEmpty) printOut,
+      if (returnVal != null && returnVal.isNotEmpty) returnVal,
+    ];
+    return parts.isEmpty ? 'None' : parts.join('\n');
   }
 }
 

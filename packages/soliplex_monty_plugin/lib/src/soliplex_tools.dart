@@ -66,13 +66,18 @@ All functions follow the pattern: soliplex_<action>(server, room_id, ...).''';
 }
 
 /// Builds the standard set of Soliplex tools.
+///
+/// [getConnections] is called on every tool invocation so the tool set
+/// always reflects the current set of authenticated server connections,
+/// even when servers are added or removed after the environment is created.
 List<SoliplexTool> buildSoliplexTools(
   SessionContext ctx,
-  Map<String, SoliplexConnection> connections,
+  Map<String, SoliplexConnection> Function() getConnections,
 ) {
   final threadStates = <ThreadKey, _ThreadState>{};
 
   SoliplexConnection connection(String serverId) {
+    final connections = getConnections();
     final conn = connections[serverId];
     if (conn == null) {
       throw ArgumentError(
@@ -89,7 +94,8 @@ List<SoliplexTool> buildSoliplexTools(
       name: 'soliplex_list_servers',
       description: 'List all connected Soliplex servers.',
       parameters: {'type': 'object', 'properties': <String, dynamic>{}},
-      handler: (args) async => connections.values
+      handler: (args) async => getConnections()
+          .values
           .map(
             (c) => {
               'id': c.serverId,

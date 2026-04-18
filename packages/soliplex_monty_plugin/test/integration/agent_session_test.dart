@@ -33,7 +33,7 @@ void main() {
       'demo': _buildConnection('demo', _demoUrl),
       'local': _buildConnection('local', _localUrl),
     };
-    final soliplexTools = buildSoliplexTools(ctx, connections);
+    final soliplexTools = buildSoliplexTools(ctx, () => connections);
 
     env = MontyScriptEnvironment(
       tools: [
