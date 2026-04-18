@@ -186,12 +186,12 @@ class _ActivityRowState extends State<_ActivityRow> {
               child: SelectableText(
                 prettyPrintArgs(payload),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontFamily: monospaceFont(Theme.of(context).platform),
-                  fontFamilyFallback: const ['monospace'],
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 11,
-                  height: 1.5,
-                ),
+                      fontFamily: monospaceFont(Theme.of(context).platform),
+                      fontFamilyFallback: const ['monospace'],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                      height: 1.5,
+                    ),
               ),
             ),
         ],
