@@ -165,13 +165,13 @@ class AgentSession implements ToolExecutionContext {
   }
 
   @override
-  Future<bool> requestApproval({
+  Future<ApprovalResult> requestApproval({
     required String toolCallId,
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
   }) async {
-    if (_uiDelegate == null) return false;
+    if (_uiDelegate == null) return const Deny();
     emitEvent(
       AwaitingApproval(
         toolCallId: toolCallId,
@@ -186,7 +186,7 @@ class AgentSession implements ToolExecutionContext {
         arguments: arguments,
         rationale: rationale,
       ),
-      cancelToken.whenCancelled.then((_) => false),
+      cancelToken.whenCancelled.then((_) => const Deny()),
     ]);
   }
 

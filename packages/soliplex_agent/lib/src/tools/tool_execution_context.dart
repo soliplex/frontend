@@ -2,6 +2,7 @@ import 'dart:async' show TimeoutException;
 
 import 'package:soliplex_agent/src/orchestration/execution_event.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
+import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
@@ -31,13 +32,14 @@ abstract interface class ToolExecutionContext {
 
   /// Suspend execution until the UI delegate approves.
   ///
-  /// Auto-approves if no delegate is set (headless/testing). Tools call
-  /// this before performing sensitive actions (clipboard, file I/O, shell).
-  /// The delegate receives the [rationale] to display to the user.
+  /// Denies if no delegate is set (headless/testing). Tools call this before
+  /// performing sensitive actions (clipboard, file I/O, shell). The delegate
+  /// receives the [rationale] to display to the user.
   ///
-  /// Returns `true` to proceed, `false` to deny. On denial the tool
-  /// should return an error message to the LLM.
-  Future<bool> requestApproval({
+  /// Returns [AllowOnce] or [AllowSession] to proceed, [Deny] to block.
+  /// On [Deny] the tool should return an error message to the LLM — do NOT
+  /// throw, as that causes unconditional LLM retries.
+  Future<ApprovalResult> requestApproval({
     required String toolCallId,
     required String toolName,
     required Map<String, dynamic> arguments,

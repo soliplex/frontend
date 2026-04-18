@@ -33,6 +33,11 @@ class ExecutionTracker {
       Signal<List<ToolCallInfo>>(const []);
   ReadonlySignal<List<ToolCallInfo>> get toolCalls => _toolCalls;
 
+  final Signal<String?> _awaitingApprovalFor = Signal<String?>(null);
+
+  /// The tool call ID currently awaiting human approval, or null if none.
+  ReadonlySignal<String?> get awaitingApprovalFor => _awaitingApprovalFor;
+
   void _flushToolCalls() {
     _toolCalls.value = _toolCallsById.values.toList();
   }
@@ -42,6 +47,11 @@ class ExecutionTracker {
     _unsub = null;
     _stopwatch.stop();
     _isFrozen = true;
+    _awaitingApprovalFor.dispose();
+    _steps.dispose();
+    _activities.dispose();
+    _aguiState.dispose();
+    _toolCalls.dispose();
   }
 
   void _onEvent(ExecutionEvent? event) {
@@ -66,6 +76,9 @@ class ExecutionTracker {
             result: result,
           );
           _flushToolCalls();
+        }
+        if (_awaitingApprovalFor.value == toolCallId) {
+          _awaitingApprovalFor.value = null;
         }
       case ServerToolCallArgsUpdated(:final toolCallId, :final argsDelta):
         final steps = _steps.value;
@@ -100,9 +113,31 @@ class ExecutionTracker {
           );
           _flushToolCalls();
         }
+        if (_awaitingApprovalFor.value == toolCallId) {
+          _awaitingApprovalFor.value = null;
+        }
+      case AwaitingApproval(:final toolCallId, :final toolName):
+        _awaitingApprovalFor.value = toolCallId;
+        final existing = _toolCallsById[toolCallId];
+        if (existing != null) {
+          _toolCallsById[toolCallId] = existing.copyWith(
+            status: ToolCallStatus.awaitingApproval,
+          );
+          _flushToolCalls();
+        } else {
+          // Tool not tracked yet — add it
+          _toolCallsById[toolCallId] = ToolCallInfo(
+            id: toolCallId,
+            name: toolName,
+            status: ToolCallStatus.awaitingApproval,
+          );
+          _flushToolCalls();
+        }
       case RunCompleted():
+        _awaitingApprovalFor.value = null;
         _completeAllSteps(StepStatus.completed);
       case RunFailed() || RunCancelled():
+        _awaitingApprovalFor.value = null;
         _completeAllSteps(StepStatus.failed);
       case ActivitySnapshot(:final activityType, :final content):
         _activities.value = [
@@ -115,10 +150,7 @@ class ExecutionTracker {
         ];
       case StateUpdated(:final aguiState):
         _aguiState.value = aguiState;
-      case TextDelta() ||
-            StepProgress() ||
-            AwaitingApproval() ||
-            CustomExecutionEvent():
+      case TextDelta() || StepProgress() || CustomExecutionEvent():
         break;
     }
   }
@@ -164,5 +196,10 @@ class ExecutionTracker {
     _unsub?.call();
     _unsub = null;
     _stopwatch.stop();
+    _awaitingApprovalFor.dispose();
+    _steps.dispose();
+    _activities.dispose();
+    _aguiState.dispose();
+    _toolCalls.dispose();
   }
 }

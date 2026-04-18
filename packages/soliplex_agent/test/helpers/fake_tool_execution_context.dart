@@ -19,7 +19,7 @@ class FakeToolExecutionContext implements ToolExecutionContext {
   T? getExtension<T extends SessionExtension>() => throw UnimplementedError();
 
   @override
-  Future<bool> requestApproval({
+  Future<ApprovalResult> requestApproval({
     required String toolCallId,
     required String toolName,
     required Map<String, dynamic> arguments,

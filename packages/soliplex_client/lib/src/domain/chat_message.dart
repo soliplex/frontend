@@ -167,9 +167,10 @@ class ToolCallMessage extends ChatMessage {
       toolCalls.every(
         (tc) =>
             tc.status == ToolCallStatus.completed ||
-            tc.status == ToolCallStatus.failed,
+            tc.status == ToolCallStatus.failed ||
+            tc.status == ToolCallStatus.denied,
       ),
-      'All tool calls must have terminal status (completed or failed)',
+      'All tool calls must have terminal status (completed, failed, or denied)',
     );
     return ToolCallMessage(
       id: id,
@@ -285,6 +286,12 @@ enum ToolCallStatus {
 
   /// Tool call is currently executing.
   executing,
+
+  /// Tool call is awaiting human approval before executing.
+  awaitingApproval,
+
+  /// Tool call was denied by the user.
+  denied,
 
   /// Tool call completed successfully.
   completed,

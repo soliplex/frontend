@@ -193,6 +193,9 @@ class _FakeTracker implements ExecutionTracker {
       Signal<List<ToolCallInfo>>(const []);
 
   @override
+  ReadonlySignal<String?> get awaitingApprovalFor => Signal<String?>(null);
+
+  @override
   bool get isFrozen => false;
 
   @override

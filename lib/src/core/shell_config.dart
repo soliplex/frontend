@@ -25,6 +25,11 @@ class ShellConfig {
   final List<ModuleContribution> modules;
   final Listenable? refreshListenable;
   final VoidCallback? onDispose;
+
+  /// Optional navigator key forwarded to [MaterialApp.router].
+  ///
+  /// Provide this when a non-routing UI component (e.g. [RoomUiDelegate])
+  /// needs to push dialogs without a [BuildContext].
   final GlobalKey<NavigatorState>? navigatorKey;
   final GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey;
 

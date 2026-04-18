@@ -1,5 +1,29 @@
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
 
+/// Result of a HITL tool approval request.
+sealed class ApprovalResult {
+  const ApprovalResult();
+}
+
+/// User approved this invocation only. Next call will re-prompt.
+class AllowOnce extends ApprovalResult {
+  const AllowOnce();
+}
+
+/// User approved for the remainder of the session.
+///
+/// The caller is responsible for recording this grant so subsequent
+/// invocations of the same tool are not re-prompted.
+class AllowSession extends ApprovalResult {
+  const AllowSession();
+}
+
+/// User denied the request. The agent session should be cancelled — do NOT
+/// feed an error string back to the LLM as it will retry unconditionally.
+class Deny extends ApprovalResult {
+  const Deny();
+}
+
 /// Callback interface for UI-side tool approval decisions.
 ///
 /// Both Flutter and TUI implement this interface to control how tool
@@ -11,7 +35,7 @@ import 'package:soliplex_agent/src/runtime/agent_session.dart';
 /// ```dart
 /// class MyUiDelegate implements AgentUiDelegate {
 ///   @override
-///   Future<bool> requestToolApproval({
+///   Future<ApprovalResult> requestToolApproval({
 ///     required AgentSession session,
 ///     required String toolName,
 ///     required Map<String, dynamic> arguments,
@@ -28,10 +52,10 @@ abstract interface class AgentUiDelegate {
   /// [session] identifies which session is requesting approval, allowing
   /// multi-tab UIs to route the prompt to the correct view.
   ///
-  /// Returns `true` to proceed with tool execution, `false` to deny.
-  /// When denied, the tool receives a "User denied permission" error
-  /// that is fed back to the LLM.
-  Future<bool> requestToolApproval({
+  /// Returns [AllowOnce] or [AllowSession] to proceed, [Deny] to block.
+  /// On [Deny] the caller MUST cancel the agent session rather than
+  /// returning an error string to the LLM.
+  Future<ApprovalResult> requestToolApproval({
     required AgentSession session,
     required String toolName,
     required Map<String, dynamic> arguments,
@@ -48,11 +72,11 @@ class AutoApproveUiDelegate implements AgentUiDelegate {
   const AutoApproveUiDelegate();
 
   @override
-  Future<bool> requestToolApproval({
+  Future<ApprovalResult> requestToolApproval({
     required AgentSession session,
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
   }) async =>
-      true;
+      const AllowOnce();
 }

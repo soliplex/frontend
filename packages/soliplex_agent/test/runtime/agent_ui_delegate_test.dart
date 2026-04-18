@@ -27,20 +27,20 @@ class _FakeCancelToken extends Fake implements CancelToken {}
 
 class TestDelegate implements AgentUiDelegate {
   final List<({String toolName, Map<String, dynamic> arguments})> calls = [];
-  Completer<bool>? pendingCompleter;
+  Completer<ApprovalResult>? pendingCompleter;
 
   bool autoApprove = true;
 
   @override
-  Future<bool> requestToolApproval({
+  Future<ApprovalResult> requestToolApproval({
     required AgentSession session,
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
   }) {
     calls.add((toolName: toolName, arguments: arguments));
-    if (autoApprove) return Future.value(true);
-    pendingCompleter = Completer<bool>();
+    if (autoApprove) return Future.value(const AllowOnce());
+    pendingCompleter = Completer<ApprovalResult>();
     return pendingCompleter!.future;
   }
 }
@@ -163,7 +163,7 @@ void main() {
         final streamClient = MockAgUiStreamClient();
         _stubToolThenResume(api, streamClient);
 
-        var approvalResult = true;
+        ApprovalResult? approvalResult;
         final registry = const ToolRegistry().register(
           ClientTool(
             definition: const Tool(
@@ -192,17 +192,17 @@ void main() {
         final session = await runtime.spawn(roomId: _roomA, prompt: 'test');
         await session.result;
 
-        expect(approvalResult, isFalse);
+        expect(approvalResult, isA<Deny>());
         await runtime.dispose();
       });
 
-      test('routes to delegate and returns true', () async {
+      test('routes to delegate and returns AllowOnce', () async {
         final api = MockSoliplexApi();
         final streamClient = MockAgUiStreamClient();
         _stubToolThenResume(api, streamClient);
         final delegate = TestDelegate();
 
-        var approvalResult = false;
+        ApprovalResult? approvalResult;
         final registry = const ToolRegistry().register(
           ClientTool(
             definition: const Tool(
@@ -231,20 +231,20 @@ void main() {
         final session = await runtime.spawn(roomId: _roomA, prompt: 'test');
         await session.result;
 
-        expect(approvalResult, isTrue);
+        expect(approvalResult, isA<AllowOnce>());
         expect(delegate.calls, hasLength(1));
         expect(delegate.calls.first.toolName, 'test_tool');
         expect(delegate.calls.first.arguments, {'action': 'read'});
         await runtime.dispose();
       });
 
-      test('routes to delegate and returns false', () async {
+      test('routes to delegate and returns Deny', () async {
         final api = MockSoliplexApi();
         final streamClient = MockAgUiStreamClient();
         _stubToolThenResume(api, streamClient);
         final delegate = TestDelegate()..autoApprove = false;
 
-        var approvalResult = true;
+        ApprovalResult? approvalResult;
         final registry = const ToolRegistry().register(
           ClientTool(
             definition: const Tool(
@@ -258,7 +258,7 @@ void main() {
                 arguments: const {'action': 'read'},
                 rationale: 'Allow clipboard read?',
               );
-              if (!approvalResult) return 'User denied permission';
+              if (approvalResult is Deny) return 'User denied permission';
               return 'ok';
             },
           ),
@@ -273,14 +273,14 @@ void main() {
 
         final session = await runtime.spawn(roomId: _roomA, prompt: 'test');
 
-        // Complete the pending approval with false
+        // Complete the pending approval with Deny
         await Future<void>.delayed(Duration.zero);
         await Future<void>.delayed(Duration.zero);
-        delegate.pendingCompleter?.complete(false);
+        delegate.pendingCompleter?.complete(const Deny());
 
         await session.result;
 
-        expect(approvalResult, isFalse);
+        expect(approvalResult, isA<Deny>());
         expect(delegate.calls, hasLength(1));
         await runtime.dispose();
       });
@@ -452,6 +452,59 @@ void main() {
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
       expect(a.hashCode, equals(b.hashCode));
+    });
+  });
+
+  group('ApprovalResult', () {
+    test('AllowOnce is an ApprovalResult', () {
+      expect(const AllowOnce(), isA<ApprovalResult>());
+    });
+
+    test('AllowSession is an ApprovalResult', () {
+      expect(const AllowSession(), isA<ApprovalResult>());
+    });
+
+    test('Deny is an ApprovalResult', () {
+      expect(const Deny(), isA<ApprovalResult>());
+    });
+
+    test('AutoApproveUiDelegate returns AllowOnce via integration', () async {
+      final api = MockSoliplexApi();
+      final streamClient = MockAgUiStreamClient();
+      _stubToolThenResume(api, streamClient);
+      const delegate = AutoApproveUiDelegate();
+
+      ApprovalResult? approvalResult;
+      final registry = const ToolRegistry().register(
+        ClientTool(
+          definition: const Tool(
+            name: 'test_tool',
+            description: 'A test tool',
+          ),
+          executor: (tc, ctx) async {
+            approvalResult = await ctx.requestApproval(
+              toolCallId: tc.id,
+              toolName: tc.name,
+              arguments: const {},
+              rationale: 'test',
+            );
+            return 'ok';
+          },
+        ),
+      );
+
+      final runtime = _createRuntime(
+        api: api,
+        streamClient: streamClient,
+        uiDelegate: delegate,
+        toolRegistryResolver: (_) async => registry,
+      );
+
+      final session = await runtime.spawn(roomId: _roomA, prompt: 'test');
+      await session.result;
+
+      expect(approvalResult, isA<AllowOnce>());
+      await runtime.dispose();
     });
   });
 }

@@ -18,6 +18,7 @@ import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
 import '../modules/auth/consent_notice.dart';
+import '../modules/auth/room_ui_delegate.dart';
 import '../modules/auth/platform/auth_flow.dart';
 import '../modules/auth/platform/callback_params.dart';
 import '../modules/auth/secure_server_storage.dart';
@@ -188,6 +189,9 @@ Future<ShellConfig> standard({
     return (env as MontyScriptEnvironment).executeFormatted(code);
   }
 
+  final navigatorKey = GlobalKey<NavigatorState>();
+  final uiDelegate = RoomUiDelegate(navigatorKey: navigatorKey);
+
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
         ? const WebPlatformConstraints()
@@ -198,6 +202,7 @@ Future<ShellConfig> standard({
     logger: LogManager.instance.getLogger('room'),
     extensionFactoryBuilder: (connection) =>
         toRoomSharedFactory(roomEnvRegistry, buildEnv),
+    uiDelegate: uiDelegate,
   );
 
   final registry = RunRegistry();
@@ -217,6 +222,7 @@ Future<ShellConfig> standard({
     navigatorKey: navigatorKey,
     scaffoldMessengerKey: scaffoldMessengerKey,
     refreshListenable: authListenable,
+    navigatorKey: navigatorKey,
     onDispose: () {
       authListenable.dispose();
       serverManager.dispose();

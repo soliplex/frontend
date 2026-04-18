@@ -10,16 +10,19 @@ class AgentRuntimeManager {
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
     required Logger logger,
     SessionExtensionFactory Function(ServerConnection)? extensionFactoryBuilder,
+    AgentUiDelegate? uiDelegate,
   })  : _platform = platform,
         _toolRegistryResolver = toolRegistryResolver,
         _logger = logger,
-        _extensionFactoryBuilder = extensionFactoryBuilder;
+        _extensionFactoryBuilder = extensionFactoryBuilder,
+        _uiDelegate = uiDelegate;
 
   final PlatformConstraints _platform;
   final Future<ToolRegistry> Function(String roomId) _toolRegistryResolver;
   final Logger _logger;
   final SessionExtensionFactory Function(ServerConnection)?
       _extensionFactoryBuilder;
+  final AgentUiDelegate? _uiDelegate;
   final Map<String, ({ServerConnection connection, AgentRuntime runtime})>
       _cache = {};
   bool _isDisposed = false;
@@ -55,6 +58,7 @@ class AgentRuntimeManager {
       platform: _platform,
       logger: _logger,
       extensionFactory: _extensionFactoryBuilder?.call(connection),
+      uiDelegate: _uiDelegate,
     );
   }
 
