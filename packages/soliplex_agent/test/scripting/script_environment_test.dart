@@ -1,3 +1,4 @@
+import 'package:signals_core/signals_core.dart' show signal;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:test/test.dart';
 
@@ -15,10 +16,17 @@ class _TestScriptEnvironment implements ScriptEnvironment {
   List<ClientTool> get tools => toolList;
 
   @override
+  ReadonlySignal<ScriptingState> get scriptingState =>
+      signal(ScriptingState.idle);
+
+  @override
+  Future<void> onAttach(AgentSession session) async {}
+
+  @override
   void dispose() => disposeCount++;
 }
 
-Future<ScriptEnvironment> _createTestEnvironment() async =>
+Future<ScriptEnvironment> _createTestEnvironment(SessionContext _) async =>
     _TestScriptEnvironment();
 
 void main() {
@@ -54,14 +62,16 @@ void main() {
 
   group('ScriptEnvironmentFactory', () {
     test('factory typedef creates environments', () async {
-      final env = await _createTestEnvironment();
+      const ctx = SessionContext(serverId: 'test', roomId: 'room');
+      final env = await _createTestEnvironment(ctx);
 
       expect(env, isA<ScriptEnvironment>());
     });
 
     test('each factory call creates a fresh instance', () async {
-      final env1 = await _createTestEnvironment();
-      final env2 = await _createTestEnvironment();
+      const ctx = SessionContext(serverId: 'test', roomId: 'room');
+      final env1 = await _createTestEnvironment(ctx);
+      final env2 = await _createTestEnvironment(ctx);
 
       expect(identical(env1, env2), isFalse);
     });

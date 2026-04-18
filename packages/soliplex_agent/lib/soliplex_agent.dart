@@ -65,5 +65,6 @@ export 'src/runtime/server_registry.dart';
 export 'src/runtime/session_extension.dart';
 // ── Scripting ──
 export 'src/scripting/script_environment.dart';
+export 'src/scripting/scripting_state.dart';
 // ── Tools ──
 export 'src/tools/tool_registry.dart';
