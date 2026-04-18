@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:ui_plugin/ui_plugin.dart';
 
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
@@ -17,6 +18,7 @@ class MessageTimeline extends StatefulWidget {
     required this.messages,
     required this.messageStates,
     this.streamingState,
+    this.injected = const [],
     this.executionTrackers = const {},
     this.onFeedbackSubmit,
     this.onInspect,
@@ -26,6 +28,7 @@ class MessageTimeline extends StatefulWidget {
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
   final StreamingState? streamingState;
+  final List<InjectedMessage> injected;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
       onFeedbackSubmit;
@@ -159,6 +162,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final displayMessages = computeDisplayMessages(
       widget.messages,
       widget.streamingState,
+      injected: widget.injected,
     );
 
     if (_needsInitialScroll) {

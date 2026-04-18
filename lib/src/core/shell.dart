@@ -40,6 +40,7 @@ class _SoliplexShellState extends State<SoliplexShell> {
         title: widget.config.appName,
         theme: widget.config.theme,
         routerConfig: _router,
+        scaffoldMessengerKey: widget.config.scaffoldMessengerKey,
       ),
     );
   }

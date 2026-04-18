@@ -3,7 +3,12 @@ import 'dart:convert';
 
 import 'package:dart_monty/dart_monty.dart' as dm;
 import 'package:dart_monty/dart_monty_bridge.dart'
-    show HostFunction, HostFunctionSchema, HostParam, HostParamType;
+    show
+        HostFunction,
+        HostFunctionSchema,
+        HostParam,
+        HostParamType,
+        MontyPlugin;
 import 'package:meta/meta.dart';
 import 'package:mutex/mutex.dart';
 import 'package:signals_core/signals_core.dart';
@@ -24,9 +29,11 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   /// [executionTimeout] caps each Python execution; defaults to 30 s.
   MontyScriptEnvironment({
     required List<SoliplexTool> tools,
+    List<MontyPlugin> plugins = const [],
     dm.OsCallHandler? os,
     Duration executionTimeout = const Duration(seconds: 30),
   })  : _tools = List.unmodifiable(tools),
+        _plugins = List.unmodifiable(plugins),
         _montySession = dm.AgentSession(os: os),
         _executionTimeout = executionTimeout {
     _registerTools();
@@ -39,14 +46,17 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   MontyScriptEnvironment.forTest(
     dm.AgentSession session, {
     List<SoliplexTool> tools = const [],
+    List<MontyPlugin> plugins = const [],
     Duration executionTimeout = const Duration(seconds: 2),
   })  : _tools = List.unmodifiable(tools),
+        _plugins = List.unmodifiable(plugins),
         _montySession = session,
         _executionTimeout = executionTimeout {
     _registerTools();
   }
 
   final List<SoliplexTool> _tools;
+  final List<MontyPlugin> _plugins;
   final dm.AgentSession _montySession;
 
   final Signal<ScriptingState> _stateSignal = signal(ScriptingState.idle);
@@ -92,6 +102,9 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     _stateSignal
       ..set(ScriptingState.disposed)
       ..dispose();
+    for (final plugin in _plugins) {
+      unawaited(plugin.onDispose());
+    }
     unawaited(
       _executeMutex.protect(() async {
         await _montySession.dispose();
@@ -106,6 +119,12 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   void _registerTools() {
     for (final tool in _tools) {
       _montySession.register(_toHostFunction(tool));
+    }
+    // Plugins register their host functions directly. PluginRegistry lifecycle
+    // (onRegister, sibling lookups) is not used here — plugins must not call
+    // sibling() or access registry in their handlers.
+    for (final plugin in _plugins) {
+      plugin.functions.forEach(_montySession.register);
     }
   }
 

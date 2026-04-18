@@ -1,12 +1,14 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_monty_plugin/soliplex_monty_plugin.dart';
+import 'package:ui_plugin/ui_plugin.dart';
+import 'package:ui_renderer_soliplex/ui_renderer_soliplex.dart';
 
 import '../design/design.dart';
 import '../core/shell_config.dart';
@@ -84,6 +86,13 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Widget? logo,
 }) async {
+  final navigatorKey = GlobalKey<NavigatorState>();
+  final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final uiRenderer = SoliplexUiRenderer(
+    navigatorKey: navigatorKey,
+    scaffoldMessengerKey: scaffoldMessengerKey,
+  );
+  final debugUiPlugin = kDebugMode ? UiPlugin(renderer: uiRenderer) : null;
   LogManager.instance
     ..minimumLevel = LogLevel.debug
     ..addSink(StdoutSink());
@@ -164,6 +173,7 @@ Future<ShellConfig> standard({
             ...soliplexTools,
             buildHelpTool(soliplexTools),
           ],
+          plugins: [UiPlugin(renderer: uiRenderer)],
         );
       },
     ),
@@ -183,6 +193,8 @@ Future<ShellConfig> standard({
     initialRoute: callbackParams is! NoCallbackParams
         ? '/auth/callback'
         : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
+    navigatorKey: navigatorKey,
+    scaffoldMessengerKey: scaffoldMessengerKey,
     refreshListenable: authListenable,
     onDispose: () {
       authListenable.dispose();
@@ -201,6 +213,11 @@ Future<ShellConfig> standard({
         runtimeManager: runtimeManager,
         registry: registry,
         enableDocumentFilter: true,
+        injectedMessages: uiRenderer.injectedMessages,
+        onRoomChanged: uiRenderer.clearInjectedMessages,
+        debugPanel: debugUiPlugin != null
+            ? DebugUiPanel(plugin: debugUiPlugin, renderer: uiRenderer)
+            : null,
       ),
       quizModule(serverManager: serverManager),
       authModule(
