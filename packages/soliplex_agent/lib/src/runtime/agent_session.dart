@@ -305,7 +305,7 @@ class AgentSession implements ToolExecutionContext {
 
   void _disposeExtensions() {
     for (final ext in _extensions) {
-      ext.onDispose();
+      ext.dispose();
     }
   }
 

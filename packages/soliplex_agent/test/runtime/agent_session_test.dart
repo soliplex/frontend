@@ -78,16 +78,6 @@ ToolRegistry _registryWith({
 // Test doubles
 // ---------------------------------------------------------------------------
 
-class _TestScriptEnvironment implements ScriptEnvironment {
-  int disposeCount = 0;
-
-  @override
-  List<ClientTool> get tools => const [];
-
-  @override
-  void dispose() => disposeCount++;
-}
-
 class _TestExtension implements SessionExtension {
   int attachCount = 0;
   int disposeCount = 0;
@@ -103,7 +93,7 @@ class _TestExtension implements SessionExtension {
   List<ClientTool> get tools => const [];
 
   @override
-  void onDispose() => disposeCount++;
+  void dispose() => disposeCount++;
 }
 
 class _TestExtensionWithTool implements SessionExtension {
@@ -120,7 +110,7 @@ class _TestExtensionWithTool implements SessionExtension {
   List<ClientTool> get tools => [_tool];
 
   @override
-  void onDispose() => disposeCount++;
+  void dispose() => disposeCount++;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,7 +642,7 @@ void main() {
       expect(callCount, equals(2));
     });
 
-    test('onDispose called on session dispose', () {
+    test('dispose called on session dispose', () {
       final ext = _TestExtension();
       createSession(
         api: api,
@@ -731,15 +721,6 @@ void main() {
         ..dispose();
 
       expect(ext.disposeCount, equals(1));
-    });
-
-    test('ScriptEnvironmentExtension adapter lifecycle', () {
-      final env = _TestScriptEnvironment();
-      final ext = ScriptEnvironmentExtension(env);
-
-      expect(ext.tools, isEmpty);
-      ext.onDispose();
-      expect(env.disposeCount, equals(1));
     });
   });
 

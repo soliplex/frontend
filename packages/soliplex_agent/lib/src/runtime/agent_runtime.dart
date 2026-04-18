@@ -322,7 +322,8 @@ class AgentRuntime {
     required int depth,
   }) async {
     var toolRegistry = await _toolRegistryResolver(roomId);
-    final extensions = await _createExtensions();
+    final ctx = SessionContext(serverId: serverId, roomId: roomId);
+    final extensions = await _createExtensions(ctx);
     for (final ext in extensions) {
       for (final tool in ext.tools) {
         toolRegistry = toolRegistry.register(tool);
@@ -346,9 +347,9 @@ class AgentRuntime {
     );
   }
 
-  Future<List<SessionExtension>> _createExtensions() async {
+  Future<List<SessionExtension>> _createExtensions(SessionContext ctx) async {
     if (_extensionFactory == null) return const [];
-    return _extensionFactory();
+    return _extensionFactory(ctx);
   }
 
   // ---------------------------------------------------------------------------
