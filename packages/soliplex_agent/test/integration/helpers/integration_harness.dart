@@ -37,7 +37,7 @@ class IntegrationHarness {
 
   /// Initialise clients. Backend must be reachable.
   Future<void> setUp() async {
-    baseUrl = env('SOLIPLEX_BASE_URL', 'https://demo.toughserv.com');
+    baseUrl = env('SOLIPLEX_BASE_URL', 'http://localhost:8000');
 
     restClient = DartHttpClient();
     sseClient = DartHttpClient();
