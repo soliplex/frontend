@@ -12,10 +12,15 @@
 ///
 /// **2. Host filter** ([AccessPolicy.allowHosts] / [AccessPolicy.denyHosts])
 /// Controls which HTTP hosts the session may connect to. Enforced at the
-/// HTTP layer by `HostFilteringHttpClient` (M2 — not yet wired). Requests to
-/// denied hosts are rejected before a TCP connection opens.
+/// HTTP layer by `HostFilteringHttpClient`. Requests to denied hosts are
+/// rejected before a TCP connection opens.
 ///
-/// **3. HITL policy** ([HitlPolicy])
+/// **3. OS/VFS filter** ([OsFilter])
+/// Controls which filesystem and environment operations Python may perform.
+/// Enforced by `PolicyOsCallHandler` wrapping the session's `OsCallHandler`.
+/// [OsFilter.readOnly] denies all `Path` write ops; [OsFilter.permissive] allows all.
+///
+/// **4. HITL policy** ([HitlPolicy])
 /// Specifies which tool calls require human approval before execution. The
 /// bridge middleware pauses the call, surfaces an approval request via
 /// `AgentUiDelegate`, and only proceeds on explicit user consent (M4).
@@ -99,6 +104,55 @@ class ToolFilter {
   }
 }
 
+/// Filters OS-level calls (filesystem, environment, datetime) from Python.
+///
+/// Operations are identified by their string name, e.g. `Path.read_text`,
+/// `Path.write_text`, `os.getenv`. See `PathOp` constants in dart_monty.
+///
+/// If [allowedOps] is null, all operations are permitted (fail-open).
+/// [deniedOps] is applied after [allowedOps].
+///
+/// Convenience constructors:
+/// - [OsFilter.permissive] — allow everything (default)
+/// - [OsFilter.readOnly] — deny all `Path` write ops
+@immutable
+class OsFilter {
+  /// Creates an [OsFilter].
+  const OsFilter({this.allowedOps, this.deniedOps = const {}});
+
+  /// Permissive filter — all OS operations allowed.
+  static const permissive = OsFilter();
+
+  /// Read-only filter — denies all `Path` write operations.
+  ///
+  /// Blocked: `Path.write_text`, `Path.write_bytes`, `Path.mkdir`,
+  /// `Path.unlink`, `Path.rmdir`, `Path.rename`.
+  static const readOnly = OsFilter(deniedOps: _pathWriteOps);
+
+  /// OS operation names that are explicitly allowed. `null` = all allowed.
+  final Set<String>? allowedOps;
+
+  /// OS operation names that are explicitly denied (applied after allowlist).
+  final Set<String> deniedOps;
+
+  /// Returns true if [operation] is permitted by this filter.
+  bool allows(String operation) {
+    if (deniedOps.contains(operation)) return false;
+    if (allowedOps != null && !allowedOps!.contains(operation)) return false;
+    return true;
+  }
+}
+
+/// All `Path.*` write operations — used by [OsFilter.readOnly].
+const _pathWriteOps = {
+  'Path.write_text',
+  'Path.write_bytes',
+  'Path.mkdir',
+  'Path.unlink',
+  'Path.rmdir',
+  'Path.rename',
+};
+
 /// HITL (Human-in-the-Loop) policy — which tool calls require user approval.
 @immutable
 class HitlPolicy {
@@ -141,6 +195,7 @@ class AccessPolicy {
   /// Creates an [AccessPolicy].
   const AccessPolicy({
     this.toolFilter = ToolFilter.permissive,
+    this.osFilter = OsFilter.permissive,
     this.hitlPolicy = HitlPolicy.none,
     this.allowHosts,
     this.denyHosts = const {},
@@ -151,6 +206,9 @@ class AccessPolicy {
 
   /// Which tools are callable.
   final ToolFilter toolFilter;
+
+  /// Which OS/VFS operations are permitted.
+  final OsFilter osFilter;
 
   /// Which tool calls require human approval.
   final HitlPolicy hitlPolicy;
@@ -173,18 +231,24 @@ class AccessPolicy {
     List<String>? allowedTools,
     List<String>? allowHosts,
     List<String>? denyHosts,
+    List<String>? allowedOsOps,
+    List<String>? deniedOsOps,
     List<String>? requireApprovalForTools,
     List<String>? requireApprovalForNamespaces,
   }) {
     return AccessPolicy(
       toolFilter: ToolFilter.fromAllowlist(allowedTools),
+      osFilter: OsFilter(
+        allowedOps:
+            allowedOsOps != null ? Set.unmodifiable(allowedOsOps) : null,
+        deniedOps: Set.unmodifiable(deniedOsOps ?? []),
+      ),
       hitlPolicy: HitlPolicy(
         requireApprovalForTools: Set.unmodifiable(requireApprovalForTools ?? []),
         requireApprovalForNamespaces:
             Set.unmodifiable(requireApprovalForNamespaces ?? []),
       ),
-      allowHosts:
-          allowHosts != null ? Set.unmodifiable(allowHosts) : null,
+      allowHosts: allowHosts != null ? Set.unmodifiable(allowHosts) : null,
       denyHosts: Set.unmodifiable(denyHosts ?? []),
     );
   }
@@ -202,6 +266,7 @@ class AccessPolicy {
         allowedNamespaces: toolFilter.allowedNamespaces,
         deniedTools: toolFilter.deniedTools,
       ),
+      osFilter: osFilter,
       hitlPolicy: hitlPolicy,
       allowHosts: allowHosts,
       denyHosts: denyHosts,
