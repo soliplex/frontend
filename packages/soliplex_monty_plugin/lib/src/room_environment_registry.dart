@@ -25,6 +25,9 @@ class RoomEnvironmentRegistry {
     return env;
   }
 
+  /// All currently cached environments, keyed by `'$serverId:$roomId'`.
+  Map<String, ScriptEnvironment> get environments => Map.unmodifiable(_cache);
+
   /// Disposes all cached environments and clears the cache.
   void dispose() {
     for (final env in _cache.values) {

@@ -12,7 +12,7 @@ class ThreadSidebar extends StatelessWidget {
     required this.onThreadSelected,
     required this.onBackToLobby,
     required this.onCreateThread,
-    required this.onNetworkInspector,
+    required this.onDebugConsole,
     required this.onRoomInfo,
     required this.roomName,
     this.onRetryThreads,
@@ -27,7 +27,7 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String threadId) onThreadSelected;
   final VoidCallback onBackToLobby;
   final VoidCallback onCreateThread;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDebugConsole;
   final VoidCallback onRoomInfo;
   final String roomName;
   final Future<void> Function()? onRetryThreads;
@@ -87,9 +87,9 @@ class ThreadSidebar extends StatelessWidget {
           ),
         ),
         TextButton.icon(
-          onPressed: onNetworkInspector,
-          icon: const Icon(Icons.http, size: 16),
-          label: const Text('Network Inspector'),
+          onPressed: onDebugConsole,
+          icon: const Icon(Icons.bug_report, size: 16),
+          label: const Text('Debug Console'),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             visualDensity: VisualDensity.compact,

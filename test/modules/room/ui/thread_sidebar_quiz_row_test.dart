@@ -17,7 +17,7 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
+          onDebugConsole: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
           quizzes: quizzes,

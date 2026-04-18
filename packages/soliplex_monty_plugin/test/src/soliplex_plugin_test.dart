@@ -87,7 +87,7 @@ void main() {
         streamClient: mockStream,
       ),
     };
-    tools = buildSoliplexTools(_ctx, connections);
+    tools = buildSoliplexTools(_ctx, () => connections);
   });
 
   Future<Object?> call(
@@ -130,7 +130,7 @@ void main() {
           streamClient: mockStream2,
         ),
       };
-      final multiTools = buildSoliplexTools(_ctx, multiConnections);
+      final multiTools = buildSoliplexTools(_ctx, () => multiConnections);
       final tool =
           multiTools.firstWhere((t) => t.name == 'soliplex_list_servers');
       final result = (await tool.handler({}))! as List<dynamic>;
@@ -554,7 +554,7 @@ void main() {
       });
 
       // Fresh tools instance — no shared thread state with parent.
-      final childTools = buildSoliplexTools(_ctx, connections);
+      final childTools = buildSoliplexTools(_ctx, () => connections);
       when(() => mockApi.createRun(_roomId, _threadId)).thenAnswer(
         (_) async => _runInfo(id: 'child-run'),
       );

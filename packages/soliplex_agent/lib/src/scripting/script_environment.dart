@@ -98,13 +98,16 @@ SessionExtensionFactory toSharedFactory(ScriptEnvironment env) {
 /// Wraps a [ScriptEnvironment] as a [SessionExtension] without taking
 /// ownership. [dispose] is intentionally a no-op — lifecycle is managed
 /// by whoever created the environment.
-class SharedScriptEnvironmentProxy implements SessionExtension {
+class SharedScriptEnvironmentProxy implements ScriptEnvironment {
   SharedScriptEnvironmentProxy(this._env);
 
   final ScriptEnvironment _env;
 
   @override
   List<ClientTool> get tools => _env.tools;
+
+  @override
+  ReadonlySignal<ScriptingState> get scriptingState => _env.scriptingState;
 
   @override
   Future<void> onAttach(AgentSession session) => _env.onAttach(session);

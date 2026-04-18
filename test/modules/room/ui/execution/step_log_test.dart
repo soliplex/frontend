@@ -189,6 +189,10 @@ class _FakeTracker implements ExecutionTracker {
       Signal<Map<String, dynamic>>(const {});
 
   @override
+  ReadonlySignal<List<ToolCallInfo>> get toolCalls =>
+      Signal<List<ToolCallInfo>>(const []);
+
+  @override
   bool get isFrozen => false;
 
   @override

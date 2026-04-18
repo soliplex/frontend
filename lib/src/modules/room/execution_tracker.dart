@@ -28,6 +28,15 @@ class ExecutionTracker {
       Signal<Map<String, dynamic>>(const {});
   ReadonlySignal<Map<String, dynamic>> get aguiState => _aguiState;
 
+  final Map<String, ToolCallInfo> _toolCallsById = {};
+  final Signal<List<ToolCallInfo>> _toolCalls =
+      Signal<List<ToolCallInfo>>(const []);
+  ReadonlySignal<List<ToolCallInfo>> get toolCalls => _toolCalls;
+
+  void _flushToolCalls() {
+    _toolCalls.value = _toolCallsById.values.toList();
+  }
+
   void freeze() {
     _unsub?.call();
     _unsub = null;
@@ -46,8 +55,18 @@ class ExecutionTracker {
       case ServerToolCallStarted(:final toolName, :final toolCallId):
         _completeActiveStep();
         _addStep(toolName, toolCallId: toolCallId);
-      case ServerToolCallCompleted():
+        _toolCallsById[toolCallId] = ToolCallInfo(id: toolCallId, name: toolName);
+        _flushToolCalls();
+      case ServerToolCallCompleted(:final toolCallId, :final result):
         _completeActiveStep();
+        final existing = _toolCallsById[toolCallId];
+        if (existing != null) {
+          _toolCallsById[toolCallId] = existing.copyWith(
+            status: ToolCallStatus.completed,
+            result: result,
+          );
+          _flushToolCalls();
+        }
       case ServerToolCallArgsUpdated(:final toolCallId, :final argsDelta):
         final steps = _steps.value;
         final idx = steps.lastIndexWhere((s) => s.toolCallId == toolCallId);
@@ -59,11 +78,28 @@ class ExecutionTracker {
             ...steps.sublist(idx + 1),
           ];
         }
-      case ClientToolExecuting(:final toolName):
+        final existing = _toolCallsById[toolCallId];
+        if (existing != null) {
+          _toolCallsById[toolCallId] = existing.copyWith(
+            arguments: existing.arguments + argsDelta,
+          );
+          _flushToolCalls();
+        }
+      case ClientToolExecuting(:final toolName, :final toolCallId):
         _completeActiveStep();
         _addStep(toolName);
-      case ClientToolCompleted():
+        _toolCallsById[toolCallId] = ToolCallInfo(id: toolCallId, name: toolName);
+        _flushToolCalls();
+      case ClientToolCompleted(:final toolCallId, :final result, :final status):
         _completeActiveStep();
+        final existing = _toolCallsById[toolCallId];
+        if (existing != null) {
+          _toolCallsById[toolCallId] = existing.copyWith(
+            status: status,
+            result: result,
+          );
+          _flushToolCalls();
+        }
       case RunCompleted():
         _completeAllSteps(StepStatus.completed);
       case RunFailed() || RunCancelled():

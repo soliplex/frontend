@@ -57,7 +57,7 @@ void main() {
     };
     tools = buildSoliplexTools(
       const SessionContext(serverId: 'demo', roomId: 'chat'),
-      connections,
+      () => connections,
     );
   });
 

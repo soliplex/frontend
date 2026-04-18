@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamController, unawaited;
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
@@ -147,6 +147,37 @@ Future<ShellConfig> standard({
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
   final roomEnvRegistry = RoomEnvironmentRegistry();
+  final notifyController = StreamController<NotifyEvent>.broadcast();
+
+  Future<ScriptEnvironment> buildEnv(SessionContext ctx) async {
+    Map<String, SoliplexConnection> getConnections() => {
+          for (final entry in serverManager.servers.value.values)
+            entry.serverId: SoliplexConnection.fromServerConnection(
+              entry.connection,
+              alias: entry.alias,
+              serverUrl: entry.serverUrl.toString(),
+            ),
+        };
+    final soliplexTools = buildSoliplexTools(ctx, getConnections);
+    return MontyScriptEnvironment(
+      tools: [
+        ...soliplexTools,
+        buildHelpTool(soliplexTools),
+        buildNotifyTool(notifyController.add),
+      ],
+      plugins: debugUiPlugin != null ? [debugUiPlugin] : [],
+    );
+  }
+
+  Future<String> replExecutor(
+    String serverId,
+    String roomId,
+    String code,
+  ) async {
+    final ctx = SessionContext(serverId: serverId, roomId: roomId);
+    final env = await roomEnvRegistry.getOrCreate(ctx, buildEnv);
+    return (env as MontyScriptEnvironment).executeFormatted(code);
+  }
 
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
@@ -156,27 +187,8 @@ Future<ShellConfig> standard({
         .register(buildGetDeviceInfoTool())
         .register(buildGetClipboardTool()),
     logger: LogManager.instance.getLogger('room'),
-    extensionFactoryBuilder: (connection) => toRoomSharedFactory(
-      roomEnvRegistry,
-      (ctx) async {
-        final connections = {
-          for (final entry in serverManager.servers.value.values)
-            entry.serverId: SoliplexConnection.fromServerConnection(
-              entry.connection,
-              alias: entry.alias,
-              serverUrl: entry.serverUrl.toString(),
-            ),
-        };
-        final soliplexTools = buildSoliplexTools(ctx, connections);
-        return MontyScriptEnvironment(
-          tools: [
-            ...soliplexTools,
-            buildHelpTool(soliplexTools),
-          ],
-          plugins: [UiPlugin(renderer: uiRenderer)],
-        );
-      },
-    ),
+    extensionFactoryBuilder: (connection) =>
+        toRoomSharedFactory(roomEnvRegistry, buildEnv),
   );
 
   final registry = RunRegistry();
@@ -203,6 +215,7 @@ Future<ShellConfig> standard({
       runtimeManager.dispose();
       registry.dispose();
       roomEnvRegistry.dispose();
+      notifyController.close();
       inspector.dispose();
     },
     modules: [
@@ -218,6 +231,9 @@ Future<ShellConfig> standard({
         debugPanel: debugUiPlugin != null
             ? DebugUiPanel(plugin: debugUiPlugin, renderer: uiRenderer)
             : null,
+        notifyStream: notifyController.stream,
+        envRegistry: roomEnvRegistry,
+        replExecutor: replExecutor,
       ),
       quizModule(serverManager: serverManager),
       authModule(
@@ -240,15 +256,15 @@ Future<void> _probeMontyRuntime(
 ) async {
   const name = 'MontyProbe';
   final ctx = const SessionContext(serverId: 'probe', roomId: 'probe');
-  final connections = {
-    for (final entry in serverManager.servers.value.values)
-      entry.serverId: SoliplexConnection.fromServerConnection(
-        entry.connection,
-        alias: entry.alias,
-        serverUrl: entry.serverUrl.toString(),
-      ),
-  };
-  final soliplexTools = buildSoliplexTools(ctx, connections);
+  Map<String, SoliplexConnection> getConnections() => {
+        for (final entry in serverManager.servers.value.values)
+          entry.serverId: SoliplexConnection.fromServerConnection(
+            entry.connection,
+            alias: entry.alias,
+            serverUrl: entry.serverUrl.toString(),
+          ),
+      };
+  final soliplexTools = buildSoliplexTools(ctx, getConnections);
   final env = MontyScriptEnvironment(
     tools: [
       ...soliplexTools,

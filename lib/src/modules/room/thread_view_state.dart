@@ -81,6 +81,7 @@ class ThreadViewState {
   AgentSession? _activeSession;
   Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
+  void Function()? _scriptingStateUnsub;
   bool _isDisposed = false;
 
   final Signal<ThreadViewStatus> _messages =
@@ -100,6 +101,10 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
+
+  final Signal<ScriptingState> _scriptingState =
+      Signal<ScriptingState>(ScriptingState.idle);
+  ReadonlySignal<ScriptingState> get scriptingState => _scriptingState;
 
   final TrackerRegistry _trackerRegistry = TrackerRegistry();
   Map<String, ExecutionTracker> get executionTrackers =>
@@ -185,6 +190,14 @@ class ThreadViewState {
     _activeSession = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    final env = session.getExtension<ScriptEnvironment>();
+    if (env != null) {
+      _scriptingStateUnsub = env.scriptingState.subscribe((s) {
+        if (s == ScriptingState.executing) {
+          _scriptingState.value = ScriptingState.executing;
+        }
+      });
+    }
   }
 
   void _onRunState(RunState runState) {
@@ -241,6 +254,9 @@ class ThreadViewState {
   void _detachSession() {
     _runStateUnsub?.call();
     _runStateUnsub = null;
+    _scriptingStateUnsub?.call();
+    _scriptingStateUnsub = null;
+    _scriptingState.value = ScriptingState.idle;
     _activeSession = null;
     _streamingState.value = null;
     _sessionState.value = null;
