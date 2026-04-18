@@ -21,6 +21,8 @@ dependencies:
     path: ../soliplex_client
   soliplex_logging:
     path: ../soliplex_logging
+  ui_plugin:
+    path: ../ui_plugin
 
 dev_dependencies:
   mocktail: ^1.0.0

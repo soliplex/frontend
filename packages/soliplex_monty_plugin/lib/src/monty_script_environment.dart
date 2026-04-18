@@ -67,6 +67,42 @@ class MontyScriptEnvironment implements ScriptEnvironment {
   /// Serialises concurrent `execute()` calls on the dart_monty bridge.
   final Mutex _executeMutex = Mutex();
 
+  // ---------------------------------------------------------------------------
+  // dart_monty_core workaround: augmented assignments as last expression
+  // ---------------------------------------------------------------------------
+
+  // dart_monty_core's `isExpression()` does not recognise augmented
+  // assignments (`a += 1`, `x -= 2`, etc.) as statements. When one is the
+  // last line, `captureLastExpression` wraps it as `__r = (a += 1)` which is
+  // invalid Python — causing a NameError that wipes the variable from scope.
+  //
+  // Guard: if the last non-empty, non-comment line is an augmented assignment,
+  // append `\nNone` so the harmless `None` literal becomes the last expression
+  // instead. The suppressed flag lets callers skip showing the `None` result.
+
+  static final _augmentedAssignPattern = RegExp(
+    r'[\+\-\*/%&|^]=|//=|\*\*=|>>=|<<=',
+  );
+
+  /// Returns `(processedCode, suppressReturnValue)`.
+  ///
+  /// When the last meaningful line is an augmented assignment the returned
+  /// code has `\nNone` appended (so dart_monty_core wraps the safe `None`
+  /// literal rather than the augmented assignment) and `suppressReturnValue`
+  /// is `true` so callers know not to display the sentinel return.
+  static (String, bool) _guardAugmentedAssign(String code) {
+    final lines = code.split('\n');
+    for (var i = lines.length - 1; i >= 0; i--) {
+      final t = lines[i].trim();
+      if (t.isEmpty || t.startsWith('#')) continue;
+      if (_augmentedAssignPattern.hasMatch(t)) {
+        return ('$code\nNone', true);
+      }
+      break;
+    }
+    return (code, false);
+  }
+
   @override
   List<ClientTool> get tools => [
         _buildExecutePythonTool(),
@@ -95,12 +131,19 @@ class MontyScriptEnvironment implements ScriptEnvironment {
     if (_disposed) throw StateError('MontyScriptEnvironment has been disposed');
     _stateSignal.set(ScriptingState.executing);
     try {
+      final (processed, suppressReturn) = _guardAugmentedAssign(code);
       final result = await _executeMutex.protect(() {
         if (_disposed) {
           throw StateError('MontyScriptEnvironment has been disposed');
         }
-        return _montySession.execute(code).timeout(_executionTimeout);
+        return _montySession.execute(processed).timeout(_executionTimeout);
       });
+      if (suppressReturn) {
+        final printOut = result.printOutput;
+        final err = result.error;
+        if (err != null) return 'Error: ${err.message}';
+        return (printOut != null && printOut.isNotEmpty) ? printOut : '';
+      }
       return _formatResult(result);
     } on TimeoutException {
       return 'Error: Python execution timed out after $_executionTimeout';
@@ -290,16 +333,23 @@ class MontyScriptEnvironment implements ScriptEnvironment {
 
     _stateSignal.set(ScriptingState.executing);
     try {
+      final (processed, suppressReturn) = _guardAugmentedAssign(code);
       final result = await _executeMutex.protect(() {
         if (_disposed) {
           throw StateError('MontyScriptEnvironment has been disposed');
         }
-        return _montySession.execute(code).timeout(_executionTimeout);
+        return _montySession.execute(processed).timeout(_executionTimeout);
       });
 
       if (result.error != null) {
         _log.debug('[$callId] Python error (returned as output): '
             '${result.error!.message}');
+      }
+      if (suppressReturn) {
+        final printOut = result.printOutput;
+        final err = result.error;
+        if (err != null) return 'Error: ${err.message}';
+        return (printOut != null && printOut.isNotEmpty) ? printOut : 'OK';
       }
       return _formatResult(result);
     } on TimeoutException {

@@ -22,7 +22,8 @@ ModuleContribution roomModule({
   required AgentRuntimeManager runtimeManager,
   required RunRegistry registry,
   bool enableDocumentFilter = false,
-  ReadonlySignal<List<InjectedMessage>>? injectedMessages,
+  ReadonlySignal<List<InjectedMessage>> Function(String roomKey)?
+      injectedMessages,
   VoidCallback? onRoomChanged,
   Widget? debugPanel,
   Stream<NotifyEvent>? notifyStream,
@@ -88,7 +89,8 @@ GoRoute _buildRoute(
   RunRegistry registry,
   bool enableDocumentFilter,
   DocumentSelections documentSelections,
-  ReadonlySignal<List<InjectedMessage>>? injectedMessages,
+  ReadonlySignal<List<InjectedMessage>> Function(String roomKey)?
+      injectedMessages,
   VoidCallback? onRoomChanged,
   Widget? debugPanel,
   Stream<NotifyEvent>? notifyStream,
