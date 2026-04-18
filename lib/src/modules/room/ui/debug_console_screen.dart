@@ -303,7 +303,7 @@ const _kSnippets = <_Snippet>[
   (
     label: 'form',
     code:
-        "ui_show_form('prefs', [{'key':'name','label':'Your name','type':'text'}])"
+        "ui_show_form({'key':'prefs','fields':[{'key':'name','label':'Your name','type':'text'}]})"
   ),
   (label: 'list_servers', code: 'soliplex_list_servers()'),
   (label: 'list_rooms', code: "soliplex_list_rooms(server='<id>')"),
