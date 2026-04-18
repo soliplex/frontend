@@ -1,0 +1,3 @@
+coverage/
+.dart_tool/
+build/
