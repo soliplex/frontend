@@ -506,23 +506,40 @@ SoliplexTool buildHelpTool(List<SoliplexTool> tools) {
       final name = args['name'] as String?;
       if (name == null) {
         final allTools = [
-          ...tools.map((t) => {'name': t.name, 'description': t.description}),
-          {
-            'name': 'help',
-            'description': 'Show detailed information about available tools.',
-          },
+          ...tools,
+          SoliplexTool(
+            name: 'help',
+            description: 'Show detailed information about available tools.',
+            parameters: const {},
+            handler: (_) async => '',
+          ),
         ];
-        return {'tools': allTools};
+        final buf = StringBuffer('Available tools:\n\n');
+        for (final t in allTools) {
+          buf
+            ..writeln('  ${t.name}')
+            ..writeln('    ${t.description}');
+        }
+        return buf.toString().trimRight();
       }
       final tool = tools.firstWhere(
         (t) => t.name == name,
         orElse: () => throw ArgumentError('Unknown tool: $name'),
       );
-      return {
-        'name': tool.name,
-        'description': tool.description,
-        'parameters': tool.parameters,
-      };
+      final buf = StringBuffer()
+        ..writeln(tool.name)
+        ..writeln('  ${tool.description}');
+      final props =
+          (tool.parameters['properties'] as Map?)?.cast<String, dynamic>();
+      if (props != null && props.isNotEmpty) {
+        buf.writeln('\n  Parameters:');
+        for (final entry in props.entries) {
+          final desc = (entry.value as Map?)?['description'] ?? '';
+          final type = (entry.value as Map?)?['type'] ?? '';
+          buf.writeln('    ${entry.key} ($type): $desc');
+        }
+      }
+      return buf.toString().trimRight();
     },
   );
 }
