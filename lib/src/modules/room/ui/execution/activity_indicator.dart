@@ -32,7 +32,7 @@ class ActivityIndicator extends StatelessWidget {
   String get _label => switch (activity) {
         ThinkingActivity() => 'Thinking...',
         ToolCallActivity(:final allToolNames) when allToolNames.length > 1 =>
-          'Calling ${allToolNames.length} tools...',
+          'Calling tools...',
         ToolCallActivity(:final allToolNames) =>
           'Calling ${allToolNames.first}...',
         RespondingActivity() => 'Responding...',

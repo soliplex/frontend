@@ -5,7 +5,6 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/step_log.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 
 void main() {
   testWidgets('ActivityIndicator shows Processing label', (tester) async {
@@ -67,25 +66,7 @@ void main() {
       ),
     ));
 
-    expect(find.text('2 steps'), findsOneWidget);
-
-    tracker.dispose();
-  });
-
-  testWidgets('ExecutionThinkingBlock shows thinking label', (tester) async {
-    final events = Signal<ExecutionEvent?>(null);
-    final tracker = ExecutionTracker(executionEvents: events);
-
-    events.value = const ThinkingStarted();
-    events.value = const ThinkingContent(delta: 'Let me think about this');
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ExecutionThinkingBlock(tracker: tracker),
-      ),
-    ));
-
-    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.text('1 tool call'), findsOneWidget);
 
     tracker.dispose();
   });

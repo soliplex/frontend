@@ -3,8 +3,8 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../execution_tracker.dart';
 import 'execution/activity_indicator.dart';
+import 'execution/activity_log.dart';
 import 'execution/step_log.dart';
-import 'execution/thinking_block.dart';
 
 class LoadingMessageTile extends StatelessWidget {
   const LoadingMessageTile({
@@ -25,7 +25,7 @@ class LoadingMessageTile extends StatelessWidget {
           if (streamingActivity != null)
             ActivityIndicator(activity: streamingActivity!),
           StepLog(tracker: executionTracker!),
-          ExecutionThinkingBlock(tracker: executionTracker!),
+          ActivityLog(tracker: executionTracker!),
         ],
       );
     }
