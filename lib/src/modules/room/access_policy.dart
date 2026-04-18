@@ -1,3 +1,47 @@
+/// Access control policy for a Monty scripting session.
+///
+/// # Architecture
+///
+/// Every room session carries an [AccessPolicy] that governs three layers:
+///
+/// **1. Tool filter** ([ToolFilter])
+/// Controls which Python-callable host functions are accessible. Implemented
+/// as bridge middleware ([PolicyEnforcementMiddleware]) — every Python tool
+/// call passes through it before reaching the handler. Infrastructure calls
+/// ([InfraCall]: `__restore_state__`, `__persist_state__`) always bypass.
+///
+/// **2. Host filter** ([AccessPolicy.allowHosts] / [AccessPolicy.denyHosts])
+/// Controls which HTTP hosts the session may connect to. Enforced at the
+/// HTTP layer by `HostFilteringHttpClient` (M2 — not yet wired). Requests to
+/// denied hosts are rejected before a TCP connection opens.
+///
+/// **3. HITL policy** ([HitlPolicy])
+/// Specifies which tool calls require human approval before execution. The
+/// bridge middleware pauses the call, surfaces an approval request via
+/// `AgentUiDelegate`, and only proceeds on explicit user consent (M4).
+///
+/// # Policy sources (priority order)
+///
+/// 1. Room server config (`room.clientPolicy` — parsed via [AccessPolicy.fromRoomConfig])
+/// 2. Flavor-level defaults (permissive — see `standard.dart`)
+/// 3. User runtime grants ([AccessPolicy.withSessionAllowances]) — additive,
+///    never restrictive
+///
+/// # Fail-open default
+///
+/// [AccessPolicy.permissive] allows everything. Wired as the default so
+/// existing rooms without a `clientPolicy` field continue to work unchanged.
+/// Server config tightens the policy; it cannot be loosened below permissive
+/// without an explicit server-side grant.
+///
+/// # Namespace convention
+///
+/// Tool names are split on `_` to derive a namespace:
+/// - `soliplex_list_rooms` → namespace `soliplex`
+/// - `notify_show` → namespace `notify`
+/// - `__restore_state__` → always treated as [InfraCall], never filtered
+library;
+
 import 'package:meta/meta.dart';
 
 /// Determines which client-side tools are callable from a room session.
