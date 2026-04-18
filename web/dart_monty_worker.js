@@ -121,7 +121,6 @@ var PROGRESS_PENDING = 1;
 var PROGRESS_ERROR = 2;
 var PROGRESS_RESOLVE_FUTURES = 3;
 var PROGRESS_OS_CALL = 4;
-var PROGRESS_NAME_LOOKUP = 5;
 var RESULT_OK = 0;
 
 // src/worker_src.js
@@ -151,13 +150,6 @@ function adaptResultForDart(cabiResultJson, isError) {
     value: parsed.value,
     print_output: parsed.print_output || null
   };
-}
-function excTypeFromMsg(msg) {
-  if (!msg) return null;
-  const colon = msg.indexOf(":");
-  if (colon <= 0) return null;
-  const prefix = msg.substring(0, colon).trim();
-  return /^[A-Z][A-Za-z]+$/.test(prefix) ? prefix : null;
 }
 function readProgress(id, handle, tag, errMsg) {
   switch (tag) {
@@ -198,17 +190,6 @@ function readProgress(id, handle, tag, errMsg) {
         methodCall: methodCall === 1
       };
     }
-    case PROGRESS_RESOLVE_FUTURES: {
-      const idsPtr = wasm2.monty_pending_future_call_ids(handle);
-      const idsJson = readAndFreeCString(idsPtr);
-      return {
-        type: "result",
-        id,
-        ok: true,
-        state: "resolve_futures",
-        pendingCallIds: idsJson ? JSON.parse(idsJson) : []
-      };
-    }
     case PROGRESS_OS_CALL: {
       const fnName = readAndFreeCString(wasm2.monty_os_call_fn_name(handle));
       const argsJson = readAndFreeCString(wasm2.monty_os_call_args_json(handle));
@@ -225,34 +206,25 @@ function readProgress(id, handle, tag, errMsg) {
         callId
       };
     }
-    case PROGRESS_NAME_LOOKUP: {
-      const namePtr = wasm2.monty_name_lookup_name(handle);
-      const variableName = readAndFreeCString(namePtr);
+    case PROGRESS_RESOLVE_FUTURES: {
+      const idsPtr = wasm2.monty_pending_future_call_ids(handle);
+      const idsJson = readAndFreeCString(idsPtr);
       return {
         type: "result",
         id,
         ok: true,
-        state: "name_lookup",
-        variableName
+        state: "resolve_futures",
+        pendingCallIds: idsJson ? JSON.parse(idsJson) : []
       };
     }
-    case PROGRESS_ERROR: {
-      const isErrState = wasm2.monty_complete_is_error(handle);
-      const errPtr2 = wasm2.monty_complete_result_json(handle);
-      const errJson = readAndFreeCString(errPtr2);
-      if (errJson && isErrState === 1) {
-        const adapted = adaptResultForDart(errJson, true);
-        return { type: "result", id, ...adapted };
-      }
+    case PROGRESS_ERROR:
       return {
         type: "result",
         id,
         ok: false,
         error: errMsg || "Unknown error",
-        errorType: "MontyException",
-        excType: excTypeFromMsg(errMsg)
+        errorType: "MontyException"
       };
-    }
     default:
       return {
         type: "result",
@@ -290,8 +262,7 @@ function handleRun(id, code, limits, scriptName) {
       id,
       ok: false,
       error: errMsg || "monty_create failed",
-      errorType: "CompileError",
-      excType: excTypeFromMsg(errMsg)
+      errorType: "CompileError"
     });
     return;
   }
@@ -382,8 +353,7 @@ function handleStart(id, code, extFns, limits, scriptName) {
       id,
       ok: false,
       error: errMsg2 || "monty_create failed",
-      errorType: "CompileError",
-      excType: excTypeFromMsg(errMsg2)
+      errorType: "CompileError"
     });
     return;
   }
@@ -511,60 +481,6 @@ function handleResumeWithError(id, errorMessage) {
     });
     return;
   }
-  wasm2.monty_dealloc(cErr.ptr, cErr.size);
-  const errPtr = outErr.read();
-  const errMsg = readAndFreeCString(errPtr);
-  outErr.free();
-  let msg;
-  try {
-    msg = readProgress(id, activeHandle, tag, errMsg);
-  } catch (e) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    throw e;
-  }
-  if (tag === PROGRESS_COMPLETE || tag === PROGRESS_ERROR) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-  }
-  self.postMessage(msg);
-}
-function handleResumeWithException(id, excType, errorMessage) {
-  if (!activeHandle) {
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: "No active handle to resume.",
-      errorType: "StateError"
-    });
-    return;
-  }
-  let cExcType = null;
-  let cErr = null;
-  let outErr = null;
-  let tag;
-  try {
-    cExcType = allocCString(excType);
-    cErr = allocCString(errorMessage);
-    outErr = allocOutPtr();
-    tag = wasm2.monty_resume_with_exception(activeHandle, cExcType.ptr, cErr.ptr, outErr.ptr);
-  } catch (e) {
-    if (cExcType) wasm2.monty_dealloc(cExcType.ptr, cExcType.size);
-    if (cErr) wasm2.monty_dealloc(cErr.ptr, cErr.size);
-    if (outErr) outErr.free();
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: e.message || String(e),
-      errorType: "Panic"
-    });
-    return;
-  }
-  wasm2.monty_dealloc(cExcType.ptr, cExcType.size);
   wasm2.monty_dealloc(cErr.ptr, cErr.size);
   const errPtr = outErr.read();
   const errMsg = readAndFreeCString(errPtr);
@@ -783,101 +699,6 @@ function handleRestore(id, dataBase64) {
   activeHandle = handle;
   self.postMessage({ type: "result", id, ok: true });
 }
-function handleResumeNameLookupValue(id, valueJson) {
-  if (!activeHandle) {
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: "No active handle for resumeNameLookupValue.",
-      errorType: "StateError"
-    });
-    return;
-  }
-  let cVal = null;
-  let outErr = null;
-  let tag;
-  try {
-    cVal = allocCString(valueJson);
-    outErr = allocOutPtr();
-    tag = wasm2.monty_resume_name_lookup_value(activeHandle, cVal.ptr, outErr.ptr);
-  } catch (e) {
-    if (cVal) wasm2.monty_dealloc(cVal.ptr, cVal.size);
-    if (outErr) outErr.free();
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: e.message || String(e),
-      errorType: "Panic"
-    });
-    return;
-  }
-  wasm2.monty_dealloc(cVal.ptr, cVal.size);
-  const errPtr = outErr.read();
-  const errMsg = readAndFreeCString(errPtr);
-  outErr.free();
-  let msg;
-  try {
-    msg = readProgress(id, activeHandle, tag, errMsg);
-  } catch (e) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    throw e;
-  }
-  if (tag === PROGRESS_COMPLETE || tag === PROGRESS_ERROR) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-  }
-  self.postMessage(msg);
-}
-function handleResumeNameLookupUndefined(id) {
-  if (!activeHandle) {
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: "No active handle for resumeNameLookupUndefined.",
-      errorType: "StateError"
-    });
-    return;
-  }
-  const outErr = allocOutPtr();
-  let tag;
-  try {
-    tag = wasm2.monty_resume_name_lookup_undefined(activeHandle, outErr.ptr);
-  } catch (e) {
-    outErr.free();
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    self.postMessage({
-      type: "result",
-      id,
-      ok: false,
-      error: e.message || String(e),
-      errorType: "Panic"
-    });
-    return;
-  }
-  const errPtr = outErr.read();
-  const errMsg = readAndFreeCString(errPtr);
-  outErr.free();
-  let msg;
-  try {
-    msg = readProgress(id, activeHandle, tag, errMsg);
-  } catch (e) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-    throw e;
-  }
-  if (tag === PROGRESS_COMPLETE || tag === PROGRESS_ERROR) {
-    wasm2.monty_free(activeHandle);
-    activeHandle = null;
-  }
-  self.postMessage(msg);
-}
 function handleDispose(id) {
   if (activeHandle) {
     wasm2.monty_free(activeHandle);
@@ -893,13 +714,11 @@ self.onmessage = (e) => {
     extFns,
     value,
     errorMessage,
-    excType,
     limits,
     dataBase64,
     scriptName,
     resultsJson,
-    errorsJson,
-    valueJson
+    errorsJson
   } = e.data;
   try {
     switch (type) {
@@ -915,9 +734,6 @@ self.onmessage = (e) => {
       case "resumeWithError":
         handleResumeWithError(id, errorMessage);
         break;
-      case "resumeWithException":
-        handleResumeWithException(id, excType, errorMessage);
-        break;
       case "resumeAsFuture":
         handleResumeAsFuture(id);
         break;
@@ -929,12 +745,6 @@ self.onmessage = (e) => {
         break;
       case "restore":
         handleRestore(id, dataBase64);
-        break;
-      case "resumeNameLookupValue":
-        handleResumeNameLookupValue(id, valueJson);
-        break;
-      case "resumeNameLookupUndefined":
-        handleResumeNameLookupUndefined(id);
         break;
       case "dispose":
         handleDispose(id);

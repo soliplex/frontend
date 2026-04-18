@@ -164,19 +164,6 @@
     const result = await callWorker(sid, { type: "resumeWithError", errorMessage }, session.timeoutMs);
     return JSON.stringify(result);
   }
-  async function resumeWithException(excTypeJson, errorJson) {
-    const sid = resolveSessionId(null);
-    if (sid == null || !sessions.has(sid)) return notInitializedError();
-    const session = sessions.get(sid);
-    const excType = JSON.parse(excTypeJson);
-    const errorMessage = JSON.parse(errorJson);
-    const result = await callWorker(
-      sid,
-      { type: "resumeWithException", excType, errorMessage },
-      session.timeoutMs
-    );
-    return JSON.stringify(result);
-  }
   async function resumeAsFuture() {
     const sid = resolveSessionId(null);
     if (sid == null || !sessions.has(sid)) return notInitializedError();
@@ -211,50 +198,12 @@
     const result = await callWorker(sid, { type: "restore", dataBase64 }, session.timeoutMs);
     return JSON.stringify(result);
   }
-  async function resumeNameLookupValue(valueJson) {
-    const sid = resolveSessionId(null);
-    if (sid == null || !sessions.has(sid)) return notInitializedError();
-    const session = sessions.get(sid);
-    const result = await callWorker(
-      sid,
-      { type: "resumeNameLookupValue", valueJson },
-      session.timeoutMs
-    );
-    return JSON.stringify(result);
-  }
-  async function resumeNameLookupUndefined() {
-    const sid = resolveSessionId(null);
-    if (sid == null || !sessions.has(sid)) return notInitializedError();
-    const session = sessions.get(sid);
-    const result = await callWorker(
-      sid,
-      { type: "resumeNameLookupUndefined" },
-      session.timeoutMs
-    );
-    return JSON.stringify(result);
-  }
   function discover() {
     return JSON.stringify({
       loaded: sessions.size > 0,
       sessionCount: sessions.size,
       architecture: "worker-pool"
     });
-  }
-  async function cancel() {
-    const sid = resolveSessionId(null);
-    if (sid == null || !sessions.has(sid)) {
-      return JSON.stringify({ ok: true });
-    }
-    const session = sessions.get(sid);
-    for (const req of session.pending.values()) {
-      if (req.timer) clearTimeout(req.timer);
-      req.reject(new Error("MontyCancelled: execution cancelled"));
-    }
-    session.pending.clear();
-    session.worker.terminate();
-    sessions.delete(sid);
-    if (defaultSessionId === sid) defaultSessionId = null;
-    return JSON.stringify({ ok: true });
   }
   async function dispose() {
     const sid = resolveSessionId(null);
@@ -274,15 +223,11 @@
     start,
     resume,
     resumeWithError,
-    resumeWithException,
     resumeAsFuture,
     resolveFutures,
-    resumeNameLookupValue,
-    resumeNameLookupUndefined,
     snapshot,
     restore,
     discover,
-    cancel,
     dispose,
     // Phase 2 multi-session API
     createSession,
