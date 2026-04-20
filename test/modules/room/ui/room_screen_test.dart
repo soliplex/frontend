@@ -353,8 +353,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.expand_more));
     await tester.pumpAndSettle();
 
-    expect(find.text('Room'), findsOneWidget);
-    expect(find.text('Thread'), findsNothing,
+    expect(find.text('ROOM'), findsOneWidget);
+    expect(find.text('THREAD'), findsNothing,
         reason: 'empty thread scope should not render a Thread label');
     expect(find.text('shared.pdf'), findsOneWidget);
   });

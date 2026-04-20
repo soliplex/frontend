@@ -462,6 +462,7 @@ class _UploadEntryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isFailed = entry is FailedUpload;
     final (icon, color, errorMessage, dismissId) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
@@ -472,14 +473,23 @@ class _UploadEntryRow extends StatelessWidget {
       PendingUpload() => (null, theme.colorScheme.primary, null, null),
       FailedUpload(id: final id, message: final m) => (
           Icons.error_outline,
-          theme.colorScheme.error,
+          theme.colorScheme.onErrorContainer,
           m,
           id,
         ),
     };
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: isFailed
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+          : null,
+      decoration: isFailed
+          ? BoxDecoration(
+              color: theme.colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(6),
+            )
+          : null,
       child: Row(
         children: [
           if (icon != null)
@@ -494,7 +504,9 @@ class _UploadEntryRow extends StatelessWidget {
           Expanded(
             child: Text(
               entry.filename,
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isFailed ? theme.colorScheme.onErrorContainer : null,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -503,7 +515,7 @@ class _UploadEntryRow extends StatelessWidget {
               child: Text(
                 errorMessage,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+                  color: theme.colorScheme.onErrorContainer,
                   fontSize: 11,
                 ),
                 maxLines: 1,
@@ -513,6 +525,7 @@ class _UploadEntryRow extends StatelessWidget {
           if (dismissId != null)
             IconButton(
               icon: const Icon(Icons.close, size: 14),
+              color: theme.colorScheme.onErrorContainer,
               onPressed: () => onDismiss(dismissId),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),

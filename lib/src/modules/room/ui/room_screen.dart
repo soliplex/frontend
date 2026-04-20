@@ -454,34 +454,92 @@ class _RoomScreenState extends State<RoomScreen> {
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
-    final chip = _buildChip(roomStatus, threadStatus, theme);
+    final controls = _buildControlsCluster(
+      roomStatus,
+      threadStatus,
+      theme,
+      room,
+      attachEnabled,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(
               roomName,
               style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
+              // Long room names wrap to as many lines as needed
+              // rather than truncate.
             ),
           ),
-          if (chip != null) chip,
-          if (attachEnabled && room != null)
-            IconButton(
-              icon: const Icon(Icons.upload_file, size: 20),
-              tooltip: 'Upload file to room',
-              onPressed: () => _pickAndUploadToRoom(room),
-            ),
+          if (controls != null) controls,
         ],
       ),
     );
   }
 
-  /// Returns the chip widget, or null to hide it when both scopes are
-  /// Loaded-empty.
-  Widget? _buildChip(
+  /// Wraps the file chip and the upload icon in a single tonal
+  /// container so they read as one related pair of controls rather
+  /// than two detached buttons with mismatched heights.
+  Widget? _buildControlsCluster(
+    UploadsStatus roomStatus,
+    UploadsStatus threadStatus,
+    ThemeData theme,
+    Room? room,
+    bool attachEnabled,
+  ) {
+    final chip = _buildChipSegment(roomStatus, threadStatus, theme);
+    final uploadSegment = (attachEnabled && room != null)
+        ? _buildUploadSegment(room, theme)
+        : null;
+
+    if (chip == null && uploadSegment == null) return null;
+
+    return Material(
+      color: theme.colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (chip != null) chip,
+          if (chip != null && uploadSegment != null)
+            Container(
+              width: 1,
+              height: 20,
+              color: theme.colorScheme.outlineVariant,
+            ),
+          if (uploadSegment != null) uploadSegment,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadSegment(Room room, ThemeData theme) {
+    return InkWell(
+      onTap: () => _pickAndUploadToRoom(room),
+      child: Tooltip(
+        message: 'Upload file to room',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Icon(
+            Icons.upload_file,
+            size: 20,
+            color: theme.colorScheme.onSecondaryContainer,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Returns the chip segment, or null to hide it when both scopes are
+  /// Loaded-empty. The segment is embedded in the tonal controls
+  /// cluster built by [_buildControlsCluster] and so has no container
+  /// of its own.
+  Widget? _buildChipSegment(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     ThemeData theme,
@@ -506,7 +564,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyUploadFailed = all.any((e) => e is FailedUpload);
     final color = (anyFailed || anyUploadFailed)
         ? theme.colorScheme.error
-        : theme.colorScheme.primary;
+        : theme.colorScheme.onSecondaryContainer;
 
     final Widget leading;
     if (anyLoading || anyPending) {
@@ -525,24 +583,27 @@ class _RoomScreenState extends State<RoomScreen> {
         ? uploadChipLabel(roomFiles.length, threadFiles.length)
         : 'Files';
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return InkWell(
       onTap: () => setState(() => _filesExpanded = !_filesExpanded),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          leading,
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(color: color),
-          ),
-          Icon(
-            _filesExpanded ? Icons.expand_less : Icons.expand_more,
-            size: 16,
-            color: color,
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            leading,
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              _filesExpanded ? Icons.expand_less : Icons.expand_more,
+              size: 16,
+              color: color,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -651,15 +712,17 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _sectionLabel(String label, ThemeData theme) {
     return Text(
-      label,
+      label.toUpperCase(),
       style: theme.textTheme.labelSmall?.copyWith(
-        color: theme.colorScheme.outline,
+        color: theme.colorScheme.onSurfaceVariant,
+        letterSpacing: 0.5,
       ),
     );
   }
 
   Widget _buildFileRow(DisplayUpload entry) {
     final theme = Theme.of(context);
+    final isFailed = entry is FailedUpload;
     final (icon, color, errorMessage, dismissible) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
@@ -670,7 +733,7 @@ class _RoomScreenState extends State<RoomScreen> {
       PendingUpload() => (null, theme.colorScheme.primary, null, false),
       FailedUpload(message: final m) => (
           Icons.error_outline,
-          theme.colorScheme.error,
+          theme.colorScheme.onErrorContainer,
           m,
           true,
         ),
@@ -680,8 +743,17 @@ class _RoomScreenState extends State<RoomScreen> {
     if (entry is PendingUpload) dismissId = entry.id;
     if (entry is FailedUpload) dismissId = entry.id;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: isFailed
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+          : null,
+      decoration: isFailed
+          ? BoxDecoration(
+              color: theme.colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(6),
+            )
+          : null,
       child: Row(
         children: [
           if (icon != null)
@@ -699,14 +771,16 @@ class _RoomScreenState extends State<RoomScreen> {
               children: [
                 Text(
                   entry.filename,
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isFailed ? theme.colorScheme.onErrorContainer : null,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (errorMessage != null)
                   Text(
                     errorMessage,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
+                      color: theme.colorScheme.onErrorContainer,
                       fontSize: 11,
                     ),
                     maxLines: 1,
@@ -718,6 +792,7 @@ class _RoomScreenState extends State<RoomScreen> {
           if (dismissible && dismissId != null)
             IconButton(
               icon: const Icon(Icons.close, size: 14),
+              color: theme.colorScheme.onErrorContainer,
               onPressed: () => _state.uploadTracker.dismiss(dismissId!),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
