@@ -21,7 +21,7 @@ const int _unknownTotal = -1;
 class PlatformDiskQueue implements DiskQueue {
   /// Creates a disk queue that stores records in [directoryPath].
   PlatformDiskQueue({required String directoryPath})
-      : _directory = Directory(directoryPath) {
+    : _directory = Directory(directoryPath) {
     _directory.createSync(recursive: true);
     _file = File('${_directory.path}/log_queue.jsonl');
     _fatalFile = File('${_directory.path}/log_queue_fatal.jsonl');

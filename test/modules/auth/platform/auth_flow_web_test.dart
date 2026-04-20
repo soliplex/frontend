@@ -52,18 +52,20 @@ void main() {
       );
     });
 
-    test('authenticate falls back to same origin when backendUrl is null',
-        () async {
-      expect(
-        () => authFlow.authenticate(_provider),
-        throwsA(isA<AuthRedirectInitiated>()),
-      );
+    test(
+      'authenticate falls back to same origin when backendUrl is null',
+      () async {
+        expect(
+          () => authFlow.authenticate(_provider),
+          throwsA(isA<AuthRedirectInitiated>()),
+        );
 
-      expect(
-        navigator.lastNavigatedUrl,
-        startsWith('https://app.example.com/api/login/keycloak?return_to='),
-      );
-    });
+        expect(
+          navigator.lastNavigatedUrl,
+          startsWith('https://app.example.com/api/login/keycloak?return_to='),
+        );
+      },
+    );
 
     test('authenticate includes return_to with callback path', () async {
       expect(
@@ -71,14 +73,8 @@ void main() {
         throwsA(isA<AuthRedirectInitiated>()),
       );
 
-      expect(
-        navigator.lastNavigatedUrl,
-        contains('return_to='),
-      );
-      expect(
-        navigator.lastNavigatedUrl,
-        contains('/auth/callback'),
-      );
+      expect(navigator.lastNavigatedUrl, contains('return_to='));
+      expect(navigator.lastNavigatedUrl, contains('/auth/callback'));
     });
 
     test('endSession redirects to IdP logout endpoint', () async {
@@ -94,8 +90,10 @@ void main() {
       final uri = Uri.parse(navigator.lastNavigatedUrl!);
       expect(uri.host, 'sso.example.com');
       expect(uri.path, '/logout');
-      expect(uri.queryParameters['post_logout_redirect_uri'],
-          'https://app.example.com');
+      expect(
+        uri.queryParameters['post_logout_redirect_uri'],
+        'https://app.example.com',
+      );
       expect(uri.queryParameters['client_id'], 'soliplex');
       expect(uri.queryParameters['id_token_hint'], 'my_id_token');
     });

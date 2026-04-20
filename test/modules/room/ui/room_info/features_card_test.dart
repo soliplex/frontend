@@ -29,13 +29,15 @@ void main() {
   group('FeaturesCard', () {
     testWidgets('shows attachments status row', (tester) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(enableAttachments: true),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(enableAttachments: true),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('Attachments'), findsOneWidget);
@@ -44,13 +46,15 @@ void main() {
 
     testWidgets('shows attachments disabled', (tester) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(enableAttachments: false),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(enableAttachments: false),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('Disabled'), findsOneWidget);
@@ -58,13 +62,15 @@ void main() {
 
     testWidgets('shows MCP row when allowMcp is true', (tester) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(allowMcp: true),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(allowMcp: true),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('Allow MCP'), findsOneWidget);
@@ -73,13 +79,15 @@ void main() {
 
     testWidgets('hides MCP token row when allowMcp is false', (tester) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(allowMcp: false),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(allowMcp: false),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('No'), findsOneWidget);
@@ -89,44 +97,54 @@ void main() {
 
     testWidgets('shows McpTokenRow when allowMcp is true', (tester) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(allowMcp: true),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(allowMcp: true),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.byType(McpTokenRow), findsOneWidget);
     });
 
-    testWidgets('shows AG-UI features row when aguiFeatureNames non-empty',
-        (tester) async {
+    testWidgets('shows AG-UI features row when aguiFeatureNames non-empty', (
+      tester,
+    ) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(aguiFeatureNames: ['feature-a', 'feature-b']),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(
+              aguiFeatureNames: ['feature-a', 'feature-b'],
+            ),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('AG-UI Features'), findsOneWidget);
       expect(find.text('feature-a, feature-b'), findsOneWidget);
     });
 
-    testWidgets('hides AG-UI features row when aguiFeatureNames is empty',
-        (tester) async {
+    testWidgets('hides AG-UI features row when aguiFeatureNames is empty', (
+      tester,
+    ) async {
       final api = FakeSoliplexApi();
-      await tester.pumpWidget(wrap(
-        FeaturesCard(
-          room: baseRoom.copyWith(aguiFeatureNames: []),
-          api: api,
-          roomId: 'r1',
+      await tester.pumpWidget(
+        wrap(
+          FeaturesCard(
+            room: baseRoom.copyWith(aguiFeatureNames: []),
+            api: api,
+            roomId: 'r1',
+          ),
         ),
-      ));
+      );
       await tester.pump();
 
       expect(find.text('AG-UI Features'), findsNothing);
@@ -138,9 +156,7 @@ void main() {
       final api = _ControllableMcpApi();
       api.getMcpTokenCompleter = Completer<String>();
 
-      await tester.pumpWidget(wrap(
-        McpTokenRow(api: api, roomId: 'r1'),
-      ));
+      await tester.pumpWidget(wrap(McpTokenRow(api: api, roomId: 'r1')));
       // Don't pump the future — stay in loading state
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
@@ -149,14 +165,13 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('shows copy button after token loaded successfully',
-        (tester) async {
+    testWidgets('shows copy button after token loaded successfully', (
+      tester,
+    ) async {
       final api = FakeSoliplexApi();
       api.nextMcpToken = 'my-secret-token';
 
-      await tester.pumpWidget(wrap(
-        McpTokenRow(api: api, roomId: 'r1'),
-      ));
+      await tester.pumpWidget(wrap(McpTokenRow(api: api, roomId: 'r1')));
       await tester.pump(); // let the future complete
 
       expect(find.text('Copy Token'), findsOneWidget);
@@ -167,17 +182,16 @@ void main() {
       final api = FakeSoliplexApi();
       api.nextMcpTokenError = Exception('network error');
 
-      await tester.pumpWidget(wrap(
-        McpTokenRow(api: api, roomId: 'r1'),
-      ));
+      await tester.pumpWidget(wrap(McpTokenRow(api: api, roomId: 'r1')));
       await tester.pump(); // let the future resolve with error
 
       expect(find.text('Retry token'), findsOneWidget);
       expect(find.byIcon(Icons.refresh), findsOneWidget);
     });
 
-    testWidgets('copy button shows success state then resets after 2s',
-        (tester) async {
+    testWidgets('copy button shows success state then resets after 2s', (
+      tester,
+    ) async {
       final api = FakeSoliplexApi();
       api.nextMcpToken = 'my-secret-token';
 
@@ -190,9 +204,7 @@ void main() {
         },
       );
 
-      await tester.pumpWidget(wrap(
-        McpTokenRow(api: api, roomId: 'r1'),
-      ));
+      await tester.pumpWidget(wrap(McpTokenRow(api: api, roomId: 'r1')));
       await tester.pump(); // let the future complete
 
       expect(find.text('Copy Token'), findsOneWidget);

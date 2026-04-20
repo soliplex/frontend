@@ -14,10 +14,7 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
   final TextStyle preferredStyle;
 
   @override
-  Widget? visitElementAfter(
-    md.Element element,
-    TextStyle? preferredStyle,
-  ) {
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     final code = element.textContent;
     final language = _languageFrom(element);
 
@@ -90,11 +87,9 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
       child: SvgPicture.string(
         widget.code,
         placeholderBuilder: (_) => const SizedBox.shrink(),
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.broken_image,
-          size: 48,
-          color: Colors.grey,
-        ),
+        errorBuilder:
+            (_, __, ___) =>
+                const Icon(Icons.broken_image, size: 48, color: Colors.grey),
       ),
     );
   }
@@ -184,11 +179,7 @@ class _CodeBlock extends StatelessWidget {
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(right: 4, top: 4),
-              child: CopyButton(
-                text: code,
-                tooltip: 'Copy code',
-                iconSize: 16,
-              ),
+              child: CopyButton(text: code, tooltip: 'Copy code', iconSize: 16),
             ),
           ],
         ),

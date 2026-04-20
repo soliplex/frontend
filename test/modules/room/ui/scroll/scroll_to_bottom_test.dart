@@ -69,20 +69,22 @@ void main() {
       });
     });
 
-    test('scheduleAppearance is idempotent — second call does not reset timer',
-        () {
-      fakeAsync((async) {
-        controller.scheduleAppearance();
-        async.elapse(const Duration(milliseconds: 200));
+    test(
+      'scheduleAppearance is idempotent — second call does not reset timer',
+      () {
+        fakeAsync((async) {
+          controller.scheduleAppearance();
+          async.elapse(const Duration(milliseconds: 200));
 
-        // Second call should be a no-op; timer keeps running from original start.
-        controller.scheduleAppearance();
-        async.elapse(const Duration(milliseconds: 100));
+          // Second call should be a no-op; timer keeps running from original start.
+          controller.scheduleAppearance();
+          async.elapse(const Duration(milliseconds: 100));
 
-        // 300ms total elapsed since first call — should be visible now.
-        expect(controller.visible, isTrue);
-      });
-    });
+          // 300ms total elapsed since first call — should be visible now.
+          expect(controller.visible, isTrue);
+        });
+      },
+    );
 
     test('notifies listeners when visibility changes', () {
       fakeAsync((async) {
@@ -119,11 +121,11 @@ void main() {
       final controller = ScrollToBottomController();
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ScrollToBottomButton(controller: controller),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ScrollToBottomButton(controller: controller)),
         ),
-      ));
+      );
 
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
@@ -133,16 +135,18 @@ void main() {
       final controller = ScrollToBottomController();
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: ScrollToBottomButton(
-              controller: controller,
-              onPressed: () => pressed = true,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ScrollToBottomButton(
+                controller: controller,
+                onPressed: () => pressed = true,
+              ),
             ),
           ),
         ),
-      ));
+      );
 
       // Make the button visible.
       fakeAsync((async) {
@@ -160,34 +164,37 @@ void main() {
       final controller = ScrollToBottomController();
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: ScrollToBottomButton(
-              controller: controller,
-              onPressed: () => pressed = true,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ScrollToBottomButton(
+                controller: controller,
+                onPressed: () => pressed = true,
+              ),
             ),
           ),
         ),
-      ));
+      );
 
       // controller.visible is false — tapping should be ignored.
       await tester.tap(find.byType(FloatingActionButton), warnIfMissed: false);
       expect(pressed, isFalse);
     });
 
-    testWidgets('opacity is 0 when not visible and 1 when visible',
-        (tester) async {
+    testWidgets('opacity is 0 when not visible and 1 when visible', (
+      tester,
+    ) async {
       final controller = ScrollToBottomController();
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: ScrollToBottomButton(controller: controller),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: ScrollToBottomButton(controller: controller)),
           ),
         ),
-      ));
+      );
 
       AnimatedOpacity opacityWidget() =>
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));

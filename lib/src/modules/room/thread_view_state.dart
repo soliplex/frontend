@@ -47,10 +47,8 @@ class MessagesFailed extends ThreadViewStatus {
 ///
 /// Provides the thread ID and the full loaded history so callers can
 /// seed the runtime's thread history cache with messages and AG-UI state.
-typedef HistoryLoadedCallback = void Function(
-  String threadId,
-  ThreadHistory history,
-);
+typedef HistoryLoadedCallback =
+    void Function(String threadId, ThreadHistory history);
 
 class ThreadViewState {
   ThreadViewState({
@@ -59,9 +57,9 @@ class ThreadViewState {
     required this.threadId,
     required RunRegistry registry,
     this.onHistoryLoaded,
-  })  : _connection = connection,
-        _roomId = roomId,
-        _registry = registry {
+  }) : _connection = connection,
+       _roomId = roomId,
+       _registry = registry {
     if (!_restoreFromRegistry()) _fetch();
   }
 
@@ -72,10 +70,10 @@ class ThreadViewState {
   final RunRegistry _registry;
 
   ThreadKey get threadKey => (
-        serverId: _connection.serverId,
-        roomId: _roomId,
-        threadId: threadId,
-      );
+    serverId: _connection.serverId,
+    roomId: _roomId,
+    threadId: threadId,
+  );
 
   CancelToken? _cancelToken;
   AgentSession? _activeSession;
@@ -83,8 +81,9 @@ class ThreadViewState {
   void Function()? _runStateUnsub;
   bool _isDisposed = false;
 
-  final Signal<ThreadViewStatus> _messages =
-      Signal<ThreadViewStatus>(MessagesLoading());
+  final Signal<ThreadViewStatus> _messages = Signal<ThreadViewStatus>(
+    MessagesLoading(),
+  );
   ReadonlySignal<ThreadViewStatus> get messages => _messages;
 
   final Signal<StreamingState?> _streamingState = Signal<StreamingState?>(null);
@@ -94,8 +93,9 @@ class ThreadViewState {
   //            → null (_detachSession on terminal state, or cancelRun).
   //            Doubles as a concurrency guard (sendMessage rejects if non-null)
   //            and the UI signal for ChatInput's cancel button.
-  final Signal<AgentSessionState?> _sessionState =
-      Signal<AgentSessionState?>(null);
+  final Signal<AgentSessionState?> _sessionState = Signal<AgentSessionState?>(
+    null,
+  );
   ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
@@ -110,8 +110,8 @@ class ThreadViewState {
       _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
           .catchError((Object e) {
-        debugPrint('Feedback submission failed: $e');
-      }),
+            debugPrint('Feedback submission failed: $e');
+          }),
     );
   }
 
@@ -169,12 +169,16 @@ class ThreadViewState {
     if (pending == null) return false;
     _pendingSpawn = null;
     _sessionState.value = null;
-    unawaited(pending.then((s) {
-      s.cancel();
-      s.dispose();
-    }).catchError((Object e) {
-      debugPrint('Cancelled spawn cleanup failed: $e');
-    }));
+    unawaited(
+      pending
+          .then((s) {
+            s.cancel();
+            s.dispose();
+          })
+          .catchError((Object e) {
+            debugPrint('Cancelled spawn cleanup failed: $e');
+          }),
+    );
     return true;
   }
 
@@ -199,10 +203,7 @@ class ThreadViewState {
         }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-        _trackerRegistry.onStreaming(
-          streaming,
-          session.lastExecutionEvent,
-        );
+        _trackerRegistry.onStreaming(streaming, session.lastExecutionEvent);
       case CompletedState(:final conversation):
         _trackerRegistry.onRunTerminated();
         _detachSession();
@@ -289,20 +290,21 @@ class ThreadViewState {
     _connection.api
         .getThreadHistory(_roomId, threadId, cancelToken: token)
         .then((history) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      _messages.value = MessagesLoaded(
-        messages: history.messages,
-        messageStates: history.messageStates,
-      );
-      onHistoryLoaded?.call(threadId, history);
-    }).catchError((Object error) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      if (_messages.value is! MessagesLoaded) {
-        _messages.value = MessagesFailed(error);
-      }
-    });
+          if (token.isCancelled) return;
+          _cancelToken = null;
+          _messages.value = MessagesLoaded(
+            messages: history.messages,
+            messageStates: history.messageStates,
+          );
+          onHistoryLoaded?.call(threadId, history);
+        })
+        .catchError((Object error) {
+          if (token.isCancelled) return;
+          _cancelToken = null;
+          if (_messages.value is! MessagesLoaded) {
+            _messages.value = MessagesFailed(error);
+          }
+        });
   }
 
   void dispose() {

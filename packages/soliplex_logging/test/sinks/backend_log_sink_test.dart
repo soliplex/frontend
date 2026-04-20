@@ -98,27 +98,28 @@ void main() {
     });
 
     test('filters out HTTP logs about the log-shipping endpoint', () async {
-      final sink = createSink()
-        // This record mimics what HttpLogNotifier emits for a log POST.
-        ..write(
-          LogRecord(
-            level: LogLevel.debug,
-            message: 'POST https://api.example.com/logs',
-            timestamp: DateTime.utc(2026, 2, 6, 12),
-            loggerName: 'HTTP',
-          ),
-        )
-        // The corresponding response should also be filtered.
-        ..write(
-          LogRecord(
-            level: LogLevel.debug,
-            message: 'HTTP 200 response',
-            timestamp: DateTime.utc(2026, 2, 6, 12),
-            loggerName: 'HTTP',
-          ),
-        )
-        // A normal record should still be accepted.
-        ..write(makeRecord());
+      final sink =
+          createSink()
+            // This record mimics what HttpLogNotifier emits for a log POST.
+            ..write(
+              LogRecord(
+                level: LogLevel.debug,
+                message: 'POST https://api.example.com/logs',
+                timestamp: DateTime.utc(2026, 2, 6, 12),
+                loggerName: 'HTTP',
+              ),
+            )
+            // The corresponding response should also be filtered.
+            ..write(
+              LogRecord(
+                level: LogLevel.debug,
+                message: 'HTTP 200 response',
+                timestamp: DateTime.utc(2026, 2, 6, 12),
+                loggerName: 'HTTP',
+              ),
+            )
+            // A normal record should still be accepted.
+            ..write(makeRecord());
 
       await sink.flush();
       await sink.close();
@@ -210,9 +211,10 @@ void main() {
 
     test('post-auth: buffered pre-login logs drain on first flush', () async {
       String? jwt;
-      final sink = createSink(jwtProvider: () => jwt)
-        ..write(makeRecord(message: 'Startup'))
-        ..write(makeRecord(message: 'Session start'));
+      final sink =
+          createSink(jwtProvider: () => jwt)
+            ..write(makeRecord(message: 'Startup'))
+            ..write(makeRecord(message: 'Session start'));
       await sink.flush();
       expect(capturedRequests, isEmpty);
 
@@ -257,23 +259,27 @@ void main() {
     );
 
     test('attribute value safety: non-primitive coerced to string', () async {
-      final sink = createSink()
-        ..write(makeRecord(attributes: const {'count': 42, 'label': 'test'}));
+      final sink =
+          createSink()..write(
+            makeRecord(attributes: const {'count': 42, 'label': 'test'}),
+          );
       await sink.flush();
       await sink.close();
 
       final body =
           jsonDecode(capturedRequests.first.body) as Map<String, Object?>;
       final logs = body['logs']! as List;
-      final attrs = (logs[0] as Map<String, Object?>)['attributes']!
-          as Map<String, Object?>;
+      final attrs =
+          (logs[0] as Map<String, Object?>)['attributes']!
+              as Map<String, Object?>;
       expect(attrs['count'], 42);
       expect(attrs['label'], 'test');
     });
 
     test('fatal records use appendSync', () async {
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.fatal, message: 'Crash!'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.fatal, message: 'Crash!'));
 
       expect(await diskQueue.pendingCount, 1);
       await sink.close();
@@ -412,23 +418,24 @@ void main() {
     });
 
     test('coerces List and Map attribute values', () async {
-      final sink = createSink()
-        ..write(
-          makeRecord(
-            attributes: const {
-              'tags': ['a', 'b'],
-              'meta': {'nested': true},
-            },
-          ),
-        );
+      final sink =
+          createSink()..write(
+            makeRecord(
+              attributes: const {
+                'tags': ['a', 'b'],
+                'meta': {'nested': true},
+              },
+            ),
+          );
       await sink.flush();
       await sink.close();
 
       final body =
           jsonDecode(capturedRequests.first.body) as Map<String, Object?>;
       final logs = body['logs']! as List;
-      final attrs = (logs[0] as Map<String, Object?>)['attributes']!
-          as Map<String, Object?>;
+      final attrs =
+          (logs[0] as Map<String, Object?>)['attributes']!
+              as Map<String, Object?>;
       expect(attrs['tags'], ['a', 'b']);
       expect(attrs['meta'], {'nested': true});
     });
@@ -533,19 +540,20 @@ void main() {
     test('oversized record in middle of batch is skipped', () async {
       String? errorMessage;
       // Small batch limit so the big record exceeds it but small ones fit.
-      final sink = BackendLogSink(
-        endpoint: 'https://api.example.com/logs',
-        client: mockClient,
-        installId: 'i',
-        sessionId: 's',
-        diskQueue: diskQueue,
-        maxBatchBytes: 1024,
-        flushInterval: const Duration(hours: 1),
-        onError: (msg, _) => errorMessage = msg,
-      )
-        ..write(makeRecord(message: 'small-1'))
-        ..write(makeRecord(message: 'x' * 2000)) // oversized
-        ..write(makeRecord(message: 'small-2'));
+      final sink =
+          BackendLogSink(
+              endpoint: 'https://api.example.com/logs',
+              client: mockClient,
+              installId: 'i',
+              sessionId: 's',
+              diskQueue: diskQueue,
+              maxBatchBytes: 1024,
+              flushInterval: const Duration(hours: 1),
+              onError: (msg, _) => errorMessage = msg,
+            )
+            ..write(makeRecord(message: 'small-1'))
+            ..write(makeRecord(message: 'x' * 2000)) // oversized
+            ..write(makeRecord(message: 'small-2'));
       await sink.flush();
 
       // The oversized record should be dropped with an error.
@@ -676,11 +684,12 @@ void main() {
       await closeFuture;
 
       // The "During close" write should have been silently dropped.
-      final sentMessages = capturedRequests
-          .map((r) => jsonDecode(r.body) as Map<String, Object?>)
-          .expand((b) => b['logs']! as List)
-          .map((l) => (l as Map<String, Object?>)['message'])
-          .toList();
+      final sentMessages =
+          capturedRequests
+              .map((r) => jsonDecode(r.body) as Map<String, Object?>)
+              .expand((b) => b['logs']! as List)
+              .map((l) => (l as Map<String, Object?>)['message'])
+              .toList();
       expect(sentMessages, isNot(contains('During close')));
     });
 
@@ -760,15 +769,15 @@ void main() {
       () async {
         // A record with extremely long non-truncatable fixed fields
         // (logger name) that exceeds 64KB even after all truncation.
-        final sink = createSink()
-          ..write(
-            LogRecord(
-              level: LogLevel.info,
-              message: 'x' * 70000,
-              timestamp: DateTime.utc(2026, 2, 6, 12),
-              loggerName: 'y' * 70000,
-            ),
-          );
+        final sink =
+            createSink()..write(
+              LogRecord(
+                level: LogLevel.info,
+                message: 'x' * 70000,
+                timestamp: DateTime.utc(2026, 2, 6, 12),
+                loggerName: 'y' * 70000,
+              ),
+            );
         await sink.flush();
         await sink.close();
 
@@ -844,14 +853,18 @@ void main() {
 
     test('batch cap accounts for JSON comma separators', () async {
       // Compute envelope overhead (empty logs array).
-      final envelope = utf8
-          .encode(
-            jsonEncode({
-              'logs': <Object>[],
-              'resource': {'service.name': 'test', 'service.version': '1.0.0'},
-            }),
-          )
-          .length;
+      final envelope =
+          utf8
+              .encode(
+                jsonEncode({
+                  'logs': <Object>[],
+                  'resource': {
+                    'service.name': 'test',
+                    'service.version': '1.0.0',
+                  },
+                }),
+              )
+              .length;
 
       // Probe: send one record to measure exact serialized size.
       final probeSink = createSink()..write(makeRecord(message: 'msg'));
@@ -874,22 +887,23 @@ void main() {
       // envelope + record + record == limit
       final limit = envelope + recordBytes * 2;
 
-      final sink = BackendLogSink(
-        endpoint: 'https://api.example.com/logs',
-        client: mockClient,
-        installId: 'install-001',
-        sessionId: 'session-001',
-        diskQueue: diskQueue2,
-        userId: 'user-001',
-        resourceAttributes: const {
-          'service.name': 'test',
-          'service.version': '1.0.0',
-        },
-        maxBatchBytes: limit,
-        flushInterval: const Duration(hours: 1),
-      )
-        ..write(makeRecord(message: 'msg'))
-        ..write(makeRecord(message: 'msg'));
+      final sink =
+          BackendLogSink(
+              endpoint: 'https://api.example.com/logs',
+              client: mockClient,
+              installId: 'install-001',
+              sessionId: 'session-001',
+              diskQueue: diskQueue2,
+              userId: 'user-001',
+              resourceAttributes: const {
+                'service.name': 'test',
+                'service.version': '1.0.0',
+              },
+              maxBatchBytes: limit,
+              flushInterval: const Duration(hours: 1),
+            )
+            ..write(makeRecord(message: 'msg'))
+            ..write(makeRecord(message: 'msg'));
       await sink.flush();
 
       final body =
@@ -1050,10 +1064,11 @@ void main() {
 
     group('activeRun context', () {
       test('includes threadId and runId in payload when set', () async {
-        final sink = createSink()
-          ..threadId = 'thread-123'
-          ..runId = 'run-456'
-          ..write(makeRecord());
+        final sink =
+            createSink()
+              ..threadId = 'thread-123'
+              ..runId = 'run-456'
+              ..write(makeRecord());
         await sink.flush();
         await sink.close();
 

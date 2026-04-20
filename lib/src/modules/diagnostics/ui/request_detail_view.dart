@@ -92,11 +92,11 @@ class _RequestDetailViewState extends State<RequestDetailView>
   }
 
   List<int> get _matchCountsPerTab => [
-        _matchesForScope(SearchScope.request),
-        _matchesForScope(SearchScope.response),
-        _matchesForScope(SearchScope.curl),
-        _matchesForScope(SearchScope.overview),
-      ];
+    _matchesForScope(SearchScope.request),
+    _matchesForScope(SearchScope.response),
+    _matchesForScope(SearchScope.curl),
+    _matchesForScope(SearchScope.overview),
+  ];
 
   int get _totalMatches {
     final q = _searchController.text;
@@ -160,9 +160,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant),
-        ),
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Row(
         children: [
@@ -172,13 +170,14 @@ class _RequestDetailViewState extends State<RequestDetailView>
               decoration: InputDecoration(
                 hintText: 'Search…',
                 prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () => _searchController.clear(),
-                        tooltip: 'Clear search',
-                      )
-                    : null,
+                suffixIcon:
+                    _searchController.text.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () => _searchController.clear(),
+                          tooltip: 'Clear search',
+                        )
+                        : null,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 border: OutlineInputBorder(
@@ -202,10 +201,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
             },
             items: [
               for (final scope in SearchScope.values)
-                DropdownMenuItem(
-                  value: scope,
-                  child: Text(scope.label),
-                ),
+                DropdownMenuItem(value: scope, child: Text(scope.label)),
             ],
           ),
           if (_searchController.text.isNotEmpty && _totalMatches > 0) ...[
@@ -244,19 +240,14 @@ class _RequestDetailViewState extends State<RequestDetailView>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant),
-        ),
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _MethodBadge(
-                method: group.methodLabel,
-                isStream: group.isStream,
-              ),
+              _MethodBadge(method: group.methodLabel, isStream: group.isStream),
               const SizedBox(width: 8),
               Expanded(child: HttpStatusDisplay(group: group)),
               Text(
@@ -345,12 +336,14 @@ class _MethodBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final backgroundColor = isStream
-        ? colorScheme.secondaryContainer
-        : colorScheme.primaryContainer;
-    final textColor = isStream
-        ? colorScheme.onSecondaryContainer
-        : colorScheme.onPrimaryContainer;
+    final backgroundColor =
+        isStream
+            ? colorScheme.secondaryContainer
+            : colorScheme.primaryContainer;
+    final textColor =
+        isStream
+            ? colorScheme.onSecondaryContainer
+            : colorScheme.onPrimaryContainer;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -392,8 +385,9 @@ class _RequestTab extends StatelessWidget {
             title: 'Headers',
             copyButton: CopyButton(
               iconSize: 18,
-              text:
-                  headers.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
+              text: headers.entries
+                  .map((e) => '${e.key}: ${e.value}')
+                  .join('\n'),
               tooltip: 'Copy Headers',
             ),
           ),
@@ -450,7 +444,8 @@ class _ResponseTab extends StatelessWidget {
     if (streamEnd.error != null) {
       return _ErrorDisplay(
         message: streamEnd.error!.message,
-        details: 'Duration: ${streamEnd.duration.toHttpDurationString()}\n'
+        details:
+            'Duration: ${streamEnd.duration.toHttpDurationString()}\n'
             'Bytes received: ${streamEnd.bytesReceived.toHttpBytesString()}',
       );
     }
@@ -485,7 +480,8 @@ class _ResponseTab extends StatelessWidget {
   Widget _buildErrorResponse(HttpErrorEvent error) {
     return _ErrorDisplay(
       message: error.exception.message,
-      details: 'Type: ${error.exception.runtimeType}\n'
+      details:
+          'Type: ${error.exception.runtimeType}\n'
           'Duration: ${error.duration.toHttpDurationString()}',
     );
   }
@@ -501,10 +497,7 @@ class _ResponseTab extends StatelessWidget {
           label: 'Duration',
           value: resp.duration.toHttpDurationString(),
         ),
-        _MetadataRow(
-          label: 'Size',
-          value: resp.bodySize.toHttpBytesString(),
-        ),
+        _MetadataRow(label: 'Size', value: resp.bodySize.toHttpBytesString()),
         if (resp.headers != null && resp.headers!.isNotEmpty) ...[
           const SizedBox(height: 16),
           _SectionHeader(
@@ -559,13 +552,13 @@ class _CurlTab extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                'curl command',
-                style: theme.textTheme.titleSmall,
-              ),
+              Text('curl command', style: theme.textTheme.titleSmall),
               const Spacer(),
               CopyButton(
-                  iconSize: 18, text: curl, tooltip: 'Copy to clipboard'),
+                iconSize: 18,
+                text: curl,
+                tooltip: 'Copy to clipboard',
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -632,19 +625,18 @@ class _HeadersTable extends StatelessWidget {
         children: [
           for (final (index, entry) in headers.entries.indexed)
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: index.isEven
-                    ? colorScheme.surfaceContainerLow
-                    : colorScheme.surface,
-                border: index > 0
-                    ? Border(
-                        top: BorderSide(color: colorScheme.outlineVariant),
-                      )
-                    : null,
+                color:
+                    index.isEven
+                        ? colorScheme.surfaceContainerLow
+                        : colorScheme.surface,
+                border:
+                    index > 0
+                        ? Border(
+                          top: BorderSide(color: colorScheme.outlineVariant),
+                        )
+                        : null,
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -696,9 +688,7 @@ class _BodyDisplay extends StatelessWidget {
       ),
       child: SelectableText(
         formattedBody,
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontFamily: 'monospace',
-        ),
+        style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
       ),
     );
   }
@@ -727,10 +717,7 @@ class _MetadataRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: theme.textTheme.bodyMedium,
-            ),
+            child: SelectableText(value, style: theme.textTheme.bodyMedium),
           ),
         ],
       ),

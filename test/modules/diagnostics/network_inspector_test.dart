@@ -112,10 +112,7 @@ void main() {
         () => inspector.onConcurrencyWait(createConcurrencyWaitEvent()),
         returnsNormally,
       );
-      expect(
-        () => inspector.onRequest(createRequestEvent()),
-        returnsNormally,
-      );
+      expect(() => inspector.onRequest(createRequestEvent()), returnsNormally);
     });
 
     test('notifyListeners fires on clear()', () {
@@ -134,8 +131,10 @@ void main() {
       final inspector = NetworkInspector(maxEvents: 3);
       addTearDown(inspector.dispose);
 
-      final events =
-          List.generate(5, (i) => createRequestEvent(requestId: 'r$i'));
+      final events = List.generate(
+        5,
+        (i) => createRequestEvent(requestId: 'r$i'),
+      );
       for (final e in events) {
         inspector.onRequest(e);
       }

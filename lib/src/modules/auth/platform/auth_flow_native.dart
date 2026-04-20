@@ -12,11 +12,10 @@ import 'auth_flow.dart';
 AuthFlow createAuthFlow({
   required String redirectScheme,
   FlutterAppAuth? appAuth,
-}) =>
-    NativeAuthFlow(
-      appAuth: appAuth ?? const FlutterAppAuth(),
-      redirectScheme: redirectScheme,
-    );
+}) => NativeAuthFlow(
+  appAuth: appAuth ?? const FlutterAppAuth(),
+  redirectScheme: redirectScheme,
+);
 
 /// Native OIDC authentication using flutter_appauth.
 ///
@@ -25,8 +24,8 @@ class NativeAuthFlow implements AuthFlow {
   NativeAuthFlow({
     required FlutterAppAuth appAuth,
     required String redirectScheme,
-  })  : _appAuth = appAuth,
-        _redirectUri = '$redirectScheme://callback';
+  }) : _appAuth = appAuth,
+       _redirectUri = '$redirectScheme://callback';
 
   final FlutterAppAuth _appAuth;
   final String _redirectUri;

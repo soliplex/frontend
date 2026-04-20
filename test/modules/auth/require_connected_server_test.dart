@@ -6,10 +6,10 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import '../../helpers/fakes.dart';
 
 ServerManager _createManager() => ServerManager(
-      authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 void main() {
   group('requireConnectedServer', () {
@@ -24,10 +24,7 @@ void main() {
     });
 
     test('returns /lobby when alias not found', () {
-      expect(
-        requireConnectedServer(serverManager, 'nonexistent'),
-        '/lobby',
-      );
+      expect(requireConnectedServer(serverManager, 'nonexistent'), '/lobby');
     });
 
     test('returns /lobby when server exists but not connected', () {

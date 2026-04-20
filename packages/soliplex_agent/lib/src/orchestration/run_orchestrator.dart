@@ -12,9 +12,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 /// Callback invoked when the model yields client-side tool calls.
 ///
 /// Returns executed tools with status and result populated.
-typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
-  List<ToolCallInfo> pendingToolCalls,
-);
+typedef ToolExecutorCallback =
+    Future<List<ToolCallInfo>> Function(
+      List<ToolCallInfo> pendingToolCalls,
+    );
 
 /// Orchestrates a single AG-UI run lifecycle.
 ///
@@ -69,10 +70,10 @@ class RunOrchestrator {
     required ToolRegistry toolRegistry,
     required Logger logger,
     int maxToolDepth = defaultMaxToolDepth,
-  })  : _llmProvider = llmProvider,
-        _toolRegistry = toolRegistry,
-        _logger = logger,
-        _maxToolDepth = maxToolDepth;
+  }) : _llmProvider = llmProvider,
+       _toolRegistry = toolRegistry,
+       _logger = logger,
+       _maxToolDepth = maxToolDepth;
 
   /// Default maximum tool-call depth before the orchestrator aborts.
   static const defaultMaxToolDepth = 10;
@@ -178,8 +179,12 @@ class RunOrchestrator {
     _guardNotRunning();
     _toolDepth = 0;
     try {
-      final conversation =
-          _buildConversation(key, userMessage, cachedHistory, null);
+      final conversation = _buildConversation(
+        key,
+        userMessage,
+        cachedHistory,
+        null,
+      );
       final input = _buildInput(key, conversation);
       final handle = await _llmProvider.startRun(
         key: key,
@@ -326,8 +331,12 @@ class RunOrchestrator {
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
   ) async {
-    final conversation =
-        _buildConversation(key, userMessage, cachedHistory, stateOverlay);
+    final conversation = _buildConversation(
+      key,
+      userMessage,
+      cachedHistory,
+      stateOverlay,
+    );
     final input = _buildInput(key, conversation);
     final handle = await _llmProvider.startRun(
       key: key,
@@ -446,13 +455,13 @@ class RunOrchestrator {
   /// **R1:** Exhaustive switch expression — adding a new [RunState]
   /// variant without updating this method causes a compile error.
   bool _isTerminal(RunState state) => switch (state) {
-        CompletedState() => true,
-        FailedState() => true,
-        CancelledState() => true,
-        ToolYieldingState() => true,
-        RunningState() => false,
-        IdleState() => false,
-      };
+    CompletedState() => true,
+    FailedState() => true,
+    CancelledState() => true,
+    ToolYieldingState() => true,
+    RunningState() => false,
+    IdleState() => false,
+  };
 
   /// Defensively completes [_terminalCompleter] during [dispose] (R4).
   void _completeTerminalOnDispose() {
@@ -531,12 +540,13 @@ class RunOrchestrator {
     List<ToolCallInfo> executedTools,
   ) {
     final executedIds = {for (final tc in executedTools) tc.id};
-    final updatedToolCalls = state.conversation.toolCalls.map((tc) {
-      if (executedIds.contains(tc.id)) {
-        return executedTools.firstWhere((e) => e.id == tc.id);
-      }
-      return tc;
-    }).toList();
+    final updatedToolCalls =
+        state.conversation.toolCalls.map((tc) {
+          if (executedIds.contains(tc.id)) {
+            return executedTools.firstWhere((e) => e.id == tc.id);
+          }
+          return tc;
+        }).toList();
     final toolMsg = ToolCallMessage.fromExecuted(
       id: 'tool-result-${DateTime.now().microsecondsSinceEpoch}',
       toolCalls: executedTools,
@@ -652,8 +662,10 @@ class RunOrchestrator {
     if (event is RunErrorEvent) {
       _receivedTerminalEvent = true;
       _cleanup();
-      final withCitations =
-          _extractCitations(result.conversation, previous.runId);
+      final withCitations = _extractCitations(
+        result.conversation,
+        previous.runId,
+      );
       _setState(
         FailedState(
           threadKey: previous.threadKey,
@@ -746,8 +758,10 @@ class RunOrchestrator {
     if (running is! RunningState) return;
     _cleanup();
     _logger.warning('Stream ended without terminal event');
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
+    final withCitations = _extractCitations(
+      running.conversation,
+      running.runId,
+    );
     _setState(
       FailedState(
         threadKey: running.threadKey,
@@ -763,8 +777,10 @@ class RunOrchestrator {
     final running = _currentState;
     if (running is! RunningState) return;
     _cleanup();
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
+    final withCitations = _extractCitations(
+      running.conversation,
+      running.runId,
+    );
     if (error is CancellationError) {
       _setState(
         CancelledState(

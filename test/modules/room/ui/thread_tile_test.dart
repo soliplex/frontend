@@ -20,33 +20,37 @@ void main() {
       roomId: 'room-1',
       createdAt: DateTime(2026, 3, 1),
     );
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadTile(
-          thread: nameless,
-          isSelected: false,
-          onTap: () {},
-          onRename: () {},
-          onDelete: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThreadTile(
+            thread: nameless,
+            isSelected: false,
+            onTap: () {},
+            onRename: () {},
+            onDelete: () {},
+          ),
         ),
       ),
-    ));
+    );
 
     expect(find.text('New Thread'), findsOneWidget);
   });
 
   testWidgets('overflow menu shows Rename and Delete options', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadTile(
-          thread: thread,
-          isSelected: false,
-          onTap: () {},
-          onRename: () {},
-          onDelete: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThreadTile(
+            thread: thread,
+            isSelected: false,
+            onTap: () {},
+            onRename: () {},
+            onDelete: () {},
+          ),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -57,17 +61,19 @@ void main() {
 
   testWidgets('tapping Rename fires onRename callback', (tester) async {
     bool renameCalled = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadTile(
-          thread: thread,
-          isSelected: false,
-          onTap: () {},
-          onRename: () => renameCalled = true,
-          onDelete: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThreadTile(
+            thread: thread,
+            isSelected: false,
+            onTap: () {},
+            onRename: () => renameCalled = true,
+            onDelete: () {},
+          ),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -80,17 +86,19 @@ void main() {
 
   testWidgets('tapping Delete fires onDelete callback', (tester) async {
     bool deleteCalled = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadTile(
-          thread: thread,
-          isSelected: false,
-          onTap: () {},
-          onRename: () {},
-          onDelete: () => deleteCalled = true,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThreadTile(
+            thread: thread,
+            isSelected: false,
+            onTap: () {},
+            onRename: () {},
+            onDelete: () => deleteCalled = true,
+          ),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -102,111 +110,120 @@ void main() {
   });
 
   testWidgets(
-      'on desktop, non-selected thread: tapping Rename still fires callback '
-      'after the tile is no longer hovered (menu opens on the overlay, '
-      'the PopupMenuButton must stay mounted until the user picks an item)',
-      (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    'on desktop, non-selected thread: tapping Rename still fires callback '
+    'after the tile is no longer hovered (menu opens on the overlay, '
+    'the PopupMenuButton must stay mounted until the user picks an item)',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
 
-    bool renameCalled = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 300,
-            child: ThreadTile(
-              thread: thread,
-              isSelected: false,
-              onTap: () {},
-              onRename: () => renameCalled = true,
-              onDelete: () {},
+      bool renameCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 300,
+                child: ThreadTile(
+                  thread: thread,
+                  isSelected: false,
+                  onTap: () {},
+                  onRename: () => renameCalled = true,
+                  onDelete: () {},
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ));
+      );
 
-    // Simulate pointer hover to reveal the menu button on desktop.
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    addTearDown(gesture.removePointer);
-    await gesture.addPointer(location: Offset.zero);
-    await gesture.moveTo(tester.getCenter(find.byType(ThreadTile)));
-    await tester.pumpAndSettle();
+      // Simulate pointer hover to reveal the menu button on desktop.
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(find.byType(ThreadTile)));
+      await tester.pumpAndSettle();
 
-    // Tap the overflow icon to open the popup menu.
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+      // Tap the overflow icon to open the popup menu.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
 
-    // Opening the popup moves the pointer onto the overlay, so the tile's
-    // MouseRegion fires onExit. Simulate that.
-    await gesture.moveTo(const Offset(1000, 1000));
-    await tester.pump();
+      // Opening the popup moves the pointer onto the overlay, so the tile's
+      // MouseRegion fires onExit. Simulate that.
+      await gesture.moveTo(const Offset(1000, 1000));
+      await tester.pump();
 
-    // Now pick Rename. If the PopupMenuButton was unmounted by the hover
-    // loss, onSelected (and therefore onRename) would never fire.
-    await tester.tap(find.text('Rename'));
-    await tester.pumpAndSettle();
+      // Now pick Rename. If the PopupMenuButton was unmounted by the hover
+      // loss, onSelected (and therefore onRename) would never fire.
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
 
-    expect(renameCalled, isTrue);
-    debugDefaultTargetPlatformOverride = null;
-  });
+      expect(renameCalled, isTrue);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets(
-      'on desktop, non-selected thread: tapping Delete still fires callback '
-      'after the tile is no longer hovered', (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    'on desktop, non-selected thread: tapping Delete still fires callback '
+    'after the tile is no longer hovered',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
 
-    bool deleteCalled = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 300,
-            child: ThreadTile(
-              thread: thread,
-              isSelected: false,
-              onTap: () {},
-              onRename: () {},
-              onDelete: () => deleteCalled = true,
+      bool deleteCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 300,
+                child: ThreadTile(
+                  thread: thread,
+                  isSelected: false,
+                  onTap: () {},
+                  onRename: () {},
+                  onDelete: () => deleteCalled = true,
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ));
+      );
 
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    addTearDown(gesture.removePointer);
-    await gesture.addPointer(location: Offset.zero);
-    await gesture.moveTo(tester.getCenter(find.byType(ThreadTile)));
-    await tester.pumpAndSettle();
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(find.byType(ThreadTile)));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
 
-    await gesture.moveTo(const Offset(1000, 1000));
-    await tester.pump();
+      await gesture.moveTo(const Offset(1000, 1000));
+      await tester.pump();
 
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
 
-    expect(deleteCalled, isTrue);
-    debugDefaultTargetPlatformOverride = null;
-  });
+      expect(deleteCalled, isTrue);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('Delete menu item uses error color', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadTile(
-          thread: thread,
-          isSelected: false,
-          onTap: () {},
-          onRename: () {},
-          onDelete: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThreadTile(
+            thread: thread,
+            isSelected: false,
+            onTap: () {},
+            onRename: () {},
+            onDelete: () {},
+          ),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();

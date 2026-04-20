@@ -79,9 +79,10 @@ class _RoomScreenState extends State<RoomScreen> {
 
   DocumentSelections get _documentSelections => widget.documentSelections;
 
-  Set<RagDocument> get _selectedDocuments => _filterEnabled
-      ? _documentSelections.get(widget.roomId, widget.threadId)
-      : const {};
+  Set<RagDocument> get _selectedDocuments =>
+      _filterEnabled
+          ? _documentSelections.get(widget.roomId, widget.threadId)
+          : const {};
 
   void _updateSelection(Set<RagDocument> selection) {
     setState(() {
@@ -94,8 +95,8 @@ class _RoomScreenState extends State<RoomScreen> {
     final threadId = widget.threadId;
     final result = await showDocumentPicker(
       context: context,
-      fetchDocuments: () =>
-          widget.serverEntry.connection.api.getDocuments(roomId),
+      fetchDocuments:
+          () => widget.serverEntry.connection.api.getDocuments(roomId),
       selected: _documentSelections.get(roomId, threadId),
     );
     if (result != null && mounted) {
@@ -178,12 +179,12 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   RoomState _createRoomState() => RoomState(
-        connection: widget.serverEntry.connection,
-        roomId: widget.roomId,
-        runtimeManager: widget.runtimeManager,
-        registry: widget.registry,
-        onNavigateToThread: (id) => _navigateToThread(id),
-      );
+    connection: widget.serverEntry.connection,
+    roomId: widget.roomId,
+    runtimeManager: widget.runtimeManager,
+    registry: widget.registry,
+    onNavigateToThread: (id) => _navigateToThread(id),
+  );
 
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
@@ -283,24 +284,26 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _showRenameDialog(String threadId, String currentName) async {
     await showDialog<void>(
       context: context,
-      builder: (_) => RenameDialog(
-        initialName: currentName,
-        onAction: (name) => _state.threadList.renameThread(threadId, name),
-      ),
+      builder:
+          (_) => RenameDialog(
+            initialName: currentName,
+            onAction: (name) => _state.threadList.renameThread(threadId, name),
+          ),
     );
   }
 
   Future<void> _showDeleteDialog(String threadId) async {
     await showDialog<void>(
       context: context,
-      builder: (_) => AsyncActionDialog(
-        title: 'Delete Thread',
-        contentBuilder: (_) =>
-            const Text('Delete this thread? This cannot be undone.'),
-        actionLabel: 'Delete',
-        isDestructive: true,
-        onAction: () => _state.deleteThread(threadId),
-      ),
+      builder:
+          (_) => AsyncActionDialog(
+            title: 'Delete Thread',
+            contentBuilder:
+                (_) => const Text('Delete this thread? This cannot be undone.'),
+            actionLabel: 'Delete',
+            isDestructive: true,
+            onAction: () => _state.deleteThread(threadId),
+          ),
     );
   }
 
@@ -349,50 +352,52 @@ class _RoomScreenState extends State<RoomScreen> {
           return Scaffold(
             appBar: AppBar(
               leading: Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
+                builder:
+                    (context) => IconButton(
+                      icon: const Icon(Icons.menu),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
               ),
               title: Text(roomName),
             ),
             drawer: Drawer(
               child: Builder(
-                builder: (drawerContext) => SafeArea(
-                  child: ThreadSidebar(
-                    threadListStatus: threadListStatus,
-                    selectedThreadId: selectedThreadId,
-                    onThreadSelected: (threadId) {
-                      Navigator.pop(drawerContext);
-                      _onThreadSelected(threadId);
-                    },
-                    onBackToLobby: _onBackToLobby,
-                    onCreateThread: () {
-                      Navigator.pop(drawerContext);
-                      _state.createThread();
-                    },
-                    onNetworkInspector: () {
-                      Navigator.pop(drawerContext);
-                      _onNetworkInspector();
-                    },
-                    onRoomInfo: () {
-                      Navigator.pop(drawerContext);
-                      _onRoomInfo();
-                    },
-                    roomName: roomName,
-                    onRetryThreads: () => _state.threadList.refresh(),
-                    quizzes: room?.quizzes ?? const {},
-                    onQuizTapped: _onQuizTapped,
-                    onRenameThread: (id, name) {
-                      Navigator.pop(drawerContext);
-                      _showRenameDialog(id, name);
-                    },
-                    onDeleteThread: (id) {
-                      Navigator.pop(drawerContext);
-                      _showDeleteDialog(id);
-                    },
-                  ),
-                ),
+                builder:
+                    (drawerContext) => SafeArea(
+                      child: ThreadSidebar(
+                        threadListStatus: threadListStatus,
+                        selectedThreadId: selectedThreadId,
+                        onThreadSelected: (threadId) {
+                          Navigator.pop(drawerContext);
+                          _onThreadSelected(threadId);
+                        },
+                        onBackToLobby: _onBackToLobby,
+                        onCreateThread: () {
+                          Navigator.pop(drawerContext);
+                          _state.createThread();
+                        },
+                        onNetworkInspector: () {
+                          Navigator.pop(drawerContext);
+                          _onNetworkInspector();
+                        },
+                        onRoomInfo: () {
+                          Navigator.pop(drawerContext);
+                          _onRoomInfo();
+                        },
+                        roomName: roomName,
+                        onRetryThreads: () => _state.threadList.refresh(),
+                        quizzes: room?.quizzes ?? const {},
+                        onQuizTapped: _onQuizTapped,
+                        onRenameThread: (id, name) {
+                          Navigator.pop(drawerContext);
+                          _showRenameDialog(id, name);
+                        },
+                        onDeleteThread: (id) {
+                          Navigator.pop(drawerContext);
+                          _showDeleteDialog(id);
+                        },
+                      ),
+                    ),
               ),
             ),
             body: content,
@@ -407,8 +412,9 @@ class _RoomScreenState extends State<RoomScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _chatController.text = unsentText;
-      _chatController.selection =
-          TextSelection.collapsed(offset: _chatController.text.length);
+      _chatController.selection = TextSelection.collapsed(
+        offset: _chatController.text.length,
+      );
     });
   }
 
@@ -416,29 +422,27 @@ class _RoomScreenState extends State<RoomScreen> {
     final threadView = _state.activeThreadView;
     final attachEnabled = room?.enableAttachments ?? false;
 
-    final roomEntries = attachEnabled
-        ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
-        : <UploadEntry>[];
+    final roomEntries =
+        attachEnabled
+            ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
+            : <UploadEntry>[];
     final threadId = threadView?.threadId;
-    final threadEntries = attachEnabled && threadId != null
-        ? _state.uploadTracker
-            .threadUploads(widget.roomId, threadId)
-            .watch(context)
-        : <UploadEntry>[];
+    final threadEntries =
+        attachEnabled && threadId != null
+            ? _state.uploadTracker
+                .threadUploads(widget.roomId, threadId)
+                .watch(context)
+            : <UploadEntry>[];
 
     return Column(
       children: [
-        _buildRoomHeader(
-          room,
-          attachEnabled,
-          roomEntries,
-          threadEntries,
-        ),
+        _buildRoomHeader(room, attachEnabled, roomEntries, threadEntries),
         if (_filesExpanded) _buildFilePanel(roomEntries, threadEntries),
         Expanded(
-          child: threadView == null
-              ? _buildNoThreadBody(room)
-              : _buildThreadBody(threadView, room),
+          child:
+              threadView == null
+                  ? _buildNoThreadBody(room)
+                  : _buildThreadBody(threadView, room),
         ),
       ],
     );
@@ -498,22 +502,21 @@ class _RoomScreenState extends State<RoomScreen> {
                     ),
                   const SizedBox(width: 4),
                   Text(
-                    _chipLabel(
-                      roomEntries.length,
-                      threadEntries.length,
-                    ),
+                    _chipLabel(roomEntries.length, threadEntries.length),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: anyFailed
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.primary,
+                      color:
+                          anyFailed
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.primary,
                     ),
                   ),
                   Icon(
                     _filesExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
-                    color: anyFailed
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.primary,
+                    color:
+                        anyFailed
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.primary,
                   ),
                 ],
               ),
@@ -581,9 +584,9 @@ class _RoomScreenState extends State<RoomScreen> {
     final (icon, color) = switch (entry.status) {
       UploadUploading() => (null, theme.colorScheme.primary),
       UploadSuccess() => (
-          Icons.check_circle_outline,
-          theme.colorScheme.primary
-        ),
+        Icons.check_circle_outline,
+        theme.colorScheme.primary,
+      ),
       UploadError() => (Icons.error_outline, theme.colorScheme.error),
     };
 
@@ -597,10 +600,7 @@ class _RoomScreenState extends State<RoomScreen> {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
             ),
           const SizedBox(width: 8),
           Expanded(
@@ -648,9 +648,10 @@ class _RoomScreenState extends State<RoomScreen> {
         Expanded(
           child: RoomWelcome(
             room: room,
-            onSuggestionTapped: sessionState != null
-                ? null
-                : (suggestion) => _state.sendToNewThread(
+            onSuggestionTapped:
+                sessionState != null
+                    ? null
+                    : (suggestion) => _state.sendToNewThread(
                       suggestion,
                       stateOverlay: _buildStateOverlay(),
                     ),
@@ -659,29 +660,28 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
         ),
         if (roomError != null)
-          _SendErrorBanner(
-            error: roomError,
-            onDismiss: _state.clearError,
-          ),
+          _SendErrorBanner(error: roomError, onDismiss: _state.clearError),
         ChatInput(
-          onSend: (text) => _state.sendToNewThread(
-            text,
-            stateOverlay: _buildStateOverlay(),
-          ),
+          onSend:
+              (text) => _state.sendToNewThread(
+                text,
+                stateOverlay: _buildStateOverlay(),
+              ),
           onCancel: _state.cancelSpawn,
           sessionState: _state.sessionState,
           controller: _chatController,
           focusNode: _chatFocusNode,
           selectedDocuments: _selectedDocuments,
           onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-          onDocumentRemoved: _filterEnabled
-              ? (doc) => _updateSelection(
-                    Set.of(_selectedDocuments)..remove(doc),
-                  )
-              : null,
-          onAttachFile: (room?.enableAttachments ?? false) && room != null
-              ? () => _pickAndUploadToNewThread(room)
-              : null,
+          onDocumentRemoved:
+              _filterEnabled
+                  ? (doc) =>
+                      _updateSelection(Set.of(_selectedDocuments)..remove(doc))
+                  : null,
+          onAttachFile:
+              (room?.enableAttachments ?? false) && room != null
+                  ? () => _pickAndUploadToNewThread(room)
+                  : null,
         ),
       ],
     );
@@ -700,57 +700,58 @@ class _RoomScreenState extends State<RoomScreen> {
         Expanded(
           child: switch (status) {
             MessagesLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: CircularProgressIndicator(),
+            ),
             MessagesFailed(:final error) => ErrorRetryPanel(
-                title: 'Failed to load messages',
-                error: error,
-                onRetry: threadView.refresh,
-              ),
+              title: 'Failed to load messages',
+              error: error,
+              onRetry: threadView.refresh,
+            ),
             MessagesLoaded(:final messages, :final messageStates) =>
               computeDisplayMessages(messages, streaming).isEmpty
                   ? RoomWelcome(
-                      room: room,
-                      onSuggestionTapped: (suggestion) =>
-                          threadView.sendMessage(
-                        suggestion,
-                        _state.runtime,
-                        stateOverlay: _buildStateOverlay(),
-                      ),
-                      onQuizTapped: _onQuizTapped,
-                      fallback: _threadEmptyFallback(context),
-                    )
+                    room: room,
+                    onSuggestionTapped:
+                        (suggestion) => threadView.sendMessage(
+                          suggestion,
+                          _state.runtime,
+                          stateOverlay: _buildStateOverlay(),
+                        ),
+                    onQuizTapped: _onQuizTapped,
+                    fallback: _threadEmptyFallback(context),
+                  )
                   : MessageTimeline(
-                      key: ValueKey(threadView.threadId),
-                      messages: messages,
-                      messageStates: messageStates,
-                      streamingState: streaming,
-                      executionTrackers: threadView.executionTrackers,
-                      onFeedbackSubmit: threadView.submitFeedback,
-                      onInspect: (runId) {
-                        final inspector = ProviderScope.containerOf(context)
-                            .read(networkInspectorProvider);
-                        final filtered = filterEventsByRunId(
-                          inspector.events,
-                          runId,
-                        );
-                        final groups = groupHttpEvents(filtered);
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => RunHttpDetailPage(groups: groups),
-                          ),
-                        );
-                      },
-                      onShowChunkVisualization: (ref) =>
-                          ChunkVisualizationPage.show(
-                        context: context,
-                        api: widget.serverEntry.connection.api,
-                        roomId: widget.roomId,
-                        chunkId: ref.chunkId,
-                        documentTitle: ref.displayTitle,
-                        pageNumbers: ref.pageNumbers,
-                      ),
-                    ),
+                    key: ValueKey(threadView.threadId),
+                    messages: messages,
+                    messageStates: messageStates,
+                    streamingState: streaming,
+                    executionTrackers: threadView.executionTrackers,
+                    onFeedbackSubmit: threadView.submitFeedback,
+                    onInspect: (runId) {
+                      final inspector = ProviderScope.containerOf(
+                        context,
+                      ).read(networkInspectorProvider);
+                      final filtered = filterEventsByRunId(
+                        inspector.events,
+                        runId,
+                      );
+                      final groups = groupHttpEvents(filtered);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => RunHttpDetailPage(groups: groups),
+                        ),
+                      );
+                    },
+                    onShowChunkVisualization:
+                        (ref) => ChunkVisualizationPage.show(
+                          context: context,
+                          api: widget.serverEntry.connection.api,
+                          roomId: widget.roomId,
+                          chunkId: ref.chunkId,
+                          documentTitle: ref.displayTitle,
+                          pageNumbers: ref.pageNumbers,
+                        ),
+                  ),
           },
         ),
         if (sendError != null)
@@ -759,11 +760,12 @@ class _RoomScreenState extends State<RoomScreen> {
             onDismiss: () => threadView.clearSendError(),
           ),
         ChatInput(
-          onSend: (text) => threadView.sendMessage(
-            text,
-            _state.runtime,
-            stateOverlay: _buildStateOverlay(),
-          ),
+          onSend:
+              (text) => threadView.sendMessage(
+                text,
+                _state.runtime,
+                stateOverlay: _buildStateOverlay(),
+              ),
           onCancel: threadView.cancelRun,
           sessionState: threadView.sessionState,
           controller: _chatController,
@@ -771,14 +773,15 @@ class _RoomScreenState extends State<RoomScreen> {
           enabled: status is MessagesLoaded,
           selectedDocuments: _selectedDocuments,
           onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-          onDocumentRemoved: _filterEnabled
-              ? (doc) => _updateSelection(
-                    Set.of(_selectedDocuments)..remove(doc),
-                  )
-              : null,
-          onAttachFile: attachEnabled && room != null
-              ? () => _pickAndUploadToThread(room, threadView.threadId)
-              : null,
+          onDocumentRemoved:
+              _filterEnabled
+                  ? (doc) =>
+                      _updateSelection(Set.of(_selectedDocuments)..remove(doc))
+                  : null,
+          onAttachFile:
+              attachEnabled && room != null
+                  ? () => _pickAndUploadToThread(room, threadView.threadId)
+                  : null,
         ),
       ],
     );
@@ -790,9 +793,11 @@ class _RoomScreenState extends State<RoomScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline,
-              size: 48,
-              color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 48,
+            color: theme.colorScheme.outline.withValues(alpha: 0.3),
+          ),
           const SizedBox(height: 12),
           Text(
             'Type a message to get started',

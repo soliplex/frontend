@@ -48,19 +48,16 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                 fontSize: 14,
               );
               const containerPadding = 16.0;
-              final overflows = !_expanded &&
+              final overflows =
+                  !_expanded &&
                   (TextPainter(
-                    text: TextSpan(
-                      text: widget.prompt,
-                      style: promptStyle,
-                    ),
+                    text: TextSpan(text: widget.prompt, style: promptStyle),
                     maxLines: _collapsedMaxLines,
                     textDirection: TextDirection.ltr,
                     textScaler: MediaQuery.textScalerOf(context),
                   )..layout(
-                          maxWidth: constraints.maxWidth - containerPadding,
-                        ))
-                      .didExceedMaxLines;
+                    maxWidth: constraints.maxWidth - containerPadding,
+                  )).didExceedMaxLines;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

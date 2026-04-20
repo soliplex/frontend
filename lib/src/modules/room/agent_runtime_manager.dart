@@ -9,15 +9,15 @@ class AgentRuntimeManager {
     required PlatformConstraints platform,
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
     required Logger logger,
-  })  : _platform = platform,
-        _toolRegistryResolver = toolRegistryResolver,
-        _logger = logger;
+  }) : _platform = platform,
+       _toolRegistryResolver = toolRegistryResolver,
+       _logger = logger;
 
   final PlatformConstraints _platform;
   final Future<ToolRegistry> Function(String roomId) _toolRegistryResolver;
   final Logger _logger;
   final Map<String, ({ServerConnection connection, AgentRuntime runtime})>
-      _cache = {};
+  _cache = {};
   bool _isDisposed = false;
 
   /// Resolves the [ToolRegistry] for a given room ID.
@@ -63,7 +63,8 @@ class AgentRuntimeManager {
         await entry.runtime.dispose();
       } on Object catch (e) {
         _logger.warning(
-            'Failed to dispose runtime ${entry.connection.serverId}: $e');
+          'Failed to dispose runtime ${entry.connection.serverId}: $e',
+        );
       }
     }
   }

@@ -226,9 +226,7 @@ void main() {
       test('returns / for empty path', () {
         final group = HttpEventGroup(
           requestId: 'req-1',
-          request: createRequestEvent(
-            uri: Uri.parse('http://localhost'),
-          ),
+          request: createRequestEvent(uri: Uri.parse('http://localhost')),
         );
         expect(group.pathWithQuery, '/');
       });
@@ -477,10 +475,7 @@ void main() {
 
       test('keeps existing fields when not specified', () {
         final request = createRequestEvent();
-        final original = HttpEventGroup(
-          requestId: 'req-1',
-          request: request,
-        );
+        final original = HttpEventGroup(requestId: 'req-1', request: request);
         final updated = original.copyWith();
         expect(updated.request, request);
         expect(updated.response, isNull);

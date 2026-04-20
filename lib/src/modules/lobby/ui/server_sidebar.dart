@@ -64,8 +64,8 @@ class _ServerList extends StatelessWidget {
           child: Text(
             'Servers (${servers.length})',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         for (final entry in servers.entries)
@@ -133,10 +133,7 @@ class _ActionButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextButton(
-          onPressed: onAddServer,
-          child: const Text('Home'),
-        ),
+        TextButton(onPressed: onAddServer, child: const Text('Home')),
         TextButton(
           onPressed: onNetworkInspector,
           child: const Text('Network Inspector'),

@@ -36,16 +36,15 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     return MarkdownBody(
       data: sanitizeMarkdown(data),
       selectable: true,
-      styleSheet: markdownTheme?.toMarkdownStyleSheet(
-        codeFontStyle: monoStyle,
-      ),
+      styleSheet: markdownTheme?.toMarkdownStyleSheet(codeFontStyle: monoStyle),
       blockSyntaxes: [LatexBlockSyntax()],
       inlineSyntaxes: [LatexInlineSyntax()],
-      onTapLink: onLinkTap == null
-          ? null
-          : (_, href, title) {
-              if (href != null) onLinkTap!(href, title);
-            },
+      onTapLink:
+          onLinkTap == null
+              ? null
+              : (_, href, title) {
+                if (href != null) onLinkTap!(href, title);
+              },
       builders: {
         'code': InlineCodeBuilder(),
         'pre': CodeBlockBuilder(

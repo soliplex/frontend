@@ -225,7 +225,7 @@ class GenUiMessage extends ChatMessage {
 class LoadingMessage extends ChatMessage {
   /// Creates a loading message with all properties.
   const LoadingMessage({required super.id, required super.createdAt})
-      : super(user: ChatUser.assistant);
+    : super(user: ChatUser.assistant);
 
   /// Creates a loading message with the given ID and auto-generated timestamp.
   factory LoadingMessage.create({required String id}) {

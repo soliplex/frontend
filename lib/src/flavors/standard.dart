@@ -58,10 +58,7 @@ ThemeData _defaultTheme() {
         blockquoteDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
           border: Border(
-            left: BorderSide(
-              color: colorScheme.outlineVariant,
-              width: 3,
-            ),
+            left: BorderSide(color: colorScheme.outlineVariant, width: 3),
           ),
         ),
       ),
@@ -93,14 +90,13 @@ Future<ShellConfig> standard({
   SoliplexHttpClient buildClient({
     String? Function()? getToken,
     TokenRefresher? tokenRefresher,
-  }) =>
-      createAgentHttpClient(
-        innerClient: createPlatformClient(),
-        observers: [inspector],
-        getToken: getToken,
-        tokenRefresher: tokenRefresher,
-        onDiagnostic: onHttpDiagnostic,
-      );
+  }) => createAgentHttpClient(
+    innerClient: createPlatformClient(),
+    observers: [inspector],
+    getToken: getToken,
+    tokenRefresher: tokenRefresher,
+    onDiagnostic: onHttpDiagnostic,
+  );
 
   final plainClient = buildClient();
   final refreshService = TokenRefreshService(httpClient: plainClient);
@@ -118,7 +114,8 @@ Future<ShellConfig> standard({
   await serverManager.restoreServers();
 
   final savedUrl = await DefaultBackendUrlStorage.load();
-  final resolvedUrl = savedUrl ??
+  final resolvedUrl =
+      savedUrl ??
       platformDefaultBackendUrl(
         configUrl: defaultBackendUrl,
         isWeb: kIsWeb,
@@ -129,9 +126,10 @@ Future<ShellConfig> standard({
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
   final runtimeManager = AgentRuntimeManager(
-    platform: kIsWeb
-        ? const WebPlatformConstraints()
-        : const NativePlatformConstraints(),
+    platform:
+        kIsWeb
+            ? const WebPlatformConstraints()
+            : const NativePlatformConstraints(),
     toolRegistryResolver: (_) async => const ToolRegistry(),
     logger: LogManager.instance.getLogger('room'),
   );
@@ -142,9 +140,10 @@ Future<ShellConfig> standard({
     appName: appName,
     logo: logo,
     theme: theme ?? _defaultTheme(),
-    initialRoute: callbackParams is! NoCallbackParams
-        ? '/auth/callback'
-        : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
+    initialRoute:
+        callbackParams is! NoCallbackParams
+            ? '/auth/callback'
+            : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
     refreshListenable: authListenable,
     onDispose: () {
       authListenable.dispose();

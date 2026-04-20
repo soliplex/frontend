@@ -14,9 +14,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 Future<void> main() async {
   // Set up logging.
-  final logManager = LogManager.instance
-    ..minimumLevel = LogLevel.info
-    ..addSink(StdoutSink(useColors: true));
+  final logManager =
+      LogManager.instance
+        ..minimumLevel = LogLevel.info
+        ..addSink(StdoutSink(useColors: true));
   final logger = logManager.getLogger('example');
 
   // Build connection from server URL — create handles /api/v1.

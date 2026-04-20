@@ -25,14 +25,12 @@ class FakeToolExecutionContext implements ToolExecutionContext {
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 
   @override
   Future<String> delegateTask({
     required String prompt,
     String? roomId,
     Duration? timeout,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 }

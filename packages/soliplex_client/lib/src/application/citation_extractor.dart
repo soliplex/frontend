@@ -13,7 +13,8 @@ void _logFromJsonDiagnostic(
       json.entries.where((e) => e.value == null).map((e) => e.key).toList();
   final presentKeys = json.keys.toList();
 
-  final message = '$className.fromJson failed ($error). '
+  final message =
+      '$className.fromJson failed ($error). '
       'Null keys: $nullKeys. Present keys: $presentKeys.';
 
   developer.log(

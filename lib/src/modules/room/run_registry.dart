@@ -50,12 +50,14 @@ class RunRegistry {
     final run = _TrackedRun(session: session);
     _runs[key] = run;
 
-    unawaited(session.result.then((result) {
-      if (_isDisposed) return;
-      final terminalState = session.runState.value;
-      run.outcome = _outcomeFrom(terminalState, result);
-      run.session = null;
-    }));
+    unawaited(
+      session.result.then((result) {
+        if (_isDisposed) return;
+        final terminalState = session.runState.value;
+        run.outcome = _outcomeFrom(terminalState, result);
+        run.session = null;
+      }),
+    );
   }
 
   /// Returns the active (non-terminal) session for a thread.
@@ -81,10 +83,14 @@ class RunRegistry {
 
   static RunOutcome _outcomeFrom(RunState state, AgentResult result) {
     return switch (state) {
-      CompletedState(:final conversation, :final runId) =>
-        CompletedRun(conversation, runId: runId),
-      FailedState(:final conversation, :final error) =>
-        FailedRun(conversation, error),
+      CompletedState(:final conversation, :final runId) => CompletedRun(
+        conversation,
+        runId: runId,
+      ),
+      FailedState(:final conversation, :final error) => FailedRun(
+        conversation,
+        error,
+      ),
       CancelledState(:final conversation) => CancelledRun(conversation),
       _ => FailedRun(null, 'Unexpected terminal state: ${state.runtimeType}'),
     };

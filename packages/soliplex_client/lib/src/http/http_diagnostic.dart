@@ -7,11 +7,12 @@ import 'dart:developer' as developer;
 ///
 /// Routed to `dart:developer.log` by default. Production callers should
 /// wire a proper error sink (e.g., `soliplex_logging`).
-typedef HttpDiagnosticHandler = void Function(
-  Object error,
-  StackTrace stackTrace, {
-  required String message,
-});
+typedef HttpDiagnosticHandler =
+    void Function(
+      Object error,
+      StackTrace stackTrace, {
+      required String message,
+    });
 
 /// Default [HttpDiagnosticHandler] — logs at SEVERE via `dart:developer`.
 void defaultHttpDiagnosticHandler(
@@ -34,18 +35,18 @@ void defaultHttpDiagnosticHandler(
 /// that escapes into the caller breaks that contract.
 HttpDiagnosticHandler safeDiagnosticHandler(HttpDiagnosticHandler handler) {
   return (Object error, StackTrace stackTrace, {required String message}) {
-    runZonedGuarded(
-      () => handler(error, stackTrace, message: message),
-      (handlerError, handlerStack) {
-        developer.log(
-          'Diagnostic handler threw while processing: "$message". '
-          'Original error: $error',
-          error: handlerError,
-          stackTrace: handlerStack,
-          level: 1000, // SEVERE
-          name: 'soliplex_client.http',
-        );
-      },
-    );
+    runZonedGuarded(() => handler(error, stackTrace, message: message), (
+      handlerError,
+      handlerStack,
+    ) {
+      developer.log(
+        'Diagnostic handler threw while processing: "$message". '
+        'Original error: $error',
+        error: handlerError,
+        stackTrace: handlerStack,
+        level: 1000, // SEVERE
+        name: 'soliplex_client.http',
+      );
+    });
   };
 }

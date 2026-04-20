@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 class QuizStartView extends StatelessWidget {
-  const QuizStartView({
-    super.key,
-    required this.quiz,
-    required this.onStart,
-  });
+  const QuizStartView({super.key, required this.quiz, required this.onStart});
 
   final Quiz quiz;
   final VoidCallback onStart;

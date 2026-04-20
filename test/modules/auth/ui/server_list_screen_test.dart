@@ -17,12 +17,10 @@ import 'package:soliplex_frontend/src/modules/auth/ui/server_list_screen.dart';
 import '../../../helpers/fakes.dart';
 
 ServerManager _createServerManager() => ServerManager(
-      authFactory: () => AuthSession(
-        refreshService: FakeTokenRefreshService(),
-      ),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 void _loginEntry(ServerEntry entry) {
   entry.auth.login(
@@ -100,8 +98,9 @@ void main() {
       expect(find.text('https://two.example.com'), findsOneWidget);
     });
 
-    testWidgets('shows Connected and Disconnected section headers',
-        (tester) async {
+    testWidgets('shows Connected and Disconnected section headers', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'disconnected',
@@ -120,8 +119,9 @@ void main() {
       expect(find.text('Disconnected (1)'), findsOneWidget);
     });
 
-    testWidgets('hides Disconnected section when all servers connected',
-        (tester) async {
+    testWidgets('hides Disconnected section when all servers connected', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -136,8 +136,9 @@ void main() {
       expect(find.textContaining('Disconnected'), findsNothing);
     });
 
-    testWidgets('hides Connected section when all servers disconnected',
-        (tester) async {
+    testWidgets('hides Connected section when all servers disconnected', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
@@ -217,8 +218,9 @@ void main() {
       expect(find.text('Log out'), findsNothing);
     });
 
-    testWidgets('logout clears local auth before calling endSession',
-        (tester) async {
+    testWidgets('logout clears local auth before calling endSession', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -233,10 +235,9 @@ void main() {
         },
       );
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        authFlow: authFlow,
-      ));
+      await tester.pumpWidget(
+        _buildApp(serverManager: serverManager, authFlow: authFlow),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Log out'));
@@ -279,29 +280,32 @@ void main() {
       expect(find.text('Lobby placeholder'), findsOneWidget);
     });
 
-    testWidgets('tapping disconnected server navigates to home with url param',
-        (tester) async {
-      final serverManager = _createServerManager();
-      serverManager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
+    testWidgets(
+      'tapping disconnected server navigates to home with url param',
+      (tester) async {
+        final serverManager = _createServerManager();
+        serverManager.addServer(
+          serverId: 'test',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
 
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(_buildApp(serverManager: serverManager));
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('https://api.example.com'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('https://api.example.com'));
+        await tester.pumpAndSettle();
 
-      expect(_lastLocation, contains('url='));
-      expect(
-        _lastLocation,
-        contains(Uri.encodeComponent('https://api.example.com')),
-      );
-    });
+        expect(_lastLocation, contains('url='));
+        expect(
+          _lastLocation,
+          contains(Uri.encodeComponent('https://api.example.com')),
+        );
+      },
+    );
 
-    testWidgets('connected server with requiresAuth shows Log out and delete',
-        (tester) async {
+    testWidgets('connected server with requiresAuth shows Log out and delete', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -330,8 +334,9 @@ void main() {
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
 
-    testWidgets('logout fetches endSessionEndpoint from OIDC discovery',
-        (tester) async {
+    testWidgets('logout fetches endSessionEndpoint from OIDC discovery', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -343,35 +348,36 @@ void main() {
         'token_endpoint': 'https://sso.example.com/token',
         'end_session_endpoint': 'https://sso.example.com/logout',
       });
-      final probeClient = FakeHttpClient()
-        ..onRequest = (method, uri) async {
-          return HttpResponse(
-            statusCode: 200,
-            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
-          );
-        };
+      final probeClient =
+          FakeHttpClient()
+            ..onRequest = (method, uri) async {
+              return HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+              );
+            };
 
       final authFlow = RecordingAuthFlow();
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        authFlow: authFlow,
-        probeClient: probeClient,
-      ));
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          authFlow: authFlow,
+          probeClient: probeClient,
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Log out'));
       await tester.pumpAndSettle();
 
       expect(authFlow.endSessionCalled, isTrue);
-      expect(
-        authFlow.lastEndSessionEndpoint,
-        'https://sso.example.com/logout',
-      );
+      expect(authFlow.lastEndSessionEndpoint, 'https://sso.example.com/logout');
     });
 
-    testWidgets('deleting a connected server logs out before removing',
-        (tester) async {
+    testWidgets('deleting a connected server logs out before removing', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -383,21 +389,24 @@ void main() {
         'token_endpoint': 'https://sso.example.com/token',
         'end_session_endpoint': 'https://sso.example.com/logout',
       });
-      final probeClient = FakeHttpClient()
-        ..onRequest = (method, uri) async {
-          return HttpResponse(
-            statusCode: 200,
-            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
-          );
-        };
+      final probeClient =
+          FakeHttpClient()
+            ..onRequest = (method, uri) async {
+              return HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+              );
+            };
 
       final authFlow = RecordingAuthFlow();
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        authFlow: authFlow,
-        probeClient: probeClient,
-      ));
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          authFlow: authFlow,
+          probeClient: probeClient,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Connected (1)'), findsOneWidget);

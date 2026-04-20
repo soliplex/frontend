@@ -13,9 +13,9 @@ class ThreadHistory {
     required List<ChatMessage> messages,
     Map<String, dynamic> aguiState = const {},
     Map<String, MessageState> messageStates = const {},
-  })  : messages = List.unmodifiable(messages),
-        aguiState = Map.unmodifiable(aguiState),
-        messageStates = Map.unmodifiable(messageStates);
+  }) : messages = List.unmodifiable(messages),
+       aguiState = Map.unmodifiable(aguiState),
+       messageStates = Map.unmodifiable(messageStates);
 
   /// Messages in the thread, ordered chronologically.
   final List<ChatMessage> messages;

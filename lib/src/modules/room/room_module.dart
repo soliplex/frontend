@@ -20,10 +20,11 @@ ModuleContribution roomModule({
     routes: [
       GoRoute(
         path: '/room/:serverAlias/:roomId/info',
-        redirect: (context, state) => requireConnectedServer(
-          serverManager,
-          state.pathParameters['serverAlias'],
-        ),
+        redirect:
+            (context, state) => requireConnectedServer(
+              serverManager,
+              state.pathParameters['serverAlias'],
+            ),
         pageBuilder: (context, state) {
           final alias = state.pathParameters['serverAlias']!;
           final entry = serverManager.entryByAlias(alias)!;
@@ -66,10 +67,11 @@ GoRoute _buildRoute(
 ) {
   return GoRoute(
     path: path,
-    redirect: (context, state) => requireConnectedServer(
-      serverManager,
-      state.pathParameters['serverAlias'],
-    ),
+    redirect:
+        (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
     pageBuilder: (context, state) {
       final alias = state.pathParameters['serverAlias']!;
       final entry = serverManager.entryByAlias(alias)!;

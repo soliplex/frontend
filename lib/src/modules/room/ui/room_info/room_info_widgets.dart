@@ -22,9 +22,9 @@ class SectionCard extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 8),
               ...children,
@@ -55,17 +55,13 @@ class InfoRow extends StatelessWidget {
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                color:
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );
@@ -89,11 +85,7 @@ class EmptyMessage extends StatelessWidget {
 }
 
 class DialogButton extends StatelessWidget {
-  const DialogButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-  });
+  const DialogButton({super.key, required this.label, required this.onPressed});
   final String label;
   final VoidCallback onPressed;
 

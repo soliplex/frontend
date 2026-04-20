@@ -17,9 +17,10 @@ import 'package:soliplex_client/soliplex_client.dart' show DartHttpClient;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 Future<void> main() async {
-  final logManager = LogManager.instance
-    ..minimumLevel = LogLevel.info
-    ..addSink(StdoutSink(useColors: true));
+  final logManager =
+      LogManager.instance
+        ..minimumLevel = LogLevel.info
+        ..addSink(StdoutSink(useColors: true));
   final logger = logManager.getLogger('wasm_concurrent');
 
   final connection = ServerConnection.create(

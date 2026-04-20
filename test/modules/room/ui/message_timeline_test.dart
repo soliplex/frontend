@@ -13,14 +13,13 @@ void main() {
       text: 'Hello',
     );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: MessageTimeline(
-          messages: [message],
-          messageStates: const {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(messages: [message], messageStates: const {}),
         ),
       ),
-    ));
+    );
 
     expect(find.text('Hello'), findsOneWidget);
   });

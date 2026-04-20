@@ -181,8 +181,8 @@ void main() {
               name: 'fail_tool',
               description: 'Always fails',
             ),
-            executor: (call, _) async =>
-                throw Exception('Tool execution failed'),
+            executor:
+                (call, _) async => throw Exception('Tool execution failed'),
           ),
         );
 

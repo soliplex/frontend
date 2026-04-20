@@ -6,10 +6,10 @@ import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import '../../helpers/fakes.dart';
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
-      serverId: 'test-server',
-      api: api,
-      agUiStreamClient: FakeAgUiStreamClient(),
-    );
+  serverId: 'test-server',
+  api: api,
+  agUiStreamClient: FakeAgUiStreamClient(),
+);
 
 void main() {
   late FakeSoliplexApi api;
@@ -35,10 +35,7 @@ void main() {
     );
     api.nextThreads = [older, newer];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
 
     // Should start as loading
     expect(state.threads.value, isA<ThreadsLoading>());
@@ -57,10 +54,7 @@ void main() {
   test('exposes failed status on fetch error', () async {
     api.nextThreadsError = Exception('network error');
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
 
     await Future<void>.delayed(Duration.zero);
 
@@ -79,10 +73,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
 
     await Future<void>.delayed(Duration.zero);
     expect(state.threads.value, isA<ThreadsLoaded>());
@@ -118,10 +109,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     await state.deleteThread('thread-1');
@@ -145,18 +133,12 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     api.nextDeleteThreadError = Exception('server error');
 
-    expect(
-      () => state.deleteThread('thread-1'),
-      throwsA(isA<Exception>()),
-    );
+    expect(() => state.deleteThread('thread-1'), throwsA(isA<Exception>()));
 
     // Thread should still be in the list (pessimistic — failed, no removal).
     final loaded = state.threads.value as ThreadsLoaded;
@@ -176,10 +158,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     await state.renameThread('thread-1', 'New Name');
@@ -197,10 +176,7 @@ void main() {
   test('renameThread throws StateError when threads not loaded', () async {
     api.nextThreadsError = Exception('network error');
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     expect(state.threads.value, isA<ThreadsFailed>());
@@ -213,56 +189,54 @@ void main() {
     state.dispose();
   });
 
-  test('renameThread omits empty description instead of sending empty string',
-      () async {
-    api.nextThreads = [
-      ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'Old Name',
-        // description defaults to '' (empty string)
-        createdAt: DateTime(2026, 3, 1),
-      ),
-    ];
+  test(
+    'renameThread omits empty description instead of sending empty string',
+    () async {
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Old Name',
+          // description defaults to '' (empty string)
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
-    await Future<void>.delayed(Duration.zero);
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
+      await Future<void>.delayed(Duration.zero);
 
-    await state.renameThread('thread-1', 'New Name');
+      await state.renameThread('thread-1', 'New Name');
 
-    expect(api.lastUpdatedDescription, isNull);
+      expect(api.lastUpdatedDescription, isNull);
 
-    state.dispose();
-  });
+      state.dispose();
+    },
+  );
 
-  test('renameThread throws StateError when thread not in cached list',
-      () async {
-    api.nextThreads = [
-      ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'Only Thread',
-        createdAt: DateTime(2026, 3, 1),
-      ),
-    ];
+  test(
+    'renameThread throws StateError when thread not in cached list',
+    () async {
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Only Thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
-    await Future<void>.delayed(Duration.zero);
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
+      await Future<void>.delayed(Duration.zero);
 
-    expect(
-      () => state.renameThread('nonexistent-id', 'New Name'),
-      throwsA(isA<StateError>()),
-    );
-    expect(api.updateMetadataCallCount, 0);
+      expect(
+        () => state.renameThread('nonexistent-id', 'New Name'),
+        throwsA(isA<StateError>()),
+      );
+      expect(api.updateMetadataCallCount, 0);
 
-    state.dispose();
-  });
+      state.dispose();
+    },
+  );
 
   test('renameThread propagates API error', () async {
     api.nextThreads = [
@@ -274,10 +248,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     api.nextUpdateMetadataError = Exception('server error');
@@ -304,10 +275,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     state.dispose();
@@ -325,10 +293,7 @@ void main() {
     );
     api.nextThreads = [thread];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     // Start delete, synchronously dispose before the API future resolves.
@@ -351,10 +316,7 @@ void main() {
     );
     api.nextThreads = [thread];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
 
     final pending = state.renameThread('thread-1', 'New Name');
@@ -369,10 +331,7 @@ void main() {
   group('createThread', () {
     test('returns server result and inserts thread into loaded list', () async {
       api.nextThreads = [];
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
 
       final created = ThreadInfo(
@@ -397,10 +356,7 @@ void main() {
 
     test('disposed before call returns null without hitting API', () async {
       api.nextThreads = [];
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
 
       state.dispose();
@@ -413,10 +369,7 @@ void main() {
 
     test('disposed during await returns null without mutating list', () async {
       api.nextThreads = [];
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
 
       api.nextCreateThread = (
@@ -439,16 +392,12 @@ void main() {
     });
   });
 
-  test(
-      'deleteThread from non-loaded state calls the API and schedules a '
+  test('deleteThread from non-loaded state calls the API and schedules a '
       'fresh fetch to reconcile', () async {
     // Initial fetch fails: state ends up in ThreadsFailed.
     api.nextThreadsError = Exception('slow network');
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
     await Future<void>.delayed(Duration.zero);
     expect(state.threads.value, isA<ThreadsFailed>());
 
@@ -477,37 +426,36 @@ void main() {
   });
 
   group('noteSpawnedThread', () {
-    test('inserts thread into loaded list sorted by createdAt descending',
-        () async {
-      final existing = ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'Existing',
-        createdAt: DateTime(2026, 1, 1),
-      );
-      api.nextThreads = [existing];
+    test(
+      'inserts thread into loaded list sorted by createdAt descending',
+      () async {
+        final existing = ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Existing',
+          createdAt: DateTime(2026, 1, 1),
+        );
+        api.nextThreads = [existing];
 
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
-      await Future<void>.delayed(Duration.zero);
+        final state = ThreadListState(connection: connection, roomId: 'room-1');
+        await Future<void>.delayed(Duration.zero);
 
-      final newer = ThreadInfo(
-        id: 'thread-2',
-        roomId: 'room-1',
-        name: 'Newer',
-        createdAt: DateTime(2026, 3, 1),
-      );
-      state.noteSpawnedThread(newer);
+        final newer = ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Newer',
+          createdAt: DateTime(2026, 3, 1),
+        );
+        state.noteSpawnedThread(newer);
 
-      final loaded = state.threads.value as ThreadsLoaded;
-      expect(loaded.threads.length, 2);
-      expect(loaded.threads.first.id, 'thread-2'); // newer first
-      expect(loaded.threads.last.id, 'thread-1');
+        final loaded = state.threads.value as ThreadsLoaded;
+        expect(loaded.threads.length, 2);
+        expect(loaded.threads.first.id, 'thread-2'); // newer first
+        expect(loaded.threads.last.id, 'thread-1');
 
-      state.dispose();
-    });
+        state.dispose();
+      },
+    );
 
     test('ignores duplicate thread id', () async {
       final existing = ThreadInfo(
@@ -518,10 +466,7 @@ void main() {
       );
       api.nextThreads = [existing];
 
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
 
       state.noteSpawnedThread(existing);
@@ -532,16 +477,12 @@ void main() {
       state.dispose();
     });
 
-    test(
-        'from non-loaded state, defers to a fresh fetch instead of '
+    test('from non-loaded state, defers to a fresh fetch instead of '
         'clobbering with a single-element list', () async {
       // Initial fetch fails: state ends up in ThreadsFailed.
       api.nextThreadsError = Exception('slow network');
 
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
       expect(state.threads.value, isA<ThreadsFailed>());
 
@@ -578,19 +519,18 @@ void main() {
     test('does nothing when disposed', () async {
       api.nextThreads = [];
 
-      final state = ThreadListState(
-        connection: connection,
-        roomId: 'room-1',
-      );
+      final state = ThreadListState(connection: connection, roomId: 'room-1');
       await Future<void>.delayed(Duration.zero);
 
       state.dispose();
-      state.noteSpawnedThread(ThreadInfo(
-        id: 'thread-1',
-        roomId: 'room-1',
-        name: 'New',
-        createdAt: DateTime(2026, 3, 1),
-      ));
+      state.noteSpawnedThread(
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'New',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      );
 
       final loaded = state.threads.value as ThreadsLoaded;
       expect(loaded.threads, isEmpty);
@@ -607,10 +547,7 @@ void main() {
       ),
     ];
 
-    final state = ThreadListState(
-      connection: connection,
-      roomId: 'room-1',
-    );
+    final state = ThreadListState(connection: connection, roomId: 'room-1');
 
     await Future<void>.delayed(Duration.zero);
     expect(state.threads.value, isA<ThreadsLoaded>());

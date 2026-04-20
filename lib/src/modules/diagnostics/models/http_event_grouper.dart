@@ -19,7 +19,8 @@ List<HttpEventGroup> groupHttpEvents(List<HttpEvent> events) {
     };
   }
 
-  final sorted = groups.values.toList()
-    ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  final sorted =
+      groups.values.toList()
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   return sorted;
 }

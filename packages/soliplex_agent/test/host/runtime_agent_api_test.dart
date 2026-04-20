@@ -32,12 +32,12 @@ ThreadInfo _threadInfo() =>
     ThreadInfo(id: _threadId, roomId: _roomId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents(String text) => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      TextMessageContentEvent(messageId: 'msg-1', delta: text),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  TextMessageContentEvent(messageId: 'msg-1', delta: text),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 void main() {
   setUpAll(() {

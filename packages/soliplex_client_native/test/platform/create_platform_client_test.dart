@@ -53,9 +53,10 @@ void main() {
 
     test(
       'returns CupertinoHttpClient on macOS',
-      skip: !Platform.isMacOS || skipNativeTests != null
-          ? 'Requires macOS with native libraries'
-          : null,
+      skip:
+          !Platform.isMacOS || skipNativeTests != null
+              ? 'Requires macOS with native libraries'
+              : null,
       () {
         final client = createPlatformClient();
         expect(client, isA<CupertinoHttpClient>());
@@ -75,9 +76,10 @@ void main() {
 
     test(
       'returns DartHttpClient on non-Apple platforms',
-      skip: Platform.isMacOS || Platform.isIOS
-          ? 'Running on Apple platform'
-          : null,
+      skip:
+          Platform.isMacOS || Platform.isIOS
+              ? 'Running on Apple platform'
+              : null,
       () {
         final client = createPlatformClient();
         expect(client, isA<DartHttpClient>());
@@ -87,9 +89,10 @@ void main() {
 
     test(
       'CupertinoHttpClient respects custom timeout',
-      skip: (!Platform.isMacOS && !Platform.isIOS) || skipNativeTests != null
-          ? 'Requires Apple platform with native libraries'
-          : null,
+      skip:
+          (!Platform.isMacOS && !Platform.isIOS) || skipNativeTests != null
+              ? 'Requires Apple platform with native libraries'
+              : null,
       () {
         final client = createPlatformClient(
           defaultTimeout: const Duration(seconds: 45),

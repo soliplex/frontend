@@ -7,9 +7,8 @@ import 'server_storage.dart';
 
 /// Persists server sessions using platform secure storage.
 class SecureServerStorage implements ServerStorage {
-  SecureServerStorage({
-    FlutterSecureStorage? storage,
-  }) : _storage = storage ?? const FlutterSecureStorage();
+  SecureServerStorage({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
@@ -19,10 +18,7 @@ class SecureServerStorage implements ServerStorage {
 
   @override
   Future<void> save(String serverId, PersistedServer data) async {
-    await _storage.write(
-      key: _key(serverId),
-      value: jsonEncode(data.toJson()),
-    );
+    await _storage.write(key: _key(serverId), value: jsonEncode(data.toJson()));
   }
 
   @override

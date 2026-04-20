@@ -24,8 +24,9 @@ class GenUiTile extends StatelessWidget {
             const SizedBox(height: 8),
             SelectableText(
               const JsonEncoder.withIndent('  ').convert(message.data),
-              style:
-                  theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+              ),
             ),
           ],
         ),

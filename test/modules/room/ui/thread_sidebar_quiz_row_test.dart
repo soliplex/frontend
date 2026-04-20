@@ -28,9 +28,7 @@ void main() {
   }
 
   testWidgets('shows quiz row when quizzes present', (tester) async {
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Intro Quiz'},
-    ));
+    await tester.pumpWidget(buildSidebar(quizzes: {'q1': 'Intro Quiz'}));
     expect(find.text('Intro Quiz'), findsOneWidget);
   });
 
@@ -41,20 +39,25 @@ void main() {
 
   testWidgets('fires onQuizTapped for single quiz', (tester) async {
     String? tapped;
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Intro Quiz'},
-      onQuizTapped: (id) => tapped = id,
-    ));
+    await tester.pumpWidget(
+      buildSidebar(
+        quizzes: {'q1': 'Intro Quiz'},
+        onQuizTapped: (id) => tapped = id,
+      ),
+    );
     await tester.tap(find.text('Intro Quiz'));
     expect(tapped, 'q1');
   });
 
-  testWidgets('single quiz button disabled when onQuizTapped is null',
-      (tester) async {
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Intro Quiz'},
-      // onQuizTapped intentionally omitted (null)
-    ));
+  testWidgets('single quiz button disabled when onQuizTapped is null', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      buildSidebar(
+        quizzes: {'q1': 'Intro Quiz'},
+        // onQuizTapped intentionally omitted (null)
+      ),
+    );
     // Walk up from the label text to find the enclosing TextButton.
     final textElement = find.text('Intro Quiz').evaluate().single;
     TextButton? quizButton;
@@ -70,18 +73,18 @@ void main() {
   });
 
   testWidgets('shows expandable header for multiple quizzes', (tester) async {
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},
-    ));
+    await tester.pumpWidget(
+      buildSidebar(quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'}),
+    );
     expect(find.text('Quizzes (2)'), findsOneWidget);
     // Individual quizzes hidden until expanded
     expect(find.text('Quiz A'), findsNothing);
   });
 
   testWidgets('expands to show individual quizzes on tap', (tester) async {
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},
-    ));
+    await tester.pumpWidget(
+      buildSidebar(quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'}),
+    );
     await tester.tap(find.text('Quizzes (2)'));
     await tester.pumpAndSettle();
     expect(find.text('Quiz A'), findsOneWidget);
@@ -89,9 +92,9 @@ void main() {
   });
 
   testWidgets('collapses expanded quizzes on second tap', (tester) async {
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},
-    ));
+    await tester.pumpWidget(
+      buildSidebar(quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'}),
+    );
     // Expand
     await tester.tap(find.text('Quizzes (2)'));
     await tester.pumpAndSettle();
@@ -105,10 +108,12 @@ void main() {
 
   testWidgets('fires onQuizTapped for expanded quiz', (tester) async {
     String? tapped;
-    await tester.pumpWidget(buildSidebar(
-      quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},
-      onQuizTapped: (id) => tapped = id,
-    ));
+    await tester.pumpWidget(
+      buildSidebar(
+        quizzes: {'q1': 'Quiz A', 'q2': 'Quiz B'},
+        onQuizTapped: (id) => tapped = id,
+      ),
+    );
     await tester.tap(find.text('Quizzes (2)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Quiz B'));

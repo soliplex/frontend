@@ -91,8 +91,9 @@ class LogRecord {
 
   @override
   String toString() {
-    final buffer = StringBuffer()
-      ..write('$formattedTimestamp [${level.label}] $loggerName: $message');
+    final buffer =
+        StringBuffer()
+          ..write('$formattedTimestamp [${level.label}] $loggerName: $message');
 
     if (spanId != null || traceId != null) {
       buffer.write(' (');

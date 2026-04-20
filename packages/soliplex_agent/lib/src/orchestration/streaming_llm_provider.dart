@@ -8,13 +8,14 @@ import 'package:soliplex_client/soliplex_client.dart';
 ///
 /// Wraps `OpenResponsesLlmProvider.chatStream`. The app layer
 /// passes this in; `soliplex_agent` never imports `open_responses`.
-typedef StreamingChatFn = Stream<LlmEvent> Function({
-  required List<LlmChatMessage> messages,
-  List<LlmToolDef>? tools,
-  String? systemPrompt,
-  int? maxTokens,
-  Future<void>? abortTrigger,
-});
+typedef StreamingChatFn =
+    Stream<LlmEvent> Function({
+      required List<LlmChatMessage> messages,
+      List<LlmToolDef>? tools,
+      String? systemPrompt,
+      int? maxTokens,
+      Future<void>? abortTrigger,
+    });
 
 /// [AgentLlmProvider] backed by a streaming LLM callback with native
 /// tool calling support.
@@ -25,7 +26,7 @@ typedef StreamingChatFn = Stream<LlmEvent> Function({
 class StreamingLlmProvider implements AgentLlmProvider {
   /// Creates a [StreamingLlmProvider].
   StreamingLlmProvider({required StreamingChatFn chatFn, this.systemPrompt})
-      : _chatFn = chatFn;
+    : _chatFn = chatFn;
 
   final StreamingChatFn _chatFn;
 
@@ -139,15 +140,16 @@ class StreamingLlmProvider implements AgentLlmProvider {
         case final UserMessage m:
           result.add(LlmUserMessage(m.content));
         case final AssistantMessage m:
-          final tcs = m.toolCalls
-              ?.map(
-                (tc) => LlmToolCall(
-                  id: tc.id,
-                  name: tc.function.name,
-                  arguments: tc.function.arguments,
-                ),
-              )
-              .toList();
+          final tcs =
+              m.toolCalls
+                  ?.map(
+                    (tc) => LlmToolCall(
+                      id: tc.id,
+                      name: tc.function.name,
+                      arguments: tc.function.arguments,
+                    ),
+                  )
+                  .toList();
           result.add(LlmAssistantMessage(content: m.content, toolCalls: tcs));
         case final ToolMessage m:
           result.add(

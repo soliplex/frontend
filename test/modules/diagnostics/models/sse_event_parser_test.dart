@@ -129,7 +129,8 @@ void main() {
 
   group('parseSseEvents', () {
     test('parses well-formed data lines', () {
-      const body = 'data: {"type":"RUN_STARTED","threadId":"t1","runId":"r1"}\n'
+      const body =
+          'data: {"type":"RUN_STARTED","threadId":"t1","runId":"r1"}\n'
           '\n'
           'data: {"type":"RUN_FINISHED","threadId":"t1","runId":"r1"}\n';
       final result = parseSseEvents(body);
@@ -141,7 +142,8 @@ void main() {
     });
 
     test('skips malformed lines', () {
-      const body = 'data: {"type":"RUN_STARTED"}\n'
+      const body =
+          'data: {"type":"RUN_STARTED"}\n'
           'not a data line\n'
           'data: not json\n'
           'data: {"type":"RUN_FINISHED"}\n';
@@ -152,7 +154,8 @@ void main() {
     });
 
     test('detects truncation marker', () {
-      const body = '[EARLIER CONTENT DROPPED]\n'
+      const body =
+          '[EARLIER CONTENT DROPPED]\n'
           'data: {"type":"TEXT_MESSAGE_END","messageId":"m1"}\n';
       final result = parseSseEvents(body);
       expect(result.wasTruncated, isTrue);

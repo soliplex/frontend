@@ -9,10 +9,11 @@ import 'auth_tokens.dart';
 import 'server_entry.dart';
 import 'server_storage.dart';
 
-typedef HttpClientFactory = SoliplexHttpClient Function({
-  String? Function()? getToken,
-  TokenRefresher? tokenRefresher,
-});
+typedef HttpClientFactory =
+    SoliplexHttpClient Function({
+      String? Function()? getToken,
+      TokenRefresher? tokenRefresher,
+    });
 
 typedef AuthSessionFactory = AuthSession Function();
 
@@ -23,9 +24,9 @@ class ServerManager {
     required AuthSessionFactory authFactory,
     required HttpClientFactory clientFactory,
     required ServerStorage storage,
-  })  : _authFactory = authFactory,
-        _clientFactory = clientFactory,
-        _storage = storage;
+  }) : _authFactory = authFactory,
+       _clientFactory = clientFactory,
+       _storage = storage;
 
   final AuthSessionFactory _authFactory;
   final HttpClientFactory _clientFactory;
@@ -58,7 +59,7 @@ class ServerManager {
   String _uniqueAlias(Uri serverUrl) {
     final base = aliasFromUrl(serverUrl);
     if (_aliases.add(base)) return base;
-    for (var i = 2;; i++) {
+    for (var i = 2; ; i++) {
       final candidate = '$base-$i';
       if (_aliases.add(candidate)) return candidate;
     }
@@ -145,8 +146,8 @@ class ServerManager {
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))
         .catchError((Object e, StackTrace st) {
-      debugPrint('Failed to delete stored session for $serverId: $e\n$st');
-    });
+          debugPrint('Failed to delete stored session for $serverId: $e\n$st');
+        });
   }
 
   /// Restores servers from persistent storage.
@@ -168,8 +169,10 @@ class ServerManager {
             requiresAuth: entry.value.requiresAuth,
             alias: entry.value.alias,
           );
-          if (entry.value
-              case AuthenticatedServer(:final provider, :final tokens)) {
+          if (entry.value case AuthenticatedServer(
+            :final provider,
+            :final tokens,
+          )) {
             server.auth.login(provider: provider, tokens: tokens);
           }
         } catch (e, st) {
@@ -222,7 +225,7 @@ class ServerManager {
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => persist())
         .catchError((Object e, StackTrace st) {
-      debugPrint('Failed to persist session for $serverId: $e\n$st');
-    });
+          debugPrint('Failed to persist session for $serverId: $e\n$st');
+        });
   }
 }

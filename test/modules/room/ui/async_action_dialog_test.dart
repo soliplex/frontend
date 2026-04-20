@@ -9,24 +9,29 @@ void main() {
   group('AsyncActionDialog', () {
     testWidgets('action button triggers onAction callback', (tester) async {
       bool called = false;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  onAction: () async => called = true,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                onAction: () async => called = true,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -38,24 +43,29 @@ void main() {
 
     testWidgets('shows spinner while action is in progress', (tester) async {
       final completer = Completer<void>();
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  onAction: () => completer.future,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                onAction: () => completer.future,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -70,27 +80,33 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('Cancel is disabled while action is in progress',
-        (tester) async {
+    testWidgets('Cancel is disabled while action is in progress', (
+      tester,
+    ) async {
       final completer = Completer<void>();
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  onAction: () => completer.future,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                onAction: () => completer.future,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -108,24 +124,31 @@ void main() {
     });
 
     testWidgets('shows inline error on Exception', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  onAction: () async => throw Exception('something went wrong'),
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                onAction:
+                                    () async =>
+                                        throw Exception('something went wrong'),
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -140,24 +163,29 @@ void main() {
     });
 
     testWidgets('pops dialog on success', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  onAction: () async {},
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                onAction: () async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -169,27 +197,33 @@ void main() {
       expect(find.text('Test'), findsNothing);
     });
 
-    testWidgets('action button disabled when canSubmit is false',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Test',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Go',
-                  canSubmit: false,
-                  onAction: () async {},
-                ),
-              ),
-              child: const Text('Open'),
+    testWidgets('action button disabled when canSubmit is false', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Test',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Go',
+                                canSubmit: false,
+                                onAction: () async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -200,27 +234,33 @@ void main() {
       expect(actionButton.onPressed, isNull);
     });
 
-    testWidgets('destructive style applies error color to action button',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AsyncActionDialog(
-                  title: 'Delete',
-                  contentBuilder: (_) => const Text('body'),
-                  actionLabel: 'Delete',
-                  isDestructive: true,
-                  onAction: () async {},
-                ),
-              ),
-              child: const Text('Open'),
+    testWidgets('destructive style applies error color to action button', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => AsyncActionDialog(
+                                title: 'Delete',
+                                contentBuilder: (_) => const Text('body'),
+                                actionLabel: 'Delete',
+                                isDestructive: true,
+                                onAction: () async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -228,36 +268,41 @@ void main() {
       final actionButton = tester.widget<TextButton>(
         find.widgetWithText(TextButton, 'Delete'),
       );
-      final theme = Theme.of(
-        tester.element(find.text('Delete').last),
-      );
+      final theme = Theme.of(tester.element(find.text('Delete').last));
       // The button style should set foreground to error color
       expect(actionButton.style, isNotNull);
-      final resolved =
-          actionButton.style!.foregroundColor!.resolve(<WidgetState>{});
+      final resolved = actionButton.style!.foregroundColor!.resolve(
+        <WidgetState>{},
+      );
       expect(resolved, theme.colorScheme.error);
     });
   });
 
   group('RenameDialog', () {
-    testWidgets('Save is disabled when text matches initial name',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (_) async {},
-                ),
-              ),
-              child: const Text('Open'),
+    testWidgets('Save is disabled when text matches initial name', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (_) async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -269,22 +314,27 @@ void main() {
     });
 
     testWidgets('Save is disabled when text is empty', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (_) async {},
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (_) async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -299,24 +349,30 @@ void main() {
       expect(saveButton.onPressed, isNull);
     });
 
-    testWidgets('Save is disabled when text is whitespace only',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (_) async {},
-                ),
-              ),
-              child: const Text('Open'),
+    testWidgets('Save is disabled when text is whitespace only', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (_) async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -330,24 +386,30 @@ void main() {
       expect(saveButton.onPressed, isNull);
     });
 
-    testWidgets('Save is enabled when text differs from initial',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (_) async {},
-                ),
-              ),
-              child: const Text('Open'),
+    testWidgets('Save is enabled when text differs from initial', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (_) async {},
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -363,22 +425,27 @@ void main() {
 
     testWidgets('pressing Enter submits when Save is enabled', (tester) async {
       String? submittedName;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (name) async => submittedName = name,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (name) async => submittedName = name,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -392,25 +459,31 @@ void main() {
       expect(submittedName, 'New Name');
     });
 
-    testWidgets('pressing Enter does nothing when Save is disabled',
-        (tester) async {
+    testWidgets('pressing Enter does nothing when Save is disabled', (
+      tester,
+    ) async {
       bool called = false;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (_) async => called = true,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (_) async => called = true,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
@@ -426,22 +499,27 @@ void main() {
 
     testWidgets('submitted name is trimmed', (tester) async {
       String? submittedName;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => RenameDialog(
-                  initialName: 'Original',
-                  onAction: (name) async => submittedName = name,
-                ),
-              ),
-              child: const Text('Open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder:
+                  (context) => TextButton(
+                    onPressed:
+                        () => showDialog<void>(
+                          context: context,
+                          builder:
+                              (_) => RenameDialog(
+                                initialName: 'Original',
+                                onAction: (name) async => submittedName = name,
+                              ),
+                        ),
+                    child: const Text('Open'),
+                  ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();

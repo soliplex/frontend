@@ -8,11 +8,7 @@ import 'package:meta/meta.dart';
 /// Multiple documents: `id IN ('abc-123', 'def-456')`
 String buildDocumentFilter(List<RagDocument> documents) {
   if (documents.isEmpty) {
-    throw ArgumentError.value(
-      documents,
-      'documents',
-      'must not be empty',
-    );
+    throw ArgumentError.value(documents, 'documents', 'must not be empty');
   }
   final ids = documents.map((d) => d.id).toSet();
   final escaped = ids.map((id) => id.replaceAll("'", "''")).toList();

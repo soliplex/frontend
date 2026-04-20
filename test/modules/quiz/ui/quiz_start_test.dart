@@ -9,19 +9,21 @@ void main() {
 
   testWidgets('shows quiz title and question count', (tester) async {
     bool startCalled = false;
-    await tester.pumpWidget(wrap(
-      QuizStartView(
-        quiz: Quiz(
-          id: 'q',
-          title: 'Intro to ML',
-          questions: const [
-            QuizQuestion(id: 'q1', text: 'Q', type: FreeForm()),
-            QuizQuestion(id: 'q2', text: 'Q', type: FreeForm()),
-          ],
+    await tester.pumpWidget(
+      wrap(
+        QuizStartView(
+          quiz: Quiz(
+            id: 'q',
+            title: 'Intro to ML',
+            questions: const [
+              QuizQuestion(id: 'q1', text: 'Q', type: FreeForm()),
+              QuizQuestion(id: 'q2', text: 'Q', type: FreeForm()),
+            ],
+          ),
+          onStart: () => startCalled = true,
         ),
-        onStart: () => startCalled = true,
       ),
-    ));
+    );
     expect(find.text('Intro to ML'), findsOneWidget);
     expect(find.text('2 questions'), findsOneWidget);
     await tester.tap(find.text('Start Quiz'));
@@ -29,18 +31,20 @@ void main() {
   });
 
   testWidgets('shows singular for 1 question', (tester) async {
-    await tester.pumpWidget(wrap(
-      QuizStartView(
-        quiz: Quiz(
-          id: 'q',
-          title: 'Short',
-          questions: const [
-            QuizQuestion(id: 'q1', text: 'Q', type: FreeForm()),
-          ],
+    await tester.pumpWidget(
+      wrap(
+        QuizStartView(
+          quiz: Quiz(
+            id: 'q',
+            title: 'Short',
+            questions: const [
+              QuizQuestion(id: 'q1', text: 'Q', type: FreeForm()),
+            ],
+          ),
+          onStart: () {},
         ),
-        onStart: () {},
       ),
-    ));
+    );
     expect(find.text('1 question'), findsOneWidget);
   });
 }

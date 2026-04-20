@@ -100,9 +100,10 @@ class _OptionTile extends StatelessWidget {
                   isSelected
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
-                  color: isDisabled
-                      ? colorScheme.onSurface.withValues(alpha: 0.38)
-                      : isSelected
+                  color:
+                      isDisabled
+                          ? colorScheme.onSurface.withValues(alpha: 0.38)
+                          : isSelected
                           ? colorScheme.primary
                           : colorScheme.onSurfaceVariant,
                 ),

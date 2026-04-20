@@ -21,8 +21,8 @@ class ThreadListState {
   ThreadListState({
     required ServerConnection connection,
     required String roomId,
-  })  : _connection = connection,
-        _roomId = roomId {
+  }) : _connection = connection,
+       _roomId = roomId {
     unawaited(_fetch());
   }
 
@@ -31,8 +31,9 @@ class ThreadListState {
   CancelToken? _cancelToken;
   bool _isDisposed = false;
 
-  final Signal<ThreadListStatus> _threads =
-      Signal<ThreadListStatus>(ThreadsLoading());
+  final Signal<ThreadListStatus> _threads = Signal<ThreadListStatus>(
+    ThreadsLoading(),
+  );
   ReadonlySignal<ThreadListStatus> get threads => _threads;
 
   Future<void> refresh() => _fetch();
@@ -139,10 +140,11 @@ class ThreadListState {
     final latest = _threads.value;
     if (latest is ThreadsLoaded) {
       _cancelInFlightFetch();
-      final updated = latest.threads.map((t) {
-        if (t.id == threadId) return t.copyWith(name: name);
-        return t;
-      }).toList();
+      final updated =
+          latest.threads.map((t) {
+            if (t.id == threadId) return t.copyWith(name: name);
+            return t;
+          }).toList();
       _threads.value = ThreadsLoaded(updated);
       return;
     }
@@ -163,12 +165,14 @@ class ThreadListState {
     }
 
     try {
-      final threads =
-          await _connection.api.getThreads(_roomId, cancelToken: token);
+      final threads = await _connection.api.getThreads(
+        _roomId,
+        cancelToken: token,
+      );
       if (token.isCancelled) return;
       _cancelToken = null;
-      final sorted = threads.toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final sorted =
+          threads.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _threads.value = ThreadsLoaded(sorted);
     } on Object catch (error) {
       if (token.isCancelled) return;

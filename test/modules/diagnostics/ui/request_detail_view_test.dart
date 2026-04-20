@@ -36,8 +36,9 @@ void main() {
       expect(find.widgetWithText(TextField, ''), findsOneWidget);
     });
 
-    testWidgets('request tab shows headers and body when present',
-        (tester) async {
+    testWidgets('request tab shows headers and body when present', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(
@@ -53,8 +54,9 @@ void main() {
       expect(find.text('Body'), findsOneWidget);
     });
 
-    testWidgets('request tab shows empty state when no headers or body',
-        (tester) async {
+    testWidgets('request tab shows empty state when no headers or body', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(headers: {}, body: null),
@@ -66,8 +68,9 @@ void main() {
       expect(find.text('No request headers or body'), findsOneWidget);
     });
 
-    testWidgets('response tab shows waiting state when no response',
-        (tester) async {
+    testWidgets('response tab shows waiting state when no response', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),
@@ -82,8 +85,9 @@ void main() {
       expect(find.text('Waiting for response...'), findsOneWidget);
     });
 
-    testWidgets('response tab shows error display for network errors',
-        (tester) async {
+    testWidgets('response tab shows error display for network errors', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         error: createErrorEvent(
@@ -112,8 +116,9 @@ void main() {
       expect(find.text('Stream in progress...'), findsOneWidget);
     });
 
-    testWidgets('curl tab shows curl command when request data is present',
-        (tester) async {
+    testWidgets('curl tab shows curl command when request data is present', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(
@@ -131,8 +136,9 @@ void main() {
       expect(find.textContaining('curl'), findsWidgets);
     });
 
-    testWidgets('curl tab shows unavailable message when no request data',
-        (tester) async {
+    testWidgets('curl tab shows unavailable message when no request data', (
+      tester,
+    ) async {
       // Use an error event — group has method/uri for the summary header,
       // but toCurl() returns null because there is no request/streamStart.
       final group = HttpEventGroup(

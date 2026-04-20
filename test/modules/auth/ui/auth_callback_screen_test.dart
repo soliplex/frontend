@@ -13,12 +13,10 @@ import 'package:soliplex_frontend/src/modules/auth/ui/auth_callback_screen.dart'
 import '../../../helpers/fakes.dart';
 
 ServerManager _createServerManager() => ServerManager(
-      authFactory: () => AuthSession(
-        refreshService: FakeTokenRefreshService(),
-      ),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 Widget _buildApp({
   required ServerManager serverManager,
@@ -29,15 +27,14 @@ Widget _buildApp({
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => const Scaffold(
-          body: Center(child: Text('Home Screen')),
-        ),
+        builder:
+            (_, __) => const Scaffold(body: Center(child: Text('Home Screen'))),
       ),
       GoRoute(
         path: '/lobby',
-        builder: (_, __) => const Scaffold(
-          body: Center(child: Text('Lobby Screen')),
-        ),
+        builder:
+            (_, __) =>
+                const Scaffold(body: Center(child: Text('Lobby Screen'))),
       ),
       GoRoute(
         path: '/auth/callback',
@@ -56,12 +53,12 @@ Widget _buildApp({
 }
 
 PreAuthState _validPreAuthState() => PreAuthState(
-      serverUrl: Uri.parse('https://api.example.com'),
-      providerId: 'keycloak',
-      discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
-      clientId: 'soliplex',
-      createdAt: DateTime.timestamp(),
-    );
+  serverUrl: Uri.parse('https://api.example.com'),
+  providerId: 'keycloak',
+  discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
+  clientId: 'soliplex',
+  createdAt: DateTime.timestamp(),
+);
 
 void main() {
   group('AuthCallbackScreen', () {
@@ -71,10 +68,12 @@ void main() {
 
     testWidgets('shows error when no callback params', (tester) async {
       final serverManager = _createServerManager();
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const NoCallbackParams(),
-      ));
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const NoCallbackParams(),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.textContaining('No callback'), findsOneWidget);
@@ -83,13 +82,15 @@ void main() {
 
     testWidgets('shows error when callback has error', (tester) async {
       final serverManager = _createServerManager();
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const WebCallbackError(
-          error: 'access_denied',
-          errorDescription: 'User denied access',
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackError(
+            error: 'access_denied',
+            errorDescription: 'User denied access',
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.textContaining('access_denied'), findsOneWidget);
@@ -97,33 +98,38 @@ void main() {
 
     testWidgets('shows error when no pre-auth state saved', (tester) async {
       final serverManager = _createServerManager();
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const WebCallbackSuccess(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresIn: 3600,
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackSuccess(
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 3600,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.textContaining('expired'), findsOneWidget);
     });
 
-    testWidgets('adds server and navigates to lobby on valid callback',
-        (tester) async {
+    testWidgets('adds server and navigates to lobby on valid callback', (
+      tester,
+    ) async {
       final serverManager = _createServerManager();
       final state = _validPreAuthState();
       await PreAuthStateStorage.save(state);
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const WebCallbackSuccess(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresIn: 3600,
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackSuccess(
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 3600,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(serverManager.servers.value, isNotEmpty);
@@ -142,14 +148,16 @@ void main() {
       );
       await PreAuthStateStorage.save(state);
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const WebCallbackSuccess(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresIn: 3600,
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackSuccess(
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 3600,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.textContaining('expired'), findsOneWidget);
@@ -165,14 +173,16 @@ void main() {
       final state = _validPreAuthState();
       await PreAuthStateStorage.save(state);
 
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const WebCallbackSuccess(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresIn: 3600,
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackSuccess(
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 3600,
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Lobby Screen'), findsOneWidget);
@@ -182,10 +192,12 @@ void main() {
 
     testWidgets('back to home button navigates to /', (tester) async {
       final serverManager = _createServerManager();
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        callbackParams: const NoCallbackParams(),
-      ));
+      await tester.pumpWidget(
+        _buildApp(
+          serverManager: serverManager,
+          callbackParams: const NoCallbackParams(),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Back to home'));

@@ -118,9 +118,7 @@ void main() {
             createQaEntry(
               question: 'Q1',
               answer: 'A1',
-              citations: [
-                createCitation(chunkId: 'c1'),
-              ],
+              citations: [createCitation(chunkId: 'c1')],
             ),
           ],
         );

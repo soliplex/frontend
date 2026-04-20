@@ -98,28 +98,30 @@ class _ExpandableListCardState<T> extends State<ExpandableListCard<T>> {
     final items = widget.items;
     return SectionCard(
       title: '${widget.title} (${items.length})',
-      children: items.isEmpty
-          ? [
-              EmptyMessage(
-                label: widget.emptyLabel ?? widget.title.toLowerCase(),
-              ),
-            ]
-          : [
-              for (final item in items)
-                () {
-                  final name = widget.nameOf(item);
-                  return ExpandableTile(
-                    name: name,
-                    expanded: _expandedNames.contains(name),
-                    onToggle: () => setState(() {
-                      if (!_expandedNames.remove(name)) {
-                        _expandedNames.add(name);
-                      }
-                    }),
-                    content: widget.contentOf(item),
-                  );
-                }(),
-            ],
+      children:
+          items.isEmpty
+              ? [
+                EmptyMessage(
+                  label: widget.emptyLabel ?? widget.title.toLowerCase(),
+                ),
+              ]
+              : [
+                for (final item in items)
+                  () {
+                    final name = widget.nameOf(item);
+                    return ExpandableTile(
+                      name: name,
+                      expanded: _expandedNames.contains(name),
+                      onToggle:
+                          () => setState(() {
+                            if (!_expandedNames.remove(name)) {
+                              _expandedNames.add(name);
+                            }
+                          }),
+                      content: widget.contentOf(item),
+                    );
+                  }(),
+              ],
     );
   }
 }

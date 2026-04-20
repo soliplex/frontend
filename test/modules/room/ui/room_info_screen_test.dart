@@ -29,9 +29,7 @@ const _testRoom = Room(
       kind: 'bare',
     ),
   },
-  mcpClientToolsets: {
-    'stdio-tools': McpClientToolset(kind: 'stdio'),
-  },
+  mcpClientToolsets: {'stdio-tools': McpClientToolset(kind: 'stdio')},
 );
 
 Widget _buildScreen({
@@ -129,8 +127,9 @@ void main() {
       expect(find.text('SKILLS (1)'), findsOneWidget);
     });
 
-    testWidgets('expanding skill shows detail dialog on Show more',
-        (tester) async {
+    testWidgets('expanding skill shows detail dialog on Show more', (
+      tester,
+    ) async {
       final room = _testRoom.copyWith(
         skills: {
           'web_search': const RoomSkill(
@@ -207,9 +206,7 @@ void main() {
     testWidgets('shows client tools loading then empty', (tester) async {
       final completer = Completer<ToolRegistry>();
       await tester.pumpWidget(
-        _buildScreen(
-          toolRegistryResolver: (_) => completer.future,
-        ),
+        _buildScreen(toolRegistryResolver: (_) => completer.future),
       );
       // Use pump() — pumpAndSettle would time out on the loading spinner.
       await tester.pump();
@@ -270,11 +267,12 @@ void main() {
     });
 
     testWidgets('shows documents when loaded', (tester) async {
-      final api = FakeSoliplexApi()
-        ..nextRoom = _testRoom
-        ..nextDocuments = const [
-          RagDocument(id: 'd1', title: 'Report', uri: '/docs/report.pdf'),
-        ];
+      final api =
+          FakeSoliplexApi()
+            ..nextRoom = _testRoom
+            ..nextDocuments = const [
+              RagDocument(id: 'd1', title: 'Report', uri: '/docs/report.pdf'),
+            ];
       await tester.pumpWidget(_buildScreen(api: api));
       await tester.pumpAndSettle();
 
@@ -287,9 +285,10 @@ void main() {
     });
 
     testWidgets('shows retry button on documents error', (tester) async {
-      final api = FakeSoliplexApi()
-        ..nextRoom = _testRoom
-        ..nextDocumentsError = Exception('network');
+      final api =
+          FakeSoliplexApi()
+            ..nextRoom = _testRoom
+            ..nextDocumentsError = Exception('network');
       await tester.pumpWidget(_buildScreen(api: api));
       await tester.pumpAndSettle();
 

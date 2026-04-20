@@ -27,8 +27,8 @@ void main() {
       final captured = <(LogRecord, bool)>[];
       final sink = StdoutSink(
         enabled: false,
-        testWriter: (record, {required useColors}) =>
-            captured.add((record, useColors)),
+        testWriter:
+            (record, {required useColors}) => captured.add((record, useColors)),
       );
       final record = LogRecord(
         level: LogLevel.info,
@@ -59,8 +59,9 @@ void main() {
       test('captures records when provided', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
 
         final record = LogRecord(
@@ -83,8 +84,9 @@ void main() {
         final captured = <(LogRecord, bool)>[];
         StdoutSink(
           useColors: true,
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         ).write(
           LogRecord(
             level: LogLevel.info,
@@ -101,8 +103,9 @@ void main() {
       test('captures multiple records', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
         final now = DateTime.now();
 
@@ -141,8 +144,9 @@ void main() {
       test('captures records with span context', () {
         final captured = <(LogRecord, bool)>[];
         StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         ).write(
           LogRecord(
             level: LogLevel.info,
@@ -163,8 +167,9 @@ void main() {
         final captured = <(LogRecord, bool)>[];
         StdoutSink(
           enabled: false,
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         ).write(
           LogRecord(
             level: LogLevel.info,
@@ -180,16 +185,17 @@ void main() {
       test('stops capturing after close', () async {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         )..write(
-            LogRecord(
-              level: LogLevel.info,
-              message: 'before close',
-              timestamp: DateTime.now(),
-              loggerName: 'Test',
-            ),
-          );
+          LogRecord(
+            level: LogLevel.info,
+            message: 'before close',
+            timestamp: DateTime.now(),
+            loggerName: 'Test',
+          ),
+        );
 
         await sink.close();
 
@@ -211,8 +217,9 @@ void main() {
       test('captures Exception with message', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
         final exception = Exception('Something went wrong');
 
@@ -237,8 +244,9 @@ void main() {
       test('captures Error with stackTrace', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
         final error = StateError('Invalid state');
         final stackTrace = StackTrace.current;
@@ -263,8 +271,9 @@ void main() {
       test('captures error with null stackTrace', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
         final error = Exception('No stack trace');
 
@@ -286,8 +295,9 @@ void main() {
       test('captures stackTrace without error', () {
         final captured = <(LogRecord, bool)>[];
         final sink = StdoutSink(
-          testWriter: (record, {required useColors}) =>
-              captured.add((record, useColors)),
+          testWriter:
+              (record, {required useColors}) =>
+                  captured.add((record, useColors)),
         );
         final stackTrace = StackTrace.current;
 

@@ -8,7 +8,7 @@ import 'auth_tokens.dart';
 /// locates this object.
 class AuthSession implements TokenRefresher {
   AuthSession({required TokenRefreshService refreshService})
-      : _refreshService = refreshService;
+    : _refreshService = refreshService;
 
   final TokenRefreshService _refreshService;
   Future<bool>? _activeRefresh;
@@ -18,9 +18,9 @@ class AuthSession implements TokenRefresher {
 
   /// Sync read for the HTTP client's getToken callback.
   String? get accessToken => switch (_session.value) {
-        ActiveSession(:final tokens) => tokens.accessToken,
-        NoSession() => null,
-      };
+    ActiveSession(:final tokens) => tokens.accessToken,
+    NoSession() => null,
+  };
 
   bool get isAuthenticated => _session.value is ActiveSession;
 

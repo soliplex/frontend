@@ -113,21 +113,25 @@ class ConnectFlow {
           }
           _proceedAfterProbe(result, result.providers);
         case ConnectionFailure(:final error, :final attemptedUrls):
-          state.value =
-              UrlInput(error: describeConnectionError(error, attemptedUrls));
+          state.value = UrlInput(
+            error: describeConnectionError(error, attemptedUrls),
+          );
       }
     } catch (e, st) {
       debugPrint('ConnectFlow.connect: $e\n$st');
       if (!_isCancelled(gen)) {
-        state.value =
-            UrlInput(error: 'Unexpected error connecting to $url: $e');
+        state.value = UrlInput(
+          error: 'Unexpected error connecting to $url: $e',
+        );
       }
     }
   }
 
   void acceptInsecure() {
-    if (state.value
-        case InsecureWarning(:final probeResult, :final providers)) {
+    if (state.value case InsecureWarning(
+      :final probeResult,
+      :final providers,
+    )) {
       _proceedAfterProbe(probeResult, providers);
     }
   }
@@ -205,13 +209,15 @@ class ConnectFlow {
     final discoveryUrl =
         '${provider.serverUrl}/.well-known/openid-configuration';
 
-    await PreAuthStateStorage.save(PreAuthState(
-      serverUrl: probeResult.serverUrl,
-      providerId: provider.id,
-      discoveryUrl: discoveryUrl,
-      clientId: provider.clientId,
-      createdAt: DateTime.timestamp(),
-    ));
+    await PreAuthStateStorage.save(
+      PreAuthState(
+        serverUrl: probeResult.serverUrl,
+        providerId: provider.id,
+        discoveryUrl: discoveryUrl,
+        clientId: provider.clientId,
+        createdAt: DateTime.timestamp(),
+      ),
+    );
 
     if (_isCancelled(gen)) return;
 
@@ -237,7 +243,8 @@ class ConnectFlow {
         tokens: AuthTokens(
           accessToken: authResult.accessToken,
           refreshToken: authResult.refreshToken ?? '',
-          expiresAt: authResult.expiresAt ??
+          expiresAt:
+              authResult.expiresAt ??
               DateTime.now().add(AuthTokens.defaultLifetime),
           idToken: authResult.idToken,
         ),
@@ -272,15 +279,17 @@ String describeConnectionError(Object error, List<Uri> attemptedUrls) {
   switch (error) {
     case agent.AuthException(:final statusCode, :final serverMessage):
       serverDetail = serverMessage;
-      detail = statusCode == 401
-          ? 'Authentication required. $url requires login '
-              'credentials. ($statusCode)'
-          : 'Access denied by $url. The server may require additional '
-              'configuration or may be blocking this connection. '
-              '($statusCode)';
+      detail =
+          statusCode == 401
+              ? 'Authentication required. $url requires login '
+                  'credentials. ($statusCode)'
+              : 'Access denied by $url. The server may require additional '
+                  'configuration or may be blocking this connection. '
+                  '($statusCode)';
     case NotFoundException(:final serverMessage):
       serverDetail = serverMessage;
-      detail = 'Server at $url was reached, but the expected API '
+      detail =
+          'Server at $url was reached, but the expected API '
           'endpoint was not found. The server version may be '
           'incompatible. (404)';
     case CancelledException(:final reason):
@@ -289,17 +298,19 @@ String describeConnectionError(Object error, List<Uri> attemptedUrls) {
           reason != null ? 'Request cancelled: $reason' : 'Request cancelled.';
     case NetworkException(:final isTimeout, :final message):
       serverDetail = isTimeout ? null : message;
-      detail = isTimeout
-          ? 'Connection to $url timed out. '
-              'The server may be slow or unreachable.'
-          : 'Cannot reach $url. Check the URL and your '
-              'network connection.';
+      detail =
+          isTimeout
+              ? 'Connection to $url timed out. '
+                  'The server may be slow or unreachable.'
+              : 'Cannot reach $url. Check the URL and your '
+                  'network connection.';
     case ApiException(:final statusCode, :final serverMessage):
       serverDetail = serverMessage;
-      detail = statusCode >= 500
-          ? 'Server error at $url. '
-              'Please try again later. ($statusCode)'
-          : 'Unexpected response from $url. ($statusCode)';
+      detail =
+          statusCode >= 500
+              ? 'Server error at $url. '
+                  'Please try again later. ($statusCode)'
+              : 'Unexpected response from $url. ($statusCode)';
     default:
       return 'Connection to $url failed: $error';
   }

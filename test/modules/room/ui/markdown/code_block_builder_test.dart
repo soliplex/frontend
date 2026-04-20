@@ -18,8 +18,9 @@ void main() {
       expect(find.byTooltip('Copy code'), findsOneWidget);
     });
 
-    testWidgets('shows language label for non-plaintext language',
-        (tester) async {
+    testWidgets('shows language label for non-plaintext language', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -33,8 +34,9 @@ void main() {
       expect(find.text('dart'), findsOneWidget);
     });
 
-    testWidgets('does not show language label for plain fenced code block',
-        (tester) async {
+    testWidgets('does not show language label for plain fenced code block', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -51,9 +53,11 @@ void main() {
       expect(find.text('plaintext'), findsNothing);
     });
 
-    testWidgets('SVG block shows preview/source toggle and copy button',
-        (tester) async {
-      const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
+    testWidgets('SVG block shows preview/source toggle and copy button', (
+      tester,
+    ) async {
+      const svgCode =
+          '<svg xmlns="http://www.w3.org/2000/svg">'
           '<circle cx="50" cy="50" r="40"/>'
           '</svg>';
 
@@ -61,9 +65,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: FlutterMarkdownPlusRenderer(
-                data: '```svg\n$svgCode\n```',
-              ),
+              child: FlutterMarkdownPlusRenderer(data: '```svg\n$svgCode\n```'),
             ),
           ),
         ),
@@ -74,7 +76,8 @@ void main() {
     });
 
     testWidgets('SVG block toggles to source view', (tester) async {
-      const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
+      const svgCode =
+          '<svg xmlns="http://www.w3.org/2000/svg">'
           '<circle cx="50" cy="50" r="40"/>'
           '</svg>';
 
@@ -82,9 +85,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: FlutterMarkdownPlusRenderer(
-                data: '```svg\n$svgCode\n```',
-              ),
+              child: FlutterMarkdownPlusRenderer(data: '```svg\n$svgCode\n```'),
             ),
           ),
         ),

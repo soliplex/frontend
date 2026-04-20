@@ -125,95 +125,92 @@ class _ChatInputState extends State<ChatInput> {
                 borderRadius: BorderRadius.circular(8),
               ),
               width: double.infinity,
-              child: _chipsExpanded
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => setState(() => _chipsExpanded = false),
-                          child: Row(
-                            children: [
-                              const Spacer(),
-                              Text(
-                                'Hide',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                    ),
-                              ),
-                              Icon(
-                                Icons.expand_more,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ],
-                          ),
-                        ),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 160),
-                          child: SingleChildScrollView(
-                            child: Wrap(
-                              spacing: 4,
-                              runSpacing: 4,
+              child:
+                  _chipsExpanded
+                      ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => setState(() => _chipsExpanded = false),
+                            child: Row(
                               children: [
-                                for (final doc in widget.selectedDocuments)
-                                  Chip(
-                                    avatar: Icon(
-                                      getFileTypeIcon(
-                                        documentIconPath(doc),
-                                      ),
-                                      size: 16,
-                                    ),
-                                    label: Text(documentDisplayName(doc)),
-                                    deleteIcon: const Icon(
-                                      Icons.close,
-                                      size: 16,
-                                    ),
-                                    onDeleted:
-                                        widget.onDocumentRemoved == null ||
-                                                disabled
-                                            ? null
-                                            : () => widget.onDocumentRemoved!(
-                                                  doc,
-                                                ),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
+                                const Spacer(),
+                                Text(
+                                  'Hide',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
+                                ),
+                                Icon(
+                                  Icons.expand_more,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ],
                             ),
                           ),
-                        ),
-                      ],
-                    )
-                  : GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _chipsExpanded = true),
-                      child: Row(
-                        children: [
-                          Text(
-                            '${widget.selectedDocuments.length} documents selected',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            Icons.expand_less,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.primary,
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 160),
+                            child: SingleChildScrollView(
+                              child: Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: [
+                                  for (final doc in widget.selectedDocuments)
+                                    Chip(
+                                      avatar: Icon(
+                                        getFileTypeIcon(documentIconPath(doc)),
+                                        size: 16,
+                                      ),
+                                      label: Text(documentDisplayName(doc)),
+                                      deleteIcon: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                      ),
+                                      onDeleted:
+                                          widget.onDocumentRemoved == null ||
+                                                  disabled
+                                              ? null
+                                              : () => widget.onDocumentRemoved!(
+                                                doc,
+                                              ),
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
+                      )
+                      : GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => setState(() => _chipsExpanded = true),
+                        child: Row(
+                          children: [
+                            Text(
+                              '${widget.selectedDocuments.length} documents selected',
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              Icons.expand_less,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
             ),
           Row(
             children: [
@@ -221,9 +218,10 @@ class _ChatInputState extends State<ChatInput> {
                 IconButton(
                   icon: Icon(
                     Icons.filter_alt,
-                    color: widget.selectedDocuments.isNotEmpty && !disabled
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
+                    color:
+                        widget.selectedDocuments.isNotEmpty && !disabled
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                   ),
                   tooltip: 'Filter documents',
                   onPressed: disabled ? null : widget.onFilterTap,
@@ -261,11 +259,14 @@ class _ChatInputState extends State<ChatInput> {
               else
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _controller,
-                  builder: (context, value, _) => IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed:
-                        value.text.trim().isEmpty || disabled ? null : _send,
-                  ),
+                  builder:
+                      (context, value, _) => IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed:
+                            value.text.trim().isEmpty || disabled
+                                ? null
+                                : _send,
+                      ),
                 ),
             ],
           ),

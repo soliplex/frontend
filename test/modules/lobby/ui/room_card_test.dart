@@ -44,10 +44,9 @@ void main() {
       var tapped = false;
       const room = Room(id: 'r1', name: 'Test Room');
 
-      await tester.pumpWidget(_buildCard(
-        room: room,
-        onTap: () => tapped = true,
-      ));
+      await tester.pumpWidget(
+        _buildCard(room: room, onTap: () => tapped = true),
+      );
 
       await tester.tap(find.byType(ListTile));
       expect(tapped, isTrue);
@@ -73,10 +72,9 @@ void main() {
       var infoTapped = false;
       const room = Room(id: 'r1', name: 'Test Room');
 
-      await tester.pumpWidget(_buildCard(
-        room: room,
-        onInfoTap: () => infoTapped = true,
-      ));
+      await tester.pumpWidget(
+        _buildCard(room: room, onInfoTap: () => infoTapped = true),
+      );
 
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
       await tester.tap(find.byIcon(Icons.info_outline));

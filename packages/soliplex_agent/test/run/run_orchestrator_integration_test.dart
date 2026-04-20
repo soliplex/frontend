@@ -210,11 +210,13 @@ void main() {
       expect(yielding.toolDepth, equals(0));
 
       // Execute tool and submit results.
-      final executed = yielding.pendingToolCalls
-          .map(
-            (tc) => tc.copyWith(status: ToolCallStatus.completed, result: '42'),
-          )
-          .toList();
+      final executed =
+          yielding.pendingToolCalls
+              .map(
+                (tc) =>
+                    tc.copyWith(status: ToolCallStatus.completed, result: '42'),
+              )
+              .toList();
 
       print('Submitting tool outputs...');
       await orchestrator.submitToolOutputs(executed);

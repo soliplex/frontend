@@ -14,9 +14,10 @@ class QuizAnswerFeedback extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isCorrect
-            ? colorScheme.primaryContainer
-            : colorScheme.errorContainer,
+        color:
+            isCorrect
+                ? colorScheme.primaryContainer
+                : colorScheme.errorContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -33,9 +34,10 @@ class QuizAnswerFeedback extends StatelessWidget {
                 Text(
                   isCorrect ? 'Correct!' : 'Incorrect',
                   style: textTheme.titleMedium?.copyWith(
-                    color: isCorrect
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onErrorContainer,
+                    color:
+                        isCorrect
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onErrorContainer,
                   ),
                 ),
                 if (result case IncorrectAnswer(:final expectedAnswer)) ...[

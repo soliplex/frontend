@@ -52,17 +52,18 @@ Message _convertTextMessage(TextMessage message) {
 }
 
 List<Message> _convertToolCallMessage(ToolCallMessage message) {
-  final toolCalls = message.toolCalls
-      .map(
-        (tc) => ToolCall(
-          id: tc.id,
-          function: FunctionCall(
-            name: tc.name,
-            arguments: tc.arguments.isEmpty ? '{}' : tc.arguments,
-          ),
-        ),
-      )
-      .toList();
+  final toolCalls =
+      message.toolCalls
+          .map(
+            (tc) => ToolCall(
+              id: tc.id,
+              function: FunctionCall(
+                name: tc.name,
+                arguments: tc.arguments.isEmpty ? '{}' : tc.arguments,
+              ),
+            ),
+          )
+          .toList();
 
   final result = <Message>[
     AssistantMessage(id: message.id, toolCalls: toolCalls),

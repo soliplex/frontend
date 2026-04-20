@@ -83,26 +83,26 @@ class _FakeBridgeScriptEnvironment implements ScriptEnvironment {
 
   @override
   List<ClientTool> get tools => [
-        ClientTool(
-          definition: const Tool(
-            name: 'execute_python',
-            description: 'Simulated Python execution via bridge',
-          ),
-          executor: (_, __) async {
-            await _bridge.acquire();
-            try {
-              _bridge.log.add('start');
-              if (workDuration != null) {
-                await Future<void>.delayed(workDuration!);
-              }
-              _bridge.log.add('end');
-              return 'ok';
-            } finally {
-              _bridge.release();
-            }
-          },
-        ),
-      ];
+    ClientTool(
+      definition: const Tool(
+        name: 'execute_python',
+        description: 'Simulated Python execution via bridge',
+      ),
+      executor: (_, __) async {
+        await _bridge.acquire();
+        try {
+          _bridge.log.add('start');
+          if (workDuration != null) {
+            await Future<void>.delayed(workDuration!);
+          }
+          _bridge.log.add('end');
+          return 'ok';
+        } finally {
+          _bridge.release();
+        }
+      },
+    ),
+  ];
 
   @override
   void dispose() {}
@@ -123,28 +123,28 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'execute_python'}) => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
-      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{}'),
-      const ToolCallEndEvent(toolCallId: 'tc-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
+  const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{}'),
+  const ToolCallEndEvent(toolCallId: 'tc-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-2'),
-      const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
-      const TextMessageEndEvent(messageId: 'msg-2'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-2'),
+  const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
+  const TextMessageEndEvent(messageId: 'msg-2'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 // ---------------------------------------------------------------------------
 // Main
@@ -162,10 +162,10 @@ void main() {
   late AgentRuntime runtime;
 
   ServerConnection mockConnection() => ServerConnection(
-        serverId: 'default',
-        api: api,
-        agUiStreamClient: agUiStreamClient,
-      );
+    serverId: 'default',
+    api: api,
+    agUiStreamClient: agUiStreamClient,
+  );
 
   AgentRuntime createRuntime({
     PlatformConstraints? platform,
@@ -197,8 +197,9 @@ void main() {
   });
 
   void stubCreateThread() {
-    when(() => api.createThread(any()))
-        .thenAnswer((_) async => (_threadInfo(), <String, dynamic>{}));
+    when(
+      () => api.createThread(any()),
+    ).thenAnswer((_) async => (_threadInfo(), <String, dynamic>{}));
   }
 
   void stubCreateRun() {
@@ -375,8 +376,10 @@ void main() {
       stubCreateRun();
       stubDeleteThread();
 
-      final controllers =
-          List.generate(n, (_) => StreamController<BaseEvent>.broadcast());
+      final controllers = List.generate(
+        n,
+        (_) => StreamController<BaseEvent>.broadcast(),
+      );
       var callIdx = 0;
       when(
         () => agUiStreamClient.runAgent(
@@ -437,10 +440,11 @@ void main() {
           name: 'delegate',
           description: 'Delegates to a child agent',
         ),
-        executor: (_, context) => context.delegateTask(
-          prompt: 'subtask',
-          timeout: const Duration(milliseconds: 200),
-        ),
+        executor:
+            (_, context) => context.delegateTask(
+              prompt: 'subtask',
+              timeout: const Duration(milliseconds: 200),
+            ),
       );
 
       runtime = createRuntime(
@@ -533,64 +537,66 @@ void main() {
   });
 
   group('H8: Mixed fast/slow sessions drain correctly', () {
-    test('queued fast sessions complete after slow sessions free slots',
-        () async {
-      runtime = createRuntime(
-        platform: const NativePlatformConstraints(maxConcurrentBridges: 2),
-      );
+    test(
+      'queued fast sessions complete after slow sessions free slots',
+      () async {
+        runtime = createRuntime(
+          platform: const NativePlatformConstraints(maxConcurrentBridges: 2),
+        );
 
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
+        stubCreateThread();
+        stubCreateRun();
+        stubDeleteThread();
 
-      final slowA = StreamController<BaseEvent>.broadcast();
-      final slowB = StreamController<BaseEvent>.broadcast();
-      var callCount = 0;
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) {
-        callCount++;
-        switch (callCount) {
-          case 1:
-            return slowA.stream;
-          case 2:
-            return slowB.stream;
-          default:
-            return Stream.fromIterable(_happyPathEvents());
-        }
-      });
+        final slowA = StreamController<BaseEvent>.broadcast();
+        final slowB = StreamController<BaseEvent>.broadcast();
+        var callCount = 0;
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) {
+          callCount++;
+          switch (callCount) {
+            case 1:
+              return slowA.stream;
+            case 2:
+              return slowB.stream;
+            default:
+              return Stream.fromIterable(_happyPathEvents());
+          }
+        });
 
-      // Fill slots with slow sessions.
-      await runtime.spawn(roomId: _roomId, prompt: 'Slow A');
-      await runtime.spawn(roomId: _roomId, prompt: 'Slow B');
+        // Fill slots with slow sessions.
+        await runtime.spawn(roomId: _roomId, prompt: 'Slow A');
+        await runtime.spawn(roomId: _roomId, prompt: 'Slow B');
 
-      // Queue fast sessions.
-      final futureC = runtime.spawn(roomId: _roomId, prompt: 'Fast C');
-      final futureD = runtime.spawn(roomId: _roomId, prompt: 'Fast D');
-      await Future<void>.delayed(Duration.zero);
-      expect(runtime.pendingSpawnCount, 2);
+        // Queue fast sessions.
+        final futureC = runtime.spawn(roomId: _roomId, prompt: 'Fast C');
+        final futureD = runtime.spawn(roomId: _roomId, prompt: 'Fast D');
+        await Future<void>.delayed(Duration.zero);
+        expect(runtime.pendingSpawnCount, 2);
 
-      // Complete slow → fast drain.
-      _happyPathEvents().forEach(slowA.add);
-      await slowA.close();
-      _happyPathEvents().forEach(slowB.add);
-      await slowB.close();
+        // Complete slow → fast drain.
+        _happyPathEvents().forEach(slowA.add);
+        await slowA.close();
+        _happyPathEvents().forEach(slowB.add);
+        await slowB.close();
 
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      final sessionC = await futureC;
-      final sessionD = await futureD;
+        final sessionC = await futureC;
+        final sessionD = await futureD;
 
-      final resultC = await sessionC.result;
-      final resultD = await sessionD.result;
-      expect(resultC, isA<AgentSuccess>());
-      expect(resultD, isA<AgentSuccess>());
-      expect(runtime.pendingSpawnCount, 0);
-    });
+        final resultC = await sessionC.result;
+        final resultD = await sessionD.result;
+        expect(resultC, isA<AgentSuccess>());
+        expect(resultD, isA<AgentSuccess>());
+        expect(runtime.pendingSpawnCount, 0);
+      },
+    );
   });
 
   // =========================================================================
@@ -603,14 +609,15 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
-          ScriptEnvironmentExtension(
-            _FakeBridgeScriptEnvironment(
-              sharedBridge,
-              workDuration: const Duration(milliseconds: 100),
-            ),
-          ),
-        ],
+        extensionFactory:
+            () async => [
+              ScriptEnvironmentExtension(
+                _FakeBridgeScriptEnvironment(
+                  sharedBridge,
+                  workDuration: const Duration(milliseconds: 100),
+                ),
+              ),
+            ],
       );
 
       stubCreateThread();
@@ -653,67 +660,69 @@ void main() {
   });
 
   group('H10: Native — independent bridges, tools overlap', () {
-    test('two sessions with per-session bridges execute concurrently',
-        () async {
-      // Each session gets its own bridge (simulates Isolate-backed FFI).
-      final bridges = <_FakeBridge>[];
+    test(
+      'two sessions with per-session bridges execute concurrently',
+      () async {
+        // Each session gets its own bridge (simulates Isolate-backed FFI).
+        final bridges = <_FakeBridge>[];
 
-      runtime = createRuntime(
-        platform: const NativePlatformConstraints(),
-        extensionFactory: () async {
-          final bridge = _FakeBridge();
-          bridges.add(bridge);
-          return [
-            ScriptEnvironmentExtension(
-              _FakeBridgeScriptEnvironment(
-                bridge,
-                workDuration: const Duration(milliseconds: 200),
+        runtime = createRuntime(
+          platform: const NativePlatformConstraints(),
+          extensionFactory: () async {
+            final bridge = _FakeBridge();
+            bridges.add(bridge);
+            return [
+              ScriptEnvironmentExtension(
+                _FakeBridgeScriptEnvironment(
+                  bridge,
+                  workDuration: const Duration(milliseconds: 200),
+                ),
               ),
-            ),
-          ];
-        },
-      );
+            ];
+          },
+        );
 
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
+        stubCreateThread();
+        stubCreateRun();
+        stubDeleteThread();
 
-      var callCount = 0;
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) {
-        callCount++;
-        // Calls 1–2: tool events; calls 3–4: resume events.
-        return callCount <= 2
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
-      });
+        var callCount = 0;
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) {
+          callCount++;
+          // Calls 1–2: tool events; calls 3–4: resume events.
+          return callCount <= 2
+              ? Stream.fromIterable(_toolCallEvents())
+              : Stream.fromIterable(_resumeTextEvents());
+        });
 
-      final sw = Stopwatch()..start();
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+        final sw = Stopwatch()..start();
+        final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
+        final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
 
-      final resultA = await sessionA.result;
-      final resultB = await sessionB.result;
-      sw.stop();
+        final resultA = await sessionA.result;
+        final resultB = await sessionB.result;
+        sw.stop();
 
-      expect(resultA, isA<AgentSuccess>());
-      expect(resultB, isA<AgentSuccess>());
-      expect(bridges, hasLength(2));
+        expect(resultA, isA<AgentSuccess>());
+        expect(resultB, isA<AgentSuccess>());
+        expect(bridges, hasLength(2));
 
-      // Independent bridges — no contention.
-      for (final bridge in bridges) {
-        expect(bridge.contentionCount, 0);
-      }
+        // Independent bridges — no contention.
+        for (final bridge in bridges) {
+          expect(bridge.contentionCount, 0);
+        }
 
-      // Wall-clock: concurrent ≈ 200ms, serialized ≈ 400ms.
-      // Use generous threshold to avoid flaky tests.
-      expect(sw.elapsedMilliseconds, lessThan(350));
-    });
+        // Wall-clock: concurrent ≈ 200ms, serialized ≈ 400ms.
+        // Use generous threshold to avoid flaky tests.
+        expect(sw.elapsedMilliseconds, lessThan(350));
+      },
+    );
   });
 
   group('H11: WASM allows mixed bridge/bridgeless sessions', () {
@@ -722,11 +731,12 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
-          ScriptEnvironmentExtension(
-            _FakeBridgeScriptEnvironment(sharedBridge),
-          ),
-        ],
+        extensionFactory:
+            () async => [
+              ScriptEnvironmentExtension(
+                _FakeBridgeScriptEnvironment(sharedBridge),
+              ),
+            ],
       );
 
       stubCreateThread();
@@ -749,8 +759,10 @@ void main() {
       });
 
       await runtime.spawn(roomId: _roomId, prompt: 'With bridge');
-      final sessionB =
-          await runtime.spawn(roomId: _roomId, prompt: 'HTTP only');
+      final sessionB = await runtime.spawn(
+        roomId: _roomId,
+        prompt: 'HTTP only',
+      );
 
       _happyPathEvents().forEach(controllerA.add);
       _happyPathEvents().forEach(controllerB.add);
@@ -763,64 +775,69 @@ void main() {
   });
 
   group('H12: Native(1) with shared bridge — sessions serialize', () {
-    test('bridge never contended because sessions queue at spawn level',
-        () async {
-      final sharedBridge = _FakeBridge();
+    test(
+      'bridge never contended because sessions queue at spawn level',
+      () async {
+        final sharedBridge = _FakeBridge();
 
-      runtime = createRuntime(
-        platform: const NativePlatformConstraints(maxConcurrentBridges: 1),
-        extensionFactory: () async => [
-          ScriptEnvironmentExtension(
-            _FakeBridgeScriptEnvironment(
-              sharedBridge,
-              workDuration: const Duration(milliseconds: 50),
-            ),
+        runtime = createRuntime(
+          platform: const NativePlatformConstraints(maxConcurrentBridges: 1),
+          extensionFactory:
+              () async => [
+                ScriptEnvironmentExtension(
+                  _FakeBridgeScriptEnvironment(
+                    sharedBridge,
+                    workDuration: const Duration(milliseconds: 50),
+                  ),
+                ),
+              ],
+        );
+
+        stubCreateThread();
+        stubCreateRun();
+        stubDeleteThread();
+
+        // Each session: odd call → tool events, even call → resume.
+        var callCount = 0;
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
           ),
-        ],
-      );
+        ).thenAnswer((_) {
+          callCount++;
+          return callCount.isOdd
+              ? Stream.fromIterable(_toolCallEvents())
+              : Stream.fromIterable(_resumeTextEvents());
+        });
 
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
+        // Await first spawn to ensure tracking before queuing.
+        final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
+        final futureB = runtime.spawn(roomId: _roomId, prompt: 'B');
 
-      // Each session: odd call → tool events, even call → resume.
-      var callCount = 0;
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) {
-        callCount++;
-        return callCount.isOdd
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
-      });
+        final sessionB = await futureB;
 
-      // Await first spawn to ensure tracking before queuing.
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final futureB = runtime.spawn(roomId: _roomId, prompt: 'B');
+        final resultA = await sessionA.awaitResult(
+          timeout: const Duration(seconds: 5),
+        );
+        final resultB = await sessionB.awaitResult(
+          timeout: const Duration(seconds: 5),
+        );
 
-      final sessionB = await futureB;
+        expect(resultA, isA<AgentSuccess>());
+        expect(resultB, isA<AgentSuccess>());
 
-      final resultA =
-          await sessionA.awaitResult(timeout: const Duration(seconds: 5));
-      final resultB =
-          await sessionB.awaitResult(timeout: const Duration(seconds: 5));
+        // Sessions serialized by queue → bridge never contended.
+        expect(sharedBridge.contentionCount, 0);
 
-      expect(resultA, isA<AgentSuccess>());
-      expect(resultB, isA<AgentSuccess>());
-
-      // Sessions serialized by queue → bridge never contended.
-      expect(sharedBridge.contentionCount, 0);
-
-      // Tools executed sequentially.
-      expect(
-        sharedBridge.log,
-        equals(['start', 'end', 'start', 'end']),
-      );
-    });
+        // Tools executed sequentially.
+        expect(
+          sharedBridge.log,
+          equals(['start', 'end', 'start', 'end']),
+        );
+      },
+    );
   });
 
   group('H13: WASM — shared bridge wall-clock serialization', () {
@@ -831,14 +848,15 @@ void main() {
 
       runtime = createRuntime(
         platform: const WebPlatformConstraints(),
-        extensionFactory: () async => [
-          ScriptEnvironmentExtension(
-            _FakeBridgeScriptEnvironment(
-              sharedBridge,
-              workDuration: toolDuration,
-            ),
-          ),
-        ],
+        extensionFactory:
+            () async => [
+              ScriptEnvironmentExtension(
+                _FakeBridgeScriptEnvironment(
+                  sharedBridge,
+                  workDuration: toolDuration,
+                ),
+              ),
+            ],
       );
 
       stubCreateThread();

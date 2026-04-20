@@ -4,11 +4,11 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 LogRecord _record(String message) => LogRecord(
-      level: LogLevel.info,
-      message: message,
-      timestamp: DateTime.now(),
-      loggerName: 'Test',
-    );
+  level: LogLevel.info,
+  message: message,
+  timestamp: DateTime.now(),
+  loggerName: 'Test',
+);
 
 void main() {
   group('MemorySink', () {
@@ -190,9 +190,10 @@ void main() {
     });
 
     test('single record buffer works correctly', () {
-      final tinySink = MemorySink(maxRecords: 1)
-        ..write(_record('first'))
-        ..write(_record('second'));
+      final tinySink =
+          MemorySink(maxRecords: 1)
+            ..write(_record('first'))
+            ..write(_record('second'));
 
       expect(tinySink.length, 1);
       expect(tinySink.records.first.message, 'second');

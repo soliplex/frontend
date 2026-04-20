@@ -5,12 +5,12 @@ import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 final _baseTime = DateTime.utc(2026, 3, 19, 12, 0);
 
 PreAuthState _makeState({DateTime? createdAt}) => PreAuthState(
-      serverUrl: Uri.parse('https://api.example.com'),
-      providerId: 'keycloak',
-      discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
-      clientId: 'soliplex',
-      createdAt: createdAt ?? _baseTime,
-    );
+  serverUrl: Uri.parse('https://api.example.com'),
+  providerId: 'keycloak',
+  discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
+  clientId: 'soliplex',
+  createdAt: createdAt ?? _baseTime,
+);
 
 void main() {
   group('PreAuthState', () {

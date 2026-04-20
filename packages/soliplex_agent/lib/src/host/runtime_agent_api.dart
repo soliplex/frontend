@@ -78,10 +78,11 @@ class RuntimeAgentApi implements AgentApi {
   }
 
   static String _extractOutput(AgentResult result) => switch (result) {
-        AgentSuccess(:final output) => output,
-        AgentFailure(:final error) => throw StateError('Agent failed: $error'),
-        AgentTimedOut(:final elapsed) => throw StateError(
-            'Agent timed out after $elapsed',
-          ),
-      };
+    AgentSuccess(:final output) => output,
+    AgentFailure(:final error) => throw StateError('Agent failed: $error'),
+    AgentTimedOut(:final elapsed) =>
+      throw StateError(
+        'Agent timed out after $elapsed',
+      ),
+  };
 }

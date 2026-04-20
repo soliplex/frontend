@@ -186,13 +186,10 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).thenAnswer(
-          (_) async => jsonResponse(
-            {
-              'error': 'invalid_grant',
-              'error_description': 'Token expired',
-            },
-            statusCode: 400,
-          ),
+          (_) async => jsonResponse({
+            'error': 'invalid_grant',
+            'error_description': 'Token expired',
+          }, statusCode: 400),
         );
 
         final result = await service.refresh(

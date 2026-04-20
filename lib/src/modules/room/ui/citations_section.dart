@@ -72,13 +72,14 @@ class _CitationsSectionState extends State<CitationsSection> {
               sourceReference: ref,
               badgeNumber: ref.index ?? (index + 1),
               isExpanded: _expandedIndices.contains(index),
-              onToggle: () => setState(() {
-                if (_expandedIndices.contains(index)) {
-                  _expandedIndices.remove(index);
-                } else {
-                  _expandedIndices.add(index);
-                }
-              }),
+              onToggle:
+                  () => setState(() {
+                    if (_expandedIndices.contains(index)) {
+                      _expandedIndices.remove(index);
+                    } else {
+                      _expandedIndices.add(index);
+                    }
+                  }),
               onShowChunkVisualization: widget.onShowChunkVisualization,
             );
           }),

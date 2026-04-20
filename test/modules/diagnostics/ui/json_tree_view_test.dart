@@ -7,9 +7,7 @@ void main() {
   group('JsonTreeView', () {
     testWidgets('shows empty state for empty node list', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: JsonTreeView(nodes: [])),
-        ),
+        const MaterialApp(home: Scaffold(body: JsonTreeView(nodes: []))),
       );
       expect(find.text('(empty)'), findsOneWidget);
     });
@@ -17,15 +15,14 @@ void main() {
     testWidgets('shows value node text inline', (tester) async {
       const nodes = [ValueNode(key: 'name', value: 'Alice')];
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: JsonTreeView(nodes: nodes)),
-        ),
+        const MaterialApp(home: Scaffold(body: JsonTreeView(nodes: nodes))),
       );
       expect(find.textContaining('Alice'), findsOneWidget);
     });
 
-    testWidgets('object node starts expanded and can be collapsed',
-        (tester) async {
+    testWidgets('object node starts expanded and can be collapsed', (
+      tester,
+    ) async {
       final nodes = [
         ObjectNode(
           key: 'user',
@@ -33,9 +30,7 @@ void main() {
         ),
       ];
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: JsonTreeView(nodes: nodes)),
-        ),
+        MaterialApp(home: Scaffold(body: JsonTreeView(nodes: nodes))),
       );
 
       // Initially expanded: child value visible
@@ -49,8 +44,9 @@ void main() {
       expect(find.textContaining('1'), findsNothing);
     });
 
-    testWidgets('array node shows item count in collapsed label',
-        (tester) async {
+    testWidgets('array node shows item count in collapsed label', (
+      tester,
+    ) async {
       final nodes = [
         ArrayNode(
           key: 'items',
@@ -63,9 +59,7 @@ void main() {
         ),
       ];
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: JsonTreeView(nodes: nodes)),
-        ),
+        MaterialApp(home: Scaffold(body: JsonTreeView(nodes: nodes))),
       );
 
       // Collapse the array

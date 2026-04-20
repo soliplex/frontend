@@ -39,12 +39,8 @@ class UploadEntry {
   /// The scope key this entry belongs to (room or room+thread).
   final String scope;
 
-  UploadEntry _withStatus(UploadStatus newStatus) => UploadEntry(
-        id: id,
-        filename: filename,
-        status: newStatus,
-        scope: scope,
-      );
+  UploadEntry _withStatus(UploadStatus newStatus) =>
+      UploadEntry(id: id, filename: filename, status: newStatus, scope: scope);
 }
 
 /// Tracks file upload state across rooms and threads.
@@ -79,8 +75,7 @@ class UploadTracker {
   ReadonlySignal<List<UploadEntry>> threadUploads(
     String roomId,
     String threadId,
-  ) =>
-      _scopeSignal(_threadKey(roomId, threadId));
+  ) => _scopeSignal(_threadKey(roomId, threadId));
 
   /// Starts a room-level upload.
   void uploadToRoom({
@@ -102,8 +97,8 @@ class UploadTracker {
           )
           .then((_) => _updateStatus(key, entry.id, UploadStatus.success))
           .catchError((Object error) {
-        _updateStatus(key, entry.id, UploadError(_errorMessage(error)));
-      }),
+            _updateStatus(key, entry.id, UploadError(_errorMessage(error)));
+          }),
     );
   }
 
@@ -129,8 +124,8 @@ class UploadTracker {
           )
           .then((_) => _updateStatus(key, entry.id, UploadStatus.success))
           .catchError((Object error) {
-        _updateStatus(key, entry.id, UploadError(_errorMessage(error)));
-      }),
+            _updateStatus(key, entry.id, UploadError(_errorMessage(error)));
+          }),
     );
   }
 

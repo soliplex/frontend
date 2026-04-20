@@ -32,10 +32,7 @@ void main() {
     });
 
     test('domain with default http port omitted', () {
-      expect(
-        aliasFromUrl(Uri.parse('http://example.com')),
-        'example-com',
-      );
+      expect(aliasFromUrl(Uri.parse('http://example.com')), 'example-com');
     });
   });
 }

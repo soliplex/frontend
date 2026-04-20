@@ -14,10 +14,10 @@ class JsonTreeView extends StatelessWidget {
       return Text(
         '(empty)',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              fontStyle: FontStyle.italic,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          fontFamily: 'monospace',
+          fontStyle: FontStyle.italic,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
     return _JsonNodeList(nodes: nodes, depth: 0);
@@ -62,25 +62,26 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     return switch (node) {
       ValueNode() => _buildValueRow(context, node, indent),
       ObjectNode() => _buildExpandable(
-          context,
-          node,
-          indent,
-          label: node.key.isEmpty ? '{…}' : '${node.key}: {…}',
-          expandedLabel: node.key.isEmpty ? '{' : '${node.key}: {',
-          closingLabel: '}',
-          children: node.children,
-        ),
+        context,
+        node,
+        indent,
+        label: node.key.isEmpty ? '{…}' : '${node.key}: {…}',
+        expandedLabel: node.key.isEmpty ? '{' : '${node.key}: {',
+        closingLabel: '}',
+        children: node.children,
+      ),
       ArrayNode() => _buildExpandable(
-          context,
-          node,
-          indent,
-          label: node.key.isEmpty
-              ? '[${node.itemCount}]'
-              : '${node.key}: [${node.itemCount}]',
-          expandedLabel: node.key.isEmpty ? '[' : '${node.key}: [',
-          closingLabel: ']',
-          children: node.children,
-        ),
+        context,
+        node,
+        indent,
+        label:
+            node.key.isEmpty
+                ? '[${node.itemCount}]'
+                : '${node.key}: [${node.itemCount}]',
+        expandedLabel: node.key.isEmpty ? '[' : '${node.key}: [',
+        closingLabel: ']',
+        children: node.children,
+      ),
     };
   }
 
@@ -111,9 +112,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
             if (node.key.isNotEmpty)
               TextSpan(
                 text: '${node.key}: ',
-                style: baseStyle?.copyWith(
-                  color: colorScheme.onSurface,
-                ),
+                style: baseStyle?.copyWith(color: colorScheme.onSurface),
               ),
             TextSpan(
               text: node.value,

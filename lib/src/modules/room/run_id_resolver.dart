@@ -17,9 +17,10 @@ Map<String, String?> buildRunIdMap(
     if (message.user == ChatUser.user) {
       currentUserMessageId = message.id;
     } else {
-      final runId = currentUserMessageId != null
-          ? messageStates[currentUserMessageId]?.runId
-          : null;
+      final runId =
+          currentUserMessageId != null
+              ? messageStates[currentUserMessageId]?.runId
+              : null;
       map[message.id] = runId;
     }
   }

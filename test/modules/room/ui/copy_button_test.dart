@@ -7,9 +7,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/copy_button.dart';
 void main() {
   testWidgets('shows copy icon initially', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: CopyButton(text: 'hello')),
-      ),
+      const MaterialApp(home: Scaffold(body: CopyButton(text: 'hello'))),
     );
 
     expect(find.byIcon(Icons.copy), findsOneWidget);
@@ -19,14 +17,12 @@ void main() {
   testWidgets('swaps to check icon after tap then reverts', (tester) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') return null;
-      return null;
-    });
+          if (call.method == 'Clipboard.setData') return null;
+          return null;
+        });
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: CopyButton(text: 'hello')),
-      ),
+      const MaterialApp(home: Scaffold(body: CopyButton(text: 'hello'))),
     );
 
     await tester.tap(find.byType(CopyButton));
@@ -49,17 +45,15 @@ void main() {
     String? copiedText;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        final args = call.arguments as Map;
-        copiedText = args['text'] as String?;
-      }
-      return null;
-    });
+          if (call.method == 'Clipboard.setData') {
+            final args = call.arguments as Map;
+            copiedText = args['text'] as String?;
+          }
+          return null;
+        });
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: CopyButton(text: 'hello world')),
-      ),
+      const MaterialApp(home: Scaffold(body: CopyButton(text: 'hello world'))),
     );
 
     await tester.tap(find.byType(CopyButton));
@@ -71,20 +65,19 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
-  testWidgets('shows error icon when clipboard fails then reverts',
-      (tester) async {
+  testWidgets('shows error icon when clipboard fails then reverts', (
+    tester,
+  ) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        throw PlatformException(code: 'ERROR', message: 'clipboard failed');
-      }
-      return null;
-    });
+          if (call.method == 'Clipboard.setData') {
+            throw PlatformException(code: 'ERROR', message: 'clipboard failed');
+          }
+          return null;
+        });
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: CopyButton(text: 'hello')),
-      ),
+      const MaterialApp(home: Scaffold(body: CopyButton(text: 'hello'))),
     );
 
     await tester.tap(find.byType(CopyButton));

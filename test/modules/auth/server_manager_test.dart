@@ -14,10 +14,10 @@ const _provider = OidcProvider(
 );
 
 AuthTokens _tokens() => AuthTokens(
-      accessToken: 'access',
-      refreshToken: 'refresh',
-      expiresAt: DateTime.now().add(const Duration(hours: 1)),
-    );
+  accessToken: 'access',
+  refreshToken: 'refresh',
+  expiresAt: DateTime.now().add(const Duration(hours: 1)),
+);
 
 ServerManager _createManager({InMemoryServerStorage? storage}) {
   return ServerManager(
@@ -151,10 +151,7 @@ void main() {
     test('missing serverId throws StateError', () {
       final manager = _createManager();
 
-      expect(
-        () => manager.removeServer('nonexistent'),
-        throwsStateError,
-      );
+      expect(() => manager.removeServer('nonexistent'), throwsStateError);
     });
   });
 
@@ -269,17 +266,19 @@ void main() {
       expect(entry.isConnected, isTrue);
     });
 
-    test('isConnected is false when requiresAuth is true and not authenticated',
-        () {
-      final manager = _createManager();
+    test(
+      'isConnected is false when requiresAuth is true and not authenticated',
+      () {
+        final manager = _createManager();
 
-      final entry = manager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
+        final entry = manager.addServer(
+          serverId: 'test',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
 
-      expect(entry.isConnected, isFalse);
-    });
+        expect(entry.isConnected, isFalse);
+      },
+    );
 
     test('isConnected is true when requiresAuth is true and authenticated', () {
       final manager = _createManager();
@@ -383,10 +382,7 @@ void main() {
 
       expect(manager.servers.value, hasLength(1));
       expect(manager.servers.value['restored'], isNotNull);
-      expect(
-        manager.servers.value['restored']!.auth.isAuthenticated,
-        isTrue,
-      );
+      expect(manager.servers.value['restored']!.auth.isAuthenticated, isTrue);
     });
 
     test('does not re-persist restored data', () async {
@@ -414,9 +410,7 @@ void main() {
 
       await storage.save(
         'logged-out',
-        KnownServer(
-          serverUrl: Uri.parse('https://logged-out.example.com'),
-        ),
+        KnownServer(serverUrl: Uri.parse('https://logged-out.example.com')),
       );
 
       final manager = _createManager(storage: storage);

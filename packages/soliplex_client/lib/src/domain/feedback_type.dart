@@ -8,7 +8,7 @@ enum FeedbackType {
 
   /// Serializes this value to the string expected by the backend.
   String toJson() => switch (this) {
-        FeedbackType.thumbsUp => 'thumbs_up',
-        FeedbackType.thumbsDown => 'thumbs_down',
-      };
+    FeedbackType.thumbsUp => 'thumbs_up',
+    FeedbackType.thumbsDown => 'thumbs_down',
+  };
 }

@@ -73,15 +73,16 @@ void main() {
 
         await client.runAgent(endpoint, input, cancelToken: token).toList();
 
-        final captured = verify(
-          () => mockTransport.requestStream(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            cancelToken: captureAny(named: 'cancelToken'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockTransport.requestStream(
+                any(),
+                any(),
+                headers: any(named: 'headers'),
+                body: any(named: 'body'),
+                cancelToken: captureAny(named: 'cancelToken'),
+              ),
+            ).captured;
 
         expect(captured.single, same(token));
       });
@@ -102,15 +103,16 @@ void main() {
 
         await client.runAgent(endpoint, input).toList();
 
-        final captured = verify(
-          () => mockTransport.requestStream(
-            'POST',
-            captureAny(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            cancelToken: any(named: 'cancelToken'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockTransport.requestStream(
+                'POST',
+                captureAny(),
+                headers: any(named: 'headers'),
+                body: any(named: 'body'),
+                cancelToken: any(named: 'cancelToken'),
+              ),
+            ).captured;
 
         final uri = captured.single as Uri;
         expect(uri.toString(), '$baseUrl/$endpoint');
@@ -132,15 +134,16 @@ void main() {
 
         await client.runAgent(endpoint, input).toList();
 
-        final captured = verify(
-          () => mockTransport.requestStream(
-            any(),
-            any(),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            cancelToken: any(named: 'cancelToken'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockTransport.requestStream(
+                any(),
+                any(),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+                cancelToken: any(named: 'cancelToken'),
+              ),
+            ).captured;
 
         final headers = captured.single as Map<String, String>;
         expect(headers['Content-Type'], 'application/json');
@@ -197,9 +200,10 @@ void main() {
         ];
 
         // Encode the array as a single SSE data line.
-        final sseBody = StringBuffer()
-          ..writeln('data: ${json.encode(batch)}')
-          ..writeln();
+        final sseBody =
+            StringBuffer()
+              ..writeln('data: ${json.encode(batch)}')
+              ..writeln();
 
         when(
           () => mockTransport.requestStream(
@@ -225,17 +229,14 @@ void main() {
 
       test('skips SSE messages with empty data', () async {
         // Build a stream with one empty-data message and one real event.
-        final sseBody = StringBuffer()
-          ..writeln('data: ')
-          ..writeln()
-          ..writeln(
-            'data: ${json.encode({
-                  'type': 'RUN_STARTED',
-                  'threadId': 't-1',
-                  'runId': 'r-1',
-                })}',
-          )
-          ..writeln();
+        final sseBody =
+            StringBuffer()
+              ..writeln('data: ')
+              ..writeln()
+              ..writeln(
+                'data: ${json.encode({'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'})}',
+              )
+              ..writeln();
 
         when(
           () => mockTransport.requestStream(
@@ -336,9 +337,10 @@ void main() {
           {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
         ];
 
-        final sseBody = StringBuffer()
-          ..writeln('data: ${json.encode(batch)}')
-          ..writeln();
+        final sseBody =
+            StringBuffer()
+              ..writeln('data: ${json.encode(batch)}')
+              ..writeln();
 
         when(
           () => mockTransport.requestStream(
@@ -363,17 +365,14 @@ void main() {
       });
 
       test('skips malformed JSON and continues streaming', () async {
-        final sseBody = StringBuffer()
-          ..writeln('data: not valid json at all')
-          ..writeln()
-          ..writeln(
-            'data: ${json.encode({
-                  'type': 'RUN_STARTED',
-                  'threadId': 't-1',
-                  'runId': 'r-1',
-                })}',
-          )
-          ..writeln();
+        final sseBody =
+            StringBuffer()
+              ..writeln('data: not valid json at all')
+              ..writeln()
+              ..writeln(
+                'data: ${json.encode({'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'})}',
+              )
+              ..writeln();
 
         when(
           () => mockTransport.requestStream(

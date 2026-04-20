@@ -12,12 +12,13 @@ class FakeAgentApi implements AgentApi {
     this.waitAllResult = const [],
     this.getResultResult = '',
     AgentResult? watchResult,
-  }) : watchResult = watchResult ??
-            const AgentSuccess(
-              threadKey: (serverId: 'fake', roomId: 'fake', threadId: 'fake'),
-              output: '',
-              runId: 'fake-run',
-            );
+  }) : watchResult =
+           watchResult ??
+           const AgentSuccess(
+             threadKey: (serverId: 'fake', roomId: 'fake', threadId: 'fake'),
+             output: '',
+             runId: 'fake-run',
+           );
 
   /// Value returned by [spawnAgent]. Increments after each call.
   int spawnResult;

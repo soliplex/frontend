@@ -76,9 +76,10 @@ String _joinPath(String parent, String segment) {
 
 String _canonicalPath(String path) {
   // Strip trailing slash (except for root)
-  var normalized = path.length > 1 && path.endsWith('/')
-      ? path.substring(0, path.length - 1)
-      : path;
+  var normalized =
+      path.length > 1 && path.endsWith('/')
+          ? path.substring(0, path.length - 1)
+          : path;
   // Normalize parameterized segments: :anything -> :_
   normalized = normalized.replaceAll(_paramPattern, ':_');
   return normalized;
@@ -95,14 +96,15 @@ GoRouter buildRouter(ShellConfig config) {
     initialLocation: config.initialRoute,
     routes: config.routes,
     refreshListenable: config.refreshListenable,
-    redirect: config.redirects.isEmpty
-        ? null
-        : (BuildContext context, GoRouterState state) async {
-            for (final redirect in config.redirects) {
-              final result = await redirect(context, state);
-              if (result != null) return result;
-            }
-            return null;
-          },
+    redirect:
+        config.redirects.isEmpty
+            ? null
+            : (BuildContext context, GoRouterState state) async {
+              for (final redirect in config.redirects) {
+                final result = await redirect(context, state);
+                if (result != null) return result;
+              }
+              return null;
+            },
   );
 }

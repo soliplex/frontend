@@ -103,10 +103,7 @@ void main() {
     });
 
     test('hash without query portion returns empty map', () {
-      final result = extractQueryParams(
-        search: '',
-        hash: '#/callback',
-      );
+      final result = extractQueryParams(search: '', hash: '#/callback');
 
       expect(result, isEmpty);
     });

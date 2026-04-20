@@ -116,16 +116,11 @@ class _StreamSection extends StatelessWidget {
                   value: _StreamView.conversation,
                   label: Text('Conversation'),
                 ),
-                ButtonSegment(
-                  value: _StreamView.events,
-                  label: Text('Events'),
-                ),
+                ButtonSegment(value: _StreamView.events, label: Text('Events')),
               ],
               selected: {view},
               onSelectionChanged: (s) => onViewChanged(s.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-              ),
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
             ),
           ],
         ),
@@ -186,9 +181,7 @@ class _ConversationView extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final entry in run.entries) _RunEntryCard(entry: entry),
-      ],
+      children: [for (final entry in run.entries) _RunEntryCard(entry: entry)],
     );
   }
 
@@ -197,8 +190,8 @@ class _ConversationView extends StatelessWidget {
       child: Text(
         message,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -216,45 +209,45 @@ class _RunEntryCard extends StatelessWidget {
 
     final (label, badgeColor, badgeTextColor, content) = switch (entry) {
       MessageEntry(:final role, :final text) => (
-          role.toUpperCase(),
-          role == 'user'
-              ? colorScheme.primaryContainer
-              : colorScheme.secondaryContainer,
-          role == 'user'
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSecondaryContainer,
-          text,
-        ),
+        role.toUpperCase(),
+        role == 'user'
+            ? colorScheme.primaryContainer
+            : colorScheme.secondaryContainer,
+        role == 'user'
+            ? colorScheme.onPrimaryContainer
+            : colorScheme.onSecondaryContainer,
+        text,
+      ),
       ToolCallEntry(:final toolName, :final args) => (
-          'TOOL CALL',
-          colorScheme.tertiaryContainer,
-          colorScheme.onTertiaryContainer,
-          '$toolName\n$args',
-        ),
+        'TOOL CALL',
+        colorScheme.tertiaryContainer,
+        colorScheme.onTertiaryContainer,
+        '$toolName\n$args',
+      ),
       ToolResultEntry(:final content) => (
-          'TOOL RESULT',
-          colorScheme.surfaceContainerHighest,
-          colorScheme.onSurface,
-          content,
-        ),
+        'TOOL RESULT',
+        colorScheme.surfaceContainerHighest,
+        colorScheme.onSurface,
+        content,
+      ),
       ThinkingEntry(:final text) => (
-          'THINKING',
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          text,
-        ),
+        'THINKING',
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        text,
+      ),
       RunStatusEntry(:final type, :final message) => (
-          type,
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          message ?? '',
-        ),
+        type,
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        message ?? '',
+      ),
       StateEntry(:final type, :final data) => (
-          type,
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          data?.toString() ?? '',
-        ),
+        type,
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        data?.toString() ?? '',
+      ),
     };
 
     return Card(
@@ -265,13 +258,13 @@ class _RunEntryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _RoleBadge(
-                label: label, color: badgeColor, textColor: badgeTextColor),
+              label: label,
+              color: badgeColor,
+              textColor: badgeTextColor,
+            ),
             if (content.isNotEmpty) ...[
               const SizedBox(height: 8),
-              SelectableText(
-                content,
-                style: theme.textTheme.bodySmall,
-              ),
+              SelectableText(content, style: theme.textTheme.bodySmall),
             ],
           ],
         ),
@@ -323,17 +316,15 @@ class _EventsView extends StatelessWidget {
         child: Text(
           'No events',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final event in events) _SseEventCard(event: event),
-      ],
+      children: [for (final event in events) _SseEventCard(event: event)],
     );
   }
 }
@@ -464,14 +455,15 @@ class _JsonSection extends StatelessWidget {
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(4),
           ),
-          child: plainText != null
-              ? SelectableText(
-                  plainText,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
-                  ),
-                )
-              : JsonTreeView(nodes: buildJsonTree(parsed)),
+          child:
+              plainText != null
+                  ? SelectableText(
+                    plainText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  )
+                  : JsonTreeView(nodes: buildJsonTree(parsed)),
         ),
       ],
     );

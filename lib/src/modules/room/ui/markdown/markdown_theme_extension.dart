@@ -72,10 +72,16 @@ class MarkdownThemeExtension extends ThemeExtension<MarkdownThemeExtension> {
       body: TextStyle.lerp(body, other.body, t),
       code: TextStyle.lerp(code, other.code, t),
       link: TextStyle.lerp(link, other.link, t),
-      codeBlockDecoration:
-          Decoration.lerp(codeBlockDecoration, other.codeBlockDecoration, t),
-      blockquoteDecoration:
-          Decoration.lerp(blockquoteDecoration, other.blockquoteDecoration, t),
+      codeBlockDecoration: Decoration.lerp(
+        codeBlockDecoration,
+        other.codeBlockDecoration,
+        t,
+      ),
+      blockquoteDecoration: Decoration.lerp(
+        blockquoteDecoration,
+        other.blockquoteDecoration,
+        t,
+      ),
     );
   }
 }

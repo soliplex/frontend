@@ -37,11 +37,7 @@ void main() {
 
     test('detects duplicate paths after parameterized normalization', () {
       final errors = validateRoutes(
-        routes: [
-          _route('/a'),
-          _route('/users/:id'),
-          _route('/users/:userId'),
-        ],
+        routes: [_route('/a'), _route('/users/:id'), _route('/users/:userId')],
         initialRoute: '/a',
       );
 

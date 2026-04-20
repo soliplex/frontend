@@ -185,11 +185,18 @@ class QuizInProgress extends QuizSession {
   }) : results = Map.unmodifiable(results) {
     if (!quiz.hasQuestions) {
       throw ArgumentError.value(
-          quiz, 'quiz', 'Quiz must have at least one question');
+        quiz,
+        'quiz',
+        'Quiz must have at least one question',
+      );
     }
     if (currentIndex < 0 || currentIndex >= quiz.questionCount) {
       throw RangeError.range(
-          currentIndex, 0, quiz.questionCount - 1, 'currentIndex');
+        currentIndex,
+        0,
+        quiz.questionCount - 1,
+        'currentIndex',
+      );
     }
   }
 
@@ -214,13 +221,12 @@ class QuizInProgress extends QuizSession {
     int? currentIndex,
     Map<String, QuizAnswerResult>? results,
     QuestionState? questionState,
-  }) =>
-      QuizInProgress(
-        quiz: quiz,
-        currentIndex: currentIndex ?? this.currentIndex,
-        results: results ?? this.results,
-        questionState: questionState ?? this.questionState,
-      );
+  }) => QuizInProgress(
+    quiz: quiz,
+    currentIndex: currentIndex ?? this.currentIndex,
+    results: results ?? this.results,
+    questionState: questionState ?? this.questionState,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -233,12 +239,12 @@ class QuizInProgress extends QuizSession {
 
   @override
   int get hashCode => Object.hash(
-        quiz,
-        currentIndex,
-        Object.hashAll(results.keys),
-        Object.hashAll(results.values),
-        questionState,
-      );
+    quiz,
+    currentIndex,
+    Object.hashAll(results.keys),
+    Object.hashAll(results.values),
+    questionState,
+  );
 
   @override
   String toString() =>
@@ -255,7 +261,10 @@ class QuizCompleted extends QuizSession {
   }) : results = Map.unmodifiable(results) {
     if (results.isEmpty) {
       throw ArgumentError.value(
-          results, 'results', 'Completed quiz must have at least one result');
+        results,
+        'results',
+        'Completed quiz must have at least one result',
+      );
     }
   }
 
@@ -281,10 +290,10 @@ class QuizCompleted extends QuizSession {
 
   @override
   int get hashCode => Object.hash(
-        quiz,
-        Object.hashAll(results.keys),
-        Object.hashAll(results.values),
-      );
+    quiz,
+    Object.hashAll(results.keys),
+    Object.hashAll(results.values),
+  );
 
   @override
   String toString() =>

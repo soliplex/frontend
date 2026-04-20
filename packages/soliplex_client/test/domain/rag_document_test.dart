@@ -31,9 +31,9 @@ void main() {
     group('buildDocumentFilter', () {
       test('single document produces equality filter', () {
         expect(
-          buildDocumentFilter(
-            [const RagDocument(id: 'abc-123', title: 'Report')],
-          ),
+          buildDocumentFilter([
+            const RagDocument(id: 'abc-123', title: 'Report'),
+          ]),
           equals("id = 'abc-123'"),
         );
       });
@@ -50,18 +50,18 @@ void main() {
 
       test('escapes single quotes in ids', () {
         expect(
-          buildDocumentFilter(
-            [const RagDocument(id: "id'inject", title: 'Report')],
-          ),
+          buildDocumentFilter([
+            const RagDocument(id: "id'inject", title: 'Report'),
+          ]),
           equals("id = 'id''inject'"),
         );
       });
 
       test('escapes multiple single quotes in one id', () {
         expect(
-          buildDocumentFilter(
-            [const RagDocument(id: "o'connor's", title: 'Report')],
-          ),
+          buildDocumentFilter([
+            const RagDocument(id: "o'connor's", title: 'Report'),
+          ]),
           equals("id = 'o''connor''s'"),
         );
       });
@@ -78,18 +78,13 @@ void main() {
 
       test('works with blank titles', () {
         expect(
-          buildDocumentFilter(
-            [const RagDocument(id: 'abc-123', title: '')],
-          ),
+          buildDocumentFilter([const RagDocument(id: 'abc-123', title: '')]),
           equals("id = 'abc-123'"),
         );
       });
 
       test('throws on empty list', () {
-        expect(
-          () => buildDocumentFilter([]),
-          throwsArgumentError,
-        );
+        expect(() => buildDocumentFilter([]), throwsArgumentError);
       });
     });
   });

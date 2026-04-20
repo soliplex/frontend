@@ -49,16 +49,18 @@ class HttpEventTile extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final selectedColor = colorScheme.onPrimaryContainer;
 
-    final methodStyle =
-        (dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
-            ?.copyWith(
-      fontWeight: FontWeight.bold,
-      color: isSelected ? selectedColor : colorScheme.primary,
-    );
+    final methodStyle = (dense
+            ? theme.textTheme.bodySmall
+            : theme.textTheme.bodyMedium)
+        ?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: isSelected ? selectedColor : colorScheme.primary,
+        );
 
-    final pathStyle =
-        (dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
-            ?.copyWith(color: isSelected ? selectedColor : null);
+    final pathStyle = (dense
+            ? theme.textTheme.bodySmall
+            : theme.textTheme.bodyMedium)
+        ?.copyWith(color: isSelected ? selectedColor : null);
 
     return Row(
       children: [
@@ -79,9 +81,10 @@ class HttpEventTile extends StatelessWidget {
   Widget _buildResultLine(ThemeData theme) {
     final colorScheme = theme.colorScheme;
     final metaStyle = theme.textTheme.bodySmall?.copyWith(
-      color: isSelected
-          ? colorScheme.onPrimaryContainer
-          : colorScheme.onSurfaceVariant,
+      color:
+          isSelected
+              ? colorScheme.onPrimaryContainer
+              : colorScheme.onSurfaceVariant,
       fontSize: dense ? 11 : null,
     );
 

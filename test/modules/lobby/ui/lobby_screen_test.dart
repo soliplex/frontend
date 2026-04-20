@@ -8,10 +8,10 @@ import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 import '../../../helpers/fakes.dart';
 
 ServerManager _createManager() => ServerManager(
-      authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 Widget _buildApp(ServerManager manager) {
   final router = GoRouter(
@@ -32,8 +32,9 @@ Widget _buildApp(ServerManager manager) {
 
 void main() {
   group('LobbyScreen', () {
-    testWidgets('shows sidebar on wide viewport with Add Server visible',
-        (tester) async {
+    testWidgets('shows sidebar on wide viewport with Add Server visible', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -51,39 +52,41 @@ void main() {
     });
 
     testWidgets(
-        'uses drawer on narrow viewport — hamburger opens drawer with Add Server',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+      'uses drawer on narrow viewport — hamburger opens drawer with Add Server',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      final manager = _createManager();
-      await tester.pumpWidget(_buildApp(manager));
-      await tester.pump();
+        final manager = _createManager();
+        await tester.pumpWidget(_buildApp(manager));
+        await tester.pump();
 
-      // Hamburger icon present in narrow layout
-      expect(find.byIcon(Icons.menu), findsOneWidget);
+        // Hamburger icon present in narrow layout
+        expect(find.byIcon(Icons.menu), findsOneWidget);
 
-      // Drawer not yet open
-      expect(find.byType(Drawer), findsNothing);
+        // Drawer not yet open
+        expect(find.byType(Drawer), findsNothing);
 
-      // Open the drawer
-      await tester.tap(find.byIcon(Icons.menu));
-      await tester.pumpAndSettle();
+        // Open the drawer
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
 
-      // Drawer is now open and contains the sidebar with Add Server
-      expect(find.byType(Drawer), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(Drawer),
-          matching: find.text('Add Server'),
-        ),
-        findsOneWidget,
-      );
-    });
+        // Drawer is now open and contains the sidebar with Add Server
+        expect(find.byType(Drawer), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(Drawer),
+            matching: find.text('Add Server'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('shows empty state CTA when no servers connected',
-        (tester) async {
+    testWidgets('shows empty state CTA when no servers connected', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

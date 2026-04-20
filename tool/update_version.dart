@@ -18,8 +18,10 @@ void main() {
   }
 
   final pubspecContent = pubspecFile.readAsStringSync();
-  final versionMatch =
-      RegExp(r'^version:\s*(.+)$', multiLine: true).firstMatch(pubspecContent);
+  final versionMatch = RegExp(
+    r'^version:\s*(.+)$',
+    multiLine: true,
+  ).firstMatch(pubspecContent);
 
   if (versionMatch == null) {
     stderr.writeln('Error: Could not find version in pubspec.yaml');

@@ -46,9 +46,9 @@ class BackendLogSink implements LogSink {
     this.flushGate,
     this.maxFlushHoldDuration = const Duration(minutes: 5),
     this.onError,
-  })  : _client = client,
-        _diskQueue = diskQueue,
-        resourceAttributes = Map.unmodifiable(resourceAttributes) {
+  }) : _client = client,
+       _diskQueue = diskQueue,
+       resourceAttributes = Map.unmodifiable(resourceAttributes) {
     _timer = Timer.periodic(flushInterval, (_) => flush());
   }
 
@@ -511,14 +511,15 @@ class BackendLogSink implements LogSink {
     final result = <Map<String, Object?>>[];
     var totalBytes = 0;
     var scanned = 0;
-    final envelopeOverhead = utf8
-        .encode(
-          jsonEncode({
-            'logs': <Object>[],
-            'resource': _safeAttributes(resourceAttributes),
-          }),
-        )
-        .length;
+    final envelopeOverhead =
+        utf8
+            .encode(
+              jsonEncode({
+                'logs': <Object>[],
+                'resource': _safeAttributes(resourceAttributes),
+              }),
+            )
+            .length;
     totalBytes += envelopeOverhead;
 
     for (final record in records) {

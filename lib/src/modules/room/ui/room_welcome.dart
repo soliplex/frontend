@@ -65,9 +65,10 @@ class RoomWelcome extends StatelessWidget {
                     for (final suggestion in currentRoom.suggestions)
                       _SuggestionChip(
                         label: suggestion,
-                        onTap: onSuggestionTapped != null
-                            ? () => onSuggestionTapped!(suggestion)
-                            : null,
+                        onTap:
+                            onSuggestionTapped != null
+                                ? () => onSuggestionTapped!(suggestion)
+                                : null,
                       ),
                   ],
                 ),
@@ -82,8 +83,11 @@ class RoomWelcome extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.quiz,
-                            size: 20, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.quiz,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           currentRoom.quizzes.length == 1
@@ -103,9 +107,10 @@ class RoomWelcome extends StatelessWidget {
                           ActionChip(
                             avatar: const Icon(Icons.play_arrow, size: 16),
                             label: Text(entry.value),
-                            onPressed: onQuizTapped != null
-                                ? () => onQuizTapped!(entry.key)
-                                : null,
+                            onPressed:
+                                onQuizTapped != null
+                                    ? () => onQuizTapped!(entry.key)
+                                    : null,
                           ),
                       ],
                     ),

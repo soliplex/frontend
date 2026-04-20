@@ -3,9 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'execution_step.dart';
 
 class ExecutionTracker {
-  ExecutionTracker({
-    required ReadonlySignal<ExecutionEvent?> executionEvents,
-  }) {
+  ExecutionTracker({required ReadonlySignal<ExecutionEvent?> executionEvents}) {
     _stopwatch.start();
     _unsub = executionEvents.subscribe(_onEvent);
   }
@@ -15,8 +13,9 @@ class ExecutionTracker {
   bool _isFrozen = false;
   bool get isFrozen => _isFrozen;
 
-  final Signal<List<ExecutionStep>> _steps =
-      Signal<List<ExecutionStep>>(const []);
+  final Signal<List<ExecutionStep>> _steps = Signal<List<ExecutionStep>>(
+    const [],
+  );
   ReadonlySignal<List<ExecutionStep>> get steps => _steps;
 
   final Signal<List<String>> _thinkingBlocks = Signal<List<String>>(const []);
@@ -68,11 +67,11 @@ class ExecutionTracker {
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
       case TextDelta() ||
-            StateUpdated() ||
-            StepProgress() ||
-            AwaitingApproval() ||
-            ActivitySnapshot() ||
-            CustomExecutionEvent():
+          StateUpdated() ||
+          StepProgress() ||
+          AwaitingApproval() ||
+          ActivitySnapshot() ||
+          CustomExecutionEvent():
         break;
     }
   }

@@ -7,14 +7,15 @@ import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
 Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 ToolCallMessage makeMessage(List<ToolCallInfo> toolCalls) => ToolCallMessage(
-      id: 'msg-1',
-      createdAt: DateTime(2026),
-      toolCalls: toolCalls,
-    );
+  id: 'msg-1',
+  createdAt: DateTime(2026),
+  toolCalls: toolCalls,
+);
 
 void main() {
-  testWidgets('renders tool name and status for single tool call',
-      (tester) async {
+  testWidgets('renders tool name and status for single tool call', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       wrap(
         ToolCallTile(

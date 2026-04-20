@@ -140,13 +140,14 @@ void main() {
           existingRunId: 'correct-run-id',
         );
 
-        final captured = verify(
-          () => mockStreamClient.runAgent(
-            any(),
-            captureAny(),
-            cancelToken: any(named: 'cancelToken'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockStreamClient.runAgent(
+                any(),
+                captureAny(),
+                cancelToken: any(named: 'cancelToken'),
+              ),
+            ).captured;
 
         final input = captured.single as SimpleRunAgentInput;
         expect(input.runId, 'correct-run-id');

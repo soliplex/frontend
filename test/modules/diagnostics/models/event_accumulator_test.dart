@@ -6,35 +6,42 @@ void main() {
   group('accumulateEvents', () {
     test('merges text message deltas into single entry', () {
       final events = [
-        const SseEvent(type: 'RUN_STARTED', payload: {
-          'type': 'RUN_STARTED',
-          'threadId': 't1',
-          'runId': 'r1',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_START', payload: {
-          'type': 'TEXT_MESSAGE_START',
-          'messageId': 'm1',
-          'role': 'assistant',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_CONTENT', payload: {
-          'type': 'TEXT_MESSAGE_CONTENT',
-          'messageId': 'm1',
-          'delta': 'Hello ',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_CONTENT', payload: {
-          'type': 'TEXT_MESSAGE_CONTENT',
-          'messageId': 'm1',
-          'delta': 'world!',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_END', payload: {
-          'type': 'TEXT_MESSAGE_END',
-          'messageId': 'm1',
-        }),
-        const SseEvent(type: 'RUN_FINISHED', payload: {
-          'type': 'RUN_FINISHED',
-          'threadId': 't1',
-          'runId': 'r1',
-        }),
+        const SseEvent(
+          type: 'RUN_STARTED',
+          payload: {'type': 'RUN_STARTED', 'threadId': 't1', 'runId': 'r1'},
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_START',
+          payload: {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'm1',
+            'role': 'assistant',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_CONTENT',
+          payload: {
+            'type': 'TEXT_MESSAGE_CONTENT',
+            'messageId': 'm1',
+            'delta': 'Hello ',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_CONTENT',
+          payload: {
+            'type': 'TEXT_MESSAGE_CONTENT',
+            'messageId': 'm1',
+            'delta': 'world!',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_END',
+          payload: {'type': 'TEXT_MESSAGE_END', 'messageId': 'm1'},
+        ),
+        const SseEvent(
+          type: 'RUN_FINISHED',
+          payload: {'type': 'RUN_FINISHED', 'threadId': 't1', 'runId': 'r1'},
+        ),
       ];
       final run = accumulateEvents(events);
       expect(run.isComplete, isTrue);
@@ -46,26 +53,35 @@ void main() {
 
     test('accumulates tool call args', () {
       final events = [
-        const SseEvent(type: 'TOOL_CALL_START', payload: {
-          'type': 'TOOL_CALL_START',
-          'toolCallId': 'tc1',
-          'toolCallName': 'search',
-          'parentMessageId': 'm1',
-        }),
-        const SseEvent(type: 'TOOL_CALL_ARGS', payload: {
-          'type': 'TOOL_CALL_ARGS',
-          'toolCallId': 'tc1',
-          'delta': '{"query":',
-        }),
-        const SseEvent(type: 'TOOL_CALL_ARGS', payload: {
-          'type': 'TOOL_CALL_ARGS',
-          'toolCallId': 'tc1',
-          'delta': ' "hello"}',
-        }),
-        const SseEvent(type: 'TOOL_CALL_END', payload: {
-          'type': 'TOOL_CALL_END',
-          'toolCallId': 'tc1',
-        }),
+        const SseEvent(
+          type: 'TOOL_CALL_START',
+          payload: {
+            'type': 'TOOL_CALL_START',
+            'toolCallId': 'tc1',
+            'toolCallName': 'search',
+            'parentMessageId': 'm1',
+          },
+        ),
+        const SseEvent(
+          type: 'TOOL_CALL_ARGS',
+          payload: {
+            'type': 'TOOL_CALL_ARGS',
+            'toolCallId': 'tc1',
+            'delta': '{"query":',
+          },
+        ),
+        const SseEvent(
+          type: 'TOOL_CALL_ARGS',
+          payload: {
+            'type': 'TOOL_CALL_ARGS',
+            'toolCallId': 'tc1',
+            'delta': ' "hello"}',
+          },
+        ),
+        const SseEvent(
+          type: 'TOOL_CALL_END',
+          payload: {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+        ),
       ];
       final run = accumulateEvents(events);
       final toolCalls = run.entries.whereType<ToolCallEntry>().toList();
@@ -76,13 +92,16 @@ void main() {
 
     test('captures tool result', () {
       final events = [
-        const SseEvent(type: 'TOOL_CALL_RESULT', payload: {
-          'type': 'TOOL_CALL_RESULT',
-          'messageId': 'm2',
-          'toolCallId': 'tc1',
-          'content': 'Search result here',
-          'role': 'tool',
-        }),
+        const SseEvent(
+          type: 'TOOL_CALL_RESULT',
+          payload: {
+            'type': 'TOOL_CALL_RESULT',
+            'messageId': 'm2',
+            'toolCallId': 'tc1',
+            'content': 'Search result here',
+            'role': 'tool',
+          },
+        ),
       ];
       final run = accumulateEvents(events);
       final results = run.entries.whereType<ToolResultEntry>().toList();
@@ -94,16 +113,17 @@ void main() {
     test('accumulates thinking deltas', () {
       final events = [
         const SseEvent(
-            type: 'THINKING_START',
-            payload: {'type': 'THINKING_START', 'title': 'Analyzing'}),
-        const SseEvent(type: 'THINKING_CONTENT', payload: {
-          'type': 'THINKING_CONTENT',
-          'delta': 'Let me think...',
-        }),
-        const SseEvent(type: 'THINKING_CONTENT', payload: {
-          'type': 'THINKING_CONTENT',
-          'delta': ' about this.',
-        }),
+          type: 'THINKING_START',
+          payload: {'type': 'THINKING_START', 'title': 'Analyzing'},
+        ),
+        const SseEvent(
+          type: 'THINKING_CONTENT',
+          payload: {'type': 'THINKING_CONTENT', 'delta': 'Let me think...'},
+        ),
+        const SseEvent(
+          type: 'THINKING_CONTENT',
+          payload: {'type': 'THINKING_CONTENT', 'delta': ' about this.'},
+        ),
         const SseEvent(type: 'THINKING_END', payload: {'type': 'THINKING_END'}),
       ];
       final run = accumulateEvents(events);
@@ -115,11 +135,14 @@ void main() {
     test('handles RUN_ERROR', () {
       final events = [
         const SseEvent(type: 'RUN_STARTED', payload: {'type': 'RUN_STARTED'}),
-        const SseEvent(type: 'RUN_ERROR', payload: {
-          'type': 'RUN_ERROR',
-          'message': 'Timeout',
-          'code': 'TIMEOUT',
-        }),
+        const SseEvent(
+          type: 'RUN_ERROR',
+          payload: {
+            'type': 'RUN_ERROR',
+            'message': 'Timeout',
+            'code': 'TIMEOUT',
+          },
+        ),
       ];
       final run = accumulateEvents(events);
       expect(run.isComplete, isTrue);
@@ -131,16 +154,22 @@ void main() {
     test('handles partial stream with no RUN_FINISHED', () {
       final events = [
         const SseEvent(type: 'RUN_STARTED', payload: {'type': 'RUN_STARTED'}),
-        const SseEvent(type: 'TEXT_MESSAGE_START', payload: {
-          'type': 'TEXT_MESSAGE_START',
-          'messageId': 'm1',
-          'role': 'assistant',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_CONTENT', payload: {
-          'type': 'TEXT_MESSAGE_CONTENT',
-          'messageId': 'm1',
-          'delta': 'partial...',
-        }),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_START',
+          payload: {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'm1',
+            'role': 'assistant',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_CONTENT',
+          payload: {
+            'type': 'TEXT_MESSAGE_CONTENT',
+            'messageId': 'm1',
+            'delta': 'partial...',
+          },
+        ),
       ];
       final run = accumulateEvents(events);
       expect(run.isComplete, isFalse);
@@ -151,10 +180,13 @@ void main() {
 
     test('captures state snapshot', () {
       final events = [
-        const SseEvent(type: 'STATE_SNAPSHOT', payload: {
-          'type': 'STATE_SNAPSHOT',
-          'snapshot': {'count': 0},
-        }),
+        const SseEvent(
+          type: 'STATE_SNAPSHOT',
+          payload: {
+            'type': 'STATE_SNAPSHOT',
+            'snapshot': {'count': 0},
+          },
+        ),
       ];
       final run = accumulateEvents(events);
       final states = run.entries.whereType<StateEntry>().toList();
@@ -165,29 +197,38 @@ void main() {
     test('orders multiple entries chronologically', () {
       final events = [
         const SseEvent(type: 'RUN_STARTED', payload: {'type': 'RUN_STARTED'}),
-        const SseEvent(type: 'TEXT_MESSAGE_START', payload: {
-          'type': 'TEXT_MESSAGE_START',
-          'messageId': 'm1',
-          'role': 'assistant',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_CONTENT', payload: {
-          'type': 'TEXT_MESSAGE_CONTENT',
-          'messageId': 'm1',
-          'delta': 'Hi',
-        }),
-        const SseEvent(type: 'TEXT_MESSAGE_END', payload: {
-          'type': 'TEXT_MESSAGE_END',
-          'messageId': 'm1',
-        }),
-        const SseEvent(type: 'TOOL_CALL_START', payload: {
-          'type': 'TOOL_CALL_START',
-          'toolCallId': 'tc1',
-          'toolCallName': 'search',
-        }),
-        const SseEvent(type: 'TOOL_CALL_END', payload: {
-          'type': 'TOOL_CALL_END',
-          'toolCallId': 'tc1',
-        }),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_START',
+          payload: {
+            'type': 'TEXT_MESSAGE_START',
+            'messageId': 'm1',
+            'role': 'assistant',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_CONTENT',
+          payload: {
+            'type': 'TEXT_MESSAGE_CONTENT',
+            'messageId': 'm1',
+            'delta': 'Hi',
+          },
+        ),
+        const SseEvent(
+          type: 'TEXT_MESSAGE_END',
+          payload: {'type': 'TEXT_MESSAGE_END', 'messageId': 'm1'},
+        ),
+        const SseEvent(
+          type: 'TOOL_CALL_START',
+          payload: {
+            'type': 'TOOL_CALL_START',
+            'toolCallId': 'tc1',
+            'toolCallName': 'search',
+          },
+        ),
+        const SseEvent(
+          type: 'TOOL_CALL_END',
+          payload: {'type': 'TOOL_CALL_END', 'toolCallId': 'tc1'},
+        ),
         const SseEvent(type: 'RUN_FINISHED', payload: {'type': 'RUN_FINISHED'}),
       ];
       final run = accumulateEvents(events);

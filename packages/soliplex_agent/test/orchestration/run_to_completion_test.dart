@@ -37,28 +37,28 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
-      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
-      const ToolCallEndEvent(toolCallId: 'tc-1'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
+  const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
+  const ToolCallEndEvent(toolCallId: 'tc-1'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-2'),
-      const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
-      const TextMessageEndEvent(messageId: 'msg-2'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-2'),
+  const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
+  const TextMessageEndEvent(messageId: 'msg-2'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 ToolRegistry _registryWith({String toolName = 'weather'}) {
   return const ToolRegistry().register(
@@ -70,14 +70,14 @@ ToolRegistry _registryWith({String toolName = 'weather'}) {
 }
 
 List<ToolCallInfo> _executedTools() => [
-      const ToolCallInfo(
-        id: 'tc-1',
-        name: 'weather',
-        arguments: '{"city":"NYC"}',
-        status: ToolCallStatus.completed,
-        result: '72°F, sunny',
-      ),
-    ];
+  const ToolCallInfo(
+    id: 'tc-1',
+    name: 'weather',
+    arguments: '{"city":"NYC"}',
+    status: ToolCallStatus.completed,
+    result: '72°F, sunny',
+  ),
+];
 
 Future<List<ToolCallInfo>> _defaultToolExecutor(
   List<ToolCallInfo> pending,

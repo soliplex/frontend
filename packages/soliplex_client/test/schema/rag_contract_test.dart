@@ -153,15 +153,9 @@ void main() {
           documents: [
             DocumentInfo(created: '2026-01-01', title: 'Doc', uri: 'uri'),
           ],
-          qaHistory: [
-            QaHistoryEntry(question: 'Q', answer: 'A'),
-          ],
+          qaHistory: [QaHistoryEntry(question: 'Q', answer: 'A')],
           reports: [
-            ResearchEntry(
-              question: 'Q',
-              title: 'T',
-              executiveSummary: 'S',
-            ),
+            ResearchEntry(question: 'Q', title: 'T', executiveSummary: 'S'),
           ],
           searches: {
             'q': [SearchResult(content: 'r', score: 0.9)],
@@ -169,8 +163,9 @@ void main() {
         );
 
         final jsonString = jsonEncode(original.toJson());
-        final decoded =
-            Rag.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
+        final decoded = Rag.fromJson(
+          jsonDecode(jsonString) as Map<String, dynamic>,
+        );
 
         expect(decoded.citations, hasLength(1));
         expect(decoded.documentFilter, equals('filter'));
@@ -378,11 +373,7 @@ void main() {
     });
 
     test('JSON key is executive_summary (snake_case)', () {
-      final json = {
-        'question': 'Q',
-        'title': 'T',
-        'executive_summary': 'S',
-      };
+      final json = {'question': 'Q', 'title': 'T', 'executive_summary': 'S'};
 
       final entry = ResearchEntry.fromJson(json);
       expect(entry.executiveSummary, equals('S'));

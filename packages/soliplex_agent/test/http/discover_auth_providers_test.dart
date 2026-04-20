@@ -79,15 +79,16 @@ void main() {
         httpClient: mockClient,
       );
 
-      final captured = verify(
-        () => mockClient.request(
-          'GET',
-          captureAny(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-          timeout: any(named: 'timeout'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => mockClient.request(
+              'GET',
+              captureAny(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).captured;
       expect(captured.single, Uri.parse('https://api.example.com/api/login'));
     });
   });

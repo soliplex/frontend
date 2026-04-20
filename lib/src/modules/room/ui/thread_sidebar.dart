@@ -69,10 +69,7 @@ class ThreadSidebar extends StatelessWidget {
         ),
         const Divider(height: 1),
         if (quizzes.isNotEmpty) ...[
-          _QuizRow(
-            quizzes: quizzes,
-            onQuizTapped: onQuizTapped,
-          ),
+          _QuizRow(quizzes: quizzes, onQuizTapped: onQuizTapped),
           const Divider(height: 1),
         ],
         Expanded(child: _buildContent(context)),
@@ -103,49 +100,46 @@ class ThreadSidebar extends StatelessWidget {
     return switch (threadListStatus) {
       ThreadsLoading() => const Center(child: CircularProgressIndicator()),
       ThreadsFailed(:final error) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: ErrorRetryPanel(
-            title: 'Failed to load threads',
-            error: error,
-            onRetry: onRetryThreads,
-          ),
+        padding: const EdgeInsets.all(16),
+        child: ErrorRetryPanel(
+          title: 'Failed to load threads',
+          error: error,
+          onRetry: onRetryThreads,
         ),
+      ),
       ThreadsLoaded(:final threads) => _wrapWithRefresh(
-          threads.isEmpty
-              ? ListView(
-                  children: const [
-                    Center(
-                        child: Padding(
-                      padding: EdgeInsets.only(top: 32),
-                      child: Text('No threads'),
-                    )),
-                  ],
-                )
-              : ListView.builder(
-                  itemCount: threads.length,
-                  itemBuilder: (context, index) {
-                    final thread = threads[index];
-                    return ThreadTile(
-                      thread: thread,
-                      isSelected: thread.id == selectedThreadId,
-                      onTap: () => onThreadSelected(thread.id),
-                      onRename: () =>
-                          onRenameThread?.call(thread.id, thread.name),
-                      onDelete: () => onDeleteThread?.call(thread.id),
-                    );
-                  },
+        threads.isEmpty
+            ? ListView(
+              children: const [
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 32),
+                    child: Text('No threads'),
+                  ),
                 ),
-        ),
+              ],
+            )
+            : ListView.builder(
+              itemCount: threads.length,
+              itemBuilder: (context, index) {
+                final thread = threads[index];
+                return ThreadTile(
+                  thread: thread,
+                  isSelected: thread.id == selectedThreadId,
+                  onTap: () => onThreadSelected(thread.id),
+                  onRename: () => onRenameThread?.call(thread.id, thread.name),
+                  onDelete: () => onDeleteThread?.call(thread.id),
+                );
+              },
+            ),
+      ),
     };
   }
 
   Widget _wrapWithRefresh(Widget child) {
     final handler = onRetryThreads;
     if (handler == null) return child;
-    return RefreshIndicator(
-      onRefresh: handler,
-      child: child,
-    );
+    return RefreshIndicator(onRefresh: handler, child: child);
   }
 }
 
@@ -168,9 +162,10 @@ class _QuizRowState extends State<_QuizRow> {
       return _quizButton(
         icon: Icons.quiz,
         label: entry.value,
-        onPressed: widget.onQuizTapped != null
-            ? () => widget.onQuizTapped!(entry.key)
-            : null,
+        onPressed:
+            widget.onQuizTapped != null
+                ? () => widget.onQuizTapped!(entry.key)
+                : null,
       );
     }
 
@@ -187,9 +182,10 @@ class _QuizRowState extends State<_QuizRow> {
             _quizButton(
               icon: Icons.play_arrow,
               label: entry.value,
-              onPressed: widget.onQuizTapped != null
-                  ? () => widget.onQuizTapped!(entry.key)
-                  : null,
+              onPressed:
+                  widget.onQuizTapped != null
+                      ? () => widget.onQuizTapped!(entry.key)
+                      : null,
               indent: true,
             ),
       ],
@@ -207,9 +203,7 @@ class _QuizRowState extends State<_QuizRow> {
       icon: Icon(icon, size: 16),
       label: Text(label),
       style: TextButton.styleFrom(
-        padding: EdgeInsets.symmetric(
-          horizontal: indent ? 24 : 8,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: indent ? 24 : 8),
         visualDensity: VisualDensity.compact,
         alignment: Alignment.centerLeft,
       ),

@@ -35,8 +35,9 @@ class _ToolCallCard extends StatelessWidget {
                 toolCall.name,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w500),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             const SizedBox(width: 8),

@@ -47,14 +47,15 @@ void main() {
         fileBytes: fileBytes,
       );
 
-      final captured = verify(
-        () => mockTransport.request<void>(
-          'POST',
-          captureAny(),
-          body: captureAny(named: 'body'),
-          headers: captureAny(named: 'headers'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => mockTransport.request<void>(
+              'POST',
+              captureAny(),
+              body: captureAny(named: 'body'),
+              headers: captureAny(named: 'headers'),
+            ),
+          ).captured;
 
       final uri = captured[0] as Uri;
       expect(uri.path, contains('/uploads/room-123'));
@@ -93,14 +94,15 @@ void main() {
         fileBytes: fileBytes,
       );
 
-      final captured = verify(
-        () => mockTransport.request<void>(
-          'POST',
-          captureAny(),
-          body: captureAny(named: 'body'),
-          headers: captureAny(named: 'headers'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => mockTransport.request<void>(
+              'POST',
+              captureAny(),
+              body: captureAny(named: 'body'),
+              headers: captureAny(named: 'headers'),
+            ),
+          ).captured;
 
       final uri = captured[0] as Uri;
       expect(uri.path, contains('/uploads/room-123/thread-456'));

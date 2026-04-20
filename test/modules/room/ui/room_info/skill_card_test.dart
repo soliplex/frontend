@@ -18,16 +18,15 @@ void main() {
     metadata: {'author': 'Alice'},
   );
 
-  const emptySkill = RoomSkill(
-    name: 'empty-skill',
-    description: '',
-  );
+  const emptySkill = RoomSkill(name: 'empty-skill', description: '');
 
   group('SkillContentColumn', () {
     testWidgets('renders all skill fields', (tester) async {
-      await tester.pumpWidget(wrap(
-        SingleChildScrollView(child: SkillContentColumn(skill: fullSkill)),
-      ));
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(child: SkillContentColumn(skill: fullSkill)),
+        ),
+      );
       expect(find.text('description'), findsOneWidget);
       expect(find.text('Does cool things'), findsOneWidget);
       expect(find.text('source'), findsOneWidget);
@@ -43,41 +42,53 @@ void main() {
     });
 
     testWidgets('shows None for empty or null fields', (tester) async {
-      await tester.pumpWidget(wrap(
-        SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
-      ));
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
+        ),
+      );
       // description is empty string → None
       // source, license, compatibility, allowedTools, stateNamespace are null → None
       expect(find.text('None'), findsWidgets);
     });
 
-    testWidgets('Show more button appears when metadata is non-empty',
-        (tester) async {
-      await tester.pumpWidget(wrap(
-        SingleChildScrollView(child: SkillContentColumn(skill: fullSkill)),
-      ));
+    testWidgets('Show more button appears when metadata is non-empty', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(child: SkillContentColumn(skill: fullSkill)),
+        ),
+      );
       expect(find.text('Show more'), findsOneWidget);
     });
 
-    testWidgets('Show more button appears when stateTypeSchema is non-empty',
-        (tester) async {
+    testWidgets('Show more button appears when stateTypeSchema is non-empty', (
+      tester,
+    ) async {
       const skillWithSchema = RoomSkill(
         name: 'schema-skill',
         description: 'Has schema',
         stateTypeSchema: {'type': 'object'},
       );
-      await tester.pumpWidget(wrap(
-        SingleChildScrollView(
-            child: SkillContentColumn(skill: skillWithSchema)),
-      ));
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(
+            child: SkillContentColumn(skill: skillWithSchema),
+          ),
+        ),
+      );
       expect(find.text('Show more'), findsOneWidget);
     });
 
-    testWidgets('Show more button hidden when no metadata or schema',
-        (tester) async {
-      await tester.pumpWidget(wrap(
-        SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
-      ));
+    testWidgets('Show more button hidden when no metadata or schema', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(child: SkillContentColumn(skill: emptySkill)),
+        ),
+      );
       expect(find.text('Show more'), findsNothing);
     });
   });
@@ -104,17 +115,21 @@ void main() {
     });
 
     testWidgets('Close button dismisses dialog', (tester) async {
-      await tester.pumpWidget(wrap(
-        Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => SkillDetailDialog(skill: fullSkill),
-            ),
-            child: const Text('Open'),
+      await tester.pumpWidget(
+        wrap(
+          Builder(
+            builder:
+                (context) => TextButton(
+                  onPressed:
+                      () => showDialog<void>(
+                        context: context,
+                        builder: (_) => SkillDetailDialog(skill: fullSkill),
+                      ),
+                  child: const Text('Open'),
+                ),
           ),
         ),
-      ));
+      );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);

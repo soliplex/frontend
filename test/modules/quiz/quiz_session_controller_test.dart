@@ -38,11 +38,8 @@ void main() {
 
   test('start throws on empty quiz', () {
     expect(
-      () => controller.start(Quiz(
-        id: 'q',
-        title: 'Empty',
-        questions: const [],
-      )),
+      () =>
+          controller.start(Quiz(id: 'q', title: 'Empty', questions: const [])),
       throwsA(isA<ArgumentError>()),
     );
   });
@@ -69,10 +66,7 @@ void main() {
     await controller.submitAnswer();
     final state = controller.session.value as QuizInProgress;
     expect(state.questionState, isA<Answered>());
-    expect(
-      (state.questionState as Answered).result.isCorrect,
-      isTrue,
-    );
+    expect((state.questionState as Answered).result.isCorrect, isTrue);
     expect(controller.submissionError.value, isNull);
   });
 
@@ -111,9 +105,7 @@ void main() {
     final quiz = Quiz(
       id: 'q',
       title: 'One Q',
-      questions: const [
-        QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
-      ],
+      questions: const [QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm())],
     );
     api.nextQuizAnswerResult = const CorrectAnswer();
     controller.start(quiz);
@@ -184,15 +176,17 @@ void main() {
       expect(state.questionState, isA<AwaitingInput>());
     });
 
-    test('submitAnswer no-op when Composing with whitespace-only input',
-        () async {
-      controller.start(_quiz());
-      controller.updateInput(const TextInput('   '));
-      await controller.submitAnswer();
-      final state = controller.session.value as QuizInProgress;
-      expect(state.questionState, isA<Composing>());
-      expect(api.submitQuizAnswerCallCount, 0);
-    });
+    test(
+      'submitAnswer no-op when Composing with whitespace-only input',
+      () async {
+        controller.start(_quiz());
+        controller.updateInput(const TextInput('   '));
+        await controller.submitAnswer();
+        final state = controller.session.value as QuizInProgress;
+        expect(state.questionState, isA<Composing>());
+        expect(api.submitQuizAnswerCallCount, 0);
+      },
+    );
 
     test('submitAnswer no-op when QuizNotStarted', () async {
       await controller.submitAnswer();
@@ -221,17 +215,19 @@ void main() {
     });
 
     test('updateInput rejects TextInput for MultipleChoice question', () {
-      controller.start(Quiz(
-        id: 'q',
-        title: 'MC Quiz',
-        questions: [
-          QuizQuestion(
-            id: 'q-1',
-            text: 'Pick one',
-            type: MultipleChoice(['A', 'B', 'C']),
-          ),
-        ],
-      ));
+      controller.start(
+        Quiz(
+          id: 'q',
+          title: 'MC Quiz',
+          questions: [
+            QuizQuestion(
+              id: 'q-1',
+              text: 'Pick one',
+              type: MultipleChoice(['A', 'B', 'C']),
+            ),
+          ],
+        ),
+      );
       controller.updateInput(const TextInput('typed text'));
       final state = controller.session.value as QuizInProgress;
       expect(state.questionState, isA<AwaitingInput>());
@@ -280,8 +276,9 @@ void main() {
   });
 
   test('NetworkException shows specific error message', () async {
-    api.nextQuizAnswerError =
-        const NetworkException(message: 'connection refused');
+    api.nextQuizAnswerError = const NetworkException(
+      message: 'connection refused',
+    );
     controller.start(_quiz());
     controller.updateInput(const TextInput('answer'));
     await controller.submitAnswer();
@@ -309,10 +306,7 @@ void main() {
     await controller.submitAnswer();
     final state = controller.session.value as QuizInProgress;
     expect(state.questionState, isA<Composing>());
-    expect(
-      (state.questionState as Composing).input.answerText,
-      'answer',
-    );
+    expect((state.questionState as Composing).input.answerText, 'answer');
     expect(
       controller.submissionError.value,
       'An unexpected error occurred. Please try again.',
@@ -323,9 +317,7 @@ void main() {
     final quiz = Quiz(
       id: 'q',
       title: 'One Q',
-      questions: const [
-        QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
-      ],
+      questions: const [QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm())],
     );
     api.nextQuizAnswerResult = const CorrectAnswer();
     controller.start(quiz);
@@ -343,10 +335,10 @@ void main() {
 }
 
 Quiz _quiz() => Quiz(
-      id: 'quiz-1',
-      title: 'Test',
-      questions: const [
-        QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
-        QuizQuestion(id: 'q-2', text: 'Q2', type: FreeForm()),
-      ],
-    );
+  id: 'quiz-1',
+  title: 'Test',
+  questions: const [
+    QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
+    QuizQuestion(id: 'q-2', text: 'Q2', type: FreeForm()),
+  ],
+);

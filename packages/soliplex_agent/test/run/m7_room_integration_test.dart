@@ -93,14 +93,15 @@ void main() {
           '(depth=${yielding.toolDepth})',
         );
 
-        final executed = yielding.pendingToolCalls
-            .map(
-              (tc) => tc.copyWith(
-                status: ToolCallStatus.completed,
-                result: '{"cpu": "12%", "memory": "4.2GB"}',
-              ),
-            )
-            .toList();
+        final executed =
+            yielding.pendingToolCalls
+                .map(
+                  (tc) => tc.copyWith(
+                    status: ToolCallStatus.completed,
+                    result: '{"cpu": "12%", "memory": "4.2GB"}',
+                  ),
+                )
+                .toList();
         await orchestrator.submitToolOutputs(executed);
       }
 
@@ -238,14 +239,15 @@ void main() {
         final toolNames = yielding.pendingToolCalls.map((t) => t.name).toList();
         print('Round ${round + 1}: $toolNames');
 
-        final executed = yielding.pendingToolCalls
-            .map(
-              (tc) => tc.copyWith(
-                status: ToolCallStatus.completed,
-                result: 'result_${tc.name.split("_").last}',
-              ),
-            )
-            .toList();
+        final executed =
+            yielding.pendingToolCalls
+                .map(
+                  (tc) => tc.copyWith(
+                    status: ToolCallStatus.completed,
+                    result: 'result_${tc.name.split("_").last}',
+                  ),
+                )
+                .toList();
         await orchestrator.submitToolOutputs(executed);
       }
 
@@ -320,9 +322,10 @@ void main() {
       await waitForTerminalState(orchestrator, timeout: 60);
       expect(orchestrator.currentState, isA<CompletedState>());
 
-      final response = lastAssistantText(
-        (orchestrator.currentState as CompletedState).conversation,
-      ).toLowerCase();
+      final response =
+          lastAssistantText(
+            (orchestrator.currentState as CompletedState).conversation,
+          ).toLowerCase();
       print('Recall response: $response');
       expect(response, contains('blue'));
       expect(response, contains('green'));
@@ -460,9 +463,10 @@ void main() {
         await waitForTerminalState(orchestrator, timeout: 60);
         expect(orchestrator.currentState, isA<CompletedState>());
         history = ThreadHistory(
-          messages: (orchestrator.currentState as CompletedState)
-              .conversation
-              .messages,
+          messages:
+              (orchestrator.currentState as CompletedState)
+                  .conversation
+                  .messages,
         );
         orchestrator.reset();
       }
@@ -476,9 +480,10 @@ void main() {
       await waitForTerminalState(orchestrator, timeout: 60);
       expect(orchestrator.currentState, isA<CompletedState>());
 
-      final response = lastAssistantText(
-        (orchestrator.currentState as CompletedState).conversation,
-      ).toUpperCase();
+      final response =
+          lastAssistantText(
+            (orchestrator.currentState as CompletedState).conversation,
+          ).toUpperCase();
       print('Recall: $response');
       for (final word in words) {
         expect(response, contains(word));
@@ -544,17 +549,21 @@ void main() {
         );
 
         // First round: force failure. All others: succeed.
-        final executed = yielding.pendingToolCalls
-            .map(
-              (tc) => tc.copyWith(
-                status: round == 0
-                    ? ToolCallStatus.failed
-                    : ToolCallStatus.completed,
-                result:
-                    round == 0 ? 'error: value must be greater than 100' : '42',
-              ),
-            )
-            .toList();
+        final executed =
+            yielding.pendingToolCalls
+                .map(
+                  (tc) => tc.copyWith(
+                    status:
+                        round == 0
+                            ? ToolCallStatus.failed
+                            : ToolCallStatus.completed,
+                    result:
+                        round == 0
+                            ? 'error: value must be greater than 100'
+                            : '42',
+                  ),
+                )
+                .toList();
         await orchestrator.submitToolOutputs(executed);
       }
 
@@ -742,16 +751,20 @@ void main() {
         );
 
         // First call: not found. Second+: found.
-        final result = callCount == 1
-            ? 'Not found. Try narrowing your search with "QEC".'
-            : 'Found: doc-42 "Quantum Error Correction Primer"';
+        final result =
+            callCount == 1
+                ? 'Not found. Try narrowing your search with "QEC".'
+                : 'Found: doc-42 "Quantum Error Correction Primer"';
 
-        final executed = yielding.pendingToolCalls
-            .map(
-              (tc) =>
-                  tc.copyWith(status: ToolCallStatus.completed, result: result),
-            )
-            .toList();
+        final executed =
+            yielding.pendingToolCalls
+                .map(
+                  (tc) => tc.copyWith(
+                    status: ToolCallStatus.completed,
+                    result: result,
+                  ),
+                )
+                .toList();
         await orchestrator.submitToolOutputs(executed);
       }
 
@@ -933,7 +946,8 @@ void main() {
       // Plan.
       final planner = await runtime.spawn(
         roomId: 'planner',
-        prompt: 'Describe a futuristic city in 3 aspects: '
+        prompt:
+            'Describe a futuristic city in 3 aspects: '
             'architecture, transportation, energy.',
       );
       final pr = await planner.awaitResult(
@@ -944,10 +958,10 @@ void main() {
       // Parse subtasks — handle LLM formatting quirks.
       var tasks = <String>[];
       try {
-        final raw = (pr as AgentSuccess)
-            .output
-            .replaceAll(RegExp(r'^```json\s*|\s*```$'), '')
-            .trim();
+        final raw =
+            (pr as AgentSuccess).output
+                .replaceAll(RegExp(r'^```json\s*|\s*```$'), '')
+                .trim();
         tasks = List<String>.from(jsonDecode(raw) as List);
       } on Object catch (e) {
         print('JSON parse failed ($e), using fallback subtasks');
@@ -1027,7 +1041,8 @@ void main() {
       // Judge.
       final judge = await runtime.spawn(
         roomId: 'judge',
-        prompt: 'Three experts were asked "Is Pluto a planet?"\n'
+        prompt:
+            'Three experts were asked "Is Pluto a planet?"\n'
             '1: ${opinions[0]}\n'
             '2: ${opinions[1]}\n'
             '3: ${opinions[2]}\n'
@@ -1076,9 +1091,9 @@ void main() {
       );
       expect(cr, isA<AgentSuccess>());
       final route = (cr as AgentSuccess).output.trim().toLowerCase().replaceAll(
-            RegExp('[^a-z]'),
-            '',
-          );
+        RegExp('[^a-z]'),
+        '',
+      );
       print('Classifier route: $route');
 
       // Keep winner, cancel loser.
@@ -1131,7 +1146,8 @@ void main() {
         // Review.
         final reviewer = await runtime.spawn(
           roomId: 'reviewer',
-          prompt: 'Does this have exactly 3 bullet points? '
+          prompt:
+              'Does this have exactly 3 bullet points? '
               'Reply PASS or FAIL: <reason>.\n\n$draft',
         );
         final rr = await reviewer.awaitResult(
@@ -1149,7 +1165,8 @@ void main() {
         // Fix.
         final fixer = await runtime.spawn(
           roomId: 'fixer',
-          prompt: 'Draft: $draft\nFeedback: $review\n'
+          prompt:
+              'Draft: $draft\nFeedback: $review\n'
               'Produce exactly 3 bullet points about Dart.',
         );
         final fr = await fixer.awaitResult(
@@ -1204,7 +1221,8 @@ void main() {
       // Rebuttal.
       final reb = await runtime.spawn(
         roomId: 'advocate',
-        prompt: 'A critic responded: $againstArgs\n'
+        prompt:
+            'A critic responded: $againstArgs\n'
             'Defend your strongest point in 2 sentences.',
       );
       final rbr = await reb.awaitResult(timeout: const Duration(seconds: 60));
@@ -1215,7 +1233,8 @@ void main() {
       // Judge.
       final jdg = await runtime.spawn(
         roomId: 'judge',
-        prompt: 'Debate: "Is remote work better than office work?"\n'
+        prompt:
+            'Debate: "Is remote work better than office work?"\n'
             'FOR: $rebuttal\n'
             'AGAINST: $againstArgs\n'
             'Who made the stronger argument? '
@@ -1264,7 +1283,8 @@ void main() {
         mappers.add(
           await runtime.spawn(
             roomId: 'parallel',
-            prompt: 'Extract only the population number from: $chunk. '
+            prompt:
+                'Extract only the population number from: $chunk. '
                 'Reply with just the number.',
           ),
         );
@@ -1284,7 +1304,8 @@ void main() {
       // Reduce.
       final reducer = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Given populations: ${populations.join(", ")} — '
+        prompt:
+            'Given populations: ${populations.join(", ")} — '
             'which country has the largest and smallest population? '
             'The data was: ${chunks.join("; ")}',
       );

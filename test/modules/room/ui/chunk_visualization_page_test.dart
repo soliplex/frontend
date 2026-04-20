@@ -36,23 +36,26 @@ Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   testWidgets('shows loading indicator while fetching', (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64],
-      );
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64],
+          );
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'Test Doc',
-        pageNumbers: const [1],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'Test Doc',
+          pageNumbers: const [1],
+        ),
       ),
-    ));
+    );
 
     // Before future completes, loading spinner is shown
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -63,23 +66,26 @@ void main() {
   });
 
   testWidgets('shows images after successful load', (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64, _pngBase64],
-      );
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64, _pngBase64],
+          );
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'My Document',
-        pageNumbers: const [3, 4],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'My Document',
+          pageNumbers: const [3, 4],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('My Document'), findsOneWidget);
@@ -91,16 +97,18 @@ void main() {
   testWidgets('shows error with retry on failure', (tester) async {
     final api = _ChunkVizApi()..nextVizError = Exception('Network error');
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'Test Doc',
-        pageNumbers: const [],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'Test Doc',
+          pageNumbers: const [],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Failed to load visualization'), findsOneWidget);
@@ -123,46 +131,52 @@ void main() {
   });
 
   testWidgets('no page indicators for single image', (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64],
-      );
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64],
+          );
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'Doc',
-        pageNumbers: const [1],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'Doc',
+          pageNumbers: const [1],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(CircleAvatar), findsNothing);
   });
 
   testWidgets('handles more pageNumbers than images', (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64],
-      );
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64],
+          );
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'Multi-page Chunk',
-        pageNumbers: const [3, 4],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'Multi-page Chunk',
+          pageNumbers: const [3, 4],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     // Should show the image without crashing
@@ -171,27 +185,31 @@ void main() {
     expect(find.text('Pages 3–4'), findsOneWidget);
   });
 
-  testWidgets('dialog layout shows title bar with close button',
-      (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64],
-      );
+  testWidgets('dialog layout shows title bar with close button', (
+    tester,
+  ) async {
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64],
+          );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ChunkVisualizationPage(
-          api: api,
-          roomId: 'room-1',
-          chunkId: 'c1',
-          useDialogLayout: true,
-          documentTitle: 'My Report',
-          pageNumbers: const [1],
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChunkVisualizationPage(
+            api: api,
+            roomId: 'room-1',
+            chunkId: 'c1',
+            useDialogLayout: true,
+            documentTitle: 'My Report',
+            pageNumbers: const [1],
+          ),
         ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsOneWidget);
@@ -241,23 +259,26 @@ void main() {
   });
 
   testWidgets('tapping rotate button rotates the image', (tester) async {
-    final api = _ChunkVizApi()
-      ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
-        documentUri: 'doc.pdf',
-        imagesBase64: [_pngBase64],
-      );
+    final api =
+        _ChunkVizApi()
+          ..nextVisualization = ChunkVisualization(
+            chunkId: 'c1',
+            documentUri: 'doc.pdf',
+            imagesBase64: [_pngBase64],
+          );
 
-    await tester.pumpWidget(_wrap(
-      ChunkVisualizationPage(
-        api: api,
-        roomId: 'room-1',
-        chunkId: 'c1',
-        useDialogLayout: false,
-        documentTitle: 'Doc',
-        pageNumbers: const [1],
+    await tester.pumpWidget(
+      _wrap(
+        ChunkVisualizationPage(
+          api: api,
+          roomId: 'room-1',
+          chunkId: 'c1',
+          useDialogLayout: false,
+          documentTitle: 'Doc',
+          pageNumbers: const [1],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     // Initial rotation is 0

@@ -132,15 +132,14 @@ void main() {
 
       test('stops capturing after close', () async {
         final captured = <LogRecord>[];
-        final sink = ConsoleSink(testWriter: captured.add)
-          ..write(
-            LogRecord(
-              level: LogLevel.info,
-              message: 'before close',
-              timestamp: DateTime.now(),
-              loggerName: 'Test',
-            ),
-          );
+        final sink = ConsoleSink(testWriter: captured.add)..write(
+          LogRecord(
+            level: LogLevel.info,
+            message: 'before close',
+            timestamp: DateTime.now(),
+            loggerName: 'Test',
+          ),
+        );
 
         await sink.close();
 

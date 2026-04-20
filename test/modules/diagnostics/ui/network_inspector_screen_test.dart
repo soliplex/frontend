@@ -17,8 +17,9 @@ void main() {
       inspector.dispose();
     });
 
-    testWidgets('shows empty state when inspector has no events',
-        (tester) async {
+    testWidgets('shows empty state when inspector has no events', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
       );
@@ -63,8 +64,9 @@ void main() {
       expect(button.onPressed, isNotNull);
     });
 
-    testWidgets('clear button clears events and shows empty state',
-        (tester) async {
+    testWidgets('clear button clears events and shows empty state', (
+      tester,
+    ) async {
       inspector.onRequest(createRequestEvent());
 
       tester.view.physicalSize = const Size(400, 800);
@@ -81,8 +83,9 @@ void main() {
       expect(find.text('No HTTP requests yet'), findsOneWidget);
     });
 
-    testWidgets('clear button is enabled when only concurrency events exist',
-        (tester) async {
+    testWidgets('clear button is enabled when only concurrency events exist', (
+      tester,
+    ) async {
       inspector.onConcurrencyWait(createConcurrencyWaitEvent());
 
       await tester.pumpWidget(
@@ -93,37 +96,41 @@ void main() {
       expect(
         button.onPressed,
         isNotNull,
-        reason: 'Trash-can must activate when concurrency events exist '
+        reason:
+            'Trash-can must activate when concurrency events exist '
             'even if HTTP events list is empty',
       );
     });
 
     testWidgets(
-        'clear button clears concurrency events and hides the summary panel',
-        (tester) async {
-      inspector
-        ..onConcurrencyWait(createConcurrencyWaitEvent(acquisitionId: 'acq-1'))
-        ..onConcurrencyWait(
-          createConcurrencyWaitEvent(
-            acquisitionId: 'acq-2',
-            waitDuration: const Duration(milliseconds: 120),
-            queueDepthAtEnqueue: 2,
-          ),
+      'clear button clears concurrency events and hides the summary panel',
+      (tester) async {
+        inspector
+          ..onConcurrencyWait(
+            createConcurrencyWaitEvent(acquisitionId: 'acq-1'),
+          )
+          ..onConcurrencyWait(
+            createConcurrencyWaitEvent(
+              acquisitionId: 'acq-2',
+              waitDuration: const Duration(milliseconds: 120),
+              queueDepthAtEnqueue: 2,
+            ),
+          );
+
+        await tester.pumpWidget(
+          MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
         );
 
-      await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
-      );
+        // Panel is visible when concurrency events exist.
+        expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
 
-      // Panel is visible when concurrency events exist.
-      expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
 
-      await tester.tap(find.byType(IconButton));
-      await tester.pump();
-
-      // Panel hides itself when the list is empty.
-      expect(find.byIcon(Icons.hourglass_empty), findsNothing);
-      expect(inspector.concurrencyEvents, isEmpty);
-    });
+        // Panel hides itself when the list is empty.
+        expect(find.byIcon(Icons.hourglass_empty), findsNothing);
+        expect(inspector.concurrencyEvents, isEmpty);
+      },
+    );
   });
 }

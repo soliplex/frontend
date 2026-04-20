@@ -47,9 +47,10 @@ void main() {
       observers: [observer],
     );
 
-    final logManager = LogManager.instance
-      ..minimumLevel = LogLevel.debug
-      ..addSink(StdoutSink());
+    final logManager =
+        LogManager.instance
+          ..minimumLevel = LogLevel.debug
+          ..addSink(StdoutSink());
 
     final connection = ServerConnection.create(
       serverId: 'default',

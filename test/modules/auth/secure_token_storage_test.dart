@@ -31,9 +31,7 @@ void main() {
     });
 
     test('preserves stored tokens on subsequent launches', () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_has_launched': true,
-      });
+      SharedPreferences.setMockInitialValues({'soliplex_has_launched': true});
 
       await storage.save(
         'test-server',

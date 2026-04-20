@@ -16,8 +16,9 @@ void main() {
 
     test('text response emits correct AG-UI event sequence', () async {
       final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async =>
-            'Hello! How can I help?',
+        chatFn:
+            (messages, {systemPrompt, maxTokens}) async =>
+                'Hello! How can I help?',
       );
 
       final handle = await provider.startRun(key: key, input: input0());
@@ -37,7 +38,8 @@ void main() {
 
     test('tool call response emits ToolCall events', () async {
       final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async => '''
+        chatFn:
+            (messages, {systemPrompt, maxTokens}) async => '''
 ```tool_call
 {"name": "get_weather", "arguments": {"city": "NYC"}}
 ```''',
@@ -57,7 +59,8 @@ void main() {
 
     test('tool call with prefix text emits text then tool call', () async {
       final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async => '''
+        chatFn:
+            (messages, {systemPrompt, maxTokens}) async => '''
 Let me check.
 
 ```tool_call
@@ -83,7 +86,8 @@ Let me check.
 
     test('malformed tool call falls back to text response', () async {
       final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async => '''
+        chatFn:
+            (messages, {systemPrompt, maxTokens}) async => '''
 ```tool_call
 {invalid json}
 ```''',
@@ -101,8 +105,9 @@ Let me check.
 
     test('LLM error emits RunErrorEvent', () async {
       final provider = ChatFnLlmProvider(
-        chatFn: (messages, {systemPrompt, maxTokens}) async =>
-            throw Exception('Connection refused'),
+        chatFn:
+            (messages, {systemPrompt, maxTokens}) async =>
+                throw Exception('Connection refused'),
       );
 
       final handle = await provider.startRun(key: key, input: input0());

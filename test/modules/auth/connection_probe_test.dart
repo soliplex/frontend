@@ -34,27 +34,29 @@ void main() {
       expect(success.isInsecure, isFalse);
     });
 
-    test('falls back to HTTP on NetworkException for schemeless input',
-        () async {
-      var callCount = 0;
-      final result = await probeConnection(
-        input: 'example.com',
-        httpClient: httpClient,
-        discover: (serverUrl, _) async {
-          callCount++;
-          if (serverUrl.scheme == 'https') {
-            throw const NetworkException(message: 'connection refused');
-          }
-          return [_provider];
-        },
-      );
+    test(
+      'falls back to HTTP on NetworkException for schemeless input',
+      () async {
+        var callCount = 0;
+        final result = await probeConnection(
+          input: 'example.com',
+          httpClient: httpClient,
+          discover: (serverUrl, _) async {
+            callCount++;
+            if (serverUrl.scheme == 'https') {
+              throw const NetworkException(message: 'connection refused');
+            }
+            return [_provider];
+          },
+        );
 
-      expect(callCount, 2);
-      expect(result, isA<ConnectionSuccess>());
-      final success = result as ConnectionSuccess;
-      expect(success.serverUrl, Uri.parse('http://example.com'));
-      expect(success.isInsecure, isTrue);
-    });
+        expect(callCount, 2);
+        expect(result, isA<ConnectionSuccess>());
+        final success = result as ConnectionSuccess;
+        expect(success.serverUrl, Uri.parse('http://example.com'));
+        expect(success.isInsecure, isTrue);
+      },
+    );
 
     test('falls back to HTTP for host:port schemeless input', () async {
       final result = await probeConnection(
@@ -121,30 +123,29 @@ void main() {
       expect(result, isA<ConnectionFailure>());
       final failure = result as ConnectionFailure;
       expect(failure.error, isA<Exception>());
-      expect(
-        failure.attemptedUrls,
-        [Uri.parse('https://example.com')],
-      );
+      expect(failure.attemptedUrls, [Uri.parse('https://example.com')]);
     });
 
-    test('returns failure when both HTTPS and HTTP fail with NetworkException',
-        () async {
-      final result = await probeConnection(
-        input: 'example.com',
-        httpClient: httpClient,
-        discover: (serverUrl, _) async {
-          throw const NetworkException(message: 'unreachable');
-        },
-      );
+    test(
+      'returns failure when both HTTPS and HTTP fail with NetworkException',
+      () async {
+        final result = await probeConnection(
+          input: 'example.com',
+          httpClient: httpClient,
+          discover: (serverUrl, _) async {
+            throw const NetworkException(message: 'unreachable');
+          },
+        );
 
-      expect(result, isA<ConnectionFailure>());
-      final failure = result as ConnectionFailure;
-      expect(failure.error, isA<NetworkException>());
-      expect(failure.attemptedUrls, [
-        Uri.parse('https://example.com'),
-        Uri.parse('http://example.com'),
-      ]);
-    });
+        expect(result, isA<ConnectionFailure>());
+        final failure = result as ConnectionFailure;
+        expect(failure.error, isA<NetworkException>());
+        expect(failure.attemptedUrls, [
+          Uri.parse('https://example.com'),
+          Uri.parse('http://example.com'),
+        ]);
+      },
+    );
 
     test('trims whitespace from input', () async {
       Uri? capturedUrl;

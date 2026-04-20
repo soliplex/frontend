@@ -1,9 +1,6 @@
 /// OIDC provider identity for a server connection.
 class OidcProvider {
-  const OidcProvider({
-    required this.discoveryUrl,
-    required this.clientId,
-  });
+  const OidcProvider({required this.discoveryUrl, required this.clientId});
 
   factory OidcProvider.fromJson(Map<String, dynamic> json) {
     return OidcProvider(
@@ -16,9 +13,9 @@ class OidcProvider {
   final String clientId;
 
   Map<String, dynamic> toJson() => {
-        'discoveryUrl': discoveryUrl,
-        'clientId': clientId,
-      };
+    'discoveryUrl': discoveryUrl,
+    'clientId': clientId,
+  };
 }
 
 /// In-memory token cache.
@@ -47,11 +44,11 @@ class AuthTokens {
   final String? idToken;
 
   Map<String, dynamic> toJson() => {
-        'accessToken': accessToken,
-        'refreshToken': refreshToken,
-        'expiresAt': expiresAt.toUtc().toIso8601String(),
-        if (idToken != null) 'idToken': idToken,
-      };
+    'accessToken': accessToken,
+    'refreshToken': refreshToken,
+    'expiresAt': expiresAt.toUtc().toIso8601String(),
+    if (idToken != null) 'idToken': idToken,
+  };
 }
 
 /// Single source of truth for auth session state.
@@ -66,10 +63,7 @@ final class NoSession extends SessionState {
 }
 
 final class ActiveSession extends SessionState {
-  const ActiveSession({
-    required this.provider,
-    required this.tokens,
-  });
+  const ActiveSession({required this.provider, required this.tokens});
 
   final OidcProvider provider;
   final AuthTokens tokens;

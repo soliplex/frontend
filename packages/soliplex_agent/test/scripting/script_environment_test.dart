@@ -38,9 +38,10 @@ void main() {
     });
 
     test('dispose is idempotent', () {
-      final env = _TestScriptEnvironment()
-        ..dispose()
-        ..dispose();
+      final env =
+          _TestScriptEnvironment()
+            ..dispose()
+            ..dispose();
 
       expect(env.disposeCount, equals(2));
     });

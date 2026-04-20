@@ -23,10 +23,7 @@ void main() {
   });
 
   StreamedHttpResponse streamResponse() {
-    return const StreamedHttpResponse(
-      statusCode: 200,
-      body: Stream.empty(),
-    );
+    return const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
   }
 
   group('SoliplexHttpAdapter', () {
@@ -43,14 +40,15 @@ void main() {
       final request = http.Request('GET', Uri.parse('https://example.com/api'));
       await adapter.send(request);
 
-      final captured = verify(
-        () => mockClient.requestStream(
-          'GET',
-          Uri.parse('https://example.com/api'),
-          headers: any(named: 'headers'),
-          body: captureAny(named: 'body'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => mockClient.requestStream(
+              'GET',
+              Uri.parse('https://example.com/api'),
+              headers: any(named: 'headers'),
+              body: captureAny(named: 'body'),
+            ),
+          ).captured;
 
       expect(captured.single, isNull);
     });
@@ -65,20 +63,19 @@ void main() {
         ),
       ).thenAnswer((_) async => streamResponse());
 
-      final request = http.Request(
-        'POST',
-        Uri.parse('https://example.com/api'),
-      )..body = '{"key":"value"}';
+      final request = http.Request('POST', Uri.parse('https://example.com/api'))
+        ..body = '{"key":"value"}';
       await adapter.send(request);
 
-      final captured = verify(
-        () => mockClient.requestStream(
-          'POST',
-          Uri.parse('https://example.com/api'),
-          headers: any(named: 'headers'),
-          body: captureAny(named: 'body'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => mockClient.requestStream(
+              'POST',
+              Uri.parse('https://example.com/api'),
+              headers: any(named: 'headers'),
+              body: captureAny(named: 'body'),
+            ),
+          ).captured;
 
       expect(captured.single, isNotNull);
       expect(captured.single, isA<List<int>>());

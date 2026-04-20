@@ -29,7 +29,7 @@ const _runId = 'run-abc';
 
 /// Creates a [ServerConnection] with fresh mocks.
 ({ServerConnection connection, MockSoliplexApi api, MockAgUiStreamClient agUi})
-    _serverFixture(String serverId) {
+_serverFixture(String serverId) {
   final api = MockSoliplexApi();
   final agUi = MockAgUiStreamClient();
   return (
@@ -50,12 +50,12 @@ RunInfo _runInfo(String threadId) =>
     RunInfo(id: _runId, threadId: threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents(String threadId) => [
-      RunStartedEvent(threadId: threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      RunFinishedEvent(threadId: threadId, runId: _runId),
-    ];
+  RunStartedEvent(threadId: threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  RunFinishedEvent(threadId: threadId, runId: _runId),
+];
 
 /// Stubs a mock API + AgUiStreamClient to support a single happy-path spawn.
 void _stubHappyPath(
@@ -93,12 +93,14 @@ void main() {
     ServerConnection connection,
     MockSoliplexApi api,
     MockAgUiStreamClient agUi,
-  }) prod;
+  })
+  prod;
   late ({
     ServerConnection connection,
     MockSoliplexApi api,
     MockAgUiStreamClient agUi,
-  }) staging;
+  })
+  staging;
 
   setUp(() {
     logger = MockLogger();

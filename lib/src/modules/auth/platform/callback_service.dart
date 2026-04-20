@@ -1,6 +1,7 @@
 import 'callback_params.dart';
 import 'callback_service_native.dart'
-    if (dart.library.js_interop) 'callback_service_web.dart' as impl;
+    if (dart.library.js_interop) 'callback_service_web.dart'
+    as impl;
 
 export 'callback_params.dart';
 

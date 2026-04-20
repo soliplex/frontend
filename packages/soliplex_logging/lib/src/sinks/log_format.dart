@@ -7,8 +7,10 @@ import 'package:soliplex_logging/src/log_record.dart';
 /// - Native: `dart:developer` accepts them as separate parameters
 /// - Web: Browser console can display them as expandable objects
 String formatLogMessage(LogRecord record) {
-  final buffer = StringBuffer()
-    ..write('[${record.level.label}] ${record.loggerName}: ${record.message}');
+  final buffer =
+      StringBuffer()..write(
+        '[${record.level.label}] ${record.loggerName}: ${record.message}',
+      );
 
   if (record.spanId != null || record.traceId != null) {
     buffer.write(' (');

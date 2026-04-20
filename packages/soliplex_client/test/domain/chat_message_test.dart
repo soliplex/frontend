@@ -406,15 +406,16 @@ void main() {
         LoadingMessage.create(id: 'loading-1'),
       ];
 
-      final types = messages.map((m) {
-        return switch (m) {
-          TextMessage() => 'text',
-          ErrorMessage() => 'error',
-          ToolCallMessage() => 'toolCall',
-          GenUiMessage() => 'genUi',
-          LoadingMessage() => 'loading',
-        };
-      }).toList();
+      final types =
+          messages.map((m) {
+            return switch (m) {
+              TextMessage() => 'text',
+              ErrorMessage() => 'error',
+              ToolCallMessage() => 'toolCall',
+              GenUiMessage() => 'genUi',
+              LoadingMessage() => 'loading',
+            };
+          }).toList();
 
       expect(types, equals(['text', 'error', 'toolCall', 'genUi', 'loading']));
     });

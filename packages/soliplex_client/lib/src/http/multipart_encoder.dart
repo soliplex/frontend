@@ -32,7 +32,8 @@ MultipartEncoded encodeMultipart({
       .replaceAll('\r', ' ')
       .replaceAll('\n', ' ');
 
-  final preamble = '--$boundary\r\n'
+  final preamble =
+      '--$boundary\r\n'
       'Content-Disposition: form-data; '
       'name="$fieldName"; '
       'filename="$escapedFilename"\r\n'

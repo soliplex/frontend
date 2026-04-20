@@ -61,11 +61,13 @@ void main() {
     expect(() => manager.getRuntime(connection), throwsStateError);
   });
 
-  test('toolRegistryResolver returns the resolver passed at construction',
-      () async {
-    final registry = await manager.toolRegistryResolver('any-room');
-    expect(registry, isA<ToolRegistry>());
-  });
+  test(
+    'toolRegistryResolver returns the resolver passed at construction',
+    () async {
+      final registry = await manager.toolRegistryResolver('any-room');
+      expect(registry, isA<ToolRegistry>());
+    },
+  );
 
   test('replaces runtime when connection changes for same serverId', () {
     final conn1 = ServerConnection(

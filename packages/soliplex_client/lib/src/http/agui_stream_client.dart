@@ -20,9 +20,9 @@ class AgUiStreamClient {
     required HttpTransport httpTransport,
     required UrlBuilder urlBuilder,
     void Function(String message)? onWarning,
-  })  : _httpTransport = httpTransport,
-        _urlBuilder = urlBuilder,
-        _onWarning = onWarning;
+  }) : _httpTransport = httpTransport,
+       _urlBuilder = urlBuilder,
+       _onWarning = onWarning;
 
   final HttpTransport _httpTransport;
   final UrlBuilder _urlBuilder;

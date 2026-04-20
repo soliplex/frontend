@@ -29,8 +29,8 @@ class RefreshingHttpClient implements SoliplexHttpClient {
   RefreshingHttpClient({
     required SoliplexHttpClient inner,
     required TokenRefresher refresher,
-  })  : _inner = inner,
-        _refresher = refresher;
+  }) : _inner = inner,
+       _refresher = refresher;
 
   final SoliplexHttpClient _inner;
   final TokenRefresher _refresher;

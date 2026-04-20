@@ -55,8 +55,8 @@ class _PendingRequest {
   Future<HttpResponse> get future => _completer.future;
 
   void complete() => _completer.complete(
-        HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)),
-      );
+    HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)),
+  );
   void fail(Object error) => _completer.completeError(error);
 }
 
@@ -93,8 +93,7 @@ class _StreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
-  }) async =>
-      HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
+  }) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
   @override
   Future<StreamedHttpResponse> requestStream(
@@ -103,8 +102,7 @@ class _StreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      StreamedHttpResponse(statusCode: 200, body: _body);
+  }) async => StreamedHttpResponse(statusCode: 200, body: _body);
 
   @override
   void close() {}
@@ -124,8 +122,7 @@ class _FreshStreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
-  }) async =>
-      HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
+  }) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
   @override
   Future<StreamedHttpResponse> requestStream(
@@ -134,8 +131,7 @@ class _FreshStreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      StreamedHttpResponse(statusCode: 200, body: _makeBody());
+  }) async => StreamedHttpResponse(statusCode: 200, body: _makeBody());
 
   @override
   void close() {}
@@ -159,9 +155,7 @@ class _SyncThrowingInner implements SoliplexHttpClient {
     if (throwOnNext) {
       throw const NetworkException(message: 'sync boom');
     }
-    return Future.value(
-      HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)),
-    );
+    return Future.value(HttpResponse(statusCode: 200, bodyBytes: Uint8List(0)));
   }
 
   @override
@@ -171,8 +165,7 @@ class _SyncThrowingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
+  }) async => const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
 
   @override
   void close() {}
@@ -192,8 +185,7 @@ class _StreamThrowingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
-  }) async =>
-      HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
+  }) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
   @override
   Future<StreamedHttpResponse> requestStream(
@@ -231,14 +223,13 @@ class _SequentialInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
-  }) =>
-      fallback.request(
-        method,
-        uri,
-        headers: headers,
-        body: body,
-        timeout: timeout,
-      );
+  }) => fallback.request(
+    method,
+    uri,
+    headers: headers,
+    body: body,
+    timeout: timeout,
+  );
 
   @override
   Future<StreamedHttpResponse> requestStream(
@@ -302,8 +293,7 @@ class _ListenThrowingBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
-  }) async =>
-      HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
+  }) async => HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
   @override
   Future<StreamedHttpResponse> requestStream(
@@ -312,11 +302,10 @@ class _ListenThrowingBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      StreamedHttpResponse(
-        statusCode: 200,
-        body: _ListenThrowingStream(_error),
-      );
+  }) async => StreamedHttpResponse(
+    statusCode: 200,
+    body: _ListenThrowingStream(_error),
+  );
 
   @override
   void close() {}
@@ -331,10 +320,7 @@ void main() {
         maxConcurrent: 2,
       );
 
-      final response = await client.request(
-        'GET',
-        Uri.parse('https://x/y'),
-      );
+      final response = await client.request('GET', Uri.parse('https://x/y'));
 
       expect(response.statusCode, 200);
       expect(inner.requestCallCount, 1);
@@ -458,28 +444,29 @@ void main() {
   });
 
   group('ConcurrencyLimitingHttpClient observers', () {
-    test('emits onConcurrencyWait with waitDuration=0 when not queued',
-        () async {
-      final inner = _GatedInner();
-      final observer = _RecordingObserver();
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 2,
-        observers: [observer],
-      );
-
-      await client.request('GET', Uri.parse('https://x/y'));
-
-      expect(observer.events.length, 1);
-      final event = observer.events[0];
-      expect(event.waitDuration, Duration.zero);
-      expect(event.queueDepthAtEnqueue, 0);
-      expect(event.slotsInUseAfterAcquire, 1);
-      expect(event.uri.toString(), equals('https://x/y'));
-    });
-
     test(
-        'emits onConcurrencyWait with deterministic non-zero waitDuration '
+      'emits onConcurrencyWait with waitDuration=0 when not queued',
+      () async {
+        final inner = _GatedInner();
+        final observer = _RecordingObserver();
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 2,
+          observers: [observer],
+        );
+
+        await client.request('GET', Uri.parse('https://x/y'));
+
+        expect(observer.events.length, 1);
+        final event = observer.events[0];
+        expect(event.waitDuration, Duration.zero);
+        expect(event.queueDepthAtEnqueue, 0);
+        expect(event.slotsInUseAfterAcquire, 1);
+        expect(event.uri.toString(), equals('https://x/y'));
+      },
+    );
+
+    test('emits onConcurrencyWait with deterministic non-zero waitDuration '
         'when queued', () async {
       final inner = _GatedInner();
       final observer = _RecordingObserver();
@@ -523,28 +510,25 @@ void main() {
         inner: inner,
         maxConcurrent: 2,
         observers: [throwingObserver],
-        onDiagnostic: (_, __, {required message}) =>
-            capturedMessages.add(message),
+        onDiagnostic:
+            (_, __, {required message}) => capturedMessages.add(message),
       );
 
-      final response = await client.request(
-        'GET',
-        Uri.parse('https://x/y'),
-      );
+      final response = await client.request('GET', Uri.parse('https://x/y'));
 
       expect(response.statusCode, 200);
       expect(throwingObserver.callCount, 1);
       expect(
         capturedMessages,
         hasLength(1),
-        reason: 'onDiagnostic must surface the throwing-observer event so '
+        reason:
+            'onDiagnostic must surface the throwing-observer event so '
             'broken observers are visible in production logs',
       );
       expect(capturedMessages.single, contains('ConcurrencyObserver'));
     });
 
-    test(
-        'reports accurate queueDepth and slotsInUse for the third of three '
+    test('reports accurate queueDepth and slotsInUse for the third of three '
         'concurrent requests under maxConcurrent=2', () async {
       final inner = _GatedInner();
       final observer = _RecordingObserver();
@@ -581,19 +565,20 @@ void main() {
       expect(
         thirdEvent.queueDepthAtEnqueue,
         2,
-        reason: 'Two requests were already in the system when the third '
+        reason:
+            'Two requests were already in the system when the third '
             'enqueued',
       );
       expect(
         thirdEvent.slotsInUseAfterAcquire,
         2,
-        reason: 'Request 2 is still in-flight when request 3 acquires the '
+        reason:
+            'Request 2 is still in-flight when request 3 acquires the '
             'freed slot, so both slots are now in use',
       );
     });
 
-    test(
-        'clamps negative waitDuration from clock skew and fires '
+    test('clamps negative waitDuration from clock skew and fires '
         'onDiagnostic', () async {
       final inner = _GatedInner();
       final observer = _RecordingObserver();
@@ -604,8 +589,8 @@ void main() {
         maxConcurrent: 1,
         observers: [observer],
         clock: clock.call,
-        onDiagnostic: (_, __, {required message}) =>
-            capturedMessages.add(message),
+        onDiagnostic:
+            (_, __, {required message}) => capturedMessages.add(message),
       );
 
       // First request holds the single slot.
@@ -634,14 +619,14 @@ void main() {
       expect(
         capturedMessages,
         hasLength(1),
-        reason: 'onDiagnostic must log the clock-skew clamp so rewinds '
+        reason:
+            'onDiagnostic must log the clock-skew clamp so rewinds '
             'are visible in diagnostics',
       );
       expect(capturedMessages.single, contains('Clock went backward'));
     });
 
-    test(
-        'permit accounting does not drift after many sequential bursts that '
+    test('permit accounting does not drift after many sequential bursts that '
         'exceed the cap — both immediate and queued-acquire paths are '
         'exercised so the waiter hand-off branch of _onSlotReleased is '
         'covered', () async {
@@ -660,8 +645,10 @@ void main() {
       );
 
       for (var cycle = 0; cycle < 50; cycle++) {
-        final pendings =
-            List.generate(perCycle, (_) => inner.queueNextRequest());
+        final pendings = List.generate(
+          perCycle,
+          (_) => inner.queueNextRequest(),
+        );
         final futures = List.generate(
           perCycle,
           (i) => client.request('GET', Uri.parse('https://x/$cycle/$i')),
@@ -693,7 +680,8 @@ void main() {
       expect(
         last.slotsInUseAfterAcquire,
         1,
-        reason: 'Only the probe should be in flight — drift would push '
+        reason:
+            'Only the probe should be in flight — drift would push '
             'this above 1.',
       );
       expect(
@@ -703,8 +691,7 @@ void main() {
       );
     });
 
-    test(
-        'generates pairwise-distinct acquisitionIds even when many requests '
+    test('generates pairwise-distinct acquisitionIds even when many requests '
         'share the same clock timestamp — the counter suffix is the last '
         'line of defense against collisions', () async {
       // Frozen clock: every acquisitionId would share the same
@@ -743,7 +730,8 @@ void main() {
       expect(
         ids,
         hasLength(concurrent),
-        reason: 'All $concurrent acquisitionIds must be distinct even under '
+        reason:
+            'All $concurrent acquisitionIds must be distinct even under '
             'a frozen clock — the counter component carries the '
             'uniqueness guarantee.',
       );
@@ -770,28 +758,29 @@ void main() {
     });
 
     test(
-        'request completes normally even when the diagnostic handler itself '
-        'throws — failure must not propagate past the safety wrapper',
-        () async {
-      // A throwing observer forces the decorator to invoke _onDiagnostic.
-      // The handler then throws, simulating a Sentry-style sink failing
-      // transiently. safeDiagnosticHandler must swallow the failure.
-      final inner = _GatedInner();
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 1,
-        observers: [_ThrowingObserver()],
-        onDiagnostic: (_, __, {required message}) {
-          throw StateError('diagnostic sink down');
-        },
-      );
+      'request completes normally even when the diagnostic handler itself '
+      'throws — failure must not propagate past the safety wrapper',
+      () async {
+        // A throwing observer forces the decorator to invoke _onDiagnostic.
+        // The handler then throws, simulating a Sentry-style sink failing
+        // transiently. safeDiagnosticHandler must swallow the failure.
+        final inner = _GatedInner();
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+          observers: [_ThrowingObserver()],
+          onDiagnostic: (_, __, {required message}) {
+            throw StateError('diagnostic sink down');
+          },
+        );
 
-      await expectLater(
-        client.request('GET', Uri.parse('https://x/y')),
-        completes,
-        reason: 'A broken diagnostic sink must not break request flow.',
-      );
-    });
+        await expectLater(
+          client.request('GET', Uri.parse('https://x/y')),
+          completes,
+          reason: 'A broken diagnostic sink must not break request flow.',
+        );
+      },
+    );
   });
 
   group('ConcurrencyLimitingHttpClient.requestStream', () {
@@ -810,11 +799,12 @@ void main() {
       expect(response.statusCode, 200);
 
       var secondStarted = false;
-      final secondFuture =
-          client.request('GET', Uri.parse('https://x/rest')).then((r) {
-        secondStarted = true;
-        return r;
-      });
+      final secondFuture = client
+          .request('GET', Uri.parse('https://x/rest'))
+          .then((r) {
+            secondStarted = true;
+            return r;
+          });
       await Future<void>.delayed(Duration.zero);
       expect(
         secondStarted,
@@ -852,8 +842,7 @@ void main() {
       expect(second.statusCode, 200);
     });
 
-    test(
-        'throws CancelledException and does not acquire when cancelled '
+    test('throws CancelledException and does not acquire when cancelled '
         'before acquire', () async {
       final inner = _GatedInner();
       final client = ConcurrencyLimitingHttpClient(
@@ -905,8 +894,7 @@ void main() {
       expect(inner.streamCallCount, 0);
     });
 
-    test(
-        'cancel token shared across queued requests — cancelling after each '
+    test('cancel token shared across queued requests — cancelling after each '
         'has dispatched does not disrupt the dispatched requests, and the '
         'token still fails fast for a fresh acquire', () async {
       // Regression: queued requests subscribe to whenCancelled. Each
@@ -935,11 +923,7 @@ void main() {
       final dispatched = List.generate(
         3,
         (i) => client
-            .requestStream(
-              'GET',
-              Uri.parse('https://x/$i'),
-              cancelToken: token,
-            )
+            .requestStream('GET', Uri.parse('https://x/$i'), cancelToken: token)
             .then((r) => responses[i] = r),
       );
       await Future<void>.delayed(Duration.zero);
@@ -1008,11 +992,12 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(inner.requestCallCount, 1);
 
-      final streamFuture =
-          client.requestStream('GET', Uri.parse('https://x/2')).then((r) {
-        dispatchOrder.add('stream-2');
-        return r;
-      });
+      final streamFuture = client
+          .requestStream('GET', Uri.parse('https://x/2'))
+          .then((r) {
+            dispatchOrder.add('stream-2');
+            return r;
+          });
       final thirdFuture = client
           .request('GET', Uri.parse('https://x/3'))
           .then((_) => dispatchOrder.add('request-3'));
@@ -1044,43 +1029,46 @@ void main() {
   });
 
   group('ConcurrencyLimitingHttpClient slot lifecycle', () {
-    test('releases slot when inner.requestStream throws asynchronously',
-        () async {
-      final inner = _StreamThrowingInner();
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 1,
-      );
+    test(
+      'releases slot when inner.requestStream throws asynchronously',
+      () async {
+        final inner = _StreamThrowingInner();
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+        );
 
-      await expectLater(
-        () => client.requestStream('GET', Uri.parse('https://x/stream')),
-        throwsA(isA<NetworkException>()),
-      );
+        await expectLater(
+          () => client.requestStream('GET', Uri.parse('https://x/stream')),
+          throwsA(isA<NetworkException>()),
+        );
 
-      // If the slot leaked, the next request would hang forever.
-      final response = await client.request('GET', Uri.parse('https://x/ok'));
-      expect(response.statusCode, 200);
-    });
-
-    test('releases slot when inner.requestStream throws synchronously',
-        () async {
-      final inner = _StreamThrowingInner(synchronous: true);
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 1,
-      );
-
-      await expectLater(
-        () => client.requestStream('GET', Uri.parse('https://x/stream')),
-        throwsA(isA<NetworkException>()),
-      );
-
-      final response = await client.request('GET', Uri.parse('https://x/ok'));
-      expect(response.statusCode, 200);
-    });
+        // If the slot leaked, the next request would hang forever.
+        final response = await client.request('GET', Uri.parse('https://x/ok'));
+        expect(response.statusCode, 200);
+      },
+    );
 
     test(
-        'cancelled middle waiter drops out of the queue; next live waiter '
+      'releases slot when inner.requestStream throws synchronously',
+      () async {
+        final inner = _StreamThrowingInner(synchronous: true);
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+        );
+
+        await expectLater(
+          () => client.requestStream('GET', Uri.parse('https://x/stream')),
+          throwsA(isA<NetworkException>()),
+        );
+
+        final response = await client.request('GET', Uri.parse('https://x/ok'));
+        expect(response.statusCode, 200);
+      },
+    );
+
+    test('cancelled middle waiter drops out of the queue; next live waiter '
         'dispatches when slot frees', () async {
       final inner = _GatedInner();
       final client = ConcurrencyLimitingHttpClient(
@@ -1142,93 +1130,92 @@ void main() {
       await streamA;
     });
 
-    test('body that emits error then done releases the slot exactly once',
-        () async {
-      // An inner that serves one error-terminated body stream, then
-      // delegates subsequent requests to a gated fake. If the body
-      // wrapper over-released (two decrements, so effectively +1 slot),
-      // the cap would rise from 1 to 2 and two gated requests would
-      // dispatch concurrently. The regression signal is cap violation.
-      final errorBody = StreamController<List<int>>();
-      final gated = _GatedInner();
-      final inner = _SequentialInner(
-        [
-          () async => StreamedHttpResponse(
-                statusCode: 200,
-                body: errorBody.stream,
-              ),
-        ],
-        fallback: gated,
-      );
+    test(
+      'body that emits error then done releases the slot exactly once',
+      () async {
+        // An inner that serves one error-terminated body stream, then
+        // delegates subsequent requests to a gated fake. If the body
+        // wrapper over-released (two decrements, so effectively +1 slot),
+        // the cap would rise from 1 to 2 and two gated requests would
+        // dispatch concurrently. The regression signal is cap violation.
+        final errorBody = StreamController<List<int>>();
+        final gated = _GatedInner();
+        final inner = _SequentialInner([
+          () async =>
+              StreamedHttpResponse(statusCode: 200, body: errorBody.stream),
+        ], fallback: gated);
 
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 1,
-      );
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+        );
 
-      final response = await client.requestStream(
-        'GET',
-        Uri.parse('https://x/stream'),
-      );
-      // Start draining before closing the source so the listener is
-      // attached; otherwise close() blocks on no subscriber.
-      final drained = response.body.drain<void>().catchError((_) {});
-      errorBody.addError(Exception('boom'));
-      await errorBody.close();
-      await drained;
+        final response = await client.requestStream(
+          'GET',
+          Uri.parse('https://x/stream'),
+        );
+        // Start draining before closing the source so the listener is
+        // attached; otherwise close() blocks on no subscriber.
+        final drained = response.body.drain<void>().catchError((_) {});
+        errorBody.addError(Exception('boom'));
+        await errorBody.close();
+        await drained;
 
-      // Slot should be back to 1 available. Fire two gated requests.
-      final q1 = gated.queueNextRequest();
-      gated.queueNextRequest(); // second one must queue
-      final f1 = client.request('GET', Uri.parse('https://x/1'));
-      final f2 = client.request('GET', Uri.parse('https://x/2'));
-      await Future<void>.delayed(Duration.zero);
+        // Slot should be back to 1 available. Fire two gated requests.
+        final q1 = gated.queueNextRequest();
+        gated.queueNextRequest(); // second one must queue
+        final f1 = client.request('GET', Uri.parse('https://x/1'));
+        final f2 = client.request('GET', Uri.parse('https://x/2'));
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        gated.requestCallCount,
-        1,
-        reason: 'Cap must remain 1 after body error+done — no double '
-            'release into _available',
-      );
+        expect(
+          gated.requestCallCount,
+          1,
+          reason:
+              'Cap must remain 1 after body error+done — no double '
+              'release into _available',
+        );
 
-      q1.complete();
-      await f1;
-      // The second queued request then dispatches; let it finish.
-      gated.pending.first.complete();
-      await f2;
-    });
-
-    test('cancelling the body subscription mid-flight releases the slot',
-        () async {
-      final body = StreamController<List<int>>();
-      final client = ConcurrencyLimitingHttpClient(
-        inner: _StreamBodyInner(body.stream),
-        maxConcurrent: 1,
-      );
-
-      final response = await client.requestStream(
-        'GET',
-        Uri.parse('https://x/stream'),
-      );
-      final received = <List<int>>[];
-      final sub = response.body.listen(received.add);
-
-      body.add([1, 2, 3]);
-      await Future<void>.delayed(Duration.zero);
-      expect(received, hasLength(1));
-
-      // Cancel the subscription mid-flight. The body wrapper's
-      // onCancel must release the slot.
-      await sub.cancel();
-      await body.close();
-
-      // If the slot leaked, this next request would hang forever.
-      final follow = await client.request('GET', Uri.parse('https://x/ok'));
-      expect(follow.statusCode, 200);
-    });
+        q1.complete();
+        await f1;
+        // The second queued request then dispatches; let it finish.
+        gated.pending.first.complete();
+        await f2;
+      },
+    );
 
     test(
-        'releases slot when body source.listen throws synchronously '
+      'cancelling the body subscription mid-flight releases the slot',
+      () async {
+        final body = StreamController<List<int>>();
+        final client = ConcurrencyLimitingHttpClient(
+          inner: _StreamBodyInner(body.stream),
+          maxConcurrent: 1,
+        );
+
+        final response = await client.requestStream(
+          'GET',
+          Uri.parse('https://x/stream'),
+        );
+        final received = <List<int>>[];
+        final sub = response.body.listen(received.add);
+
+        body.add([1, 2, 3]);
+        await Future<void>.delayed(Duration.zero);
+        expect(received, hasLength(1));
+
+        // Cancel the subscription mid-flight. The body wrapper's
+        // onCancel must release the slot.
+        await sub.cancel();
+        await body.close();
+
+        // If the slot leaked, this next request would hang forever.
+        final follow = await client.request('GET', Uri.parse('https://x/ok'));
+        expect(follow.statusCode, 200);
+      },
+    );
+
+    test('releases slot when body source.listen throws synchronously '
         '(e.g. single-subscription double-listen)', () async {
       final inner = _ListenThrowingBodyInner(
         StateError('stream has already been listened to'),
@@ -1323,9 +1310,10 @@ void main() {
         maxConcurrent: 1,
       );
       expect(
-        () => client
-          ..close()
-          ..close(),
+        () =>
+            client
+              ..close()
+              ..close(),
         returnsNormally,
       );
     });
@@ -1343,8 +1331,7 @@ void main() {
       );
     });
 
-    test(
-        'close during an active stream body leaves the in-flight slot alone; '
+    test('close during an active stream body leaves the in-flight slot alone; '
         'the body drains normally and only post-close acquires fail', () async {
       // Documents the _Semaphore.closeAndDrain contract: "In-flight
       // slots are left alone — they release normally when their
@@ -1364,10 +1351,7 @@ void main() {
       );
       final chunks = <List<int>>[];
       final doneCompleter = Completer<void>();
-      response.body.listen(
-        chunks.add,
-        onDone: doneCompleter.complete,
-      );
+      response.body.listen(chunks.add, onDone: doneCompleter.complete);
 
       // Close while the body is actively streaming.
       bodyController.add([1, 2, 3]);
@@ -1396,46 +1380,48 @@ void main() {
   });
 
   group('post-acquire cancel (stream path)', () {
-    test('cancel after acquire-but-before-sync-check releases the slot',
-        () async {
-      final inner = _GatedInner();
-      final client = ConcurrencyLimitingHttpClient(
-        inner: inner,
-        maxConcurrent: 1,
-      );
+    test(
+      'cancel after acquire-but-before-sync-check releases the slot',
+      () async {
+        final inner = _GatedInner();
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+        );
 
-      // First request holds the only slot.
-      final first = inner.queueNextRequest();
-      final firstFuture = client.request('GET', Uri.parse('https://x/1'));
-      await Future<void>.delayed(Duration.zero);
+        // First request holds the only slot.
+        final first = inner.queueNextRequest();
+        final firstFuture = client.request('GET', Uri.parse('https://x/1'));
+        await Future<void>.delayed(Duration.zero);
 
-      // Second request queues with a cancel token.
-      final token = CancelToken();
-      final secondFuture = client.requestStream(
-        'GET',
-        Uri.parse('https://x/2'),
-        cancelToken: token,
-      );
-      await Future<void>.delayed(Duration.zero);
+        // Second request queues with a cancel token.
+        final token = CancelToken();
+        final secondFuture = client.requestStream(
+          'GET',
+          Uri.parse('https://x/2'),
+          cancelToken: token,
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      // Race: release the slot AND cancel the token synchronously. The
-      // slot is acquired first (via release's removeFirst.complete), but
-      // the post-acquire throwIfCancelled check sees the cancel and
-      // throws — the catch block must release the slot.
-      first.complete();
-      token.cancel('test cancel');
+        // Race: release the slot AND cancel the token synchronously. The
+        // slot is acquired first (via release's removeFirst.complete), but
+        // the post-acquire throwIfCancelled check sees the cancel and
+        // throws — the catch block must release the slot.
+        first.complete();
+        token.cancel('test cancel');
 
-      await expectLater(secondFuture, throwsA(isA<CancelledException>()));
+        await expectLater(secondFuture, throwsA(isA<CancelledException>()));
 
-      // Slot must be free: third request acquires.
-      final third = inner.queueNextRequest();
-      final thirdFuture = client.request('GET', Uri.parse('https://x/3'));
-      await Future<void>.delayed(Duration.zero);
-      expect(inner.requestCallCount, 2);
-      third.complete();
-      await thirdFuture;
-      await firstFuture;
-    });
+        // Slot must be free: third request acquires.
+        final third = inner.queueNextRequest();
+        final thirdFuture = client.request('GET', Uri.parse('https://x/3'));
+        await Future<void>.delayed(Duration.zero);
+        expect(inner.requestCallCount, 2);
+        third.complete();
+        await thirdFuture;
+        await firstFuture;
+      },
+    );
   });
 
   group('unlistened-body leak handler (60s production)', () {
@@ -1489,7 +1475,8 @@ void main() {
           expect(
             secondAcquired,
             isTrue,
-            reason: 'Cap must recover after force-drain so the queued '
+            reason:
+                'Cap must recover after force-drain so the queued '
                 'request can dispatch.',
           );
 
@@ -1501,144 +1488,139 @@ void main() {
       },
     );
 
-    test(
-      'late listener after 60s receives a StateError describing the timeout '
-      'and the semaphore survives the double-release path',
-      () {
-        fakeAsync((async) {
-          final source = StreamController<List<int>>();
-          final inner = _StreamBodyInner(source.stream);
-          final client = ConcurrencyLimitingHttpClient(
-            inner: inner,
-            maxConcurrent: 1,
-            onDiagnostic: (_, __, {required message}) {},
-          );
+    test('late listener after 60s receives a StateError describing the timeout '
+        'and the semaphore survives the double-release path', () {
+      fakeAsync((async) {
+        final source = StreamController<List<int>>();
+        final inner = _StreamBodyInner(source.stream);
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+          onDiagnostic: (_, __, {required message}) {},
+        );
 
-          StreamedHttpResponse? response;
-          unawaited(
-            client
-                .requestStream('GET', Uri.parse('https://x/y'))
-                .then((r) => response = r),
-          );
-          async
-            ..flushMicrotasks()
-            ..elapse(const Duration(seconds: 61));
+        StreamedHttpResponse? response;
+        unawaited(
+          client
+              .requestStream('GET', Uri.parse('https://x/y'))
+              .then((r) => response = r),
+        );
+        async
+          ..flushMicrotasks()
+          ..elapse(const Duration(seconds: 61));
 
-          final errors = <Object>[];
-          var doneFired = false;
-          response!.body.listen(
-            (_) {},
-            onError: errors.add,
-            onDone: () => doneFired = true,
-          );
-          async.flushMicrotasks();
+        final errors = <Object>[];
+        var doneFired = false;
+        response!.body.listen(
+          (_) {},
+          onError: errors.add,
+          onDone: () => doneFired = true,
+        );
+        async.flushMicrotasks();
 
-          expect(
-            errors,
-            hasLength(1),
-            reason: 'Late listener must receive exactly one StateError '
-                'so the failure is loud and self-describing.',
-          );
-          expect(errors.single, isA<StateError>());
-          expect(
-            (errors.single as StateError).message,
-            contains('60s unlistened-body timeout'),
-          );
-          expect(
-            doneFired,
-            isTrue,
-            reason: 'Stream must close after the error so the listener '
-                'does not hang waiting for more data.',
-          );
+        expect(
+          errors,
+          hasLength(1),
+          reason:
+              'Late listener must receive exactly one StateError '
+              'so the failure is loud and self-describing.',
+        );
+        expect(errors.single, isA<StateError>());
+        expect(
+          (errors.single as StateError).message,
+          contains('60s unlistened-body timeout'),
+        );
+        expect(
+          doneFired,
+          isTrue,
+          reason:
+              'Stream must close after the error so the listener '
+              'does not hang waiting for more data.',
+        );
 
-          // The timer and the late-listener branch both call
-          // slot.release(); _SlotHandle.release is idempotent, but the
-          // permit-conservation assert would fire if _available drifted.
-          // Prove the semaphore is back to idle by acquiring a fresh
-          // slot without queueing.
-          var followUpAcquired = false;
-          unawaited(
-            client.request('GET', Uri.parse('https://x/follow-up')).then(
-                  (_) => followUpAcquired = true,
-                ),
-          );
-          async.flushMicrotasks();
-          expect(
-            followUpAcquired,
-            isTrue,
-            reason: 'Follow-up request must acquire immediately — a drift '
-                'from the double-release path would make it queue.',
-          );
+        // The timer and the late-listener branch both call
+        // slot.release(); _SlotHandle.release is idempotent, but the
+        // permit-conservation assert would fire if _available drifted.
+        // Prove the semaphore is back to idle by acquiring a fresh
+        // slot without queueing.
+        var followUpAcquired = false;
+        unawaited(
+          client
+              .request('GET', Uri.parse('https://x/follow-up'))
+              .then((_) => followUpAcquired = true),
+        );
+        async.flushMicrotasks();
+        expect(
+          followUpAcquired,
+          isTrue,
+          reason:
+              'Follow-up request must acquire immediately — a drift '
+              'from the double-release path would make it queue.',
+        );
 
-          source.close();
-          async.flushMicrotasks();
-        });
-      },
-    );
+        source.close();
+        async.flushMicrotasks();
+      });
+    });
 
-    test(
-      'does not fire when the body is listened within 60s',
-      () {
-        fakeAsync((async) {
-          final source = StreamController<List<int>>();
-          final inner = _StreamBodyInner(source.stream);
-          final captured = <String>[];
-          final client = ConcurrencyLimitingHttpClient(
-            inner: inner,
-            maxConcurrent: 1,
-            onDiagnostic: (_, __, {required message}) => captured.add(message),
-          );
+    test('does not fire when the body is listened within 60s', () {
+      fakeAsync((async) {
+        final source = StreamController<List<int>>();
+        final inner = _StreamBodyInner(source.stream);
+        final captured = <String>[];
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+          onDiagnostic: (_, __, {required message}) => captured.add(message),
+        );
 
-          unawaited(
-            client
-                .requestStream('GET', Uri.parse('https://x/y'))
-                .then((resp) => resp.body.listen((_) {})),
-          );
-          async
-            ..flushMicrotasks()
-            // Elapse well past 60s — early listener must have cancelled
-            // the timer. A regression here would spam the diagnostic
-            // channel for every normal streaming request.
-            ..elapse(const Duration(seconds: 120));
-          expect(captured, isEmpty);
+        unawaited(
+          client
+              .requestStream('GET', Uri.parse('https://x/y'))
+              .then((resp) => resp.body.listen((_) {})),
+        );
+        async
+          ..flushMicrotasks()
+          // Elapse well past 60s — early listener must have cancelled
+          // the timer. A regression here would spam the diagnostic
+          // channel for every normal streaming request.
+          ..elapse(const Duration(seconds: 120));
+        expect(captured, isEmpty);
 
-          source.close();
-          async.flushMicrotasks();
-        });
-      },
-    );
+        source.close();
+        async.flushMicrotasks();
+      });
+    });
 
-    test(
-      'drains the upstream source on timeout so the socket can close',
-      () {
-        fakeAsync((async) {
-          var sourceWasListenedTo = false;
-          final source = StreamController<List<int>>(
-            onListen: () => sourceWasListenedTo = true,
-          );
-          final inner = _StreamBodyInner(source.stream);
-          final client = ConcurrencyLimitingHttpClient(
-            inner: inner,
-            maxConcurrent: 1,
-            onDiagnostic: (_, __, {required message}) {},
-          );
+    test('drains the upstream source on timeout so the socket can close', () {
+      fakeAsync((async) {
+        var sourceWasListenedTo = false;
+        final source = StreamController<List<int>>(
+          onListen: () => sourceWasListenedTo = true,
+        );
+        final inner = _StreamBodyInner(source.stream);
+        final client = ConcurrencyLimitingHttpClient(
+          inner: inner,
+          maxConcurrent: 1,
+          onDiagnostic: (_, __, {required message}) {},
+        );
 
-          unawaited(client.requestStream('GET', Uri.parse('https://x/y')));
-          async
-            ..flushMicrotasks()
-            ..elapse(const Duration(seconds: 61));
+        unawaited(client.requestStream('GET', Uri.parse('https://x/y')));
+        async
+          ..flushMicrotasks()
+          ..elapse(const Duration(seconds: 61));
 
-          expect(
-            sourceWasListenedTo,
-            isTrue,
-            reason: 'Force-drain must listen-then-cancel on the upstream '
-                'source so the platform client tears down the socket.',
-          );
+        expect(
+          sourceWasListenedTo,
+          isTrue,
+          reason:
+              'Force-drain must listen-then-cancel on the upstream '
+              'source so the platform client tears down the socket.',
+        );
 
-          source.close();
-          async.flushMicrotasks();
-        });
-      },
-    );
+        source.close();
+        async.flushMicrotasks();
+      });
+    });
   });
 }

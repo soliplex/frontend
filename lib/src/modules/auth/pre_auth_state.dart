@@ -48,12 +48,12 @@ class PreAuthState {
   }
 
   Map<String, dynamic> toJson() => {
-        'serverUrl': serverUrl.toString(),
-        'providerId': providerId,
-        'discoveryUrl': discoveryUrl,
-        'clientId': clientId,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-      };
+    'serverUrl': serverUrl.toString(),
+    'providerId': providerId,
+    'discoveryUrl': discoveryUrl,
+    'clientId': clientId,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
 
   @override
   bool operator ==(Object other) =>

@@ -99,10 +99,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
               child: const Text('Log out'),
             ),
           IconButton(
-            icon: Icon(
-              Icons.delete_outline,
-              color: theme.colorScheme.error,
-            ),
+            icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
             onPressed: () async {
               await _logout(entry);
               widget.serverManager.removeServer(entry.serverId);
@@ -128,10 +125,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
             child: const Text('Sign in'),
           ),
           IconButton(
-            icon: Icon(
-              Icons.delete_outline,
-              color: theme.colorScheme.error,
-            ),
+            icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
             onPressed: () => widget.serverManager.removeServer(entry.serverId),
           ),
         ],
@@ -158,8 +152,11 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         );
         endSessionEndpoint = discovery.endSessionEndpoint?.toString();
       } catch (e, st) {
-        dev.log('OIDC discovery failed during logout',
-            error: e, stackTrace: st);
+        dev.log(
+          'OIDC discovery failed during logout',
+          error: e,
+          stackTrace: st,
+        );
       }
       if (!mounted) return;
       await authFlow.endSession(

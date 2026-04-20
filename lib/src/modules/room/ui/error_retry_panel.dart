@@ -30,10 +30,7 @@ class ErrorRetryPanel extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (onRetry != null)
-            FilledButton.tonal(
-              onPressed: onRetry,
-              child: const Text('Retry'),
-            ),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );

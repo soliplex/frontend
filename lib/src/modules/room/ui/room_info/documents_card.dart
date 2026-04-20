@@ -91,9 +91,10 @@ class _DocumentsCardState extends State<DocumentsCard> {
             ];
           } else {
             final filtered = _filterDocs(docs);
-            title = _searchQuery.isEmpty
-                ? 'DOCUMENTS (${docs.length})'
-                : 'DOCUMENTS (${filtered.length} / ${docs.length})';
+            title =
+                _searchQuery.isEmpty
+                    ? 'DOCUMENTS (${docs.length})'
+                    : 'DOCUMENTS (${filtered.length} / ${docs.length})';
             children = [
               if (docs.length > 1)
                 Padding(
@@ -103,16 +104,18 @@ class _DocumentsCardState extends State<DocumentsCard> {
                     decoration: InputDecoration(
                       hintText: 'Search documents...',
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              tooltip: 'Clear search',
-                              onPressed: () => setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              }),
-                            )
-                          : null,
+                      suffixIcon:
+                          _searchQuery.isNotEmpty
+                              ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                tooltip: 'Clear search',
+                                onPressed:
+                                    () => setState(() {
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                    }),
+                              )
+                              : null,
                       isDense: true,
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(
@@ -139,27 +142,21 @@ class _DocumentsCardState extends State<DocumentsCard> {
           }
         }
 
-        return SectionCard(
-          title: title,
-          children: children,
-        );
+        return SectionCard(title: title, children: children);
       },
     );
   }
 
-  Widget _buildDocTile(
-    RagDocument doc,
-    bool expanded,
-    ThemeData theme,
-  ) {
+  Widget _buildDocTile(RagDocument doc, bool expanded, ThemeData theme) {
     return GestureDetector(
-      onTap: () => setState(() {
-        if (expanded) {
-          _expandedIds.remove(doc.id);
-        } else {
-          _expandedIds.add(doc.id);
-        }
-      }),
+      onTap:
+          () => setState(() {
+            if (expanded) {
+              _expandedIds.remove(doc.id);
+            } else {
+              _expandedIds.add(doc.id);
+            }
+          }),
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -168,10 +165,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
           children: [
             Row(
               children: [
-                Icon(
-                  getFileTypeIcon(documentIconPath(doc)),
-                  size: 22,
-                ),
+                Icon(getFileTypeIcon(documentIconPath(doc)), size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -253,10 +247,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                         children: [
                           Text(label, style: labelStyle),
                           const SizedBox(height: 2),
-                          SelectableText(
-                            value,
-                            style: valueStyle,
-                          ),
+                          SelectableText(value, style: valueStyle),
                         ],
                       ),
                     ),
@@ -273,13 +264,15 @@ class _DocumentsCardState extends State<DocumentsCard> {
                       vertical: 8,
                     ),
                   ),
-                  onPressed: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => MetadataDialog(
-                      title: doc.title,
-                      metadata: doc.metadata,
-                    ),
-                  ),
+                  onPressed:
+                      () => showDialog<void>(
+                        context: context,
+                        builder:
+                            (_) => MetadataDialog(
+                              title: doc.title,
+                              metadata: doc.metadata,
+                            ),
+                      ),
                   child: const Text('Show metadata'),
                 ),
               ),
@@ -314,11 +307,7 @@ class MetadataDialog extends StatelessWidget {
     final entries = metadata.entries.toList();
 
     return AlertDialog(
-      title: Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-      ),
+      title: Text(title, overflow: TextOverflow.ellipsis, maxLines: 1),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(

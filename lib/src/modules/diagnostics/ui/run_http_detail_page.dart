@@ -5,10 +5,7 @@ import 'http_event_tile.dart';
 import 'request_detail_view.dart';
 
 class RunHttpDetailPage extends StatelessWidget {
-  const RunHttpDetailPage({
-    required this.groups,
-    super.key,
-  });
+  const RunHttpDetailPage({required this.groups, super.key});
 
   final List<HttpEventGroup> groups;
 
@@ -72,14 +69,16 @@ class _MultiGroupView extends StatelessWidget {
           final group = groups[index];
           return HttpEventTile(
             group: group,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => Scaffold(
-                  appBar: AppBar(title: Text(group.pathWithQuery)),
-                  body: RequestDetailView(group: group),
+            onTap:
+                () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder:
+                        (context) => Scaffold(
+                          appBar: AppBar(title: Text(group.pathWithQuery)),
+                          body: RequestDetailView(group: group),
+                        ),
+                  ),
                 ),
-              ),
-            ),
           );
         },
       ),

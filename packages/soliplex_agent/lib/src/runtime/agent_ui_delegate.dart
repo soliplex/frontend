@@ -53,6 +53,5 @@ class AutoApproveUiDelegate implements AgentUiDelegate {
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
-  }) async =>
-      true;
+  }) async => true;
 }

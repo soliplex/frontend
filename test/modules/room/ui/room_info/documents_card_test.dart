@@ -7,9 +7,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info/documents_card.dart';
 
 void main() {
-  Widget wrap(Widget child) => MaterialApp(
-        home: Scaffold(body: SingleChildScrollView(child: child)),
-      );
+  Widget wrap(Widget child) =>
+      MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child)));
 
   const docA = RagDocument(
     id: 'id-a',
@@ -30,18 +29,19 @@ void main() {
   group('loading and error', () {
     testWidgets('shows loading spinner while future pending', (tester) async {
       final completer = Completer<List<RagDocument>>();
-      await tester.pumpWidget(wrap(
-        DocumentsCard(documentsFuture: completer.future, onRetry: () {}),
-      ));
+      await tester.pumpWidget(
+        wrap(DocumentsCard(documentsFuture: completer.future, onRetry: () {})),
+      );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('shows error with retry button when future fails',
-        (tester) async {
+    testWidgets('shows error with retry button when future fails', (
+      tester,
+    ) async {
       final completer = Completer<List<RagDocument>>();
-      await tester.pumpWidget(wrap(
-        DocumentsCard(documentsFuture: completer.future, onRetry: () {}),
-      ));
+      await tester.pumpWidget(
+        wrap(DocumentsCard(documentsFuture: completer.future, onRetry: () {})),
+      );
 
       completer.completeError(Exception('network error'));
       await tester.pumpAndSettle();
@@ -53,12 +53,14 @@ void main() {
     testWidgets('retry button re-triggers onRetry callback', (tester) async {
       var retryCalled = false;
       final completer = Completer<List<RagDocument>>();
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: completer.future,
-          onRetry: () => retryCalled = true,
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: completer.future,
+            onRetry: () => retryCalled = true,
+          ),
         ),
-      ));
+      );
 
       completer.completeError(Exception('fail'));
       await tester.pumpAndSettle();
@@ -68,12 +70,14 @@ void main() {
     });
 
     testWidgets('shows "No documents" when list is empty', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const []),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const []),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('No documents in this room.'), findsOneWidget);
@@ -83,12 +87,14 @@ void main() {
 
   group('document list', () {
     testWidgets('shows document list with names', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('alpha.pdf'), findsOneWidget);
@@ -96,36 +102,42 @@ void main() {
     });
 
     testWidgets('search bar appears when more than 1 document', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsOneWidget);
     });
 
     testWidgets('search bar hidden when only 1 document', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsNothing);
     });
 
     testWidgets('typing in search updates displayed list', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB, docC]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB, docC]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'alpha');
@@ -137,12 +149,14 @@ void main() {
     });
 
     testWidgets('search shows "N / total" count in header', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB, docC]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB, docC]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'alpha');
@@ -152,12 +166,14 @@ void main() {
     });
 
     testWidgets('zero search results shows appropriate state', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'zzznomatch');
@@ -169,12 +185,14 @@ void main() {
     });
 
     testWidgets('clear search button resets to full list', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA, docB, docC]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA, docB, docC]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'alpha');
@@ -193,12 +211,14 @@ void main() {
 
   group('document expansion', () {
     testWidgets('tapping document expands metadata', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('id'), findsNothing);
@@ -210,12 +230,14 @@ void main() {
     });
 
     testWidgets('tapping expanded document collapses it', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('alpha.pdf'));
@@ -228,12 +250,14 @@ void main() {
     });
 
     testWidgets('metadata shows document ID and URI', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docA]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docA]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('alpha.pdf'));
@@ -252,12 +276,14 @@ void main() {
         updatedAt: DateTime(2024, 6, 20, 14, 45),
       );
 
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value([docWithDates]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value([docWithDates]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('dated.txt'));
@@ -284,14 +310,17 @@ void main() {
       uri: '/files/nometa.pdf',
     );
 
-    testWidgets('"Show metadata" button appears when metadata non-empty',
-        (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docWithMeta]),
-          onRetry: () {},
+    testWidgets('"Show metadata" button appears when metadata non-empty', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docWithMeta]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('meta.pdf'));
@@ -300,14 +329,17 @@ void main() {
       expect(find.text('Show metadata'), findsOneWidget);
     });
 
-    testWidgets('"Show metadata" button hidden when metadata empty',
-        (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docNoMeta]),
-          onRetry: () {},
+    testWidgets('"Show metadata" button hidden when metadata empty', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docNoMeta]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('nometa.pdf'));
@@ -317,12 +349,14 @@ void main() {
     });
 
     testWidgets('dialog displays metadata entries', (tester) async {
-      await tester.pumpWidget(wrap(
-        DocumentsCard(
-          documentsFuture: Future.value(const [docWithMeta]),
-          onRetry: () {},
+      await tester.pumpWidget(
+        wrap(
+          DocumentsCard(
+            documentsFuture: Future.value(const [docWithMeta]),
+            onRetry: () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('meta.pdf'));

@@ -12,8 +12,8 @@ class AgUiLlmProvider implements AgentLlmProvider {
   const AgUiLlmProvider({
     required SoliplexApi api,
     required AgUiStreamClient agUiStreamClient,
-  })  : _api = api,
-        _agUiStreamClient = agUiStreamClient;
+  }) : _api = api,
+       _agUiStreamClient = agUiStreamClient;
 
   final SoliplexApi _api;
   final AgUiStreamClient _agUiStreamClient;

@@ -7,10 +7,10 @@ import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
 import '../../helpers/fakes.dart';
 
 ServerManager _createManager() => ServerManager(
-      authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 void main() {
   group('lobbyModule', () {

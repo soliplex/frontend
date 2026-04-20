@@ -36,15 +36,14 @@ class HttpEventGroup {
     HttpErrorEvent? error,
     HttpStreamStartEvent? streamStart,
     HttpStreamEndEvent? streamEnd,
-  }) =>
-      HttpEventGroup(
-        requestId: requestId,
-        request: request ?? this.request,
-        response: response ?? this.response,
-        error: error ?? this.error,
-        streamStart: streamStart ?? this.streamStart,
-        streamEnd: streamEnd ?? this.streamEnd,
-      );
+  }) => HttpEventGroup(
+    requestId: requestId,
+    request: request ?? this.request,
+    response: response ?? this.response,
+    error: error ?? this.error,
+    streamStart: streamStart ?? this.streamStart,
+    streamEnd: streamEnd ?? this.streamEnd,
+  );
 
   bool get isStream => streamStart != null;
 

@@ -22,8 +22,9 @@ final probeClientProvider = Provider<SoliplexHttpClient>(
 );
 
 final discoverProvidersProvider = Provider<DiscoverProviders>(
-  (_) => (serverUrl, httpClient) =>
-      discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient),
+  (_) =>
+      (serverUrl, httpClient) =>
+          discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient),
 );
 
 // Optional — have sensible defaults.
@@ -32,6 +33,4 @@ final callbackParamsProvider = Provider<CallbackParams>(
   (_) => const NoCallbackParams(),
 );
 
-final consentNoticeProvider = Provider<ConsentNotice?>(
-  (_) => null,
-);
+final consentNoticeProvider = Provider<ConsentNotice?>((_) => null);

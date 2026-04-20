@@ -15,8 +15,9 @@ void main() {
       expect(find.text('No HTTP traffic found for this run'), findsOneWidget);
     });
 
-    testWidgets('shows RequestDetailView directly when single group',
-        (tester) async {
+    testWidgets('shows RequestDetailView directly when single group', (
+      tester,
+    ) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),

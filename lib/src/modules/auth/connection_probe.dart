@@ -6,10 +6,11 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 ///
 /// Defaults to [discoverAuthProviders] from soliplex_agent. Accepting this
 /// as a parameter lets tests supply a fake without mocking HTTP responses.
-typedef DiscoverProviders = Future<List<AuthProviderConfig>> Function(
-  Uri serverUrl,
-  SoliplexHttpClient httpClient,
-);
+typedef DiscoverProviders =
+    Future<List<AuthProviderConfig>> Function(
+      Uri serverUrl,
+      SoliplexHttpClient httpClient,
+    );
 
 /// Result of probing a backend URL for connectivity.
 sealed class ConnectionProbeResult {
@@ -18,10 +19,7 @@ sealed class ConnectionProbeResult {
 
 /// Backend was reached successfully.
 class ConnectionSuccess extends ConnectionProbeResult {
-  const ConnectionSuccess({
-    required this.serverUrl,
-    required this.providers,
-  });
+  const ConnectionSuccess({required this.serverUrl, required this.providers});
 
   final Uri serverUrl;
   final List<AuthProviderConfig> providers;
@@ -130,5 +128,4 @@ Uri _stripTrailingSlash(Uri uri) {
 Future<List<AuthProviderConfig>> _defaultDiscover(
   Uri serverUrl,
   SoliplexHttpClient httpClient,
-) =>
-    discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient);
+) => discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient);

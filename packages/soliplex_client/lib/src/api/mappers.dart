@@ -83,20 +83,19 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
 
   return switch (effectiveKind) {
     'default' => DefaultRoomAgent(
-        id: id,
-        modelName: _requireString(json, 'model_name', 'default agent'),
-        retries: json['retries'] as int? ?? 0,
-        systemPrompt: json['system_prompt'] as String?,
-        providerType: json['provider_type'] as String? ?? '',
-        aguiFeatureNames: aguiFeatureNames,
-      ),
+      id: id,
+      modelName: _requireString(json, 'model_name', 'default agent'),
+      retries: json['retries'] as int? ?? 0,
+      systemPrompt: json['system_prompt'] as String?,
+      providerType: json['provider_type'] as String? ?? '',
+      aguiFeatureNames: aguiFeatureNames,
+    ),
     'factory' => FactoryRoomAgent(
-        id: id,
-        factoryName: _requireString(json, 'factory_name', 'factory agent'),
-        extraConfig:
-            (json['extra_config'] as Map<String, dynamic>?) ?? const {},
-        aguiFeatureNames: aguiFeatureNames,
-      ),
+      id: id,
+      factoryName: _requireString(json, 'factory_name', 'factory agent'),
+      extraConfig: (json['extra_config'] as Map<String, dynamic>?) ?? const {},
+      aguiFeatureNames: aguiFeatureNames,
+    ),
     _ => OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames),
   };
 }
@@ -412,7 +411,8 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   // Name/description may be at top level or nested in metadata
   final metadata = (json['metadata'] as Map<String, dynamic>?) ?? const {};
   final name = (json['name'] as String?) ?? (metadata['name'] as String?) ?? '';
-  final description = (json['description'] as String?) ??
+  final description =
+      (json['description'] as String?) ??
       (metadata['description'] as String?) ??
       '';
 
@@ -444,10 +444,7 @@ Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
 ///
 /// Only includes non-null fields. The backend replaces all metadata on
 /// update — omitted fields are dropped, not preserved.
-Map<String, dynamic> threadMetadataToJson({
-  String? name,
-  String? description,
-}) {
+Map<String, dynamic> threadMetadataToJson({String? name, String? description}) {
   return {
     if (name != null) 'name': name,
     if (description != null) 'description': description,
@@ -472,9 +469,10 @@ RunInfo runInfoFromJson(Map<String, dynamic> json) {
     threadId: json['thread_id'] as String? ?? '',
     label: (json['label'] as String?) ?? '',
     createdAt: parseTimestamp(createdRaw),
-    completion: json['completed_at'] != null
-        ? CompletedAt(parseTimestamp(json['completed_at'] as String))
-        : const NotCompleted(),
+    completion:
+        json['completed_at'] != null
+            ? CompletedAt(parseTimestamp(json['completed_at'] as String))
+            : const NotCompleted(),
     status: runStatusFromString(json['status'] as String?),
     metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
   );
@@ -519,18 +517,18 @@ QuestionType questionTypeFromJson(Map<String, dynamic> json) {
   final type = json['type'] as String;
   return switch (type) {
     'multiple-choice' || 'multiple_choice' => MultipleChoice(
-        (json['options'] as List<dynamic>).cast<String>(),
-      ),
+      (json['options'] as List<dynamic>).cast<String>(),
+    ),
     'fill-blank' || 'fill_blank' => const FillBlank(),
     'qa' => const FreeForm(),
     _ => () {
-        developer.log(
-          'Unknown question type "$type", falling back to FreeForm',
-          name: 'soliplex_client.quiz',
-          level: 900, // Warning level
-        );
-        return const FreeForm();
-      }(),
+      developer.log(
+        'Unknown question type "$type", falling back to FreeForm',
+        name: 'soliplex_client.quiz',
+        level: 900, // Warning level
+      );
+      return const FreeForm();
+    }(),
   };
 }
 
@@ -555,9 +553,10 @@ QuestionLimit questionLimitFromJson(int? maxQuestions) {
 
 /// Creates a [Quiz] from JSON.
 Quiz quizFromJson(Map<String, dynamic> json) {
-  final questions = (json['questions'] as List<dynamic>)
-      .map((q) => quizQuestionFromJson(q as Map<String, dynamic>))
-      .toList();
+  final questions =
+      (json['questions'] as List<dynamic>)
+          .map((q) => quizQuestionFromJson(q as Map<String, dynamic>))
+          .toList();
 
   return Quiz(
     id: json['id'] as String,
@@ -576,16 +575,17 @@ QuizAnswerResult quizAnswerResultFromJson(Map<String, dynamic> json) {
   return switch (correct) {
     'true' => const CorrectAnswer(),
     'false' => IncorrectAnswer(
-        expectedAnswer: expectedOutput ??
-            () {
-              developer.log(
-                'Missing expected_output for incorrect answer',
-                name: 'soliplex_client.quiz',
-                level: 900, // Warning level
-              );
-              return '(correct answer not provided)';
-            }(),
-      ),
+      expectedAnswer:
+          expectedOutput ??
+          () {
+            developer.log(
+              'Missing expected_output for incorrect answer',
+              name: 'soliplex_client.quiz',
+              level: 900, // Warning level
+            );
+            return '(correct answer not provided)';
+          }(),
+    ),
     _ => throw FormatException('Invalid correct value: $correct'),
   };
 }

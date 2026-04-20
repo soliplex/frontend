@@ -166,7 +166,8 @@ class FailedState extends RunState {
   int get hashCode => Object.hash(threadKey, reason, error, conversation);
 
   @override
-  String toString() => 'FailedState(reason: $reason, error: $error, '
+  String toString() =>
+      'FailedState(reason: $reason, error: $error, '
       'threadKey: $threadKey)';
 }
 
@@ -223,7 +224,8 @@ class ToolYieldingState extends RunState {
   int get hashCode => Object.hash(threadKey, runId, conversation, toolDepth);
 
   @override
-  String toString() => 'ToolYieldingState(runId: $runId, '
+  String toString() =>
+      'ToolYieldingState(runId: $runId, '
       'pending: ${pendingToolCalls.length}, depth: $toolDepth)';
 }
 

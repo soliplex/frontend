@@ -28,7 +28,7 @@ class MessageTimeline extends StatefulWidget {
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
-      onFeedbackSubmit;
+  onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
 
@@ -78,8 +78,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
   void _recomputeMaps() {
     _runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
-    _sourceReferencesMap =
-        buildSourceReferencesMap(widget.messages, widget.messageStates);
+    _sourceReferencesMap = buildSourceReferencesMap(
+      widget.messages,
+      widget.messageStates,
+    );
   }
 
   @override
@@ -167,12 +169,13 @@ class _MessageTimelineState extends State<MessageTimeline> {
       _scrollToBottom();
     }
 
-    final streamingActivity = widget.streamingState != null
-        ? switch (widget.streamingState!) {
-            AwaitingText(:final currentActivity) => currentActivity,
-            TextStreaming(:final currentActivity) => currentActivity,
-          }
-        : null;
+    final streamingActivity =
+        widget.streamingState != null
+            ? switch (widget.streamingState!) {
+              AwaitingText(:final currentActivity) => currentActivity,
+              TextStreaming(:final currentActivity) => currentActivity,
+            }
+            : null;
 
     return Stack(
       children: [
@@ -187,13 +190,15 @@ class _MessageTimelineState extends State<MessageTimeline> {
                   final message = displayMessages[index];
                   final isLastItem = index == displayMessages.length - 1;
                   return Padding(
-                    key: message is LoadingMessage
-                        ? const ValueKey('loading')
-                        : _keyFor(message.id),
+                    key:
+                        message is LoadingMessage
+                            ? const ValueKey('loading')
+                            : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: 16),
                     child: MessageTile(
                       message: message,
-                      runId: _runIdMap[message.id] ??
+                      runId:
+                          _runIdMap[message.id] ??
                           (message is TextMessage &&
                                   message.user == ChatUser.user
                               ? widget.messageStates[message.id]?.runId
@@ -202,7 +207,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
                       onFeedbackSubmit: widget.onFeedbackSubmit,
                       onInspect: widget.onInspect,
                       onShowChunkVisualization: widget.onShowChunkVisualization,
-                      executionTracker: widget.executionTrackers[message.id] ??
+                      executionTracker:
+                          widget.executionTrackers[message.id] ??
                           (message is LoadingMessage
                               ? widget.executionTrackers[awaitingTrackerKey]
                               : null),

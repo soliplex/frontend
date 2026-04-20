@@ -31,8 +31,7 @@ class WindowUrlNavigator implements UrlNavigator {
 AuthFlow createAuthFlow({
   required String redirectScheme,
   UrlNavigator? navigator,
-}) =>
-    WebAuthFlow(navigator: navigator);
+}) => WebAuthFlow(navigator: navigator);
 
 /// Web OIDC authentication using BFF pattern.
 ///
@@ -41,7 +40,7 @@ AuthFlow createAuthFlow({
 class WebAuthFlow implements AuthFlow {
   @visibleForTesting
   WebAuthFlow({UrlNavigator? navigator})
-      : _navigator = navigator ?? WindowUrlNavigator();
+    : _navigator = navigator ?? WindowUrlNavigator();
 
   final UrlNavigator _navigator;
 

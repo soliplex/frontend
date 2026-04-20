@@ -87,7 +87,8 @@ class AgentFailure extends AgentResult {
   int get hashCode => Object.hash(threadKey, reason, error, partialOutput);
 
   @override
-  String toString() => 'AgentFailure(reason: $reason, error: $error, '
+  String toString() =>
+      'AgentFailure(reason: $reason, error: $error, '
       'threadKey: $threadKey)';
 }
 

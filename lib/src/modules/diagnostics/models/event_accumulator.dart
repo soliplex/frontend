@@ -78,11 +78,13 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
     final buffer = textBuffers.remove(messageId);
     final role = textRoles.remove(messageId);
     if (buffer != null) {
-      entries.add(MessageEntry(
-        messageId: messageId,
-        role: role ?? 'assistant',
-        text: buffer.toString(),
-      ));
+      entries.add(
+        MessageEntry(
+          messageId: messageId,
+          role: role ?? 'assistant',
+          text: buffer.toString(),
+        ),
+      );
     }
   }
 
@@ -100,7 +102,10 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
       }
       entries.add(
         ToolCallEntry(
-            toolCallId: toolCallId, toolName: name, args: formattedArgs),
+          toolCallId: toolCallId,
+          toolName: name,
+          args: formattedArgs,
+        ),
       );
     }
   }
@@ -119,10 +124,12 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
         if (event.type == 'RUN_FINISHED' || event.type == 'RUN_ERROR') {
           isComplete = true;
         }
-        entries.add(RunStatusEntry(
-          type: event.type,
-          message: event.payload['message'] as String?,
-        ));
+        entries.add(
+          RunStatusEntry(
+            type: event.type,
+            message: event.payload['message'] as String?,
+          ),
+        );
       case 'TEXT_MESSAGE_START':
         final id = event.payload['messageId'] as String? ?? '';
         textBuffers[id] = StringBuffer();
@@ -144,10 +151,12 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
       case 'TOOL_CALL_END':
         flushToolCall(event.payload['toolCallId'] as String? ?? '');
       case 'TOOL_CALL_RESULT':
-        entries.add(ToolResultEntry(
-          toolCallId: event.payload['toolCallId'] as String? ?? '',
-          content: event.payload['content'] as String? ?? '',
-        ));
+        entries.add(
+          ToolResultEntry(
+            toolCallId: event.payload['toolCallId'] as String? ?? '',
+            content: event.payload['content'] as String? ?? '',
+          ),
+        );
       case 'THINKING_START':
         inThinking = true;
         thinkingBuffer.clear();
@@ -158,11 +167,13 @@ AccumulatedRun accumulateEvents(List<SseEvent> events) {
       case 'THINKING_END':
         flushThinking();
       case 'STATE_SNAPSHOT':
-        entries.add(StateEntry(
-            type: 'STATE_SNAPSHOT', data: event.payload['snapshot']));
+        entries.add(
+          StateEntry(type: 'STATE_SNAPSHOT', data: event.payload['snapshot']),
+        );
       case 'STATE_DELTA':
-        entries
-            .add(StateEntry(type: 'STATE_DELTA', data: event.payload['delta']));
+        entries.add(
+          StateEntry(type: 'STATE_DELTA', data: event.payload['delta']),
+        );
       default:
         break;
     }

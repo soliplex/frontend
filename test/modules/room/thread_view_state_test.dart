@@ -10,16 +10,16 @@ import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 import '../../helpers/fakes.dart';
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
-      serverId: 'test-server',
-      api: api,
-      agUiStreamClient: FakeAgUiStreamClient(),
-    );
+  serverId: 'test-server',
+  api: api,
+  agUiStreamClient: FakeAgUiStreamClient(),
+);
 
 /// Minimal session fake for testing [ThreadViewState] signal behavior.
 class _FakeAgentSession implements AgentSession {
   _FakeAgentSession()
-      : _runState = Signal<RunState>(const IdleState()),
-        _lastExecutionEvent = Signal<ExecutionEvent?>(null);
+    : _runState = Signal<RunState>(const IdleState()),
+      _lastExecutionEvent = Signal<ExecutionEvent?>(null);
 
   final Signal<RunState> _runState;
   final Signal<ExecutionEvent?> _lastExecutionEvent;
@@ -147,14 +147,16 @@ void main() {
   });
 
   test('refresh error preserves loaded messages', () async {
-    api.nextThreadHistory = ThreadHistory(messages: [
-      TextMessage(
-        id: 'msg-1',
-        user: ChatUser.user,
-        createdAt: DateTime(2026, 3, 1),
-        text: 'Hello',
-      ),
-    ]);
+    api.nextThreadHistory = ThreadHistory(
+      messages: [
+        TextMessage(
+          id: 'msg-1',
+          user: ChatUser.user,
+          createdAt: DateTime(2026, 3, 1),
+          text: 'Hello',
+        ),
+      ],
+    );
 
     final state = ThreadViewState(
       connection: connection,
@@ -199,82 +201,85 @@ void main() {
     state.dispose();
   });
 
-  test('updates messages when list content changes but length stays the same',
-      () async {
-    api.nextThreadHistory = ThreadHistory(messages: const []);
+  test(
+    'updates messages when list content changes but length stays the same',
+    () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
 
-    final state = ThreadViewState(
-      connection: connection,
-      roomId: 'room-1',
-      threadId: 'thread-1',
-      registry: registry,
-    );
-
-    await Future<void>.delayed(Duration.zero);
-    expect(state.messages.value, isA<MessagesLoaded>());
-
-    final session = _FakeAgentSession();
-    state.attachSession(session);
-
-    final listA = <ChatMessage>[
-      TextMessage(
-        id: 'msg-1',
-        user: ChatUser.user,
-        createdAt: DateTime(2026),
-        text: 'Hello',
-      ),
-    ];
-    final conversationA = Conversation(
-      threadId: 'thread-1',
-      messages: listA,
-    );
-
-    session.emit(RunningState(
-      threadKey: (
-        serverId: 'test-server',
+      final state = ThreadViewState(
+        connection: connection,
         roomId: 'room-1',
-        threadId: 'thread-1'
-      ),
-      runId: 'run-1',
-      conversation: conversationA,
-      streaming: const AwaitingText(),
-    ));
+        threadId: 'thread-1',
+        registry: registry,
+      );
 
-    final loaded1 = state.messages.value as MessagesLoaded;
-    expect(loaded1.messages.first.id, 'msg-1');
+      await Future<void>.delayed(Duration.zero);
+      expect(state.messages.value, isA<MessagesLoaded>());
 
-    // Same length, different content, different list instance.
-    final listB = <ChatMessage>[
-      TextMessage(
-        id: 'msg-2',
-        user: ChatUser.assistant,
-        createdAt: DateTime(2026),
-        text: 'Hi there',
-      ),
-    ];
-    final conversationB = Conversation(
-      threadId: 'thread-1',
-      messages: listB,
-    );
+      final session = _FakeAgentSession();
+      state.attachSession(session);
 
-    session.emit(RunningState(
-      threadKey: (
-        serverId: 'test-server',
-        roomId: 'room-1',
-        threadId: 'thread-1'
-      ),
-      runId: 'run-1',
-      conversation: conversationB,
-      streaming: const AwaitingText(),
-    ));
+      final listA = <ChatMessage>[
+        TextMessage(
+          id: 'msg-1',
+          user: ChatUser.user,
+          createdAt: DateTime(2026),
+          text: 'Hello',
+        ),
+      ];
+      final conversationA = Conversation(threadId: 'thread-1', messages: listA);
 
-    final loaded2 = state.messages.value as MessagesLoaded;
-    expect(loaded2.messages.first.id, 'msg-2',
+      session.emit(
+        RunningState(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-1',
+          conversation: conversationA,
+          streaming: const AwaitingText(),
+        ),
+      );
+
+      final loaded1 = state.messages.value as MessagesLoaded;
+      expect(loaded1.messages.first.id, 'msg-1');
+
+      // Same length, different content, different list instance.
+      final listB = <ChatMessage>[
+        TextMessage(
+          id: 'msg-2',
+          user: ChatUser.assistant,
+          createdAt: DateTime(2026),
+          text: 'Hi there',
+        ),
+      ];
+      final conversationB = Conversation(threadId: 'thread-1', messages: listB);
+
+      session.emit(
+        RunningState(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-1',
+          conversation: conversationB,
+          streaming: const AwaitingText(),
+        ),
+      );
+
+      final loaded2 = state.messages.value as MessagesLoaded;
+      expect(
+        loaded2.messages.first.id,
+        'msg-2',
         reason:
-            'should update when list instance changes even with same length');
+            'should update when list instance changes even with same length',
+      );
 
-    state.dispose();
-  });
+      state.dispose();
+    },
+  );
 
   test('uses registry outcome instead of server fetch', () async {
     final threadKey = (
@@ -303,16 +308,16 @@ void main() {
 
     final session = _FakeAgentSession();
     registry.register(threadKey, session);
-    session.emit(CompletedState(
-      threadKey: threadKey,
-      runId: 'run-1',
-      conversation: conversation,
-    ));
-    session.complete(AgentSuccess(
-      threadKey: threadKey,
-      output: 'done',
-      runId: 'run-1',
-    ));
+    session.emit(
+      CompletedState(
+        threadKey: threadKey,
+        runId: 'run-1',
+        conversation: conversation,
+      ),
+    );
+    session.complete(
+      AgentSuccess(threadKey: threadKey, output: 'done', runId: 'run-1'),
+    );
     await Future<void>.delayed(Duration.zero);
 
     // Server has only the assistant message (user message not persisted yet).
@@ -335,8 +340,11 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     final afterFetch = state.messages.value as MessagesLoaded;
-    expect(afterFetch.messages.length, 2,
-        reason: 'server fetch must not overwrite registry outcome');
+    expect(
+      afterFetch.messages.length,
+      2,
+      reason: 'server fetch must not overwrite registry outcome',
+    );
     expect(afterFetch.messages.first.id, 'user-1');
 
     state.dispose();
@@ -359,34 +367,36 @@ void main() {
       await runtimeManager.dispose();
     });
 
-    test('run failure without conversation preserves existing messages',
-        () async {
-      api.nextThreadHistory = ThreadHistory(messages: const []);
+    test(
+      'run failure without conversation preserves existing messages',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
 
-      final state = ThreadViewState(
-        connection: connection,
-        roomId: 'room-1',
-        threadId: 'thread-1',
-        registry: registry,
-      );
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      expect(state.messages.value, isA<MessagesLoaded>());
-
-      // Send a message — spawn will succeed but the run will fail
-      // (FakeAgUiStreamClient throws). FailedState may have no
-      // conversation, so existing messages should be preserved.
-      await state.sendMessage('Hello', runtime);
-
-      for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
-      }
+        expect(state.messages.value, isA<MessagesLoaded>());
 
-      // Messages should still be loaded (not replaced with error).
-      expect(state.messages.value, isA<MessagesLoaded>());
+        // Send a message — spawn will succeed but the run will fail
+        // (FakeAgUiStreamClient throws). FailedState may have no
+        // conversation, so existing messages should be preserved.
+        await state.sendMessage('Hello', runtime);
 
-      state.dispose();
-    });
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        // Messages should still be loaded (not replaced with error).
+        expect(state.messages.value, isA<MessagesLoaded>());
+
+        state.dispose();
+      },
+    );
 
     test('spawn error preserves existing messages', () async {
       final message = TextMessage(
@@ -467,40 +477,42 @@ void main() {
       state.dispose();
     });
 
-    test('dispose during sendMessage still registers session in registry',
-        () async {
-      api.nextThreadHistory = ThreadHistory(messages: const []);
+    test(
+      'dispose during sendMessage still registers session in registry',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
 
-      final state = ThreadViewState(
-        connection: connection,
-        roomId: 'room-1',
-        threadId: 'thread-1',
-        registry: registry,
-      );
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      expect(state.messages.value, isA<MessagesLoaded>());
-
-      // Start sendMessage but dispose before it completes.
-      final sendFuture = state.sendMessage('Hello', runtime);
-      state.dispose();
-
-      // Let the spawn complete.
-      await sendFuture;
-      for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
-      }
+        expect(state.messages.value, isA<MessagesLoaded>());
 
-      // Session should be tracked in the registry despite disposal.
-      final key = (
-        serverId: 'test-server',
-        roomId: 'room-1',
-        threadId: 'thread-1',
-      );
-      final active = registry.activeSession(key);
-      final outcome = registry.completedOutcome(key);
-      expect(active != null || outcome != null, isTrue);
-    });
+        // Start sendMessage but dispose before it completes.
+        final sendFuture = state.sendMessage('Hello', runtime);
+        state.dispose();
+
+        // Let the spawn complete.
+        await sendFuture;
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        // Session should be tracked in the registry despite disposal.
+        final key = (
+          serverId: 'test-server',
+          roomId: 'room-1',
+          threadId: 'thread-1',
+        );
+        final active = registry.activeSession(key);
+        final outcome = registry.completedOutcome(key);
+        expect(active != null || outcome != null, isTrue);
+      },
+    );
 
     test('dispose does not cancel an active session', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -638,15 +650,17 @@ void main() {
       state.attachSession(fakeSession);
 
       final conversation = Conversation(threadId: 'thread-1');
-      fakeSession.emit(CompletedState(
-        threadKey: (
-          serverId: 'test-server',
-          roomId: 'room-1',
-          threadId: 'thread-1',
+      fakeSession.emit(
+        CompletedState(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-1',
+          conversation: conversation,
         ),
-        runId: 'run-1',
-        conversation: conversation,
-      ));
+      );
 
       // No crash — the null-check in _onRunState handles cleanup safely.
       expect(state.sessionState.value, isNull);

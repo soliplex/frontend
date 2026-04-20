@@ -13,7 +13,7 @@ class FakeHostApi implements HostApi {
 
   /// Handler for [invoke] calls. If null, [invoke] throws.
   final Future<Object?> Function(String name, Map<String, Object?> args)?
-      invokeHandler;
+  invokeHandler;
 
   final Map<int, Map<String, List<Object?>>> _dataFrames = {};
   final Map<int, Map<String, Object?>> _charts = {};

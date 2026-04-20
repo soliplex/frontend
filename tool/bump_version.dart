@@ -35,8 +35,10 @@ void main(List<String> args) {
   }
 
   final pubspecContent = pubspecFile.readAsStringSync();
-  final versionMatch =
-      RegExp(r'^version:\s*(.+)$', multiLine: true).firstMatch(pubspecContent);
+  final versionMatch = RegExp(
+    r'^version:\s*(.+)$',
+    multiLine: true,
+  ).firstMatch(pubspecContent);
 
   if (versionMatch == null) {
     stderr.writeln('Error: Could not find version in pubspec.yaml');
@@ -70,11 +72,10 @@ void main(List<String> args) {
   stdout.writeln('Updated pubspec.yaml: $currentVersion -> $newVersion');
 
   // Run update_version.dart to sync lib/version.dart
-  final result = Process.runSync(
-    'dart',
-    ['run', 'tool/update_version.dart'],
-    runInShell: true,
-  );
+  final result = Process.runSync('dart', [
+    'run',
+    'tool/update_version.dart',
+  ], runInShell: true);
 
   if (result.exitCode != 0) {
     stderr

@@ -36,62 +36,70 @@ class Rag {
   });
 
   factory Rag.fromJson(Map<String, dynamic> json) => Rag(
-        citations: json["citations"] == null
+    citations:
+        json["citations"] == null
             ? []
             : List<Citation>.from(
-                json["citations"]!.map((x) => Citation.fromJson(x)),
-              ),
-        documentFilter: json["document_filter"],
-        documents: json["documents"] == null
+              json["citations"]!.map((x) => Citation.fromJson(x)),
+            ),
+    documentFilter: json["document_filter"],
+    documents:
+        json["documents"] == null
             ? []
             : List<DocumentInfo>.from(
-                json["documents"]!.map((x) => DocumentInfo.fromJson(x)),
-              ),
-        qaHistory: json["qa_history"] == null
+              json["documents"]!.map((x) => DocumentInfo.fromJson(x)),
+            ),
+    qaHistory:
+        json["qa_history"] == null
             ? []
             : List<QaHistoryEntry>.from(
-                json["qa_history"]!.map((x) => QaHistoryEntry.fromJson(x)),
-              ),
-        reports: json["reports"] == null
+              json["qa_history"]!.map((x) => QaHistoryEntry.fromJson(x)),
+            ),
+    reports:
+        json["reports"] == null
             ? []
             : List<ResearchEntry>.from(
-                json["reports"]!.map((x) => ResearchEntry.fromJson(x)),
-              ),
-        searches: json["searches"] == null
+              json["reports"]!.map((x) => ResearchEntry.fromJson(x)),
+            ),
+    searches:
+        json["searches"] == null
             ? null
             : Map.from(json["searches"]!).map(
-                (k, v) => MapEntry<String, List<SearchResult>>(
-                  k,
-                  List<SearchResult>.from(
-                    v.map((x) => SearchResult.fromJson(x)),
-                  ),
-                ),
+              (k, v) => MapEntry<String, List<SearchResult>>(
+                k,
+                List<SearchResult>.from(v.map((x) => SearchResult.fromJson(x))),
               ),
-      );
+            ),
+  );
 
   Map<String, dynamic> toJson() => {
-        "citations": citations == null
+    "citations":
+        citations == null
             ? []
             : List<dynamic>.from(citations!.map((x) => x.toJson())),
-        "document_filter": documentFilter,
-        "documents": documents == null
+    "document_filter": documentFilter,
+    "documents":
+        documents == null
             ? []
             : List<dynamic>.from(documents!.map((x) => x.toJson())),
-        "qa_history": qaHistory == null
+    "qa_history":
+        qaHistory == null
             ? []
             : List<dynamic>.from(qaHistory!.map((x) => x.toJson())),
-        "reports": reports == null
+    "reports":
+        reports == null
             ? []
             : List<dynamic>.from(reports!.map((x) => x.toJson())),
-        "searches": searches == null
+    "searches":
+        searches == null
             ? null
             : Map.from(searches!).map(
-                (k, v) => MapEntry<String, dynamic>(
-                  k,
-                  List<dynamic>.from(v.map((x) => x.toJson())),
-                ),
+              (k, v) => MapEntry<String, dynamic>(
+                k,
+                List<dynamic>.from(v.map((x) => x.toJson())),
               ),
-      };
+            ),
+  };
 }
 
 ///Resolved citation with full metadata for display/visual grounding.
@@ -120,33 +128,36 @@ class Citation {
   });
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
-        chunkId: json["chunk_id"],
-        content: json["content"],
-        documentId: json["document_id"],
-        documentTitle: json["document_title"],
-        documentUri: json["document_uri"],
-        headings: json["headings"] == null
+    chunkId: json["chunk_id"],
+    content: json["content"],
+    documentId: json["document_id"],
+    documentTitle: json["document_title"],
+    documentUri: json["document_uri"],
+    headings:
+        json["headings"] == null
             ? []
             : List<String>.from(json["headings"]!.map((x) => x)),
-        index: json["index"],
-        pageNumbers: json["page_numbers"] == null
+    index: json["index"],
+    pageNumbers:
+        json["page_numbers"] == null
             ? []
             : List<int>.from(json["page_numbers"]!.map((x) => x)),
-      );
+  );
 
   Map<String, dynamic> toJson() => {
-        "chunk_id": chunkId,
-        "content": content,
-        "document_id": documentId,
-        "document_title": documentTitle,
-        "document_uri": documentUri,
-        "headings":
-            headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
-        "index": index,
-        "page_numbers": pageNumbers == null
+    "chunk_id": chunkId,
+    "content": content,
+    "document_id": documentId,
+    "document_title": documentTitle,
+    "document_uri": documentUri,
+    "headings":
+        headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
+    "index": index,
+    "page_numbers":
+        pageNumbers == null
             ? []
             : List<dynamic>.from(pageNumbers!.map((x) => x)),
-      };
+  };
 }
 
 ///Document info for list_documents response.
@@ -164,18 +175,18 @@ class DocumentInfo {
   });
 
   factory DocumentInfo.fromJson(Map<String, dynamic> json) => DocumentInfo(
-        created: json["created"],
-        id: json["id"],
-        title: json["title"],
-        uri: json["uri"],
-      );
+    created: json["created"],
+    id: json["id"],
+    title: json["title"],
+    uri: json["uri"],
+  );
 
   Map<String, dynamic> toJson() => {
-        "created": created,
-        "id": id,
-        "title": title,
-        "uri": uri,
-      };
+    "created": created,
+    "id": id,
+    "title": title,
+    "uri": uri,
+  };
 }
 
 ///A Q&A pair with optional cached embedding for similarity matching.
@@ -195,32 +206,36 @@ class QaHistoryEntry {
   });
 
   factory QaHistoryEntry.fromJson(Map<String, dynamic> json) => QaHistoryEntry(
-        answer: json["answer"],
-        citations: json["citations"] == null
+    answer: json["answer"],
+    citations:
+        json["citations"] == null
             ? []
             : List<Citation>.from(
-                json["citations"]!.map((x) => Citation.fromJson(x)),
-              ),
-        confidence: json["confidence"]?.toDouble(),
-        question: json["question"],
-        questionEmbedding: json["question_embedding"] == null
+              json["citations"]!.map((x) => Citation.fromJson(x)),
+            ),
+    confidence: json["confidence"]?.toDouble(),
+    question: json["question"],
+    questionEmbedding:
+        json["question_embedding"] == null
             ? []
             : List<double>.from(
-                json["question_embedding"]!.map((x) => x?.toDouble()),
-              ),
-      );
+              json["question_embedding"]!.map((x) => x?.toDouble()),
+            ),
+  );
 
   Map<String, dynamic> toJson() => {
-        "answer": answer,
-        "citations": citations == null
+    "answer": answer,
+    "citations":
+        citations == null
             ? []
             : List<dynamic>.from(citations!.map((x) => x.toJson())),
-        "confidence": confidence,
-        "question": question,
-        "question_embedding": questionEmbedding == null
+    "confidence": confidence,
+    "question": question,
+    "question_embedding":
+        questionEmbedding == null
             ? []
             : List<dynamic>.from(questionEmbedding!.map((x) => x)),
-      };
+  };
 }
 
 class ResearchEntry {
@@ -235,16 +250,16 @@ class ResearchEntry {
   });
 
   factory ResearchEntry.fromJson(Map<String, dynamic> json) => ResearchEntry(
-        executiveSummary: json["executive_summary"],
-        question: json["question"],
-        title: json["title"],
-      );
+    executiveSummary: json["executive_summary"],
+    question: json["question"],
+    title: json["title"],
+  );
 
   Map<String, dynamic> toJson() => {
-        "executive_summary": executiveSummary,
-        "question": question,
-        "title": title,
-      };
+    "executive_summary": executiveSummary,
+    "question": question,
+    "title": title,
+  };
 }
 
 ///Search result with optional provenance information for citations.
@@ -274,42 +289,47 @@ class SearchResult {
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) => SearchResult(
-        chunkId: json["chunk_id"],
-        content: json["content"],
-        docItemRefs: json["doc_item_refs"] == null
+    chunkId: json["chunk_id"],
+    content: json["content"],
+    docItemRefs:
+        json["doc_item_refs"] == null
             ? []
             : List<String>.from(json["doc_item_refs"]!.map((x) => x)),
-        documentId: json["document_id"],
-        documentTitle: json["document_title"],
-        documentUri: json["document_uri"],
-        headings: json["headings"] == null
+    documentId: json["document_id"],
+    documentTitle: json["document_title"],
+    documentUri: json["document_uri"],
+    headings:
+        json["headings"] == null
             ? []
             : List<String>.from(json["headings"]!.map((x) => x)),
-        labels: json["labels"] == null
+    labels:
+        json["labels"] == null
             ? []
             : List<String>.from(json["labels"]!.map((x) => x)),
-        pageNumbers: json["page_numbers"] == null
+    pageNumbers:
+        json["page_numbers"] == null
             ? []
             : List<int>.from(json["page_numbers"]!.map((x) => x)),
-        score: json["score"]?.toDouble(),
-      );
+    score: json["score"]?.toDouble(),
+  );
 
   Map<String, dynamic> toJson() => {
-        "chunk_id": chunkId,
-        "content": content,
-        "doc_item_refs": docItemRefs == null
+    "chunk_id": chunkId,
+    "content": content,
+    "doc_item_refs":
+        docItemRefs == null
             ? []
             : List<dynamic>.from(docItemRefs!.map((x) => x)),
-        "document_id": documentId,
-        "document_title": documentTitle,
-        "document_uri": documentUri,
-        "headings":
-            headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
-        "labels":
-            labels == null ? [] : List<dynamic>.from(labels!.map((x) => x)),
-        "page_numbers": pageNumbers == null
+    "document_id": documentId,
+    "document_title": documentTitle,
+    "document_uri": documentUri,
+    "headings":
+        headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
+    "labels": labels == null ? [] : List<dynamic>.from(labels!.map((x) => x)),
+    "page_numbers":
+        pageNumbers == null
             ? []
             : List<dynamic>.from(pageNumbers!.map((x) => x)),
-        "score": score,
-      };
+    "score": score,
+  };
 }

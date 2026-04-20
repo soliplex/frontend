@@ -10,11 +10,7 @@ Future<void> _pump(
   List<ConcurrencyWaitEvent> events,
 ) async {
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: ConcurrencySummaryPanel(events: events),
-      ),
-    ),
+    MaterialApp(home: Scaffold(body: ConcurrencySummaryPanel(events: events))),
   );
 }
 

@@ -22,11 +22,11 @@ class UserProfile {
   final String preferredUsername;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        givenName: json['given_name'] as String? ?? '',
-        familyName: json['family_name'] as String? ?? '',
-        email: json['email'] as String? ?? '',
-        preferredUsername: json['preferred_username'] as String? ?? '',
-      );
+    givenName: json['given_name'] as String? ?? '',
+    familyName: json['family_name'] as String? ?? '',
+    email: json['email'] as String? ?? '',
+    preferredUsername: json['preferred_username'] as String? ?? '',
+  );
 }
 
 sealed class ServerRooms {}
@@ -45,11 +45,9 @@ class RoomsFailed extends ServerRooms {
 
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
-  LobbyState({
-    required ServerManager serverManager,
-    ApiResolver? apiResolver,
-  })  : _serverManager = serverManager,
-        _apiResolver = apiResolver ?? _defaultResolver {
+  LobbyState({required ServerManager serverManager, ApiResolver? apiResolver})
+    : _serverManager = serverManager,
+      _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
   }
 
@@ -82,8 +80,9 @@ class LobbyState {
     final removed = knownIds.difference(nextIds);
     if (removed.isNotEmpty) {
       final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value);
-      final updatedProfiles =
-          Map<String, UserProfile?>.from(_userProfiles.value);
+      final updatedProfiles = Map<String, UserProfile?>.from(
+        _userProfiles.value,
+      );
       for (final id in removed) {
         updatedRooms.remove(id);
         updatedProfiles.remove(id);
@@ -115,8 +114,9 @@ class LobbyState {
     } else {
       final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
         ..remove(serverId);
-      final updatedProfiles =
-          Map<String, UserProfile?>.from(_userProfiles.value)..remove(serverId);
+      final updatedProfiles = Map<String, UserProfile?>.from(
+        _userProfiles.value,
+      )..remove(serverId);
       _cancelTokens.remove(serverId)?.cancel('disconnected');
       _roomsByServer.value = updatedRooms;
       _userProfiles.value = updatedProfiles;
@@ -131,44 +131,46 @@ class LobbyState {
     _cancelTokens[serverId] = token;
 
     // Mark as loading
-    _roomsByServer.value = {
-      ..._roomsByServer.value,
-      serverId: RoomsLoading(),
-    };
+    _roomsByServer.value = {..._roomsByServer.value, serverId: RoomsLoading()};
 
-    _apiResolver(entry).getRooms(cancelToken: token).then((rooms) {
-      if (token.isCancelled) return;
-      _cancelTokens.remove(serverId);
-      _roomsByServer.value = {
-        ..._roomsByServer.value,
-        serverId: RoomsLoaded(rooms),
-      };
-    }).catchError((Object error) {
-      if (token.isCancelled) return;
-      _cancelTokens.remove(serverId);
-      _roomsByServer.value = {
-        ..._roomsByServer.value,
-        serverId: RoomsFailed(error),
-      };
-    });
+    _apiResolver(entry)
+        .getRooms(cancelToken: token)
+        .then((rooms) {
+          if (token.isCancelled) return;
+          _cancelTokens.remove(serverId);
+          _roomsByServer.value = {
+            ..._roomsByServer.value,
+            serverId: RoomsLoaded(rooms),
+          };
+        })
+        .catchError((Object error) {
+          if (token.isCancelled) return;
+          _cancelTokens.remove(serverId);
+          _roomsByServer.value = {
+            ..._roomsByServer.value,
+            serverId: RoomsFailed(error),
+          };
+        });
   }
 
   void _fetchUserProfile(String serverId, ServerEntry entry) {
     final url = entry.serverUrl.resolve('/api/user_info');
-    Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      if (!_authSubscriptions.containsKey(serverId)) return;
-      final UserProfile? profile;
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        profile = UserProfile.fromJson(json);
-      } else {
-        profile = null;
-      }
-      _userProfiles.value = {..._userProfiles.value, serverId: profile};
-    }).catchError((Object _) {
-      if (!_authSubscriptions.containsKey(serverId)) return;
-      _userProfiles.value = {..._userProfiles.value, serverId: null};
-    });
+    Future.sync(() => entry.httpClient.request('GET', url))
+        .then((response) {
+          if (!_authSubscriptions.containsKey(serverId)) return;
+          final UserProfile? profile;
+          if (response.statusCode == 200) {
+            final json = jsonDecode(response.body) as Map<String, dynamic>;
+            profile = UserProfile.fromJson(json);
+          } else {
+            profile = null;
+          }
+          _userProfiles.value = {..._userProfiles.value, serverId: profile};
+        })
+        .catchError((Object _) {
+          if (!_authSubscriptions.containsKey(serverId)) return;
+          _userProfiles.value = {..._userProfiles.value, serverId: null};
+        });
   }
 
   /// Manually re-fetches rooms and profile for the given server.

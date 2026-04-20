@@ -17,10 +17,7 @@ void main() {
       final bodyString = utf8.decode(result.bodyBytes);
 
       // Extract boundary from content type
-      expect(
-        result.contentType,
-        startsWith('multipart/form-data; boundary='),
-      );
+      expect(result.contentType, startsWith('multipart/form-data; boundary='));
       final boundary = result.contentType.split('boundary=').last;
 
       // Must have correct multipart structure

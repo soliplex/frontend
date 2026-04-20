@@ -64,10 +64,8 @@ void main() {
           mimeType: any(named: 'mimeType'),
         ),
       ).thenAnswer(
-        (_) async => throw const ApiException(
-          statusCode: 500,
-          message: 'Server error',
-        ),
+        (_) async =>
+            throw const ApiException(statusCode: 500, message: 'Server error'),
       );
 
       tracker.uploadToRoom(
@@ -97,9 +95,7 @@ void main() {
           mimeType: any(named: 'mimeType'),
         ),
       ).thenAnswer(
-        (_) async => throw NetworkException(
-          message: 'Connection refused',
-        ),
+        (_) async => throw NetworkException(message: 'Connection refused'),
       );
 
       tracker.uploadToRoom(
@@ -241,14 +237,8 @@ void main() {
         fileBytes: [0],
       );
 
-      expect(
-        tracker.threadUploads('room-1', 'thread-1').value,
-        hasLength(1),
-      );
-      expect(
-        tracker.threadUploads('room-1', 'thread-2').value,
-        hasLength(1),
-      );
+      expect(tracker.threadUploads('room-1', 'thread-1').value, hasLength(1));
+      expect(tracker.threadUploads('room-1', 'thread-2').value, hasLength(1));
     });
   });
 }

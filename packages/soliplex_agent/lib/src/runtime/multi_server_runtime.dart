@@ -17,9 +17,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 ///
 /// Defaults to [AgUiLlmProvider] when not specified in
 /// [MultiServerRuntime].
-typedef LlmProviderFactory = AgentLlmProvider Function(
-  ServerConnection connection,
-);
+typedef LlmProviderFactory =
+    AgentLlmProvider Function(
+      ServerConnection connection,
+    );
 
 /// Coordinator wrapping per-server [AgentRuntime] instances.
 ///
@@ -34,12 +35,12 @@ class MultiServerRuntime {
     required Logger logger,
     LlmProviderFactory? llmProviderFactory,
     SessionExtensionFactory? extensionFactory,
-  })  : _registry = registry,
-        _toolRegistryResolver = toolRegistryResolver,
-        _llmProviderFactory = llmProviderFactory ?? _defaultLlmProviderFactory,
-        _extensionFactory = extensionFactory,
-        _platform = platform,
-        _logger = logger;
+  }) : _registry = registry,
+       _toolRegistryResolver = toolRegistryResolver,
+       _llmProviderFactory = llmProviderFactory ?? _defaultLlmProviderFactory,
+       _extensionFactory = extensionFactory,
+       _platform = platform,
+       _logger = logger;
 
   final ServerRegistry _registry;
   final ToolRegistryResolver _toolRegistryResolver;
@@ -50,11 +51,10 @@ class MultiServerRuntime {
 
   static AgentLlmProvider _defaultLlmProviderFactory(
     ServerConnection connection,
-  ) =>
-      AgUiLlmProvider(
-        api: connection.api,
-        agUiStreamClient: connection.agUiStreamClient,
-      );
+  ) => AgUiLlmProvider(
+    api: connection.api,
+    agUiStreamClient: connection.agUiStreamClient,
+  );
 
   final Map<String, AgentRuntime> _runtimes = {};
   bool _disposed = false;

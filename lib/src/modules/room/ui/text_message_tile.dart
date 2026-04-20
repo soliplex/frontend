@@ -59,19 +59,21 @@ class TextMessageTile extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isUser
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerLow,
+            color:
+                isUser
+                    ? theme.colorScheme.primaryContainer
+                    : theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: isUser
-              ? SelectableText(
-                  message.text,
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                )
-              : message.text.isEmpty
+          child:
+              isUser
+                  ? SelectableText(
+                    message.text,
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  )
+                  : message.text.isEmpty
                   ? const Text('...')
                   : FlutterMarkdownPlusRenderer(data: message.text),
         ),
@@ -128,11 +130,7 @@ class _ThinkingBlock extends StatelessWidget {
               ),
             ),
           ),
-          CopyButton(
-            text: text,
-            tooltip: 'Copy thinking',
-            iconSize: 16,
-          ),
+          CopyButton(text: text, tooltip: 'Copy thinking', iconSize: 16),
         ],
       ),
       dense: true,

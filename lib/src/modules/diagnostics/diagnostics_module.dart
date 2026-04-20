@@ -7,15 +7,12 @@ import 'ui/network_inspector_screen.dart';
 
 ModuleContribution diagnosticsModule({required NetworkInspector inspector}) {
   return ModuleContribution(
-    overrides: [
-      networkInspectorProvider.overrideWithValue(inspector),
-    ],
+    overrides: [networkInspectorProvider.overrideWithValue(inspector)],
     routes: [
       GoRoute(
         path: '/diagnostics/network',
-        builder: (context, state) => NetworkInspectorScreen(
-          inspector: inspector,
-        ),
+        builder:
+            (context, state) => NetworkInspectorScreen(inspector: inspector),
       ),
     ],
   );

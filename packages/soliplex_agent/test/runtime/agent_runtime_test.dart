@@ -66,38 +66,38 @@ ThreadInfo _threadInfo() =>
     ThreadInfo(id: _threadId, roomId: _roomId, createdAt: DateTime(2026));
 
 ThreadInfo _threadInfoWithRun() => ThreadInfo(
-      id: _threadId,
-      roomId: _roomId,
-      initialRunId: _runId,
-      createdAt: DateTime(2026),
-    );
+  id: _threadId,
+  roomId: _roomId,
+  initialRunId: _runId,
+  createdAt: DateTime(2026),
+);
 
 RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _toolCallEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
-      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
-      const ToolCallEndEvent(toolCallId: 'tc-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
+  const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
+  const ToolCallEndEvent(toolCallId: 'tc-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-2'),
-      const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
-      const TextMessageEndEvent(messageId: 'msg-2'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-2'),
+  const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
+  const TextMessageEndEvent(messageId: 'msg-2'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 ToolRegistry _weatherRegistry() {
   return const ToolRegistry().register(
@@ -732,8 +732,9 @@ void main() {
       stubCreateRun();
       stubDeleteThread();
       // Stream that never completes — session stays running until timeout
-      final controller = StreamController<BaseEvent>.broadcast()
-        ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      final controller =
+          StreamController<BaseEvent>.broadcast()
+            ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
       final session = await runtime.spawn(roomId: _roomId, prompt: 'Slow');
@@ -788,8 +789,9 @@ void main() {
       stubCreateThread();
       stubCreateRun();
       stubDeleteThread();
-      final controller = StreamController<BaseEvent>.broadcast()
-        ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      final controller =
+          StreamController<BaseEvent>.broadcast()
+            ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
       final parent = await runtime.spawn(roomId: _roomId, prompt: 'Parent');
@@ -1130,9 +1132,10 @@ void main() {
         toolRegistryResolver: (_) async => const ToolRegistry(),
         platform: const NativePlatformConstraints(),
         logger: logger,
-        extensionFactory: () async => [
-          _TestExtension(toolList: [tool]),
-        ],
+        extensionFactory:
+            () async => [
+              _TestExtension(toolList: [tool]),
+            ],
       );
 
       stubCreateThread();
@@ -1151,18 +1154,18 @@ void main() {
         // First call: tool yield; second call: resume with text
         return callCount == 1
             ? Stream.fromIterable([
-                const RunStartedEvent(threadId: _threadId, runId: _runId),
-                const ToolCallStartEvent(
-                  toolCallId: 'tc-py',
-                  toolCallName: 'execute_python',
-                ),
-                const ToolCallArgsEvent(
-                  toolCallId: 'tc-py',
-                  delta: '{"code":"print(1)"}',
-                ),
-                const ToolCallEndEvent(toolCallId: 'tc-py'),
-                const RunFinishedEvent(threadId: _threadId, runId: _runId),
-              ])
+              const RunStartedEvent(threadId: _threadId, runId: _runId),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-py',
+                toolCallName: 'execute_python',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-py',
+                delta: '{"code":"print(1)"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-py'),
+              const RunFinishedEvent(threadId: _threadId, runId: _runId),
+            ])
             : Stream.fromIterable(_resumeTextEvents());
       });
 
@@ -1335,13 +1338,14 @@ void main() {
       await s2.result;
 
       // Capture all runAgent calls.
-      final captured = verify(
-        () => agUiStreamClient.runAgent(
-          any(),
-          captureAny(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => agUiStreamClient.runAgent(
+              any(),
+              captureAny(),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).captured;
 
       // Second call should have prior messages + new user message.
       final input2 = captured[1] as SimpleRunAgentInput;
@@ -1367,13 +1371,14 @@ void main() {
       final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
       await session.result;
 
-      final captured = verify(
-        () => agUiStreamClient.runAgent(
-          any(),
-          captureAny(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => agUiStreamClient.runAgent(
+              any(),
+              captureAny(),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).captured;
 
       final input = captured.first as SimpleRunAgentInput;
       final messages = input.messages!;
@@ -1405,13 +1410,14 @@ void main() {
       );
       await s2.result;
 
-      final captured = verify(
-        () => agUiStreamClient.runAgent(
-          any(),
-          captureAny(),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).captured;
+      final captured =
+          verify(
+            () => agUiStreamClient.runAgent(
+              any(),
+              captureAny(),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).captured;
 
       // Second call should have only the new message (no history from
       // ephemeral session).
@@ -1433,9 +1439,10 @@ void main() {
         agUiStreamClient: MockAgUiStreamClient(),
       );
 
-      final reg = ServerRegistry()
-        ..add(prodConn)
-        ..add(stagingConn);
+      final reg =
+          ServerRegistry()
+            ..add(prodConn)
+            ..add(stagingConn);
 
       runtime = AgentRuntime(
         connection: reg.require('prod'),

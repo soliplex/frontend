@@ -13,8 +13,8 @@ class ModuleContribution {
     List<RouteBase> routes = const [],
     List<Override> overrides = const [],
     this.redirect,
-  })  : routes = List.unmodifiable(routes),
-        overrides = List.unmodifiable(overrides);
+  }) : routes = List.unmodifiable(routes),
+       overrides = List.unmodifiable(overrides);
 }
 
 class ShellConfig {
@@ -43,8 +43,6 @@ class ShellConfig {
   List<GoRouterRedirect> get redirects =>
       modules.map((m) => m.redirect).nonNulls.toList();
 
-  List<String> validate() => validateRoutes(
-        routes: routes,
-        initialRoute: initialRoute,
-      );
+  List<String> validate() =>
+      validateRoutes(routes: routes, initialRoute: initialRoute);
 }

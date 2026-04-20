@@ -12,37 +12,29 @@ void main() {
 
   testWidgets('shows prompt text', (tester) async {
     const prompt = 'You are a helpful assistant.';
-    await tester.pumpWidget(wrap(
-      const SystemPromptViewer(prompt: prompt),
-    ));
+    await tester.pumpWidget(wrap(const SystemPromptViewer(prompt: prompt)));
 
     expect(find.text(prompt), findsOneWidget);
   });
 
   testWidgets('shows System Prompt label', (tester) async {
-    await tester.pumpWidget(wrap(
-      const SystemPromptViewer(prompt: 'hello'),
-    ));
+    await tester.pumpWidget(wrap(const SystemPromptViewer(prompt: 'hello')));
 
     expect(find.text('System Prompt'), findsOneWidget);
   });
 
   testWidgets('CopyButton is present', (tester) async {
-    await tester.pumpWidget(wrap(
-      const SystemPromptViewer(prompt: 'hello'),
-    ));
+    await tester.pumpWidget(wrap(const SystemPromptViewer(prompt: 'hello')));
 
     expect(find.byType(CopyButton), findsOneWidget);
   });
 
-  testWidgets('expand/collapse button visible when text overflows',
-      (tester) async {
-    await tester.pumpWidget(wrap(
-      SizedBox(
-        width: 300,
-        child: SystemPromptViewer(prompt: longPrompt),
-      ),
-    ));
+  testWidgets('expand/collapse button visible when text overflows', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(SizedBox(width: 300, child: SystemPromptViewer(prompt: longPrompt))),
+    );
 
     // Overflow detection may or may not trigger with Ahem font, but if the
     // button appears, it should read "Expand".
@@ -52,16 +44,19 @@ void main() {
     }
   });
 
-  testWidgets('tapping Expand shows full text and changes label to Collapse',
-      (tester) async {
-    await tester.pumpWidget(wrap(
-      SingleChildScrollView(
-        child: SizedBox(
-          width: 300,
-          child: SystemPromptViewer(prompt: longPrompt),
+  testWidgets('tapping Expand shows full text and changes label to Collapse', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 300,
+            child: SystemPromptViewer(prompt: longPrompt),
+          ),
         ),
       ),
-    ));
+    );
 
     final expandButton = find.widgetWithText(TextButton, 'Expand');
     if (expandButton.evaluate().isEmpty) {
@@ -77,36 +72,39 @@ void main() {
   });
 
   testWidgets(
-      'tapping Collapse truncates text and changes label back to Expand',
-      (tester) async {
-    await tester.pumpWidget(wrap(
-      SingleChildScrollView(
-        child: SizedBox(
-          width: 300,
-          child: SystemPromptViewer(prompt: longPrompt),
+    'tapping Collapse truncates text and changes label back to Expand',
+    (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(
+            child: SizedBox(
+              width: 300,
+              child: SystemPromptViewer(prompt: longPrompt),
+            ),
+          ),
         ),
-      ),
-    ));
+      );
 
-    final expandButton = find.widgetWithText(TextButton, 'Expand');
-    if (expandButton.evaluate().isEmpty) {
-      // Overflow not detected with test font — skip toggle assertion.
-      return;
-    }
+      final expandButton = find.widgetWithText(TextButton, 'Expand');
+      if (expandButton.evaluate().isEmpty) {
+        // Overflow not detected with test font — skip toggle assertion.
+        return;
+      }
 
-    // Expand first.
-    await tester.tap(expandButton);
-    await tester.pump();
+      // Expand first.
+      await tester.tap(expandButton);
+      await tester.pump();
 
-    // Now collapse. Scroll it into view first since the expanded text may push
-    // the button below the visible area.
-    final collapseButton = find.widgetWithText(TextButton, 'Collapse');
-    await tester.ensureVisible(collapseButton);
-    await tester.pump();
-    await tester.tap(collapseButton);
-    await tester.pump();
+      // Now collapse. Scroll it into view first since the expanded text may push
+      // the button below the visible area.
+      final collapseButton = find.widgetWithText(TextButton, 'Collapse');
+      await tester.ensureVisible(collapseButton);
+      await tester.pump();
+      await tester.tap(collapseButton);
+      await tester.pump();
 
-    expect(find.widgetWithText(TextButton, 'Expand'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Collapse'), findsNothing);
-  });
+      expect(find.widgetWithText(TextButton, 'Expand'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Collapse'), findsNothing);
+    },
+  );
 }

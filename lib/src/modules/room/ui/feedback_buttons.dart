@@ -79,14 +79,11 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
       _direction = direction;
     });
     _controller.reverse(from: 1);
-    _countdownTimer = Timer(
-      Duration(seconds: widget.countdownSeconds),
-      () {
-        if (mounted && _phase == _FeedbackPhase.countdown) {
-          _submit(null);
-        }
-      },
-    );
+    _countdownTimer = Timer(Duration(seconds: widget.countdownSeconds), () {
+      if (mounted && _phase == _FeedbackPhase.countdown) {
+        _submit(null);
+      }
+    });
   }
 
   Future<void> _onTellUsWhyTap() async {
@@ -129,18 +126,20 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
         _ThumbButton(
           tooltip: 'Thumbs up',
           icon: isUpActive ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
-          color: isUpActive
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurfaceVariant,
+          color:
+              isUpActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
           onTap: () => _onTap(FeedbackType.thumbsUp),
         ),
         const SizedBox(width: 4),
         _ThumbButton(
           tooltip: 'Thumbs down',
           icon: isDownActive ? Icons.thumb_down : Icons.thumb_down_alt_outlined,
-          color: isDownActive
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurfaceVariant,
+          color:
+              isDownActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
           onTap: () => _onTap(FeedbackType.thumbsDown),
         ),
         if (_phase == _FeedbackPhase.countdown) ...[

@@ -30,12 +30,11 @@ class _ThreadTileState extends State<ThreadTile> {
   bool _isMenuOpen = false;
 
   static bool get _isDesktop => switch (defaultTargetPlatform) {
-        TargetPlatform.macOS ||
-        TargetPlatform.windows ||
-        TargetPlatform.linux =>
-          true,
-        _ => false,
-      };
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -91,29 +90,36 @@ class _ThreadTileState extends State<ThreadTile> {
             widget.onDelete();
         }
       },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: _ThreadAction.rename,
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18),
-              SizedBox(width: 12),
-              Text('Rename'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: _ThreadAction.delete,
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline,
-                  size: 18, color: theme.colorScheme.error),
-              SizedBox(width: 12),
-              Text('Delete', style: TextStyle(color: theme.colorScheme.error)),
-            ],
-          ),
-        ),
-      ],
+      itemBuilder:
+          (context) => [
+            const PopupMenuItem(
+              value: _ThreadAction.rename,
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, size: 18),
+                  SizedBox(width: 12),
+                  Text('Rename'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _ThreadAction.delete,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: theme.colorScheme.error,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Delete',
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ],
+              ),
+            ),
+          ],
     );
   }
 

@@ -43,8 +43,10 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
     _cancelToken = CancelToken();
     final api = widget.serverEntry.connection.api;
     _roomFuture = api.getRoom(widget.roomId, cancelToken: _cancelToken);
-    _documentsFuture =
-        api.getDocuments(widget.roomId, cancelToken: _cancelToken)..ignore();
+    _documentsFuture = api.getDocuments(
+      widget.roomId,
+      cancelToken: _cancelToken,
+    )..ignore();
     _clientToolsFuture = widget
         .toolRegistryResolver(widget.roomId)
         .then((r) => r.toolDefinitions);
@@ -60,9 +62,10 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
     setState(() {
       _cancelToken.cancel('retry');
       _cancelToken = CancelToken();
-      _documentsFuture = widget.serverEntry.connection.api
-          .getDocuments(widget.roomId, cancelToken: _cancelToken)
-        ..ignore();
+      _documentsFuture = widget.serverEntry.connection.api.getDocuments(
+        widget.roomId,
+        cancelToken: _cancelToken,
+      )..ignore();
     });
   }
 
@@ -77,9 +80,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(
-                '/room/${widget.serverEntry.alias}/${widget.roomId}',
-              );
+              context.go('/room/${widget.serverEntry.alias}/${widget.roomId}');
             }
           },
         ),
@@ -146,16 +147,13 @@ class _RoomInfoBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Server',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('Server', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
                   formatServerUrl(serverUrl),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -165,16 +163,13 @@ class _RoomInfoBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Room',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('Room', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
                   room.name,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -195,9 +190,7 @@ class _RoomInfoBody extends StatelessWidget {
               final from = Uri.encodeComponent(
                 '/room/$serverAlias/$roomId/info',
               );
-              context.go(
-                '/room/$serverAlias/$roomId/quiz/$quizId?from=$from',
-              );
+              context.go('/room/$serverAlias/$roomId/quiz/$quizId?from=$from');
             },
           ),
           ExpandableListCard<MapEntry<String, RoomSkill>>(
@@ -300,27 +293,26 @@ class _AgentCard extends StatelessWidget {
                 SystemPromptViewer(prompt: systemPrompt),
             ],
           FactoryRoomAgent(:final extraConfig) when extraConfig.isNotEmpty => [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Extra Config',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Extra Config',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 4),
-                    formatDynamicValue(
-                      extraConfig,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 4),
+                  formatDynamicValue(
+                    extraConfig,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
-            ],
+            ),
+          ],
           _ => <Widget>[],
         },
         if (agent.aguiFeatureNames.isNotEmpty)
@@ -334,10 +326,7 @@ class _AgentCard extends StatelessWidget {
 }
 
 class _UploadedFilesCard extends StatefulWidget {
-  const _UploadedFilesCard({
-    required this.api,
-    required this.roomId,
-  });
+  const _UploadedFilesCard({required this.api, required this.roomId});
 
   final SoliplexApi api;
   final String roomId;
@@ -417,9 +406,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
                     const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   else if (upload.status == _UploadStatus.success)
                     Icon(

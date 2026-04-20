@@ -11,9 +11,10 @@ class NetworkInspector
     with ChangeNotifier
     implements HttpObserver, ConcurrencyObserver {
   NetworkInspector({int maxEvents = 1000})
-      : _maxEvents = maxEvents > 0
-            ? maxEvents
-            : throw ArgumentError.value(
+    : _maxEvents =
+          maxEvents > 0
+              ? maxEvents
+              : throw ArgumentError.value(
                 maxEvents,
                 'maxEvents',
                 'must be positive',

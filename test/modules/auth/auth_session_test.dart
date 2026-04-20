@@ -175,8 +175,9 @@ void main() {
       final slowRefreshService = _DelayedRefreshService(completer.future);
       final slowSession = AuthSession(refreshService: slowRefreshService);
       slowSession.login(
-          provider: _provider,
-          tokens: _tokens(expiresIn: const Duration(seconds: 30)));
+        provider: _provider,
+        tokens: _tokens(expiresIn: const Duration(seconds: 30)),
+      );
 
       final refreshFuture = slowSession.tryRefresh();
 
@@ -184,11 +185,13 @@ void main() {
       slowSession.logout();
 
       // Complete the refresh
-      completer.complete(TokenRefreshSuccess(
-        accessToken: 'new-access',
-        refreshToken: 'new-refresh',
-        expiresAt: DateTime.now().add(const Duration(hours: 1)),
-      ));
+      completer.complete(
+        TokenRefreshSuccess(
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
 
       final result = await refreshFuture;
 
@@ -241,16 +244,13 @@ class _DelayedRefreshService extends TokenRefreshService {
     required String discoveryUrl,
     required String refreshToken,
     required String clientId,
-  }) =>
-      _future;
+  }) => _future;
 }
 
 /// Refresh service that counts calls.
 class _CountingRefreshService extends TokenRefreshService {
-  _CountingRefreshService({
-    required this.result,
-    required this.onRefresh,
-  }) : super(httpClient: FakeHttpClient());
+  _CountingRefreshService({required this.result, required this.onRefresh})
+    : super(httpClient: FakeHttpClient());
 
   final TokenRefreshResult result;
   final void Function() onRefresh;

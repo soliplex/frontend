@@ -42,8 +42,8 @@ class ClientToolsCard extends StatelessWidget {
           title: 'CLIENT TOOLS',
           items: tools,
           nameOf: (t) => t.name,
-          contentOf: (t) =>
-              t.description.isNotEmpty ? Text(t.description) : null,
+          contentOf:
+              (t) => t.description.isNotEmpty ? Text(t.description) : null,
         );
       },
     );

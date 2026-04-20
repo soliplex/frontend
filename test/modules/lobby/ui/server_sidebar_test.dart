@@ -9,10 +9,10 @@ import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
 import '../../../helpers/fakes.dart';
 
 ServerManager _createManager() => ServerManager(
-      authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
@@ -36,8 +36,9 @@ Widget _buildSidebar({
 
 void main() {
   group('ServerSidebar', () {
-    testWidgets('displays connected servers with formatted URLs',
-        (tester) async {
+    testWidgets('displays connected servers with formatted URLs', (
+      tester,
+    ) async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'http://srv1.test',
@@ -56,8 +57,9 @@ void main() {
       expect(find.text('http://srv2.test:9000'), findsOneWidget);
     });
 
-    testWidgets('shows no-auth label for servers without authentication',
-        (tester) async {
+    testWidgets('shows no-auth label for servers without authentication', (
+      tester,
+    ) async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'http://localhost:8000',
@@ -73,24 +75,26 @@ void main() {
     testWidgets('shows Add Server button that fires callback', (tester) async {
       var addTapped = false;
 
-      await tester.pumpWidget(_buildSidebar(
-        servers: const {},
-        onAddServer: () => addTapped = true,
-      ));
+      await tester.pumpWidget(
+        _buildSidebar(servers: const {}, onAddServer: () => addTapped = true),
+      );
 
       expect(find.text('Home'), findsOneWidget);
       await tester.tap(find.text('Home'));
       expect(addTapped, isTrue);
     });
 
-    testWidgets('shows Network Inspector button that fires callback',
-        (tester) async {
+    testWidgets('shows Network Inspector button that fires callback', (
+      tester,
+    ) async {
       var inspectorTapped = false;
 
-      await tester.pumpWidget(_buildSidebar(
-        servers: const {},
-        onNetworkInspector: () => inspectorTapped = true,
-      ));
+      await tester.pumpWidget(
+        _buildSidebar(
+          servers: const {},
+          onNetworkInspector: () => inspectorTapped = true,
+        ),
+      );
 
       expect(find.text('Network Inspector'), findsOneWidget);
       await tester.tap(find.text('Network Inspector'));

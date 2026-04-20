@@ -104,8 +104,9 @@ class IntegrationHarness {
 
 /// Creates a real [Logger] backed by [StdoutSink] for integration output.
 Logger createTestLogger(String name) {
-  final manager = LogManager.instance
-    ..minimumLevel = LogLevel.debug
-    ..addSink(StdoutSink());
+  final manager =
+      LogManager.instance
+        ..minimumLevel = LogLevel.debug
+        ..addSink(StdoutSink());
   return manager.getLogger(name);
 }

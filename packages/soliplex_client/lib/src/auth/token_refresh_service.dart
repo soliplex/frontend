@@ -87,8 +87,8 @@ class TokenRefreshService {
   TokenRefreshService({
     required SoliplexHttpClient httpClient,
     void Function(String) onDiagnostic = _noOp,
-  })  : _httpClient = httpClient,
-        _onDiagnostic = onDiagnostic;
+  }) : _httpClient = httpClient,
+       _onDiagnostic = onDiagnostic;
 
   final SoliplexHttpClient _httpClient;
   final void Function(String) _onDiagnostic;
@@ -154,13 +154,14 @@ class TokenRefreshService {
         'POST',
         tokenUri,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: Uri(
-          queryParameters: {
-            'grant_type': 'refresh_token',
-            'refresh_token': refreshToken,
-            'client_id': clientId,
-          },
-        ).query,
+        body:
+            Uri(
+              queryParameters: {
+                'grant_type': 'refresh_token',
+                'refresh_token': refreshToken,
+                'client_id': clientId,
+              },
+            ).query,
         timeout: const Duration(seconds: 30),
       );
     } on Exception catch (e) {

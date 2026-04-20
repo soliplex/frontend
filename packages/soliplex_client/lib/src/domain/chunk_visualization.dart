@@ -18,9 +18,10 @@ class ChunkVisualization {
     return ChunkVisualization(
       chunkId: json['chunk_id'] as String,
       documentUri: json['document_uri'] as String?,
-      imagesBase64: (json['images_base_64'] as List<dynamic>)
-          .map((e) => e as String)
-          .toList(),
+      imagesBase64:
+          (json['images_base_64'] as List<dynamic>)
+              .map((e) => e as String)
+              .toList(),
     );
   }
 
@@ -41,10 +42,10 @@ class ChunkVisualization {
 
   /// Converts this ChunkVisualization to JSON.
   Map<String, dynamic> toJson() => {
-        'chunk_id': chunkId,
-        'document_uri': documentUri,
-        'images_base_64': imagesBase64,
-      };
+    'chunk_id': chunkId,
+    'document_uri': documentUri,
+    'images_base_64': imagesBase64,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -56,10 +57,10 @@ class ChunkVisualization {
 
   @override
   int get hashCode => Object.hash(
-        chunkId,
-        documentUri,
-        const ListEquality<String>().hash(imagesBase64),
-      );
+    chunkId,
+    documentUri,
+    const ListEquality<String>().hash(imagesBase64),
+  );
 
   @override
   String toString() =>

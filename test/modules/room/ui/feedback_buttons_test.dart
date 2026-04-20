@@ -5,8 +5,9 @@ import 'package:soliplex_client/soliplex_client.dart' show FeedbackType;
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 
 void main() {
-  testWidgets('tapping thumb up starts countdown and auto-submits',
-      (tester) async {
+  testWidgets('tapping thumb up starts countdown and auto-submits', (
+    tester,
+  ) async {
     FeedbackType? submittedType;
     String? submittedReason;
 

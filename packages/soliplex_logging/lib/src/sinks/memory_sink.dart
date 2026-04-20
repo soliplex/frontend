@@ -18,7 +18,7 @@ import 'package:soliplex_logging/src/log_sink.dart';
 class MemorySink implements LogSink {
   /// Creates a memory sink that retains at most [maxRecords] entries.
   MemorySink({this.maxRecords = 2000})
-      : assert(maxRecords > 0, 'maxRecords must be positive') {
+    : assert(maxRecords > 0, 'maxRecords must be positive') {
     _view = _RingBufferView(this);
   }
 

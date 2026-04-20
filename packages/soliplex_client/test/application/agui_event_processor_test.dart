@@ -189,11 +189,7 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(
-          conversationWithMsg,
-          streamingState,
-          event,
-        );
+        final result = processEvent(conversationWithMsg, streamingState, event);
 
         // Should skip — conversation still has exactly 1 message
         expect(result.conversation.messages, hasLength(1));
@@ -696,8 +692,7 @@ void main() {
       });
 
       group('ToolCallActivity equality', () {
-        test(
-            'consecutive starts of same tool produce unequal activities '
+        test('consecutive starts of same tool produce unequal activities '
             '(different toolCallId)', () {
           const event1 = ToolCallStartEvent(
             toolCallId: 'tc-1',
@@ -730,8 +725,9 @@ void main() {
 
           final result = processEvent(conversation, streaming, event);
 
-          final activity = (result.streaming as app_streaming.AwaitingText)
-              .currentActivity as app_streaming.ToolCallActivity;
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
           expect(activity.latestToolCallId, equals('tc-1'));
         });
 
@@ -744,8 +740,9 @@ void main() {
 
           final result = processEvent(conversation, streaming, event);
 
-          final activity = (result.streaming as app_streaming.AwaitingText)
-              .currentActivity as app_streaming.ToolCallActivity;
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
           expect(activity.timestamp, equals(1000));
         });
       });
@@ -926,23 +923,26 @@ void main() {
         expect(activity.timestamp, equals(2000));
       });
 
-      test('skill_tool_call without timestamp synthesizes wall-clock value',
-          () {
-        final before = DateTime.now().millisecondsSinceEpoch;
-        const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
-          activityType: 'skill_tool_call',
-          content: {'tool_name': 'search'},
-        );
+      test(
+        'skill_tool_call without timestamp synthesizes wall-clock value',
+        () {
+          final before = DateTime.now().millisecondsSinceEpoch;
+          const event = ActivitySnapshotEvent(
+            messageId: 'msg-1',
+            activityType: 'skill_tool_call',
+            content: {'tool_name': 'search'},
+          );
 
-        final result = processEvent(conversation, streaming, event);
-        final after = DateTime.now().millisecondsSinceEpoch;
+          final result = processEvent(conversation, streaming, event);
+          final after = DateTime.now().millisecondsSinceEpoch;
 
-        final activity = (result.streaming as app_streaming.AwaitingText)
-            .currentActivity as app_streaming.ToolCallActivity;
-        expect(activity.timestamp, greaterThanOrEqualTo(before));
-        expect(activity.timestamp, lessThanOrEqualTo(after));
-      });
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
+          expect(activity.timestamp, greaterThanOrEqualTo(before));
+          expect(activity.timestamp, lessThanOrEqualTo(after));
+        },
+      );
     });
 
     group('thinking events', () {
@@ -1118,33 +1118,30 @@ void main() {
         expect(awaitingText.isThinkingStreaming, isFalse);
       });
 
-      test(
-        'TextMessageEndEvent preserves reasoning-sourced thinkingText',
-        () {
-          const event = ReasoningMessageContentEvent(
-            messageId: 'reas-1',
-            delta: 'Inner reasoning',
-          );
-          final afterReasoning = processEvent(conversation, streaming, event);
+      test('TextMessageEndEvent preserves reasoning-sourced thinkingText', () {
+        const event = ReasoningMessageContentEvent(
+          messageId: 'reas-1',
+          delta: 'Inner reasoning',
+        );
+        final afterReasoning = processEvent(conversation, streaming, event);
 
-          const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          final afterStart = processEvent(
-            afterReasoning.conversation,
-            afterReasoning.streaming,
-            textStart,
-          );
+        const textStart = TextMessageStartEvent(messageId: 'msg-1');
+        final afterStart = processEvent(
+          afterReasoning.conversation,
+          afterReasoning.streaming,
+          textStart,
+        );
 
-          const textEnd = TextMessageEndEvent(messageId: 'msg-1');
-          final result = processEvent(
-            afterStart.conversation,
-            afterStart.streaming,
-            textEnd,
-          );
+        const textEnd = TextMessageEndEvent(messageId: 'msg-1');
+        final result = processEvent(
+          afterStart.conversation,
+          afterStart.streaming,
+          textEnd,
+        );
 
-          final message = result.conversation.messages.first as TextMessage;
-          expect(message.thinkingText, equals('Inner reasoning'));
-        },
-      );
+        final message = result.conversation.messages.first as TextMessage;
+        expect(message.thinkingText, equals('Inner reasoning'));
+      });
     });
 
     group('state events', () {

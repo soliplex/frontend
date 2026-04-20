@@ -27,10 +27,7 @@ class FeaturesCard extends StatelessWidget {
           label: 'Attachments',
           value: room.enableAttachments ? 'Enabled' : 'Disabled',
         ),
-        InfoRow(
-          label: 'Allow MCP',
-          value: room.allowMcp ? 'Yes' : 'No',
-        ),
+        InfoRow(label: 'Allow MCP', value: room.allowMcp ? 'Yes' : 'No'),
         if (room.allowMcp) McpTokenRow(api: api, roomId: roomId),
         if (room.aguiFeatureNames.isNotEmpty)
           InfoRow(
@@ -115,9 +112,10 @@ class _McpTokenRowState extends State<McpTokenRow> {
             child: OutlinedButton.icon(
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('Retry token'),
-              onPressed: () => setState(() {
-                _tokenFuture = widget.api.getMcpToken(widget.roomId);
-              }),
+              onPressed:
+                  () => setState(() {
+                    _tokenFuture = widget.api.getMcpToken(widget.roomId);
+                  }),
             ),
           );
         }
@@ -135,9 +133,10 @@ class _McpTokenRowState extends State<McpTokenRow> {
           child: OutlinedButton.icon(
             icon: Icon(icon, size: 16),
             label: Text(label),
-            onPressed: _copyState == _TokenCopyState.idle
-                ? () => _copyToken(token)
-                : null,
+            onPressed:
+                _copyState == _TokenCopyState.idle
+                    ? () => _copyToken(token)
+                    : null,
           ),
         );
       },

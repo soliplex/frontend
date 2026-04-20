@@ -97,18 +97,15 @@ class _StepLogState extends State<StepLog> {
           ),
         );
       case StepStatus.failed:
-        return Icon(
-          Icons.error,
-          size: 12,
-          color: theme.colorScheme.error,
-        );
+        return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
       case StepStatus.completed:
         return Icon(
           Icons.check_circle,
           size: 12,
-          color: step.type == StepType.thinking
-              ? theme.colorScheme.tertiary
-              : theme.colorScheme.primary,
+          color:
+              step.type == StepType.thinking
+                  ? theme.colorScheme.tertiary
+                  : theme.colorScheme.primary,
         );
     }
   }

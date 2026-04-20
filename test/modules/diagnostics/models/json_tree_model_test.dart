@@ -16,7 +16,7 @@ void main() {
 
     test('builds ArrayNode from list', () {
       final nodes = buildJsonTree({
-        'items': [1, 2, 3]
+        'items': [1, 2, 3],
       });
       expect(nodes, hasLength(1));
       expect(nodes[0], isA<ArrayNode>());

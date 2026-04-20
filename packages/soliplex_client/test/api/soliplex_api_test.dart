@@ -619,10 +619,7 @@ void main() {
         expect(thread.id, equals('new-thread'));
         expect(thread.roomId, equals('room-123'));
         expect(thread.initialRunId, equals('run-1'));
-        expect(
-          aguiState,
-          containsPair('rag', isA<Map<String, dynamic>>()),
-        );
+        expect(aguiState, containsPair('rag', isA<Map<String, dynamic>>()));
       });
 
       test('returns empty state when runs have no run_input', () async {
@@ -905,11 +902,7 @@ void main() {
         ).thenThrow(const NotFoundException(message: 'Not found'));
 
         expect(
-          () => api.updateThreadMetadata(
-            'room-123',
-            'thread-456',
-            name: 'x',
-          ),
+          () => api.updateThreadMetadata('room-123', 'thread-456', name: 'x'),
           throwsA(isA<NotFoundException>()),
         );
       });
@@ -1080,8 +1073,7 @@ void main() {
         );
       });
 
-      test('fetches multiple runs in parallel and orders by creation time',
-          () async {
+      test('fetches multiple runs in parallel and orders by creation time', () async {
         // Thread endpoint returns two completed runs
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -1666,8 +1658,7 @@ void main() {
       });
 
       // Regression: https://github.com/soliplex/frontend/issues/33
-      test('does not duplicate user messages across multi-run history',
-          () async {
+      test('does not duplicate user messages across multi-run history', () async {
         // Thread with 3 runs
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -2068,14 +2059,13 @@ void main() {
           },
         );
 
-        final history =
-            await apiWithWarning.getThreadHistory('room-123', 'thread-456');
+        final history = await apiWithWarning.getThreadHistory(
+          'room-123',
+          'thread-456',
+        );
 
         expect(history.messages, hasLength(1));
-        expect(
-          (history.messages[0] as TextMessage).text,
-          equals('Hello'),
-        );
+        expect((history.messages[0] as TextMessage).text, equals('Hello'));
         expect(warnings, hasLength(1));
         expect(warnings[0], contains('Skipped 1 malformed event'));
 
@@ -3318,17 +3308,19 @@ void main() {
 
         await api.getMcpToken('room-123');
 
-        final captured = verify(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            captureAny(),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured.single as Uri;
+        final captured =
+            verify(
+                  () => mockTransport.request<Map<String, dynamic>>(
+                    'GET',
+                    captureAny(),
+                    cancelToken: any(named: 'cancelToken'),
+                    fromJson: any(named: 'fromJson'),
+                    body: any(named: 'body'),
+                    headers: any(named: 'headers'),
+                    timeout: any(named: 'timeout'),
+                  ),
+                ).captured.single
+                as Uri;
 
         expect(captured.path, equals('/api/v1/rooms/room-123/mcp_token'));
       });

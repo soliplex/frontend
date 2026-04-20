@@ -1,6 +1,7 @@
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
-import 'auth_flow_native.dart' if (dart.library.js_interop) 'auth_flow_web.dart'
+import 'auth_flow_native.dart'
+    if (dart.library.js_interop) 'auth_flow_web.dart'
     as impl;
 
 /// Result of a successful authentication.

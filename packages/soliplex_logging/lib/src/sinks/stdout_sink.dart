@@ -10,10 +10,11 @@ import 'package:soliplex_logging/src/sinks/stdout_sink_io.dart'
 /// Function type for stdout write operations.
 ///
 /// Used for testing to capture log output without writing to actual stdout.
-typedef StdoutWriter = void Function(
-  LogRecord record, {
-  required bool useColors,
-});
+typedef StdoutWriter =
+    void Function(
+      LogRecord record, {
+      required bool useColors,
+    });
 
 /// Log sink that outputs to stdout.
 ///

@@ -44,14 +44,15 @@ class AgentSession implements ToolExecutionContext {
     required Logger logger,
     List<SessionExtension> extensions = const [],
     AgentUiDelegate? uiDelegate,
-  })  : _runtime = runtime,
-        _orchestrator = orchestrator,
-        _toolRegistry = toolRegistry,
-        _extensions = extensions,
-        _uiDelegate = uiDelegate,
-        _logger = logger,
-        id = '${threadKey.threadId}-'
-            '${DateTime.now().microsecondsSinceEpoch}';
+  }) : _runtime = runtime,
+       _orchestrator = orchestrator,
+       _toolRegistry = toolRegistry,
+       _extensions = extensions,
+       _uiDelegate = uiDelegate,
+       _logger = logger,
+       id =
+           '${threadKey.threadId}-'
+               '${DateTime.now().microsecondsSinceEpoch}';
 
   /// Unique session identifier.
   final String id;
@@ -131,10 +132,11 @@ class AgentSession implements ToolExecutionContext {
     final start = DateTime.now();
     return result.timeout(
       timeout,
-      onTimeout: () => AgentTimedOut(
-        threadKey: threadKey,
-        elapsed: DateTime.now().difference(start),
-      ),
+      onTimeout:
+          () => AgentTimedOut(
+            threadKey: threadKey,
+            elapsed: DateTime.now().difference(start),
+          ),
     );
   }
 
@@ -354,8 +356,9 @@ class AgentSession implements ToolExecutionContext {
       ClientToolExecuting(toolName: toolCall.name, toolCallId: toolCall.id),
     );
     try {
-      final result =
-          await _toolRegistry.execute(toolCall, this).timeout(_toolTimeout);
+      final result = await _toolRegistry
+          .execute(toolCall, this)
+          .timeout(_toolTimeout);
       emitEvent(
         ClientToolCompleted(
           toolCallId: toolCall.id,
@@ -382,9 +385,10 @@ class AgentSession implements ToolExecutionContext {
       error: error,
       stackTrace: stackTrace,
     );
-    final errorStr = error is TimeoutException
-        ? 'Tool "${toolCall.name}" timed out after ${_toolTimeout.inSeconds}s'
-        : error.toString();
+    final errorStr =
+        error is TimeoutException
+            ? 'Tool "${toolCall.name}" timed out after ${_toolTimeout.inSeconds}s'
+            : error.toString();
     emitEvent(
       ClientToolCompleted(
         toolCallId: toolCall.id,
@@ -440,9 +444,10 @@ class AgentSession implements ToolExecutionContext {
       case AgentSuccess():
         _state = AgentSessionState.completed;
       case AgentFailure(:final reason):
-        _state = reason == FailureReason.cancelled
-            ? AgentSessionState.cancelled
-            : AgentSessionState.failed;
+        _state =
+            reason == FailureReason.cancelled
+                ? AgentSessionState.cancelled
+                : AgentSessionState.failed;
       case AgentTimedOut():
         _state = AgentSessionState.failed;
     }
@@ -482,11 +487,9 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
     ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      const ThinkingStarted(),
+    ReasoningMessageStartEvent() => const ThinkingStarted(),
     ThinkingTextMessageContentEvent(:final delta) ||
-    ReasoningMessageContentEvent(:final delta) =>
-      ThinkingContent(delta: delta),
+    ReasoningMessageContentEvent(:final delta) => ThinkingContent(delta: delta),
     ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
       ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
     ToolCallResultEvent(:final toolCallId, :final content) =>
@@ -520,7 +523,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ReasoningMessageEndEvent() ||
     ReasoningMessageChunkEvent() ||
     ReasoningEncryptedValueEvent() ||
-    ActivityDeltaEvent() =>
-      null,
+    ActivityDeltaEvent() => null,
   };
 }

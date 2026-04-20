@@ -22,9 +22,7 @@ class InlineCodeBuilder extends MarkdownElementBuilder {
       ),
       child: Text(
         element.textContent,
-        style: preferredStyle?.copyWith(
-          backgroundColor: Colors.transparent,
-        ),
+        style: preferredStyle?.copyWith(backgroundColor: Colors.transparent),
       ),
     );
   }

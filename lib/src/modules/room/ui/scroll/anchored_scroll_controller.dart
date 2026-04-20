@@ -53,13 +53,11 @@ class _AnchoredScrollPosition extends ScrollPositionWithSingleContext {
   double? anchorOffset;
 
   @override
-  bool applyContentDimensions(
-    double minScrollExtent,
-    double maxScrollExtent,
-  ) {
-    final effectiveMax = anchorOffset != null
-        ? math.max(maxScrollExtent, anchorOffset!)
-        : maxScrollExtent;
+  bool applyContentDimensions(double minScrollExtent, double maxScrollExtent) {
+    final effectiveMax =
+        anchorOffset != null
+            ? math.max(maxScrollExtent, anchorOffset!)
+            : maxScrollExtent;
     return super.applyContentDimensions(minScrollExtent, effectiveMax);
   }
 }

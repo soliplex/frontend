@@ -37,6 +37,7 @@ class BackendVersionInfo {
   }
 
   @override
-  String toString() => 'BackendVersionInfo(soliplexVersion: $soliplexVersion, '
+  String toString() =>
+      'BackendVersionInfo(soliplexVersion: $soliplexVersion, '
       'packageCount: ${packageVersions.length})';
 }

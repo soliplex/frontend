@@ -33,13 +33,14 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: widget.inspector.events.isEmpty &&
-                        widget.inspector.concurrencyEvents.isEmpty
-                    ? null
-                    : () {
-                        widget.inspector.clear();
-                        setState(() => _selectedRequestId = null);
-                      },
+                onPressed:
+                    widget.inspector.events.isEmpty &&
+                            widget.inspector.concurrencyEvents.isEmpty
+                        ? null
+                        : () {
+                          widget.inspector.clear();
+                          setState(() => _selectedRequestId = null);
+                        },
                 tooltip: 'Clear all requests',
               ),
             ],
@@ -120,9 +121,10 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     List<HttpEventGroup> groups,
   ) {
     final theme = Theme.of(context);
-    final selectedGroup = _selectedRequestId != null
-        ? groups.where((g) => g.requestId == _selectedRequestId).firstOrNull
-        : null;
+    final selectedGroup =
+        _selectedRequestId != null
+            ? groups.where((g) => g.requestId == _selectedRequestId).firstOrNull
+            : null;
     final effectiveGroup = selectedGroup ?? groups.firstOrNull;
     final effectiveId = effectiveGroup?.requestId;
 
@@ -144,8 +146,9 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                 final group = groups[index];
                 final isSelected = group.requestId == effectiveId;
                 return InkWell(
-                  onTap: () =>
-                      setState(() => _selectedRequestId = group.requestId),
+                  onTap:
+                      () =>
+                          setState(() => _selectedRequestId = group.requestId),
                   child: Container(
                     color:
                         isSelected ? theme.colorScheme.primaryContainer : null,
@@ -157,16 +160,17 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
           ),
         ),
         Expanded(
-          child: effectiveGroup != null
-              ? RequestDetailView(group: effectiveGroup)
-              : Center(
-                  child: Text(
-                    'Select a request to view details',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+          child:
+              effectiveGroup != null
+                  ? RequestDetailView(group: effectiveGroup)
+                  : Center(
+                    child: Text(
+                      'Select a request to view details',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
         ),
       ],
     );
@@ -175,10 +179,11 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
   void _navigateToDetail(BuildContext context, HttpEventGroup group) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(group.pathWithQuery)),
-          body: RequestDetailView(group: group),
-        ),
+        builder:
+            (context) => Scaffold(
+              appBar: AppBar(title: Text(group.pathWithQuery)),
+              body: RequestDetailView(group: group),
+            ),
       ),
     );
   }

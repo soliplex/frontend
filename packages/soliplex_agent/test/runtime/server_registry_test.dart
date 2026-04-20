@@ -9,10 +9,10 @@ class MockSoliplexApi extends Mock implements SoliplexApi {}
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
 
 ServerConnection _fakeConnection(String serverId) => ServerConnection(
-      serverId: serverId,
-      api: MockSoliplexApi(),
-      agUiStreamClient: MockAgUiStreamClient(),
-    );
+  serverId: serverId,
+  api: MockSoliplexApi(),
+  agUiStreamClient: MockAgUiStreamClient(),
+);
 
 void main() {
   group('ServerRegistry', () {

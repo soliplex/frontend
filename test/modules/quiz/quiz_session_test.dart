@@ -186,10 +186,7 @@ void main() {
 
     test('QuizCompleted rejects empty results', () {
       expect(
-        () => QuizCompleted(
-          quiz: _twoQuestionQuiz(),
-          results: const {},
-        ),
+        () => QuizCompleted(quiz: _twoQuestionQuiz(), results: const {}),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -210,10 +207,10 @@ void main() {
 }
 
 Quiz _twoQuestionQuiz() => Quiz(
-      id: 'quiz-1',
-      title: 'Test Quiz',
-      questions: const [
-        QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
-        QuizQuestion(id: 'q-2', text: 'Q2', type: FreeForm()),
-      ],
-    );
+  id: 'quiz-1',
+  title: 'Test Quiz',
+  questions: const [
+    QuizQuestion(id: 'q-1', text: 'Q1', type: FreeForm()),
+    QuizQuestion(id: 'q-2', text: 'Q2', type: FreeForm()),
+  ],
+);

@@ -56,8 +56,7 @@ class _ConcurrencyTrackingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
+  }) async => const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
 
   @override
   void close() {}
@@ -149,8 +148,7 @@ class _OrderedInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     CancelToken? cancelToken,
-  }) async =>
-      const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
+  }) async => const StreamedHttpResponse(statusCode: 200, body: Stream.empty());
 
   @override
   void close() {}
@@ -186,27 +184,29 @@ class _RefresherViaClient implements TokenRefresher {
 
 void main() {
   group('createAgentHttpClient', () {
-    test(
-        'always returns ConcurrencyLimitingHttpClient as the outermost '
+    test('always returns ConcurrencyLimitingHttpClient as the outermost '
         'decorator across all input combinations', () {
       final cases = <String, SoliplexHttpClient Function()>{
         'no args': createAgentHttpClient,
-        'with innerClient': () =>
-            createAgentHttpClient(innerClient: _MockHttpClient()),
-        'with observers': () =>
-            createAgentHttpClient(observers: [_MockObserver()]),
-        'with empty observers': () =>
-            createAgentHttpClient(observers: <HttpObserver>[]),
+        'with innerClient':
+            () => createAgentHttpClient(innerClient: _MockHttpClient()),
+        'with observers':
+            () => createAgentHttpClient(observers: [_MockObserver()]),
+        'with empty observers':
+            () => createAgentHttpClient(observers: <HttpObserver>[]),
         'with getToken': () => createAgentHttpClient(getToken: () => 'token'),
-        'with getToken and observers': () => createAgentHttpClient(
+        'with getToken and observers':
+            () => createAgentHttpClient(
               getToken: () => 'token',
               observers: [_MockObserver()],
             ),
-        'with getToken and tokenRefresher': () => createAgentHttpClient(
+        'with getToken and tokenRefresher':
+            () => createAgentHttpClient(
               getToken: () => 'token',
               tokenRefresher: _MockTokenRefresher(),
             ),
-        'with all parameters': () => createAgentHttpClient(
+        'with all parameters':
+            () => createAgentHttpClient(
               observers: [_MockObserver()],
               getToken: () => 'token',
               tokenRefresher: _MockTokenRefresher(),
@@ -218,7 +218,8 @@ void main() {
         expect(
           client,
           isA<ConcurrencyLimitingHttpClient>(),
-          reason: '${entry.key}: concurrency limiter must be outermost so '
+          reason:
+              '${entry.key}: concurrency limiter must be outermost so '
               'auth runs at dispatch, not enqueue',
         );
       }
@@ -233,32 +234,34 @@ void main() {
       verify(inner.close).called(1);
     });
 
-    test('enforces concurrency limit via ConcurrencyLimitingHttpClient layer',
-        () async {
-      final inner = _ConcurrencyTrackingInner();
-      final client = createAgentHttpClient(
-        innerClient: inner,
-        maxConcurrent: 2,
-      );
+    test(
+      'enforces concurrency limit via ConcurrencyLimitingHttpClient layer',
+      () async {
+        final inner = _ConcurrencyTrackingInner();
+        final client = createAgentHttpClient(
+          innerClient: inner,
+          maxConcurrent: 2,
+        );
 
-      final futures = [
-        client.request('GET', Uri.parse('https://api/1')),
-        client.request('GET', Uri.parse('https://api/2')),
-        client.request('GET', Uri.parse('https://api/3')),
-        client.request('GET', Uri.parse('https://api/4')),
-      ];
+        final futures = [
+          client.request('GET', Uri.parse('https://api/1')),
+          client.request('GET', Uri.parse('https://api/2')),
+          client.request('GET', Uri.parse('https://api/3')),
+          client.request('GET', Uri.parse('https://api/4')),
+        ];
 
-      await _pumpEventQueue();
+        await _pumpEventQueue();
 
-      expect(
-        inner.maxInFlight,
-        lessThanOrEqualTo(2),
-        reason: 'maxConcurrent=2 must cap in-flight to 2',
-      );
+        expect(
+          inner.maxInFlight,
+          lessThanOrEqualTo(2),
+          reason: 'maxConcurrent=2 must cap in-flight to 2',
+        );
 
-      inner.releaseAll();
-      await Future.wait<void>(futures);
-    });
+        inner.releaseAll();
+        await Future.wait<void>(futures);
+      },
+    );
 
     test('default maxConcurrent caps in-flight at 6', () async {
       final inner = _ConcurrencyTrackingInner();
@@ -274,7 +277,8 @@ void main() {
       expect(
         inner.maxInFlight,
         equals(6),
-        reason: 'default cap matches the HTTP/1.1 per-host cap shared by '
+        reason:
+            'default cap matches the HTTP/1.1 per-host cap shared by '
             'browsers, URLSession, and Dart HttpClient; keeps this layer '
             'authoritative and sits under the backend per-client 10-cap',
       );
@@ -283,8 +287,7 @@ void main() {
       await Future.wait<void>(futures);
     });
 
-    test(
-        'decorator order: concurrency wraps auth '
+    test('decorator order: concurrency wraps auth '
         '(getToken fires at dispatch, not enqueue)', () async {
       final inner = _ConcurrencyTrackingInner();
       var getTokenCalls = 0;
@@ -319,7 +322,8 @@ void main() {
       expect(
         getTokenCalls,
         1,
-        reason: 'concurrency wraps auth: only the dispatched request '
+        reason:
+            'concurrency wraps auth: only the dispatched request '
             'has hit the auth layer so far',
       );
 
@@ -328,13 +332,13 @@ void main() {
       expect(
         getTokenCalls,
         3,
-        reason: 'after all 3 requests dequeue and dispatch, each should '
+        reason:
+            'after all 3 requests dequeue and dispatch, each should '
             'have called getToken exactly once',
       );
     });
 
-    test(
-        'routes ConcurrencyObserver entries in the observers list '
+    test('routes ConcurrencyObserver entries in the observers list '
         'to the limiter', () async {
       final inner = _ConcurrencyTrackingInner();
       final observer = _RecordingConcurrencyObserver();
@@ -393,7 +397,8 @@ void main() {
         expect(
           captured,
           hasLength(1),
-          reason: 'onDiagnostic must be invoked by the limiter when a '
+          reason:
+              'onDiagnostic must be invoked by the limiter when a '
               'ConcurrencyObserver throws',
         );
         expect(captured.single, contains('ConcurrencyObserver'));
@@ -415,7 +420,8 @@ void main() {
         expect(
           captured.any((m) => m.contains('_ThrowingHttpObserver')),
           isTrue,
-          reason: 'onDiagnostic must be invoked by the observable layer '
+          reason:
+              'onDiagnostic must be invoked by the observable layer '
               'when an HttpObserver throws',
         );
       });
@@ -462,13 +468,15 @@ void main() {
               .request('GET', Uri.parse('https://api/work'))
               .timeout(
                 const Duration(seconds: 2),
-                onTimeout: () => throw TimeoutException(
-                  'refresh deadlocked — the refresher is contending for '
-                  "the authed client's concurrency slot. The decorator "
-                  'factory must mint an independent limiter per call; '
-                  'if you refactored to share limiters across clients, '
-                  'that change re-introduces the original 429 deadlock.',
-                ),
+                onTimeout:
+                    () =>
+                        throw TimeoutException(
+                          'refresh deadlocked — the refresher is contending for '
+                          "the authed client's concurrency slot. The decorator "
+                          'factory must mint an independent limiter per call; '
+                          'if you refactored to share limiters across clients, '
+                          'that change re-introduces the original 429 deadlock.',
+                        ),
               );
 
           expect(response.statusCode, 200);
@@ -524,7 +532,8 @@ void main() {
           expect(
             authedInner.executionOrder,
             equals(['/A', '/A', '/B']),
-            reason: 'concurrency wraps refreshing: A must hold its slot '
+            reason:
+                'concurrency wraps refreshing: A must hold its slot '
                 'through the 401 + retry before B can dispatch',
           );
         },

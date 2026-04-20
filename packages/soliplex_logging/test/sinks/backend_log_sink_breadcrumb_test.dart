@@ -72,8 +72,9 @@ void main() {
         memorySink.write(makeRecord(message: 'breadcrumb $i'));
       }
 
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.error, message: 'crash'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.error, message: 'crash'));
       // Error-level write triggers flush(force: true) internally.
       // Wait for that to complete, then close.
       await sink.close();
@@ -115,8 +116,9 @@ void main() {
         memorySink.write(makeRecord(message: 'crumb $i'));
       }
 
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.error, message: 'crash'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.error, message: 'crash'));
       await sink.flush();
       await sink.close();
 
@@ -149,8 +151,9 @@ void main() {
     test('fatal records include breadcrumbs', () async {
       memorySink.write(makeRecord(message: 'context'));
 
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.fatal, message: 'fatal crash'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.fatal, message: 'fatal crash'));
       await sink.flush();
       await sink.close();
 
@@ -163,8 +166,9 @@ void main() {
     });
 
     test('empty memorySink produces empty breadcrumbs list', () async {
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.error, message: 'crash'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.error, message: 'crash'));
       await sink.close();
 
       final body =
@@ -181,8 +185,9 @@ void main() {
         memorySink.write(makeRecord(message: 'crumb $i'));
       }
 
-      final sink = createSink()
-        ..write(makeRecord(level: LogLevel.error, message: 'crash'));
+      final sink =
+          createSink()
+            ..write(makeRecord(level: LogLevel.error, message: 'crash'));
       await sink.close();
 
       final body =

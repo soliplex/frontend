@@ -29,15 +29,15 @@ class ConcurrencyWaitEvent {
     required this.waitDuration,
     required this.queueDepthAtEnqueue,
     required this.slotsInUseAfterAcquire,
-  })  : assert(acquisitionId != '', 'acquisitionId must not be empty'),
-        assert(
-          queueDepthAtEnqueue >= 0,
-          'queueDepthAtEnqueue must be non-negative',
-        ),
-        assert(
-          slotsInUseAfterAcquire >= 1,
-          'slotsInUseAfterAcquire must be at least 1',
-        );
+  }) : assert(acquisitionId != '', 'acquisitionId must not be empty'),
+       assert(
+         queueDepthAtEnqueue >= 0,
+         'queueDepthAtEnqueue must be non-negative',
+       ),
+       assert(
+         slotsInUseAfterAcquire >= 1,
+         'slotsInUseAfterAcquire must be at least 1',
+       );
 
   /// Unique identifier for this slot acquisition. Scoped to the
   /// concurrency layer; does not correlate with `HttpEvent.requestId`
@@ -76,16 +76,17 @@ class ConcurrencyWaitEvent {
 
   @override
   int get hashCode => Object.hash(
-        acquisitionId,
-        timestamp,
-        uri,
-        waitDuration,
-        queueDepthAtEnqueue,
-        slotsInUseAfterAcquire,
-      );
+    acquisitionId,
+    timestamp,
+    uri,
+    waitDuration,
+    queueDepthAtEnqueue,
+    slotsInUseAfterAcquire,
+  );
 
   @override
-  String toString() => 'ConcurrencyWaitEvent('
+  String toString() =>
+      'ConcurrencyWaitEvent('
       '$acquisitionId, waited ${waitDuration.inMilliseconds}ms, '
       'depth $queueDepthAtEnqueue, slots $slotsInUseAfterAcquire)';
 }

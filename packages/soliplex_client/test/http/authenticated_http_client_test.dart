@@ -46,15 +46,16 @@ void main() {
 
         await client.request('GET', Uri.parse('https://example.com/api'));
 
-        final captured = verify(
-          () => mockClient.request(
-            'GET',
-            Uri.parse('https://example.com/api'),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.request(
+                'GET',
+                Uri.parse('https://example.com/api'),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+                timeout: any(named: 'timeout'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers['Authorization'], equals('Bearer test-token-123'));
@@ -79,15 +80,16 @@ void main() {
 
         await client.request('GET', Uri.parse('https://example.com/api'));
 
-        final captured = verify(
-          () => mockClient.request(
-            'GET',
-            Uri.parse('https://example.com/api'),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.request(
+                'GET',
+                Uri.parse('https://example.com/api'),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+                timeout: any(named: 'timeout'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers.containsKey('Authorization'), isFalse);
@@ -145,15 +147,16 @@ void main() {
           headers: {'Content-Type': 'application/json', 'X-Custom': 'value'},
         );
 
-        final captured = verify(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.request(
+                any(),
+                any(),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+                timeout: any(named: 'timeout'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers['Content-Type'], equals('application/json'));
@@ -180,15 +183,16 @@ void main() {
 
         await client.request('GET', Uri.parse('https://example.com/api'));
 
-        final captured = verify(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.request(
+                any(),
+                any(),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+                timeout: any(named: 'timeout'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers, equals({'Authorization': 'Bearer token'}));
@@ -220,14 +224,15 @@ void main() {
 
         final subscription = response.body.listen((_) {});
 
-        final captured = verify(
-          () => mockClient.requestStream(
-            'GET',
-            Uri.parse('https://example.com/api'),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.requestStream(
+                'GET',
+                Uri.parse('https://example.com/api'),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers.containsKey('Authorization'), isFalse);
@@ -267,14 +272,15 @@ void main() {
         // Start listening to consume the stream
         final subscription = response.body.listen((_) {});
 
-        final captured = verify(
-          () => mockClient.requestStream(
-            'GET',
-            Uri.parse('https://example.com/stream'),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.requestStream(
+                'GET',
+                Uri.parse('https://example.com/stream'),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers['Authorization'], equals('Bearer stream-token'));
@@ -351,14 +357,15 @@ void main() {
 
         final subscription = response.body.listen((_) {});
 
-        final captured = verify(
-          () => mockClient.requestStream(
-            any(),
-            any(),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).captured;
+        final captured =
+            verify(
+              () => mockClient.requestStream(
+                any(),
+                any(),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+              ),
+            ).captured;
 
         final headers = captured.first as Map<String, String>;
         expect(headers['Accept'], equals('text/event-stream'));

@@ -6,9 +6,7 @@ import 'package:soliplex_frontend/src/modules/room/ui/feedback_reason_dialog.dar
 void main() {
   testWidgets('renders dialog with text field and actions', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: FeedbackReasonDialog()),
-      ),
+      const MaterialApp(home: Scaffold(body: FeedbackReasonDialog())),
     );
 
     expect(find.text('Tell us why'), findsOneWidget);
@@ -24,15 +22,16 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () async {
-                result = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const FeedbackReasonDialog(),
-                );
-              },
-              child: const Text('Open'),
-            ),
+            builder:
+                (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await showDialog<String>(
+                      context: context,
+                      builder: (_) => const FeedbackReasonDialog(),
+                    );
+                  },
+                  child: const Text('Open'),
+                ),
           ),
         ),
       ),
@@ -55,15 +54,16 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () async {
-                result = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const FeedbackReasonDialog(),
-                );
-              },
-              child: const Text('Open'),
-            ),
+            builder:
+                (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await showDialog<String>(
+                      context: context,
+                      builder: (_) => const FeedbackReasonDialog(),
+                    );
+                  },
+                  child: const Text('Open'),
+                ),
           ),
         ),
       ),

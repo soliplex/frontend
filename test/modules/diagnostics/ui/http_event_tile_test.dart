@@ -31,9 +31,7 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: HttpEventTile(group: group, dense: true),
-          ),
+          home: Scaffold(body: HttpEventTile(group: group, dense: true)),
         ),
       );
       // Dense mode: timestamp row is omitted

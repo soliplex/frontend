@@ -9,44 +9,46 @@ import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.d
 
 void main() {
   testWidgets('ActivityIndicator shows Processing label', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: ActivityIndicator(activity: ProcessingActivity()),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: ActivityIndicator(activity: ProcessingActivity())),
       ),
-    ));
+    );
 
     expect(find.text('Processing...'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsWidgets);
   });
 
   testWidgets('ActivityIndicator shows tool call label', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: ActivityIndicator(
-          activity: ToolCallActivity(toolName: 'search_docs'),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ActivityIndicator(
+            activity: ToolCallActivity(toolName: 'search_docs'),
+          ),
         ),
       ),
-    ));
+    );
 
     expect(find.text('Calling search_docs...'), findsOneWidget);
   });
 
   testWidgets('ActivityIndicator shows Thinking label', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: ActivityIndicator(activity: ThinkingActivity()),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: ActivityIndicator(activity: ThinkingActivity())),
       ),
-    ));
+    );
 
     expect(find.text('Thinking...'), findsOneWidget);
   });
 
   testWidgets('ActivityIndicator shows Responding label', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: ActivityIndicator(activity: RespondingActivity()),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: ActivityIndicator(activity: RespondingActivity())),
       ),
-    ));
+    );
 
     expect(find.text('Responding...'), findsOneWidget);
   });
@@ -61,11 +63,9 @@ void main() {
       toolCallId: 'tc-1',
     );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: StepLog(tracker: tracker),
-      ),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: StepLog(tracker: tracker))),
+    );
 
     expect(find.text('2 steps'), findsOneWidget);
 
@@ -79,11 +79,11 @@ void main() {
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'Let me think about this');
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ExecutionThinkingBlock(tracker: tracker),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ExecutionThinkingBlock(tracker: tracker)),
       ),
-    ));
+    );
 
     expect(find.text('Thinking'), findsOneWidget);
 
