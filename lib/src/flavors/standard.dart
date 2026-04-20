@@ -197,10 +197,8 @@ Future<ShellConfig> standard({
     return (env as MontyScriptEnvironment).executeFormatted(code);
   }
 
-  final navigatorKey = GlobalKey<NavigatorState>();
-  final uiDelegate = enableAccessPolicy
-      ? RoomUiDelegate(navigatorKey: navigatorKey)
-      : null;
+  final uiDelegate =
+      enableAccessPolicy ? RoomUiDelegate(navigatorKey: navigatorKey) : null;
 
   final runtimeManager = AgentRuntimeManager(
     platform: kIsWeb
@@ -232,7 +230,6 @@ Future<ShellConfig> standard({
     navigatorKey: navigatorKey,
     scaffoldMessengerKey: scaffoldMessengerKey,
     refreshListenable: authListenable,
-    navigatorKey: navigatorKey,
     onDispose: () {
       authListenable.dispose();
       serverManager.dispose();
