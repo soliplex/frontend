@@ -28,6 +28,7 @@ import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 
@@ -828,6 +829,12 @@ class _RoomScreenState extends State<RoomScreen> {
             error: roomError,
             onDismiss: _state.clearError,
           ),
+        if (room?.enableAttachments ?? false)
+          UploadEventBanner(
+            tracker: _state.uploadTracker,
+            roomId: widget.roomId,
+            threadId: null,
+          ),
         ChatInput(
           onSend: (text) => _state.sendToNewThread(
             text,
@@ -922,6 +929,12 @@ class _RoomScreenState extends State<RoomScreen> {
           _SendErrorBanner(
             error: sendError,
             onDismiss: () => threadView.clearSendError(),
+          ),
+        if (attachEnabled)
+          UploadEventBanner(
+            tracker: _state.uploadTracker,
+            roomId: widget.roomId,
+            threadId: threadView.threadId,
           ),
         ChatInput(
           onSend: (text) => threadView.sendMessage(

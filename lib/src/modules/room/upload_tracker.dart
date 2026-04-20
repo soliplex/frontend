@@ -349,6 +349,12 @@ class UploadTracker {
 
   /// Removes a Pending or Failed entry by its id. Persisted entries
   /// come from the server and cannot be dismissed from the client.
+  ///
+  /// Invariant: call only on Failed records. Dismissing a Pending
+  /// record mid-flight makes `UploadEventBanner` misread the removal
+  /// as a "Completed" transition when the filename is already in the
+  /// persisted list. The UI currently wires the dismiss button only
+  /// to Failed rows, preserving this invariant.
   void dismiss(String entryId) {
     if (_isDisposed) return;
     for (final scope in _scopes.values) {
