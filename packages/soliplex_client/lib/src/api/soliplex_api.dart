@@ -1037,7 +1037,7 @@ class SoliplexApi {
 
     final response = await _transport.request<Map<String, dynamic>>(
       'GET',
-      _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]),
+      _urlBuilder.build(pathSegments: ['uploads', roomId, 'thread', threadId]),
       cancelToken: cancelToken,
     );
 

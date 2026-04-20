@@ -318,7 +318,7 @@ void main() {
       expect(uploads.first.filename, 'thread.pdf');
     });
 
-    test('uses /uploads/{roomId}/{threadId} URL', () async {
+    test('uses /uploads/{roomId}/thread/{threadId} URL', () async {
       when(
         () => mockTransport.request<Map<String, dynamic>>(
           'GET',
@@ -345,7 +345,7 @@ void main() {
         ),
       ).captured.single as Uri;
 
-      expect(captured.path, endsWith('/uploads/room-abc/thread-xyz'));
+      expect(captured.path, endsWith('/uploads/room-abc/thread/thread-xyz'));
     });
 
     test('throws ArgumentError for empty roomId', () {
