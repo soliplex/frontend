@@ -110,9 +110,7 @@ class AgUiStreamClient {
         rethrow;
       } on ApiException catch (e) {
         final retryable = e.statusCode >= 500 && e.statusCode < 600;
-        if (lastEventId != null &&
-            retryable &&
-            _canRetry(policy, attempt)) {
+        if (lastEventId != null && retryable && _canRetry(policy, attempt)) {
           attempt += 1;
           yield _reconnectingEvent(attempt, lastEventId, e.message);
           _logAttempt(attempt, lastEventId, e);

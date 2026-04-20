@@ -680,8 +680,7 @@ void main() {
           throw NetworkException(message: 'drop $callCount');
         });
 
-        final events =
-            await resumeClient.runAgent(endpoint, input).toList();
+        final events = await resumeClient.runAgent(endpoint, input).toList();
 
         final customEvents = events.whereType<CustomEvent>().toList();
         expect(
@@ -811,8 +810,7 @@ void main() {
           throw const AuthException(message: 'Unauthorized', statusCode: 401);
         });
 
-        final events =
-            await resumeClient.runAgent(endpoint, input).toList();
+        final events = await resumeClient.runAgent(endpoint, input).toList();
 
         final customEvents = events.whereType<CustomEvent>().toList();
         expect(
@@ -862,8 +860,7 @@ void main() {
 
         // With resume disabled and a lastEventId set, the client emits a
         // synthetic failure (no rethrow) instead of retrying.
-        final events =
-            await resumeClient.runAgent(endpoint, input).toList();
+        final events = await resumeClient.runAgent(endpoint, input).toList();
         expect(
           events.whereType<CustomEvent>().map((e) => e.name),
           contains('stream.reconnect_failed'),

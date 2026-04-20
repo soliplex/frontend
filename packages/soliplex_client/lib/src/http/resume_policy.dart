@@ -96,9 +96,8 @@ sealed class ReconnectStatus {
   /// is not one of the reconnect-lifecycle events.
   static ReconnectStatus? tryParse(CustomEvent event) {
     final rawValue = event.value;
-    final map = rawValue is Map<String, dynamic>
-        ? rawValue
-        : const <String, dynamic>{};
+    final map =
+        rawValue is Map<String, dynamic> ? rawValue : const <String, dynamic>{};
     switch (event.name) {
       case ReconnectEvent.reconnecting:
         return Reconnecting(
