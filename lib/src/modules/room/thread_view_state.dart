@@ -81,6 +81,7 @@ class ThreadViewState {
   AgentSession? _activeSession;
   Future<AgentSession>? _pendingSpawn;
   void Function()? _runStateUnsub;
+  void Function()? _reconnectStatusUnsub;
   bool _isDisposed = false;
 
   final Signal<ThreadViewStatus> _messages =
@@ -100,6 +101,14 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
+
+  // Mirrors the active session's reconnect status. Null when no
+  // reconnect activity is in flight.
+  final Signal<ReconnectStatus?> _reconnectStatus =
+      Signal<ReconnectStatus?>(null);
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
+
+  void dismissReconnectStatus() => _reconnectStatus.value = null;
 
   final TrackerRegistry _trackerRegistry = TrackerRegistry();
   Map<String, ExecutionTracker> get executionTrackers =>
@@ -185,6 +194,14 @@ class ThreadViewState {
     _activeSession = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    _reconnectStatusUnsub = session.reconnectStatus.subscribe(
+      _onReconnectStatus,
+    );
+  }
+
+  void _onReconnectStatus(ReconnectStatus? status) {
+    if (_isDisposed) return;
+    _reconnectStatus.value = status;
   }
 
   void _onRunState(RunState runState) {
@@ -241,9 +258,12 @@ class ThreadViewState {
   void _detachSession() {
     _runStateUnsub?.call();
     _runStateUnsub = null;
+    _reconnectStatusUnsub?.call();
+    _reconnectStatusUnsub = null;
     _activeSession = null;
     _streamingState.value = null;
     _sessionState.value = null;
+    _reconnectStatus.value = null;
   }
 
   bool _restoreFromRegistry() {

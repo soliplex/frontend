@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
@@ -6,6 +7,7 @@ import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/agui_stream_client.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
+import 'package:soliplex_client/src/http/resume_policy.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 import 'package:test/test.dart';
@@ -24,6 +26,51 @@ Stream<List<int>> sseByteStream(List<Map<String, dynamic>> events) {
   }
   return Stream.value(utf8.encode(buffer.toString()));
 }
+
+/// Encodes (id, event) pairs into a byte stream with explicit `id:` fields.
+Stream<List<int>> sseByteStreamWithIds(
+  List<(String, Map<String, dynamic>)> events,
+) {
+  final buffer = StringBuffer();
+  for (final (id, event) in events) {
+    buffer
+      ..writeln('id: $id')
+      ..writeln('data: ${json.encode(event)}')
+      ..writeln();
+  }
+  return Stream.value(utf8.encode(buffer.toString()));
+}
+
+/// Emits bytes for [events] with ids, then errors with [error], to
+/// simulate a mid-stream connection drop.
+Stream<List<int>> sseByteStreamThenError(
+  List<(String, Map<String, dynamic>)> events,
+  Object error,
+) {
+  final controller = StreamController<List<int>>();
+  Future<void>(() async {
+    final buffer = StringBuffer();
+    for (final (id, event) in events) {
+      buffer
+        ..writeln('id: $id')
+        ..writeln('data: ${json.encode(event)}')
+        ..writeln();
+    }
+    controller.add(utf8.encode(buffer.toString()));
+    // Yield so the parser can process before we inject the error.
+    await Future<void>.delayed(Duration.zero);
+    controller.addError(error);
+    await controller.close();
+  });
+  return controller.stream;
+}
+
+/// Fast policy for unit tests — minimal backoff, no jitter.
+const _fastPolicy = ResumePolicy(
+  initialBackoff: Duration(milliseconds: 1),
+  maxBackoff: Duration(milliseconds: 2),
+  jitter: 0,
+);
 
 void main() {
   late MockHttpTransport mockTransport;
@@ -449,6 +496,388 @@ void main() {
           () => client.runAgent(endpoint, input).toList(),
           throwsA(isA<CancelledException>()),
         );
+      });
+    });
+
+    group('resume', () {
+      test('resumes after mid-stream drop using Last-Event-ID', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(resumeClient.close);
+
+        // First call: 2 events with ids, then a connection drop.
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: sseByteStreamThenError(
+              [
+                (
+                  'run-1:0',
+                  {
+                    'type': 'RUN_STARTED',
+                    'threadId': 't-1',
+                    'runId': 'run-1',
+                  },
+                ),
+                (
+                  'run-1:1',
+                  {
+                    'type': 'TEXT_MESSAGE_START',
+                    'messageId': 'm-1',
+                    'role': 'assistant',
+                  },
+                ),
+              ],
+              const NetworkException(message: 'connection reset'),
+            ),
+          ),
+        );
+
+        final events = <BaseEvent>[];
+        final run = resumeClient.runAgent(endpoint, input);
+        final iterator = StreamIterator<BaseEvent>(run);
+
+        // Drain the first two real events + the reconnecting notice.
+        while (await iterator.moveNext()) {
+          events.add(iterator.current);
+          if (events.whereType<CustomEvent>().any(
+                (e) => e.name == 'stream.reconnecting',
+              )) {
+            break;
+          }
+        }
+
+        // Now swap the stub to return events 2..3 + RUN_FINISHED.
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: sseByteStreamWithIds([
+              (
+                'run-1:2',
+                {
+                  'type': 'TEXT_MESSAGE_CONTENT',
+                  'messageId': 'm-1',
+                  'delta': 'hi',
+                },
+              ),
+              (
+                'run-1:3',
+                {'type': 'TEXT_MESSAGE_END', 'messageId': 'm-1'},
+              ),
+              (
+                'run-1:4',
+                {
+                  'type': 'RUN_FINISHED',
+                  'threadId': 't-1',
+                  'runId': 'run-1',
+                },
+              ),
+            ]),
+          ),
+        );
+
+        while (await iterator.moveNext()) {
+          events.add(iterator.current);
+        }
+
+        // Verify second call included Last-Event-ID.
+        final captured = verify(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: captureAny(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).captured;
+        expect(captured, hasLength(2));
+        final firstHeaders = captured[0] as Map<String, String>;
+        final secondHeaders = captured[1] as Map<String, String>;
+        expect(firstHeaders.containsKey('Last-Event-ID'), isFalse);
+        expect(secondHeaders['Last-Event-ID'], 'run-1:1');
+
+        // Verify reconnect lifecycle events were emitted.
+        final customEvents = events.whereType<CustomEvent>().toList();
+        expect(
+          customEvents.map((e) => e.name),
+          containsAllInOrder(['stream.reconnecting', 'stream.reconnected']),
+        );
+        final reconnecting = customEvents.firstWhere(
+          (e) => e.name == 'stream.reconnecting',
+        );
+        expect((reconnecting.value as Map)['lastEventId'], 'run-1:1');
+        expect((reconnecting.value as Map)['attempt'], 1);
+
+        // Verify run events were delivered end-to-end.
+        expect(events.whereType<RunStartedEvent>(), hasLength(1));
+        expect(events.whereType<TextMessageContentEvent>(), hasLength(1));
+        expect(events.whereType<RunFinishedEvent>(), hasLength(1));
+      });
+
+      test('emits reconnect_failed + RunErrorEvent when exhausted', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: const ResumePolicy(
+            maxAttempts: 2,
+            initialBackoff: Duration(milliseconds: 1),
+            maxBackoff: Duration(milliseconds: 1),
+            jitter: 0,
+          ),
+        );
+        addTearDown(resumeClient.close);
+
+        var callCount = 0;
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async {
+          callCount++;
+          if (callCount == 1) {
+            // First call: one event (so we have a Last-Event-ID) + drop.
+            return StreamedHttpResponse(
+              statusCode: 200,
+              body: sseByteStreamThenError(
+                [
+                  (
+                    'run-2:0',
+                    {
+                      'type': 'RUN_STARTED',
+                      'threadId': 't-1',
+                      'runId': 'run-2',
+                    },
+                  ),
+                ],
+                const NetworkException(message: 'drop 1'),
+              ),
+            );
+          }
+          // Subsequent reconnects fail.
+          throw NetworkException(message: 'drop $callCount');
+        });
+
+        final events =
+            await resumeClient.runAgent(endpoint, input).toList();
+
+        final customEvents = events.whereType<CustomEvent>().toList();
+        expect(
+          customEvents.where((e) => e.name == 'stream.reconnecting').length,
+          2,
+        );
+        expect(
+          customEvents.any((e) => e.name == 'stream.reconnect_failed'),
+          isTrue,
+        );
+        // Synthetic RunErrorEvent marks the run terminal.
+        expect(events.whereType<RunErrorEvent>(), hasLength(1));
+        expect(
+          events.whereType<RunErrorEvent>().first.code,
+          'stream.resume_failed',
+        );
+        expect(callCount, 3); // initial + 2 retries
+      });
+
+      test('does not resume when no event id has been seen', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(resumeClient.close);
+
+        // Stream drops before any event with an id is delivered.
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: sseByteStreamThenError(
+              const [],
+              const NetworkException(message: 'early drop'),
+            ),
+          ),
+        );
+
+        await expectLater(
+          resumeClient.runAgent(endpoint, input).toList(),
+          throwsA(isA<NetworkException>()),
+        );
+        verify(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).called(1); // No retry.
+      });
+
+      test('rethrows initial AuthException without resume', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(resumeClient.close);
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenThrow(
+          const AuthException(message: 'Unauthorized', statusCode: 401),
+        );
+
+        await expectLater(
+          resumeClient.runAgent(endpoint, input).toList(),
+          throwsA(isA<AuthException>()),
+        );
+      });
+
+      test(
+          'auth error during resume is surfaced as reconnect_failed + '
+          'RunErrorEvent', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: _fastPolicy,
+        );
+        addTearDown(resumeClient.close);
+
+        var callCount = 0;
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async {
+          callCount++;
+          if (callCount == 1) {
+            return StreamedHttpResponse(
+              statusCode: 200,
+              body: sseByteStreamThenError(
+                [
+                  (
+                    'run-3:0',
+                    {
+                      'type': 'RUN_STARTED',
+                      'threadId': 't-1',
+                      'runId': 'run-3',
+                    },
+                  ),
+                ],
+                const NetworkException(message: 'drop'),
+              ),
+            );
+          }
+          throw const AuthException(message: 'Unauthorized', statusCode: 401);
+        });
+
+        final events =
+            await resumeClient.runAgent(endpoint, input).toList();
+
+        final customEvents = events.whereType<CustomEvent>().toList();
+        expect(
+          customEvents.map((e) => e.name),
+          containsAllInOrder([
+            'stream.reconnecting',
+            'stream.reconnect_failed',
+          ]),
+        );
+        expect(events.whereType<RunErrorEvent>(), hasLength(1));
+      });
+
+      test('disabled policy rethrows network errors without retry', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: const ResumePolicy.disabled(),
+        );
+        addTearDown(resumeClient.close);
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: sseByteStreamThenError(
+              [
+                (
+                  'run-4:0',
+                  {
+                    'type': 'RUN_STARTED',
+                    'threadId': 't-1',
+                    'runId': 'run-4',
+                  },
+                ),
+              ],
+              const NetworkException(message: 'drop'),
+            ),
+          ),
+        );
+
+        // With resume disabled and a lastEventId set, the client emits a
+        // synthetic failure (no rethrow) instead of retrying.
+        final events =
+            await resumeClient.runAgent(endpoint, input).toList();
+        expect(
+          events.whereType<CustomEvent>().map((e) => e.name),
+          contains('stream.reconnect_failed'),
+        );
+        expect(events.whereType<RunErrorEvent>(), hasLength(1));
+        verify(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).called(1);
       });
     });
 

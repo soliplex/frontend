@@ -85,6 +85,8 @@ class AgentSession implements ToolExecutionContext {
     AgentSessionState.spawning,
   );
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
+  final Signal<ReconnectStatus?> _reconnectStatusSignal =
+      signal<ReconnectStatus?>(null);
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -124,6 +126,16 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the most recent [ExecutionEvent].
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent =>
       _executionEventSignal.readonly();
+
+  /// Reactive signal tracking SSE stream reconnect lifecycle status.
+  ///
+  /// Emits [Reconnecting] when the underlying stream drops and a resume
+  /// attempt is in flight, [Reconnected] on success, and
+  /// [ReconnectFailed] when the retry budget is exhausted (in which
+  /// case the run is also terminated via a synthetic `RunErrorEvent`).
+  /// `null` means no reconnect activity.
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus =>
+      _reconnectStatusSignal.readonly();
 
   /// Waits for the session result with an optional timeout.
   Future<AgentResult> awaitResult({Duration? timeout}) {
@@ -291,6 +303,7 @@ class AgentSession implements ToolExecutionContext {
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
     _executionEventSignal.dispose();
+    _reconnectStatusSignal.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -337,6 +350,12 @@ class AgentSession implements ToolExecutionContext {
   /// consumers observing [lastExecutionEvent] see streaming text, thinking,
   /// server tool calls, and terminal events without polling [runState].
   void _bridgeBaseEvent(BaseEvent event) {
+    if (event is CustomEvent) {
+      final status = ReconnectStatus.tryParse(event);
+      if (status != null && !_disposed) {
+        _reconnectStatusSignal.value = status;
+      }
+    }
     final executionEvent = bridgeBaseEvent(event);
     if (executionEvent != null) emitEvent(executionEvent);
   }

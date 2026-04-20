@@ -6,7 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
+    show
+        RagDocument,
+        ReconnectFailed,
+        ReconnectStatus,
+        Reconnected,
+        Reconnecting,
+        Room,
+        SourceReferenceFormatting,
+        buildDocumentFilter;
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -691,12 +699,18 @@ class _RoomScreenState extends State<RoomScreen> {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
+    final reconnectStatus = threadView.reconnectStatus.watch(context);
     final attachEnabled = room?.enableAttachments ?? false;
 
     _restoreUnsentText(sendError?.unsentText);
 
     return Column(
       children: [
+        if (reconnectStatus != null)
+          _ReconnectBanner(
+            status: reconnectStatus,
+            onDismiss: threadView.dismissReconnectStatus,
+          ),
         Expanded(
           child: switch (status) {
             MessagesLoading() => const Center(
@@ -800,6 +814,120 @@ class _RoomScreenState extends State<RoomScreen> {
               color: theme.colorScheme.outline,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconnectBanner extends StatefulWidget {
+  const _ReconnectBanner({required this.status, required this.onDismiss});
+
+  final ReconnectStatus status;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_ReconnectBanner> createState() => _ReconnectBannerState();
+}
+
+class _ReconnectBannerState extends State<_ReconnectBanner> {
+  static const _autoDismissDelay = Duration(seconds: 3);
+  Timer? _autoDismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleAutoDismissIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_ReconnectBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.status.runtimeType != oldWidget.status.runtimeType) {
+      _autoDismissTimer?.cancel();
+      _scheduleAutoDismissIfNeeded();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoDismissTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleAutoDismissIfNeeded() {
+    if (widget.status is Reconnected) {
+      _autoDismissTimer = Timer(_autoDismissDelay, widget.onDismiss);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final status = widget.status;
+
+    final (icon, text, background, foreground, showSpinner, dismissible) =
+        switch (status) {
+      Reconnecting(:final attempt) => (
+          Icons.sync,
+          'Reconnecting to the server… (attempt $attempt)',
+          scheme.secondaryContainer,
+          scheme.onSecondaryContainer,
+          true,
+          false,
+        ),
+      Reconnected() => (
+          Icons.check_circle_outline,
+          'Reconnected.',
+          scheme.secondaryContainer,
+          scheme.onSecondaryContainer,
+          false,
+          true,
+        ),
+      ReconnectFailed() => (
+          Icons.error_outline,
+          'Connection lost. The response may be incomplete.',
+          scheme.errorContainer,
+          scheme.onErrorContainer,
+          false,
+          true,
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: background,
+      child: Row(
+        children: [
+          if (showSpinner)
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(foreground),
+              ),
+            )
+          else
+            Icon(icon, size: 16, color: foreground),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(color: foreground),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (dismissible)
+            IconButton(
+              icon: Icon(Icons.close, size: 16, color: foreground),
+              onPressed: widget.onDismiss,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
         ],
       ),
     );
