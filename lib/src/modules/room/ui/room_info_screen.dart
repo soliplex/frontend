@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -371,7 +373,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       entry: widget.serverEntry,
       roomId: widget.roomId,
     );
-    _tracker.fetchRoomUploads(widget.roomId);
+    unawaited(_tracker.refreshRoom(widget.roomId));
   }
 
   // Not disposed here — the registry owns the tracker's lifecycle.

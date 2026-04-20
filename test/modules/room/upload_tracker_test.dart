@@ -75,7 +75,7 @@ void main() {
     test('emits Loading then Loaded with server list', () async {
       stubGetRoomUploads([_fileUpload('a.pdf'), _fileUpload('b.txt')]);
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       expect(tracker.roomUploads('room-1').value, isA<UploadsLoading>());
 
       await _pump();
@@ -91,27 +91,12 @@ void main() {
     test('emits Loaded with empty list when server returns empty', () async {
       stubGetRoomUploads([]);
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final status = tracker.roomUploads('room-1').value;
       expect(status, isA<UploadsLoaded>());
       expect((status as UploadsLoaded).uploads, isEmpty);
-    });
-
-    test('is idempotent: repeated fetches after Loaded are no-ops', () async {
-      stubGetRoomUploads([_fileUpload('a.pdf')]);
-
-      tracker.fetchRoomUploads('room-1');
-      await _pump();
-      tracker.fetchRoomUploads('room-1');
-      tracker.fetchRoomUploads('room-1');
-      await _pump();
-
-      verify(() => mockApi.getRoomUploads(
-            'room-1',
-            cancelToken: any(named: 'cancelToken'),
-          )).called(1);
     });
   });
 
@@ -122,7 +107,7 @@ void main() {
             cancelToken: any(named: 'cancelToken'),
           )).thenThrow(const ApiException(statusCode: 500, message: 'boom'));
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final status = tracker.roomUploads('room-1').value;
@@ -133,7 +118,7 @@ void main() {
     test('preserves Loaded list when a refresh fails', () async {
       stubGetRoomUploads([_fileUpload('a.pdf')]);
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
       expect(tracker.roomUploads('room-1').value, isA<UploadsLoaded>());
 
@@ -156,7 +141,7 @@ void main() {
     test('appends Pending, then drops it when refresh surfaces Persisted',
         () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final uploadCompleter = Completer<void>();
@@ -196,7 +181,7 @@ void main() {
         () async {
       // Server already has a.pdf.
       stubGetRoomUploads([_fileUpload('a.pdf', 'https://example.com/old')]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final uploadCompleter = Completer<void>();
@@ -239,7 +224,7 @@ void main() {
         'concurrent same-name uploads: first completion drops only the '
         'first pending; second completion drops the second', () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final firstCompleter = Completer<void>();
@@ -302,7 +287,7 @@ void main() {
   group('upload failure', () {
     test('flips Pending to Failed; parent status stays Loaded', () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       when(() => mockApi.uploadFileToRoom(
@@ -342,7 +327,7 @@ void main() {
         () async {
       // Initial fetch: empty room.
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final postA = Completer<void>();
@@ -423,7 +408,7 @@ void main() {
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => completers[callIndex++].future);
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       // Kick a second fetch; internally this cancels the first token.
       unawaited(tracker.refreshRoom('room-1'));
 
@@ -457,7 +442,7 @@ void main() {
   group('dismiss', () {
     test('removes a Pending entry by id', () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       final never = Completer<void>();
@@ -491,7 +476,7 @@ void main() {
 
     test('removes a Failed entry by id', () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       when(() => mockApi.uploadFileToRoom(
@@ -524,7 +509,7 @@ void main() {
     test('is a no-op for an unknown id (including a persisted filename)',
         () async {
       stubGetRoomUploads([_fileUpload('a.pdf')]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       tracker.dismiss('a.pdf'); // would-be mistaken use of filename as id
@@ -544,8 +529,8 @@ void main() {
       stubUploadToRoomSuccess();
       stubUploadToThreadSuccess();
 
-      tracker.fetchRoomUploads('room-1');
-      tracker.fetchThreadUploads('room-1', 'thread-1');
+      unawaited(tracker.refreshRoom('room-1'));
+      unawaited(tracker.refreshThread('room-1', 'thread-1'));
       await _pump();
 
       final roomUploads =
@@ -571,8 +556,8 @@ void main() {
         return [_fileUpload('$threadId.pdf')];
       });
 
-      tracker.fetchThreadUploads('room-1', 'thread-a');
-      tracker.fetchThreadUploads('room-1', 'thread-b');
+      unawaited(tracker.refreshThread('room-1', 'thread-a'));
+      unawaited(tracker.refreshThread('room-1', 'thread-b'));
       await _pump();
 
       expect(callCount, 2);
@@ -602,7 +587,7 @@ void main() {
         return never.future;
       });
 
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       expect(capturedToken, isNotNull);
@@ -616,7 +601,7 @@ void main() {
     test('does not cancel in-flight uploads (POSTs have no CancelToken)',
         () async {
       stubGetRoomUploads([]);
-      tracker.fetchRoomUploads('room-1');
+      unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
       // The upload method has no cancelToken parameter — intentional

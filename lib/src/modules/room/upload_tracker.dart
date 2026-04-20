@@ -155,26 +155,8 @@ class UploadTracker {
       _scope(_threadKey(roomId, threadId)).signal;
 
   // --------------------------------------------------------
-  // Fetch triggers
+  // Refresh triggers
   // --------------------------------------------------------
-
-  /// Fetches the room's upload list on first call; subsequent calls
-  /// are no-ops while the scope is already Loaded (use [refreshRoom]
-  /// to force a reload).
-  void fetchRoomUploads(String roomId) {
-    _ensureFetched(
-      key: _roomKey(roomId),
-      fetch: (token) => _api.getRoomUploads(roomId, cancelToken: token),
-    );
-  }
-
-  void fetchThreadUploads(String roomId, String threadId) {
-    _ensureFetched(
-      key: _threadKey(roomId, threadId),
-      fetch: (token) =>
-          _api.getThreadUploads(roomId, threadId, cancelToken: token),
-    );
-  }
 
   Future<void> refreshRoom(String roomId) {
     return _refresh(
@@ -189,16 +171,6 @@ class UploadTracker {
       fetch: (token) =>
           _api.getThreadUploads(roomId, threadId, cancelToken: token),
     );
-  }
-
-  void _ensureFetched({
-    required String key,
-    required Future<List<FileUpload>> Function(CancelToken) fetch,
-  }) {
-    if (_isDisposed) return;
-    final scope = _scope(key);
-    if (scope.signal.value is UploadsLoaded) return;
-    unawaited(_fetch(scope: scope, fetch: fetch));
   }
 
   Future<void> _refresh({
