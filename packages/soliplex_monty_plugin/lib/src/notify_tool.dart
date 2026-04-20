@@ -34,11 +34,13 @@ SoliplexTool buildNotifyTool(void Function(NotifyEvent) emit) {
       'required': ['kind', 'title', 'body'],
     },
     handler: (args) async {
-      emit(NotifyEvent(
-        kind: args['kind'] as String? ?? 'info',
-        title: args['title'] as String? ?? '',
-        body: args['body'] as String? ?? '',
-      ),);
+      emit(
+        NotifyEvent(
+          kind: args['kind'] as String? ?? 'info',
+          title: args['title'] as String? ?? '',
+          body: args['body'] as String? ?? '',
+        ),
+      );
       return {'shown': true};
     },
   );

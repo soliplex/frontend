@@ -244,7 +244,8 @@ class AccessPolicy {
         deniedOps: Set.unmodifiable(deniedOsOps ?? []),
       ),
       hitlPolicy: HitlPolicy(
-        requireApprovalForTools: Set.unmodifiable(requireApprovalForTools ?? []),
+        requireApprovalForTools:
+            Set.unmodifiable(requireApprovalForTools ?? []),
         requireApprovalForNamespaces:
             Set.unmodifiable(requireApprovalForNamespaces ?? []),
       ),

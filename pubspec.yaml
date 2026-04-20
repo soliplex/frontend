@@ -41,6 +41,11 @@ dependencies:
       url: https://github.com/runyaga/dart_monty_core.git
       ref: main
       path: packages/dart_monty_flutter
+  dart_monty:
+    git:
+      url: https://github.com/runyaga/dart_monty.git
+      ref: feat/repl-platform
+  meta: ^1.9.0
   soliplex_agent:
     path: packages/soliplex_agent
   soliplex_monty_plugin:

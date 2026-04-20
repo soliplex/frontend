@@ -1,7 +1,8 @@
 import 'package:dart_monty/dart_monty_bridge.dart'
     show BridgeMiddleware, CallRole, InfraCall, ToolCall;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show AllowOnce, AllowSession, Deny;
+import 'package:soliplex_agent/soliplex_agent.dart'
+    show AllowOnce, AllowSession, Deny;
 
 import 'package:soliplex_frontend/src/modules/room/access_policy.dart';
 import 'package:soliplex_frontend/src/modules/room/policy_enforcement_middleware.dart';
@@ -91,7 +92,8 @@ void main() {
     });
 
     group('HITL — AllowOnce', () {
-      test('calls onHitl and proceeds without adding to session approved', () async {
+      test('calls onHitl and proceeds without adding to session approved',
+          () async {
         var hitlCalled = false;
         final mw = PolicyEnforcementMiddleware(
           const AccessPolicy(
@@ -196,7 +198,8 @@ void main() {
     });
 
     group('HITL by namespace', () {
-      test('requireApprovalForNamespaces triggers HITL for all tools in ns', () async {
+      test('requireApprovalForNamespaces triggers HITL for all tools in ns',
+          () async {
         var hitlCalled = false;
         final mw = PolicyEnforcementMiddleware(
           const AccessPolicy(

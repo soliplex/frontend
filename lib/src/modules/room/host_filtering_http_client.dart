@@ -37,8 +37,8 @@ class HostFilteringHttpClient implements SoliplexHttpClient {
     Duration? timeout,
   }) {
     _assertHostAllowed(uri.host);
-    return _inner.request(method, uri, headers: headers, body: body,
-        timeout: timeout);
+    return _inner.request(method, uri,
+        headers: headers, body: body, timeout: timeout);
   }
 
   @override
@@ -50,8 +50,8 @@ class HostFilteringHttpClient implements SoliplexHttpClient {
     CancelToken? cancelToken,
   }) {
     _assertHostAllowed(uri.host);
-    return _inner.requestStream(method, uri, headers: headers, body: body,
-        cancelToken: cancelToken);
+    return _inner.requestStream(method, uri,
+        headers: headers, body: body, cancelToken: cancelToken);
   }
 
   @override

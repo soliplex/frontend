@@ -111,8 +111,8 @@ class _ChatInputState extends State<ChatInput> {
     final state = widget.sessionState?.watch(context);
     final active = _isActive(state);
     final disabled = !widget.enabled || active;
-    final pythonRunning = widget.scriptingState != null &&
-        state == AgentSessionState.running;
+    final pythonRunning =
+        widget.scriptingState != null && state == AgentSessionState.running;
 
     return Padding(
       padding: const EdgeInsets.all(8),
@@ -299,10 +299,8 @@ class _PythonRunningBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Python',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: color),
+            style:
+                Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
           ),
         ],
       ),

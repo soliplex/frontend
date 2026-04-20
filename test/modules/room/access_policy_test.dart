@@ -20,7 +20,8 @@ void main() {
     });
 
     test('allowedTools allowlist blocks tools not in it', () {
-      const f = ToolFilter(allowedTools: {'soliplex_list_rooms', 'notify_show'});
+      const f =
+          ToolFilter(allowedTools: {'soliplex_list_rooms', 'notify_show'});
       expect(f.allows('soliplex_list_rooms'), isTrue);
       expect(f.allows('notify_show'), isTrue);
       expect(f.allows('get_clipboard'), isFalse);

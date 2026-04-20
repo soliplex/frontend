@@ -51,7 +51,8 @@ void main() {
     group('permissive policy', () {
       test('request() forwards to inner for any host', () async {
         final fakeResponse = _FakeHttpResponse();
-        when(() => inner.request(any(), any())).thenAnswer((_) async => fakeResponse);
+        when(() => inner.request(any(), any()))
+            .thenAnswer((_) async => fakeResponse);
 
         final client = _build(inner: inner);
         final result = await client.request('GET', _uri('anywhere.com'));
@@ -108,7 +109,8 @@ void main() {
 
       test('allows non-denied host', () async {
         final fakeResponse = _FakeHttpResponse();
-        when(() => inner.request(any(), any())).thenAnswer((_) async => fakeResponse);
+        when(() => inner.request(any(), any()))
+            .thenAnswer((_) async => fakeResponse);
 
         final client = _build(
           inner: inner,
@@ -135,7 +137,8 @@ void main() {
 
       test('request() forwards for host in allowlist', () async {
         final fakeResponse = _FakeHttpResponse();
-        when(() => inner.request(any(), any())).thenAnswer((_) async => fakeResponse);
+        when(() => inner.request(any(), any()))
+            .thenAnswer((_) async => fakeResponse);
 
         final client = _build(
           inner: inner,
@@ -150,7 +153,8 @@ void main() {
     group('policy setter', () {
       test('updating policy takes effect immediately', () async {
         final fakeResponse = _FakeHttpResponse();
-        when(() => inner.request(any(), any())).thenAnswer((_) async => fakeResponse);
+        when(() => inner.request(any(), any()))
+            .thenAnswer((_) async => fakeResponse);
 
         final client = _build(inner: inner); // permissive
 
