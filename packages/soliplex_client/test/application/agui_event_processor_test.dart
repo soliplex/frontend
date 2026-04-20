@@ -189,11 +189,7 @@ void main() {
         );
         const event = TextMessageEndEvent(messageId: 'msg-1');
 
-        final result = processEvent(
-          conversationWithMsg,
-          streamingState,
-          event,
-        );
+        final result = processEvent(conversationWithMsg, streamingState, event);
 
         // Should skip — conversation still has exactly 1 message
         expect(result.conversation.messages, hasLength(1));
@@ -696,8 +692,7 @@ void main() {
       });
 
       group('ToolCallActivity equality', () {
-        test(
-            'consecutive starts of same tool produce unequal activities '
+        test('consecutive starts of same tool produce unequal activities '
             '(different toolCallId)', () {
           const event1 = ToolCallStartEvent(
             toolCallId: 'tc-1',
@@ -730,8 +725,9 @@ void main() {
 
           final result = processEvent(conversation, streaming, event);
 
-          final activity = (result.streaming as app_streaming.AwaitingText)
-              .currentActivity as app_streaming.ToolCallActivity;
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
           expect(activity.latestToolCallId, equals('tc-1'));
         });
 
@@ -744,8 +740,9 @@ void main() {
 
           final result = processEvent(conversation, streaming, event);
 
-          final activity = (result.streaming as app_streaming.AwaitingText)
-              .currentActivity as app_streaming.ToolCallActivity;
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
           expect(activity.timestamp, equals(1000));
         });
       });
@@ -926,22 +923,165 @@ void main() {
         expect(activity.timestamp, equals(2000));
       });
 
-      test('skill_tool_call without timestamp synthesizes wall-clock value',
-          () {
-        final before = DateTime.now().millisecondsSinceEpoch;
+      test(
+        'skill_tool_call without timestamp synthesizes wall-clock value',
+        () {
+          final before = DateTime.now().millisecondsSinceEpoch;
+          const event = ActivitySnapshotEvent(
+            messageId: 'msg-1',
+            activityType: 'skill_tool_call',
+            content: {'tool_name': 'search'},
+          );
+
+          final result = processEvent(conversation, streaming, event);
+          final after = DateTime.now().millisecondsSinceEpoch;
+
+          final activity =
+              (result.streaming as app_streaming.AwaitingText).currentActivity
+                  as app_streaming.ToolCallActivity;
+          expect(activity.timestamp, greaterThanOrEqualTo(before));
+          expect(activity.timestamp, lessThanOrEqualTo(after));
+        },
+      );
+
+      test('persists snapshot as ActivityRecord on conversation', () {
         const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
+          messageId: 'rag:call_1',
           activityType: 'skill_tool_call',
-          content: {'tool_name': 'search'},
+          content: {'tool_name': 'ask', 'args': '{"q":"hi"}'},
+          timestamp: 1234,
         );
 
         final result = processEvent(conversation, streaming, event);
-        final after = DateTime.now().millisecondsSinceEpoch;
 
-        final activity = (result.streaming as app_streaming.AwaitingText)
-            .currentActivity as app_streaming.ToolCallActivity;
-        expect(activity.timestamp, greaterThanOrEqualTo(before));
-        expect(activity.timestamp, lessThanOrEqualTo(after));
+        expect(result.conversation.activities, hasLength(1));
+        final record = result.conversation.activities.first;
+        expect(record.messageId, 'rag:call_1');
+        expect(record.activityType, 'skill_tool_call');
+        expect(record.content['tool_name'], 'ask');
+        expect(record.content['args'], '{"q":"hi"}');
+        expect(record.timestamp, 1234);
+      });
+
+      test('unknown activityType is persisted', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'plan:1',
+          activityType: 'plan',
+          content: {'steps': 3},
+          timestamp: 10,
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.activities, hasLength(1));
+        expect(result.conversation.activities.first.activityType, 'plan');
+      });
+
+      test('replace:true overwrites record with same messageId in place', () {
+        const first = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask'},
+          timestamp: 1,
+        );
+        const second = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask', 'status': 'done'},
+          timestamp: 2,
+        );
+
+        final afterFirst = processEvent(conversation, streaming, first);
+        final afterSecond = processEvent(
+          afterFirst.conversation,
+          afterFirst.streaming,
+          second,
+        );
+
+        expect(afterSecond.conversation.activities, hasLength(1));
+        final record = afterSecond.conversation.activities.first;
+        expect(record.timestamp, 2);
+        expect(record.content['status'], 'done');
+      });
+
+      test('replace:false ignored when messageId already exists', () {
+        const first = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask'},
+          timestamp: 1,
+        );
+        const second = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+          replace: false,
+          timestamp: 2,
+        );
+
+        final afterFirst = processEvent(conversation, streaming, first);
+        final afterSecond = processEvent(
+          afterFirst.conversation,
+          afterFirst.streaming,
+          second,
+        );
+
+        expect(afterSecond.conversation.activities, hasLength(1));
+        final record = afterSecond.conversation.activities.first;
+        expect(record.content['tool_name'], 'ask');
+        expect(record.timestamp, 1);
+      });
+
+      test('replace:false appends when messageId is new', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'rag:call_2',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask'},
+          replace: false,
+          timestamp: 5,
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.activities, hasLength(1));
+        expect(result.conversation.activities.first.messageId, 'rag:call_2');
+      });
+
+      test('distinct messageIds accumulate in order received', () {
+        const e1 = ActivitySnapshotEvent(
+          messageId: 'a',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask'},
+          timestamp: 1,
+        );
+        const e2 = ActivitySnapshotEvent(
+          messageId: 'b',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search'},
+          timestamp: 2,
+        );
+
+        var r = processEvent(conversation, streaming, e1);
+        r = processEvent(r.conversation, r.streaming, e2);
+
+        expect(
+          r.conversation.activities.map((a) => a.messageId).toList(),
+          equals(['a', 'b']),
+        );
+      });
+
+      test('persists even when skill_tool_call is missing tool_name', () {
+        const event = ActivitySnapshotEvent(
+          messageId: 'rag:call_x',
+          activityType: 'skill_tool_call',
+          content: <String, dynamic>{},
+          timestamp: 9,
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.activities, hasLength(1));
+        expect(result.conversation.activities.first.messageId, 'rag:call_x');
       });
     });
 
@@ -1118,33 +1258,30 @@ void main() {
         expect(awaitingText.isThinkingStreaming, isFalse);
       });
 
-      test(
-        'TextMessageEndEvent preserves reasoning-sourced thinkingText',
-        () {
-          const event = ReasoningMessageContentEvent(
-            messageId: 'reas-1',
-            delta: 'Inner reasoning',
-          );
-          final afterReasoning = processEvent(conversation, streaming, event);
+      test('TextMessageEndEvent preserves reasoning-sourced thinkingText', () {
+        const event = ReasoningMessageContentEvent(
+          messageId: 'reas-1',
+          delta: 'Inner reasoning',
+        );
+        final afterReasoning = processEvent(conversation, streaming, event);
 
-          const textStart = TextMessageStartEvent(messageId: 'msg-1');
-          final afterStart = processEvent(
-            afterReasoning.conversation,
-            afterReasoning.streaming,
-            textStart,
-          );
+        const textStart = TextMessageStartEvent(messageId: 'msg-1');
+        final afterStart = processEvent(
+          afterReasoning.conversation,
+          afterReasoning.streaming,
+          textStart,
+        );
 
-          const textEnd = TextMessageEndEvent(messageId: 'msg-1');
-          final result = processEvent(
-            afterStart.conversation,
-            afterStart.streaming,
-            textEnd,
-          );
+        const textEnd = TextMessageEndEvent(messageId: 'msg-1');
+        final result = processEvent(
+          afterStart.conversation,
+          afterStart.streaming,
+          textEnd,
+        );
 
-          final message = result.conversation.messages.first as TextMessage;
-          expect(message.thinkingText, equals('Inner reasoning'));
-        },
-      );
+        final message = result.conversation.messages.first as TextMessage;
+        expect(message.thinkingText, equals('Inner reasoning'));
+      });
     });
 
     group('state events', () {

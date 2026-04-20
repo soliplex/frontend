@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
+import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
 
@@ -138,6 +139,7 @@ class Conversation {
     this.status = const Idle(),
     this.aguiState = const {},
     this.messageStates = const {},
+    this.activities = const [],
   });
 
   /// Creates an empty conversation for the given thread.
@@ -170,6 +172,11 @@ class Conversation {
   /// by correlating AG-UI state changes.
   final Map<String, MessageState> messageStates;
 
+  /// Persisted activity snapshots from `ActivitySnapshotEvent`, keyed by
+  /// `messageId`. One record per unique `messageId`; `replace:true` updates
+  /// in place, `replace:false` is ignored if a record already exists.
+  final List<ActivityRecord> activities;
+
   /// Whether a run is currently active.
   bool get isRunning => status is Running;
 
@@ -201,6 +208,7 @@ class Conversation {
     ConversationStatus? status,
     Map<String, dynamic>? aguiState,
     Map<String, MessageState>? messageStates,
+    List<ActivityRecord>? activities,
   }) {
     return Conversation(
       threadId: threadId ?? this.threadId,
@@ -209,6 +217,7 @@ class Conversation {
       status: status ?? this.status,
       aguiState: aguiState ?? this.aguiState,
       messageStates: messageStates ?? this.messageStates,
+      activities: activities ?? this.activities,
     );
   }
 
@@ -220,26 +229,30 @@ class Conversation {
     const toolCallListEquals = ListEquality<ToolCallInfo>();
     const mapEquals = DeepCollectionEquality();
     const messageStateMapEquals = MapEquality<String, MessageState>();
+    const activityListEquals = ListEquality<ActivityRecord>();
     return threadId == other.threadId &&
         listEquals.equals(messages, other.messages) &&
         toolCallListEquals.equals(toolCalls, other.toolCalls) &&
         status == other.status &&
         mapEquals.equals(aguiState, other.aguiState) &&
-        messageStateMapEquals.equals(messageStates, other.messageStates);
+        messageStateMapEquals.equals(messageStates, other.messageStates) &&
+        activityListEquals.equals(activities, other.activities);
   }
 
   @override
   int get hashCode => Object.hash(
-        threadId,
-        const ListEquality<ChatMessage>().hash(messages),
-        const ListEquality<ToolCallInfo>().hash(toolCalls),
-        status,
-        const DeepCollectionEquality().hash(aguiState),
-        const MapEquality<String, MessageState>().hash(messageStates),
-      );
+    threadId,
+    const ListEquality<ChatMessage>().hash(messages),
+    const ListEquality<ToolCallInfo>().hash(toolCalls),
+    status,
+    const DeepCollectionEquality().hash(aguiState),
+    const MapEquality<String, MessageState>().hash(messageStates),
+    const ListEquality<ActivityRecord>().hash(activities),
+  );
 
   @override
-  String toString() => 'Conversation(threadId: $threadId, '
+  String toString() =>
+      'Conversation(threadId: $threadId, '
       'messages: ${messages.length}, '
       'toolCalls: ${toolCalls.length}, '
       'status: $status)';
