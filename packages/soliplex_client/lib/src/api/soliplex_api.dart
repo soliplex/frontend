@@ -9,6 +9,7 @@ import 'package:soliplex_client/src/domain/backend_version_info.dart';
 import 'package:soliplex_client/src/domain/chunk_visualization.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_client/src/domain/feedback_type.dart';
+import 'package:soliplex_client/src/domain/file_upload.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
 import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
@@ -980,6 +981,69 @@ class SoliplexApi {
   // Uploads
   // ============================================================
 
+  /// Lists files uploaded to a room's shared upload directory.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  ///
+  /// Returns a list of [FileUpload] entries. Malformed entries in the
+  /// response are logged and skipped.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] is empty
+  /// - [NotFoundException] if room not found (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<FileUpload>> getRoomUploads(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['uploads', roomId]),
+      cancelToken: cancelToken,
+    );
+
+    return _parseUploadsList(response);
+  }
+
+  /// Lists files uploaded to a thread within a room.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  ///
+  /// Returns a list of [FileUpload] entries. Malformed entries in the
+  /// response are logged and skipped.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] or [threadId] is empty
+  /// - [NotFoundException] if room or thread not found (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<FileUpload>> getThreadUploads(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]),
+      cancelToken: cancelToken,
+    );
+
+    return _parseUploadsList(response);
+  }
+
   /// Uploads a file to a room's shared upload directory.
   ///
   /// The backend stores the file at `{upload_path}/rooms/{roomId}/`.
@@ -1050,5 +1114,27 @@ class SoliplexApi {
     if (value.isEmpty) {
       throw ArgumentError.value(value, name, 'must not be empty');
     }
+  }
+
+  /// Extracts `FileUpload` entries from an uploads-list response.
+  ///
+  /// Malformed entries are logged and skipped so one bad row can't
+  /// break the whole list.
+  List<FileUpload> _parseUploadsList(Map<String, dynamic> response) {
+    final uploads = response['uploads'] as List<dynamic>?;
+    if (uploads == null || uploads.isEmpty) return const [];
+    final result = <FileUpload>[];
+    for (final entry in uploads) {
+      try {
+        result.add(fileUploadFromJson(entry as Map<String, dynamic>));
+      } on Object catch (e) {
+        developer.log(
+          'Malformed file upload ignored: $e',
+          name: 'soliplex_client.api',
+          level: 900,
+        );
+      }
+    }
+    return result;
   }
 }

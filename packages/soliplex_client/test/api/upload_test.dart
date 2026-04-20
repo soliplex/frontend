@@ -117,4 +117,249 @@ void main() {
       );
     });
   });
+
+  group('getRoomUploads', () {
+    test('returns FileUpload entries from server payload', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'room_id': 'room-123',
+          'uploads': [
+            {
+              'filename': 'a.pdf',
+              'url': 'https://example.com/uploads/room-123/a.pdf',
+            },
+            {
+              'filename': 'b.txt',
+              'url': 'https://example.com/uploads/room-123/b.txt',
+            },
+          ],
+        },
+      );
+
+      final uploads = await api.getRoomUploads('room-123');
+
+      expect(uploads, hasLength(2));
+      expect(uploads[0].filename, 'a.pdf');
+      expect(
+        uploads[0].url.toString(),
+        'https://example.com/uploads/room-123/a.pdf',
+      );
+      expect(uploads[1].filename, 'b.txt');
+    });
+
+    test('returns empty list when uploads array is empty', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {'room_id': 'room-123', 'uploads': <dynamic>[]},
+      );
+
+      expect(await api.getRoomUploads('room-123'), isEmpty);
+    });
+
+    test('returns empty list when uploads field is missing', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => {'room_id': 'room-123'});
+
+      expect(await api.getRoomUploads('room-123'), isEmpty);
+    });
+
+    test('skips malformed entries and returns valid ones', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'room_id': 'room-123',
+          'uploads': [
+            {'filename': 'good.pdf', 'url': 'https://example.com/good'},
+            {'filename': 'missing-url'},
+            'not a map',
+            {
+              'filename': 'also-good.pdf',
+              'url': 'https://example.com/good2',
+            },
+          ],
+        },
+      );
+
+      final uploads = await api.getRoomUploads('room-123');
+
+      expect(uploads.map((u) => u.filename), ['good.pdf', 'also-good.pdf']);
+    });
+
+    test('uses /uploads/{roomId} URL', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{});
+
+      await api.getRoomUploads('room-abc');
+
+      final captured = verify(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured.single as Uri;
+
+      expect(captured.path, endsWith('/uploads/room-abc'));
+    });
+
+    test('forwards cancelToken to transport', () async {
+      final cancelToken = CancelToken();
+
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: cancelToken,
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{});
+
+      await api.getRoomUploads('room-1', cancelToken: cancelToken);
+
+      verify(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: cancelToken,
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).called(1);
+    });
+
+    test('throws ArgumentError for empty roomId', () {
+      expect(() => api.getRoomUploads(''), throwsA(isA<ArgumentError>()));
+    });
+  });
+
+  group('getThreadUploads', () {
+    test('returns FileUpload entries from server payload', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'room_id': 'room-123',
+          'uploads': [
+            {
+              'filename': 'thread.pdf',
+              'url':
+                  'https://example.com/uploads/room-123/thread-456/thread.pdf',
+            },
+          ],
+        },
+      );
+
+      final uploads = await api.getThreadUploads('room-123', 'thread-456');
+
+      expect(uploads, hasLength(1));
+      expect(uploads.first.filename, 'thread.pdf');
+    });
+
+    test('uses /uploads/{roomId}/{threadId} URL', () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{});
+
+      await api.getThreadUploads('room-abc', 'thread-xyz');
+
+      final captured = verify(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured.single as Uri;
+
+      expect(captured.path, endsWith('/uploads/room-abc/thread-xyz'));
+    });
+
+    test('throws ArgumentError for empty roomId', () {
+      expect(
+        () => api.getThreadUploads('', 'thread-1'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for empty threadId', () {
+      expect(
+        () => api.getThreadUploads('room-1', ''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
 }
