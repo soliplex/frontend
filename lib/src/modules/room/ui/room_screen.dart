@@ -267,18 +267,7 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  Future<void> _pickAndUploadToRoom(Room room) async {
-    final file = await _pickWithErrorSurfacing();
-    if (file == null || !mounted) return;
-    _state.uploadTracker.uploadToRoom(
-      roomId: widget.roomId,
-      filename: file.name,
-      fileBytes: file.bytes,
-      mimeType: file.mimeType,
-    );
-  }
-
-  Future<void> _pickAndUploadToThread(Room room, String threadId) async {
+  Future<void> _pickAndUploadToThread(String threadId) async {
     final file = await _pickWithErrorSurfacing(threadId: threadId);
     if (file == null || !mounted) return;
     _state.uploadTracker.uploadToThread(
@@ -290,7 +279,7 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Future<void> _pickAndUploadToNewThread(Room room) async {
+  Future<void> _pickAndUploadToNewThread() async {
     // Read errors before thread creation attach to the room scope
     // since there's no thread yet to route them to.
     final file = await _pickWithErrorSurfacing();
@@ -467,7 +456,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return Column(
       children: [
-        _buildRoomHeader(room, attachEnabled, roomStatus, threadStatus),
+        _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
         Expanded(
           child: threadView == null
@@ -480,19 +469,12 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _buildRoomHeader(
     Room? room,
-    bool attachEnabled,
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
-    final controls = _buildControlsCluster(
-      roomStatus,
-      threadStatus,
-      theme,
-      room,
-      attachEnabled,
-    );
+    final chip = _buildChipSegment(roomStatus, threadStatus, theme);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -505,61 +487,14 @@ class _RoomScreenState extends State<RoomScreen> {
               style: theme.textTheme.titleMedium,
             ),
           ),
-          if (controls != null) controls,
-        ],
-      ),
-    );
-  }
-
-  /// Wraps the file chip and the upload icon in a single tonal
-  /// container so they read as one related pair of controls.
-  Widget? _buildControlsCluster(
-    UploadsStatus roomStatus,
-    UploadsStatus threadStatus,
-    ThemeData theme,
-    Room? room,
-    bool attachEnabled,
-  ) {
-    final chip = _buildChipSegment(roomStatus, threadStatus, theme);
-    final uploadSegment = (attachEnabled && room != null)
-        ? _buildUploadSegment(room, theme)
-        : null;
-
-    if (chip == null && uploadSegment == null) return null;
-
-    return Material(
-      color: theme.colorScheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (chip != null) chip,
-          if (chip != null && uploadSegment != null)
-            Container(
-              width: 1,
-              height: 20,
-              color: theme.colorScheme.outlineVariant,
+          if (chip != null)
+            Material(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: chip,
             ),
-          if (uploadSegment != null) uploadSegment,
         ],
-      ),
-    );
-  }
-
-  Widget _buildUploadSegment(Room room, ThemeData theme) {
-    return InkWell(
-      onTap: () => _pickAndUploadToRoom(room),
-      child: Tooltip(
-        message: 'Upload file to room',
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Icon(
-            Icons.upload_file,
-            size: 20,
-            color: theme.colorScheme.onSecondaryContainer,
-          ),
-        ),
       ),
     );
   }
@@ -875,8 +810,8 @@ class _RoomScreenState extends State<RoomScreen> {
                     Set.of(_selectedDocuments)..remove(doc),
                   )
               : null,
-          onAttachFile: (room?.enableAttachments ?? false) && room != null
-              ? () => _pickAndUploadToNewThread(room)
+          onAttachFile: (room?.enableAttachments ?? false)
+              ? _pickAndUploadToNewThread
               : null,
         ),
       ],
@@ -978,8 +913,8 @@ class _RoomScreenState extends State<RoomScreen> {
                     Set.of(_selectedDocuments)..remove(doc),
                   )
               : null,
-          onAttachFile: attachEnabled && room != null
-              ? () => _pickAndUploadToThread(room, threadView.threadId)
+          onAttachFile: attachEnabled
+              ? () => _pickAndUploadToThread(threadView.threadId)
               : null,
         ),
       ],
