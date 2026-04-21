@@ -4,6 +4,7 @@ import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
+import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 
@@ -46,17 +47,17 @@ EventProcessingResult processEvent(
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
-        conversation: conversation.withStatus(Running(runId: runId)),
-        streaming: streaming,
-      ),
+      conversation: conversation.withStatus(Running(runId: runId)),
+      streaming: streaming,
+    ),
     RunFinishedEvent() => EventProcessingResult(
-        conversation: conversation.withStatus(const Completed()),
-        streaming: const AwaitingText(),
-      ),
+      conversation: conversation.withStatus(const Completed()),
+      streaming: const AwaitingText(),
+    ),
     RunErrorEvent(:final message) => EventProcessingResult(
-        conversation: conversation.withStatus(Failed(error: message)),
-        streaming: const AwaitingText(),
-      ),
+      conversation: conversation.withStatus(Failed(error: message)),
+      streaming: const AwaitingText(),
+    ),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -65,31 +66,33 @@ EventProcessingResult processEvent(
     ThinkingStartEvent() ||
     ReasoningStartEvent() ||
     ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      _processThinkingStart(conversation, streaming),
+    ReasoningMessageStartEvent() => _processThinkingStart(
+      conversation,
+      streaming,
+    ),
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
     ThinkingTextMessageEndEvent() ||
-    ReasoningMessageEndEvent() =>
-      _processThinkingEnd(conversation, streaming),
+    ReasoningMessageEndEvent() => _processThinkingEnd(conversation, streaming),
     ThinkingTextMessageContentEvent(:final delta) ||
-    ReasoningMessageContentEvent(:final delta) =>
-      _processThinkingContent(conversation, streaming, delta),
+    ReasoningMessageContentEvent(
+      :final delta,
+    ) => _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
-        conversation,
-        streaming,
-        messageId,
-        role,
-      ),
+      conversation,
+      streaming,
+      messageId,
+      role,
+    ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
     TextMessageEndEvent(:final messageId) => _processTextEnd(
-        conversation,
-        streaming,
-        messageId,
-      ),
+      conversation,
+      streaming,
+      messageId,
+    ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
     // transition to pending on end (tool stays in conversation.toolCalls).
@@ -114,43 +117,47 @@ EventProcessingResult processEvent(
         ),
       ),
     ToolCallArgsEvent(:final toolCallId, :final delta) => _processToolCallArgs(
-        conversation,
-        streaming,
-        toolCallId,
-        delta,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+      delta,
+    ),
     ToolCallEndEvent(:final toolCallId) => _processToolCallEnd(
-        conversation,
-        streaming,
-        toolCallId,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+    ),
     ToolCallResultEvent(:final toolCallId, :final content) =>
       _processToolCallResult(conversation, streaming, toolCallId, content),
 
     // State events - apply to conversation.aguiState
     StateSnapshotEvent(:final snapshot) => EventProcessingResult(
-        conversation: conversation.copyWith(
-          aguiState: snapshot as Map<String, dynamic>,
-        ),
-        streaming: streaming,
+      conversation: conversation.copyWith(
+        aguiState: snapshot as Map<String, dynamic>,
       ),
+      streaming: streaming,
+    ),
     StateDeltaEvent(:final delta) => _processStateDelta(
-        conversation,
-        streaming,
-        delta,
-      ),
+      conversation,
+      streaming,
+      delta,
+    ),
 
     // Activity snapshot events
     ActivitySnapshotEvent(
+      :final messageId,
       :final activityType,
       :final content,
+      :final replace,
       :final timestamp,
     ) =>
       _processActivitySnapshot(
         conversation,
         streaming,
+        messageId,
         activityType,
         content,
+        replace,
         timestamp,
       ),
 
@@ -176,11 +183,10 @@ EventProcessingResult processEvent(
     StepFinishedEvent() ||
     RawEvent() ||
     CustomEvent() ||
-    ReasoningMessageChunkEvent() =>
-      EventProcessingResult(
-        conversation: conversation,
-        streaming: streaming,
-      ),
+    ReasoningMessageChunkEvent() => EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    ),
   };
 }
 
@@ -269,8 +275,9 @@ EventProcessingResult _processTextStart(
   TextMessageRole role,
 ) {
   // Transfer any buffered thinking from AwaitingText to TextStreaming
-  final thinkingText =
-      streaming is AwaitingText ? streaming.bufferedThinkingText : '';
+  final thinkingText = streaming is AwaitingText
+      ? streaming.bufferedThinkingText
+      : '';
   final isThinkingStreaming =
       streaming is AwaitingText && streaming.isThinkingStreaming;
 
@@ -427,10 +434,49 @@ EventProcessingResult _processToolCallResult(
 EventProcessingResult _processActivitySnapshot(
   Conversation conversation,
   StreamingState streaming,
+  String messageId,
   String activityType,
   Map<String, dynamic> content,
+  bool replace,
   int? timestamp,
 ) {
+  final resolvedTimestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+
+  // Persist the snapshot in conversation.activities per ag-ui spec:
+  //   replace=true  → overwrite the record with the same messageId
+  //   replace=false → ignore if a record with that messageId already exists
+  final existingIndex = conversation.activities.indexWhere(
+    (a) => a.messageId == messageId,
+  );
+  final List<ActivityRecord> updatedActivities;
+  if (existingIndex >= 0) {
+    if (replace) {
+      updatedActivities = [...conversation.activities]
+        ..[existingIndex] = ActivityRecord(
+          messageId: messageId,
+          activityType: activityType,
+          content: content,
+          timestamp: resolvedTimestamp,
+        );
+    } else {
+      updatedActivities = conversation.activities;
+    }
+  } else {
+    updatedActivities = [
+      ...conversation.activities,
+      ActivityRecord(
+        messageId: messageId,
+        activityType: activityType,
+        content: content,
+        timestamp: resolvedTimestamp,
+      ),
+    ];
+  }
+  final updatedConversation =
+      identical(updatedActivities, conversation.activities)
+      ? conversation
+      : conversation.copyWith(activities: updatedActivities);
+
   if (activityType == 'skill_tool_call') {
     final toolName = content['tool_name'];
     // Pass through if tool_name is missing or not a String — the backend
@@ -443,16 +489,16 @@ EventProcessingResult _processActivitySnapshot(
         level: 900,
       );
       return EventProcessingResult(
-        conversation: conversation,
+        conversation: updatedConversation,
         streaming: streaming,
       );
     }
     return EventProcessingResult(
-      conversation: conversation,
+      conversation: updatedConversation,
       streaming: _withToolCallActivity(
         streaming,
         toolName,
-        timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
+        timestamp: resolvedTimestamp,
       ),
     );
   }
@@ -463,7 +509,7 @@ EventProcessingResult _processActivitySnapshot(
     level: 800,
   );
   return EventProcessingResult(
-    conversation: conversation,
+    conversation: updatedConversation,
     streaming: streaming,
   );
 }
@@ -484,15 +530,15 @@ StreamingState _withToolCallActivity(
 
   final newActivity = switch (currentActivity) {
     ToolCallActivity() => currentActivity.withToolName(
-        toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
-      ),
+      toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp,
+    ),
     _ => ToolCallActivity(
-        toolName: toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
-      ),
+      toolName: toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp,
+    ),
   };
 
   return switch (streaming) {
