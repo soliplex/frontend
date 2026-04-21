@@ -50,7 +50,8 @@ void main() {
       expect(find.text('Thinking...'), findsOneWidget);
     });
 
-    testWidgets('renders ExecutionTimeline and ThinkingBlock when tracker provided',
+    testWidgets(
+        'renders ExecutionTimeline and ThinkingBlock when tracker provided',
         (tester) async {
       final events = Signal<ExecutionEvent?>(null);
       final tracker = ExecutionTracker(executionEvents: events);

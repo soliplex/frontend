@@ -67,9 +67,8 @@ void main() {
         const toolCall1 = ToolCallInfo(id: 'tool-1', name: 'search');
         const toolCall2 = ToolCallInfo(id: 'tool-2', name: 'read');
 
-        final updated = conversation
-            .withToolCall(toolCall1)
-            .withToolCall(toolCall2);
+        final updated =
+            conversation.withToolCall(toolCall1).withToolCall(toolCall2);
 
         expect(updated.toolCalls, hasLength(2));
       });

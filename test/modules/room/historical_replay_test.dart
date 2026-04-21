@@ -131,7 +131,8 @@ void main() {
         RunEventBundle(
           runId: 'run-1',
           events: const [
-            TextMessageStartEvent(messageId: 'user-1', role: TextMessageRole.user),
+            TextMessageStartEvent(
+                messageId: 'user-1', role: TextMessageRole.user),
             TextMessageEndEvent(messageId: 'user-1'),
           ],
         ),

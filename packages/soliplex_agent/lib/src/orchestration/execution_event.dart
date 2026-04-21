@@ -283,12 +283,12 @@ class ActivitySnapshot extends ExecutionEvent {
 
   @override
   int get hashCode => Object.hash(
-    messageId,
-    activityType,
-    timestamp,
-    replace,
-    _deepEq.hash(content),
-  );
+        messageId,
+        activityType,
+        timestamp,
+        replace,
+        _deepEq.hash(content),
+      );
 }
 
 /// Extension point for third-party plugins to emit custom events.
