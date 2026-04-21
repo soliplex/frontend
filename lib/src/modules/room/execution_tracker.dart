@@ -11,6 +11,22 @@ class ExecutionTracker {
     _unsub = executionEvents.subscribe(_onEvent);
   }
 
+  /// Builds a frozen tracker seeded from a list of already-emitted
+  /// execution events — used on the reload path to reconstruct the
+  /// timeline for a completed run.
+  ///
+  /// The tracker opens no subscription; callers should not pass the
+  /// returned instance to any signal. It is immutable from construction
+  /// ([isFrozen] returns `true`).
+  ExecutionTracker.historical({required List<ExecutionEvent> events}) {
+    _stopwatch.start();
+    for (final event in events) {
+      _onEvent(event);
+    }
+    _stopwatch.stop();
+    _isFrozen = true;
+  }
+
   final Stopwatch _stopwatch = Stopwatch();
   void Function()? _unsub;
   bool _isFrozen = false;
@@ -87,12 +103,12 @@ class ExecutionTracker {
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
       case ActivitySnapshot(
-        :final messageId,
-        :final activityType,
-        :final content,
-        :final timestamp,
-        :final replace,
-      ):
+          :final messageId,
+          :final activityType,
+          :final content,
+          :final timestamp,
+          :final replace,
+        ):
         _upsertSkillToolCall(
           messageId: messageId,
           activityType: activityType,
@@ -209,17 +225,16 @@ class ExecutionTracker {
         }
       } else if (entry is TimelineOrphanActivity &&
           entry.activity.messageId == decoded.messageId) {
-        _timeline.value = [...current]
-          ..[i] = TimelineOrphanActivity(activity: decoded);
+        _timeline.value = [...current]..[i] =
+            TimelineOrphanActivity(activity: decoded);
         return;
       }
     }
     if (current.isNotEmpty && current.last is TimelineStep) {
       final lastStep = current.last as TimelineStep;
       if (lastStep.step.status == StepStatus.active) {
-        _timeline.value = [...current]
-          ..[current.length - 1] =
-              lastStep.withActivities([...lastStep.activities, decoded]);
+        _timeline.value = [...current]..[current.length - 1] =
+            lastStep.withActivities([...lastStep.activities, decoded]);
         return;
       }
     }

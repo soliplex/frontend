@@ -477,4 +477,60 @@ void main() {
       expect(step.step.status, StepStatus.completed);
     });
   });
+
+  group('ExecutionTracker.historical', () {
+    test('returns frozen tracker', () {
+      final tracker = ExecutionTracker.historical(events: const []);
+      expect(tracker.isFrozen, isTrue);
+      tracker.dispose();
+    });
+
+    test('seeds steps from events', () {
+      final tracker = ExecutionTracker.historical(
+        events: const [
+          ThinkingStarted(),
+          ThinkingContent(delta: 'hello'),
+          ServerToolCallStarted(toolName: 'search', toolCallId: 'tc-1'),
+          ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
+          RunCompleted(),
+        ],
+      );
+
+      expect(tracker.steps.value.map((s) => s.label), ['Thinking', 'search']);
+      expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
+      expect(tracker.thinkingBlocks.value, ['hello']);
+      tracker.dispose();
+    });
+
+    test('seeds activities under active step when present', () {
+      final tracker = ExecutionTracker.historical(
+        events: const [
+          ClientToolExecuting(toolName: 'execute_skill', toolCallId: 'tc-1'),
+          ActivitySnapshot(
+            messageId: 'bwrap:call_1',
+            activityType: 'skill_tool_call',
+            content: {'tool_name': 'execute_script', 'args': '{}'},
+            timestamp: 100,
+          ),
+        ],
+      );
+
+      final step = tracker.timeline.value.single as TimelineStep;
+      expect(step.activities, hasLength(1));
+      expect(step.activities.single.toolName, 'execute_script');
+      tracker.dispose();
+    });
+
+    test('empty events list yields empty timeline', () {
+      final tracker = ExecutionTracker.historical(events: const []);
+      expect(tracker.steps.value, isEmpty);
+      expect(tracker.timeline.value, isEmpty);
+      tracker.dispose();
+    });
+  });
+}
+
+extension on StepStatus {
+  bool get isTerminal =>
+      this == StepStatus.completed || this == StepStatus.failed;
 }

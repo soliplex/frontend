@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
 void main() {
@@ -159,6 +160,39 @@ void main() {
 
     registry.dispose();
     expect(registry.trackers, isEmpty);
+  });
+
+  group('seedHistorical', () {
+    test('adds frozen trackers under their message ids', () {
+      final historical = {
+        'asst-1': ExecutionTracker.historical(events: const []),
+        'asst-2': ExecutionTracker.historical(events: const []),
+      };
+
+      registry.seedHistorical(historical);
+
+      expect(registry.trackers.keys, containsAll(['asst-1', 'asst-2']));
+      expect(registry.trackers['asst-1']!.isFrozen, isTrue);
+    });
+
+    test('does not overwrite an existing live tracker', () {
+      registry.onStreaming(
+        const TextStreaming(
+          messageId: 'asst-1',
+          user: ChatUser.assistant,
+          text: '',
+        ),
+        events,
+      );
+      final live = registry.trackers['asst-1'];
+
+      final historical = {
+        'asst-1': ExecutionTracker.historical(events: const []),
+      };
+      registry.seedHistorical(historical);
+
+      expect(registry.trackers['asst-1'], same(live));
+    });
   });
 
   test('ignores AwaitingText when tracker already active', () {

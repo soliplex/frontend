@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
+import 'historical_replay.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
 import 'tracker_registry.dart';
@@ -291,6 +292,7 @@ class ThreadViewState {
         .then((history) {
       if (token.isCancelled) return;
       _cancelToken = null;
+      _trackerRegistry.seedHistorical(replayToTrackers(history.runs));
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,

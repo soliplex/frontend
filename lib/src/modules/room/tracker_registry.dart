@@ -51,6 +51,15 @@ class TrackerRegistry {
     _freezeActive();
   }
 
+  /// Bulk-inserts already-frozen trackers produced from a loaded thread's
+  /// history. Existing entries with the same key are not overwritten —
+  /// a live tracker always wins over a historical one.
+  void seedHistorical(Map<String, ExecutionTracker> historical) {
+    for (final entry in historical.entries) {
+      _trackers.putIfAbsent(entry.key, () => entry.value);
+    }
+  }
+
   void _freezeActive() {
     if (_activeId != null) {
       _trackers[_activeId!]?.freeze();
