@@ -14,6 +14,7 @@ import 'scroll/scroll_to_bottom.dart';
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({
     super.key,
+    required this.roomId,
     required this.messages,
     required this.messageStates,
     this.streamingState,
@@ -23,6 +24,7 @@ class MessageTimeline extends StatefulWidget {
     this.onShowChunkVisualization,
   });
 
+  final String roomId;
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
   final StreamingState? streamingState;
@@ -186,12 +188,18 @@ class _MessageTimelineState extends State<MessageTimeline> {
                 itemBuilder: (context, index) {
                   final message = displayMessages[index];
                   final isLastItem = index == displayMessages.length - 1;
+                  // A distinct key for the loading sentinel is load-bearing:
+                  // it forces a remount at the AwaitingText → TextStreaming
+                  // transition so execution/thinking child widgets can
+                  // re-bind their MessageExpansion handle under the real
+                  // messageId. Unifying these keys would break persistence.
                   return Padding(
                     key: message is LoadingMessage
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: 16),
                     child: MessageTile(
+                      roomId: widget.roomId,
                       message: message,
                       runId: _runIdMap[message.id] ??
                           (message is TextMessage &&

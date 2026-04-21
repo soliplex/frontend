@@ -853,6 +853,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     )
                   : MessageTimeline(
                       key: ValueKey(threadView.threadId),
+                      roomId: widget.roomId,
                       messages: messages,
                       messageStates: messageStates,
                       streamingState: streaming,

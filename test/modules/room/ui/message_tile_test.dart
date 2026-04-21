@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/loading_message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/tool_call_tile.dart';
+
+Widget _wrap(Widget child) => ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
 void main() {
   group('TextMessageTile', () {
@@ -19,8 +29,8 @@ void main() {
         createdAt: DateTime(2026, 3, 1),
         text: 'Hello',
       );
-      await tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: TextMessageTile(message: msg))));
+      await tester
+          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
       expect(find.text('You'), findsOneWidget);
       expect(find.text('Hello'), findsOneWidget);
     });
@@ -32,8 +42,8 @@ void main() {
         createdAt: DateTime(2026, 3, 1),
         text: 'Response',
       );
-      await tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: TextMessageTile(message: msg))));
+      await tester
+          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
       expect(find.text('Assistant'), findsOneWidget);
     });
 
@@ -45,8 +55,8 @@ void main() {
         text: 'Response',
         thinkingText: 'Thinking about this...',
       );
-      await tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: TextMessageTile(message: msg))));
+      await tester
+          .pumpWidget(_wrap(TextMessageTile(roomId: 'r', message: msg)));
       expect(find.text('Thinking...'), findsOneWidget);
     });
 
@@ -70,14 +80,11 @@ void main() {
         text: 'Response',
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: TextMessageTile(
-            message: msg,
-            executionTracker: tracker,
-          ),
-        ),
-      ));
+      await tester.pumpWidget(_wrap(TextMessageTile(
+        roomId: 'r',
+        message: msg,
+        executionTracker: tracker,
+      )));
 
       expect(find.byType(ExecutionTimeline), findsOneWidget);
       expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
@@ -94,14 +101,11 @@ void main() {
         text: 'Response',
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: TextMessageTile(
-            message: msg,
-            streamingActivity: const RespondingActivity(),
-          ),
-        ),
-      ));
+      await tester.pumpWidget(_wrap(TextMessageTile(
+        roomId: 'r',
+        message: msg,
+        streamingActivity: const RespondingActivity(),
+      )));
 
       expect(find.byType(ActivityIndicator), findsOneWidget);
       expect(find.text('Responding...'), findsOneWidget);
@@ -115,9 +119,9 @@ void main() {
         text: '',
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: TextMessageTile(message: msg)),
-      ));
+      await tester.pumpWidget(
+        _wrap(TextMessageTile(roomId: 'r', message: msg)),
+      );
 
       expect(find.text('...'), findsOneWidget);
     });
@@ -138,14 +142,11 @@ void main() {
         thinkingText: 'persisted thinking',
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: TextMessageTile(
-            message: msg,
-            executionTracker: tracker,
-          ),
-        ),
-      ));
+      await tester.pumpWidget(_wrap(TextMessageTile(
+        roomId: 'r',
+        message: msg,
+        executionTracker: tracker,
+      )));
 
       // ExecutionThinkingBlock is rendered, not the _ThinkingBlock
       expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
@@ -158,9 +159,10 @@ void main() {
 
   group('LoadingMessageTile', () {
     testWidgets('renders spinner fallback without tracker', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: LoadingMessageTile()),
-      ));
+      await tester.pumpWidget(_wrap(const LoadingMessageTile(
+        roomId: 'r',
+        messageId: '_loading',
+      )));
 
       expect(find.text('Thinking...'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -173,14 +175,12 @@ void main() {
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'working...');
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: LoadingMessageTile(
-            executionTracker: tracker,
-            streamingActivity: const ThinkingActivity(),
-          ),
-        ),
-      ));
+      await tester.pumpWidget(_wrap(LoadingMessageTile(
+        roomId: 'r',
+        messageId: '_loading',
+        executionTracker: tracker,
+        streamingActivity: const ThinkingActivity(),
+      )));
 
       expect(find.byType(ActivityIndicator), findsOneWidget);
       expect(find.byType(ExecutionTimeline), findsOneWidget);

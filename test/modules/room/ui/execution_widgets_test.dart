@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
+import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
+
+Widget _withStore(Widget child) => ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: child,
+    );
 
 void main() {
   testWidgets('ActivityIndicator shows Processing label', (tester) async {
@@ -61,11 +71,15 @@ void main() {
       toolCallId: 'tc-1',
     );
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(_withStore(MaterialApp(
       home: Scaffold(
-        body: ExecutionTimeline(tracker: tracker),
+        body: ExecutionTimeline(
+          roomId: 'r',
+          messageId: 'm',
+          tracker: tracker,
+        ),
       ),
-    ));
+    )));
 
     expect(find.text('2 events'), findsOneWidget);
 
@@ -79,11 +93,15 @@ void main() {
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'Let me think about this');
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(_withStore(MaterialApp(
       home: Scaffold(
-        body: ExecutionThinkingBlock(tracker: tracker),
+        body: ExecutionThinkingBlock(
+          roomId: 'r',
+          messageId: 'm',
+          tracker: tracker,
+        ),
       ),
-    ));
+    )));
 
     expect(find.text('Thinking'), findsOneWidget);
 

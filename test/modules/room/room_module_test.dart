@@ -1,10 +1,13 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
+import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
 import '../../helpers/fakes.dart';
@@ -65,13 +68,21 @@ void main() {
             '/info must precede /:threadId to avoid eager parameter matching');
   });
 
-  test('contributes no overrides in Slice A', () {
+  test('overrides messageExpansionsProvider so reads succeed', () {
     final manager = _createManager();
     final contribution = roomModule(
       serverManager: manager,
       runtimeManager: runtimeManager,
       registry: registry,
     );
-    expect(contribution.overrides, isEmpty);
+
+    // Resolving the provider through the module's overrides must not
+    // throw — the default provider throws StateError.
+    final container = ProviderContainer(overrides: contribution.overrides);
+    addTearDown(container.dispose);
+    expect(
+      container.read(messageExpansionsProvider),
+      isA<MessageExpansions>(),
+    );
   });
 }
