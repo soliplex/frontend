@@ -122,16 +122,15 @@ class SkillToolCallActivity {
 
   @override
   int get hashCode => Object.hash(
-    messageId,
-    toolName,
-    status,
-    timestamp,
-    const DeepCollectionEquality().hash(args),
-  );
+        messageId,
+        toolName,
+        status,
+        timestamp,
+        const DeepCollectionEquality().hash(args),
+      );
 
   @override
-  String toString() =>
-      'SkillToolCallActivity(messageId: $messageId, '
+  String toString() => 'SkillToolCallActivity(messageId: $messageId, '
       'toolName: $toolName, status: $status, timestamp: $timestamp)';
 }
 
@@ -166,7 +165,7 @@ extension ConversationSkillToolCalls on Conversation {
   /// typed view. Malformed records are skipped (see
   /// [SkillToolCallActivity.fromRecord]).
   List<SkillToolCallActivity> get skillToolCalls => [
-    for (final record in activities)
-      if (SkillToolCallActivity.fromRecord(record) case final call?) call,
-  ];
+        for (final record in activities)
+          if (SkillToolCallActivity.fromRecord(record) case final call?) call,
+      ];
 }

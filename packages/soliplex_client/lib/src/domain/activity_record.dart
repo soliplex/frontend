@@ -59,14 +59,13 @@ class ActivityRecord {
 
   @override
   int get hashCode => Object.hash(
-    messageId,
-    activityType,
-    timestamp,
-    const DeepCollectionEquality().hash(content),
-  );
+        messageId,
+        activityType,
+        timestamp,
+        const DeepCollectionEquality().hash(content),
+      );
 
   @override
-  String toString() =>
-      'ActivityRecord(messageId: $messageId, '
+  String toString() => 'ActivityRecord(messageId: $messageId, '
       'activityType: $activityType, timestamp: $timestamp)';
 }

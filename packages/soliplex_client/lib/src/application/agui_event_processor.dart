@@ -47,17 +47,17 @@ EventProcessingResult processEvent(
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
-      conversation: conversation.withStatus(Running(runId: runId)),
-      streaming: streaming,
-    ),
+        conversation: conversation.withStatus(Running(runId: runId)),
+        streaming: streaming,
+      ),
     RunFinishedEvent() => EventProcessingResult(
-      conversation: conversation.withStatus(const Completed()),
-      streaming: const AwaitingText(),
-    ),
+        conversation: conversation.withStatus(const Completed()),
+        streaming: const AwaitingText(),
+      ),
     RunErrorEvent(:final message) => EventProcessingResult(
-      conversation: conversation.withStatus(Failed(error: message)),
-      streaming: const AwaitingText(),
-    ),
+        conversation: conversation.withStatus(Failed(error: message)),
+        streaming: const AwaitingText(),
+      ),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -66,33 +66,36 @@ EventProcessingResult processEvent(
     ThinkingStartEvent() ||
     ReasoningStartEvent() ||
     ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() => _processThinkingStart(
-      conversation,
-      streaming,
-    ),
+    ReasoningMessageStartEvent() =>
+      _processThinkingStart(
+        conversation,
+        streaming,
+      ),
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
     ThinkingTextMessageEndEvent() ||
-    ReasoningMessageEndEvent() => _processThinkingEnd(conversation, streaming),
+    ReasoningMessageEndEvent() =>
+      _processThinkingEnd(conversation, streaming),
     ThinkingTextMessageContentEvent(:final delta) ||
     ReasoningMessageContentEvent(
       :final delta,
-    ) => _processThinkingContent(conversation, streaming, delta),
+    ) =>
+      _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
-      conversation,
-      streaming,
-      messageId,
-      role,
-    ),
+        conversation,
+        streaming,
+        messageId,
+        role,
+      ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
     TextMessageEndEvent(:final messageId) => _processTextEnd(
-      conversation,
-      streaming,
-      messageId,
-    ),
+        conversation,
+        streaming,
+        messageId,
+      ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
     // transition to pending on end (tool stays in conversation.toolCalls).
@@ -117,31 +120,31 @@ EventProcessingResult processEvent(
         ),
       ),
     ToolCallArgsEvent(:final toolCallId, :final delta) => _processToolCallArgs(
-      conversation,
-      streaming,
-      toolCallId,
-      delta,
-    ),
+        conversation,
+        streaming,
+        toolCallId,
+        delta,
+      ),
     ToolCallEndEvent(:final toolCallId) => _processToolCallEnd(
-      conversation,
-      streaming,
-      toolCallId,
-    ),
+        conversation,
+        streaming,
+        toolCallId,
+      ),
     ToolCallResultEvent(:final toolCallId, :final content) =>
       _processToolCallResult(conversation, streaming, toolCallId, content),
 
     // State events - apply to conversation.aguiState
     StateSnapshotEvent(:final snapshot) => EventProcessingResult(
-      conversation: conversation.copyWith(
-        aguiState: snapshot as Map<String, dynamic>,
+        conversation: conversation.copyWith(
+          aguiState: snapshot as Map<String, dynamic>,
+        ),
+        streaming: streaming,
       ),
-      streaming: streaming,
-    ),
     StateDeltaEvent(:final delta) => _processStateDelta(
-      conversation,
-      streaming,
-      delta,
-    ),
+        conversation,
+        streaming,
+        delta,
+      ),
 
     // Activity snapshot events
     ActivitySnapshotEvent(
@@ -183,10 +186,11 @@ EventProcessingResult processEvent(
     StepFinishedEvent() ||
     RawEvent() ||
     CustomEvent() ||
-    ReasoningMessageChunkEvent() => EventProcessingResult(
-      conversation: conversation,
-      streaming: streaming,
-    ),
+    ReasoningMessageChunkEvent() =>
+      EventProcessingResult(
+        conversation: conversation,
+        streaming: streaming,
+      ),
   };
 }
 
@@ -275,9 +279,8 @@ EventProcessingResult _processTextStart(
   TextMessageRole role,
 ) {
   // Transfer any buffered thinking from AwaitingText to TextStreaming
-  final thinkingText = streaming is AwaitingText
-      ? streaming.bufferedThinkingText
-      : '';
+  final thinkingText =
+      streaming is AwaitingText ? streaming.bufferedThinkingText : '';
   final isThinkingStreaming =
       streaming is AwaitingText && streaming.isThinkingStreaming;
 
@@ -451,8 +454,8 @@ EventProcessingResult _processActivitySnapshot(
   final List<ActivityRecord> updatedActivities;
   if (existingIndex >= 0) {
     if (replace) {
-      updatedActivities = [...conversation.activities]
-        ..[existingIndex] = ActivityRecord(
+      updatedActivities = [...conversation.activities]..[existingIndex] =
+            ActivityRecord(
           messageId: messageId,
           activityType: activityType,
           content: content,
@@ -474,8 +477,8 @@ EventProcessingResult _processActivitySnapshot(
   }
   final updatedConversation =
       identical(updatedActivities, conversation.activities)
-      ? conversation
-      : conversation.copyWith(activities: updatedActivities);
+          ? conversation
+          : conversation.copyWith(activities: updatedActivities);
 
   if (activityType == 'skill_tool_call') {
     final toolName = content['tool_name'];
@@ -530,15 +533,15 @@ StreamingState _withToolCallActivity(
 
   final newActivity = switch (currentActivity) {
     ToolCallActivity() => currentActivity.withToolName(
-      toolName,
-      latestToolCallId: latestToolCallId,
-      timestamp: timestamp,
-    ),
+        toolName,
+        latestToolCallId: latestToolCallId,
+        timestamp: timestamp,
+      ),
     _ => ToolCallActivity(
-      toolName: toolName,
-      latestToolCallId: latestToolCallId,
-      timestamp: timestamp,
-    ),
+        toolName: toolName,
+        latestToolCallId: latestToolCallId,
+        timestamp: timestamp,
+      ),
   };
 
   return switch (streaming) {

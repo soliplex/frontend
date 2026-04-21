@@ -369,8 +369,7 @@ void main() {
       expect(tracker.timeline.value.single, isA<TimelineOrphanActivity>());
     });
 
-    test(
-        'activity after a completed step with no new active step is orphan',
+    test('activity after a completed step with no new active step is orphan',
         () {
       events.value = const ClientToolExecuting(
         toolName: 'execute_skill',

@@ -33,8 +33,7 @@ class _ExecutionTimelineState extends State<ExecutionTimeline> {
 
     final total = entries.fold<int>(
       0,
-      (sum, e) =>
-          sum + (e is TimelineStep ? 1 + e.activities.length : 1),
+      (sum, e) => sum + (e is TimelineStep ? 1 + e.activities.length : 1),
     );
 
     return Padding(
@@ -152,9 +151,7 @@ class _ExecutionTimelineState extends State<ExecutionTimeline> {
                   width: 14,
                   child: hasSource
                       ? Icon(
-                          isExpanded
-                              ? Icons.expand_more
-                              : Icons.chevron_right,
+                          isExpanded ? Icons.expand_more : Icons.chevron_right,
                           size: 14,
                           color: theme.colorScheme.onSurfaceVariant,
                         )

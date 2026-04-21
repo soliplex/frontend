@@ -241,18 +241,17 @@ class Conversation {
 
   @override
   int get hashCode => Object.hash(
-    threadId,
-    const ListEquality<ChatMessage>().hash(messages),
-    const ListEquality<ToolCallInfo>().hash(toolCalls),
-    status,
-    const DeepCollectionEquality().hash(aguiState),
-    const MapEquality<String, MessageState>().hash(messageStates),
-    const ListEquality<ActivityRecord>().hash(activities),
-  );
+        threadId,
+        const ListEquality<ChatMessage>().hash(messages),
+        const ListEquality<ToolCallInfo>().hash(toolCalls),
+        status,
+        const DeepCollectionEquality().hash(aguiState),
+        const MapEquality<String, MessageState>().hash(messageStates),
+        const ListEquality<ActivityRecord>().hash(activities),
+      );
 
   @override
-  String toString() =>
-      'Conversation(threadId: $threadId, '
+  String toString() => 'Conversation(threadId: $threadId, '
       'messages: ${messages.length}, '
       'toolCalls: ${toolCalls.length}, '
       'status: $status)';
