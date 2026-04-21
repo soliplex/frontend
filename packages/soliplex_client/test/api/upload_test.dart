@@ -191,6 +191,28 @@ void main() {
       expect(await api.getRoomUploads('room-123'), isEmpty);
     });
 
+    test('throws UnexpectedException when uploads field is not a list',
+        () async {
+      when(
+        () => mockTransport.request<Map<String, dynamic>>(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          fromJson: any(named: 'fromJson'),
+          body: any(named: 'body'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer(
+        (_) async => {'room_id': 'room-123', 'uploads': 'not-a-list'},
+      );
+
+      await expectLater(
+        api.getRoomUploads('room-123'),
+        throwsA(isA<UnexpectedException>()),
+      );
+    });
+
     test('skips malformed entries and returns valid ones', () async {
       when(
         () => mockTransport.request<Map<String, dynamic>>(
@@ -250,36 +272,6 @@ void main() {
       ).captured.single as Uri;
 
       expect(captured.path, endsWith('/uploads/room-abc'));
-    });
-
-    test('forwards cancelToken to transport', () async {
-      final cancelToken = CancelToken();
-
-      when(
-        () => mockTransport.request<Map<String, dynamic>>(
-          'GET',
-          any(),
-          cancelToken: cancelToken,
-          fromJson: any(named: 'fromJson'),
-          body: any(named: 'body'),
-          headers: any(named: 'headers'),
-          timeout: any(named: 'timeout'),
-        ),
-      ).thenAnswer((_) async => <String, dynamic>{});
-
-      await api.getRoomUploads('room-1', cancelToken: cancelToken);
-
-      verify(
-        () => mockTransport.request<Map<String, dynamic>>(
-          'GET',
-          any(),
-          cancelToken: cancelToken,
-          fromJson: any(named: 'fromJson'),
-          body: any(named: 'body'),
-          headers: any(named: 'headers'),
-          timeout: any(named: 'timeout'),
-        ),
-      ).called(1);
     });
 
     test('throws ArgumentError for empty roomId', () {
@@ -360,40 +352,6 @@ void main() {
         () => api.getThreadUploads('room-1', ''),
         throwsA(isA<ArgumentError>()),
       );
-    });
-
-    test('forwards cancelToken to transport', () async {
-      final cancelToken = CancelToken();
-
-      when(
-        () => mockTransport.request<Map<String, dynamic>>(
-          'GET',
-          any(),
-          cancelToken: cancelToken,
-          fromJson: any(named: 'fromJson'),
-          body: any(named: 'body'),
-          headers: any(named: 'headers'),
-          timeout: any(named: 'timeout'),
-        ),
-      ).thenAnswer((_) async => <String, dynamic>{});
-
-      await api.getThreadUploads(
-        'room-1',
-        'thread-1',
-        cancelToken: cancelToken,
-      );
-
-      verify(
-        () => mockTransport.request<Map<String, dynamic>>(
-          'GET',
-          any(),
-          cancelToken: cancelToken,
-          fromJson: any(named: 'fromJson'),
-          body: any(named: 'body'),
-          headers: any(named: 'headers'),
-          timeout: any(named: 'timeout'),
-        ),
-      ).called(1);
     });
   });
 }

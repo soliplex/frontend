@@ -312,6 +312,49 @@ void main() {
     expect(find.textContaining('Uploaded'), findsNothing);
   });
 
+  testWidgets('scope switch mid-success drops the pending timer',
+      (tester) async {
+    await tester.pumpWidget(frame('room-1', 'thread-A'));
+    unawaited(tracker.refreshThread('room-1', 'thread-A'));
+    await tester.pump();
+    await tester.pump();
+
+    tracker.uploadToThread(
+      roomId: 'room-1',
+      threadId: 'thread-A',
+      filename: 'a.pdf',
+      fileBytes: const [1],
+    );
+    when(
+      () => api.getThreadUploads(
+        any(),
+        any(),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => [_persisted('a.pdf')]);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Uploaded a.pdf'), findsOneWidget);
+
+    // Switch scope 1s into the 4s auto-dismiss window.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpWidget(frame('room-1', 'thread-B'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Pill for thread-A is gone; thread-B shows nothing.
+    expect(find.text('Uploaded a.pdf'), findsNothing);
+
+    // Advance past where the original timer would have fired.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+
+    // Still nothing — the cancelled timer didn't resurrect anything.
+    expect(find.textContaining('Uploaded'), findsNothing);
+    expect(find.textContaining('Failed'), findsNothing);
+  });
+
   testWidgets('success aggregation shows first + count', (tester) async {
     await tester.pumpWidget(frame('room-1', 'thread-1'));
     unawaited(tracker.refreshThread('room-1', 'thread-1'));

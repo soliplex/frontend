@@ -155,3 +155,23 @@ class CancelledException extends SoliplexException {
     return 'CancelledException';
   }
 }
+
+/// Exception thrown when an unexpected, non-Soliplex error must be
+/// surfaced through the client's error channel.
+///
+/// Use to wrap `Error` subtypes (e.g., `TypeError` from a schema
+/// mismatch) or any other throwable that is not already a
+/// [SoliplexException]. Keeps the `All exceptions must be
+/// SoliplexException subtypes` invariant intact at the client boundary
+/// without swallowing the cause.
+class UnexpectedException extends SoliplexException {
+  /// Creates an unexpected exception.
+  const UnexpectedException({
+    required super.message,
+    super.originalError,
+    super.stackTrace,
+  });
+
+  @override
+  String toString() => 'UnexpectedException: $message';
+}

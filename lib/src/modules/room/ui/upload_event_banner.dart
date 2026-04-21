@@ -178,12 +178,15 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
   }
 
   Widget _failurePill(ThemeData theme) {
-    if (_failures.isEmpty) return const SizedBox.shrink();
+    if (_failures.isEmpty) {
+      return const SizedBox.shrink(key: ValueKey('failure-empty'));
+    }
     final message = _failures.length == 1
         ? 'Failed to upload ${_failures.first.filename}: '
             '${_failures.first.message}'
         : 'Failed to upload ${_failures.length} files';
     return _Pill(
+      key: ValueKey('failure:$message'),
       icon: Icons.error_outline,
       background: theme.colorScheme.errorContainer,
       foreground: theme.colorScheme.onErrorContainer,
@@ -193,7 +196,9 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
   }
 
   Widget _successPill(ThemeData theme) {
-    if (_successes.isEmpty) return const SizedBox.shrink();
+    if (_successes.isEmpty) {
+      return const SizedBox.shrink(key: ValueKey('success-empty'));
+    }
     final message = _successes.length == 1
         ? 'Uploaded ${_successes.first}'
         : 'Uploaded ${_successes.first} and ${_successes.length - 1} more';
@@ -201,6 +206,7 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     // Material shades so success reads distinctly from the primary
     // color without competing with the errorContainer on failures.
     return _Pill(
+      key: ValueKey('success:$message'),
       icon: Icons.check_circle_outline,
       background: Colors.green.shade100,
       foreground: Colors.green.shade900,
@@ -231,6 +237,7 @@ class _Pill extends StatelessWidget {
     required this.foreground,
     required this.message,
     required this.onDismiss,
+    super.key,
   });
 
   final IconData icon;

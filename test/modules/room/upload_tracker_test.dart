@@ -135,6 +135,45 @@ void main() {
       expect(status, isA<UploadsLoaded>());
       expect((status as UploadsLoaded).uploads, hasLength(1));
     });
+
+    test(
+        'wraps a non-SoliplexException into UploadsFailed(UnexpectedException)',
+        () async {
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) async {
+        throw StateError('unexpected non-soliplex error');
+      });
+
+      await tracker.refreshRoom('room-1');
+
+      final status = tracker.roomUploads('room-1').value;
+      expect(status, isA<UploadsFailed>());
+      final failure = status as UploadsFailed;
+      expect(failure.error, isA<UnexpectedException>());
+      expect(failure.error.originalError, isA<StateError>());
+    });
+
+    test('keeps stale Loaded list when a non-SoliplexException refresh fails',
+        () async {
+      stubGetRoomUploads([_fileUpload('a.pdf')]);
+      await tracker.refreshRoom('room-1');
+      expect(tracker.roomUploads('room-1').value, isA<UploadsLoaded>());
+
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) async {
+        throw TypeError();
+      });
+
+      await tracker.refreshRoom('room-1');
+
+      final status = tracker.roomUploads('room-1').value;
+      expect(status, isA<UploadsLoaded>());
+      expect((status as UploadsLoaded).uploads, hasLength(1));
+    });
   });
 
   group('upload success', () {
@@ -258,9 +297,9 @@ void main() {
       expect(pending.map((e) => e.id).toSet(), hasLength(2));
 
       // After the first POST completes, its refresh returns the now-
-      // persisted file. The first pending (postCompleted=true, name
+      // persisted file. The first record (now _Posted, filename
       // matches persisted) drops. The second pending remains because
-      // its POST hasn't completed yet (postCompleted=false).
+      // its POST hasn't completed yet.
       stubGetRoomUploads([_fileUpload('dup.pdf')]);
       firstCompleter.complete();
       await _pump();
@@ -319,6 +358,108 @@ void main() {
             any(),
             cancelToken: any(named: 'cancelToken'),
           )).called(1);
+    });
+
+    test('non-Exception throw from POST becomes a Failed row, not a spinner',
+        () async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            fileBytes: any(named: 'fileBytes'),
+            mimeType: any(named: 'mimeType'),
+          )).thenAnswer((_) async {
+        throw StateError('plugin bug');
+      });
+
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'fail.pdf',
+        fileBytes: const [1],
+      );
+      await _pump();
+
+      final entries =
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+      expect(entries, hasLength(1));
+      expect(entries.single, isA<FailedUpload>());
+    });
+  });
+
+  group('recordClientError', () {
+    test('surfaces a FailedUpload row on the room scope', () async {
+      stubGetRoomUploads([]);
+      await tracker.refreshRoom('room-1');
+
+      tracker.recordClientError(
+        roomId: 'room-1',
+        filename: 'doc.pdf',
+        message: 'Failed to read file',
+      );
+
+      final entries =
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+      expect(entries, hasLength(1));
+      final failed = entries.single as FailedUpload;
+      expect(failed.filename, 'doc.pdf');
+      expect(failed.message, 'Failed to read file');
+    });
+
+    test('routes to the thread scope when threadId is supplied', () async {
+      stubGetRoomUploads([]);
+      stubGetThreadUploads([]);
+      await tracker.refreshRoom('room-1');
+      await tracker.refreshThread('room-1', 'thread-1');
+
+      tracker.recordClientError(
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        filename: 'doc.pdf',
+        message: 'Failed to read file',
+      );
+
+      expect(
+        (tracker.roomUploads('room-1').value as UploadsLoaded).uploads,
+        isEmpty,
+      );
+      final threadEntries =
+          (tracker.threadUploads('room-1', 'thread-1').value as UploadsLoaded)
+              .uploads;
+      expect(threadEntries.single, isA<FailedUpload>());
+      expect(threadEntries.single.filename, 'doc.pdf');
+    });
+
+    test('assigns unique ids so each row is independently dismissible',
+        () async {
+      stubGetRoomUploads([]);
+      await tracker.refreshRoom('room-1');
+
+      tracker.recordClientError(
+        roomId: 'room-1',
+        filename: 'one.pdf',
+        message: 'fail',
+      );
+      tracker.recordClientError(
+        roomId: 'room-1',
+        filename: 'two.pdf',
+        message: 'fail',
+      );
+
+      final entries = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<FailedUpload>()
+          .toList();
+      expect(entries, hasLength(2));
+      expect(entries[0].id, isNot(equals(entries[1].id)));
+
+      tracker.dismissFailed(entries.first.id);
+      final remaining = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<FailedUpload>();
+      expect(remaining.single.filename, 'two.pdf');
     });
   });
 
@@ -439,41 +580,7 @@ void main() {
     });
   });
 
-  group('dismiss', () {
-    test('removes a Pending entry by id', () async {
-      stubGetRoomUploads([]);
-      unawaited(tracker.refreshRoom('room-1'));
-      await _pump();
-
-      final never = Completer<void>();
-      when(() => mockApi.uploadFileToRoom(
-            any(),
-            filename: any(named: 'filename'),
-            fileBytes: any(named: 'fileBytes'),
-            mimeType: any(named: 'mimeType'),
-          )).thenAnswer((_) => never.future);
-
-      tracker.uploadToRoom(
-        roomId: 'room-1',
-        filename: 'a.pdf',
-        fileBytes: const [1],
-      );
-
-      final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
-          .uploads
-          .whereType<PendingUpload>()
-          .single;
-
-      tracker.dismiss(pending.id);
-
-      expect(
-        (tracker.roomUploads('room-1').value as UploadsLoaded)
-            .uploads
-            .whereType<PendingUpload>(),
-        isEmpty,
-      );
-    });
-
+  group('dismissFailed', () {
     test('removes a Failed entry by id', () async {
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
@@ -498,7 +605,7 @@ void main() {
           .whereType<FailedUpload>()
           .single;
 
-      tracker.dismiss(failed.id);
+      tracker.dismissFailed(failed.id);
 
       expect(
         (tracker.roomUploads('room-1').value as UploadsLoaded).uploads,
@@ -506,19 +613,54 @@ void main() {
       );
     });
 
-    test('is a no-op for an unknown id (including a persisted filename)',
-        () async {
+    test('is a no-op for an unknown id', () async {
       stubGetRoomUploads([_fileUpload('a.pdf')]);
       unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
-      tracker.dismiss('a.pdf'); // would-be mistaken use of filename as id
-      tracker.dismiss('upload-9999');
+      tracker.dismissFailed('a.pdf'); // mistaken use of filename as id
+      tracker.dismissFailed('upload-9999');
 
       final uploads =
           (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
       expect(uploads, hasLength(1));
       expect(uploads.single, isA<PersistedUpload>());
+    });
+
+    test('asserts when called on a Pending record', () async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final never = Completer<void>();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            fileBytes: any(named: 'fileBytes'),
+            mimeType: any(named: 'mimeType'),
+          )).thenAnswer((_) => never.future);
+
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'a.pdf',
+        fileBytes: const [1],
+      );
+
+      final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<PendingUpload>()
+          .single;
+
+      expect(() => tracker.dismissFailed(pending.id), throwsAssertionError);
+
+      // The pending record survives — assertion fires but release-mode
+      // behavior still refuses the removal.
+      expect(
+        (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<PendingUpload>(),
+        hasLength(1),
+      );
     });
   });
 
@@ -623,6 +765,19 @@ void main() {
       // No exception; dispose completes cleanly even with an in-flight
       // upload Future. (The Future continues but its result is ignored
       // because _isDisposed is set.)
+    });
+
+    test('roomUploads throws StateError after dispose', () {
+      tracker.dispose();
+      expect(() => tracker.roomUploads('room-1'), throwsStateError);
+    });
+
+    test('threadUploads throws StateError after dispose', () {
+      tracker.dispose();
+      expect(
+        () => tracker.threadUploads('room-1', 'thread-1'),
+        throwsStateError,
+      );
     });
   });
 }

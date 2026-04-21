@@ -394,6 +394,39 @@ void main() {
     expect(find.text('1 room'), findsOneWidget);
   });
 
+  testWidgets('chip shows error_outline when room uploads refresh fails',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    api.nextRoom = const Room(
+      id: 'room-1',
+      name: 'Attachable',
+      enableAttachments: true,
+    );
+    api.nextThreads = const [];
+    api.nextRoomUploadsError =
+        const ApiException(statusCode: 500, message: 'boom');
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // The chip leading icon should be error_outline (not the attach
+    // icon) when the scope is UploadsFailed.
+    expect(find.byIcon(Icons.error_outline), findsWidgets);
+  });
+
   testWidgets('ChatInput is disabled during MessagesLoading', (tester) async {
     // Use a blocking API to keep thread history in loading state
     final blockingApi = _BlockingThreadsApi();

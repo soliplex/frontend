@@ -273,12 +273,15 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextRoomUploadsError;
   List<FileUpload>? nextThreadUploads;
   Exception? nextThreadUploadsError;
+  int getRoomUploadsCount = 0;
+  int getThreadUploadsCount = 0;
 
   @override
   Future<List<FileUpload>> getRoomUploads(
     String roomId, {
     CancelToken? cancelToken,
   }) async {
+    getRoomUploadsCount++;
     if (nextRoomUploadsError != null) throw nextRoomUploadsError!;
     return nextRoomUploads ?? const [];
   }
@@ -289,6 +292,7 @@ class FakeSoliplexApi extends SoliplexApi {
     String threadId, {
     CancelToken? cancelToken,
   }) async {
+    getThreadUploadsCount++;
     if (nextThreadUploadsError != null) throw nextThreadUploadsError!;
     return nextThreadUploads ?? const [];
   }

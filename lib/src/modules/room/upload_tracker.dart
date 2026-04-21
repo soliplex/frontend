@@ -6,9 +6,9 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 /// Sealed status for a single upload scope (a room or a thread).
 ///
-/// `Loaded` once the server list is known (even if empty). `Failed`
-/// only from a non-`Loaded` baseline — a refresh failure preserves
-/// the prior `Loaded` list and logs.
+/// A refresh failure from a `Loaded` state is logged but not surfaced
+/// — the prior list stays visible. `Failed` only fires from a
+/// non-`Loaded` baseline.
 sealed class UploadsStatus {
   const UploadsStatus();
 }
@@ -24,14 +24,9 @@ class UploadsLoaded extends UploadsStatus {
 
 class UploadsFailed extends UploadsStatus {
   const UploadsFailed(this.error);
-  final Object error;
+  final SoliplexException error;
 }
 
-/// Sealed display variant for a single row in the merged uploads list.
-///
-/// Persisted rows come from the server LIST endpoint; Pending and
-/// Failed rows are local optimistic entries driven by in-flight or
-/// recently-failed POST uploads.
 sealed class DisplayUpload {
   const DisplayUpload({required this.filename});
   final String filename;
@@ -66,11 +61,9 @@ String uploadErrorMessage(Object error) {
   return 'Something went wrong. Please try again.';
 }
 
-/// Internal record for a local upload row. Sealed so pending/failed
-/// states each carry exactly the fields they need — a pending record
-/// cannot accidentally hold an error message, and a failed record
-/// cannot lack one. Failed rows replace pending rows by index in the
-/// `_pending` list rather than mutate in place.
+/// Internal record for a local upload row. Sealed and immutable:
+/// transitions happen by replacing the record at the same index, not
+/// by mutation.
 sealed class _PendingRecord {
   const _PendingRecord({required this.id, required this.filename});
   final String id;
@@ -78,19 +71,15 @@ sealed class _PendingRecord {
 }
 
 class _Pending extends _PendingRecord {
-  _Pending({required super.id, required super.filename});
+  const _Pending({required super.id, required super.filename});
+}
 
-  /// Flipped to `true` by `_runUpload` once the POST has completed
-  /// server-side. A successful `_fetch` drops the record only when
-  /// this is set AND the filename is in the refreshed persisted list.
-  /// Guards against: (a) concurrent uploads where one refresh
-  /// cancels another (the next refresh's success still cleans up),
-  /// (b) refresh failures after a successful POST (pending stays
-  /// visible as a spinner; the next refresh resolves it), and (c)
-  /// pre-existing same-name files on the server (the filename
-  /// already matches but the post is still in flight, so we don't
-  /// drop prematurely).
-  bool postCompleted = false;
+/// Server-confirmed via POST but not yet observed in the persisted
+/// list. A concurrent refresh may cancel the one that would have
+/// cleaned this record up; the next refresh whose response contains
+/// the filename finally drops it.
+class _Posted extends _PendingRecord {
+  const _Posted({required super.id, required super.filename});
 }
 
 class _Failed extends _PendingRecord {
@@ -119,9 +108,8 @@ class _ScopeState {
 /// Tracks file uploads across rooms and threads, merging a
 /// server-fetched list with an in-flight optimistic view.
 ///
-/// Owned by `UploadTrackerRegistry`, not by any single widget, so
-/// uploads started on one screen survive when the user navigates away
-/// before the POST resolves.
+/// Owned by the registry so uploads started on one screen survive
+/// when the user navigates away before the POST resolves.
 class UploadTracker {
   UploadTracker({required SoliplexApi api}) : _api = api;
 
@@ -130,9 +118,7 @@ class UploadTracker {
   bool _isDisposed = false;
   int _nextId = 0;
 
-  /// True after [dispose] has been called. Primarily for the
-  /// `UploadTrackerRegistry` eviction tests to verify that evicted
-  /// trackers are actually disposed, not just removed from the map.
+  /// True after [dispose] has been called.
   bool get isDisposed => _isDisposed;
 
   static String _roomKey(String roomId) => 'room:$roomId';
@@ -145,14 +131,24 @@ class UploadTracker {
   // Public signals
   // --------------------------------------------------------
 
-  ReadonlySignal<UploadsStatus> roomUploads(String roomId) =>
-      _scope(_roomKey(roomId)).signal;
+  ReadonlySignal<UploadsStatus> roomUploads(String roomId) {
+    _requireNotDisposed();
+    return _scope(_roomKey(roomId)).signal;
+  }
 
   ReadonlySignal<UploadsStatus> threadUploads(
     String roomId,
     String threadId,
-  ) =>
-      _scope(_threadKey(roomId, threadId)).signal;
+  ) {
+    _requireNotDisposed();
+    return _scope(_threadKey(roomId, threadId)).signal;
+  }
+
+  void _requireNotDisposed() {
+    if (_isDisposed) {
+      throw StateError('UploadTracker has been disposed');
+    }
+  }
 
   // --------------------------------------------------------
   // Refresh triggers
@@ -200,18 +196,20 @@ class UploadTracker {
       scope.fetchToken = null;
       scope.persisted = list;
 
-      // Clean up pending records whose upload has server-settled
-      // (postCompleted) and whose filename now appears in persisted.
-      // This is owned here — not by `_runUpload` — so a refresh that
-      // was cancelled by a concurrent one doesn't leave a completed
-      // upload stuck in the pending list.
+      // Clean up posted records once their filename lands in the
+      // server list. Handled here rather than in `_runUpload` so a
+      // refresh cancelled by a concurrent one doesn't strand the
+      // posted record.
       final names = list.map((f) => f.filename).toSet();
       scope.pending.removeWhere(
-        (r) => r is _Pending && r.postCompleted && names.contains(r.filename),
+        (r) => r is _Posted && names.contains(r.filename),
       );
 
       _emit(scope);
-    } on Exception catch (error) {
+    } on CancelledException {
+      // Fetch was superseded or the tracker is tearing down.
+      return;
+    } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
       if (scope.signal.value is UploadsLoaded) {
@@ -223,6 +221,28 @@ class UploadTracker {
       } else {
         scope.signal.value = UploadsFailed(error);
       }
+    } on Object catch (error, stackTrace) {
+      // Belt-and-braces: anything that isn't a SoliplexException
+      // (including `Error` subtypes like TypeError from a bad cast)
+      // would otherwise leave the scope in UploadsLoading with a live
+      // fetchToken, wedging future refreshes. Wrap and surface.
+      if (token.isCancelled || _isDisposed) return;
+      scope.fetchToken = null;
+      dev.log(
+        'Unexpected error in upload list refresh',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'UploadTracker',
+        level: 1000,
+      );
+      if (scope.signal.value is UploadsLoaded) {
+        return;
+      }
+      scope.signal.value = UploadsFailed(UnexpectedException(
+        message: 'Unexpected error while loading uploads',
+        originalError: error,
+        stackTrace: stackTrace,
+      ));
     }
   }
 
@@ -304,33 +324,41 @@ class UploadTracker {
       await post();
       if (_isDisposed) return;
 
-      // Mark the pending record as server-settled. The actual removal
-      // from `_pending` happens inside `_fetch` once the filename
-      // appears in persisted — which handles concurrent-upload races
-      // and refresh failures without silently dropping the file.
+      // Replace _Pending with _Posted at the same index. The actual
+      // removal happens in `_fetch` once the filename appears in the
+      // server list.
       final idx = scope.pending.indexWhere((r) => r.id == id);
-      if (idx < 0) {
-        // Dismissed during POST; nothing to do.
-        return;
-      }
+      if (idx < 0) return; // Dismissed during POST.
       final record = scope.pending[idx];
       if (record is _Pending) {
-        record.postCompleted = true;
+        scope.pending[idx] = _Posted(id: id, filename: record.filename);
       }
 
       unawaited(refresh());
-    } on Exception catch (error) {
+    } on Object catch (error, stackTrace) {
       if (_isDisposed) return;
+      if (error is! SoliplexException) {
+        // Non-Soliplex throw indicates a bug (e.g., TypeError from a
+        // mapper, StateError from a plugin). Log loudly; the user
+        // still sees a Failed row via uploadErrorMessage's fallback.
+        dev.log(
+          'Unexpected error during upload POST',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'UploadTracker',
+          level: 1000,
+        );
+      }
       final idx = scope.pending.indexWhere((r) => r.id == id);
       if (idx < 0) {
-        // The record was dismissed (or otherwise removed) during the
-        // upload — nothing to mark as failed. Log so a future caller
-        // removing records by some other mechanism surfaces the
-        // swallowed failure.
+        // The dismiss path shouldn't be reachable (UI dismisses only
+        // Failed rows); log loudly if it ever fires so the swallowed
+        // exception is investigated.
         dev.log(
           'Upload completed after its pending record was removed',
           error: error,
           name: 'UploadTracker',
+          level: 1000,
         );
         return;
       }
@@ -344,26 +372,54 @@ class UploadTracker {
   }
 
   // --------------------------------------------------------
+  // Client-side failures
+  // --------------------------------------------------------
+
+  /// Records an upload failure that happened before any POST was
+  /// attempted (e.g., local file read error). Surfaces as a
+  /// `FailedUpload` row so the user sees the same inline feedback
+  /// as a server-side failure.
+  void recordClientError({
+    required String roomId,
+    String? threadId,
+    required String filename,
+    required String message,
+  }) {
+    if (_isDisposed) return;
+    final key =
+        threadId == null ? _roomKey(roomId) : _threadKey(roomId, threadId);
+    final scope = _scope(key);
+    final id = 'upload-${_nextId++}';
+    scope.pending.add(_Failed(id: id, filename: filename, message: message));
+    _emit(scope);
+  }
+
+  // --------------------------------------------------------
   // Dismissal
   // --------------------------------------------------------
 
-  /// Removes a Pending or Failed entry by its id. Persisted entries
-  /// come from the server and cannot be dismissed from the client.
+  /// Removes a Failed entry by its id.
   ///
-  /// Invariant: call only on Failed records. Dismissing a Pending
-  /// record mid-flight makes `UploadEventBanner` misread the removal
-  /// as a "Completed" transition when the filename is already in the
-  /// persisted list. The UI currently wires the dismiss button only
-  /// to Failed rows, preserving this invariant.
-  void dismiss(String entryId) {
+  /// Restricted to Failed records because removing a Pending or
+  /// Posted mid-flight would misrepresent the upload's state to
+  /// observers that diff the signal.
+  void dismissFailed(String entryId) {
     if (_isDisposed) return;
     for (final scope in _scopes.values) {
-      final before = scope.pending.length;
-      scope.pending.removeWhere((r) => r.id == entryId);
-      if (scope.pending.length != before) {
-        _emit(scope);
+      final idx = scope.pending.indexWhere((r) => r.id == entryId);
+      if (idx < 0) continue;
+      final record = scope.pending[idx];
+      if (record is! _Failed) {
+        assert(
+          false,
+          'dismissFailed called on ${record.runtimeType}; '
+          'only Failed records may be dismissed',
+        );
         return;
       }
+      scope.pending.removeAt(idx);
+      _emit(scope);
+      return;
     }
   }
 
@@ -380,7 +436,9 @@ class UploadTracker {
           PersistedUpload(filename: f.filename, url: f.url),
       for (final p in scope.pending)
         switch (p) {
-          _Pending() => PendingUpload(id: p.id, filename: p.filename),
+          _Pending() ||
+          _Posted() =>
+            PendingUpload(id: p.id, filename: p.filename),
           _Failed() => FailedUpload(
               id: p.id,
               filename: p.filename,

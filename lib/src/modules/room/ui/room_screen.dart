@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,14 +38,10 @@ const double _wideBreakpoint = 600;
 
 /// Builds the label for the file indicator chip in the room header.
 ///
-/// Shows separate counts for room and thread uploads. At least one of
-/// [roomCount] / [threadCount] must be positive — the caller is
-/// responsible for hiding the chip when both are zero.
+/// Shows separate counts for room and thread uploads. At least one
+/// count must be positive.
 String uploadChipLabel(int roomCount, int threadCount) {
-  assert(
-    roomCount > 0 || threadCount > 0,
-    'uploadChipLabel called with both counts zero; the chip should be hidden',
-  );
+  assert(roomCount > 0 || threadCount > 0);
   if (roomCount > 0 && threadCount > 0) {
     return '$roomCount room \u00b7 $threadCount thread';
   }
@@ -238,8 +235,40 @@ class _RoomScreenState extends State<RoomScreen> {
     context.push('/room/${widget.serverEntry.alias}/${widget.roomId}/info');
   }
 
+  Future<PickedFile?> _pickWithErrorSurfacing({String? threadId}) async {
+    try {
+      return await pickFile();
+    } on PickFileException catch (e, st) {
+      if (!mounted) return null;
+      dev.log(
+        'File pick failed',
+        error: e.cause,
+        stackTrace: st,
+        name: 'RoomScreen',
+        level: 1000,
+      );
+      final (filename, message) = switch (e) {
+        PickFileReadException(:final filename) => (
+            filename,
+            'Failed to read file',
+          ),
+        PickFilePickerException(:final filename) => (
+            filename ?? '(unknown)',
+            'Could not open file picker',
+          ),
+      };
+      _state.uploadTracker.recordClientError(
+        roomId: widget.roomId,
+        threadId: threadId,
+        filename: filename,
+        message: message,
+      );
+      return null;
+    }
+  }
+
   Future<void> _pickAndUploadToRoom(Room room) async {
-    final file = await pickFile();
+    final file = await _pickWithErrorSurfacing();
     if (file == null || !mounted) return;
     _state.uploadTracker.uploadToRoom(
       roomId: widget.roomId,
@@ -250,7 +279,7 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _pickAndUploadToThread(Room room, String threadId) async {
-    final file = await pickFile();
+    final file = await _pickWithErrorSurfacing(threadId: threadId);
     if (file == null || !mounted) return;
     _state.uploadTracker.uploadToThread(
       roomId: widget.roomId,
@@ -262,7 +291,9 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _pickAndUploadToNewThread(Room room) async {
-    final file = await pickFile();
+    // Read errors before thread creation attach to the room scope
+    // since there's no thread yet to route them to.
+    final file = await _pickWithErrorSurfacing();
     if (file == null || !mounted) return;
 
     final threadId = await _state.createThread();
@@ -472,8 +503,6 @@ class _RoomScreenState extends State<RoomScreen> {
             child: Text(
               roomName,
               style: theme.textTheme.titleMedium,
-              // Long room names wrap to as many lines as needed
-              // rather than truncate.
             ),
           ),
           if (controls != null) controls,
@@ -483,8 +512,7 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   /// Wraps the file chip and the upload icon in a single tonal
-  /// container so they read as one related pair of controls rather
-  /// than two detached buttons with mismatched heights.
+  /// container so they read as one related pair of controls.
   Widget? _buildControlsCluster(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
@@ -536,10 +564,8 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// Returns the chip segment, or null to hide it when both scopes are
-  /// Loaded-empty. The segment is embedded in the tonal controls
-  /// cluster built by [_buildControlsCluster] and so has no container
-  /// of its own.
+  /// Returns the chip segment, or null to hide it when both scopes
+  /// are Loaded-empty.
   Widget? _buildChipSegment(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
@@ -740,9 +766,7 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
     };
 
-    String? dismissId;
-    if (entry is PendingUpload) dismissId = entry.id;
-    if (entry is FailedUpload) dismissId = entry.id;
+    final dismissId = entry is FailedUpload ? entry.id : null;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
@@ -794,7 +818,7 @@ class _RoomScreenState extends State<RoomScreen> {
             IconButton(
               icon: const Icon(Icons.close, size: 14),
               color: theme.colorScheme.onErrorContainer,
-              onPressed: () => _state.uploadTracker.dismiss(dismissId!),
+              onPressed: () => _state.uploadTracker.dismissFailed(dismissId),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               visualDensity: VisualDensity.compact,

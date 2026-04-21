@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -373,13 +374,46 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       entry: widget.serverEntry,
       roomId: widget.roomId,
     );
-    unawaited(_tracker.refreshRoom(widget.roomId));
+    // Refresh only if no other screen has populated the shared tracker
+    // yet. When `RoomState` is already mounted it has refreshed on room
+    // entry, so navigating Room → Info skips a redundant GET.
+    if (_tracker.roomUploads(widget.roomId).value is UploadsLoading) {
+      unawaited(_tracker.refreshRoom(widget.roomId));
+    }
   }
 
   // Not disposed here — the registry owns the tracker's lifecycle.
 
   Future<void> _pickAndUpload() async {
-    final file = await pickFile();
+    final PickedFile? file;
+    try {
+      file = await pickFile();
+    } on PickFileException catch (e, st) {
+      if (!mounted) return;
+      dev.log(
+        'File pick failed',
+        error: e.cause,
+        stackTrace: st,
+        name: 'RoomInfoScreen',
+        level: 1000,
+      );
+      final (filename, message) = switch (e) {
+        PickFileReadException(:final filename) => (
+            filename,
+            'Failed to read file',
+          ),
+        PickFilePickerException(:final filename) => (
+            filename ?? '(unknown)',
+            'Could not open file picker',
+          ),
+      };
+      _tracker.recordClientError(
+        roomId: widget.roomId,
+        filename: filename,
+        message: message,
+      );
+      return;
+    }
     if (file == null || !mounted) return;
     _tracker.uploadToRoom(
       roomId: widget.roomId,
@@ -434,7 +468,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
           children: [
             const SizedBox(height: 8),
             for (final entry in list)
-              _UploadEntryRow(entry: entry, onDismiss: _tracker.dismiss),
+              _UploadEntryRow(entry: entry, onDismiss: _tracker.dismissFailed),
           ],
         ),
       UploadsFailed(error: final error) => Padding(

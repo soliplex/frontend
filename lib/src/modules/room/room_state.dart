@@ -1,6 +1,6 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/server_entry.dart';
@@ -179,8 +179,14 @@ class RoomState {
     unawaited(pending.then((s) {
       s.cancel();
       s.dispose();
-    }).catchError((Object e) {
-      debugPrint('Cancelled spawn cleanup failed: $e');
+    }).catchError((Object e, StackTrace st) {
+      dev.log(
+        'Cancelled spawn cleanup failed',
+        error: e,
+        stackTrace: st,
+        name: 'RoomState',
+        level: 1000,
+      );
     }));
   }
 
@@ -233,9 +239,6 @@ class RoomState {
   void dispose() {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
-    // uploadTracker is owned by UploadTrackerRegistry; do not dispose
-    // it here — it must survive widget remounts and cross-screen
-    // navigation.
     threadList.dispose();
     _activeThreadView?.dispose();
   }

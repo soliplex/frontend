@@ -1118,13 +1118,30 @@ class SoliplexApi {
 
   /// Extracts `FileUpload` entries from an uploads-list response.
   ///
-  /// Malformed entries are logged and skipped so one bad row can't
-  /// break the whole list.
+  /// Missing `uploads` key is logged and treated as an empty list so a
+  /// transient server omission doesn't break the UI. A non-list value
+  /// under `uploads` indicates a schema mismatch and is raised as
+  /// [UnexpectedException] so callers surface a real error. Malformed
+  /// per-entry rows are logged and skipped.
   List<FileUpload> _parseUploadsList(Map<String, dynamic> response) {
-    final uploads = response['uploads'] as List<dynamic>?;
-    if (uploads == null || uploads.isEmpty) return const [];
+    final raw = response['uploads'];
+    if (raw == null) {
+      developer.log(
+        'Upload list response missing "uploads" key; treating as empty',
+        name: 'soliplex_client.api',
+        level: 900,
+      );
+      return const [];
+    }
+    if (raw is! List) {
+      throw UnexpectedException(
+        message: 'Upload list response has non-list "uploads" field: '
+            '${raw.runtimeType}',
+      );
+    }
+    if (raw.isEmpty) return const [];
     final result = <FileUpload>[];
-    for (final entry in uploads) {
+    for (final entry in raw) {
       if (entry is! Map<String, dynamic>) {
         developer.log(
           'Malformed file upload ignored: expected a JSON object, '

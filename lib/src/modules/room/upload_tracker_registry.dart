@@ -18,6 +18,12 @@ import 'upload_tracker.dart';
 /// disposes every tracker whose `serverId` disappears from that map
 /// (typically when the user disconnects a server). All remaining
 /// trackers are disposed when the registry itself is disposed.
+///
+/// Lifetime: the registry is process-scoped by design. Production
+/// shell teardown does not call [dispose]; an upload started on one
+/// screen must survive navigation to another, which the per-server
+/// eviction path already handles. [dispose] exists for tests and for
+/// the per-tracker cleanup invoked from eviction.
 class UploadTrackerRegistry {
   UploadTrackerRegistry({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
@@ -39,12 +45,9 @@ class UploadTrackerRegistry {
   /// a server that is never (or no longer) live will not be subject
   /// to the server-removal eviction path.
   ///
-  /// Note: identity is keyed on `(serverId, roomId)` only. This
-  /// assumes `ServerManager` never hot-swaps an entry's `connection`
-  /// without first going through `removeServer` (which evicts the
-  /// tracker). If that ever changes, the registry must also be
-  /// invalidated or re-keyed to avoid returning a tracker holding a
-  /// stale [SoliplexApi].
+  /// Identity is keyed on `(serverId, roomId)` only — assumes
+  /// `ServerManager` never hot-swaps an entry's `connection` without
+  /// first going through `removeServer` (which evicts the tracker).
   UploadTracker trackerFor({
     required ServerEntry entry,
     required String roomId,

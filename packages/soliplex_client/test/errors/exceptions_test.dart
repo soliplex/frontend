@@ -286,6 +286,17 @@ void main() {
     });
   });
 
+  group('UnexpectedException', () {
+    test('toString includes message', () {
+      const exception = UnexpectedException(message: 'Unknown schema');
+
+      expect(
+        exception.toString(),
+        equals('UnexpectedException: Unknown schema'),
+      );
+    });
+  });
+
   group('SoliplexException hierarchy', () {
     test('all exceptions can be caught as SoliplexException', () {
       final exceptions = <SoliplexException>[
@@ -294,6 +305,7 @@ void main() {
         const ApiException(message: 'API error', statusCode: 500),
         const NotFoundException(message: 'Not found'),
         const CancelledException(),
+        const UnexpectedException(message: 'Unexpected error'),
       ];
 
       for (final exception in exceptions) {
@@ -329,6 +341,11 @@ void main() {
           stackTrace: trace,
         ),
         CancelledException(originalError: originalError, stackTrace: trace),
+        UnexpectedException(
+          message: 'Unexpected',
+          originalError: originalError,
+          stackTrace: trace,
+        ),
       ];
 
       for (final exception in exceptions) {
