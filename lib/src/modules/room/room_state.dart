@@ -1,11 +1,11 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
 import 'run_registry.dart';
+import 'session_spawner.dart';
 import 'thread_list_state.dart';
 import 'thread_view_state.dart';
 import 'upload_tracker.dart';
@@ -64,18 +64,16 @@ class RoomState {
   final UploadTracker uploadTracker;
   ThreadViewState? _activeThreadView;
   CancelToken? _roomFetchToken;
-  Future<AgentSession>? _pendingSpawn;
   bool _isDisposed = false;
+
+  final SessionSpawner _spawner = SessionSpawner();
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
-  // Lifecycle: null → spawning (sendToNewThread) → null (on completion,
-  //            error, or cancelSpawn). Doubles as a concurrency guard and
-  //            the UI signal for ChatInput's cancel button.
-  final Signal<AgentSessionState?> _sessionState =
-      Signal<AgentSessionState?>(null);
-  ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
+  /// Tracks the spawn lifecycle: null → spawning → null.
+  /// Non-null while a new-thread spawn is in progress.
+  ReadonlySignal<AgentSessionState?> get sessionState => _spawner.sessionState;
 
   final Signal<SendError?> _lastError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastError => _lastError;
@@ -167,79 +165,53 @@ class RoomState {
     return null;
   }
 
+  /// Cancels a pending new-thread spawn. No-op if nothing is in progress.
+  void cancelSpawn() => _spawner.cancel();
+
   /// Implicit thread creation (send message with no thread selected).
   ///
   /// Spawns a session which creates the thread server-side, then creates a
   /// [ThreadViewState] and attaches the session to it.
-  void cancelSpawn() {
-    final pending = _pendingSpawn;
-    if (pending == null) return;
-    _pendingSpawn = null;
-    _sessionState.value = null;
-    unawaited(pending.then((s) {
-      s.cancel();
-      s.dispose();
-    }).catchError((Object e, StackTrace st) {
-      dev.log(
-        'Cancelled spawn cleanup failed',
-        error: e,
-        stackTrace: st,
-        name: 'RoomState',
-        level: 1000,
-      );
-    }));
-  }
-
   Future<void> sendToNewThread(
     String prompt, {
     Map<String, dynamic>? stateOverlay,
-  }) async {
-    if (_sessionState.value != null) return;
-    _lastError.value = null;
-    _sessionState.value = AgentSessionState.spawning;
-    Future<AgentSession>? spawnFuture;
-    try {
-      spawnFuture = runtime.spawn(
-        roomId: _roomId,
+  }) =>
+      _spawner.spawn(
+        spawnFn: () => runtime.spawn(
+          roomId: _roomId,
+          prompt: prompt,
+          stateOverlay: stateOverlay,
+        ),
+        errorSignal: _lastError,
         prompt: prompt,
-        stateOverlay: stateOverlay,
+        isDisposed: () => _isDisposed,
+        onSpawned: (session) {
+          // Clear room-level spawn state — the thread view takes over.
+          _spawner.updateState(null);
+          final key = session.threadKey;
+          _registry.register(key, session);
+          if (_isDisposed) return;
+          // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
+          // the sidebar reflects the new thread immediately. The backend
+          // generates the thread's name lazily after the run finishes; the
+          // sidebar picks that up on the next natural refresh (room change,
+          // pull-to-refresh, re-entry).
+          threadList.noteSpawnedThread(ThreadInfo(
+            id: key.threadId,
+            roomId: _roomId,
+            createdAt: DateTime.now(),
+          ));
+          selectThread(key.threadId);
+          _activeThreadView!.attachSession(session);
+          onNavigateToThread?.call(key.threadId);
+        },
       );
-      _pendingSpawn = spawnFuture;
-      final session = await spawnFuture;
-      if (_pendingSpawn != spawnFuture) return;
-      _pendingSpawn = null;
-      _sessionState.value = null;
-      final key = session.threadKey;
-      _registry.register(key, session);
-      if (_isDisposed) return;
-      // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
-      // the sidebar reflects the new thread immediately. The backend
-      // generates the thread's name lazily after the run finishes; the
-      // sidebar picks that up on the next natural refresh (room change,
-      // pull-to-refresh, re-entry).
-      threadList.noteSpawnedThread(ThreadInfo(
-        id: key.threadId,
-        roomId: _roomId,
-        createdAt: DateTime.now(),
-      ));
-      selectThread(key.threadId);
-      _activeThreadView!.attachSession(session);
-      onNavigateToThread?.call(key.threadId);
-    } on Object catch (error) {
-      if (_isDisposed || _sessionState.value == null) return;
-      _lastError.value = SendError(error, unsentText: prompt);
-    } finally {
-      if (_pendingSpawn == spawnFuture) {
-        _pendingSpawn = null;
-        _sessionState.value = null;
-      }
-    }
-  }
 
   void dispose() {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
     threadList.dispose();
     _activeThreadView?.dispose();
+    _spawner.dispose();
   }
 }
