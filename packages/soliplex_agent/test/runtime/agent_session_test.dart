@@ -88,7 +88,7 @@ class _TestScriptEnvironment implements ScriptEnvironment {
   void dispose() => disposeCount++;
 }
 
-class _TestExtension implements SessionExtension {
+class _TestExtension extends SessionExtension {
   int attachCount = 0;
   int disposeCount = 0;
   AgentSession? attachedSession;
@@ -106,7 +106,7 @@ class _TestExtension implements SessionExtension {
   void onDispose() => disposeCount++;
 }
 
-class _TestExtensionWithTool implements SessionExtension {
+class _TestExtensionWithTool extends SessionExtension {
   _TestExtensionWithTool(this._tool);
 
   final ClientTool _tool;
@@ -150,7 +150,7 @@ AgentSession createSession({
     runtime: runtime ?? MockAgentRuntime(),
     orchestrator: orchestrator,
     toolRegistry: registry,
-    extensions: extensions,
+    coordinator: SessionCoordinator(extensions),
     logger: logger,
   );
 }

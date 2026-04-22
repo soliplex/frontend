@@ -30,7 +30,7 @@ typedef ScriptEnvironmentFactory = Future<ScriptEnvironment> Function();
 ///
 /// Bridges existing [ScriptEnvironmentFactory] callers to the new
 /// extension-based lifecycle without breaking downstream code.
-class ScriptEnvironmentExtension implements SessionExtension {
+class ScriptEnvironmentExtension extends SessionExtension {
   /// Creates an extension that wraps the given [ScriptEnvironment].
   ScriptEnvironmentExtension(this._environment);
 
