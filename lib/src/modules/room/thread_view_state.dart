@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
+import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
@@ -102,9 +103,17 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
+  // Persists historical trackers from loaded thread history and from
+  // completed sessions (absorbed in _detachSession).
   final TrackerRegistry _trackerRegistry = TrackerRegistry();
-  Map<String, ExecutionTracker> get executionTrackers =>
-      _trackerRegistry.trackers;
+
+  /// Returns all execution trackers for this thread: historical (from loaded
+  /// thread history) merged with any live trackers from the active session.
+  Map<String, ExecutionTracker> get executionTrackers {
+    final ext = _activeSession?.getExtension<ExecutionTrackerExtension>();
+    if (ext == null) return _trackerRegistry.trackers;
+    return {..._trackerRegistry.trackers, ...ext.trackers};
+  }
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
@@ -189,8 +198,6 @@ class ThreadViewState {
   }
 
   void _onRunState(RunState runState) {
-    final session = _activeSession;
-    if (session == null) return;
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
         final current = _messages.value;
@@ -200,23 +207,16 @@ class ThreadViewState {
         }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-        _trackerRegistry.onStreaming(
-          streaming,
-          session.lastExecutionEvent,
-        );
       case CompletedState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final error):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
       case CancelledState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
@@ -240,6 +240,12 @@ class ThreadViewState {
   }
 
   void _detachSession() {
+    // Absorb live trackers from the extension before clearing the session
+    // reference, so historical data persists after the session ends.
+    final ext = _activeSession?.getExtension<ExecutionTrackerExtension>();
+    if (ext != null) {
+      _trackerRegistry.seedHistorical(ext.trackers);
+    }
     _runStateUnsub?.call();
     _runStateUnsub = null;
     _activeSession = null;
