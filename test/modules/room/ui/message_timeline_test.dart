@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
+import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 
 void main() {
@@ -13,11 +16,17 @@ void main() {
       text: 'Hello',
     );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: MessageTimeline(
-          messages: [message],
-          messageStates: const {},
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        messageExpansionsProvider.overrideWithValue(MessageExpansions()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: MessageTimeline(
+            roomId: 'r',
+            messages: [message],
+            messageStates: const {},
+          ),
         ),
       ),
     ));

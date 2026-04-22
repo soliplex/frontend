@@ -1,5 +1,11 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+/// Sentinel id for the placeholder [LoadingMessage] appended during
+/// [AwaitingText]. It is reused across runs, so it must never be used
+/// as a persistence key — state written under it would leak into the
+/// next response.
+const loadingMessageId = '_loading';
+
 /// Merges streaming state into the message list for unified rendering.
 ///
 /// During [TextStreaming], the historical message with the same ID (if
@@ -12,7 +18,10 @@ List<ChatMessage> computeDisplayMessages(
 ) {
   if (streaming == null) return messages;
   return switch (streaming) {
-    AwaitingText() => [...messages, LoadingMessage.create(id: '_loading')],
+    AwaitingText() => [
+        ...messages,
+        LoadingMessage.create(id: loadingMessageId)
+      ],
     TextStreaming(
       :final messageId,
       :final user,

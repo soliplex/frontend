@@ -5,6 +5,8 @@ import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
 import 'agent_runtime_manager.dart';
 import 'document_selections.dart';
+import 'message_expansions.dart';
+import 'room_providers.dart';
 import 'run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
@@ -18,7 +20,11 @@ ModuleContribution roomModule({
 }) {
   final documentSelections = DocumentSelections();
   final uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers);
+  final messageExpansions = MessageExpansions();
   return ModuleContribution(
+    overrides: [
+      messageExpansionsProvider.overrideWithValue(messageExpansions),
+    ],
     routes: [
       GoRoute(
         path: '/room/:serverAlias/:roomId/info',

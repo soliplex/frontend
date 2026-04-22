@@ -11,6 +11,7 @@ import 'tool_call_tile.dart';
 class MessageTile extends StatelessWidget {
   const MessageTile({
     super.key,
+    required this.roomId,
     required this.message,
     this.runId,
     this.sourceReferences,
@@ -21,6 +22,7 @@ class MessageTile extends StatelessWidget {
     this.streamingActivity,
   });
 
+  final String roomId;
   final ChatMessage message;
   final String? runId;
   final List<SourceReference>? sourceReferences;
@@ -37,6 +39,7 @@ class MessageTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: switch (message) {
         final TextMessage m => TextMessageTile(
+            roomId: roomId,
             message: m,
             runId: runId,
             sourceReferences: sourceReferences,
@@ -54,7 +57,9 @@ class MessageTile extends StatelessWidget {
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),
         final GenUiMessage m => GenUiTile(message: m),
-        LoadingMessage() => LoadingMessageTile(
+        final LoadingMessage m => LoadingMessageTile(
+            roomId: roomId,
+            messageId: m.id,
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),

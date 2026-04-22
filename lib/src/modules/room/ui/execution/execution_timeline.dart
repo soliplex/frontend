@@ -1,11 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import '../../compute_display_messages.dart' show loadingMessageId;
 import '../../execution_step.dart';
 import '../../execution_tracker.dart';
+import '../../message_expansions.dart';
+import '../../room_providers.dart';
 import '../copy_button.dart';
 import 'timeline_entry.dart';
 
@@ -13,17 +17,76 @@ import 'timeline_entry.dart';
 /// under their owning step. Activity rows with source (script/code/query
 /// args, or any args map) can expand to a monospace preview with a copy
 /// button.
-class ExecutionTimeline extends StatefulWidget {
-  const ExecutionTimeline({super.key, required this.tracker});
+class ExecutionTimeline extends ConsumerStatefulWidget {
+  const ExecutionTimeline({
+    super.key,
+    required this.roomId,
+    required this.messageId,
+    required this.tracker,
+  });
+
+  final String roomId;
+  final String messageId;
   final ExecutionTracker tracker;
 
   @override
-  State<ExecutionTimeline> createState() => _ExecutionTimelineState();
+  ConsumerState<ExecutionTimeline> createState() => _ExecutionTimelineState();
 }
 
-class _ExecutionTimelineState extends State<ExecutionTimeline> {
-  bool _expanded = false;
-  final Set<String> _expandedSources = <String>{};
+class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
+  // Expansion state while messageId == loadingMessageId. Kept local
+  // (not in the store) because the sentinel is reused across runs —
+  // persisting under it would leak open/closed state into the next
+  // response.
+  bool _loadingPhaseTimeline = false;
+  final Set<String> _loadingPhaseSources = <String>{};
+
+  // Persistence handle — null during the AwaitingText phase, because
+  // loadingMessageId is reused across runs and persisting under it would
+  // leak state into the next response. Captured once in initState; the
+  // AwaitingText → TextStreaming transition remounts this widget under
+  // a real messageId (see MessageTimeline's per-id ValueKey), at which
+  // point [_expansion] becomes non-null for the rest of its life.
+  MessageExpansion? _expansion;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.messageId == loadingMessageId) return;
+    _expansion = ref
+        .read(messageExpansionsProvider)
+        .forMessage(widget.roomId, widget.messageId);
+  }
+
+  bool get _expanded => _expansion?.timelineExpanded ?? _loadingPhaseTimeline;
+
+  void _toggleExpanded() {
+    setState(() {
+      final next = !_expanded;
+      if (_expansion != null) {
+        _expansion!.timelineExpanded = next;
+      } else {
+        _loadingPhaseTimeline = next;
+      }
+    });
+  }
+
+  void _toggleSource(String activityId) {
+    setState(() {
+      final expansion = _expansion;
+      if (expansion != null) {
+        expansion.toggleSource(activityId);
+        return;
+      }
+      if (!_loadingPhaseSources.remove(activityId)) {
+        _loadingPhaseSources.add(activityId);
+      }
+    });
+  }
+
+  bool _isSourceExpanded(String activityId) =>
+      _expansion?.isSourceExpanded(activityId) ??
+      _loadingPhaseSources.contains(activityId);
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +111,7 @@ class _ExecutionTimelineState extends State<ExecutionTimeline> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: _toggleExpanded,
               behavior: HitTestBehavior.opaque,
               child: Row(
                 children: [
@@ -127,7 +190,7 @@ class _ExecutionTimelineState extends State<ExecutionTimeline> {
   }) {
     final source = _pickSource(activity);
     final hasSource = source != null;
-    final isExpanded = _expandedSources.contains(activity.messageId);
+    final isExpanded = _isSourceExpanded(activity.messageId);
 
     return Padding(
       padding: EdgeInsets.only(left: indent, top: 2, bottom: 2),
@@ -135,15 +198,7 @@ class _ExecutionTimelineState extends State<ExecutionTimeline> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: hasSource
-                ? () => setState(() {
-                      if (isExpanded) {
-                        _expandedSources.remove(activity.messageId);
-                      } else {
-                        _expandedSources.add(activity.messageId);
-                      }
-                    })
-                : null,
+            onTap: hasSource ? () => _toggleSource(activity.messageId) : null,
             behavior: HitTestBehavior.opaque,
             child: Row(
               children: [

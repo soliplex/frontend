@@ -9,10 +9,14 @@ import 'execution/thinking_block.dart';
 class LoadingMessageTile extends StatelessWidget {
   const LoadingMessageTile({
     super.key,
+    required this.roomId,
+    required this.messageId,
     this.executionTracker,
     this.streamingActivity,
   });
 
+  final String roomId;
+  final String messageId;
   final ExecutionTracker? executionTracker;
   final ActivityType? streamingActivity;
 
@@ -24,8 +28,16 @@ class LoadingMessageTile extends StatelessWidget {
         children: [
           if (streamingActivity != null)
             ActivityIndicator(activity: streamingActivity!),
-          ExecutionTimeline(tracker: executionTracker!),
-          ExecutionThinkingBlock(tracker: executionTracker!),
+          ExecutionTimeline(
+            roomId: roomId,
+            messageId: messageId,
+            tracker: executionTracker!,
+          ),
+          ExecutionThinkingBlock(
+            roomId: roomId,
+            messageId: messageId,
+            tracker: executionTracker!,
+          ),
         ],
       );
     }
