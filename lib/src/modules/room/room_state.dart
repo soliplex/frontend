@@ -71,6 +71,15 @@ class RoomState {
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
+  /// Reactive set of thread IDs that currently have an active run in this room.
+  late final ReadonlySignal<Set<String>> runningThreadIds =
+      computed<Set<String>>(
+    () => _registry.activeKeys.value
+        .where((k) => k.serverId == _connection.serverId && k.roomId == _roomId)
+        .map((k) => k.threadId)
+        .toSet(),
+  );
+
   /// Tracks the spawn lifecycle: null → spawning → null.
   /// Non-null while a new-thread spawn is in progress.
   ReadonlySignal<AgentSessionState?> get sessionState => _spawner.sessionState;
@@ -213,5 +222,6 @@ class RoomState {
     threadList.dispose();
     _activeThreadView?.dispose();
     _spawner.dispose();
+    runningThreadIds.dispose();
   }
 }

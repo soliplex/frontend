@@ -35,7 +35,11 @@ class CancelledRun extends RunOutcome {
 /// session to reattach to or a completed outcome to display.
 class RunRegistry {
   final Map<ThreadKey, _TrackedRun> _runs = {};
+  final Signal<Set<ThreadKey>> _activeKeys = Signal({});
   bool _isDisposed = false;
+
+  /// Reactive set of keys that currently have an active (non-terminal) session.
+  ReadonlySignal<Set<ThreadKey>> get activeKeys => _activeKeys.readonly();
 
   /// Register a session for the given thread.
   ///
@@ -49,12 +53,14 @@ class RunRegistry {
     }
     final run = _TrackedRun(session: session);
     _runs[key] = run;
+    _activeKeys.value = {..._activeKeys.value, key};
 
     unawaited(session.result.then((result) {
       if (_isDisposed) return;
       final terminalState = session.runState.value;
       run.outcome = _outcomeFrom(terminalState, result);
       run.session = null;
+      _activeKeys.value = _activeKeys.value.difference({key});
     }));
   }
 
@@ -77,6 +83,8 @@ class RunRegistry {
       run.session?.cancel();
     }
     _runs.clear();
+    // Do not update _activeKeys here — downstream computeds may already be
+    // disposed and the update would log spurious "read after disposed" warnings.
   }
 
   static RunOutcome _outcomeFrom(RunState state, AgentResult result) {
