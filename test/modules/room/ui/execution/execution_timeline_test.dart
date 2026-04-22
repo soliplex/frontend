@@ -337,7 +337,7 @@ void main() {
       // Sentinel messageId must not leak into the store — it is reused
       // across runs and state written under it would leak to the next
       // response.
-      expect(store.hasStateFor(_roomId, loadingMessageId), isFalse);
+      expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
     });
 
     testWidgets('source toggle in loading phase uses local state only',
@@ -364,8 +364,15 @@ void main() {
       await tester.pump();
       expect(find.text('print(42)'), findsOneWidget);
 
-      // Same safety invariant for source rows.
-      expect(store.hasStateFor(_roomId, loadingMessageId), isFalse);
+      // Collapse pins the "remove from local set" branch. A regression
+      // that only adds and never removes would silently break the
+      // loading-phase collapse path.
+      await tester.tap(find.text('execute_script'));
+      await tester.pump();
+      expect(find.text('print(42)'), findsNothing);
+
+      // Safety invariant for source rows — no writes to the store.
+      expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
     });
   });
 }

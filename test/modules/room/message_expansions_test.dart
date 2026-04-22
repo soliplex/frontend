@@ -77,5 +77,18 @@ void main() {
       b.toggleSource('a1');
       expect(a.isSourceExpanded('a1'), isTrue);
     });
+
+    test('entries beyond maxEntries evict oldest-inserted (FIFO)', () {
+      for (var i = 0; i < MessageExpansions.maxEntries; i++) {
+        expansions.forMessage('r', 'm$i').timelineExpanded = true;
+      }
+      expect(expansions.debugHasStateFor('r', 'm0'), isTrue);
+
+      // The next new entry evicts the oldest-inserted (m0).
+      expansions.forMessage('r', 'new').timelineExpanded = true;
+      expect(expansions.debugHasStateFor('r', 'm0'), isFalse);
+      expect(expansions.debugHasStateFor('r', 'new'), isTrue);
+      expect(expansions.debugHasStateFor('r', 'm1'), isTrue);
+    });
   });
 }

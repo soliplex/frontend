@@ -9,9 +9,17 @@ import 'compute_display_messages.dart' show loadingMessageId;
 /// because it is reused across runs and state written under it would
 /// leak into the next response.
 ///
+/// Retention is capped at [maxEntries]; once reached, the oldest-inserted
+/// entry is evicted when a new one is created.
+///
 /// All access goes through a [MessageExpansion] handle obtained via
 /// [forMessage]; the internal storage is private.
 class MessageExpansions {
+  /// Upper bound on entries retained. Eviction is FIFO (oldest-inserted).
+  /// Chosen to comfortably exceed realistic session sizes (~50 typical,
+  /// ~100-200 heavy use) so the cap almost never trips in practice.
+  static const int maxEntries = 200;
+
   final Map<(String, String), _Expansion> _state = {};
 
   /// Returns a handle bound to one message so callers pass `(roomId,
@@ -25,10 +33,10 @@ class MessageExpansions {
     return MessageExpansion._(this, (roomId, messageId));
   }
 
-  /// Test-only probe: returns whether any state has been written under
-  /// the given key. Intended for verifying that [loadingMessageId] (which
-  /// [forMessage] rejects) has not leaked in via some other path.
-  bool hasStateFor(String roomId, String messageId) =>
+  /// Debug/test probe: returns whether any state has been written under
+  /// `(roomId, messageId)`. Exposed by convention for tests — not enforced;
+  /// production code has no reason to introspect the store directly.
+  bool debugHasStateFor(String roomId, String messageId) =>
       _state.containsKey((roomId, messageId));
 }
 
@@ -47,8 +55,15 @@ class MessageExpansion {
   final (String, String) _key;
 
   _Expansion? get _entry => _owner._state[_key];
-  _Expansion _ensureEntry() =>
-      _owner._state.putIfAbsent(_key, () => _Expansion());
+  _Expansion _ensureEntry() {
+    final map = _owner._state;
+    final existing = map[_key];
+    if (existing != null) return existing;
+    if (map.length >= MessageExpansions.maxEntries) {
+      map.remove(map.keys.first);
+    }
+    return map[_key] = _Expansion();
+  }
 
   bool get timelineExpanded => _entry?.timeline ?? false;
   set timelineExpanded(bool value) => _ensureEntry().timeline = value;

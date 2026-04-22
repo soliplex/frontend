@@ -219,7 +219,7 @@ void main() {
       expect(find.text('transient'), findsOneWidget);
 
       // Local state flipped, but nothing written to the store.
-      expect(store.hasStateFor(_roomId, loadingMessageId), isFalse);
+      expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
     });
   });
 }

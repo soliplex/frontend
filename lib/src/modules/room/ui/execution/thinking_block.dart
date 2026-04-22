@@ -27,9 +27,10 @@ class ExecutionThinkingBlock extends ConsumerStatefulWidget {
 
 class _ExecutionThinkingBlockState
     extends ConsumerState<ExecutionThinkingBlock> {
-  // Sentinel-only fallback used while [_expansion] is null (the
-  // AwaitingText phase). Once a real messageId exists, state lives in
-  // the store and this is never read or written again.
+  // Thinking-block expansion while messageId == loadingMessageId. Kept
+  // local (not in the store) because the sentinel is reused across runs —
+  // persisting under it would leak open/closed state into the next
+  // response.
   bool _loadingPhaseThinking = false;
 
   // Null during the AwaitingText sentinel phase, because loadingMessageId

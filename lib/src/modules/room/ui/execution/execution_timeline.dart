@@ -34,9 +34,10 @@ class ExecutionTimeline extends ConsumerStatefulWidget {
 }
 
 class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
-  // Sentinel-only fallbacks used while [_expansion] is null (the
-  // AwaitingText phase). Once a real messageId exists, state lives in
-  // the store and these are never read or written again.
+  // Expansion state while messageId == loadingMessageId. Kept local
+  // (not in the store) because the sentinel is reused across runs —
+  // persisting under it would leak open/closed state into the next
+  // response.
   bool _loadingPhaseTimeline = false;
   final Set<String> _loadingPhaseSources = <String>{};
 

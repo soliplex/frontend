@@ -188,11 +188,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
                 itemBuilder: (context, index) {
                   final message = displayMessages[index];
                   final isLastItem = index == displayMessages.length - 1;
-                  // A distinct key for the loading sentinel is load-bearing:
-                  // it forces a remount at the AwaitingText → TextStreaming
-                  // transition so execution/thinking child widgets can
-                  // re-bind their MessageExpansion handle under the real
-                  // messageId. Unifying these keys would break persistence.
+                  // A distinct key for the loading sentinel forces a
+                  // remount at the AwaitingText → TextStreaming transition.
+                  // Children capture their MessageExpansion handle once in
+                  // initState; without the remount they would stay bound to
+                  // loadingMessageId (which forMessage rejects) and never
+                  // acquire a handle under the real messageId.
                   return Padding(
                     key: message is LoadingMessage
                         ? const ValueKey('loading')

@@ -143,11 +143,11 @@ class _ThinkingBlock extends ConsumerWidget {
     final theme = Theme.of(context);
     final expansion =
         ref.read(messageExpansionsProvider).forMessage(roomId, messageId);
-    // initiallyExpanded is read once on mount; the tile does not rebuild
-    // when the store changes. Safe because _ThinkingBlock and
-    // ExecutionThinkingBlock are mutually exclusive for a given (roomId,
-    // messageId) — selected by the `hasTracker` branch above — so only
-    // one widget writes the thinkingExpanded key.
+    // ExpansionTile reads initiallyExpanded once on mount and does not
+    // rebuild when the store changes. Safe because _ThinkingBlock and
+    // ExecutionThinkingBlock are selected by hasTracker and are therefore
+    // mutually exclusive for any given (roomId, messageId), so only one
+    // of them writes thinkingExpanded.
     return ExpansionTile(
       initiallyExpanded: expansion.thinkingExpanded,
       onExpansionChanged: (v) => expansion.thinkingExpanded = v,
