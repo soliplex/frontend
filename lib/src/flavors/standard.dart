@@ -23,6 +23,7 @@ import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/conversation_state_extension.dart';
 import '../modules/room/execution_tracker_extension.dart';
+import '../modules/room/tool_calls_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
@@ -137,6 +138,7 @@ Future<ShellConfig> standard({
     extensionFactory: () async => [
       ExecutionTrackerExtension(),
       ConversationStateExtension(),
+      ToolCallsExtension(),
     ],
   );
 
