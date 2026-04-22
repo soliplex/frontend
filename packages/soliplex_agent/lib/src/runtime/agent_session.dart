@@ -13,6 +13,7 @@ import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
 import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
+import 'package:soliplex_agent/src/runtime/tool_approval_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_execution_context.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -172,7 +173,6 @@ class AgentSession implements ToolExecutionContext {
     required Map<String, dynamic> arguments,
     required String rationale,
   }) async {
-    if (_uiDelegate == null) return false;
     emitEvent(
       AwaitingApproval(
         toolCallId: toolCallId,
@@ -180,6 +180,21 @@ class AgentSession implements ToolExecutionContext {
         rationale: rationale,
       ),
     );
+
+    final approvalExt = _coordinator.getExtension<ToolApprovalExtension>();
+    if (approvalExt != null) {
+      return Future.any([
+        approvalExt.requestApproval(
+          toolCallId: toolCallId,
+          toolName: toolName,
+          arguments: arguments,
+          rationale: rationale,
+        ),
+        cancelToken.whenCancelled.then((_) => false),
+      ]);
+    }
+
+    if (_uiDelegate == null) return false;
     return Future.any([
       _uiDelegate.requestToolApproval(
         session: this,

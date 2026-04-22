@@ -23,6 +23,7 @@ import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/conversation_state_extension.dart';
 import '../modules/room/execution_tracker_extension.dart';
+import '../modules/room/human_approval_extension.dart';
 import '../modules/room/tool_calls_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
@@ -139,6 +140,7 @@ Future<ShellConfig> standard({
       ExecutionTrackerExtension(),
       ConversationStateExtension(),
       ToolCallsExtension(),
+      HumanApprovalExtension(),
     ],
   );
 

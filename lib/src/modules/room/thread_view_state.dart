@@ -7,6 +7,7 @@ import 'conversation_state_extension.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
+import 'human_approval_extension.dart';
 import 'tool_calls_extension.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
@@ -125,6 +126,16 @@ class ThreadViewState {
   /// is attached.
   ReadonlySignal<List<ToolCallEntry>>? get toolCalls =>
       _activeSession?.getExtension<ToolCallsExtension>()?.stateSignal;
+
+  /// Pending approval request from the active session, or null if no session
+  /// is attached or no approval is pending.
+  ReadonlySignal<ApprovalRequest?>? get pendingApproval =>
+      _activeSession?.getExtension<HumanApprovalExtension>()?.stateSignal;
+
+  /// The [HumanApprovalExtension] attached to the active session, or null.
+  /// Use [respond] to resolve a pending request shown via [pendingApproval].
+  HumanApprovalExtension? get approvalExtension =>
+      _activeSession?.getExtension<HumanApprovalExtension>();
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
