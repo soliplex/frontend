@@ -58,25 +58,18 @@ void main() {
       test('appends to nested array using "-" syntax', () {
         final state = <String, dynamic>{
           'rag': {
-            'citations': [
-              ['chunk-1'],
-            ],
+            'citations': ['chunk-1'],
           },
         };
         final operations = [
-          {
-            'op': 'add',
-            'path': '/rag/citations/-',
-            'value': ['chunk-2'],
-          },
+          {'op': 'add', 'path': '/rag/citations/-', 'value': 'chunk-2'},
         ];
 
         final result = applyJsonPatch(state, operations);
 
         final citations =
             (result['rag'] as Map<String, dynamic>)['citations'] as List;
-        expect(citations, hasLength(2));
-        expect(citations[1], equals(['chunk-2']));
+        expect(citations, equals(['chunk-1', 'chunk-2']));
       });
 
       test('inserts item in array at index per RFC 6902', () {
@@ -262,19 +255,14 @@ void main() {
       test('creates List when path segment is followed by numeric index', () {
         final state = <String, dynamic>{};
         final operations = [
-          {
-            'op': 'add',
-            'path': '/rag/citations/0',
-            'value': ['chunk-1'],
-          },
+          {'op': 'add', 'path': '/rag/citations/0', 'value': 'chunk-1'},
         ];
 
         final result = applyJsonPatch(state, operations);
 
         final ragState = result['rag'] as Map<String, dynamic>;
         final citations = ragState['citations'] as List<dynamic>;
-        expect(citations, hasLength(1));
-        expect(citations[0], equals(['chunk-1']));
+        expect(citations, equals(['chunk-1']));
       });
 
       test('creates List when intermediate path uses "-" append syntax', () {
@@ -377,17 +365,12 @@ void main() {
                 'document_uri': 'uri',
               },
             },
-            'citations': <dynamic>[
-              ['c1'],
-            ],
+            'citations': <dynamic>['c1'],
           },
         };
         final operations = [
-          {
-            'op': 'add',
-            'path': '/rag/citations/1',
-            'value': ['c2', 'c3'],
-          },
+          {'op': 'add', 'path': '/rag/citations/-', 'value': 'c2'},
+          {'op': 'add', 'path': '/rag/citations/-', 'value': 'c3'},
           {
             'op': 'add',
             'path': '/rag/citation_index/c2',
@@ -404,8 +387,7 @@ void main() {
 
         final rag = result['rag'] as Map<String, dynamic>;
         final citations = rag['citations'] as List<dynamic>;
-        expect(citations, hasLength(2));
-        expect(citations[1], equals(['c2', 'c3']));
+        expect(citations, equals(['c1', 'c2', 'c3']));
         final citationIndex = rag['citation_index'] as Map<String, dynamic>;
         expect(citationIndex.containsKey('c2'), isTrue);
       });

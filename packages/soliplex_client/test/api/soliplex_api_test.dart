@@ -2530,9 +2530,7 @@ void main() {
                           'content': 'Citation 1 content',
                         },
                       },
-                      'citations': [
-                        ['chunk-1'],
-                      ],
+                      'citations': ['chunk-1'],
                     },
                   },
                 },
@@ -2599,10 +2597,7 @@ void main() {
                           'content': 'Citation 2 content',
                         },
                       },
-                      'citations': [
-                        ['chunk-1'],
-                        ['chunk-2'],
-                      ],
+                      'citations': ['chunk-2'],
                     },
                   },
                 },

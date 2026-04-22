@@ -33,11 +33,12 @@ void main() {
         };
       }
 
-      /// Builds a RAG-namespaced state with the new shape: `citation_index`
-      /// (id → Citation) and `citations` (per-turn list of id lists).
+      /// Builds a RAG-namespaced state. `citations` is a flat list of chunk
+      /// ids cited during the current invocation; `citation_index` resolves
+      /// each id to a full Citation.
       Map<String, dynamic> createState({
         Map<String, Map<String, dynamic>> citationIndex = const {},
-        List<List<String>> citations = const [],
+        List<String> citations = const [],
       }) {
         return {
           'rag': {
@@ -50,9 +51,7 @@ void main() {
       test('returns empty when no state change', () {
         final state = createState(
           citationIndex: {'c1': createCitation(chunkId: 'c1')},
-          citations: [
-            ['c1'],
-          ],
+          citations: ['c1'],
         );
 
         final refs = extractor.extractNew(state, state);
@@ -69,7 +68,7 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('extracts citations from new turn', () {
+      test('extracts citations when previous is empty', () {
         final previous = createState();
         final current = createState(
           citationIndex: {
@@ -82,9 +81,7 @@ void main() {
               index: 1,
             ),
           },
-          citations: [
-            ['chunk-1'],
-          ],
+          citations: ['chunk-1'],
         );
 
         final refs = extractor.extractNew(previous, current);
@@ -104,9 +101,7 @@ void main() {
         final previous = createState();
         final current = createState(
           citationIndex: {'c1': createCitation(chunkId: 'c1')},
-          citations: [
-            ['c1'],
-          ],
+          citations: ['c1'],
         );
 
         final refs = extractor.extractNew(previous, current);
@@ -116,22 +111,17 @@ void main() {
         expect(refs[0].pageNumbers, isEmpty);
       });
 
-      test('extracts only new turns when citations grows', () {
+      test('extracts only ids not already in previous', () {
         final previous = createState(
           citationIndex: {'old-chunk': createCitation(chunkId: 'old-chunk')},
-          citations: [
-            ['old-chunk'],
-          ],
+          citations: ['old-chunk'],
         );
         final current = createState(
           citationIndex: {
             'old-chunk': createCitation(chunkId: 'old-chunk'),
             'new-chunk': createCitation(chunkId: 'new-chunk'),
           },
-          citations: [
-            ['old-chunk'],
-            ['new-chunk'],
-          ],
+          citations: ['old-chunk', 'new-chunk'],
         );
 
         final refs = extractor.extractNew(previous, current);
@@ -140,7 +130,33 @@ void main() {
         expect(refs[0].chunkId, 'new-chunk');
       });
 
-      test('extracts multiple citations from a single new turn', () {
+      test('extracts new ids across invocation reset', () {
+        // Prior invocation's citations are cleared by the lifespan; the new
+        // invocation's ids should still be extracted even though the previous
+        // snapshot held different ids.
+        final previous = createState(
+          citationIndex: {
+            'a': createCitation(chunkId: 'a'),
+            'b': createCitation(chunkId: 'b'),
+          },
+          citations: ['a', 'b'],
+        );
+        final current = createState(
+          citationIndex: {
+            'a': createCitation(chunkId: 'a'),
+            'b': createCitation(chunkId: 'b'),
+            'c': createCitation(chunkId: 'c'),
+          },
+          citations: ['c'],
+        );
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs, hasLength(1));
+        expect(refs[0].chunkId, 'c');
+      });
+
+      test('extracts multiple new ids at once', () {
         final previous = createState();
         final current = createState(
           citationIndex: {
@@ -148,9 +164,7 @@ void main() {
             'chunk-2': createCitation(chunkId: 'chunk-2'),
             'chunk-3': createCitation(chunkId: 'chunk-3'),
           },
-          citations: [
-            ['chunk-1', 'chunk-2', 'chunk-3'],
-          ],
+          citations: ['chunk-1', 'chunk-2', 'chunk-3'],
         );
 
         final refs = extractor.extractNew(previous, current);
@@ -159,13 +173,9 @@ void main() {
         expect(refs.map((r) => r.chunkId), ['chunk-1', 'chunk-2', 'chunk-3']);
       });
 
-      test('handles turn with no citations', () {
+      test('returns empty when current has no citations', () {
         final previous = createState();
-        final current = createState(
-          citations: [
-            <String>[],
-          ],
-        );
+        final current = createState(citations: const []);
 
         final refs = extractor.extractNew(previous, current);
 
@@ -177,9 +187,7 @@ void main() {
         final current = <String, dynamic>{
           'rag': {
             'citation_index': {'c1': createCitation(chunkId: 'c1')},
-            'citations': [
-              ['c1'],
-            ],
+            'citations': ['c1'],
           },
         };
 
@@ -193,9 +201,7 @@ void main() {
         final previous = createState();
         final current = createState(
           citationIndex: {'c1': createCitation(chunkId: 'c1')},
-          citations: [
-            ['c1', 'missing'],
-          ],
+          citations: ['c1', 'missing'],
         );
 
         final refs = extractor.extractNew(previous, current);
@@ -215,23 +221,19 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('returns empty when current has fewer turns than previous', () {
-        // This can happen with FIFO rotation
+      test('returns empty when current citations are a subset of previous', () {
+        // Happens when lifespan resets to empty mid-stream, or when ids from
+        // previous are no longer present in current.
         final previous = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': [
-              <String>[],
-              <String>[],
-            ],
+            'citations': ['a', 'b'],
           },
         };
         final current = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': [
-              <String>[],
-            ],
+            'citations': ['a'],
           },
         };
 
@@ -240,14 +242,12 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('returns empty when new turn has no citations', () {
+      test('returns empty when current citations are cleared', () {
         final previous = <String, dynamic>{};
         final current = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': [
-              <String>[],
-            ],
+            'citations': <String>[],
           },
         };
 
@@ -263,18 +263,16 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test('returns empty when previous rag key is not a Map', () {
+      test('treats non-Map previous rag key as empty', () {
         final previous = <String, dynamic>{'rag': 42};
         final current = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': [
-              <String>[],
-            ],
+            'citations': <String>[],
           },
         };
 
-        // Treats previous as empty (length 0); new turn has no citation ids.
+        // Previous coerced to empty; current has no citations either.
         final refs = extractor.extractNew(previous, current);
         expect(refs, isEmpty);
       });
@@ -285,19 +283,16 @@ void main() {
           'rag': {'citations': 'not a list'},
         };
 
-        // citations length treated as 0 for both, no growth detected
         final refs = extractor.extractNew(previous, current);
         expect(refs, isEmpty);
       });
 
-      test('returns empty on malformed turn entry', () {
+      test('ignores non-string entries in the citations list', () {
         final previous = <String, dynamic>{};
         final current = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': [
-              'not-a-list',
-            ],
+            'citations': <dynamic>[123, null, <String>[]],
           },
         };
 

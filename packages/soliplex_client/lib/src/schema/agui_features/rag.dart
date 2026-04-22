@@ -20,7 +20,7 @@ String ragToJson(Rag data) => json.encode(data.toJson());
 
 class Rag {
   final Map<String, Citation>? citationIndex;
-  final List<List<String>>? citations;
+  final List<String>? citations;
   final String? documentFilter;
   final Map<String, List<SearchResult>>? searches;
 
@@ -41,11 +41,7 @@ class Rag {
               ),
         citations: json["citations"] == null
             ? []
-            : List<List<String>>.from(
-                json["citations"]!.map(
-                  (x) => List<String>.from(x.map((y) => y)),
-                ),
-              ),
+            : List<String>.from(json["citations"]!.map((x) => x)),
         documentFilter: json["document_filter"],
         searches: json["searches"] == null
             ? null
@@ -67,11 +63,7 @@ class Rag {
               ),
         "citations": citations == null
             ? []
-            : List<dynamic>.from(
-                citations!.map(
-                  (x) => List<dynamic>.from(x.map((y) => y)),
-                ),
-              ),
+            : List<dynamic>.from(citations!.map((x) => x)),
         "document_filter": documentFilter,
         "searches": searches == null
             ? null

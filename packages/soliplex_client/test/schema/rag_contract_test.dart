@@ -60,9 +60,7 @@ void main() {
               'document_uri': 'uri',
             },
           },
-          'citations': [
-            ['c1'],
-          ],
+          'citations': ['c1'],
           'document_filter': "id = 'abc'",
           'searches': {
             'query1': [
@@ -73,8 +71,7 @@ void main() {
 
         final rag = Rag.fromJson(json);
         expect(rag.citationIndex, hasLength(1));
-        expect(rag.citations, hasLength(1));
-        expect(rag.citations!.first, equals(['c1']));
+        expect(rag.citations, equals(['c1']));
         expect(rag.documentFilter, equals("id = 'abc'"));
         expect(rag.searches, hasLength(1));
       });
@@ -82,27 +79,23 @@ void main() {
       test('searches null guard — absent searches does not crash', () {
         // Backend omits searches in STATE_DELTA events.
         final json = {
-          'citations': [
-            ['c1'],
-          ],
+          'citations': ['c1'],
         };
 
         final rag = Rag.fromJson(json);
         expect(rag.searches, isNull);
-        expect(rag.citations, hasLength(1));
+        expect(rag.citations, equals(['c1']));
       });
 
       test('ignores unknown keys without crashing', () {
         final json = <String, dynamic>{
           'legacy_field': <String, int>{},
           'session_context': {'summary': 'old'},
-          'citations': [
-            ['c1'],
-          ],
+          'citations': ['c1'],
         };
 
         final rag = Rag.fromJson(json);
-        expect(rag.citations, hasLength(1));
+        expect(rag.citations, equals(['c1']));
       });
     });
 
@@ -129,9 +122,7 @@ void main() {
               documentUri: 'uri',
             ),
           },
-          citations: [
-            ['c1'],
-          ],
+          citations: ['c1'],
           documentFilter: 'filter',
           searches: {
             'q': [SearchResult(content: 'r', score: 0.9)],
@@ -143,8 +134,7 @@ void main() {
             Rag.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
 
         expect(decoded.citationIndex, hasLength(1));
-        expect(decoded.citations, hasLength(1));
-        expect(decoded.citations!.first, equals(['c1']));
+        expect(decoded.citations, equals(['c1']));
         expect(decoded.documentFilter, equals('filter'));
         expect(decoded.searches, hasLength(1));
       });
