@@ -1,6 +1,5 @@
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_client/soliplex_client.dart' show ToolCallStatus;
 
 /// A tool call's current status during a session.
 @immutable

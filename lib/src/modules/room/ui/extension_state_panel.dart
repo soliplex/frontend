@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:signals_core/signals_core.dart' show ReadonlySignal;
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../thread_view_state.dart';
