@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Soliplex Flutter frontend — both a **runnable app** and an **importable library**. Uses a modular shell architecture where each module is a function returning a `ModuleContribution` (routes, Riverpod overrides, and an optional redirect). See `docs/plans/0001-app-shell/proposal.md` for the full design proposal.
+Soliplex Flutter frontend — both a **runnable app** and an **importable library**. Uses a modular shell architecture where each module is an `AppModule` subclass that contributes routes, Riverpod overrides, and lifecycle hooks.
 
 ## Commands
 
@@ -33,19 +33,42 @@ Prefer Dart MCP tools over shell commands. All tools take `root` as `file:///abs
 
 Entry point: `runSoliplexShell(ShellConfig)` boots the app from a `ShellConfig`.
 
-Each module is a function that takes dependencies via constructor injection and returns a `ModuleContribution` (routes, Riverpod overrides, and an optional redirect). No base class, no registry. The compiler enforces dependency ordering. Flavor functions create concrete instances, inject them into module functions, and compose `ModuleContribution` values into a `ShellConfig`. The shell flattens modules and collects overrides into a single root `ProviderScope`.
+Each module subclasses `AppModule` and implements:
+
+- `String get namespace` — unique identifier (validated at startup)
+- `int get priority` — attach order (descending); dispose is reverse
+- `ModuleRoutes build(AppModuleContext ctx)` — returns routes, Riverpod overrides,
+  and an optional redirect
+- `Future<void> onAttach(AppModuleContext ctx)` — lifecycle init (optional)
+- `Future<void> onDispose()` — resource cleanup (optional)
+
+Flavor functions construct concrete `AppModule` instances, pass them to
+`ShellConfig.fromModules(...)`, and the coordinator handles ordering and lifecycle.
+The shell flattens routes and collects overrides into a single root `ProviderScope`.
+
+Cross-module discovery uses `AppModuleContext.module<T>()` — type-based lookup with
+no string keys.
+
+`ModuleContribution` and the old `ShellConfig(modules: [...])` constructor are
+`@Deprecated` and will be removed once all consumers migrate.
 
 ### State Management
 
-Riverpod is **DI/service locator only** — no AsyncNotifier or FutureProvider chains. Reactive state comes from `signals` (via `soliplex_agent`). The `signals` package bridges signal reactivity to Flutter widget rebuilds.
+Riverpod is **DI/service locator only** — no AsyncNotifier or FutureProvider chains.
+Reactive state comes from `signals` (via `soliplex_agent`). The `signals` package
+bridges signal reactivity to Flutter widget rebuilds.
 
 ### Theming
 
-`ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor provides its own `ThemeData`. Custom palette abstractions deferred until multiple flavors need them.
+`ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor
+provides its own `ThemeData`. Custom palette abstractions deferred until multiple
+flavors need them.
 
 ### Flavors
 
-Flavors are functions that compose module functions into a `ShellConfig`. Modules are included/excluded by presence in the flavor — no enum or toggle framework.
+Flavors are functions that construct `AppModule` instances and call
+`ShellConfig.fromModules(...)`. Modules are included/excluded by presence in the
+flavor — no enum or toggle framework.
 
 ## Modules
 
