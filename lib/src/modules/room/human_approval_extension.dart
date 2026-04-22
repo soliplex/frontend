@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 /// An in-flight tool approval request waiting for a user decision.
