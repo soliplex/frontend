@@ -28,8 +28,7 @@ class SessionCoordinator {
   bool _disposed = false;
 
   /// All tools contributed by all extensions.
-  List<ClientTool> get tools =>
-      _extensions.expand((e) => e.tools).toList();
+  List<ClientTool> get tools => _extensions.expand((e) => e.tools).toList();
 
   /// Attaches all extensions to [session] in descending priority order.
   Future<void> attachAll(AgentSession session) async {
