@@ -21,6 +21,7 @@ import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
+import '../modules/room/conversation_state_extension.dart';
 import '../modules/room/execution_tracker_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
@@ -133,7 +134,10 @@ Future<ShellConfig> standard({
         : const NativePlatformConstraints(),
     toolRegistryResolver: (_) async => const ToolRegistry(),
     logger: LogManager.instance.getLogger('room'),
-    extensionFactory: () async => [ExecutionTrackerExtension()],
+    extensionFactory: () async => [
+      ExecutionTrackerExtension(),
+      ConversationStateExtension(),
+    ],
   );
 
   final registry = RunRegistry();

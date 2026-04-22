@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'conversation_state_extension.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -113,6 +114,11 @@ class ThreadViewState {
     if (ext == null) return _trackerRegistry.trackers;
     return {..._trackerRegistry.trackers, ...ext.trackers};
   }
+
+  /// Live ag-ui conversation state from the active session, or null if no
+  /// session is attached.
+  ReadonlySignal<Map<String, dynamic>>? get conversationState =>
+      _activeSession?.getExtension<ConversationStateExtension>()?.stateSignal;
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
