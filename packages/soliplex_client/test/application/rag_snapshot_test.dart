@@ -121,6 +121,27 @@ void main() {
       expect(snapshot.resolveCitation('a'), isNotNull);
     });
 
+    test('tolerates citations Map that fails Citation.fromJson', () {
+      // Maps that are structurally valid but whose Citation.fromJson
+      // throws (missing required fields). Mirror of the v042
+      // citation_index resilience test.
+      final json = <String, dynamic>{
+        'citations': <dynamic>[
+          {
+            'chunk_id': 'a',
+            'content': 't',
+            'document_id': 'd',
+            'document_uri': 'u',
+          },
+          {'chunk_id': 'b'}, // missing content, document_id, document_uri
+        ],
+      };
+      final snapshot = RagSnapshot.fromJson(json);
+      expect(snapshot.citationIds, equals(['a']));
+      expect(snapshot.resolveCitation('a'), isNotNull);
+      expect(snapshot.resolveCitation('b'), isNull);
+    });
+
     test(
       'empty citations with qa_history falls back to v040 with empty ids',
       () {
