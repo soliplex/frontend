@@ -79,6 +79,7 @@ Future<ShellConfig> standard({
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
   Widget? logo,
+  SessionExtensionFactory? extraExtensions,
 }) async {
   logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
   final inspector = NetworkInspector();
@@ -139,6 +140,7 @@ Future<ShellConfig> standard({
       ExecutionTrackerExtension(),
       ToolCallsExtension(),
       HumanApprovalExtension(),
+      ...?(await extraExtensions?.call()),
     ],
   );
 

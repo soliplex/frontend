@@ -63,6 +63,56 @@ Flavors are functions that construct `AppModule` instances and call
 `ShellConfig.fromModules(...)`. Modules are included/excluded by presence in the
 flavor — no enum or toggle framework.
 
+### Adding custom client-side session extensions
+
+`standard()` takes an optional `extraExtensions: SessionExtensionFactory?`
+parameter. The factory is invoked once per `AgentSession` and its output is
+appended after the framework's built-in extensions (execution tracker, tool
+calls, human approval). Use this to register custom `SessionExtension`s —
+including ones that expose `ClientTool`s — without forking the flavor.
+
+Example — a consumer adding a `get_current_time` tool:
+
+```dart
+class ClockExtension extends SessionExtension {
+  @override
+  String get namespace => 'clock';
+
+  @override
+  Future<void> onAttach(AgentSession session) async {}
+
+  @override
+  void onDispose() {}
+
+  @override
+  List<ClientTool> get tools => [
+        ClientTool.simple(
+          name: 'get_current_time',
+          description: 'Returns the current device time as ISO 8601.',
+          executor: (_, __) async => DateTime.now().toIso8601String(),
+        ),
+      ];
+}
+
+// In main.dart:
+runSoliplexShell(
+  await standard(
+    extraExtensions: () async => [ClockExtension()],
+  ),
+);
+```
+
+The framework's own `main.dart` uses the same hook to gate the on-device
+Python runtime (`MontyRuntimeExtension` from `soliplex_agent_monty`) behind
+the compile-time `MONTY_ENABLED` flag:
+
+```sh
+flutter build macos --dart-define=MONTY_ENABLED=true
+```
+
+The flag is a tree-shake boundary — with `MONTY_ENABLED=false` (default)
+the `dart_monty` bytes do not reach the release binary.
+
 ## Modules
 
 Five feature modules composed in the standard flavor:
@@ -75,9 +125,10 @@ Five feature modules composed in the standard flavor:
 
 ## Workspace Packages
 
-Four internal packages under `packages/`:
+Internal packages under `packages/`:
 
 - `soliplex_agent` — Agent orchestration (runtime, sessions, tool registry, execution events)
+- `soliplex_agent_monty` — Bridge that wraps `dart_monty`'s Python sandbox in a `SessionExtension` and exposes the `run_python_on_device` `ClientTool`. Optional; enabled via `--dart-define=MONTY_ENABLED=true`.
 - `soliplex_client` — Backend HTTP/AG-UI API client, domain models, citation extraction
 - `soliplex_client_native` — Native HTTP client (iOS/macOS via cupertino_http)
 - `soliplex_logging` — Structured logging with memory, console, disk, and backend sinks

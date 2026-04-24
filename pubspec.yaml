@@ -36,6 +36,8 @@ dependencies:
   web: ^1.1.1
   soliplex_agent:
     path: packages/soliplex_agent
+  soliplex_agent_monty:
+    path: packages/soliplex_agent_monty
   soliplex_client:
     path: packages/soliplex_client
   soliplex_client_native:
