@@ -12,6 +12,7 @@ import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
 import 'package:soliplex_agent/src/runtime/server_connection.dart';
+import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ThreadHistory;
@@ -323,10 +324,9 @@ class AgentRuntime {
   }) async {
     var toolRegistry = await _toolRegistryResolver(roomId);
     final extensions = await _createExtensions();
-    for (final ext in extensions) {
-      for (final tool in ext.tools) {
-        toolRegistry = toolRegistry.register(tool);
-      }
+    final coordinator = SessionCoordinator(extensions);
+    for (final tool in coordinator.tools) {
+      toolRegistry = toolRegistry.register(tool);
     }
     final orchestrator = RunOrchestrator(
       llmProvider: _llmProvider,
@@ -340,7 +340,7 @@ class AgentRuntime {
       runtime: this,
       orchestrator: orchestrator,
       toolRegistry: toolRegistry,
-      extensions: extensions,
+      coordinator: coordinator,
       uiDelegate: _uiDelegate,
       logger: _logger,
     );
