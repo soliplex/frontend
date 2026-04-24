@@ -4,9 +4,22 @@ import 'package:soliplex_agent/src/tools/tool_registry.dart';
 /// A capability bound to the lifecycle of an [AgentSession].
 ///
 /// Extensions provide tools and resources that are created when the
-/// session starts and disposed when the session ends. The session
-/// cascades dispose to all extensions.
-abstract interface class SessionExtension {
+/// session starts and disposed when the session ends.
+///
+/// Subclass via `extends SessionExtension` to inherit the default
+/// [namespace] and [priority]. Mix in `StatefulSessionExtension` to
+/// add a typed reactive-state signal.
+abstract class SessionExtension {
+  /// Unique identifier for this extension type.
+  ///
+  /// The coordinator validates uniqueness across all extensions in a session
+  /// when the namespace is non-empty. Use the default empty string for
+  /// extensions that do not need cross-extension discovery.
+  String get namespace => '';
+
+  /// Attach priority. Higher values attach first and dispose last.
+  int get priority => 0;
+
   /// Called after session creation, before the run starts.
   ///
   /// Receives the [session] for context access (e.g. spawning children,
