@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -909,7 +910,9 @@ class _RoomScreenState extends State<RoomScreen> {
                 roomId: widget.roomId,
                 threadId: threadView.threadId,
               ),
-            ExtensionStatePanel(threadView: threadView),
+            // Debug-only surface: per-extension reactive state tree.
+            // Omitted entirely in release/profile builds.
+            if (kDebugMode) ExtensionStatePanel(threadView: threadView),
             ChatInput(
               onSend: (text) => threadView.sendMessage(
                 text,
