@@ -26,10 +26,8 @@ abstract interface class ScriptEnvironment {
 /// MontyLimits, etc.) so callers only need to invoke it.
 typedef ScriptEnvironmentFactory = Future<ScriptEnvironment> Function();
 
-/// Adapter that wraps a [ScriptEnvironment] as a [SessionExtension].
-///
-/// Bridges existing [ScriptEnvironmentFactory] callers to the new
-/// extension-based lifecycle without breaking downstream code.
+/// Exposes a [ScriptEnvironment] as a [SessionExtension] so its tools
+/// and dispose hook participate in normal session lifecycle.
 class ScriptEnvironmentExtension extends SessionExtension {
   /// Creates an extension that wraps the given [ScriptEnvironment].
   ScriptEnvironmentExtension(this._environment);

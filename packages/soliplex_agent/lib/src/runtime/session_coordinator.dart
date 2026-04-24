@@ -3,34 +3,36 @@ import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/runtime/stateful_session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
-/// Manages the lifecycle of a set of [SessionExtension]s for one
-/// [AgentSession].
-///
-/// Responsibilities:
-/// - **Namespace validation** — rejects duplicate non-empty namespaces.
-/// - **Priority-ordered attach** — [attachAll] sorts by descending priority.
-/// - **Reverse-order dispose** — [disposeAll] tears down in reverse attach
-///   order.
-/// - **Type-based lookup** — [getExtension] mirrors
-///   [AgentSession.getExtension].
-/// - **Stateful observations** — [statefulObservations] enumerates stateful
-///   extensions, yielding `(namespace, signal)` pairs for reactive state
-///   consumers that don't need to know the concrete extension types.
+/// Owns the lifecycle of a set of [SessionExtension]s for one
+/// [AgentSession]: validates namespaces at construction, attaches and
+/// disposes in order, and exposes lookup plus reactive-state enumeration
+/// to consumers that don't know the concrete extension types.
 class SessionCoordinator {
-  SessionCoordinator(List<SessionExtension> extensions)
-      : _extensions = List.of(extensions) {
+  /// Throws [ArgumentError] if any two extensions share a non-empty
+  /// namespace.
+  SessionCoordinator(
+    List<SessionExtension> extensions, {
+    required Logger logger,
+  })  : _extensions = List.of(extensions),
+        _logger = logger {
     _validateNamespaces();
   }
 
   final List<SessionExtension> _extensions;
+  final Logger _logger;
   List<SessionExtension>? _attachOrder;
   bool _disposed = false;
 
-  /// All tools contributed by all extensions.
   List<ClientTool> get tools => _extensions.expand((e) => e.tools).toList();
 
   /// Attaches all extensions to [session] in descending priority order.
+  ///
+  /// On exception, partially-attached extensions are not auto-disposed
+  /// here; the caller is responsible for invoking [disposeAll] (in
+  /// production this happens via [AgentSession.dispose] from the
+  /// spawn-path's cleanup in `AgentRuntime.spawn`).
   Future<void> attachAll(AgentSession session) async {
     final ordered = List.of(_extensions)
       ..sort((a, b) => b.priority.compareTo(a.priority));
@@ -40,17 +42,35 @@ class SessionCoordinator {
     }
   }
 
-  /// Disposes all extensions in reverse attach order. Idempotent.
+  /// Disposes all extensions in reverse of [attachAll]'s priority order,
+  /// or in reverse registration order if [attachAll] never ran.
+  /// Idempotent and terminal: a throwing `onDispose` is logged per
+  /// extension and does not propagate — every registered extension gets
+  /// its dispose call.
   void disposeAll() {
     if (_disposed) return;
     _disposed = true;
     final order = _attachOrder ?? _extensions;
     for (final ext in order.reversed) {
-      ext.onDispose();
+      try {
+        ext.onDispose();
+      } on Object catch (e, st) {
+        _logger.error(
+          'SessionExtension "${ext.namespace}" onDispose threw',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
   }
 
-  /// Returns the first extension of type [T], or `null` if none is registered.
+  /// Returns the first extension of type [T] in registration order, or
+  /// `null` if none is registered.
+  ///
+  /// Uniqueness is enforced by namespace, not by type: two extensions of
+  /// the same type with different namespaces are both legal, and this
+  /// lookup returns the first-registered one. Prefer namespace-based
+  /// discovery when unambiguous lookup matters.
   T? getExtension<T extends SessionExtension>() {
     for (final ext in _extensions) {
       if (ext is T) return ext;
@@ -67,9 +87,8 @@ class SessionCoordinator {
     for (final ext in _extensions) {
       final ns = ext.namespace;
       if (ns.isEmpty) continue;
-      switch (ext) {
-        case final HasStatefulObservation stateful:
-          yield (ns, stateful.stateSignalAsObject);
+      if (ext case final HasStatefulObservation stateful) {
+        yield (ns, stateful.stateSignalAsObject);
       }
     }
   }

@@ -150,7 +150,7 @@ AgentSession createSession({
     runtime: runtime ?? MockAgentRuntime(),
     orchestrator: orchestrator,
     toolRegistry: registry,
-    coordinator: SessionCoordinator(extensions),
+    coordinator: SessionCoordinator(extensions, logger: logger),
     logger: logger,
   );
 }

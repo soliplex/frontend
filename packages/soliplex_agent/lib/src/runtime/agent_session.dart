@@ -216,8 +216,7 @@ class AgentSession implements ToolExecutionContext {
   T? getExtension<T extends SessionExtension>() =>
       _coordinator.getExtension<T>();
 
-  /// Yields `(namespace, signal)` for every stateful extension with a
-  /// non-empty namespace registered in this session.
+  /// See [SessionCoordinator.statefulObservations].
   Iterable<(String, ReadonlySignal<Object?>)> statefulObservations() =>
       _coordinator.statefulObservations();
 
@@ -280,7 +279,16 @@ class AgentSession implements ToolExecutionContext {
     if (_disposed) return;
     _disposed = true;
     for (final child in _children.toList()) {
-      child.dispose();
+      try {
+        child.dispose();
+      } on Object catch (e, st) {
+        _logger.error(
+          'Child AgentSession dispose threw (parent=$id, '
+          'thread=${threadKey.threadId}, child=${child.id})',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
     _children.clear();
     _disposeExtensions();
@@ -288,7 +296,16 @@ class AgentSession implements ToolExecutionContext {
     _subscription = null;
     unawaited(_baseEventSubscription?.cancel());
     _baseEventSubscription = null;
-    _orchestrator.dispose();
+    try {
+      _orchestrator.dispose();
+    } on Object catch (e, st) {
+      _logger.error(
+        'Orchestrator dispose threw (session=$id, '
+        'thread=${threadKey.threadId})',
+        error: e,
+        stackTrace: st,
+      );
+    }
     _completeIfPending();
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();

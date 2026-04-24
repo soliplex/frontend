@@ -1,3 +1,4 @@
+import 'package:meta/meta.dart';
 import 'package:signals_core/signals_core.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 
@@ -45,8 +46,11 @@ mixin StatefulSessionExtension<T> on SessionExtension
   Signal<T>? _stateSignal;
   ReadonlySignal<Object?>? _objectSignal;
 
-  /// Initialises the backing signal. Must be called in the constructor.
+  /// Initialises the backing signal. Must be called exactly once, in the
+  /// constructor, before [onAttach] runs.
+  @protected
   void setInitialState(T initial) {
+    assert(_stateSignal == null, 'setInitialState() called more than once');
     _stateSignal = signal(initial);
   }
 
@@ -57,16 +61,23 @@ mixin StatefulSessionExtension<T> on SessionExtension
   }
 
   /// Current state value.
-  T get state => _stateSignal!.value;
+  T get state {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    return _stateSignal!.value;
+  }
 
   /// Replaces the current state, notifying all subscribers.
-  set state(T value) => _stateSignal!.value = value;
+  set state(T value) {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    _stateSignal!.value = value;
+  }
 
   /// Type-erased view of [stateSignal] for use by `SessionCoordinator`.
   ///
   /// Backed by a `computed` signal to avoid unsafe generic casts at runtime.
   @override
   ReadonlySignal<Object?> get stateSignalAsObject {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
     return _objectSignal ??= computed<Object?>(() => _stateSignal!.value);
   }
 

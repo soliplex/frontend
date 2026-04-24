@@ -33,6 +33,10 @@ abstract class SessionExtension {
   List<ClientTool> get tools;
 
   /// Called when the session is disposed. Must be idempotent.
+  ///
+  /// May be invoked even if [onAttach] did not complete (e.g. a sibling
+  /// extension threw mid-attach). Implementations must tolerate being
+  /// called from any partially-initialized state.
   void onDispose();
 }
 

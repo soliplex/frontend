@@ -324,7 +324,7 @@ class AgentRuntime {
   }) async {
     var toolRegistry = await _toolRegistryResolver(roomId);
     final extensions = await _createExtensions();
-    final coordinator = SessionCoordinator(extensions);
+    final coordinator = SessionCoordinator(extensions, logger: _logger);
     for (final tool in coordinator.tools) {
       toolRegistry = toolRegistry.register(tool);
     }

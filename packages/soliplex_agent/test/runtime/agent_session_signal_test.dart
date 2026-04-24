@@ -70,7 +70,7 @@ AgentSession createSession({
     runtime: runtime ?? MockAgentRuntime(),
     orchestrator: orchestrator,
     toolRegistry: registry,
-    coordinator: SessionCoordinator(const []),
+    coordinator: SessionCoordinator(const [], logger: logger),
     logger: logger,
   );
 }
