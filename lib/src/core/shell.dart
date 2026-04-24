@@ -47,7 +47,6 @@ class _SoliplexShellState extends State<SoliplexShell> {
   @override
   void dispose() {
     _router.dispose();
-    widget.config.onDispose?.call();
     super.dispose();
   }
 }
