@@ -11,6 +11,7 @@ import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_runtime.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
+import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_execution_context.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
@@ -42,12 +43,12 @@ class AgentSession implements ToolExecutionContext {
     required RunOrchestrator orchestrator,
     required ToolRegistry toolRegistry,
     required Logger logger,
-    List<SessionExtension> extensions = const [],
+    required SessionCoordinator coordinator,
     AgentUiDelegate? uiDelegate,
   })  : _runtime = runtime,
         _orchestrator = orchestrator,
         _toolRegistry = toolRegistry,
-        _extensions = extensions,
+        _coordinator = coordinator,
         _uiDelegate = uiDelegate,
         _logger = logger,
         id = '${threadKey.threadId}-'
@@ -68,7 +69,7 @@ class AgentSession implements ToolExecutionContext {
   final AgentRuntime _runtime;
   final RunOrchestrator _orchestrator;
   final ToolRegistry _toolRegistry;
-  final List<SessionExtension> _extensions;
+  final SessionCoordinator _coordinator;
   final AgentUiDelegate? _uiDelegate;
   final Logger _logger;
 
@@ -212,12 +213,12 @@ class AgentSession implements ToolExecutionContext {
   }
 
   @override
-  T? getExtension<T extends SessionExtension>() {
-    for (final ext in _extensions) {
-      if (ext is T) return ext;
-    }
-    return null;
-  }
+  T? getExtension<T extends SessionExtension>() =>
+      _coordinator.getExtension<T>();
+
+  /// See [SessionCoordinator.statefulObservations].
+  Iterable<(String, ReadonlySignal<Object?>)> statefulObservations() =>
+      _coordinator.statefulObservations();
 
   // ---------------------------------------------------------------------------
   // Child management
@@ -278,7 +279,16 @@ class AgentSession implements ToolExecutionContext {
     if (_disposed) return;
     _disposed = true;
     for (final child in _children.toList()) {
-      child.dispose();
+      try {
+        child.dispose();
+      } on Object catch (e, st) {
+        _logger.error(
+          'Child AgentSession dispose threw (parent=$id, '
+          'thread=${threadKey.threadId}, child=${child.id})',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
     _children.clear();
     _disposeExtensions();
@@ -286,7 +296,16 @@ class AgentSession implements ToolExecutionContext {
     _subscription = null;
     unawaited(_baseEventSubscription?.cancel());
     _baseEventSubscription = null;
-    _orchestrator.dispose();
+    try {
+      _orchestrator.dispose();
+    } on Object catch (e, st) {
+      _logger.error(
+        'Orchestrator dispose threw (session=$id, '
+        'thread=${threadKey.threadId})',
+        error: e,
+        stackTrace: st,
+      );
+    }
     _completeIfPending();
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
@@ -297,17 +316,9 @@ class AgentSession implements ToolExecutionContext {
   // Extension lifecycle
   // ---------------------------------------------------------------------------
 
-  Future<void> _attachExtensions() async {
-    for (final ext in _extensions) {
-      await ext.onAttach(this);
-    }
-  }
+  Future<void> _attachExtensions() => _coordinator.attachAll(this);
 
-  void _disposeExtensions() {
-    for (final ext in _extensions) {
-      ext.onDispose();
-    }
-  }
+  void _disposeExtensions() => _coordinator.disposeAll();
 
   // ---------------------------------------------------------------------------
   // State listener
