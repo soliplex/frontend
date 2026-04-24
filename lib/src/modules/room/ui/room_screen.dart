@@ -7,12 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show
-        RagDocument,
-        Room,
-        SourceReferenceFormatting,
-        buildDocumentFilter,
-        buildRagDocumentFilterOverlay;
+    show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -35,6 +30,7 @@ import 'async_action_dialog.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
+import '../human_approval_extension.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 
@@ -123,9 +119,12 @@ class _RoomScreenState extends State<RoomScreen> {
   Map<String, dynamic>? _buildStateOverlay() {
     if (!_filterEnabled) return null;
     final selected = _selectedDocuments;
-    return buildRagDocumentFilterOverlay(
-      selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
-    );
+    return {
+      'rag': <String, dynamic>{
+        'document_filter':
+            selected.isEmpty ? null : buildDocumentFilter(selected.toList()),
+      },
+    };
   }
 
   @override
@@ -830,97 +829,103 @@ class _RoomScreenState extends State<RoomScreen> {
 
     _restoreUnsentText(sendError?.unsentText);
 
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          child: switch (status) {
-            MessagesLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
-            MessagesFailed(:final error) => ErrorRetryPanel(
-                title: 'Failed to load messages',
-                error: error,
-                onRetry: threadView.refresh,
-              ),
-            MessagesLoaded(:final messages, :final messageStates) =>
-              computeDisplayMessages(messages, streaming).isEmpty
-                  ? RoomWelcome(
-                      room: room,
-                      onSuggestionTapped: (suggestion) =>
-                          threadView.sendMessage(
-                        suggestion,
-                        _state.runtime,
-                        stateOverlay: _buildStateOverlay(),
-                      ),
-                      onQuizTapped: _onQuizTapped,
-                      fallback: _threadEmptyFallback(context),
-                    )
-                  : MessageTimeline(
-                      key: ValueKey(threadView.threadId),
-                      roomId: widget.roomId,
-                      messages: messages,
-                      messageStates: messageStates,
-                      streamingState: streaming,
-                      executionTrackers: threadView.executionTrackers,
-                      onFeedbackSubmit: threadView.submitFeedback,
-                      onInspect: (runId) {
-                        final inspector = ProviderScope.containerOf(context)
-                            .read(networkInspectorProvider);
-                        final filtered = filterEventsByRunId(
-                          inspector.events,
-                          runId,
-                        );
-                        final groups = groupHttpEvents(filtered);
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => RunHttpDetailPage(groups: groups),
+        _ApprovalHandler(threadView: threadView),
+        Column(
+          children: [
+            Expanded(
+              child: switch (status) {
+                MessagesLoading() => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                MessagesFailed(:final error) => ErrorRetryPanel(
+                    title: 'Failed to load messages',
+                    error: error,
+                    onRetry: threadView.refresh,
+                  ),
+                MessagesLoaded(:final messages, :final messageStates) =>
+                  computeDisplayMessages(messages, streaming).isEmpty
+                      ? RoomWelcome(
+                          room: room,
+                          onSuggestionTapped: (suggestion) =>
+                              threadView.sendMessage(
+                            suggestion,
+                            _state.runtime,
+                            stateOverlay: _buildStateOverlay(),
                           ),
-                        );
-                      },
-                      onShowChunkVisualization: (ref) =>
-                          ChunkVisualizationPage.show(
-                        context: context,
-                        api: widget.serverEntry.connection.api,
-                        roomId: widget.roomId,
-                        chunkId: ref.chunkId,
-                        documentTitle: ref.displayTitle,
-                        pageNumbers: ref.pageNumbers,
-                      ),
-                    ),
-          },
-        ),
-        if (sendError != null)
-          _SendErrorBanner(
-            error: sendError,
-            onDismiss: () => threadView.clearSendError(),
-          ),
-        if (attachEnabled)
-          UploadEventBanner(
-            tracker: _state.uploadTracker,
-            roomId: widget.roomId,
-            threadId: threadView.threadId,
-          ),
-        ChatInput(
-          onSend: (text) => threadView.sendMessage(
-            text,
-            _state.runtime,
-            stateOverlay: _buildStateOverlay(),
-          ),
-          onCancel: threadView.cancelRun,
-          sessionState: threadView.sessionState,
-          controller: _chatController,
-          focusNode: _chatFocusNode,
-          enabled: status is MessagesLoaded,
-          selectedDocuments: _selectedDocuments,
-          onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-          onDocumentRemoved: _filterEnabled
-              ? (doc) => _updateSelection(
-                    Set.of(_selectedDocuments)..remove(doc),
-                  )
-              : null,
-          onAttachFile: attachEnabled
-              ? () => _pickAndUploadToThread(threadView.threadId)
-              : null,
+                          onQuizTapped: _onQuizTapped,
+                          fallback: _threadEmptyFallback(context),
+                        )
+                      : MessageTimeline(
+                          key: ValueKey(threadView.threadId),
+                          roomId: widget.roomId,
+                          messages: messages,
+                          messageStates: messageStates,
+                          streamingState: streaming,
+                          executionTrackers: threadView.executionTrackers,
+                          onFeedbackSubmit: threadView.submitFeedback,
+                          onInspect: (runId) {
+                            final inspector = ProviderScope.containerOf(context)
+                                .read(networkInspectorProvider);
+                            final filtered = filterEventsByRunId(
+                              inspector.events,
+                              runId,
+                            );
+                            final groups = groupHttpEvents(filtered);
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    RunHttpDetailPage(groups: groups),
+                              ),
+                            );
+                          },
+                          onShowChunkVisualization: (ref) =>
+                              ChunkVisualizationPage.show(
+                            context: context,
+                            api: widget.serverEntry.connection.api,
+                            roomId: widget.roomId,
+                            chunkId: ref.chunkId,
+                            documentTitle: ref.displayTitle,
+                            pageNumbers: ref.pageNumbers,
+                          ),
+                        ),
+              },
+            ),
+            if (sendError != null)
+              _SendErrorBanner(
+                error: sendError,
+                onDismiss: () => threadView.clearSendError(),
+              ),
+            if (attachEnabled)
+              UploadEventBanner(
+                tracker: _state.uploadTracker,
+                roomId: widget.roomId,
+                threadId: threadView.threadId,
+              ),
+            ChatInput(
+              onSend: (text) => threadView.sendMessage(
+                text,
+                _state.runtime,
+                stateOverlay: _buildStateOverlay(),
+              ),
+              onCancel: threadView.cancelRun,
+              sessionState: threadView.sessionState,
+              controller: _chatController,
+              focusNode: _chatFocusNode,
+              enabled: status is MessagesLoaded,
+              selectedDocuments: _selectedDocuments,
+              onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+              onDocumentRemoved: _filterEnabled
+                  ? (doc) => _updateSelection(
+                        Set.of(_selectedDocuments)..remove(doc),
+                      )
+                  : null,
+              onAttachFile: attachEnabled
+                  ? () => _pickAndUploadToThread(threadView.threadId)
+                  : null,
+            ),
+          ],
         ),
       ],
     );
@@ -983,6 +988,119 @@ class _SendErrorBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Zero-size widget that subscribes to [ThreadViewState.pendingApproval] and
+/// shows an approval dialog when a tool requests user consent.
+///
+/// Placed inside a [Stack] so it has no effect on layout.
+class _ApprovalHandler extends StatefulWidget {
+  const _ApprovalHandler({required this.threadView});
+  final ThreadViewState threadView;
+
+  @override
+  State<_ApprovalHandler> createState() => _ApprovalHandlerState();
+}
+
+class _ApprovalHandlerState extends State<_ApprovalHandler> {
+  void Function()? _unsub;
+  String? _activeToolCallId;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribe(widget.threadView);
+  }
+
+  @override
+  void didUpdateWidget(_ApprovalHandler oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.threadView != widget.threadView) {
+      _unsub?.call();
+      _activeToolCallId = null;
+      _subscribe(widget.threadView);
+    }
+  }
+
+  void _subscribe(ThreadViewState view) {
+    final signal = view.pendingApproval;
+    if (signal == null) return;
+    _unsub = signal.subscribe((request) {
+      if (request == null || request.toolCallId == _activeToolCallId) return;
+      _activeToolCallId = request.toolCallId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showDialog(request, view);
+      });
+    });
+  }
+
+  Future<void> _showDialog(
+    ApprovalRequest request,
+    ThreadViewState view,
+  ) async {
+    final ext = view.approvalExtension;
+    if (ext == null || !mounted) return;
+
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ApprovalDialog(request: request),
+    );
+    ext.respond(approved ?? false);
+    _activeToolCallId = null;
+  }
+
+  @override
+  void dispose() {
+    _unsub?.call();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _ApprovalDialog extends StatelessWidget {
+  const _ApprovalDialog({required this.request});
+  final ApprovalRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.security, color: theme.colorScheme.primary, size: 20),
+          const SizedBox(width: 8),
+          const Text('Tool Approval Required'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            request.toolName,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(request.rationale, style: theme.textTheme.bodyMedium),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Deny'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Allow'),
+        ),
+      ],
     );
   }
 }

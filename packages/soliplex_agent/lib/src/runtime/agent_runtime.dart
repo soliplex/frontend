@@ -10,7 +10,6 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
-import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
 import 'package:soliplex_agent/src/runtime/server_connection.dart';
 import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
@@ -54,7 +53,6 @@ class AgentRuntime {
     required Logger logger,
     AgentLlmProvider? llmProvider,
     SessionExtensionFactory? extensionFactory,
-    AgentUiDelegate? uiDelegate,
     this.maxSpawnDepth = 10,
     this.rootTimeout,
   })  : serverId = connection.serverId,
@@ -66,7 +64,6 @@ class AgentRuntime {
             ),
         _toolRegistryResolver = toolRegistryResolver,
         _extensionFactory = extensionFactory,
-        _uiDelegate = uiDelegate,
         _platform = platform,
         _logger = logger;
 
@@ -74,7 +71,6 @@ class AgentRuntime {
   final AgentLlmProvider _llmProvider;
   final ToolRegistryResolver _toolRegistryResolver;
   final SessionExtensionFactory? _extensionFactory;
-  final AgentUiDelegate? _uiDelegate;
   final PlatformConstraints _platform;
   final Logger _logger;
 
@@ -341,7 +337,6 @@ class AgentRuntime {
       orchestrator: orchestrator,
       toolRegistry: toolRegistry,
       coordinator: coordinator,
-      uiDelegate: _uiDelegate,
       logger: _logger,
     );
   }
