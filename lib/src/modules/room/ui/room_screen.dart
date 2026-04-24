@@ -29,6 +29,7 @@ import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import 'extension_state_panel.dart';
 import 'upload_event_banner.dart';
 import '../human_approval_extension.dart';
 import '../upload_tracker.dart';
@@ -908,6 +909,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 roomId: widget.roomId,
                 threadId: threadView.threadId,
               ),
+            ExtensionStatePanel(threadView: threadView),
             ChatInput(
               onSend: (text) => threadView.sendMessage(
                 text,
