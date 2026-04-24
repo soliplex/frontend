@@ -145,6 +145,14 @@ class ThreadViewState {
         ?.respond(request, approved);
   }
 
+  /// Returns `(namespace, signal)` pairs for every stateful extension on the
+  /// active session, or an empty iterable if no session is attached.
+  ///
+  /// Re-evaluate whenever [sessionState] changes.
+  Iterable<(String, ReadonlySignal<Object?>)> get statefulObservations =>
+      _activeSession.value?.statefulObservations() ??
+      const <(String, ReadonlySignal<Object?>)>[];
+
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
       _connection.api
