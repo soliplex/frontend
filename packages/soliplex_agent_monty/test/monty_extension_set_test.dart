@@ -1,6 +1,5 @@
-// See monty_extension_set.dart for why src/ imports are used.
-import 'package:dart_monty/src/extension/extension.dart' show MontyExtension;
-import 'package:dart_monty/src/extensions/defaults.dart' show defaultExtensions;
+import 'package:dart_monty/dart_monty_bridge.dart'
+    show MontyExtension, defaultExtensions;
 import 'package:soliplex_agent_monty/soliplex_agent_monty.dart';
 import 'package:test/test.dart';
 

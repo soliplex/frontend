@@ -1,11 +1,5 @@
-// dart_monty's public barrel currently has a broken re-export and
-// does not expose the bundled extension set. Until that's fixed
-// upstream, import the needed types directly from their implementation
-// files. The alternative barrel `dart_monty_bridge.dart` also works but
-// is named for internal bridge-layer use; prefer the specific imports.
-// ignore_for_file: implementation_imports
-import 'package:dart_monty/src/extension/extension.dart' show MontyExtension;
-import 'package:dart_monty/src/extensions/defaults.dart' show defaultExtensions;
+import 'package:dart_monty/dart_monty_bridge.dart'
+    show MontyExtension, defaultExtensions;
 
 /// Named collection of `dart_monty` extensions to load into a
 /// `MontyRuntime` instance bridged by `MontyRuntimeExtension`.
