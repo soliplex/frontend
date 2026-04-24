@@ -458,12 +458,18 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return Column(
       children: [
-        _buildRoomHeader(room, roomStatus, threadStatus),
-        if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
         Expanded(
-          child: threadView == null
-              ? _buildNoThreadBody(room)
-              : _buildThreadBody(threadView, room),
+          child: Column(
+            children: [
+              _buildRoomHeader(room, roomStatus, threadStatus),
+              if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
+              Expanded(
+                child: threadView == null
+                    ? _buildNoThreadBody(room)
+                    : _buildThreadBody(threadView, room),
+              ),
+            ],
+          ),
         ),
       ],
     );
