@@ -3,6 +3,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../../shared/file_type_icons.dart';
 import 'room_info_widgets.dart';
+import '../../../../../soliplex_frontend.dart';
 
 class DocumentsCard extends StatefulWidget {
   const DocumentsCard({
@@ -49,7 +50,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
           title = 'DOCUMENTS';
           children = [
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(SoliplexSpacing.s4),
               child: Center(child: CircularProgressIndicator()),
             ),
           ];
@@ -63,7 +64,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                   size: 18,
                   color: theme.colorScheme.error,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
                   child: Text(
                     'Failed to load documents',
@@ -97,7 +98,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
             children = [
               if (docs.length > 1)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
@@ -116,8 +117,8 @@ class _DocumentsCardState extends State<DocumentsCard> {
                       isDense: true,
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: SoliplexSpacing.s3,
+                        vertical: SoliplexSpacing.s2,
                       ),
                     ),
                     onChanged: (value) => setState(() => _searchQuery = value),
@@ -162,7 +163,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
       }),
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -172,7 +173,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                   getFileTypeIcon(documentIconPath(doc)),
                   size: 22,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
                   child: Text(
                     documentDisplayName(doc),
@@ -212,10 +213,10 @@ class _DocumentsCardState extends State<DocumentsCard> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
@@ -224,21 +225,22 @@ class _DocumentsCardState extends State<DocumentsCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('id', style: labelStyle),
-            const SizedBox(height: 2),
+            const SizedBox(height: SoliplexSpacing.s1),
             SelectableText(
               doc.id,
-              style: valueStyle?.copyWith(fontFamily: 'monospace'),
+              style: SoliplexTheme.mergeCode(context, valueStyle),
             ),
             if (doc.uri.isNotEmpty || dateFields.isNotEmpty)
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s2),
             if (doc.uri.isNotEmpty) ...[
               Text('uri', style: labelStyle),
-              const SizedBox(height: 2),
+              const SizedBox(height: SoliplexSpacing.s1),
               SelectableText(
                 doc.uri,
-                style: valueStyle?.copyWith(fontFamily: 'monospace'),
+                style: SoliplexTheme.mergeCode(context, valueStyle),
               ),
-              if (dateFields.isNotEmpty) const SizedBox(height: 8),
+              if (dateFields.isNotEmpty)
+                const SizedBox(height: SoliplexSpacing.s2),
             ],
             if (dateFields.isNotEmpty)
               Wrap(
@@ -252,7 +254,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(label, style: labelStyle),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: SoliplexSpacing.s1),
                           SelectableText(
                             value,
                             style: valueStyle,
@@ -269,8 +271,8 @@ class _DocumentsCardState extends State<DocumentsCard> {
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.labelSmall,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+                      horizontal: SoliplexSpacing.s4,
+                      vertical: SoliplexSpacing.s2,
                     ),
                   ),
                   onPressed: () => showDialog<void>(
@@ -331,7 +333,7 @@ class MetadataDialog extends StatelessWidget {
                   child: Card(
                     margin: EdgeInsets.zero,
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(SoliplexSpacing.s3),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -342,8 +344,9 @@ class MetadataDialog extends StatelessWidget {
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: SoliplexSpacing.s1),
                           formatDynamicValue(
+                            context,
                             entry.value,
                             style: theme.textTheme.bodySmall,
                           ),
@@ -352,7 +355,8 @@ class MetadataDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (entry.key != entries.last.key) const SizedBox(height: 8),
+                if (entry.key != entries.last.key)
+                  const SizedBox(height: SoliplexSpacing.s2),
               ],
             ],
           ),

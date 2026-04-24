@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../../auth/server_entry.dart';
-import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'room_card.dart';
 import 'server_sidebar.dart';
 
-const double _sidebarWidth = 240;
-const double _wideBreakpoint = 600;
+const double _sidebarWidth = 280;
+const double _wideBreakpoint = SoliplexBreakpoints.tablet;
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key, required this.serverManager});
@@ -216,7 +216,7 @@ class _RoomContent extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('No servers connected'),
-            const SizedBox(height: 16),
+            const SizedBox(height: SoliplexSpacing.s4),
             FilledButton(
               onPressed: onAddServer,
               child: const Text('Add Server'),
@@ -259,35 +259,63 @@ class _ServerSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final heading = serverUrl != null ? formatServerUrl(serverUrl!) : serverId;
+    final bool isMobile =
+        MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
+    final double horizontalPadding =
+        isMobile ? SoliplexSpacing.s5 : SoliplexSpacing.s9;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            heading,
-            style: Theme.of(context).textTheme.titleMedium,
+        SizedBox(
+          width: double.infinity,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              SoliplexSpacing.s4,
+              horizontalPadding,
+              SoliplexSpacing.s3,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: Text(
+              heading,
+              style: isMobile
+                  ? Theme.of(context).textTheme.headlineSmall
+                  : Theme.of(context).textTheme.headlineLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
         switch (serverRooms) {
           RoomsLoading() => const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s9),
               child: LinearProgressIndicator(),
             ),
           RoomsFailed(:final error) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s9),
               child: Text('Failed to load rooms: $error'),
             ),
-          RoomsLoaded(:final rooms) => Column(
-              children: [
-                for (final room in rooms)
-                  RoomCard(
-                    room: room,
-                    onTap: () => onRoomTap(serverId, room.id),
-                    onInfoTap: () => onInfoTap(serverId, room.id),
-                  ),
-              ],
+          RoomsLoaded(:final rooms) => Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Column(
+                children: [
+                  for (final room in rooms)
+                    RoomCard(
+                      room: room,
+                      onTap: () => onRoomTap(serverId, room.id),
+                      onInfoTap: () => onInfoTap(serverId, room.id),
+                    ),
+                ],
+              ),
             ),
         },
       ],

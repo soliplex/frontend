@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../soliplex_frontend.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 
 class RoomWelcome extends StatelessWidget {
@@ -32,20 +33,17 @@ class RoomWelcome extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(SoliplexSpacing.s8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (currentRoom.name.isNotEmpty)
               Text(
                 currentRoom.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.headlineLarge,
                 textAlign: TextAlign.center,
               ),
             if (currentRoom.hasWelcomeMessage) ...[
-              const SizedBox(height: 8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: FlutterMarkdownPlusRenderer(
@@ -54,12 +52,12 @@ class RoomWelcome extends StatelessWidget {
               ),
             ],
             if (currentRoom.hasSuggestions) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SoliplexSpacing.s6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: SoliplexSpacing.s2,
+                  runSpacing: SoliplexSpacing.s2,
                   alignment: WrapAlignment.center,
                   children: [
                     for (final suggestion in currentRoom.suggestions)
@@ -74,7 +72,7 @@ class RoomWelcome extends StatelessWidget {
               ),
             ],
             if (currentRoom.hasQuizzes) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SoliplexSpacing.s6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Column(
@@ -84,25 +82,32 @@ class RoomWelcome extends StatelessWidget {
                       children: [
                         Icon(Icons.quiz,
                             size: 20, color: theme.colorScheme.primary),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: SoliplexSpacing.s2),
                         Text(
                           currentRoom.quizzes.length == 1
                               ? 'Quiz Available'
                               : '${currentRoom.quizzes.length} Quizzes Available',
-                          style: theme.textTheme.titleSmall,
+                          style: theme.textTheme.titleMedium,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: SoliplexSpacing.s2),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: SoliplexSpacing.s2,
+                      runSpacing: SoliplexSpacing.s2,
                       alignment: WrapAlignment.center,
                       children: [
                         for (final entry in currentRoom.quizzes.entries)
                           ActionChip(
-                            avatar: const Icon(Icons.play_arrow, size: 16),
+                            avatar: Icon(Icons.play_arrow,
+                                size: 16, color: theme.colorScheme.onPrimary),
                             label: Text(entry.value),
+                            labelStyle: TextStyle(
+                              color: theme.colorScheme.onPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            backgroundColor: theme.colorScheme.primary,
+                            side: BorderSide.none,
                             onPressed: onQuizTapped != null
                                 ? () => onQuizTapped!(entry.key)
                                 : null,
@@ -136,7 +141,8 @@ class _SuggestionChip extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+                horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s1),
             decoration: BoxDecoration(
               border: Border.all(color: theme.colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8),

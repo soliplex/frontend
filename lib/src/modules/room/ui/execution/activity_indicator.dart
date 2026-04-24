@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import '../../../../../soliplex_frontend.dart';
 
 class ActivityIndicator extends StatelessWidget {
   const ActivityIndicator({super.key, required this.activity});
@@ -9,15 +10,15 @@ class ActivityIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Row(
         children: [
           const SizedBox(
-            width: 16,
-            height: 16,
+            width: SoliplexSpacing.s4,
+            height: SoliplexSpacing.s4,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Text(
             _label,
             style: theme.textTheme.bodySmall?.copyWith(

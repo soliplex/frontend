@@ -26,7 +26,9 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   flutter_svg: ^2.0.17
   go_router: ^17.2.0
+  google_fonts: ^8.0.2
   markdown: ^7.0.0
+  meta: ^1.17.0
   shared_preferences: ^2.5.5
   signals_flutter: ^6.3.0
   file_picker: ^11.0.0
@@ -67,6 +69,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/soliplex/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: fonts/Inter-VariableFont_opsz,wght.ttf
+        - asset: fonts/Inter-Italic-VariableFont_opsz,wght.ttf
+          style: italic
 
 flutter_native_splash:
   color: "#424242"

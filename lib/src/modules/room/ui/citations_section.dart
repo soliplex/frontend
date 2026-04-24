@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'markdown/flutter_markdown_plus_renderer.dart';
+import '../../../../soliplex_frontend.dart';
 
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
@@ -30,12 +31,13 @@ class _CitationsSectionState extends State<CitationsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         InkWell(
           onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
           borderRadius: BorderRadius.circular(8),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            padding: const EdgeInsets.symmetric(
+                vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -47,14 +49,14 @@ class _CitationsSectionState extends State<CitationsSection> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: SoliplexSpacing.s1),
                 Text(
                   '$count source${count == 1 ? '' : 's'}',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 Icon(
                   _sectionExpanded ? Icons.expand_less : Icons.expand_more,
                   size: 16,
@@ -65,7 +67,7 @@ class _CitationsSectionState extends State<CitationsSection> {
           ),
         ),
         if (_sectionExpanded) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: SoliplexSpacing.s1),
           ...List.generate(widget.sourceReferences.length, (index) {
             final ref = widget.sourceReferences[index];
             return _SourceReferenceRow(
@@ -108,7 +110,7 @@ class _SourceReferenceRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -116,12 +118,12 @@ class _SourceReferenceRow extends StatelessWidget {
             onTap: onToggle,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
               child: Row(
                 children: [
                   Container(
-                    width: 24,
-                    height: 24,
+                    width: SoliplexSpacing.s6,
+                    height: SoliplexSpacing.s6,
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(6),
@@ -135,7 +137,7 @@ class _SourceReferenceRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   Expanded(
                     child: Text(
                       sourceReference.displayTitle,
@@ -145,7 +147,7 @@ class _SourceReferenceRow extends StatelessWidget {
                     ),
                   ),
                   if (sourceReference.formattedPageNumbers != null) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: SoliplexSpacing.s1),
                     Text(
                       sourceReference.formattedPageNumbers!,
                       style: theme.textTheme.labelSmall?.copyWith(
@@ -170,13 +172,14 @@ class _SourceReferenceRow extends StatelessWidget {
 
   Widget _buildExpandedContent(BuildContext context, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(left: 32, bottom: 8),
+      padding: const EdgeInsets.only(
+          left: SoliplexSpacing.s8, bottom: SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (sourceReference.headings.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
               child: Text(
                 sourceReference.headings.join(' > '),
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -189,7 +192,7 @@ class _SourceReferenceRow extends StatelessWidget {
           if (sourceReference.content.isNotEmpty)
             Container(
               constraints: const BoxConstraints(maxHeight: 250),
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
@@ -206,7 +209,7 @@ class _SourceReferenceRow extends StatelessWidget {
             ),
           if (sourceReference.documentUri.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
               child: Text(
                 sourceReference.documentUri,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -218,13 +221,14 @@ class _SourceReferenceRow extends StatelessWidget {
             ),
           if (sourceReference.isPdf && onShowChunkVisualization != null)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
               child: TextButton.icon(
                 onPressed: () => onShowChunkVisualization!(sourceReference),
                 icon: const Icon(Icons.picture_as_pdf, size: 16),
                 label: const Text('View in PDF'),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: SoliplexSpacing.s2),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),

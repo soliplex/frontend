@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
@@ -9,19 +10,21 @@ void main() {
     Map<String, String> quizzes = const {},
     void Function(String)? onQuizTapped,
   }) {
-    return MaterialApp(
-      home: Scaffold(
-        body: ThreadSidebar(
-          threadListStatus: ThreadsLoaded(const []),
-          selectedThreadId: null,
-          onThreadSelected: (_) {},
-          onBackToLobby: () {},
-          onCreateThread: () {},
-          onNetworkInspector: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
-          quizzes: quizzes,
-          onQuizTapped: onQuizTapped,
+    return ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: ThreadSidebar(
+            threadListStatus: ThreadsLoaded(const []),
+            selectedThreadId: null,
+            onThreadSelected: (_) {},
+            onBackToLobby: () {},
+            onCreateThread: () {},
+            onNetworkInspector: () {},
+            onRoomInfo: () {},
+            roomName: 'Test Room',
+            quizzes: quizzes,
+            onQuizTapped: onQuizTapped,
+          ),
         ),
       ),
     );

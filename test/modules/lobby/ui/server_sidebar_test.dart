@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -21,14 +22,16 @@ Widget _buildSidebar({
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
 }) {
-  return MaterialApp(
-    home: Scaffold(
-      body: ServerSidebar(
-        servers: servers,
-        profiles: profiles,
-        onServerTap: onServerTap ?? () {},
-        onAddServer: onAddServer ?? () {},
-        onNetworkInspector: onNetworkInspector ?? () {},
+  return ProviderScope(
+    child: MaterialApp(
+      home: Scaffold(
+        body: ServerSidebar(
+          servers: servers,
+          profiles: profiles,
+          onServerTap: onServerTap ?? () {},
+          onAddServer: onAddServer ?? () {},
+          onNetworkInspector: onNetworkInspector ?? () {},
+        ),
       ),
     ),
   );

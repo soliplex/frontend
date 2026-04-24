@@ -1,8 +1,6 @@
-export 'color/color_scheme_extensions.dart';
 export 'theme/theme.dart';
 export 'theme/theme_extensions.dart';
 export 'tokens/breakpoints.dart';
-export 'tokens/colors.dart';
 export 'tokens/radii.dart';
 export 'tokens/spacing.dart';
 export 'tokens/typography.dart';

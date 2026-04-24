@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
+import '../../../../../soliplex_frontend.dart';
 import '../../compute_display_messages.dart' show loadingMessageId;
 import '../../execution_tracker.dart';
 import '../../message_expansions.dart' show MessageExpansion;
@@ -71,11 +72,12 @@ class _ExecutionThinkingBlockState
     if (thinkingBlocks.isEmpty && !isStreaming) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: GestureDetector(
         onTap: _toggle,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
@@ -94,7 +96,7 @@ class _ExecutionThinkingBlockState
                     size: 16,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: SoliplexSpacing.s1),
                   Text(
                     thinkingBlocks.length > 1
                         ? 'Thinking (${thinkingBlocks.length})'
@@ -105,7 +107,7 @@ class _ExecutionThinkingBlockState
                     ),
                   ),
                   if (isStreaming) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: SoliplexSpacing.s2),
                     SizedBox(
                       width: 10,
                       height: 10,
@@ -124,10 +126,10 @@ class _ExecutionThinkingBlockState
                 ],
               ),
               if (_expanded) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: SoliplexSpacing.s1),
                 for (var i = 0; i < thinkingBlocks.length; i++) ...[
                   if (thinkingBlocks[i].isNotEmpty) ...[
-                    if (i > 0) const SizedBox(height: 8),
+                    if (i > 0) const SizedBox(height: SoliplexSpacing.s2),
                     Text(
                       thinkingBlocks[i],
                       style: theme.textTheme.bodySmall?.copyWith(

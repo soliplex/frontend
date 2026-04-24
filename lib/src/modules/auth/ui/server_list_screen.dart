@@ -2,6 +2,9 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../design/theme/theme_extensions.dart';
+import '../../../shared/theme_toggle_button.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
     show fetchOidcDiscoveryDocument;
@@ -47,6 +50,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Servers'),
+        titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
         automaticallyImplyLeading: false,
         actions: [
           TextButton(
@@ -58,6 +62,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
               onPressed: () => context.go('/lobby'),
               child: const Text('Lobby'),
             ),
+          const ThemeToggleButton(),
         ],
       ),
       body: ListView(

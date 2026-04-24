@@ -13,6 +13,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         SourceReferenceFormatting,
         buildDocumentFilter,
         buildRagDocumentFilterOverlay;
+
+import '../../../../soliplex_frontend.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -38,8 +40,8 @@ import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 
-const double _sidebarWidth = 300;
-const double _wideBreakpoint = 600;
+const double _sidebarWidth = 280;
+const double _wideBreakpoint = SoliplexBreakpoints.tablet;
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -385,6 +387,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
               ),
               title: Text(roomName),
+              titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
             ),
             drawer: Drawer(
               child: Builder(
@@ -477,26 +480,46 @@ class _RoomScreenState extends State<RoomScreen> {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
     final chip = _buildChipSegment(roomStatus, threadStatus, theme);
+    final bool isMobile =
+        MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
+    final double horizontalPadding =
+        isMobile ? SoliplexSpacing.s5 : SoliplexSpacing.s9;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              roomName,
-              style: theme.textTheme.titleMedium,
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: SoliplexSpacing.s3,
+        ),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: theme.colorScheme.outlineVariant,
+              width: 2,
             ),
           ),
-          if (chip != null)
-            Material(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
-              child: chip,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                roomName,
+                style: isMobile
+                    ? theme.textTheme.headlineSmall
+                    : theme.textTheme.headlineLarge,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-        ],
+            if (chip != null)
+              Material(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(20),
+                clipBehavior: Clip.antiAlias,
+                child: chip,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -528,19 +551,19 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyUploadFailed = all.any((e) => e is FailedUpload);
     final color = (anyFailed || anyUploadFailed)
         ? theme.colorScheme.error
-        : theme.colorScheme.onSecondaryContainer;
+        : theme.colorScheme.primary;
 
     final Widget leading;
     if (anyLoading || anyPending) {
       leading = SizedBox(
-        width: 14,
-        height: 14,
+        width: SoliplexSpacing.s5,
+        height: SoliplexSpacing.s5,
         child: CircularProgressIndicator(strokeWidth: 2, color: color),
       );
     } else if (anyFailed || anyUploadFailed) {
-      leading = Icon(Icons.error_outline, size: 16, color: color);
+      leading = Icon(Icons.error_outline, size: 20, color: color);
     } else {
-      leading = Icon(Icons.attach_file, size: 16, color: color);
+      leading = Icon(Icons.attach_file, size: 20, color: color);
     }
 
     final label = (roomFiles != null && threadFiles != null)
@@ -555,15 +578,14 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             leading,
-            const SizedBox(width: 6),
+            const SizedBox(width: SoliplexSpacing.s1),
             Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(color: color),
+              style: theme.textTheme.bodyMedium?.copyWith(color: color),
             ),
-            const SizedBox(width: 2),
             Icon(
               _filesExpanded ? Icons.expand_less : Icons.expand_more,
-              size: 16,
+              size: 20,
               color: color,
             ),
           ],
@@ -594,14 +616,10 @@ class _RoomScreenState extends State<RoomScreen> {
         threadStatus is UploadsLoaded;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(8),
-        ),
+        padding: const EdgeInsets.all(SoliplexSpacing.s2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -620,7 +638,7 @@ class _RoomScreenState extends State<RoomScreen> {
               // a section row), or Loaded with at least one file.
               if (_scopeRendersContent(roomStatus) &&
                   _scopeRendersContent(threadStatus))
-                const Divider(height: 12),
+                const SizedBox(height: SoliplexSpacing.s4),
               _buildScopeSection('Thread', threadStatus, theme),
             ],
           ],
@@ -677,10 +695,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _sectionLabel(String label, ThemeData theme) {
     return Text(
       label.toUpperCase(),
-      style: theme.textTheme.labelSmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-        letterSpacing: 0.5,
-      ),
+      style: theme.textTheme.labelMedium,
     );
   }
 
@@ -706,61 +721,68 @@ class _RoomScreenState extends State<RoomScreen> {
     final dismissId = entry is FailedUpload ? entry.id : null;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: isFailed
-          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
-          : null,
-      decoration: isFailed
-          ? BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(6),
-            )
-          : null,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(icon, size: 16, color: color)
-          else
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: color),
-            ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.filename,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isFailed ? theme.colorScheme.onErrorContainer : null,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (errorMessage != null)
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant,
+          ),
+          left: BorderSide(
+            color:
+                isFailed ? theme.colorScheme.error : theme.colorScheme.surface,
+            width: 4,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
+        child: Row(
+          children: [
+            if (icon != null)
+              Icon(icon, size: 16, color: color)
+            else
+              SizedBox(
+                width: SoliplexSpacing.s4,
+                height: SoliplexSpacing.s4,
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              ),
+            const SizedBox(width: SoliplexSpacing.s2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    errorMessage,
+                    entry.filename,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                      fontSize: 11,
+                      color:
+                          isFailed ? theme.colorScheme.onErrorContainer : null,
                     ),
-                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                  if (errorMessage != null)
+                    Text(
+                      errorMessage,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
             ),
-          ),
-          if (dismissible && dismissId != null)
-            IconButton(
-              icon: const Icon(Icons.close, size: 14),
-              color: theme.colorScheme.onErrorContainer,
-              onPressed: () => _state.uploadTracker.dismissFailed(dismissId),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
+            if (dismissible && dismissId != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 14),
+                color: theme.colorScheme.onErrorContainer,
+                onPressed: () => _state.uploadTracker.dismissFailed(dismissId),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -933,7 +955,7 @@ class _RoomScreenState extends State<RoomScreen> {
           Icon(Icons.chat_bubble_outline,
               size: 48,
               color: theme.colorScheme.outline.withValues(alpha: 0.3)),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             'Type a message to get started',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -957,12 +979,13 @@ class _SendErrorBanner extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       color: theme.colorScheme.errorContainer,
       child: Row(
         children: [
           Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               error.error.toString(),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
+import '../../../shared/theme_toggle_button.dart';
 import '../../auth/server_entry.dart';
 import '../lobby_state.dart';
 
@@ -32,7 +34,7 @@ class ServerSidebar extends StatelessWidget {
             onAddServer: onAddServer,
           ),
         ),
-        const Divider(height: 1),
+        const Divider(),
         _ActionButtons(
           onAddServer: onAddServer,
           onNetworkInspector: onNetworkInspector,
@@ -60,27 +62,32 @@ class _ServerList extends StatelessWidget {
     return ListView(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Servers (${servers.length})',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s5, SoliplexSpacing.s4, 0, SoliplexSpacing.s3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Servers (${servers.length})',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
+              ),
+              const ThemeToggleButton(),
+            ],
           ),
         ),
+        const Divider(),
         for (final entry in servers.entries)
           _ServerTile(
             entry: entry.value,
             profile: profiles[entry.key],
             onTap: onServerTap,
           ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: OutlinedButton.icon(
-            onPressed: onAddServer,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add Server'),
-          ),
+        TextButton.icon(
+          onPressed: onAddServer,
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add Server'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
       ],
     );
@@ -133,13 +140,18 @@ class _ActionButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextButton(
+        TextButton.icon(
           onPressed: onAddServer,
-          child: const Text('Home'),
+          icon: const Icon(Icons.home, size: 16),
+          label: const Text('Home'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
-        TextButton(
+        const Divider(),
+        TextButton.icon(
           onPressed: onNetworkInspector,
-          child: const Text('Network Inspector'),
+          icon: const Icon(Icons.lan, size: 16),
+          label: const Text('Network Inspector'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
       ],
     );

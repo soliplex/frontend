@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
+import '../../../shared/theme_toggle_button.dart';
 import '../thread_list_state.dart';
 import 'error_retry_panel.dart';
 import 'thread_tile.dart';
@@ -38,64 +40,70 @@ class ThreadSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Row(
+    final bool isMobile =
+        MediaQuery.sizeOf(context).width < SoliplexBreakpoints.tablet;
+    final double verticalPadding =
+        isMobile ? SoliplexSpacing.s5 : SoliplexSpacing.s8;
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
               TextButton.icon(
                 onPressed: onBackToLobby,
-                icon: const Icon(Icons.arrow_back, size: 16),
+                icon: const Icon(Icons.arrow_back, size: 24),
                 label: const Text('Lobby'),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  visualDensity: VisualDensity.compact,
+                  alignment: Alignment.centerLeft,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  padding: EdgeInsets.fromLTRB(
+                    SoliplexSpacing.s2,
+                    verticalPadding,
+                    SoliplexSpacing.s4,
+                    verticalPadding,
+                  ),
+                  textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        height: isMobile ? 1.7 : 1.4,
+                      ),
                 ),
               ),
               const Spacer(),
-              TextButton.icon(
+              const ThemeToggleButton(),
+              IconButton(
                 onPressed: onCreateThread,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('New Thread'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  visualDensity: VisualDensity.compact,
-                ),
+                icon: const Icon(Icons.add, size: 24),
+                tooltip: 'New Thread',
               ),
             ],
           ),
-        ),
-        const Divider(height: 1),
-        if (quizzes.isNotEmpty) ...[
-          _QuizRow(
-            quizzes: quizzes,
-            onQuizTapped: onQuizTapped,
+          const Divider(),
+          if (quizzes.isNotEmpty) ...[
+            _QuizRow(
+              quizzes: quizzes,
+              onQuizTapped: onQuizTapped,
+            ),
+            const Divider(),
+          ],
+          Expanded(child: _buildContent(context)),
+          const Divider(),
+          TextButton.icon(
+            onPressed: onRoomInfo,
+            icon: const Icon(Icons.info_outline, size: 16),
+            label: Text(roomName),
+            style: TextButton.styleFrom(alignment: Alignment.centerLeft),
           ),
-          const Divider(height: 1),
+          const Divider(),
+          TextButton.icon(
+            onPressed: onNetworkInspector,
+            icon: const Icon(Icons.lan, size: 16),
+            label: const Text('Network Inspector'),
+            style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+          ),
         ],
-        Expanded(child: _buildContent(context)),
-        const Divider(height: 1),
-        TextButton.icon(
-          onPressed: onRoomInfo,
-          icon: const Icon(Icons.info_outline, size: 16),
-          label: Text(roomName),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
-        TextButton.icon(
-          onPressed: onNetworkInspector,
-          icon: const Icon(Icons.http, size: 16),
-          label: const Text('Network Inspector'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -103,7 +111,7 @@ class ThreadSidebar extends StatelessWidget {
     return switch (threadListStatus) {
       ThreadsLoading() => const Center(child: CircularProgressIndicator()),
       ThreadsFailed(:final error) => Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: ErrorRetryPanel(
             title: 'Failed to load threads',
             error: error,
@@ -116,7 +124,7 @@ class ThreadSidebar extends StatelessWidget {
                   children: const [
                     Center(
                         child: Padding(
-                      padding: EdgeInsets.only(top: 32),
+                      padding: EdgeInsets.only(top: SoliplexSpacing.s8),
                       child: Text('No threads'),
                     )),
                   ],
@@ -207,10 +215,6 @@ class _QuizRowState extends State<_QuizRow> {
       icon: Icon(icon, size: 16),
       label: Text(label),
       style: TextButton.styleFrom(
-        padding: EdgeInsets.symmetric(
-          horizontal: indent ? 24 : 8,
-        ),
-        visualDensity: VisualDensity.compact,
         alignment: Alignment.centerLeft,
       ),
     );

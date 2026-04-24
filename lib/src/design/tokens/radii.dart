@@ -22,4 +22,4 @@ class SoliplexRadii {
   final double xl;
 }
 
-const soliplexRadii = SoliplexRadii(sm: 6, md: 12, lg: 16, xl: 24);
+const soliplexRadii = SoliplexRadii(sm: 2, md: 8, lg: 12, xl: 20);

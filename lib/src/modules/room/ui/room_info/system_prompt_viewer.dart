@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../soliplex_frontend.dart';
 import '../../../../shared/copy_button.dart';
 
 class SystemPromptViewer extends StatefulWidget {
@@ -21,7 +22,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -41,12 +42,13 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
               ),
             ],
           ),
+          const SizedBox(height: SoliplexSpacing.s2),
           LayoutBuilder(
             builder: (context, constraints) {
-              final promptStyle = theme.textTheme.bodyMedium?.copyWith(
-                fontFamily: 'monospace',
-                fontSize: 14,
-              );
+              final promptStyle = SoliplexTheme.mergeCode(
+                context,
+                theme.textTheme.bodyMedium,
+              ).copyWith(fontSize: 14);
               const containerPadding = 16.0;
               final overflows = !_expanded &&
                   (TextPainter(
@@ -67,10 +69,9 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(SoliplexSpacing.s2),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: SelectableText(
                       widget.prompt,

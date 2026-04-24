@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
+import '../../../shared/theme_toggle_button.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
 import '../network_inspector.dart';
@@ -30,6 +32,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text('Requests (${sortedGroups.length})'),
+            titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_outline),
@@ -42,6 +45,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                       },
                 tooltip: 'Clear all requests',
               ),
+              const ThemeToggleButton(),
             ],
           ),
           body: Column(
@@ -81,14 +85,14 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             size: 64,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           Text(
             'No HTTP requests yet',
             style: theme.textTheme.titleMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           Text(
             'Requests will appear here as you use the app',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -102,9 +106,9 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
 
   Widget _buildListLayout(BuildContext context, List<HttpEventGroup> groups) {
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
       itemCount: groups.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, __) => const Divider(),
       itemBuilder: (context, index) {
         final group = groups[index];
         return HttpEventTile(
@@ -137,9 +141,9 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
               ),
             ),
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
               itemCount: groups.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, __) => const Divider(),
               itemBuilder: (context, index) {
                 final group = groups[index];
                 final isSelected = group.requestId == effectiveId;
@@ -176,7 +180,10 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(group.pathWithQuery)),
+          appBar: AppBar(
+            title: Text(group.pathWithQuery),
+            titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
+          ),
           body: RequestDetailView(group: group),
         ),
       ),

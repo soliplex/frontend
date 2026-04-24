@@ -4,9 +4,11 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
-import '../design/design.dart';
+import '../core/models/font_config.dart';
+import '../core/models/theme_config.dart';
 import '../core/shell_config.dart';
 import '../core/signal_listenable.dart';
+import '../design/design.dart';
 import '../interfaces/auth_state.dart';
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
@@ -24,54 +26,24 @@ import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
-import '../modules/room/ui/markdown/markdown_theme_extension.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
 
-ThemeData _defaultTheme() {
-  final base = soliplexLightTheme();
-  final colorScheme = base.colorScheme;
-  final textTheme = base.textTheme;
-  final colors = base.extension<SoliplexTheme>()!.colors;
-
-  return base.copyWith(
-    extensions: [
-      ...base.extensions.values,
-      MarkdownThemeExtension(
-        h1: textTheme.titleLarge,
-        h2: textTheme.titleMedium,
-        h3: textTheme.titleSmall,
-        body: textTheme.bodyMedium,
-        code: textTheme.bodyMedium?.copyWith(
-          backgroundColor: colorScheme.surfaceContainerHighest,
-        ),
-        link: TextStyle(
-          color: colors.link,
-          decoration: TextDecoration.underline,
-          decorationColor: colors.link,
-        ),
-        codeBlockDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        blockquoteDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          border: Border(
-            left: BorderSide(
-              color: colorScheme.outlineVariant,
-              width: 3,
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-}
+/// Default font configuration.
+///
+/// - Inter: bundled asset (body text)
+/// - Oswald: resolved via google_fonts (display text)
+/// - Squada One: resolved via google_fonts (brand text)
+const _defaultFontConfig = FontConfig(
+  bodyFont: FontFamilies.body,
+  displayFont: FontFamilies.display,
+  brandFont: FontFamilies.brand,
+);
 
 Future<ShellConfig> standard({
   String appName = 'Soliplex',
-  ThemeData? theme,
+  ThemeConfig? themeConfig,
   String redirectScheme = 'ai.soliplex.client',
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
@@ -141,7 +113,14 @@ Future<ShellConfig> standard({
   return ShellConfig(
     appName: appName,
     logo: logo,
-    theme: theme ?? _defaultTheme(),
+    theme: soliplexLightTheme(
+      colorConfig: themeConfig?.colorConfig,
+      fontConfig: themeConfig?.fontConfig ?? _defaultFontConfig,
+    ),
+    darkTheme: soliplexDarkTheme(
+      colorConfig: themeConfig?.colorConfig,
+      fontConfig: themeConfig?.fontConfig ?? _defaultFontConfig,
+    ),
     initialRoute: callbackParams is! NoCallbackParams
         ? '/auth/callback'
         : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),

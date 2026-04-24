@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../soliplex_frontend.dart';
+
 class ToolCallTile extends StatelessWidget {
   const ToolCallTile({super.key, required this.message});
   final ToolCallMessage message;
@@ -25,7 +27,7 @@ class _ToolCallCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: ExpansionTile(
         leading: Icon(Icons.bolt, color: theme.colorScheme.primary, size: 18),
         title: Row(
@@ -39,7 +41,7 @@ class _ToolCallCard extends StatelessWidget {
                     ?.copyWith(fontWeight: FontWeight.w500),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             Text(
               toolCall.status.name,
               style: theme.textTheme.labelSmall?.copyWith(
@@ -79,10 +81,10 @@ class _CodeBlock extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: SoliplexSpacing.s1),
           SelectableText(
             text,
-            style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+            style: SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
           ),
         ],
       ),

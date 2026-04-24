@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import '../../../../soliplex_frontend.dart';
 
 enum _ThreadAction { rename, delete }
 
@@ -48,7 +49,7 @@ class _ThreadTileState extends State<ThreadTile> {
       onExit: (_) => setState(() => _isHovered = false),
       child: ListTile(
         selected: widget.isSelected,
-        selectedTileColor: theme.colorScheme.primaryContainer,
+        textColor: theme.colorScheme.onSurfaceVariant,
         title: Text(
           widget.thread.hasName ? widget.thread.name : 'New Thread',
           maxLines: 1,
@@ -97,7 +98,7 @@ class _ThreadTileState extends State<ThreadTile> {
           child: Row(
             children: [
               Icon(Icons.edit_outlined, size: 18),
-              SizedBox(width: 12),
+              SizedBox(width: SoliplexSpacing.s3),
               Text('Rename'),
             ],
           ),
@@ -108,7 +109,7 @@ class _ThreadTileState extends State<ThreadTile> {
             children: [
               Icon(Icons.delete_outline,
                   size: 18, color: theme.colorScheme.error),
-              SizedBox(width: 12),
+              SizedBox(width: SoliplexSpacing.s3),
               Text('Delete', style: TextStyle(color: theme.colorScheme.error)),
             ],
           ),
