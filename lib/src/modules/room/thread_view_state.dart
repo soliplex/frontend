@@ -6,6 +6,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
+import 'tool_calls_extension.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
 import 'session_spawner.dart';
@@ -116,6 +117,11 @@ class ThreadViewState {
     if (ext == null) return Map.unmodifiable(_historicalTrackers);
     return {..._historicalTrackers, ...ext.trackers};
   }
+
+  /// Live tool call statuses from the active session, or null if no session
+  /// is attached.
+  ReadonlySignal<List<ToolCallEntry>>? get toolCalls =>
+      _activeSession?.getExtension<ToolCallsExtension>()?.stateSignal;
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
