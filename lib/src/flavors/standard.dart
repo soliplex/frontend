@@ -22,6 +22,7 @@ import '../modules/lobby/lobby_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/execution_tracker_extension.dart';
+import '../modules/room/tool_calls_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
@@ -133,7 +134,10 @@ Future<ShellConfig> standard({
         : const NativePlatformConstraints(),
     toolRegistryResolver: (_) async => const ToolRegistry(),
     logger: LogManager.instance.getLogger('room'),
-    extensionFactory: () async => [ExecutionTrackerExtension()],
+    extensionFactory: () async => [
+      ExecutionTrackerExtension(),
+      ToolCallsExtension(),
+    ],
   );
 
   final registry = RunRegistry();
