@@ -11,6 +11,7 @@ environment:
 
 workspace:
   - packages/soliplex_agent
+  - packages/soliplex_agent_monty
   - packages/soliplex_client
   - packages/soliplex_client_native
   - packages/soliplex_logging

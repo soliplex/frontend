@@ -1,0 +1,21 @@
+name: soliplex_agent_monty
+description: dart_monty bridge for the soliplex_agent session coordinator.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  # NOTE: Local path dep during development. Swap to a pinned git ref
+  # (commit SHA) before the feature flag ships to users.
+  dart_monty:
+    path: ../../../dart_monty
+  signals_core: ^6.2.0
+  soliplex_agent:
+    path: ../soliplex_agent
+
+dev_dependencies:
+  test: ^1.24.0
+  very_good_analysis: ^10.0.0
