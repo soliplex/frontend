@@ -136,19 +136,52 @@ jobs:
     needs: [lint]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      # Exercise both the tree-shake case and the monty-enabled case so
+      # the regression surface is small: MONTY_ENABLED=false proves the
+      # compile-time gate still keeps dart_monty out of the release
+      # binary; MONTY_ENABLED=true proves the two-package asset wiring
+      # (dart_monty_core under flutter.assets) still resolves.
+      fail-fast: false
+      matrix:
+        monty: [false, true]
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup Dart environment
         uses: ./.github/actions/setup-dart-env
 
-      - name: Build web
-        run: flutter build web --release
+      - name: Build web (MONTY_ENABLED=${{ matrix.monty }})
+        run: flutter build web --release --dart-define=MONTY_ENABLED=${{ matrix.monty }}
+
+      - name: Verify tree-shake (MONTY_ENABLED=false only)
+        if: matrix.monty == false
+        run: |
+          # dart_monty symbols must not appear in the compiled bundle when
+          # the flag is off — otherwise the compile-time gate is broken.
+          if grep -q "DartMontyBridge\|run_python_on_device\|MontyRuntime" build/web/main.dart.js; then
+            echo "::error::Tree-shake boundary broken: dart_monty symbols found in MONTY_ENABLED=false bundle."
+            echo "Something is referencing monty unconditionally."
+            exit 1
+          fi
+          echo "::notice::Tree-shake verified — no dart_monty symbols in main.dart.js"
+
+      - name: Verify monty assets bundled (MONTY_ENABLED=true only)
+        if: matrix.monty == true
+        run: |
+          for f in dart_monty_core_bridge.js dart_monty_core_worker.js dart_monty_core_native.wasm; do
+            if [ ! -f "build/web/assets/packages/dart_monty_core/assets/$f" ]; then
+              echo "::error::Missing bundled asset: $f"
+              exit 1
+            fi
+          done
+          echo "::notice::All three dart_monty_core assets bundled at expected URL paths"
 
       - name: Upload web artifact
+        if: matrix.monty == true
         uses: actions/upload-artifact@v7
         with:
-          name: web-build
+          name: web-build-monty-enabled
           path: build/web/
           retention-days: 7
 
