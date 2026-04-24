@@ -17,43 +17,29 @@ ServerManager _createServerManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-void main() {
-  group('authModule', () {
-    test('contributes routes for /, /servers, /auth/callback', () {
-      final serverManager = _createServerManager();
-      final contribution = authModule(
-        serverManager: serverManager,
-        authFlow: FakeAuthFlow(),
-        probeClient: FakeHttpClient(),
-        appName: 'Soliplex',
-      );
+AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
+      serverManager: serverManager ?? _createServerManager(),
+      probeClient: FakeHttpClient(),
+      authFlow: FakeAuthFlow(),
+      appName: 'Soliplex',
+    );
 
+void main() {
+  group('AuthAppModule', () {
+    test('contributes routes for /, /servers, /auth/callback', () {
+      final contribution = _createModule().build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
       expect(paths, containsAll(['/', '/servers', '/auth/callback']));
     });
 
     test('contributes a redirect', () {
-      final serverManager = _createServerManager();
-      final contribution = authModule(
-        serverManager: serverManager,
-        authFlow: FakeAuthFlow(),
-        probeClient: FakeHttpClient(),
-        appName: 'Soliplex',
-      );
-
+      final contribution = _createModule().build();
       expect(contribution.redirect, isNotNull);
     });
 
     test('contributes overrides for required providers', () {
-      final serverManager = _createServerManager();
-      final contribution = authModule(
-        serverManager: serverManager,
-        authFlow: FakeAuthFlow(),
-        probeClient: FakeHttpClient(),
-        appName: 'Soliplex',
-      );
-
+      final contribution = _createModule().build();
       // At minimum: serverManager, authFlow, probeClient.
       // Optional overrides only added when non-null.
       expect(contribution.overrides, isNotEmpty);
@@ -62,16 +48,11 @@ void main() {
 
   group('auth redirect', () {
     late ServerManager serverManager;
+    late AuthAppModule module;
     late GoRouter router;
 
     Widget buildApp() {
-      final contribution = authModule(
-        serverManager: serverManager,
-        authFlow: FakeAuthFlow(),
-        probeClient: FakeHttpClient(),
-        appName: 'Soliplex',
-      );
-
+      final contribution = module.build();
       router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -83,7 +64,6 @@ void main() {
         ],
         redirect: contribution.redirect,
       );
-
       return ProviderScope(
         overrides: contribution.overrides,
         child: MaterialApp.router(routerConfig: router),
@@ -92,7 +72,10 @@ void main() {
 
     setUp(() {
       serverManager = _createServerManager();
+      module = _createModule(serverManager: serverManager);
     });
+
+    tearDown(() async => module.onDispose());
 
     testWidgets('stays on / when unauthenticated', (tester) async {
       await tester.pumpWidget(buildApp());
@@ -113,13 +96,7 @@ void main() {
     });
 
     testWidgets('allows /auth/callback when unauthenticated', (tester) async {
-      final contribution = authModule(
-        serverManager: serverManager,
-        authFlow: FakeAuthFlow(),
-        probeClient: FakeHttpClient(),
-        appName: 'Soliplex',
-      );
-
+      final contribution = module.build();
       router = GoRouter(
         initialLocation: '/auth/callback',
         routes: contribution.routes,
