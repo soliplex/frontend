@@ -18,6 +18,17 @@ import 'send_error.dart';
 /// callers pass an `onStateTransition` callback and own the signal they
 /// update from it. This keeps the spawner scoped to spawn-phase logic and
 /// leaves session-level state (running, detached, etc.) to the caller.
+///
+/// Callback asymmetry: [spawn] notifies `onStateTransition` with
+/// `spawning` on entry, and with `null` from its `finally` block on
+/// any non-success path (spawn future failed, owner disposed, or
+/// `onSpawned` threw). On success the spawner does not emit again —
+/// the caller's `onSpawned` is expected to drive the next transition.
+/// [cancel] deliberately does NOT call back into `onStateTransition`
+/// — callers are responsible for clearing their lifecycle signal when
+/// they invoke [cancel]. This asymmetry is intentional: the caller
+/// already knows a cancel is happening and may want to bundle other
+/// side-effects with the signal clear.
 class SessionSpawner {
   Future<AgentSession>? _pendingSpawn;
   bool _cancelled = false;
@@ -49,20 +60,20 @@ class SessionSpawner {
     _cancelled = false;
     errorSignal.value = null;
     onStateTransition(AgentSessionState.spawning);
-    Future<AgentSession>? future;
+    var succeeded = false;
     try {
-      future = spawnFn();
+      final future = spawnFn();
       _pendingSpawn = future;
       final session = await future;
       if (_cancelled) return;
-      _pendingSpawn = null;
       onSpawned(session); // Callback owns the dispose/attach decision.
+      succeeded = true;
     } on Object catch (error) {
       if (_cancelled || isDisposed()) return;
       errorSignal.value = SendError(error, unsentText: prompt);
     } finally {
-      if (!_cancelled && _pendingSpawn == future) {
-        _pendingSpawn = null;
+      _pendingSpawn = null;
+      if (!_cancelled && !succeeded) {
         onStateTransition(null);
       }
     }
