@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
+import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
-import 'tracker_registry.dart';
 
 export 'send_error.dart';
 
@@ -102,9 +102,19 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
-  final TrackerRegistry _trackerRegistry = TrackerRegistry();
-  Map<String, ExecutionTracker> get executionTrackers =>
-      _trackerRegistry.trackers;
+  // Persists historical trackers from loaded thread history and from
+  // completed sessions (absorbed in _detachSession). Plain map — the live
+  // registry lives inside ExecutionTrackerExtension, which outlives the
+  // view when the session runs in the background.
+  final Map<String, ExecutionTracker> _historicalTrackers = {};
+
+  /// Returns all execution trackers for this thread: historical (from loaded
+  /// thread history) merged with any live trackers from the active session.
+  Map<String, ExecutionTracker> get executionTrackers {
+    final ext = _activeSession?.getExtension<ExecutionTrackerExtension>();
+    if (ext == null) return Map.unmodifiable(_historicalTrackers);
+    return {..._historicalTrackers, ...ext.trackers};
+  }
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
@@ -189,8 +199,6 @@ class ThreadViewState {
   }
 
   void _onRunState(RunState runState) {
-    final session = _activeSession;
-    if (session == null) return;
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
         final current = _messages.value;
@@ -200,23 +208,16 @@ class ThreadViewState {
         }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-        _trackerRegistry.onStreaming(
-          streaming,
-          session.lastExecutionEvent,
-        );
       case CompletedState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final error):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
       case CancelledState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
@@ -240,6 +241,15 @@ class ThreadViewState {
   }
 
   void _detachSession() {
+    // Absorb live trackers from the extension before clearing the session
+    // reference, so historical data persists after the session ends.
+    final ext = _activeSession?.getExtension<ExecutionTrackerExtension>();
+    if (ext != null) {
+      // Live tracker wins over any historical entry with the same key.
+      for (final entry in ext.trackers.entries) {
+        _historicalTrackers[entry.key] = entry.value;
+      }
+    }
     _runStateUnsub?.call();
     _runStateUnsub = null;
     _activeSession = null;
@@ -292,7 +302,12 @@ class ThreadViewState {
         .then((history) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      _trackerRegistry.seedHistorical(replayToTrackers(history.runs));
+      // putIfAbsent (not []=) on refresh: server replay must not overwrite a
+      // tracker already absorbed from a live session (`_detachSession`), which
+      // captured the full client-side event stream.
+      for (final entry in replayToTrackers(history.runs).entries) {
+        _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
+      }
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
@@ -311,6 +326,5 @@ class ThreadViewState {
     _isDisposed = true;
     _cancelToken?.cancel('disposed');
     _detachSession();
-    _trackerRegistry.dispose();
   }
 }

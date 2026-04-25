@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_view_state.dart';
 
@@ -17,13 +18,15 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
 
 /// Minimal session fake for testing [ThreadViewState] signal behavior.
 class _FakeAgentSession implements AgentSession {
-  _FakeAgentSession()
+  _FakeAgentSession({List<SessionExtension> extensions = const []})
       : _runState = Signal<RunState>(const IdleState()),
-        _lastExecutionEvent = Signal<ExecutionEvent?>(null);
+        _lastExecutionEvent = Signal<ExecutionEvent?>(null),
+        _extensions = extensions;
 
   final Signal<RunState> _runState;
   final Signal<ExecutionEvent?> _lastExecutionEvent;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
+  final List<SessionExtension> _extensions;
   bool cancelCalled = false;
 
   @override
@@ -40,6 +43,14 @@ class _FakeAgentSession implements AgentSession {
 
   @override
   void cancel() => cancelCalled = true;
+
+  @override
+  T? getExtension<T extends SessionExtension>() {
+    for (final ext in _extensions) {
+      if (ext is T) return ext;
+    }
+    return null;
+  }
 
   void emit(RunState state) => _runState.value = state;
 
@@ -648,10 +659,81 @@ void main() {
         conversation: conversation,
       ));
 
-      // No crash — the null-check in _onRunState handles cleanup safely.
+      // CompletedState triggers _detachSession, which clears sessionState.
       expect(state.sessionState.value, isNull);
 
       state.dispose();
+    });
+
+    test('live tracker wins over historical on detach absorb', () async {
+      const threadKey = (
+        serverId: 'test-server',
+        roomId: 'room-1',
+        threadId: 'thread-1',
+      );
+
+      // Seed history so _fetch installs a historical tracker for 'asst-1'.
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        runs: [
+          RunEventBundle(
+            runId: 'run-prior',
+            events: const [
+              TextMessageStartEvent(messageId: 'asst-1'),
+              TextMessageContentEvent(messageId: 'asst-1', delta: 'historical'),
+              TextMessageEndEvent(messageId: 'asst-1'),
+            ],
+          ),
+        ],
+      );
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final historicalTracker = state.executionTrackers['asst-1'];
+      expect(historicalTracker, isNotNull,
+          reason: 'replayToTrackers must seed a tracker for asst-1');
+
+      // Attach a session whose extension will produce a live tracker under
+      // the same message id.
+      final ext = ExecutionTrackerExtension();
+      final fakeSession = _FakeAgentSession(extensions: [ext]);
+      await ext.onAttach(fakeSession);
+      state.attachSession(fakeSession);
+
+      final conversation = Conversation(threadId: 'thread-1');
+      fakeSession.emit(RunningState(
+        threadKey: threadKey,
+        runId: 'run-live',
+        conversation: conversation,
+        streaming: const TextStreaming(
+          messageId: 'asst-1',
+          user: ChatUser.assistant,
+          text: '',
+        ),
+      ));
+
+      final liveTracker = ext.trackers['asst-1'];
+      expect(liveTracker, isNotNull);
+      expect(identical(liveTracker, historicalTracker), isFalse);
+
+      // Terminal state drives _detachSession → absorb.
+      fakeSession.emit(CompletedState(
+        threadKey: threadKey,
+        runId: 'run-live',
+        conversation: conversation,
+      ));
+
+      expect(identical(state.executionTrackers['asst-1'], liveTracker), isTrue,
+          reason: 'live tracker must overwrite historical on key collision');
+
+      state.dispose();
+      ext.onDispose();
     });
 
     test('executionTrackers are cleaned up on dispose', () async {
