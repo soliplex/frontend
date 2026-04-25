@@ -247,7 +247,7 @@ class ThreadViewState {
     if (ext != null) {
       // Live tracker wins over any historical entry with the same key.
       for (final entry in ext.trackers.entries) {
-        _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
+        _historicalTrackers[entry.key] = entry.value;
       }
     }
     _runStateUnsub?.call();
@@ -302,6 +302,9 @@ class ThreadViewState {
         .then((history) {
       if (token.isCancelled) return;
       _cancelToken = null;
+      // putIfAbsent (not []=) on refresh: server replay must not overwrite a
+      // tracker already absorbed from a live session (`_detachSession`), which
+      // captured the full client-side event stream.
       for (final entry in replayToTrackers(history.runs).entries) {
         _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
       }

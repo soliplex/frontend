@@ -43,6 +43,8 @@ class ExecutionTrackerExtension extends SessionExtension
 
   @override
   void onDispose() {
+    // Order is load-bearing: unsubscribe must precede clearing _session, so
+    // _onRunState can rely on _session being non-null while subscribed.
     _runStateUnsub?.call();
     _runStateUnsub = null;
     _session = null;
@@ -51,8 +53,7 @@ class ExecutionTrackerExtension extends SessionExtension
   }
 
   void _onRunState(RunState runState) {
-    final session = _session;
-    if (session == null) return;
+    final session = _session!;
     switch (runState) {
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);
