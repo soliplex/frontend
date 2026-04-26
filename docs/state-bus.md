@@ -40,6 +40,50 @@ the primitives below:
 
 No new logic; just one well-typed boundary.
 
+## Data flow
+
+```mermaid
+flowchart LR
+    subgraph AGUI["AG-UI events (server → client)"]
+        Snap[StateSnapshotEvent]
+        Delta[StateDeltaEvent]
+    end
+
+    subgraph BUS["StateBus (per-thread)"]
+        AgentState[("agentState<br/>Signal&lt;Map&gt;")]
+    end
+
+    subgraph PROJ["Projections (typed views)"]
+        P1[MarkersProjection]
+        P2[NarrationProjection]
+        P3[CustomProjection]
+    end
+
+    subgraph TGT["Render targets"]
+        T1[MapView]
+        T2[NarrationPanel]
+        T3[Custom widget]
+    end
+
+    Snap -- "setAgentState(...)" --> AgentState
+    Delta -- "update(applyJsonPatch)" --> AgentState
+
+    AgentState -- "project(...)" --> P1
+    AgentState -- "project(...)" --> P2
+    AgentState -- "project(...)" --> P3
+
+    P1 -- "typed Signal&lt;List&lt;Marker&gt;&gt;" --> T1
+    P2 -- "typed Signal&lt;List&lt;Narration&gt;&gt;" --> T2
+    P3 -- "typed Signal&lt;CustomState&gt;" --> T3
+
+    T3 -. "emit(SurfaceEvent)" .-> AgentState
+    AgentState -. "events stream" .-> Host["Host forwards<br/>to agent"]
+```
+
+Solid arrows are read-side data flow (state events → bus → projections
+→ widgets). Dashed arrows are write-back (a surface emitting events
+the host forwards to the agent).
+
 ## `StateBus`
 
 ```dart
@@ -138,6 +182,39 @@ synthetic chat message, a structured tool-call argument, or a future
 dedicated AG-UI client→server frame.
 
 ## Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant Host as Host (per-thread)
+    participant Bus as StateBus
+    participant Surf as Surface
+    participant Agent as Agent (server)
+
+    Host->>Bus: new StateBus()
+    Host->>Agent: subscribe to AG-UI events
+    Host->>Bus: bus.project(MyProjection())
+    Bus-->>Surf: typed Signal&lt;S&gt;
+
+    Note over Agent,Bus: streaming run begins
+    Agent->>Host: StateSnapshotEvent
+    Host->>Bus: setAgentState(snapshot)
+    Bus-->>Surf: signal updates → widget rebuilds
+
+    Agent->>Host: StateDeltaEvent
+    Host->>Bus: update(applyJsonPatch)
+    Bus-->>Surf: signal updates → widget rebuilds
+
+    Note over Surf: user clicks a marker
+    Surf->>Bus: emit(SurfaceEvent)
+    Bus-->>Host: events stream
+    Host->>Agent: forward as message / tool-call
+
+    Note over Host,Bus: thread torn down
+    Host->>Bus: dispose()
+    Bus-->>Surf: derived signals stop firing
+```
+
+Equivalent ASCII summary:
 
 ```text
 host (per-thread)
