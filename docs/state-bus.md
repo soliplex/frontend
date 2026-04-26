@@ -54,14 +54,18 @@ No new logic; just one well-typed boundary.
 
 ```mermaid
 flowchart LR
-    subgraph AGUI["AG-UI events (server → client)"]
+    subgraph AGUI["AG-UI events (server → client) — peer event types"]
         Snap[StateSnapshotEvent]
         Delta[StateDeltaEvent]
-        Act[ActivitySnapshot<br/>not on bus today]
+        Act[ActivitySnapshot]
     end
 
-    subgraph BUS["StateBus (per-thread)"]
+    subgraph BUS["StateBus (per-thread) — this PR"]
         AgentState[("agentState<br/>Signal of Map")]
+    end
+
+    subgraph EXISTING["Existing paths (unchanged)"]
+        Conv["Conversation.activities<br/>+ ExecutionTracker"]
     end
 
     subgraph PROJ["Projections (typed views)"]
@@ -82,9 +86,11 @@ flowchart LR
         W3[Custom widget]
     end
 
+    Host[Host: per-thread]
+
     Snap -- "setAgentState(...)" --> AgentState
     Delta -- "update(applyJsonPatch)" --> AgentState
-    Act -. "Conversation.activities<br/>ExecutionTracker" .-> Host["Host"]
+    Act -- "consumed today" --> Conv
 
     AgentState -- "project(...)" --> P1
     AgentState -- "project(...)" --> P2
@@ -103,8 +109,18 @@ flowchart LR
     Host -. "forward to agent" .-> Snap
 ```
 
-Solid arrows are read-side data flow: AG-UI state events feed the bus,
-projections compute typed slices, those slices forward into
+**AG-UI peers:** the server emits three structured event types
+side-by-side. `StateSnapshotEvent` and `StateDeltaEvent` carry
+agent-state changes — those feed the new `StateBus`.
+`ActivitySnapshot` carries structured activity records (skill tool
+calls, etc.) — those feed `Conversation.activities` and
+`ExecutionTracker` today, **not** the bus. This PR doesn't change
+that path. A future PR may route `ActivitySnapshot`s through the
+bus too (under `agentState['/_meta/activities']` or similar) — but
+that's out of scope here.
+
+Solid arrows are read-side data flow: AG-UI state events feed the
+bus, projections compute typed slices, those slices forward into
 `Surface<S>` implementations (the long-lived controllers like
 `mapExtension` / `narrationController`), and widgets watch the
 surfaces' `state` signals.
