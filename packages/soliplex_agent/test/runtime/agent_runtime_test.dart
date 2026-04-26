@@ -269,7 +269,10 @@ void main() {
           'citations': <dynamic>[],
         },
       };
-      runtime.seedThreadState(_threadId, initialState);
+      runtime.seedThreadState(
+        (serverId: 'default', roomId: _roomId, threadId: _threadId),
+        initialState,
+      );
 
       stubCreateRun();
       stubDeleteThread();
