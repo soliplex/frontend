@@ -9,6 +9,7 @@ import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -247,6 +248,45 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(Drawer),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('wide layout: sidebar thread tile shows running spinner',
+      (tester) async {
+    // Mirrors the narrow-layout drawer test: defends the wiring of
+    // `runningThreadIds` into the wide-layout ThreadSidebar so a
+    // copy-paste regression in `_buildContent` is caught.
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final key = (
+      serverId: entry.serverId,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    registry.register(key, _NeverCompletingSession(key));
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byType(ThreadSidebar),
         matching: find.byType(CircularProgressIndicator),
       ),
       findsOneWidget,

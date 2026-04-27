@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -47,9 +48,17 @@ class RunRegistry {
   /// cancelled first (at most one run per thread).
   void register(ThreadKey key, AgentSession session) {
     if (_isDisposed) {
-      // Cancel rather than leak the session — the registry can no
-      // longer manage it and would otherwise drop it silently.
+      // Caller bug: a disposed registry can no longer manage the
+      // session. Cancel first so the session is never leaked even
+      // if the assert fires, log so the bug is observable in
+      // release, then assert so it's loud in debug.
       session.cancel();
+      dev.log(
+        'register called on disposed RunRegistry; cancelling session',
+        name: 'RunRegistry',
+        level: 1000,
+      );
+      assert(false, 'register called on disposed RunRegistry for $key');
       return;
     }
     final existing = _runs[key];
@@ -103,7 +112,11 @@ class RunRegistry {
       FailedState(:final conversation, :final error) =>
         FailedRun(conversation, error),
       CancelledState(:final conversation) => CancelledRun(conversation),
-      _ => FailedRun(null, 'Unexpected terminal state: ${state.runtimeType}'),
+      IdleState() || RunningState() || ToolYieldingState() => FailedRun(
+          null,
+          'Session result arrived in non-terminal state '
+          '${state.runtimeType}: $result',
+        ),
     };
   }
 }

@@ -250,15 +250,19 @@ void main() {
     expect(registry.activeSession(_key), isNull);
   });
 
-  test('register after dispose cancels the session and is a no-op', () async {
+  test('register after dispose cancels the session and asserts in debug',
+      () async {
     registry.dispose();
 
     final session = _ManualSession(_key);
-    registry.register(_key, session);
-
-    expect(registry.activeSession(_key), isNull);
-    // The session must be cancelled — otherwise its underlying stream
-    // stays open and is leaked.
+    // The assert is the loud signal that a structural bug occurred.
+    // Cancellation must still happen first so the session's underlying
+    // stream is not leaked even when the assert fires.
+    expect(
+      () => registry.register(_key, session),
+      throwsA(isA<AssertionError>()),
+    );
     expect(session.cancelCalled, isTrue);
+    expect(registry.activeSession(_key), isNull);
   });
 }
