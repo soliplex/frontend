@@ -15,7 +15,8 @@ class ToolCallEntry {
   final String toolName;
   final ToolCallStatus status;
 
-  /// True for client-side tool calls (executed locally), false for server-side.
+  /// True when this client executes the tool; false when the agent
+  /// backend executes it.
   final bool isClientSide;
 
   ToolCallEntry copyWith({ToolCallStatus? status}) => ToolCallEntry(
@@ -42,11 +43,15 @@ class ToolCallEntry {
 ///
 /// Subscribes to [AgentSession.lastExecutionEvent] in [onAttach] and maintains
 /// an ordered list of [ToolCallEntry] values. Each entry records the call's
-/// name, ID, whether it is client-side or server-side, and current status
-/// (executing / completed / failed).
+/// name, ID, whether it is client-side or server-side, and current status.
+/// Client-side calls surface [ToolCallStatus.completed] or
+/// [ToolCallStatus.failed] via [ClientToolCompleted.status]; server-side
+/// calls only ever surface [ToolCallStatus.completed] because the upstream
+/// event stream has no server-tool failure variant.
 ///
-/// Resets to an empty list at the start of each new run via [RunCompleted]
-/// and [RunFailed] terminal events clearing on the next session attach.
+/// State accumulates across all runs within a session. The runtime's
+/// `extensionFactory` constructs a fresh instance per session, so the list
+/// always starts empty on session attach.
 class ToolCallsExtension extends SessionExtension
     with StatefulSessionExtension<List<ToolCallEntry>> {
   ToolCallsExtension() {
