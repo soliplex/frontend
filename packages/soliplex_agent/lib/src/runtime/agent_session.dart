@@ -168,7 +168,22 @@ class AgentSession implements ToolExecutionContext {
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
-  }) async {
+  }) {
+    if (cancelToken.isCancelled) {
+      _logger.debug(
+        'requestApproval denied: session $id already cancelled '
+        '(tool $toolName, $toolCallId).',
+      );
+      return Future<bool>.value(false);
+    }
+    final ext = _coordinator.getExtension<ToolApprovalExtension>();
+    if (ext == null) {
+      _logger.warning(
+        'Tool $toolName ($toolCallId) requested approval on session $id '
+        'but no ToolApprovalExtension is registered; denying by default.',
+      );
+      return Future<bool>.value(false);
+    }
     emitEvent(
       AwaitingApproval(
         toolCallId: toolCallId,
@@ -176,18 +191,12 @@ class AgentSession implements ToolExecutionContext {
         rationale: rationale,
       ),
     );
-
-    final approvalExt = _coordinator.getExtension<ToolApprovalExtension>();
-    if (approvalExt == null) return false;
-    return Future.any([
-      approvalExt.requestApproval(
-        toolCallId: toolCallId,
-        toolName: toolName,
-        arguments: arguments,
-        rationale: rationale,
-      ),
-      cancelToken.whenCancelled.then((_) => false),
-    ]);
+    return ext.requestApproval(
+      toolCallId: toolCallId,
+      toolName: toolName,
+      arguments: arguments,
+      rationale: rationale,
+    );
   }
 
   @override

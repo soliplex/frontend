@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart' show DeepCollectionEquality;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -18,16 +19,24 @@ class ApprovalRequest {
   final Map<String, dynamic> arguments;
   final String rationale;
 
+  static const _argsEquality = DeepCollectionEquality();
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ApprovalRequest &&
           toolCallId == other.toolCallId &&
           toolName == other.toolName &&
-          rationale == other.rationale;
+          rationale == other.rationale &&
+          _argsEquality.equals(arguments, other.arguments);
 
   @override
-  int get hashCode => Object.hash(toolCallId, toolName, rationale);
+  int get hashCode => Object.hash(
+        toolCallId,
+        toolName,
+        rationale,
+        _argsEquality.hash(arguments),
+      );
 }
 
 /// A [ToolApprovalExtension] that surfaces tool approval requests as reactive
@@ -39,14 +48,14 @@ class ApprovalRequest {
 /// clears the signal back to `null` and resolves the session's future.
 ///
 /// If the session is cancelled or the extension is disposed while an approval
-/// is pending, the request is automatically denied.
+/// is pending, the request is automatically denied and the signal cleared.
 class HumanApprovalExtension extends ToolApprovalExtension
     with StatefulSessionExtension<ApprovalRequest?> {
   HumanApprovalExtension() {
     setInitialState(null);
   }
 
-  Completer<bool>? _pending;
+  ({ApprovalRequest req, Completer<bool> resp})? _pending;
 
   @override
   int get priority => 30;
@@ -55,12 +64,13 @@ class HumanApprovalExtension extends ToolApprovalExtension
   List<ClientTool> get tools => const [];
 
   @override
-  Future<void> onAttach(AgentSession session) async {}
+  Future<void> onAttach(AgentSession session) async {
+    unawaited(session.cancelToken.whenCancelled.then((_) => _denyPending()));
+  }
 
   @override
   void onDispose() {
-    _pending?.complete(false);
-    _pending = null;
+    _denyPending();
     super.onDispose();
   }
 
@@ -71,25 +81,41 @@ class HumanApprovalExtension extends ToolApprovalExtension
     required Map<String, dynamic> arguments,
     required String rationale,
   }) {
-    // Deny any stale pending request before starting a new one.
-    _pending?.complete(false);
+    _denyPending();
     final completer = Completer<bool>();
-    _pending = completer;
-    state = ApprovalRequest(
-      toolCallId: toolCallId,
-      toolName: toolName,
-      arguments: arguments,
-      rationale: rationale,
+    _setPending(
+      (
+        req: ApprovalRequest(
+          toolCallId: toolCallId,
+          toolName: toolName,
+          arguments: arguments,
+          rationale: rationale,
+        ),
+        resp: completer,
+      ),
     );
     return completer.future;
   }
 
-  /// Resolves the pending approval request with [approved].
+  /// Resolves the pending approval request with [approved] and clears state.
   ///
   /// No-op if there is no pending request.
   void respond(bool approved) {
-    _pending?.complete(approved);
-    _pending = null;
-    state = null;
+    final p = _pending;
+    if (p == null) return;
+    p.resp.complete(approved);
+    _setPending(null);
+  }
+
+  void _setPending(({ApprovalRequest req, Completer<bool> resp})? value) {
+    _pending = value;
+    state = value?.req;
+  }
+
+  void _denyPending() {
+    final p = _pending;
+    if (p == null) return;
+    if (!p.resp.isCompleted) p.resp.complete(false);
+    _setPending(null);
   }
 }
