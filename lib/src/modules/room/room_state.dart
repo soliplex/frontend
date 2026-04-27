@@ -71,7 +71,6 @@ class RoomState {
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
 
-  /// Reactive set of thread IDs that currently have an active run in this room.
   late final ReadonlySignal<Set<String>> runningThreadIds =
       computed<Set<String>>(
     () => _registry.activeKeys.value

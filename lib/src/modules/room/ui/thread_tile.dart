@@ -62,13 +62,24 @@ class _ThreadTileState extends State<ThreadTile> {
         ),
         dense: true,
         onTap: widget.onTap,
-        trailing: showMenu ? _buildMenu(theme) : _buildTrailing(theme),
+        trailing: _buildTrailing(theme, showMenu: showMenu),
       ),
     );
   }
 
-  Widget? _buildTrailing(ThemeData theme) {
-    if (!widget.isRunning) return null;
+  Widget? _buildTrailing(ThemeData theme, {required bool showMenu}) {
+    if (!widget.isRunning && !showMenu) return null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.isRunning) _buildSpinner(theme),
+        if (widget.isRunning && showMenu) const SizedBox(width: 4),
+        if (showMenu) _buildMenu(theme),
+      ],
+    );
+  }
+
+  Widget _buildSpinner(ThemeData theme) {
     return SizedBox.square(
       dimension: 18,
       child: CircularProgressIndicator(

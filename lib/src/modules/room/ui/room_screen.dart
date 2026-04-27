@@ -411,6 +411,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       _onRoomInfo();
                     },
                     roomName: roomName,
+                    runningThreadIds: _state.runningThreadIds,
                     onRetryThreads: () => _state.threadList.refresh(),
                     quizzes: room?.quizzes ?? const {},
                     onQuizTapped: _onQuizTapped,

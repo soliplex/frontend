@@ -15,6 +15,28 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
 
+/// Session fake whose result future never completes — useful for
+/// asserting widget state while a session is "in flight".
+class _NeverCompletingSession implements AgentSession {
+  _NeverCompletingSession(this.threadKey);
+
+  @override
+  final ThreadKey threadKey;
+  final Signal<RunState> _runState = Signal<RunState>(const IdleState());
+
+  @override
+  Future<AgentResult> get result => Completer<AgentResult>().future;
+
+  @override
+  ReadonlySignal<RunState> get runState => _runState;
+
+  @override
+  void cancel() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 class _BlockingThreadsApi extends FakeSoliplexApi {
   final _completer = Completer<List<ThreadInfo>>();
 
@@ -184,6 +206,48 @@ void main() {
       find.descendant(
         of: find.byType(Drawer),
         matching: find.text('Test thread'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('narrow layout: drawer thread tile shows running spinner',
+      (tester) async {
+    // Defends the wiring of `runningThreadIds` into the drawer
+    // ThreadSidebar — a regression here would silently degrade the
+    // mobile/touch running indicator.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+
+    final key = (
+      serverId: entry.serverId,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    registry.register(key, _NeverCompletingSession(key));
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byType(Drawer),
+        matching: find.byType(CircularProgressIndicator),
       ),
       findsOneWidget,
     );

@@ -5,6 +5,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 
+final _emptyRunning = Signal(<String>{}).readonly();
+
 void main() {
   testWidgets('shows loading indicator when loading', (tester) async {
     await tester.pumpWidget(MaterialApp(
@@ -18,6 +20,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -52,6 +55,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -83,6 +87,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -106,6 +111,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -130,6 +136,7 @@ void main() {
           onNetworkInspector: () => inspectorCalled = true,
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -153,6 +160,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () => infoCalled = true,
           roomName: 'My Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -184,6 +192,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -205,6 +214,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
         ),
       ),
     ));
@@ -234,6 +244,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (id, name) => renamedId = id,
           onDeleteThread: (_) {},
@@ -271,6 +282,7 @@ void main() {
           onNetworkInspector: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (_, __) {},
           onDeleteThread: (id) => deletedId = id,

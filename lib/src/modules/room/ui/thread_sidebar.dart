@@ -16,12 +16,12 @@ class ThreadSidebar extends StatelessWidget {
     required this.onNetworkInspector,
     required this.onRoomInfo,
     required this.roomName,
+    required this.runningThreadIds,
     this.onRetryThreads,
     this.quizzes = const {},
     this.onQuizTapped,
     this.onRenameThread,
     this.onDeleteThread,
-    this.runningThreadIds,
   });
 
   final ThreadListStatus threadListStatus;
@@ -37,7 +37,7 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String quizId)? onQuizTapped;
   final void Function(String threadId, String currentName)? onRenameThread;
   final void Function(String threadId)? onDeleteThread;
-  final ReadonlySignal<Set<String>>? runningThreadIds;
+  final ReadonlySignal<Set<String>> runningThreadIds;
 
   @override
   Widget build(BuildContext context) {
@@ -124,23 +124,24 @@ class ThreadSidebar extends StatelessWidget {
                     )),
                   ],
                 )
-              : ListView.builder(
-                  itemCount: threads.length,
-                  itemBuilder: (context, index) {
-                    final thread = threads[index];
-                    final running =
-                        runningThreadIds?.watch(context) ?? const <String>{};
-                    return ThreadTile(
-                      thread: thread,
-                      isSelected: thread.id == selectedThreadId,
-                      isRunning: running.contains(thread.id),
-                      onTap: () => onThreadSelected(thread.id),
-                      onRename: () =>
-                          onRenameThread?.call(thread.id, thread.name),
-                      onDelete: () => onDeleteThread?.call(thread.id),
-                    );
-                  },
-                ),
+              : Watch((context) {
+                  final running = runningThreadIds.value;
+                  return ListView.builder(
+                    itemCount: threads.length,
+                    itemBuilder: (context, index) {
+                      final thread = threads[index];
+                      return ThreadTile(
+                        thread: thread,
+                        isSelected: thread.id == selectedThreadId,
+                        isRunning: running.contains(thread.id),
+                        onTap: () => onThreadSelected(thread.id),
+                        onRename: () =>
+                            onRenameThread?.call(thread.id, thread.name),
+                        onDelete: () => onDeleteThread?.call(thread.id),
+                      );
+                    },
+                  );
+                }),
         ),
     };
   }

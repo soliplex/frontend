@@ -46,7 +46,12 @@ class RunRegistry {
   /// If there is an existing active session for this key, it is
   /// cancelled first (at most one run per thread).
   void register(ThreadKey key, AgentSession session) {
-    assert(!_isDisposed, 'Cannot register on a disposed RunRegistry');
+    if (_isDisposed) {
+      // Cancel rather than leak the session — the registry can no
+      // longer manage it and would otherwise drop it silently.
+      session.cancel();
+      return;
+    }
     final existing = _runs[key];
     if (existing != null && existing.session != null) {
       existing.session!.cancel();
@@ -57,6 +62,10 @@ class RunRegistry {
 
     unawaited(session.result.then((result) {
       if (_isDisposed) return;
+      // Bail if a newer registration replaced this run. Removing the
+      // key here would clear it while the new session is still active,
+      // and the orphan's outcome is intentionally discarded.
+      if (!identical(_runs[key], run)) return;
       final terminalState = session.runState.value;
       run.outcome = _outcomeFrom(terminalState, result);
       run.session = null;
@@ -76,15 +85,15 @@ class RunRegistry {
     return _runs[key]?.outcome;
   }
 
-  /// Cancels all active sessions and releases resources.
+  /// Cancels all active sessions and releases resources. Idempotent.
   void dispose() {
+    if (_isDisposed) return;
     _isDisposed = true;
     for (final run in _runs.values) {
       run.session?.cancel();
     }
     _runs.clear();
-    // Do not update _activeKeys here — downstream computeds may already be
-    // disposed and the update would log spurious "read after disposed" warnings.
+    _activeKeys.dispose();
   }
 
   static RunOutcome _outcomeFrom(RunState state, AgentResult result) {

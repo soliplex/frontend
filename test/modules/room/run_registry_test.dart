@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -5,6 +7,41 @@ import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
 import '../../helpers/fakes.dart';
+
+/// Session fake whose result future is controlled by the test, so the
+/// terminal callback can be triggered at a chosen point.
+class _ManualSession implements AgentSession {
+  _ManualSession(this.threadKey);
+
+  @override
+  final ThreadKey threadKey;
+  final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
+  final Signal<RunState> _runState = Signal<RunState>(const IdleState());
+  bool cancelCalled = false;
+
+  @override
+  Future<AgentResult> get result => _resultCompleter.future;
+
+  @override
+  ReadonlySignal<RunState> get runState => _runState;
+
+  @override
+  void cancel() {
+    cancelCalled = true;
+  }
+
+  void completeAsCancelled() {
+    _runState.value = CancelledState(threadKey: threadKey);
+    _resultCompleter.complete(AgentFailure(
+      threadKey: threadKey,
+      reason: FailureReason.cancelled,
+      error: 'cancelled',
+    ));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
@@ -165,5 +202,63 @@ void main() {
 
     expect(registry.activeSession(_key), isNull);
     expect(registry.activeSession(_key2), isNull);
+  });
+
+  test('activeKeys adds on register and removes on terminal completion',
+      () async {
+    expect(registry.activeKeys.value, isEmpty);
+
+    final session = await spawnSession();
+    registry.register(_key, session);
+
+    expect(registry.activeKeys.value, contains(_key));
+
+    try {
+      await session.result;
+    } on Object catch (_) {}
+    await Future<void>.delayed(Duration.zero);
+
+    expect(registry.activeKeys.value, isNot(contains(_key)));
+  });
+
+  test('activeKeys keeps key when prior session terminates after replacement',
+      () async {
+    // Use manual sessions so we can control when each terminates.
+    final session1 = _ManualSession(_key);
+    final session2 = _ManualSession(_key);
+
+    registry.register(_key, session1);
+    registry.register(_key, session2);
+
+    // session2 stays active. Trigger session1's terminal callback —
+    // it must NOT remove the key.
+    session1.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(registry.activeKeys.value, contains(_key));
+    expect(registry.activeSession(_key), same(session2));
+  });
+
+  test('dispose is idempotent', () async {
+    final session = await spawnSession();
+    registry.register(_key, session);
+
+    registry.dispose();
+    registry.dispose();
+    // tearDown will dispose a third time.
+
+    expect(registry.activeSession(_key), isNull);
+  });
+
+  test('register after dispose cancels the session and is a no-op', () async {
+    registry.dispose();
+
+    final session = _ManualSession(_key);
+    registry.register(_key, session);
+
+    expect(registry.activeSession(_key), isNull);
+    // The session must be cancelled — otherwise its underlying stream
+    // stays open and is leaked.
+    expect(session.cancelCalled, isTrue);
   });
 }
