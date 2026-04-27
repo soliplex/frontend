@@ -195,8 +195,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('renders spinner when isRunning is true on mobile',
-      (tester) async {
+  testWidgets('mobile: spinner replaces menu when isRunning', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -212,12 +211,12 @@ void main() {
     ));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets(
-      'shows both spinner and menu when isRunning is true and tile is hovered '
-      '(desktop)', (tester) async {
+  testWidgets('desktop hover: spinner replaces menu when isRunning',
+      (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -246,7 +245,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
 
     debugDefaultTargetPlatformOverride = null;
   });

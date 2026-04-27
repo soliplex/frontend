@@ -68,15 +68,9 @@ class _ThreadTileState extends State<ThreadTile> {
   }
 
   Widget? _buildTrailing(ThemeData theme, {required bool showMenu}) {
-    if (!widget.isRunning && !showMenu) return null;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.isRunning) _buildSpinner(theme),
-        if (widget.isRunning && showMenu) const SizedBox(width: 4),
-        if (showMenu) _buildMenu(theme),
-      ],
-    );
+    if (widget.isRunning) return _buildSpinner(theme);
+    if (showMenu) return _buildMenu(theme);
+    return null;
   }
 
   Widget _buildSpinner(ThemeData theme) {
