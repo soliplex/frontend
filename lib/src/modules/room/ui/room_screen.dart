@@ -361,6 +361,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onQuizTapped: _onQuizTapped,
             onRenameThread: _showRenameDialog,
             onDeleteThread: _showDeleteDialog,
+            runningThreadIds: _state.runningThreadIds,
           );
           final content = _buildContent(room);
 
@@ -410,6 +411,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       _onRoomInfo();
                     },
                     roomName: roomName,
+                    runningThreadIds: _state.runningThreadIds,
                     onRetryThreads: () => _state.threadList.refresh(),
                     quizzes: room?.quizzes ?? const {},
                     onQuizTapped: _onQuizTapped,

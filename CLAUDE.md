@@ -51,6 +51,21 @@ Riverpod is **DI/service locator only** — no AsyncNotifier or FutureProvider c
 Reactive state comes from `signals` (via `soliplex_agent`). The `signals` package
 bridges signal reactivity to Flutter widget rebuilds.
 
+`signals_flutter` offers two ways to subscribe a widget to a signal. They are not
+interchangeable — pick by rebuild scope:
+
+- **`signal.watch(context)`** — extension method. Subscribes the calling element;
+  the whole widget's `build()` re-runs on every change. Use at the top of a
+  screen-level `build()` when most of the tree depends on the signal anyway.
+  Auto-unsubscribes when the element is unmounted.
+- **`Watch((context) => ...)`** — wrapper widget. Subscribes only the closure's
+  subtree. Use for surgical reactivity inside an otherwise-static widget (e.g.,
+  a spinner inside a list tile). Auto-unsubscribes deterministically on
+  element unmount. Prefer this when most of the surrounding widget does not
+  depend on the signal.
+
+Mental model: `Watch` is to signals what `StreamBuilder` is to streams.
+
 ### Theming
 
 `ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor

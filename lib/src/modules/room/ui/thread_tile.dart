@@ -13,6 +13,7 @@ class ThreadTile extends StatefulWidget {
     required this.onTap,
     required this.onRename,
     required this.onDelete,
+    this.isRunning = false,
   });
 
   final ThreadInfo thread;
@@ -20,6 +21,7 @@ class ThreadTile extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final bool isRunning;
 
   @override
   State<ThreadTile> createState() => _ThreadTileState();
@@ -60,7 +62,23 @@ class _ThreadTileState extends State<ThreadTile> {
         ),
         dense: true,
         onTap: widget.onTap,
-        trailing: showMenu ? _buildMenu(theme) : null,
+        trailing: _buildTrailing(theme, showMenu: showMenu),
+      ),
+    );
+  }
+
+  Widget? _buildTrailing(ThemeData theme, {required bool showMenu}) {
+    if (widget.isRunning) return _buildSpinner(theme);
+    if (showMenu) return _buildMenu(theme);
+    return null;
+  }
+
+  Widget _buildSpinner(ThemeData theme) {
+    return SizedBox.square(
+      dimension: 18,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: theme.colorScheme.primary,
       ),
     );
   }

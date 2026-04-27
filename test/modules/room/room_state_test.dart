@@ -337,6 +337,78 @@ void main() {
     state.dispose();
   });
 
+  test('runningThreadIds clears when the underlying session terminates',
+      () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+
+    final key = (
+      serverId: 'test-server',
+      roomId: 'room-1',
+      threadId: 'thread-A',
+    );
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+
+    expect(state.runningThreadIds.value, {'thread-A'});
+
+    session.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(state.runningThreadIds.value, isEmpty);
+
+    state.dispose();
+  });
+
+  test('runningThreadIds excludes runs from other rooms and other servers',
+      () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+
+    final runtime = runtimeManager.getRuntime(connection);
+    final session1 = await runtime.spawn(
+        roomId: 'room-1', prompt: 't', threadId: 'thread-A');
+    final session2 = await runtime.spawn(
+        roomId: 'room-2', prompt: 't', threadId: 'thread-B');
+    final session3 = await runtime.spawn(
+        roomId: 'room-1', prompt: 't', threadId: 'thread-C');
+
+    registry.register(
+      (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-A'),
+      session1,
+    );
+    registry.register(
+      (serverId: 'test-server', roomId: 'room-2', threadId: 'thread-B'),
+      session2,
+    );
+    registry.register(
+      (serverId: 'other-server', roomId: 'room-1', threadId: 'thread-C'),
+      session3,
+    );
+
+    expect(state.runningThreadIds.value, {'thread-A'});
+
+    state.dispose();
+  });
+
   group('deleteThread', () {
     test('navigates to next thread after deletion', () async {
       final threads = [

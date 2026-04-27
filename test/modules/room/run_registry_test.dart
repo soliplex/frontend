@@ -166,4 +166,98 @@ void main() {
     expect(registry.activeSession(_key), isNull);
     expect(registry.activeSession(_key2), isNull);
   });
+
+  test('activeKeys adds on register and removes on terminal completion',
+      () async {
+    expect(registry.activeKeys.value, isEmpty);
+
+    final session = await spawnSession();
+    registry.register(_key, session);
+
+    expect(registry.activeKeys.value, contains(_key));
+
+    try {
+      await session.result;
+    } on Object catch (_) {}
+    await Future<void>.delayed(Duration.zero);
+
+    expect(registry.activeKeys.value, isNot(contains(_key)));
+  });
+
+  test('activeKeys keeps key when prior session terminates after replacement',
+      () async {
+    final session1 = ManualAgentSession(_key);
+    final session2 = ManualAgentSession(_key);
+
+    registry.register(_key, session1);
+    registry.register(_key, session2);
+
+    // session2 stays active. Trigger session1's terminal callback —
+    // it must NOT remove the key.
+    session1.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(registry.activeKeys.value, contains(_key));
+    expect(registry.activeSession(_key), same(session2));
+  });
+
+  test('orphan guard works for any superseded run, not only the first',
+      () async {
+    final session1 = ManualAgentSession(_key);
+    final session2 = ManualAgentSession(_key);
+    final session3 = ManualAgentSession(_key);
+
+    registry.register(_key, session1);
+    registry.register(_key, session2);
+    registry.register(_key, session3);
+
+    // Terminate the middle session: it's orphaned (replaced by session3)
+    // and the guard must protect session3's slot.
+    session2.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(registry.activeKeys.value, contains(_key));
+    expect(registry.activeSession(_key), same(session3));
+  });
+
+  test('outcome is FailedRun when result resolves in a non-terminal state',
+      () async {
+    final session = ManualAgentSession(_key);
+    registry.register(_key, session);
+
+    // Resolve `result` while runState is still IdleState — exercises the
+    // contract-violation branch of `_outcomeFrom`.
+    session.completeWithoutTransition();
+    await Future<void>.delayed(Duration.zero);
+
+    final outcome = registry.completedOutcome(_key);
+    expect(outcome, isA<FailedRun>());
+    final failure = outcome as FailedRun;
+    expect(failure.error.toString(), contains('non-terminal state'));
+    expect(failure.error.toString(), contains('IdleState'));
+  });
+
+  test('dispose is idempotent', () async {
+    final session = await spawnSession();
+    registry.register(_key, session);
+
+    registry.dispose();
+    registry.dispose();
+    // tearDown will dispose a third time.
+
+    expect(registry.activeSession(_key), isNull);
+  });
+
+  test('register after dispose cancels the session and asserts in debug',
+      () async {
+    registry.dispose();
+
+    final session = ManualAgentSession(_key);
+    expect(
+      () => registry.register(_key, session),
+      throwsA(isA<AssertionError>()),
+    );
+    expect(session.cancelCalled, isTrue);
+    expect(registry.activeSession(_key), isNull);
+  });
 }
