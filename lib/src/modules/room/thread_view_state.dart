@@ -9,6 +9,7 @@ import 'historical_replay.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
 import 'session_spawner.dart';
+import 'tool_calls_extension.dart';
 
 export 'send_error.dart';
 
@@ -116,6 +117,15 @@ class ThreadViewState {
     if (ext == null) return Map.unmodifiable(_historicalTrackers);
     return {..._historicalTrackers, ...ext.trackers};
   }
+
+  /// Live tool call statuses from the active session, or null if no session
+  /// is attached or the active session has no [ToolCallsExtension].
+  ///
+  /// Status is intentionally not persisted past the session's lifetime: this
+  /// signal returns null the moment the session detaches, even if its list
+  /// had populated entries.
+  ReadonlySignal<List<ToolCallEntry>>? get toolCalls =>
+      _activeSession?.getExtension<ToolCallsExtension>()?.stateSignal;
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
