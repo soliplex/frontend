@@ -134,7 +134,7 @@ class AgentSession implements ToolExecutionContext {
   /// already the source. Subscribe to `bus.agentState` directly when
   /// reaching the bus is more natural (e.g. inside `bus.project(...)`
   /// projections).
-  late final ReadonlySignal<Map<String, dynamic>> agentState = bus.agentState;
+  ReadonlySignal<Map<String, dynamic>> get agentState => bus.agentState;
 
   /// The per-thread reactive bus this session writes into. Owned by
   /// the runtime; survives session boundaries within the thread's
