@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag_v040.dart';
 
@@ -228,4 +229,29 @@ class RagV042Snapshot implements RagSnapshot {
 
   @override
   Citation? resolveCitation(String id) => _index[id];
+}
+
+/// Projects a [RagSnapshot] from the full agent-state map.
+///
+/// Reads the [`ragStateKey`] slice and dispatches to the
+/// version-aware [RagSnapshot.fromJson]. Returns null when the
+/// namespace is absent or malformed (rather than a sentinel empty
+/// snapshot) so consumers can distinguish "no rag activity yet"
+/// from "rag activity but zero citations."
+///
+/// This is the first conformance of the [StateProjection] contract
+/// against existing pre-projection code in `soliplex_client`. The
+/// `RagSnapshot` machinery predates the GenUI plan; wrapping it in
+/// a projection class is purely glue — every byte of parsing logic
+/// stays in [RagSnapshot.fromJson].
+class RagSnapshotProjection extends StateProjection<RagSnapshot?> {
+  /// Const constructor — the projection is stateless.
+  const RagSnapshotProjection();
+
+  @override
+  RagSnapshot? project(Map<String, dynamic> agentState) {
+    final raw = agentState[ragStateKey];
+    if (raw is! Map<String, dynamic>) return null;
+    return RagSnapshot.fromJson(raw);
+  }
 }
