@@ -166,6 +166,17 @@ class AgentRuntime {
   ThreadState _threadStateFor(ThreadKey key) =>
       _threadStates[key] ??= ThreadState();
 
+  /// Returns the per-thread state for [key], or `null` if no state has
+  /// been registered. Read-only public accessor for consumers that
+  /// need to inspect the bus from outside a session handler.
+  ThreadState? threadStateOf(ThreadKey key) => _threadStates[key];
+
+  /// Returns the per-thread state for [key], creating it if none has
+  /// been registered yet. Used by [AgentSession.bus] to ensure a
+  /// session always has a bus to write into, even when no prior
+  /// `seedThreadState` call has happened.
+  ThreadState ensureThreadState(ThreadKey key) => _threadStateFor(key);
+
   /// Spawns a new agent session.
   ///
   /// Creates a thread (or reuses [threadId]), resolves tools for [roomId],

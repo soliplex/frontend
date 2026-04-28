@@ -143,11 +143,23 @@ AgentSession createSession({
     toolRegistry: registry,
     logger: logger,
   );
+  final effectiveRuntime = runtime ?? MockAgentRuntime();
+  // Stub ensureThreadState — `AgentSession.bus` resolves through it,
+  // and `_onStateChange` calls `bus.setAgentState(...)` on every
+  // RunState transition. Without this, mocktail returns null and
+  // crashes the chain.
+  if (effectiveRuntime is MockAgentRuntime) {
+    registerFallbackValue(
+      const (serverId: 'fb', roomId: 'fb', threadId: 'fb'),
+    );
+    when(() => effectiveRuntime.ensureThreadState(any<ThreadKey>()))
+        .thenReturn(ThreadState());
+  }
   return AgentSession(
     threadKey: _key,
     ephemeral: ephemeral,
     depth: 0,
-    runtime: runtime ?? MockAgentRuntime(),
+    runtime: effectiveRuntime,
     orchestrator: orchestrator,
     toolRegistry: registry,
     coordinator: SessionCoordinator(extensions, logger: logger),

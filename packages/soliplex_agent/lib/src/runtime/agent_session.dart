@@ -138,6 +138,17 @@ class AgentSession implements ToolExecutionContext {
     return _aguiStateOf(state) ?? const <String, dynamic>{};
   });
 
+  /// The per-thread reactive bus this session writes into. Owned by
+  /// the runtime; survives session boundaries within the thread's
+  /// lifetime.
+  ///
+  /// Resolves through `runtime.ensureThreadState(threadKey).bus`,
+  /// creating a fresh `ThreadState` if no prior `seedThreadState` /
+  /// `seedThreadHistory` call registered one. Late-evaluated, so a
+  /// session that never reads `bus` never causes a `StateBus` to be
+  /// constructed.
+  StateBus get bus => _runtime.ensureThreadState(threadKey).bus;
+
   /// Reactive signal tracking the [AgentSessionState] lifecycle.
   ReadonlySignal<AgentSessionState> get sessionState =>
       _sessionStateSignal.readonly();
@@ -390,6 +401,15 @@ class AgentSession implements ToolExecutionContext {
   void _onStateChange(RunState runState) {
     if (_disposed) return;
     _runStateSignal.value = runState;
+    // Forward the new agent state into the per-thread bus. AG-UI
+    // events were already applied to the conversation by
+    // `processEvent`; this propagates the result so bus consumers
+    // (projections, render targets) see it on every state-altering
+    // event without each consumer re-listening to the orchestrator.
+    final next = _aguiStateOf(runState);
+    if (next != null) {
+      bus.setAgentState(next);
+    }
     switch (runState) {
       case RunningState():
         _state = AgentSessionState.running;

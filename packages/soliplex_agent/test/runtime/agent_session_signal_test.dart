@@ -63,11 +63,20 @@ AgentSession createSession({
     toolRegistry: registry,
     logger: logger,
   );
+  final effectiveRuntime = runtime ?? MockAgentRuntime();
+  // Stub ensureThreadState for the bus-write path in _onStateChange.
+  if (effectiveRuntime is MockAgentRuntime) {
+    registerFallbackValue(
+      const (serverId: 'fb', roomId: 'fb', threadId: 'fb'),
+    );
+    when(() => effectiveRuntime.ensureThreadState(any<ThreadKey>()))
+        .thenReturn(ThreadState());
+  }
   return AgentSession(
     threadKey: _key,
     ephemeral: false,
     depth: 0,
-    runtime: runtime ?? MockAgentRuntime(),
+    runtime: effectiveRuntime,
     orchestrator: orchestrator,
     toolRegistry: registry,
     coordinator: SessionCoordinator(const [], logger: logger),
