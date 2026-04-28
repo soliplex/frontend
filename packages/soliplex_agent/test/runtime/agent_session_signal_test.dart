@@ -273,6 +273,95 @@ void main() {
     });
   });
 
+  group('agentState signal', () {
+    test('initial value is empty when in IdleState', () {
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      expect(session.agentState.value, isEmpty);
+    });
+
+    test('tracks aguiState through StateSnapshotEvent', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StateSnapshotEvent(
+            snapshot: {
+              'ui': {
+                'narrations': [
+                  {'actor': 'coordinator', 'text': 'first'},
+                ],
+              },
+            },
+          ),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      await session.start(userMessage: 'Hi');
+      await session.result;
+
+      final state = session.agentState.value;
+      expect(state['ui'], isA<Map<dynamic, dynamic>>());
+      final ui = state['ui']! as Map<dynamic, dynamic>;
+      expect(ui['narrations'], isA<List<dynamic>>());
+      final entries = ui['narrations']! as List;
+      final first = entries.single as Map;
+      expect(first['text'], 'first');
+    });
+
+    test('tracks aguiState through StateDeltaEvent', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StateSnapshotEvent(
+            snapshot: {
+              'ui': {'narrations': <dynamic>[]},
+            },
+          ),
+          const StateDeltaEvent(
+            delta: [
+              {
+                'op': 'add',
+                'path': '/ui/narrations/-',
+                'value': {'actor': 'primary', 'text': 'second'},
+              },
+            ],
+          ),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      await session.start(userMessage: 'Hi');
+      await session.result;
+
+      final ui = session.agentState.value['ui']! as Map<dynamic, dynamic>;
+      final entries = ui['narrations']! as List;
+      final added = entries.single as Map;
+      expect(added['text'], 'second');
+    });
+  });
+
   group('signal disposal', () {
     test('both signals disposed when session disposes', () {
       // After dispose, signals retain their last value (frozen).

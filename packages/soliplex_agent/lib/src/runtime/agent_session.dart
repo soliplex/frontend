@@ -121,6 +121,23 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the latest [RunState] from the orchestrator.
   ReadonlySignal<RunState> get runState => _runStateSignal.readonly();
 
+  /// Reactive signal tracking the agent's `aguiState` map across the
+  /// session lifetime.
+  ///
+  /// Sourced from the conversation's `aguiState` on every [RunState]
+  /// change. Empty when no conversation has accumulated yet (Idle
+  /// state, or a Failed/Cancelled state with no conversation).
+  ///
+  /// This is the seam between the AG-UI streaming pipeline (which
+  /// already applies `StateSnapshotEvent` / `StateDeltaEvent` into
+  /// `Conversation.aguiState`) and the GenUI surface layer in
+  /// `soliplex_client`'s `StateBus`. Hosts pass the most recent
+  /// value here into `StateBus.setAgentState(...)`.
+  late final ReadonlySignal<Map<String, dynamic>> agentState = computed(() {
+    final state = _runStateSignal.value;
+    return _aguiStateOf(state) ?? const <String, dynamic>{};
+  });
+
   /// Reactive signal tracking the [AgentSessionState] lifecycle.
   ReadonlySignal<AgentSessionState> get sessionState =>
       _sessionStateSignal.readonly();
@@ -486,6 +503,20 @@ class AgentSession implements ToolExecutionContext {
         .whereType<TextMessage>()
         .where((m) => m.user == ChatUser.assistant);
     return assistantMessages.lastOrNull?.text ?? '';
+  }
+
+  /// Pulls the `aguiState` map out of any [RunState] variant. Returns
+  /// null when the variant carries no conversation (Idle, or a
+  /// Failed/Cancelled state with no captured conversation).
+  static Map<String, dynamic>? _aguiStateOf(RunState state) {
+    return switch (state) {
+      IdleState() => null,
+      RunningState(:final conversation) => conversation.aguiState,
+      ToolYieldingState(:final conversation) => conversation.aguiState,
+      CompletedState(:final conversation) => conversation.aguiState,
+      FailedState(:final conversation) => conversation?.aguiState,
+      CancelledState(:final conversation) => conversation?.aguiState,
+    };
   }
 
   // ---------------------------------------------------------------------------
