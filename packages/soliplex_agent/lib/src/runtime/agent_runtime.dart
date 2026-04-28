@@ -13,6 +13,7 @@ import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
 import 'package:soliplex_agent/src/runtime/server_connection.dart';
 import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
+import 'package:soliplex_agent/src/runtime/thread_state.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
 import 'package:soliplex_client/soliplex_client.dart' show ThreadHistory;
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -89,7 +90,14 @@ class AgentRuntime {
   final Map<String, AgentSession> _sessions = {};
   final Map<String, Timer> _rootTimeoutTimers = {};
   final Set<String> _deletedThreadIds = {};
-  final Map<String, ThreadHistory> _threadHistories = {};
+
+  /// Per-thread state, keyed by full [ThreadKey].
+  ///
+  /// Replaces the prior `_threadHistories: Map<String, ThreadHistory>`
+  /// cache (Phase 1 step 3a). Each entry owns a `StateBus` that survives
+  /// session boundaries within the thread's lifetime, plus the cached
+  /// `ThreadHistory` used to seed resume paths.
+  final Map<ThreadKey, ThreadState> _threadStates = {};
   final _spawnQueue = <Completer<void>>[];
   final StreamController<List<AgentSession>> _sessionController =
       StreamController<List<AgentSession>>.broadcast();
@@ -122,15 +130,18 @@ class AgentRuntime {
   ///
   /// Call this when a thread is created outside of [spawn] (e.g. via
   /// a UI "new thread" button) so that the backend-provided initial
-  /// state is available when [spawn] is later called with that threadId.
+  /// state is available when [spawn] is later called for that thread.
+  ///
+  /// Phase 1 step 3a — keyed by full [ThreadKey] (was bare `threadId`).
   void seedThreadState(
-    String threadId,
+    ThreadKey key,
     Map<String, dynamic> aguiState,
   ) {
     if (aguiState.isEmpty) return;
-    _threadHistories[threadId] = ThreadHistory(
-      messages: const [],
-      aguiState: aguiState,
+    final state = _threadStateFor(key);
+    state.bus.setAgentState(aguiState);
+    _threadStates[key] = state.withHistory(
+      ThreadHistory(messages: const [], aguiState: aguiState),
     );
   }
 
@@ -138,10 +149,22 @@ class AgentRuntime {
   ///
   /// Call this when thread history is fetched (e.g. when selecting an
   /// existing thread) so that messages and AG-UI state are available
-  /// when [spawn] is later called with that threadId.
-  void seedThreadHistory(String threadId, ThreadHistory history) {
-    _threadHistories[threadId] = history;
+  /// when [spawn] is later called for that thread.
+  ///
+  /// Phase 1 step 3a — keyed by full [ThreadKey] (was bare `threadId`).
+  void seedThreadHistory(ThreadKey key, ThreadHistory history) {
+    final state = _threadStateFor(key);
+    if (history.aguiState.isNotEmpty) {
+      state.bus.setAgentState(history.aguiState);
+    }
+    _threadStates[key] = state.withHistory(history);
   }
+
+  /// Returns the per-thread state for [key], creating a fresh
+  /// [ThreadState] if none has been registered yet. Internal helper —
+  /// callers outside the runtime should use the seed APIs above.
+  ThreadState _threadStateFor(ThreadKey key) =>
+      _threadStates[key] ??= ThreadState();
 
   /// Spawns a new agent session.
   ///
@@ -167,7 +190,7 @@ class AgentRuntime {
     _guardSpawnDepth(parent);
     final depth = parent == null ? 0 : parent.depth + 1;
     final (key, existingRunId) = await _resolveThread(roomId, threadId);
-    final history = _threadHistories[key.threadId];
+    final history = _threadStates[key]?.history;
     final session = await _buildSession(
       key: key,
       roomId: roomId,
@@ -241,6 +264,10 @@ class AgentRuntime {
       session.dispose();
     }
     _sessions.clear();
+    for (final state in _threadStates.values) {
+      state.dispose();
+    }
+    _threadStates.clear();
     _sessionsSignal.dispose();
     unawaited(_sessionController.close());
   }
@@ -298,10 +325,7 @@ class AgentRuntime {
         await _connection.api.createThread(roomId);
     final key = (serverId: serverId, roomId: roomId, threadId: threadInfo.id);
     if (initialAguiState.isNotEmpty) {
-      _threadHistories[key.threadId] = ThreadHistory(
-        messages: const [],
-        aguiState: initialAguiState,
-      );
+      seedThreadState(key, initialAguiState);
     }
     final existingRunId =
         threadInfo.hasInitialRun ? threadInfo.initialRunId : null;
@@ -448,7 +472,9 @@ class AgentRuntime {
       _ => null,
     };
     if (history == null) return;
-    _threadHistories[session.threadKey.threadId] = history;
+    final key = session.threadKey;
+    final threadState = _threadStateFor(key);
+    _threadStates[key] = threadState.withHistory(history);
   }
 
   // ---------------------------------------------------------------------------

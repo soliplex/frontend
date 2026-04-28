@@ -117,7 +117,14 @@ class RoomState {
       threadId: threadId,
       registry: _registry,
       onHistoryLoaded: (id, history) {
-        runtime.seedThreadHistory(id, history);
+        runtime.seedThreadHistory(
+          (
+            serverId: _connection.serverId,
+            roomId: _roomId,
+            threadId: id,
+          ),
+          history,
+        );
       },
     );
     // Thread switch → force a refresh for the same reasons as room
@@ -134,7 +141,14 @@ class RoomState {
       if (result == null) return null; // disposed
       final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
-      runtime.seedThreadState(threadInfo.id, aguiState);
+      runtime.seedThreadState(
+        (
+          serverId: _connection.serverId,
+          roomId: _roomId,
+          threadId: threadInfo.id,
+        ),
+        aguiState,
+      );
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
