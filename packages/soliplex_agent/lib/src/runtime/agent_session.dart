@@ -90,6 +90,12 @@ class AgentSession implements ToolExecutionContext {
   /// Current session lifecycle state.
   AgentSessionState get state => _state;
 
+  /// Whether [dispose] has run. Deferred callbacks that might fire after
+  /// the session's owner has torn down should short-circuit on this
+  /// before reading the session's signals (which are disposed inside
+  /// [dispose]).
+  bool get isDisposed => _disposed;
+
   /// Completes when the session reaches a terminal state.
   Future<AgentResult> get result => _resultCompleter.future;
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -154,6 +156,33 @@ void main() {
     expect(registry.activeSession(_key), same(session2));
   });
 
+  test('does not read session signals after external dispose', () async {
+    // ThreadViewState disposes the session on view teardown; the
+    // registry's result.then callback fires afterwards on the microtask
+    // queue. It must not touch session.runState (already disposed).
+    final session = await spawnSession();
+
+    final captured = <String>[];
+    await runZoned(
+      () async {
+        registry.register(_key, session);
+        session.dispose();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      },
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, line) => captured.add(line),
+      ),
+    );
+
+    expect(
+      captured.where((line) => line.contains('read after disposed')),
+      isEmpty,
+      reason: 'RunRegistry must not read session signals after disposal.',
+    );
+    expect(registry.activeSession(_key), isNull);
+    expect(registry.completedOutcome(_key), isNotNull);
+  });
+
   test('dispose cancels all active sessions', () async {
     final session1 = await spawnSession(threadId: 'thread-1');
     final session2 = await spawnSession(threadId: 'thread-2');
@@ -220,21 +249,22 @@ void main() {
     expect(registry.activeSession(_key), same(session3));
   });
 
-  test('outcome is FailedRun when result resolves in a non-terminal state',
+  test('outcome is derived from AgentResult when no terminal state captured',
       () async {
+    // When the session's runState never transitions through a terminal
+    // state (e.g. external dispose mid-run, or the synthetic flow here),
+    // the registry has no live RunState to read — the outcome is
+    // derived from AgentResult alone. AgentFailure(cancelled) becomes
+    // CancelledRun(null) since no conversation snapshot is available.
     final session = ManualAgentSession(_key);
     registry.register(_key, session);
 
-    // Resolve `result` while runState is still IdleState — exercises the
-    // contract-violation branch of `_outcomeFrom`.
     session.completeWithoutTransition();
     await Future<void>.delayed(Duration.zero);
 
     final outcome = registry.completedOutcome(_key);
-    expect(outcome, isA<FailedRun>());
-    final failure = outcome as FailedRun;
-    expect(failure.error.toString(), contains('non-terminal state'));
-    expect(failure.error.toString(), contains('IdleState'));
+    expect(outcome, isA<CancelledRun>());
+    expect((outcome! as CancelledRun).conversation, isNull);
   });
 
   test('dispose is idempotent', () async {

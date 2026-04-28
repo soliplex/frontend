@@ -72,13 +72,25 @@ class RunRegistry {
     _runs[key] = run;
     _activeKeys.value = {..._activeKeys.value, key};
 
+    // Cache the terminal RunState as it arrives — session.runState becomes
+    // unreadable once session.dispose() runs, which can happen before this
+    // future's .then microtask fires (autoDispose flow, or external dispose).
+    RunState? terminalState;
+    final unsubscribe = session.runState.subscribe((state) {
+      if (state is CompletedState ||
+          state is FailedState ||
+          state is CancelledState) {
+        terminalState = state;
+      }
+    });
+
     unawaited(session.result.then((result) {
+      unsubscribe();
       if (_isDisposed) return;
       // Bail if a newer registration replaced this run. The orphan
       // can only resolve as cancelled-by-replacement; the new session
       // owns the key and produces its own outcome.
       if (!identical(_runs[key], run)) return;
-      final terminalState = session.runState.value;
       run.outcome = _outcomeFrom(terminalState, result);
       run.session = null;
       _activeKeys.value = _activeKeys.value.difference({key});
@@ -108,13 +120,22 @@ class RunRegistry {
     _activeKeys.dispose();
   }
 
-  static RunOutcome _outcomeFrom(RunState state, AgentResult result) {
+  static RunOutcome _outcomeFrom(RunState? state, AgentResult result) {
     return switch (state) {
       CompletedState(:final conversation, :final runId) =>
         CompletedRun(conversation, runId: runId),
       FailedState(:final conversation, :final error) =>
         FailedRun(conversation, error),
       CancelledState(:final conversation) => CancelledRun(conversation),
+      // No terminal RunState was captured (external dispose ran before
+      // any terminal state arrived) — derive the outcome from result.
+      null => switch (result) {
+          AgentFailure(:final reason) when reason == FailureReason.cancelled =>
+            CancelledRun(null),
+          AgentFailure(:final error) => FailedRun(null, error),
+          AgentTimedOut() => FailedRun(null, 'Session timed out'),
+          AgentSuccess() => FailedRun(null, 'Completed without terminal state'),
+        },
       IdleState() || RunningState() || ToolYieldingState() => FailedRun(
           null,
           'Session result arrived in non-terminal state '

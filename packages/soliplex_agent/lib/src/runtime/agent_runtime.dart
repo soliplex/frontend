@@ -385,7 +385,12 @@ class AgentRuntime {
     unawaited(
       future.then((_) async {
         if (_disposed) return;
-        _captureThreadHistory(session);
+        if (!session.isDisposed) {
+          // Skip when the session's owner has already torn it down:
+          // _captureThreadHistory reads session.runState.value, and
+          // session.dispose() disposes that signal.
+          _captureThreadHistory(session);
+        }
         if (autoDispose) {
           await _handleSessionComplete(session);
         } else {
