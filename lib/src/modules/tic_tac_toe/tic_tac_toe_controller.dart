@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide computed;
 
+import '../room/run_registry.dart';
 import 'board_render_state.dart';
 import 'tic_tac_toe_intent.dart';
 import 'tic_tac_toe_projection.dart';
@@ -16,7 +17,9 @@ class TicTacToeController {
   TicTacToeController({
     required this.threadKey,
     required AgentRuntime runtime,
-  }) : _runtime = runtime {
+    RunRegistry? runRegistry,
+  })  : _runtime = runtime,
+        _runRegistry = runRegistry {
     final bus = runtime.ensureThreadState(threadKey).bus;
     _serverSignal = bus.project(const TicTacToeProjection());
     _state = signal(const TicTacToeClientState());
@@ -27,15 +30,22 @@ class TicTacToeController {
       ),
     );
     _serverSubscription = _serverSignal.subscribe(_onServerState);
+    _activeKeysSubscription =
+        _runRegistry?.activeKeys.subscribe(_onActiveKeysChanged);
   }
 
   final ThreadKey threadKey;
   final AgentRuntime _runtime;
+  final RunRegistry? _runRegistry;
 
   late final ReadonlySignal<TicTacToeServerState?> _serverSignal;
   late final Signal<TicTacToeClientState> _state;
   late final ReadonlySignal<BoardRenderState?> _boardRender;
   void Function()? _serverSubscription;
+  void Function()? _activeKeysSubscription;
+  void Function()? _activeRunStateSub;
+  RunState? _lastRunState;
+  Timer? _bannerTimer;
   AgentSession? _activeSession;
   bool _disposed = false;
 
@@ -217,7 +227,58 @@ class TicTacToeController {
   }
 
   void setViewMode(TicTacToeViewMode mode) {
-    _state.value = _state.value.copyWith(viewMode: mode);
+    final s = _state.value;
+    final leavingFullscreen = s.viewMode == TicTacToeViewMode.fullscreen &&
+        mode != TicTacToeViewMode.fullscreen;
+    _state.value = s.copyWith(
+      viewMode: mode,
+      unreadChatWhileFullscreen:
+          leavingFullscreen ? 0 : s.unreadChatWhileFullscreen,
+      bannerVisible: leavingFullscreen ? false : s.bannerVisible,
+    );
+  }
+
+  void _onActiveKeysChanged(Set<ThreadKey> keys) {
+    _activeRunStateSub?.call();
+    _activeRunStateSub = null;
+    _lastRunState = null;
+    if (!keys.contains(threadKey)) return;
+    final session = _runRegistry?.activeSession(threadKey);
+    if (session == null) return;
+    _activeRunStateSub = session.runState.subscribe(_onAnyRunState);
+  }
+
+  void _onAnyRunState(RunState rs) {
+    final s = _state.value;
+    if (s.viewMode != TicTacToeViewMode.fullscreen) {
+      _lastRunState = rs;
+      return;
+    }
+    if (rs is RunningState && rs.streaming is TextStreaming) {
+      final last = _lastRunState;
+      final wasText = last is RunningState && last.streaming is TextStreaming;
+      if (!wasText) {
+        _state.value = s.copyWith(
+          unreadChatWhileFullscreen: s.unreadChatWhileFullscreen + 1,
+          bannerVisible: true,
+        );
+        _scheduleBannerAutoDismiss();
+      }
+    }
+    _lastRunState = rs;
+  }
+
+  void _scheduleBannerAutoDismiss() {
+    _bannerTimer?.cancel();
+    _bannerTimer = Timer(const Duration(seconds: 3), () {
+      if (_disposed) return;
+      _state.value = _state.value.copyWith(bannerVisible: false);
+    });
+  }
+
+  void dismissBanner() {
+    _bannerTimer?.cancel();
+    _state.value = _state.value.copyWith(bannerVisible: false);
   }
 
   void _onServerState(TicTacToeServerState? server) {
@@ -250,6 +311,9 @@ class TicTacToeController {
     _disposed = true;
     _activeSession?.cancel();
     _serverSubscription?.call();
+    _activeKeysSubscription?.call();
+    _activeRunStateSub?.call();
+    _bannerTimer?.cancel();
     _state.dispose();
   }
 }

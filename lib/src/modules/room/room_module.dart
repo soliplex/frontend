@@ -38,6 +38,7 @@ class RoomAppModule extends AppModule {
   ModuleRoutes build() => ModuleRoutes(
         overrides: [
           messageExpansionsProvider.overrideWithValue(_messageExpansions),
+          runRegistryProvider.overrideWithValue(registry),
         ],
         routes: [
           GoRoute(
