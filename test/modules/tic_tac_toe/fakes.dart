@@ -47,3 +47,17 @@ class FakeAgentSession implements AgentSession {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+/// Minimal AgentRuntime stub for registry tests.
+class FakeAgentRuntime implements AgentRuntime {
+  FakeAgentRuntime() : threadState = ThreadState();
+  final ThreadState threadState;
+  StateBus get bus => threadState.bus;
+
+  @override
+  dynamic noSuchMethod(Invocation i) {
+    if (i.memberName == #ensureThreadState) return threadState;
+    if (i.memberName == #spawn) return Future.value(FakeAgentSession());
+    return super.noSuchMethod(i);
+  }
+}
