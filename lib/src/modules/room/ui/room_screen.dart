@@ -458,16 +458,32 @@ class _RoomScreenState extends State<RoomScreen> {
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
 
-    return Column(
-      children: [
-        _buildRoomHeader(room, roomStatus, threadStatus),
-        if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(
-          child: threadView == null
-              ? _buildNoThreadBody(room)
-              : _buildThreadBody(threadView, room),
-        ),
+    final activeThread = threadView == null
+        ? null
+        : (
+            threadKey: (
+              serverId: widget.serverEntry.serverId,
+              roomId: widget.roomId,
+              threadId: threadView.threadId,
+            ),
+            runtime: _state.runtime,
+          );
+
+    return ProviderScope(
+      overrides: [
+        roomActiveThreadProvider.overrideWithValue(activeThread),
       ],
+      child: Column(
+        children: [
+          _buildRoomHeader(room, roomStatus, threadStatus),
+          if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
+          Expanded(
+            child: threadView == null
+                ? _buildNoThreadBody(room)
+                : _buildThreadBody(threadView, room),
+          ),
+        ],
+      ),
     );
   }
 
