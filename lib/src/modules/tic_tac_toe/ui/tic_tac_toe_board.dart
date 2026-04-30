@@ -105,15 +105,24 @@ class _BoardContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                tooltip: 'Hide board',
-                icon: const Icon(Icons.close),
-                iconSize: 18,
-                visualDensity: VisualDensity.compact,
-                onPressed: () =>
-                    controller.setViewMode(TicTacToeViewMode.hidden),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => controller.setViewMode(TicTacToeViewMode.hidden),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  Text(
+                    'Hide',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                  Icon(
+                    Icons.expand_more,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
               ),
             ),
             if (render.winner != null) _ResultBanner(winner: render.winner!),
