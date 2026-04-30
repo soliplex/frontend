@@ -471,6 +471,43 @@ void main() {
       expect(completed.conversation.aguiState, containsPair('key', 'value'));
     });
 
+    test('strips wire-only `_inbox` key from cachedHistory before merge',
+        () async {
+      // `_inbox` is a per-run wire convention used by surfaces (e.g.
+      // tic-tac-toe) to signal intents to the agent. The server consumes
+      // it and never echoes it back via state deltas, so the bus never
+      // carries it. Replaying a stale `_inbox` from cachedHistory would
+      // re-issue the previous run's intent against the new state — a
+      // real bug that surfaced as "game already finished" when the user
+      // sent a chat message after the tic-tac-toe game ended.
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: const [],
+        aguiState: const {
+          '_inbox': {
+            'tic_tac_toe': {
+              'intent': 'play',
+              'move': {'row': 0, 'col': 0},
+            },
+          },
+          'game': {'winner': 'draw'},
+        },
+      );
+
+      await orchestrator.startRun(
+        key: _key,
+        userMessage: 'just chatting now',
+        cachedHistory: history,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      expect(completed.conversation.aguiState.containsKey('_inbox'), isFalse);
+      expect(completed.conversation.aguiState, containsPair('game', anything));
+    });
+
     test('cachedHistory works with runToCompletion', () async {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
