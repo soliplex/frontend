@@ -18,6 +18,7 @@ class ChatInput extends StatefulWidget {
     this.onFilterTap,
     this.onDocumentRemoved,
     this.onAttachFile,
+    this.toolbarExtras = const [],
   });
 
   final void Function(String text) onSend;
@@ -30,6 +31,7 @@ class ChatInput extends StatefulWidget {
   final VoidCallback? onFilterTap;
   final void Function(RagDocument doc)? onDocumentRemoved;
   final VoidCallback? onAttachFile;
+  final List<WidgetBuilder> toolbarExtras;
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -234,6 +236,7 @@ class _ChatInputState extends State<ChatInput> {
                   tooltip: 'Upload file to thread',
                   onPressed: disabled ? null : widget.onAttachFile,
                 ),
+              ...widget.toolbarExtras.map((b) => b(context)),
               Expanded(
                 child: CallbackShortcuts(
                   bindings: {

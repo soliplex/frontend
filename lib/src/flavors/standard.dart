@@ -27,6 +27,7 @@ import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
+import '../modules/tic_tac_toe/tic_tac_toe_module.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
@@ -174,6 +175,7 @@ Future<ShellConfig> standard({
         enableDocumentFilter: true,
       ),
       QuizAppModule(serverManager: serverManager),
+      TicTacToeAppModule(),
     ],
   );
 }

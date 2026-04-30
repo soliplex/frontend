@@ -16,6 +16,7 @@ import '../../diagnostics/models/http_event_grouper.dart';
 import '../../diagnostics/models/run_event_filter.dart';
 import '../../diagnostics/ui/run_http_detail_page.dart';
 import '../agent_runtime_manager.dart';
+import '../room_providers.dart';
 import '../room_state.dart';
 import '../run_registry.dart';
 import '../thread_list_state.dart';
@@ -457,16 +458,36 @@ class _RoomScreenState extends State<RoomScreen> {
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
 
-    return Column(
-      children: [
-        _buildRoomHeader(room, roomStatus, threadStatus),
-        if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(
-          child: threadView == null
-              ? _buildNoThreadBody(room)
-              : _buildThreadBody(threadView, room),
+    final activeThread = threadView == null
+        ? null
+        : (
+            threadKey: (
+              serverId: widget.serverEntry.serverId,
+              roomId: widget.roomId,
+              threadId: threadView.threadId,
+            ),
+            runtime: _state.runtime,
+          );
+
+    return ProviderScope(
+      overrides: [
+        roomActiveThreadProvider.overrideWithValue(activeThread),
+        roomSpawnNewThreadProvider.overrideWithValue(
+          ({String prompt = '', Map<String, dynamic>? stateOverlay}) =>
+              _state.sendToNewThread(prompt, stateOverlay: stateOverlay),
         ),
       ],
+      child: Column(
+        children: [
+          _buildRoomHeader(room, roomStatus, threadStatus),
+          if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
+          Expanded(
+            child: threadView == null
+                ? _buildNoThreadBody(room)
+                : _buildThreadBody(threadView, room),
+          ),
+        ],
+      ),
     );
   }
 
@@ -786,6 +807,16 @@ class _RoomScreenState extends State<RoomScreen> {
             fallback: const Center(child: Text('Select a thread')),
           ),
         ),
+        Consumer(
+          builder: (context, ref, _) {
+            final aboveChat = ref.watch(roomAboveChatInputBuildersProvider);
+            if (aboveChat.isEmpty) return const SizedBox.shrink();
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: aboveChat.map((b) => b(context)).toList(),
+            );
+          },
+        ),
         if (roomError != null)
           _SendErrorBanner(
             error: roomError,
@@ -797,25 +828,32 @@ class _RoomScreenState extends State<RoomScreen> {
             roomId: widget.roomId,
             threadId: null,
           ),
-        ChatInput(
-          onSend: (text) => _state.sendToNewThread(
-            text,
-            stateOverlay: _buildStateOverlay(),
-          ),
-          onCancel: _state.cancelSpawn,
-          sessionState: _state.sessionState,
-          controller: _chatController,
-          focusNode: _chatFocusNode,
-          selectedDocuments: _selectedDocuments,
-          onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-          onDocumentRemoved: _filterEnabled
-              ? (doc) => _updateSelection(
-                    Set.of(_selectedDocuments)..remove(doc),
-                  )
-              : null,
-          onAttachFile: (room?.enableAttachments ?? false)
-              ? _pickAndUploadToNewThread
-              : null,
+        Consumer(
+          builder: (context, ref, _) {
+            final toolbarExtras =
+                ref.watch(roomChatInputToolbarBuildersProvider);
+            return ChatInput(
+              onSend: (text) => _state.sendToNewThread(
+                text,
+                stateOverlay: _buildStateOverlay(),
+              ),
+              onCancel: _state.cancelSpawn,
+              sessionState: _state.sessionState,
+              controller: _chatController,
+              focusNode: _chatFocusNode,
+              selectedDocuments: _selectedDocuments,
+              onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+              onDocumentRemoved: _filterEnabled
+                  ? (doc) => _updateSelection(
+                        Set.of(_selectedDocuments)..remove(doc),
+                      )
+                  : null,
+              onAttachFile: (room?.enableAttachments ?? false)
+                  ? _pickAndUploadToNewThread
+                  : null,
+              toolbarExtras: toolbarExtras,
+            );
+          },
         ),
       ],
     );
@@ -895,6 +933,16 @@ class _RoomScreenState extends State<RoomScreen> {
                         ),
               },
             ),
+            Consumer(
+              builder: (context, ref, _) {
+                final aboveChat = ref.watch(roomAboveChatInputBuildersProvider);
+                if (aboveChat.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: aboveChat.map((b) => b(context)).toList(),
+                );
+              },
+            ),
             if (sendError != null)
               _SendErrorBanner(
                 error: sendError,
@@ -906,27 +954,34 @@ class _RoomScreenState extends State<RoomScreen> {
                 roomId: widget.roomId,
                 threadId: threadView.threadId,
               ),
-            ChatInput(
-              onSend: (text) => threadView.sendMessage(
-                text,
-                _state.runtime,
-                stateOverlay: _buildStateOverlay(),
-              ),
-              onCancel: threadView.cancelRun,
-              sessionState: threadView.sessionState,
-              controller: _chatController,
-              focusNode: _chatFocusNode,
-              enabled: status is MessagesLoaded,
-              selectedDocuments: _selectedDocuments,
-              onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-              onDocumentRemoved: _filterEnabled
-                  ? (doc) => _updateSelection(
-                        Set.of(_selectedDocuments)..remove(doc),
-                      )
-                  : null,
-              onAttachFile: attachEnabled
-                  ? () => _pickAndUploadToThread(threadView.threadId)
-                  : null,
+            Consumer(
+              builder: (context, ref, _) {
+                final toolbarExtras =
+                    ref.watch(roomChatInputToolbarBuildersProvider);
+                return ChatInput(
+                  onSend: (text) => threadView.sendMessage(
+                    text,
+                    _state.runtime,
+                    stateOverlay: _buildStateOverlay(),
+                  ),
+                  onCancel: threadView.cancelRun,
+                  sessionState: threadView.sessionState,
+                  controller: _chatController,
+                  focusNode: _chatFocusNode,
+                  enabled: status is MessagesLoaded,
+                  selectedDocuments: _selectedDocuments,
+                  onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+                  onDocumentRemoved: _filterEnabled
+                      ? (doc) => _updateSelection(
+                            Set.of(_selectedDocuments)..remove(doc),
+                          )
+                      : null,
+                  onAttachFile: attachEnabled
+                      ? () => _pickAndUploadToThread(threadView.threadId)
+                      : null,
+                  toolbarExtras: toolbarExtras,
+                );
+              },
             ),
           ],
         ),

@@ -559,7 +559,18 @@ class RunOrchestrator {
       user: ChatUser.user,
       text: userMessage,
     );
-    final baseState = cachedHistory?.aguiState ?? const {};
+    // Strip wire-only keys from the cached state before replaying it.
+    // `_inbox` is the established convention for per-run intent payloads
+    // (e.g. tic-tac-toe surface); the server consumes it inside the
+    // run and never echoes it back via state deltas, so the bus never
+    // carries it. Replaying a stale `_inbox` from cachedHistory would
+    // re-issue the previous run's intent against the current state —
+    // e.g. "play (1,1)" on an already-finished game, which the agent
+    // rightly rejects. Treat it as transient.
+    final cachedAgui = cachedHistory?.aguiState ?? const <String, dynamic>{};
+    final baseState = cachedAgui.containsKey('_inbox')
+        ? (Map<String, dynamic>.of(cachedAgui)..remove('_inbox'))
+        : cachedAgui;
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
     _preRunAguiState = aguiState;

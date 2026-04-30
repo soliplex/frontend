@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -72,7 +73,9 @@ Widget _buildRouted({
       ),
     ],
   );
-  return MaterialApp.router(routerConfig: router);
+  return ProviderScope(
+    child: MaterialApp.router(routerConfig: router),
+  );
 }
 
 void main() {
@@ -117,7 +120,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -127,7 +131,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     expect(find.text('Test thread'), findsOneWidget);
@@ -138,7 +142,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -148,7 +153,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pump();
 
     expect(find.byType(AppBar), findsOneWidget);
@@ -162,7 +167,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -172,7 +178,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     expect(find.byType(Drawer), findsNothing);
@@ -196,7 +202,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -206,7 +213,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.menu));
@@ -240,7 +247,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -250,7 +258,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     final key = (
@@ -281,7 +289,8 @@ void main() {
     api.nextThreads = const [];
     api.nextRoom = Room(id: 'room-1', name: 'My Room');
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -291,7 +300,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     expect(find.text('Select a thread'), findsOneWidget);
@@ -305,7 +314,8 @@ void main() {
     api.nextThreads = const [];
     api.nextCreateThreadError = Exception('network error');
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -315,7 +325,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('New Thread'));
@@ -350,7 +360,8 @@ void main() {
     blockingApi.nextThreadHistory = ThreadHistory(messages: const []);
     final blockingEntry = createTestServerEntry(api: blockingApi);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: blockingEntry,
         roomId: 'room-1',
@@ -360,7 +371,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -383,7 +394,8 @@ void main() {
     // nextRoomUploads / nextThreadUploads default to empty → the chip
     // must not render when both scopes are Loaded([]).
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -393,7 +405,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     // The chip always renders an expand_more/less icon; its absence
@@ -422,7 +434,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -432,7 +445,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     // Tap the chip to expand the file panel.
@@ -463,7 +476,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -473,7 +487,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.expand_more), findsOneWidget);
@@ -495,7 +509,8 @@ void main() {
     api.nextRoomUploadsError =
         const ApiException(statusCode: 500, message: 'boom');
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: entry,
         roomId: 'room-1',
@@ -505,7 +520,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pumpAndSettle();
 
     // The chip leading icon should be error_outline (not the attach
@@ -526,7 +541,8 @@ void main() {
     ];
     final blockingEntry = createTestServerEntry(api: blockingApi);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: RoomScreen(
         serverEntry: blockingEntry,
         roomId: 'room-1',
@@ -536,7 +552,7 @@ void main() {
         uploadRegistry: uploadRegistry,
         documentSelections: DocumentSelections(),
       ),
-    ));
+    )));
     await tester.pump();
 
     final textField = tester.widget<TextField>(find.byType(TextField));
