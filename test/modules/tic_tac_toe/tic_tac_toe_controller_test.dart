@@ -311,7 +311,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(recording.lastRoomId, 'r');
       expect(recording.lastThreadId, 't');
-      expect(recording.lastPrompt, '');
+      expect(recording.lastPrompt, 'Play (1, 1).');
       expect(
         recording.lastStateOverlay!['_inbox']['tic_tac_toe']['intent'],
         'play',

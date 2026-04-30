@@ -40,6 +40,21 @@ final roomActiveThreadProvider =
   (_) => null,
 );
 
+/// Spawn a fresh thread in the active room with an optional state
+/// overlay. Returns a future that completes when the spawn has been
+/// initiated (the new thread becomes active). Null when no room is in
+/// scope. Surfaces (e.g., the tic-tac-toe toolbar button) use this to
+/// initiate a session from the no-thread state.
+typedef SpawnNewThread = Future<void> Function({
+  String prompt,
+  Map<String, dynamic>? stateOverlay,
+});
+
+final roomSpawnNewThreadProvider = Provider<SpawnNewThread?>(
+  name: 'roomSpawnNewThreadProvider',
+  (_) => null,
+);
+
 /// The room module's RunRegistry, exposed for cross-module observers
 /// (e.g., TicTacToeController watching for chat streaming events).
 /// Constructed and overridden by RoomAppModule.build().

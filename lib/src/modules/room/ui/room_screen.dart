@@ -472,6 +472,10 @@ class _RoomScreenState extends State<RoomScreen> {
     return ProviderScope(
       overrides: [
         roomActiveThreadProvider.overrideWithValue(activeThread),
+        roomSpawnNewThreadProvider.overrideWithValue(
+          ({String prompt = '', Map<String, dynamic>? stateOverlay}) =>
+              _state.sendToNewThread(prompt, stateOverlay: stateOverlay),
+        ),
       ],
       child: Column(
         children: [

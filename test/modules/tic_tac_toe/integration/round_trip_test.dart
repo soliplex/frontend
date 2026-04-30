@@ -147,7 +147,7 @@ void main() {
       expect(runtime.lastOverlay, isNotNull);
       expect(runtime.lastRoomId, 'r');
       expect(runtime.lastThreadId, 't');
-      expect(runtime.lastPrompt, '');
+      expect(runtime.lastPrompt, 'Play (1, 1).');
     },
   );
 }

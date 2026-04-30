@@ -158,11 +158,12 @@ class TicTacToeController {
     if (server.winner != null) return;
     if (server.turn != TicTacToePlayer.user) return;
 
+    final pending = s.pending!;
     final overlay = <String, dynamic>{
       '_inbox': {
         TicTacToeIntent.surfaceKey: {
           TicTacToeIntent.intentKey: TicTacToeIntent.play,
-          'move': {'row': s.pending!.row, 'col': s.pending!.col},
+          'move': {'row': pending.row, 'col': pending.col},
         },
       },
     };
@@ -172,15 +173,23 @@ class TicTacToeController {
       redoStack: const [],
       clearLastError: true,
     );
-    unawaited(_runWithOverlay(overlay));
+    unawaited(
+      _runWithOverlay(
+        overlay,
+        prompt: 'Play (${pending.row}, ${pending.col}).',
+      ),
+    );
   }
 
-  Future<void> _runWithOverlay(Map<String, dynamic> overlay) async {
+  Future<void> _runWithOverlay(
+    Map<String, dynamic> overlay, {
+    required String prompt,
+  }) async {
     final (:roomId, :threadId, serverId: _) = threadKey;
     try {
       _activeSession = await _runtime.spawn(
         roomId: roomId,
-        prompt: '',
+        prompt: prompt,
         threadId: threadId,
         stateOverlay: overlay,
       );
@@ -219,7 +228,7 @@ class TicTacToeController {
       clearPending: true,
       clearLastError: true,
     );
-    unawaited(_runWithOverlay(overlay));
+    unawaited(_runWithOverlay(overlay, prompt: 'Start a new game.'));
   }
 
   void toggleAutoSend() {
@@ -304,7 +313,12 @@ class TicTacToeController {
       inFlight: true,
       clearLastError: true,
     );
-    unawaited(_runWithOverlay(overlay));
+    final prompt = switch (intent[TicTacToeIntent.intentKey]) {
+      TicTacToeIntent.undo => 'Undo.',
+      TicTacToeIntent.redo => 'Redo.',
+      _ => '',
+    };
+    unawaited(_runWithOverlay(overlay, prompt: prompt));
   }
 
   void dispose() {

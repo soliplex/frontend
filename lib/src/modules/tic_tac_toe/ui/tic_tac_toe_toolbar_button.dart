@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../room/room_providers.dart';
 import '../tic_tac_toe_controller.dart';
+import '../tic_tac_toe_intent.dart';
 import '../tic_tac_toe_providers.dart';
 import '../tic_tac_toe_state.dart';
 
@@ -13,7 +14,24 @@ class TicTacToeToolbarButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = ref.watch(roomActiveThreadProvider);
-    if (active == null) return const SizedBox.shrink();
+    if (active == null) {
+      final spawn = ref.watch(roomSpawnNewThreadProvider);
+      if (spawn == null) return const SizedBox.shrink();
+      return IconButton(
+        tooltip: 'Play tic-tac-toe',
+        icon: const Icon(Icons.grid_3x3),
+        onPressed: () => spawn(
+          prompt: 'Start a new game.',
+          stateOverlay: {
+            '_inbox': {
+              TicTacToeIntent.surfaceKey: {
+                TicTacToeIntent.intentKey: TicTacToeIntent.newGame,
+              },
+            },
+          },
+        ),
+      );
+    }
     final registry = ref.watch(tictactoeRegistryProvider);
     final runRegistry = ref.watch(runRegistryProvider);
     final controller = registry.controllerFor(
