@@ -18,6 +18,7 @@ BoardRenderState renderWith({
         3,
         (_) => const CellRender(
           mark: null,
+          serverMark: null,
           isPending: false,
           isWinning: false,
         ),
@@ -44,6 +45,8 @@ void main() {
           body: TicTacToeControls(
             render: renderWith(),
             autoSend: false,
+            isFullscreen: false,
+            unreadCount: 0,
             lastError: null,
             onSend: () {},
             onCancel: () {},
@@ -71,6 +74,8 @@ void main() {
           body: TicTacToeControls(
             render: renderWith(canSend: true),
             autoSend: false,
+            isFullscreen: false,
+            unreadCount: 0,
             lastError: null,
             onSend: () => sends++,
             onCancel: () {},
@@ -94,6 +99,8 @@ void main() {
           body: TicTacToeControls(
             render: renderWith(canUndo: true),
             autoSend: false,
+            isFullscreen: false,
+            unreadCount: 0,
             lastError: null,
             onSend: () {},
             onCancel: () {},
@@ -129,6 +136,8 @@ void main() {
           body: TicTacToeControls(
             render: renderWith(),
             autoSend: false,
+            isFullscreen: false,
+            unreadCount: 0,
             lastError: TicTacToeError.network,
             onSend: () {},
             onCancel: () {},
@@ -153,6 +162,8 @@ void main() {
           body: TicTacToeControls(
             render: renderWith(),
             autoSend: false,
+            isFullscreen: false,
+            unreadCount: 0,
             lastError: TicTacToeError.network,
             onSend: () {},
             onCancel: () {},

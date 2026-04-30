@@ -11,6 +11,7 @@ void main() {
           body: TicTacToeCell(
             render: const CellRender(
               mark: 'X',
+              serverMark: 'X',
               isPending: false,
               isWinning: false,
             ),
@@ -23,13 +24,14 @@ void main() {
     expect(find.text('X'), findsOneWidget);
   });
 
-  testWidgets('shows pending indicator', (tester) async {
+  testWidgets('renders pending mark with the outline color', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: TicTacToeCell(
             render: const CellRender(
               mark: 'X',
+              serverMark: null,
               isPending: true,
               isWinning: false,
             ),
@@ -39,7 +41,9 @@ void main() {
         ),
       ),
     );
-    expect(find.byKey(const Key('tictactoe-cell-pending')), findsOneWidget);
+    final text = tester.widget<Text>(find.text('X'));
+    final BuildContext context = tester.element(find.byType(TicTacToeCell));
+    expect(text.style?.color, Theme.of(context).colorScheme.outline);
   });
 
   testWidgets('disabled when enabled false', (tester) async {
@@ -50,6 +54,7 @@ void main() {
           body: TicTacToeCell(
             render: const CellRender(
               mark: null,
+              serverMark: null,
               isPending: false,
               isWinning: false,
             ),

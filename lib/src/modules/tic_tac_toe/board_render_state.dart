@@ -7,11 +7,20 @@ import 'tic_tac_toe_state.dart';
 class CellRender {
   const CellRender({
     required this.mark,
+    required this.serverMark,
     required this.isPending,
     required this.isWinning,
   });
 
+  /// What to display: server mark, OR the pending overlay's mark if
+  /// the cell is staged but not yet committed, OR null when empty.
   final String? mark;
+
+  /// What the server actually has at this cell, ignoring any pending
+  /// overlay. Used by the widget's enable rule so a pending cell stays
+  /// tappable (re-tap toggles the pending off, per the spec).
+  final String? serverMark;
+
   final bool isPending;
   final bool isWinning;
 
@@ -20,11 +29,12 @@ class CellRender {
       identical(this, other) ||
       other is CellRender &&
           mark == other.mark &&
+          serverMark == other.serverMark &&
           isPending == other.isPending &&
           isWinning == other.isWinning;
 
   @override
-  int get hashCode => Object.hash(mark, isPending, isWinning);
+  int get hashCode => Object.hash(mark, serverMark, isPending, isWinning);
 }
 
 @immutable
@@ -69,6 +79,7 @@ class BoardRenderState {
         final isPending = client.pending == Cell(r, c) && serverMark == null;
         return CellRender(
           mark: serverMark ?? (isPending ? _userMark : null),
+          serverMark: serverMark,
           isPending: isPending,
           isWinning: winning.contains(Cell(r, c)),
         );

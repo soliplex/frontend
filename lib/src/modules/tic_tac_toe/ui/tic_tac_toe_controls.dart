@@ -8,6 +8,8 @@ class TicTacToeControls extends StatelessWidget {
     required this.render,
     required this.autoSend,
     required this.lastError,
+    required this.isFullscreen,
+    required this.unreadCount,
     required this.onSend,
     required this.onCancel,
     required this.onUndo,
@@ -21,6 +23,15 @@ class TicTacToeControls extends StatelessWidget {
   final BoardRenderState render;
   final bool autoSend;
   final TicTacToeError? lastError;
+
+  /// True when the controls are rendered inside the fullscreen page.
+  /// Drives the toggle button's icon + tooltip + unread badge.
+  final bool isFullscreen;
+
+  /// Unread chat-message count accumulated while in fullscreen. The
+  /// badge is hidden when the count is zero.
+  final int unreadCount;
+
   final VoidCallback onSend;
   final VoidCallback onCancel;
   final VoidCallback onUndo;
@@ -64,10 +75,16 @@ class TicTacToeControls extends StatelessWidget {
                 Switch(value: autoSend, onChanged: (_) => onToggleAutoSend()),
               ],
             ),
-            IconButton(
-              tooltip: 'Fullscreen',
-              icon: const Icon(Icons.fullscreen),
-              onPressed: onToggleFullscreen,
+            Badge(
+              isLabelVisible: unreadCount > 0,
+              label: Text('$unreadCount'),
+              child: IconButton(
+                tooltip: isFullscreen ? 'Exit fullscreen' : 'Fullscreen',
+                icon: Icon(
+                  isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                ),
+                onPressed: onToggleFullscreen,
+              ),
             ),
           ],
         ),

@@ -42,7 +42,7 @@ class TicTacToeFullscreenPage extends StatelessWidget {
                               render: render.cells[r][c],
                               enabled: !render.inFlight &&
                                   render.winner == null &&
-                                  render.cells[r][c].mark == null,
+                                  render.cells[r][c].serverMark == null,
                               onTap: () => controller.clickCell(r, c),
                             ),
                         ],
@@ -52,6 +52,8 @@ class TicTacToeFullscreenPage extends StatelessWidget {
                       render: render,
                       autoSend: s.autoSend,
                       lastError: s.lastError,
+                      isFullscreen: true,
+                      unreadCount: s.unreadChatWhileFullscreen,
                       onSend: controller.send,
                       onCancel: controller.cancel,
                       onUndo: controller.clickUndo,
@@ -62,19 +64,6 @@ class TicTacToeFullscreenPage extends StatelessWidget {
                       onRetry: controller.send,
                     ),
                   ],
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Badge(
-                  isLabelVisible: s.unreadChatWhileFullscreen > 0,
-                  label: Text('${s.unreadChatWhileFullscreen}'),
-                  child: IconButton(
-                    icon: const Icon(Icons.fullscreen_exit),
-                    onPressed: () =>
-                        controller.setViewMode(TicTacToeViewMode.inline),
-                  ),
                 ),
               ),
               if (s.bannerVisible)

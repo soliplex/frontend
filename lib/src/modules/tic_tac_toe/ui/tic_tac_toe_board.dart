@@ -105,6 +105,17 @@ class _BoardContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Hide board',
+                icon: const Icon(Icons.close),
+                iconSize: 18,
+                visualDensity: VisualDensity.compact,
+                onPressed: () =>
+                    controller.setViewMode(TicTacToeViewMode.hidden),
+              ),
+            ),
             if (render.winner != null) _ResultBanner(winner: render.winner!),
             for (int r = 0; r < 3; r++)
               Row(
@@ -116,7 +127,7 @@ class _BoardContent extends StatelessWidget {
                       render: render.cells[r][c],
                       enabled: !render.inFlight &&
                           render.winner == null &&
-                          render.cells[r][c].mark == null,
+                          render.cells[r][c].serverMark == null,
                       onTap: () => controller.clickCell(r, c),
                     ),
                 ],
@@ -134,16 +145,15 @@ class _BoardContent extends StatelessWidget {
               render: render,
               autoSend: clientState.autoSend,
               lastError: clientState.lastError,
+              isFullscreen: false,
+              unreadCount: 0,
               onSend: controller.send,
               onCancel: controller.cancel,
               onUndo: controller.clickUndo,
               onRedo: controller.clickRedo,
               onToggleAutoSend: controller.toggleAutoSend,
-              onToggleFullscreen: () => controller.setViewMode(
-                clientState.viewMode == TicTacToeViewMode.fullscreen
-                    ? TicTacToeViewMode.inline
-                    : TicTacToeViewMode.fullscreen,
-              ),
+              onToggleFullscreen: () =>
+                  controller.setViewMode(TicTacToeViewMode.fullscreen),
               onRetry: controller.send,
             ),
           ],

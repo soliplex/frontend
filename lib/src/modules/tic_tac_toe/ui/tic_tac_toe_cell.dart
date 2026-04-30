@@ -27,11 +27,10 @@ class TicTacToeCell extends StatelessWidget {
           border: Border.all(color: Theme.of(context).colorScheme.outline),
           color: color?.withValues(alpha: 0.1),
         ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (render.mark != null)
-              Text(
+        alignment: Alignment.center,
+        child: render.mark == null
+            ? null
+            : Text(
                 render.mark!,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       color: render.isPending
@@ -39,19 +38,6 @@ class TicTacToeCell extends StatelessWidget {
                           : color,
                     ),
               ),
-            if (render.isPending)
-              Positioned(
-                key: const Key('tictactoe-cell-pending'),
-                bottom: 4,
-                right: 4,
-                child: Icon(
-                  Icons.edit_outlined,
-                  size: 12,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
