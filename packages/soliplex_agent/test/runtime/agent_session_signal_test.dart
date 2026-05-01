@@ -110,6 +110,8 @@ void main() {
         any(),
         any(),
         cancelToken: any(named: 'cancelToken'),
+        resumePolicy: any(named: 'resumePolicy'),
+        onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
     ).thenAnswer((_) => stream);
   }

@@ -83,6 +83,8 @@ class AgentSession implements ToolExecutionContext {
     AgentSessionState.spawning,
   );
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
+  final Signal<ReconnectStatus?> _reconnectStatusSignal =
+      signal<ReconnectStatus?>(null);
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -154,6 +156,15 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the most recent [ExecutionEvent].
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent =>
       _executionEventSignal.readonly();
+
+  /// Reactive signal tracking SSE stream reconnect lifecycle.
+  ///
+  /// `null` means no reconnect activity. Emits [Reconnecting] while a
+  /// resume attempt is in flight, [Reconnected] on the first decoded
+  /// event after a successful resume, [ReconnectFailed] when the retry
+  /// budget is exhausted. Hosts can mirror this into a banner.
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus =>
+      _reconnectStatusSignal.readonly();
 
   /// Waits for the session result with an optional timeout.
   Future<AgentResult> awaitResult({Duration? timeout}) {
@@ -339,8 +350,27 @@ class AgentSession implements ToolExecutionContext {
         existingRunId: existingRunId,
         cachedHistory: cachedHistory,
         stateOverlay: stateOverlay,
+        onReconnectStatus: _onReconnectStatus,
       ),
     );
+  }
+
+  /// Bridges reconnect-lifecycle callbacks from `RunOrchestrator` /
+  /// `AgUiStreamClient` into the [reconnectStatus] signal. Defensive
+  /// try/catch ensures a misbehaving listener can never propagate back
+  /// into the run and convert a transient drop into a hard failure.
+  void _onReconnectStatus(ReconnectStatus status) {
+    if (_disposed) return;
+    try {
+      _reconnectStatusSignal.value = status;
+    } on Object catch (e, st) {
+      _logger.warning(
+        'Reconnect status listener threw (session=$id, '
+        'thread=${threadKey.threadId})',
+        error: e,
+        stackTrace: st,
+      );
+    }
   }
 
   /// Releases all resources, cascading to children first.
@@ -382,6 +412,7 @@ class AgentSession implements ToolExecutionContext {
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
     _executionEventSignal.dispose();
+    _reconnectStatusSignal.dispose();
   }
 
   // ---------------------------------------------------------------------------

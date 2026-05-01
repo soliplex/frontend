@@ -117,6 +117,8 @@ void main() {
         any(),
         any(),
         cancelToken: any(named: 'cancelToken'),
+        resumePolicy: any(named: 'resumePolicy'),
+        onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
     ).thenAnswer((_) => stream);
   }
@@ -828,6 +830,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -905,6 +909,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -948,6 +954,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) => Stream.fromIterable(_toolCallEvents()));
 
@@ -1215,6 +1223,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1242,6 +1252,8 @@ void main() {
             any(),
             captureAny(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) {
           callCount++;
@@ -1282,6 +1294,8 @@ void main() {
             any(),
             captureAny(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).captured;
 
@@ -1309,6 +1323,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -1373,6 +1389,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1417,6 +1435,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1604,6 +1624,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -1709,6 +1731,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;

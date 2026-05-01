@@ -53,6 +53,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     required SimpleRunAgentInput input,
     String? existingRunId,
     CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
     final runId =
         existingRunId ?? 'local-${DateTime.now().microsecondsSinceEpoch}';

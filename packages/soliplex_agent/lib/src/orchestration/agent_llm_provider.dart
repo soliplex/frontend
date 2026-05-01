@@ -41,10 +41,16 @@ abstract interface class AgentLlmProvider {
   /// The provider handles run creation internally. The returned
   /// `LlmRunHandle.events` stream yields `BaseEvent`s that
   /// `RunOrchestrator` processes via the existing event pipeline.
+  ///
+  /// [onReconnectStatus] receives SSE reconnect lifecycle updates from
+  /// the AG-UI backend (the only provider that can drop and resume
+  /// mid-run). Other providers ignore the callback. Optional — null
+  /// means no reconnect surfacing.
   Future<LlmRunHandle> startRun({
     required ThreadKey key,
     required SimpleRunAgentInput input,
     String? existingRunId,
     CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
   });
 }

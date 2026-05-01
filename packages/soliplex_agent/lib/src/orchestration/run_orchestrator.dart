@@ -105,6 +105,12 @@ class RunOrchestrator {
   int _subscriptionEpoch = 0;
   bool _runToCompletionActive = false;
 
+  /// Reconnect callback active during the current `runToCompletion`.
+  /// Threaded into every `_llmProvider.startRun` call within the
+  /// session — including post-tool-yield resumes — so the AG-UI
+  /// backend can surface SSE drops at any point in the run.
+  void Function(ReconnectStatus)? _activeOnReconnectStatus;
+
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
 
@@ -138,9 +144,11 @@ class RunOrchestrator {
     String? existingRunId,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
+    void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
     _guardRunToCompletion();
     _runToCompletionActive = true;
+    _activeOnReconnectStatus = onReconnectStatus;
     _toolDepth = 0;
     try {
       try {
@@ -159,6 +167,7 @@ class RunOrchestrator {
       return await _driveToolLoop(key, toolExecutor);
     } finally {
       _runToCompletionActive = false;
+      _activeOnReconnectStatus = null;
     }
   }
 
@@ -334,6 +343,7 @@ class RunOrchestrator {
       input: input,
       existingRunId: existingRunId,
       cancelToken: _cancelToken,
+      onReconnectStatus: _activeOnReconnectStatus,
     );
     if (_disposed) return;
     _subscribeToStream(
@@ -392,6 +402,7 @@ class RunOrchestrator {
       key: yielding.threadKey,
       input: input,
       cancelToken: _cancelToken,
+      onReconnectStatus: _activeOnReconnectStatus,
     );
     if (_disposed) return;
     _subscribeToStream(
