@@ -16,6 +16,7 @@ import '../modules/auth/platform/callback_params.dart';
 import '../modules/auth/secure_server_storage.dart';
 import '../modules/auth/server_manager.dart';
 import '../modules/auth/server_storage.dart';
+import '../modules/diagnostics/bus_inspector.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
@@ -82,6 +83,7 @@ Future<ShellConfig> standard({
 }) async {
   logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
   final inspector = NetworkInspector();
+  final busInspector = BusInspector();
   final httpLogger = LogManager.instance.getLogger('http_stack');
 
   void onHttpDiagnostic(
@@ -140,6 +142,8 @@ Future<ShellConfig> standard({
       ToolCallsExtension(),
       HumanApprovalExtension(),
     ],
+    busObserver: busInspector.record,
+    eventObserver: busInspector.recordEvent,
   );
 
   final registry = RunRegistry();
@@ -164,7 +168,7 @@ Future<ShellConfig> standard({
         : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
     refreshListenable: authMod.refreshListenable,
     modules: [
-      DiagnosticsAppModule(inspector: inspector),
+      DiagnosticsAppModule(inspector: inspector, busInspector: busInspector),
       authMod,
       LobbyAppModule(serverManager: serverManager),
       RoomAppModule(

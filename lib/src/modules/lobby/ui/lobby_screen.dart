@@ -41,6 +41,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onNetworkInspector() => context.push('/diagnostics/network');
 
+  void _onBusInspector() => context.push('/diagnostics/bus');
+
   void _onRoomTap(String serverId, String roomId) {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Room tap for unknown serverId: $serverId');
@@ -71,6 +73,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
+                onBusInspector: _onBusInspector,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
               )
@@ -81,6 +84,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
+                onBusInspector: _onBusInspector,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
               );
@@ -97,6 +101,7 @@ class _WideLayout extends StatelessWidget {
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
+    required this.onBusInspector,
     required this.onRoomTap,
     required this.onInfoTap,
   });
@@ -107,6 +112,7 @@ class _WideLayout extends StatelessWidget {
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
+  final VoidCallback onBusInspector;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -123,6 +129,7 @@ class _WideLayout extends StatelessWidget {
               onServerTap: onServerTap,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
+              onBusInspector: onBusInspector,
             ),
           ),
           const VerticalDivider(width: 1),
@@ -149,6 +156,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
+    required this.onBusInspector,
     required this.onRoomTap,
     required this.onInfoTap,
   });
@@ -159,6 +167,7 @@ class _NarrowLayout extends StatelessWidget {
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
+  final VoidCallback onBusInspector;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -180,6 +189,7 @@ class _NarrowLayout extends StatelessWidget {
           onServerTap: onServerTap,
           onAddServer: onAddServer,
           onNetworkInspector: onNetworkInspector,
+          onBusInspector: onBusInspector,
         ),
       ),
       body: _RoomContent(

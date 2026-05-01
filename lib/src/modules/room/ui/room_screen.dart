@@ -232,6 +232,8 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onNetworkInspector() => context.push('/diagnostics/network');
 
+  void _onBusInspector() => context.push('/diagnostics/bus');
+
   void _onRoomInfo() {
     context.push('/room/${widget.serverEntry.alias}/${widget.roomId}/info');
   }
@@ -353,6 +355,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
             onNetworkInspector: _onNetworkInspector,
+            onBusInspector: _onBusInspector,
             onRoomInfo: _onRoomInfo,
             roomName: roomName,
             onRetryThreads: () => _state.threadList.refresh(),
@@ -404,6 +407,10 @@ class _RoomScreenState extends State<RoomScreen> {
                     onNetworkInspector: () {
                       Navigator.pop(drawerContext);
                       _onNetworkInspector();
+                    },
+                    onBusInspector: () {
+                      Navigator.pop(drawerContext);
+                      _onBusInspector();
                     },
                     onRoomInfo: () {
                       Navigator.pop(drawerContext);

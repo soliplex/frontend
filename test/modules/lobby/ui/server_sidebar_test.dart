@@ -29,6 +29,7 @@ Widget _buildSidebar({
         onServerTap: onServerTap ?? () {},
         onAddServer: onAddServer ?? () {},
         onNetworkInspector: onNetworkInspector ?? () {},
+        onBusInspector: () {},
       ),
     ),
   );
