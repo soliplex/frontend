@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/require_connected_server.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -19,25 +20,28 @@ void main() {
       serverManager = _createManager();
     });
 
-    test('returns /lobby when alias is null', () {
-      expect(requireConnectedServer(serverManager, null), '/lobby');
+    test('returns lobby when alias is null', () {
+      expect(requireConnectedServer(serverManager, null), AppRoutes.lobby);
     });
 
-    test('returns /lobby when alias not found', () {
+    test('returns lobby when alias not found', () {
       expect(
         requireConnectedServer(serverManager, 'nonexistent'),
-        '/lobby',
+        AppRoutes.lobby,
       );
     });
 
-    test('returns /lobby when server exists but not connected', () {
+    test('returns lobby when server exists but not connected', () {
       final entry = serverManager.addServer(
         serverId: 'srv-1',
         serverUrl: Uri.parse('https://example.com'),
       );
 
       expect(entry.isConnected, isFalse);
-      expect(requireConnectedServer(serverManager, entry.alias), '/lobby');
+      expect(
+        requireConnectedServer(serverManager, entry.alias),
+        AppRoutes.lobby,
+      );
     });
 
     test('returns null when server is connected', () {

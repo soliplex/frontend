@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../core/app_module.dart';
+import '../../core/routes.dart';
 import '../../core/signal_listenable.dart';
 import '../../interfaces/auth_state.dart';
 import 'auth_providers.dart';
@@ -14,7 +15,12 @@ import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
 import 'ui/server_list_screen.dart';
 
-const _publicPaths = {'/', '/servers', '/auth/callback'};
+const _publicPaths = {
+  AppRoutes.home,
+  AppRoutes.servers,
+  AppRoutes.authCallback,
+  AppRoutes.versions,
+};
 
 class AuthAppModule extends AppModule {
   AuthAppModule({
@@ -66,7 +72,7 @@ class AuthAppModule extends AppModule {
         ],
         routes: [
           GoRoute(
-            path: '/',
+            path: AppRoutes.home,
             pageBuilder: (_, state) {
               final autoConnectUrl = state.uri.queryParameters['url'];
               return NoTransitionPage(
@@ -82,13 +88,13 @@ class AuthAppModule extends AppModule {
             },
           ),
           GoRoute(
-            path: '/servers',
+            path: AppRoutes.servers,
             pageBuilder: (_, __) => NoTransitionPage(
               child: ServerListScreen(serverManager: _serverManager),
             ),
           ),
           GoRoute(
-            path: '/auth/callback',
+            path: AppRoutes.authCallback,
             pageBuilder: (_, __) => NoTransitionPage(
               child: AuthCallbackScreen(serverManager: _serverManager),
             ),
@@ -98,7 +104,7 @@ class AuthAppModule extends AppModule {
           final isAuthenticated =
               _serverManager.authState.value is Authenticated;
           final isPublic = _publicPaths.contains(state.matchedLocation);
-          if (!isAuthenticated && !isPublic) return '/';
+          if (!isAuthenticated && !isPublic) return AppRoutes.home;
           return null;
         },
       );

@@ -20,6 +20,7 @@ Widget _buildSidebar({
   VoidCallback? onServerTap,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
+  VoidCallback? onVersions,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -29,6 +30,7 @@ Widget _buildSidebar({
         onServerTap: onServerTap ?? () {},
         onAddServer: onAddServer ?? () {},
         onNetworkInspector: onNetworkInspector ?? () {},
+        onVersions: onVersions ?? () {},
       ),
     ),
   );

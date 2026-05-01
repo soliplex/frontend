@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
+import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../quiz_session.dart';
 import '../quiz_session_controller.dart';
@@ -226,7 +227,10 @@ class _QuizScreenState extends State<QuizScreen> {
       if (confirmed != true || !mounted) return;
     }
     if (mounted) {
-      final fallback = '/room/${widget.serverEntry.alias}/${widget.roomId}';
+      final fallback = AppRoutes.room(
+        widget.serverEntry.alias,
+        widget.roomId,
+      );
       context.go(widget.returnRoute ?? fallback);
     }
   }
