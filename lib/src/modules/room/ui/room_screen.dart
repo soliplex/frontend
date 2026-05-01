@@ -7,7 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
-    show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
+    show
+        RagDocument,
+        ReconnectStatus,
+        Reconnected,
+        Reconnecting,
+        Room,
+        SourceReferenceFormatting,
+        buildDocumentFilter;
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
@@ -839,6 +846,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
+    final reconnectStatus = threadView.reconnectStatus.watch(context);
     final attachEnabled = room?.enableAttachments ?? false;
 
     _restoreUnsentText(sendError?.unsentText);
@@ -851,6 +859,12 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
         Column(
           children: [
+            if (reconnectStatus is Reconnecting ||
+                reconnectStatus is Reconnected)
+              _ReconnectBanner(
+                status: reconnectStatus!,
+                onDismiss: threadView.dismissReconnectStatus,
+              ),
             Expanded(
               child: switch (status) {
                 MessagesLoading() => const Center(
@@ -1004,6 +1018,121 @@ class _SendErrorBanner extends StatelessWidget {
             constraints: const BoxConstraints(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Banner that surfaces in-flight SSE reconnect lifecycle states.
+///
+/// Renders [Reconnecting] and [Reconnected] only — [ReconnectFailed]
+/// flows through the existing `_SendErrorBanner` via
+/// `ThreadViewState._friendlyMessage`. The `is` guard at the call site
+/// in `_buildThreadBody` keeps `ReconnectFailed` out of this widget,
+/// so the `switch` here does not need a third arm.
+class _ReconnectBanner extends StatefulWidget {
+  const _ReconnectBanner({required this.status, required this.onDismiss});
+
+  final ReconnectStatus status;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_ReconnectBanner> createState() => _ReconnectBannerState();
+}
+
+class _ReconnectBannerState extends State<_ReconnectBanner> {
+  Timer? _autoDismiss;
+
+  @override
+  void didUpdateWidget(covariant _ReconnectBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status.runtimeType != widget.status.runtimeType) {
+      _autoDismiss?.cancel();
+      _autoDismiss = null;
+      _scheduleAutoDismissIfNeeded();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleAutoDismissIfNeeded();
+  }
+
+  void _scheduleAutoDismissIfNeeded() {
+    if (widget.status is Reconnected) {
+      _autoDismiss = Timer(
+        const Duration(seconds: 4),
+        () {
+          if (!mounted) return;
+          widget.onDismiss();
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoDismiss?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final (icon, label) = switch (widget.status) {
+      Reconnecting() => (
+          const _SpinnerIcon(),
+          'Reconnecting…',
+        ),
+      Reconnected() => (
+          Icon(Icons.check_circle_outline, size: 16, color: scheme.primary),
+          'Reconnected.',
+        ),
+      // ignore: no_default_cases — guarded by call-site `is` check
+      _ => (const SizedBox.shrink(), ''),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: scheme.secondaryContainer,
+      child: Row(
+        children: [
+          icon,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSecondaryContainer,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: widget.onDismiss,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpinnerIcon extends StatelessWidget {
+  const _SpinnerIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 14,
+      width: 14,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
       ),
     );
   }
