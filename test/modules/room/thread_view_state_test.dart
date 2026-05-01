@@ -22,10 +22,12 @@ class _FakeAgentSession implements AgentSession {
   _FakeAgentSession({List<SessionExtension> extensions = const []})
       : _runState = Signal<RunState>(const IdleState()),
         _lastExecutionEvent = Signal<ExecutionEvent?>(null),
+        _reconnectStatus = Signal<ReconnectStatus?>(null),
         _extensions = extensions;
 
   final Signal<RunState> _runState;
   final Signal<ExecutionEvent?> _lastExecutionEvent;
+  final Signal<ReconnectStatus?> _reconnectStatus;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
   final List<SessionExtension> _extensions;
   bool cancelCalled = false;
@@ -38,6 +40,9 @@ class _FakeAgentSession implements AgentSession {
 
   @override
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _lastExecutionEvent;
+
+  @override
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
 
   @override
   Future<AgentResult> get result => _resultCompleter.future;
@@ -54,6 +59,9 @@ class _FakeAgentSession implements AgentSession {
   }
 
   void emit(RunState state) => _runState.value = state;
+
+  void emitReconnect(ReconnectStatus? status) =>
+      _reconnectStatus.value = status;
 
   void complete(AgentResult result) => _resultCompleter.complete(result);
 
@@ -870,6 +878,177 @@ void main() {
 
         expect(state.pendingApproval.value, isNotNull);
         expect(state.pendingApproval.value!.toolCallId, 'tc-B');
+
+        state.dispose();
+      },
+    );
+  });
+
+  group('reconnect status', () {
+    test(
+      'FailedState whose error starts with streamResumeFailedPrefix maps '
+      'to friendly SendError copy',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(
+          FailedState(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            reason: FailureReason.networkLost,
+            error: '$streamResumeFailedPrefix NetworkException: server gone',
+          ),
+        );
+
+        final sendError = state.lastSendError.value;
+        expect(sendError, isNotNull);
+        expect(sendError!.error, contains('Connection lost'));
+        expect(sendError.error, contains('send your message again'));
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'FailedState without the marker prefix passes the raw error through',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(
+          FailedState(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            reason: FailureReason.serverError,
+            error: 'Some other failure',
+          ),
+        );
+
+        expect(state.lastSendError.value?.error, 'Some other failure');
+
+        state.dispose();
+      },
+    );
+
+    test('mirrors session.reconnectStatus into reconnectStatus signal',
+        () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      expect(state.reconnectStatus.value, isNull);
+
+      session.emitReconnect(
+        const Reconnecting(attempt: 1, lastEventId: 'r:0'),
+      );
+      expect(state.reconnectStatus.value, isA<Reconnecting>());
+
+      session.emitReconnect(const Reconnected(attempt: 1));
+      expect(state.reconnectStatus.value, isA<Reconnected>());
+
+      state.dispose();
+    });
+
+    test(
+      'attaching a new session clears non-Reconnected mirrored state',
+      () async {
+        // Plan B2 step 5: only `Reconnected` survives `_detachSession`
+        // (so its 4s auto-dismiss timer can run). Other states clear.
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final sessionA = _FakeAgentSession();
+        state.attachSession(sessionA);
+        sessionA.emitReconnect(const Reconnecting(attempt: 1));
+        expect(state.reconnectStatus.value, isA<Reconnecting>());
+
+        // Detach + attach a new session: Reconnecting must clear since
+        // its presence would imply a stale in-flight banner.
+        final sessionB = _FakeAgentSession();
+        state.attachSession(sessionB);
+        expect(state.reconnectStatus.value, isNull);
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'detach preserves Reconnected so the auto-dismiss timer can run',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+        session.emitReconnect(const Reconnected(attempt: 1));
+        expect(state.reconnectStatus.value, isA<Reconnected>());
+
+        // Detach via a terminal CompletedState. Reconnected must survive
+        // so the banner widget's 4s auto-dismiss timer can complete.
+        session.emit(
+          CompletedState(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            runId: 'run-1',
+            conversation: const Conversation(
+              threadId: 'thread-1',
+              messages: [],
+            ),
+          ),
+        );
+        expect(state.reconnectStatus.value, isA<Reconnected>());
 
         state.dispose();
       },

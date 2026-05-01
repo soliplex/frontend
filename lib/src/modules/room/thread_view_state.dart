@@ -84,6 +84,7 @@ class ThreadViewState {
   CancelToken? _cancelToken;
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
+  void Function()? _reconnectStatusUnsub;
   bool _isDisposed = false;
 
   final SessionSpawner _spawner = SessionSpawner();
@@ -104,6 +105,18 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
+
+  /// Mirror of the active session's reconnect lifecycle. `null` means
+  /// no reconnect activity. The room screen renders a banner only for
+  /// [Reconnecting] / [Reconnected]; [ReconnectFailed] surfaces through
+  /// the existing [SendError] banner via [_friendlyMessage].
+  final Signal<ReconnectStatus?> _reconnectStatus =
+      Signal<ReconnectStatus?>(null);
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
+
+  /// Clears the reconnect banner. The "Reconnected" tile self-dismisses
+  /// after 4s in the widget; this is for explicit user dismissal.
+  void dismissReconnectStatus() => _reconnectStatus.value = null;
 
   // Persists historical trackers from loaded thread history and from
   // completed sessions (absorbed in _detachSession). Plain map — the live
@@ -209,6 +222,19 @@ class ThreadViewState {
     _activeSession.value = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    _reconnectStatusUnsub =
+        session.reconnectStatus.subscribe(_onReconnectStatus);
+    // Defensive — `subscribe` fires synchronously with the new session's
+    // `null` value, which would clear the mirror automatically. The
+    // explicit reset documents the fresh-start contract here at the
+    // call site and survives any future signals_core change that drops
+    // the synchronous-on-subscribe behavior.
+    _reconnectStatus.value = null;
+  }
+
+  void _onReconnectStatus(ReconnectStatus? status) {
+    if (_isDisposed) return;
+    _reconnectStatus.value = status;
   }
 
   void _onRunState(RunState runState) {
@@ -226,7 +252,7 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final error):
         _detachSession();
-        _lastSendError.value = SendError(error);
+        _lastSendError.value = SendError(_friendlyMessage(error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -265,9 +291,30 @@ class ThreadViewState {
     }
     _runStateUnsub?.call();
     _runStateUnsub = null;
+    _reconnectStatusUnsub?.call();
+    _reconnectStatusUnsub = null;
     _activeSession.value = null;
     _streamingState.value = null;
     _sessionState.value = null;
+    // Preserve `Reconnected` so its 4s auto-dismiss timer in the
+    // banner widget runs to completion. `Reconnecting` and
+    // `ReconnectFailed` have no auto-dismiss path of their own and a
+    // new session is about to attach (which clears via subscribe + the
+    // defensive reset in `_attachSession`).
+    if (_reconnectStatus.value is! Reconnected) {
+      _reconnectStatus.value = null;
+    }
+  }
+
+  /// Translates orchestrator failure copy into user-facing copy.
+  /// Resume-failure markers from `AgUiStreamClient` get a friendly
+  /// message; other failures pass through unchanged.
+  String _friendlyMessage(String error) {
+    if (error.startsWith(streamResumeFailedPrefix)) {
+      return 'Connection lost. The response may be incomplete — '
+          'you can send your message again.';
+    }
+    return error;
   }
 
   bool _restoreFromRegistry() {
@@ -340,5 +387,6 @@ class ThreadViewState {
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
+    _reconnectStatus.dispose();
   }
 }
