@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
+import '../../../core/routes.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
 import '../consent_notice.dart';
@@ -62,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     _unsubscribeFlow = _flow.state.subscribe((state) {
       if (state is Connected && mounted) {
-        context.go('/lobby');
+        context.go(AppRoutes.lobby);
         return;
       }
       if (mounted) setState(() {});
@@ -115,7 +116,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: _buildBody(context));
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(child: _buildBody(context)),
+            const _VersionFooter(),
+          ],
+        ),
+      ),
+    );
   }
 
   bool _handleKey(KeyEvent event) {
@@ -400,7 +410,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: () => context.go('/lobby'),
+            onPressed: () => context.go(AppRoutes.lobby),
             iconAlignment: IconAlignment.end,
             icon: const Icon(Icons.arrow_forward),
             label: const Text('Go to Lobby'),
@@ -409,7 +419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Align(
         alignment: Alignment.centerRight,
         child: TextButton(
-          onPressed: () => context.push('/servers'),
+          onPressed: () => context.push(AppRoutes.servers),
           child: Text('All servers ($connectedCount connected)'),
         ),
       ),
@@ -465,5 +475,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _connect() {
     if (!_formKey.currentState!.validate()) return;
     _flow.connect(_urlController.text.trim());
+  }
+}
+
+class _VersionFooter extends StatelessWidget {
+  const _VersionFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton(
+        onPressed: () => context.push(AppRoutes.versions),
+        child: const Text('Versions'),
+      ),
+    );
   }
 }

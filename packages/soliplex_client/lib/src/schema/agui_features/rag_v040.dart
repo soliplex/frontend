@@ -2,8 +2,8 @@
 //
 // The 0.42 shape (see `rag.dart`) is the target schema and generated from
 // quicktype. These types capture the 0.40 wire format so clients can still
-// parse state emitted by backends pinned to haiku.rag 0.40 — primarily
-// afsoc-rag prod — and replay 0.40-era thread history.
+// parse state emitted by backends pinned to haiku.rag 0.40 and replay
+// 0.40-era thread history.
 //
 // Shared types (`Citation`, `SearchResult`) are imported from `rag.dart`
 // because their Pydantic definitions are byte-identical between 0.40 and

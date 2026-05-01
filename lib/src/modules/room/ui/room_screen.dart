@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show RagDocument, Room, SourceReferenceFormatting, buildDocumentFilter;
+import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -196,8 +197,11 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
-    final base = '/room/${widget.serverEntry.alias}/${widget.roomId}';
-    final path = threadId != null ? '$base/thread/$threadId' : base;
+    final alias = widget.serverEntry.alias;
+    final roomId = widget.roomId;
+    final path = threadId != null
+        ? AppRoutes.thread(alias, roomId, threadId)
+        : AppRoutes.room(alias, roomId);
     if (replace || widget.threadId == null) {
       context.replace(path);
     } else {
@@ -228,12 +232,16 @@ class _RoomScreenState extends State<RoomScreen> {
     return false;
   }
 
-  void _onBackToLobby() => context.go('/lobby');
+  void _onBackToLobby() => context.go(AppRoutes.lobby);
 
-  void _onNetworkInspector() => context.push('/diagnostics/network');
+  void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
+
+  void _onVersions() => context.push(AppRoutes.versions);
 
   void _onRoomInfo() {
-    context.push('/room/${widget.serverEntry.alias}/${widget.roomId}/info');
+    context.push(
+      AppRoutes.roomInfo(widget.serverEntry.alias, widget.roomId),
+    );
   }
 
   Future<PickedFile?> _pickWithErrorSurfacing({String? threadId}) async {
@@ -300,13 +308,14 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onThreadSelected(String threadId) {
     context.go(
-      '/room/${widget.serverEntry.alias}/${widget.roomId}/thread/$threadId',
+      AppRoutes.thread(widget.serverEntry.alias, widget.roomId, threadId),
     );
   }
 
   void _onQuizTapped(String quizId) {
-    final alias = widget.serverEntry.alias;
-    context.go('/room/$alias/${widget.roomId}/quiz/$quizId');
+    context.go(
+      AppRoutes.quiz(widget.serverEntry.alias, widget.roomId, quizId),
+    );
   }
 
   Future<void> _showRenameDialog(String threadId, String currentName) async {
@@ -353,6 +362,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
             onNetworkInspector: _onNetworkInspector,
+            onVersions: _onVersions,
             onRoomInfo: _onRoomInfo,
             roomName: roomName,
             onRetryThreads: () => _state.threadList.refresh(),
@@ -404,6 +414,10 @@ class _RoomScreenState extends State<RoomScreen> {
                     onNetworkInspector: () {
                       Navigator.pop(drawerContext);
                       _onNetworkInspector();
+                    },
+                    onVersions: () {
+                      Navigator.pop(drawerContext);
+                      _onVersions();
                     },
                     onRoomInfo: () {
                       Navigator.pop(drawerContext);

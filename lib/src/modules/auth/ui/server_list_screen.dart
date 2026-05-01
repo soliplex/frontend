@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
     show fetchOidcDiscoveryDocument;
 
+import '../../../core/routes.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
 import '../server_entry.dart';
@@ -50,12 +51,12 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         automaticallyImplyLeading: false,
         actions: [
           TextButton(
-            onPressed: () => context.go('/'),
+            onPressed: () => context.go(AppRoutes.home),
             child: const Text('Home'),
           ),
           if (connected.isNotEmpty)
             TextButton(
-              onPressed: () => context.go('/lobby'),
+              onPressed: () => context.go(AppRoutes.lobby),
               child: const Text('Lobby'),
             ),
         ],
@@ -110,7 +111,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
           ),
         ],
       ),
-      onTap: () => context.go('/lobby'),
+      onTap: () => context.go(AppRoutes.lobby),
     );
   }
 
@@ -121,10 +122,9 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextButton(
-            onPressed: () {
-              final url = Uri.encodeComponent(entry.serverUrl.toString());
-              context.go('/?url=$url');
-            },
+            onPressed: () => context.go(
+              AppRoutes.homeWithUrl(entry.serverUrl.toString()),
+            ),
             child: const Text('Sign in'),
           ),
           IconButton(
@@ -136,10 +136,9 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
           ),
         ],
       ),
-      onTap: () {
-        final url = Uri.encodeComponent(entry.serverUrl.toString());
-        context.go('/?url=$url');
-      },
+      onTap: () => context.go(
+        AppRoutes.homeWithUrl(entry.serverUrl.toString()),
+      ),
     );
   }
 

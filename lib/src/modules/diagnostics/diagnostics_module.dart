@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
+import '../../core/routes.dart';
 import 'diagnostics_providers.dart';
 import 'network_inspector.dart';
 import 'ui/network_inspector_screen.dart';
@@ -20,7 +21,7 @@ class DiagnosticsAppModule extends AppModule {
         ],
         routes: [
           GoRoute(
-            path: '/diagnostics/network',
+            path: AppRoutes.networkInspector,
             builder: (context, state) =>
                 NetworkInspectorScreen(inspector: inspector),
           ),

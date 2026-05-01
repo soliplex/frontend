@@ -5,8 +5,10 @@ import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../design/design.dart';
+import '../core/routes.dart';
 import '../core/shell_config.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
+import '../modules/versions/versions_module.dart';
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
@@ -160,8 +162,10 @@ Future<ShellConfig> standard({
     logo: logo,
     theme: theme ?? _defaultTheme(),
     initialRoute: callbackParams is! NoCallbackParams
-        ? '/auth/callback'
-        : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
+        ? AppRoutes.authCallback
+        : (serverManager.authState.value is Authenticated
+            ? AppRoutes.lobby
+            : AppRoutes.home),
     refreshListenable: authMod.refreshListenable,
     modules: [
       DiagnosticsAppModule(inspector: inspector),
@@ -174,6 +178,10 @@ Future<ShellConfig> standard({
         enableDocumentFilter: true,
       ),
       QuizAppModule(serverManager: serverManager),
+      VersionsAppModule(
+        appName: appName,
+        serverManager: serverManager,
+      ),
     ],
   );
 }

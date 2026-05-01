@@ -21,6 +21,7 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
           runningThreadIds: emptyRunning,
