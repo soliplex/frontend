@@ -126,6 +126,12 @@ class StreamingLlmProvider implements AgentLlmProvider {
         yield TextMessageEndEvent(messageId: msgId);
       }
       yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+    } on CancelledException {
+      // Surface cancels as a stream error so the orchestrator routes
+      // them to `CancelledState` via `_onStreamError`. Yielding a
+      // `RunErrorEvent` would land in `FailedState(serverError)` with
+      // the runtime-type stringified into the user-facing message.
+      rethrow;
     } on Object catch (e) {
       yield RunErrorEvent(message: e.toString());
     }

@@ -6,6 +6,13 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// Handles both `SoliplexException` hierarchy (from REST calls)
 /// and `AgUiError` hierarchy (from AG-UI streaming).
 FailureReason classifyError(Object error) {
+  // Match the typed resume failure before the generic NetworkException
+  // unwrap — `StreamResumeFailedException` is a `NetworkException`, so
+  // the unwrap would otherwise route it to whatever the underlying
+  // transport error classifies as (typically `networkLost`).
+  if (error is StreamResumeFailedException) {
+    return FailureReason.streamResumeFailed;
+  }
   if (error is NetworkException && error.originalError != null) {
     return classifyError(error.originalError!);
   }

@@ -456,12 +456,21 @@ class RunOrchestrator {
     );
   }
 
-  /// Returns a [CancelledState] from a tool-yielding context.
+  /// Transitions to [CancelledState] from a tool-yielding context.
+  ///
+  /// Mirrors the `_failX` helpers: fires the state through `_setState` so
+  /// `stateChanges` observers see the terminal transition. A no-op
+  /// constructor would leave `_currentState` at `ToolYieldingState`,
+  /// so `AgentSession._completeWith` would never run and `result` would
+  /// hang.
   CancelledState _cancelledFromYielding(
     ThreadKey key,
     ToolYieldingState state,
   ) {
-    return CancelledState(threadKey: key, conversation: state.conversation);
+    final cancelled =
+        CancelledState(threadKey: key, conversation: state.conversation);
+    _setState(cancelled);
+    return cancelled;
   }
 
   /// Returns a [FailedState] for an error thrown by the tool executor.

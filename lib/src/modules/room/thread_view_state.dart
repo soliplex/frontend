@@ -246,9 +246,13 @@ class ThreadViewState {
     _activeSession.value = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    // `subscribe` fires synchronously with the new session's current
+    // value — null for fresh sessions, the live status for sessions
+    // restored from the registry. Either way, the mirror is up to date
+    // without an explicit reset (which would erase a live status from
+    // a restored session).
     _reconnectStatusUnsub =
         session.reconnectStatus.subscribe(_onReconnectStatus);
-    _reconnectStatus.value = null;
   }
 
   void _onReconnectStatus(ReconnectStatus? status) {
@@ -269,9 +273,9 @@ class ThreadViewState {
       case CompletedState(:final conversation):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
-      case FailedState(:final conversation, :final error):
+      case FailedState(:final conversation, :final reason, :final error):
         _detachSession();
-        _lastSendError.value = SendError(_friendlyMessage(error));
+        _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -323,12 +327,14 @@ class ThreadViewState {
   }
 
   /// Translates orchestrator failure copy into user-facing copy.
-  /// Resume-failure markers from `AgUiStreamClient` get a friendly
-  /// message; the skipped-event count, when present, is preserved as
-  /// a parenthetical so the user knows data was dropped along the way.
-  /// Other failures pass through unchanged.
-  String _friendlyMessage(String error) {
-    if (!error.startsWith(streamResumeFailedPrefix)) return error;
+  ///
+  /// `streamResumeFailed` failures get a friendly base message. The
+  /// skipped-event count, when present in the underlying error string,
+  /// is preserved as a parenthetical suffix — best-effort: the base
+  /// message still appears if the suffix format ever drifts. Other
+  /// failures pass through unchanged.
+  String _friendlyMessage(FailureReason reason, String error) {
+    if (reason != FailureReason.streamResumeFailed) return error;
     const base = 'Connection lost. The response may be incomplete — '
         'you can send your message again.';
     final skipped =
@@ -354,9 +360,10 @@ class ThreadViewState {
     switch (outcome) {
       case CompletedRun(:final conversation):
         _messages.value = _messagesLoaded(conversation);
-      case FailedRun(:final conversation, :final error):
+      case FailedRun(:final conversation, :final error, :final reason):
         // Apply friendly copy on re-attach, same as the live FailedState arm.
-        _lastSendError.value = SendError(_friendlyMessage(error.toString()));
+        _lastSendError.value =
+            SendError(_friendlyMessage(reason, error.toString()));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }

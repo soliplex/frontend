@@ -886,8 +886,8 @@ void main() {
 
   group('reconnect status', () {
     test(
-      'FailedState whose error starts with streamResumeFailedPrefix maps '
-      'to friendly SendError copy',
+      'FailedState with streamResumeFailed reason maps to friendly '
+      'SendError copy',
       () async {
         api.nextThreadHistory = ThreadHistory(messages: const []);
 
@@ -909,7 +909,7 @@ void main() {
               roomId: 'room-1',
               threadId: 'thread-1',
             ),
-            reason: FailureReason.networkLost,
+            reason: FailureReason.streamResumeFailed,
             error: '$streamResumeFailedPrefix NetworkException: server gone',
           ),
         );
@@ -947,7 +947,7 @@ void main() {
               roomId: 'room-1',
               threadId: 'thread-1',
             ),
-            reason: FailureReason.networkLost,
+            reason: FailureReason.streamResumeFailed,
             error: '$streamResumeFailedPrefix NetworkException: server gone '
                 '(skipped 3 malformed events)',
           ),

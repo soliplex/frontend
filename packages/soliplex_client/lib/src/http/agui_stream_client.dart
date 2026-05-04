@@ -13,9 +13,10 @@ import 'package:soliplex_client/src/http/resume_policy.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 
-/// Marker prefix on [NetworkException.message] when [AgUiStreamClient]
-/// wraps a resume failure. Consumers match on this prefix to render
-/// user-friendly copy in place of the raw transport error.
+/// Diagnostic prefix used inside
+/// [StreamResumeFailedException.message]. Kept for log/test
+/// readability; consumers should match on [StreamResumeFailedException]
+/// rather than this string.
 const String streamResumeFailedPrefix = 'Stream resume failed:';
 
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
@@ -93,9 +94,10 @@ class AgUiStreamClient {
             ReconnectFailed(attempt: attempt, error: e),
           );
           _flushSkippedWarning(skippedEventCount);
-          throw NetworkException(
+          throw StreamResumeFailedException(
             message: _resumeFailureMessage(e, skippedEventCount),
             originalError: e,
+            skippedEventCount: skippedEventCount,
           );
         }
         attempt += 1;
@@ -178,9 +180,10 @@ class AgUiStreamClient {
           ReconnectFailed(attempt: attempt, error: streamError),
         );
         _flushSkippedWarning(skippedEventCount);
-        throw NetworkException(
+        throw StreamResumeFailedException(
           message: _resumeFailureMessage(streamError, skippedEventCount),
           originalError: streamError,
+          skippedEventCount: skippedEventCount,
         );
       }
 
