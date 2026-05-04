@@ -45,6 +45,11 @@ class ResumePolicy {
   bool get enabled => maxAttempts > 0;
 
   /// Backoff for a 1-based [attempt] index (first retry = 1).
+  ///
+  /// Result is bounded to `[0, maxBackoff]`. Jitter is applied after
+  /// the geometric ramp is clamped to `maxBackoff`, then the result is
+  /// re-clamped — so the documented [maxBackoff] is a strict ceiling
+  /// rather than a pre-jitter midpoint.
   Duration backoffFor(int attempt) {
     assert(attempt >= 1, 'attempt is 1-based');
     final raw =
@@ -52,7 +57,8 @@ class ResumePolicy {
     final capped = min(raw.toDouble(), maxBackoff.inMilliseconds.toDouble());
     final rnd = _random ?? Random();
     final jitterFactor = 1.0 + (rnd.nextDouble() * 2 - 1) * jitter;
-    final ms = (capped * jitterFactor).round().clamp(0, 1 << 30);
+    final ms =
+        (capped * jitterFactor).round().clamp(0, maxBackoff.inMilliseconds);
     return Duration(milliseconds: ms);
   }
 }

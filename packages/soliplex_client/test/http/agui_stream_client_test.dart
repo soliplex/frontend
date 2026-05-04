@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show Random;
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 import 'package:fake_async/fake_async.dart';
@@ -72,6 +73,22 @@ const _fastPolicy = ResumePolicy(
   maxBackoff: Duration(milliseconds: 2),
   jitter: 0,
 );
+
+/// Deterministic [Random] that always returns [value] from
+/// [nextDouble]. Used to drive `ResumePolicy.backoffFor` to a known
+/// jitter point in tests. Other [Random] methods aren't called by
+/// the production code under test, so they're unimplemented.
+class _ConstantRandom implements Random {
+  _ConstantRandom(this.value);
+  final double value;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('_ConstantRandom.${invocation.memberName}');
+}
 
 void main() {
   late MockHttpTransport mockTransport;
@@ -1059,6 +1076,32 @@ void main() {
           async.elapse(const Duration(milliseconds: 1001));
           expect(completed, isTrue);
         });
+      });
+
+      test('backoff respects maxBackoff under worst-case +jitter', () {
+        // The original `backoffFor` clamped to `maxBackoff` before
+        // applying ±jitter — so the worst-case +jitter on the cap
+        // exceeded the documented ceiling. `backoffFor` is pure math
+        // (returns a `Duration` without sleeping), so values are kept
+        // small for readability — the contract is "post-jitter result
+        // must not exceed maxBackoff" regardless of magnitude.
+        final policy = ResumePolicy(
+          initialBackoff: const Duration(milliseconds: 10),
+          maxBackoff: const Duration(milliseconds: 100),
+          jitter: 0.5,
+          random: _ConstantRandom(0.999),
+        );
+        // attempt 5: raw = 10 * 2^4 = 160 ms → cap to 100 ms.
+        // jitterFactor ≈ 1.499 → 150 ms pre-fix; clamped to 100 post-fix.
+        expect(
+          policy.backoffFor(5),
+          const Duration(milliseconds: 100),
+        );
+        // Higher attempts: ramp keeps growing; cap holds.
+        expect(
+          policy.backoffFor(10),
+          const Duration(milliseconds: 100),
+        );
       });
 
       test('cancel cancels the underlying delay Timer', () {
