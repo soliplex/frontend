@@ -231,6 +231,22 @@ class RunOrchestrator {
           CancelledState(threadKey: threadKey, conversation: conversation),
         );
       case _:
+        // TODO(gap-3): Cancel during the IdleState window between
+        // `runToCompletion` start and the first `_subscribeToStream`
+        // is silently dropped here — `_cancelToken` is non-null
+        // (initialized in `_initializeStream`) but no caller cancels
+        // it, so the pending `_llmProvider.startRun → createRun`
+        // await proceeds to completion. The window is a few hundred
+        // milliseconds while the createRun HTTP request is in flight.
+        // The Soliplex frontend hides this from users by gating the
+        // Stop button via `ThreadViewState.isCancellable`; non-UI
+        // consumers (e.g. CLI tools, bulk-cancel automation) can
+        // still hit it. Closing the gap requires storing the active
+        // threadKey at the top of `runToCompletion`, cancelling the
+        // token here + setting CancelledState, adding a
+        // `_currentState is CancelledState` recheck after the await
+        // in `_initializeStream`, and letting `_handleStartError`
+        // honor the cancelled state instead of routing to FailedState.
         return;
     }
   }

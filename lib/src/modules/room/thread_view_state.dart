@@ -149,6 +149,29 @@ class ThreadViewState {
     return session?.getExtension<HumanApprovalExtension>()?.stateSignal.value;
   });
 
+  /// Whether the cancel/stop affordance should be enabled.
+  ///
+  /// True only when [cancelRun] would actually take effect:
+  ///   - A spawn is in progress (handled by `_spawner.cancel`), or
+  ///   - The active session's orchestrator is in [RunningState] or
+  ///     [ToolYieldingState] (handled by `RunOrchestrator.cancelRun`'s
+  ///     `RunningState` / `ToolYieldingState` arms).
+  ///
+  /// Returns false during the brief window between session attach and
+  /// the first SSE event, where the orchestrator's run state is still
+  /// [IdleState] and `cancelRun` is a no-op (Gap 3 — see
+  /// `RunOrchestrator.cancelRun`'s default arm).
+  late final ReadonlySignal<bool> isCancellable = computed(() {
+    if (_sessionState.value == AgentSessionState.spawning &&
+        _activeSession.value == null) {
+      return true;
+    }
+    final session = _activeSession.value;
+    if (session == null) return false;
+    final runState = session.runState.value;
+    return runState is RunningState || runState is ToolYieldingState;
+  });
+
   /// Resolves [request] on the active session's [HumanApprovalExtension]
   /// with [approved]. No-op if no session is attached, the session has no
   /// extension, or [request] is not the currently pending request.

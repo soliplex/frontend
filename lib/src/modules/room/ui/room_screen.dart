@@ -942,6 +942,7 @@ class _RoomScreenState extends State<RoomScreen> {
               ),
               onCancel: threadView.cancelRun,
               sessionState: threadView.sessionState,
+              cancelEnabled: threadView.isCancellable,
               controller: _chatController,
               focusNode: _chatFocusNode,
               enabled: status is MessagesLoaded,

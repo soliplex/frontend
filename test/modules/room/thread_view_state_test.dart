@@ -1054,4 +1054,100 @@ void main() {
       },
     );
   });
+
+  group('isCancellable', () {
+    test('false during the post-attach IdleState window', () async {
+      // The Gap 3 regression: session is attached but the orchestrator
+      // hasn't emitted RunningState yet. Without the gate, the Stop
+      // button is rendered enabled but `cancelRun` is a silent no-op.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      // Session attached, runState defaults to IdleState.
+      expect(state.isCancellable.value, isFalse);
+
+      state.dispose();
+    });
+
+    test('true once the orchestrator emits RunningState', () async {
+      // Pins the positive side of the gate. Without this, regressing
+      // the `RunningState` arm to always return false would silently
+      // disable the Stop button for normal runs and pass the IdleState
+      // test above.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        RunningState(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-1',
+          conversation: const Conversation(
+            threadId: 'thread-1',
+            messages: [],
+          ),
+          streaming: const AwaitingText(),
+        ),
+      );
+      expect(state.isCancellable.value, isTrue);
+
+      state.dispose();
+    });
+
+    test('true while in ToolYieldingState', () async {
+      // Independent of the RunningState case: the orchestrator's
+      // `cancelRun` `ToolYieldingState` arm cancels the in-flight
+      // `_resumeStream → startRun` await, and the UI gate must
+      // expose that capability.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      final state = ThreadViewState(
+        connection: connection,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+      session.emit(
+        ToolYieldingState(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          runId: 'run-1',
+          conversation: const Conversation(
+            threadId: 'thread-1',
+            messages: [],
+          ),
+          pendingToolCalls: const [],
+          toolDepth: 0,
+        ),
+      );
+      expect(state.isCancellable.value, isTrue);
+
+      state.dispose();
+    });
+  });
 }
