@@ -335,6 +335,7 @@ class RunOrchestrator {
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
   ) async {
+    _cancelToken ??= CancelToken();
     final conversation =
         _buildConversation(key, userMessage, cachedHistory, stateOverlay);
     final input = _buildInput(key, conversation);
@@ -396,6 +397,7 @@ class RunOrchestrator {
     ToolYieldingState yielding,
     List<ToolCallInfo> executedTools,
   ) async {
+    _cancelToken ??= CancelToken();
     final conversation = _buildResumeConversation(yielding, executedTools);
     final input = _buildInput(yielding.threadKey, conversation);
     final handle = await _llmProvider.startRun(
