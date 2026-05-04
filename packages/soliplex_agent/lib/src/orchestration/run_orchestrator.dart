@@ -464,7 +464,7 @@ class RunOrchestrator {
     final failed = FailedState(
       threadKey: key,
       reason: FailureReason.toolExecutionFailed,
-      error: error.toString(),
+      error: _messageOf(error),
       conversation: state.conversation,
     );
     _setState(failed);
@@ -822,7 +822,7 @@ class RunOrchestrator {
       FailedState(
         threadKey: running.threadKey,
         reason: reason,
-        error: error.toString(),
+        error: _messageOf(error),
         conversation: withCitations,
       ),
     );
@@ -833,7 +833,7 @@ class RunOrchestrator {
     final reason = classifyError(error);
     _logger.error('Failed to start run', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(threadKey: key, reason: reason, error: error.toString()),
+      FailedState(threadKey: key, reason: reason, error: _messageOf(error)),
     );
   }
 
@@ -852,4 +852,15 @@ class RunOrchestrator {
     _subscription = null;
     _cancelToken = null;
   }
+
+  /// Surfaces a [SoliplexException]'s underlying message without the
+  /// `RuntimeType: ` prefix that `toString` adds.
+  ///
+  /// Downstream consumers like `ThreadViewState._friendlyMessage` match
+  /// on prefixes (e.g. [streamResumeFailedPrefix]) and would otherwise
+  /// have to know about the wrapper. Plain `Object` errors fall back to
+  /// `toString` so non-Soliplex exceptions still surface a usable
+  /// description.
+  String _messageOf(Object error) =>
+      error is SoliplexException ? error.message : error.toString();
 }

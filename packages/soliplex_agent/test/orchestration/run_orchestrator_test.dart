@@ -301,6 +301,44 @@ void main() {
         await controller.close();
       },
     );
+
+    test(
+      'FailedState.error unwraps SoliplexException to its message',
+      () async {
+        // The friendly-error rewrite in
+        // `ThreadViewState._friendlyMessage` matches
+        // `error.startsWith(streamResumeFailedPrefix)`. Without
+        // unwrapping, `SoliplexException.toString()` adds a
+        // `RuntimeType: ` prefix that defeats the match — the user
+        // ends up seeing the raw nested exception text instead of
+        // "Connection lost. The response may be incomplete — you
+        // can send your message again."
+        stubCreateRun();
+        final controller = StreamController<BaseEvent>();
+        addTearDown(controller.close);
+        stubRunAgent(stream: controller.stream);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await Future<void>.delayed(Duration.zero);
+
+        controller.addError(
+          const NetworkException(
+            message: 'Stream resume failed: transient',
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<FailedState>());
+        final failed = orchestrator.currentState as FailedState;
+        expect(
+          failed.error,
+          equals('Stream resume failed: transient'),
+          reason: 'must surface NetworkException.message — not the '
+              'type-prefixed toString — so the friendly-message '
+              "contract's startsWith check matches",
+        );
+      },
+    );
   });
 
   group('cancel', () {
