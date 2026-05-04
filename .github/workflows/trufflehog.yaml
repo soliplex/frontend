@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Notify Slack on failure
-        uses: slackapi/slack-github-action@v3.0.1
+        uses: slackapi/slack-github-action@v3.0.3
         env:
           REF_NAME: ${{ github.head_ref || github.ref_name }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
