@@ -266,6 +266,49 @@ void main() {
       expect(capturedInput!.state, equals(initialState));
     });
 
+    test('busObserver receives every per-thread bus write with key + tag',
+        () async {
+      final received = <(ThreadKey, String?, Map<String, dynamic>)>[];
+      final runtime = AgentRuntime(
+        connection: mockConnection(),
+        toolRegistryResolver: (_) async => const ToolRegistry(),
+        platform: const NativePlatformConstraints(),
+        logger: logger,
+        busObserver: (key, tag, snapshot) => received.add((key, tag, snapshot)),
+      );
+
+      const key1 = (
+        serverId: 'default',
+        roomId: 'room-a',
+        threadId: 'thread-a',
+      );
+      const key2 = (
+        serverId: 'default',
+        roomId: 'room-b',
+        threadId: 'thread-b',
+      );
+
+      runtime
+        ..seedThreadState(key1, {'count': 1})
+        ..seedThreadHistory(
+          key2,
+          ThreadHistory(
+            messages: const [],
+            aguiState: const {'count': 2},
+          ),
+        );
+
+      expect(received, hasLength(2));
+      expect(received[0].$1, key1);
+      expect(received[0].$2, 'seed.initial');
+      expect(received[0].$3['count'], 1);
+      expect(received[1].$1, key2);
+      expect(received[1].$2, 'seed.history');
+      expect(received[1].$3['count'], 2);
+
+      await runtime.dispose();
+    });
+
     test('seedThreadState makes initial state available for spawn', () async {
       final initialState = <String, dynamic>{
         'rag': <String, dynamic>{
