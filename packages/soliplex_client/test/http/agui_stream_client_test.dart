@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show Random;
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 import 'package:fake_async/fake_async.dart';
@@ -13,6 +12,8 @@ import 'package:soliplex_client/src/http/resume_policy.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 import 'package:test/test.dart';
+
+import '_constant_random.dart';
 
 class MockHttpTransport extends Mock implements HttpTransport {}
 
@@ -73,22 +74,6 @@ const _fastPolicy = ResumePolicy(
   maxBackoff: Duration(milliseconds: 2),
   jitter: 0,
 );
-
-/// Deterministic [Random] that always returns [value] from
-/// [nextDouble]. Used to drive `ResumePolicy.backoffFor` to a known
-/// jitter point in tests. Other [Random] methods aren't called by
-/// the production code under test, so they're unimplemented.
-class _ConstantRandom implements Random {
-  _ConstantRandom(this.value);
-  final double value;
-
-  @override
-  double nextDouble() => value;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('_ConstantRandom.${invocation.memberName}');
-}
 
 void main() {
   late MockHttpTransport mockTransport;
@@ -845,12 +830,13 @@ void main() {
       );
 
       test(
-        'no-cursor mid-flight drop: NetworkException carries marker prefix',
+        'no-cursor mid-flight drop rethrows raw error without marker',
         () async {
-          // When the stream errors before any id has been seen, there
-          // is nothing to resume against, but the failure is still
-          // wrapped with `streamResumeFailedPrefix` so consumers can
-          // render friendly copy.
+          // When the stream errors before any id has been seen, no
+          // resume is possible — so the failure must surface as the
+          // original exception, not be re-labelled as a resume failure
+          // (which would mislead consumers into showing reconnect copy
+          // for a connection that never reconnected).
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
             urlBuilder: UrlBuilder(baseUrl),
@@ -899,7 +885,10 @@ void main() {
               isA<NetworkException>().having(
                 (e) => e.message,
                 'message',
-                startsWith(streamResumeFailedPrefix),
+                allOf(
+                  equals('mid drop'),
+                  isNot(startsWith(streamResumeFailedPrefix)),
+                ),
               ),
             ),
           );
@@ -1085,7 +1074,7 @@ void main() {
           initialBackoff: const Duration(milliseconds: 10),
           maxBackoff: const Duration(milliseconds: 100),
           jitter: 0.5,
-          random: _ConstantRandom(0.999),
+          random: ConstantRandom(0.999),
         );
         // attempt 5: raw = 10 * 2^4 = 160 ms → cap to 100 ms.
         // jitterFactor ≈ 1.499 applied to the 100 ms cap → re-clamped

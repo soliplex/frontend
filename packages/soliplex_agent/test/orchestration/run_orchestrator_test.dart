@@ -1014,6 +1014,56 @@ void main() {
       expect(failed.reason, equals(FailureReason.toolExecutionFailed));
       expect(failed.error, contains('depth limit'));
     });
+
+    test('NetworkException during resume → FailedState(networkLost)', () async {
+      // The post-tool-yield resume goes through `_failResume`, which must
+      // route via `classifyError` rather than hardcoding
+      // `toolExecutionFailed`. A transport drop on the resume should
+      // surface as `networkLost` so the UI can render reconnect copy
+      // instead of a tool-failure message.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var runAgentCallCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        runAgentCallCount++;
+        if (runAgentCallCount == 1) {
+          return Stream.fromIterable(_toolCallEvents());
+        }
+        return Stream<BaseEvent>.error(
+          const NetworkException(message: 'transport drop on resume'),
+        );
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Weather?',
+        toolExecutor: (_) async => _executedTools(),
+      );
+
+      expect(result, isA<FailedState>());
+      final failed = result as FailedState;
+      expect(
+        failed.reason,
+        equals(FailureReason.networkLost),
+        reason: 'transport failure during resume must classify as '
+            'networkLost, not toolExecutionFailed',
+      );
+    });
   });
 
   group('cancel during yield', () {

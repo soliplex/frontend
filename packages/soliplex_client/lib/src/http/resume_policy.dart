@@ -72,8 +72,6 @@ class ResumePolicy {
 /// callback. The callback is the only channel for reconnect lifecycle —
 /// the `BaseEvent` stream is reserved for actual server events.
 sealed class ReconnectStatus {
-  /// Subclass-only constructor for the sealed [ReconnectStatus]
-  /// hierarchy. `const` so subclasses can be `const` themselves.
   const ReconnectStatus();
 }
 

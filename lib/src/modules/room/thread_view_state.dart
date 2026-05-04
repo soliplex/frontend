@@ -114,8 +114,8 @@ class ThreadViewState {
       Signal<ReconnectStatus?>(null);
   ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
 
-  /// Clears the reconnect banner. The "Reconnected" tile self-dismisses
-  /// after 4s in the widget; this is for explicit user dismissal.
+  /// Clears the reconnect banner. The "Reconnected" tile also auto-
+  /// dismisses; this is for explicit user dismissal.
   void dismissReconnectStatus() => _reconnectStatus.value = null;
 
   // Persists historical trackers from loaded thread history and from
@@ -248,11 +248,6 @@ class ThreadViewState {
     _runStateUnsub = session.runState.subscribe(_onRunState);
     _reconnectStatusUnsub =
         session.reconnectStatus.subscribe(_onReconnectStatus);
-    // Defensive — `subscribe` fires synchronously with the new session's
-    // `null` value, which would clear the mirror automatically. The
-    // explicit reset documents the fresh-start contract here at the
-    // call site and survives any future signals_core change that drops
-    // the synchronous-on-subscribe behavior.
     _reconnectStatus.value = null;
   }
 
@@ -320,11 +315,8 @@ class ThreadViewState {
     _activeSession.value = null;
     _streamingState.value = null;
     _sessionState.value = null;
-    // Preserve `Reconnected` so its 4s auto-dismiss timer in the
-    // banner widget runs to completion. `Reconnecting` and
-    // `ReconnectFailed` have no auto-dismiss path of their own and a
-    // new session is about to attach (which clears via subscribe + the
-    // defensive reset in `_attachSession`).
+    // Preserve `Reconnected` so its banner-side auto-dismiss runs.
+    // Other states have no auto-dismiss; clear them here.
     if (_reconnectStatus.value is! Reconnected) {
       _reconnectStatus.value = null;
     }
@@ -363,12 +355,7 @@ class ThreadViewState {
       case CompletedRun(:final conversation):
         _messages.value = _messagesLoaded(conversation);
       case FailedRun(:final conversation, :final error):
-        // Apply friendly copy symmetrically with the live `FailedState`
-        // arm so a registered failure restored on re-attach (e.g.
-        // after a navigation round-trip) doesn't surface the raw
-        // transport marker. `FailedRun.error` is `Object`; `toString`
-        // is a no-op when the orchestrator supplied a `String` and
-        // stringifies exceptions cleanly otherwise.
+        // Apply friendly copy on re-attach, same as the live FailedState arm.
         _lastSendError.value = SendError(_friendlyMessage(error.toString()));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);

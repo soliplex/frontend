@@ -6,6 +6,9 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// Handles both `SoliplexException` hierarchy (from REST calls)
 /// and `AgUiError` hierarchy (from AG-UI streaming).
 FailureReason classifyError(Object error) {
+  if (error is NetworkException && error.originalError != null) {
+    return classifyError(error.originalError!);
+  }
   if (error is AuthException) return FailureReason.authExpired;
   if (error is NetworkException) return FailureReason.networkLost;
   if (error is TransportError) return _classifyTransportError(error);

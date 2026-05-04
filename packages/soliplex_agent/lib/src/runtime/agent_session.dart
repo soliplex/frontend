@@ -130,10 +130,6 @@ class AgentSession implements ToolExecutionContext {
   /// fed by `_onStateChange` on every [RunState] transition, so
   /// `session.agentState` and `bus.agentState` see the same snapshot
   /// at all times — no parallel compute path.
-  ///
-  /// Hosts can subscribe to `bus.agentState` directly when reaching
-  /// the bus is more natural (e.g. inside `bus.project(...)`
-  /// projections) — both views see the same snapshot.
   ReadonlySignal<Map<String, dynamic>> get agentState => bus.agentState;
 
   /// The per-thread reactive bus this session writes into. Owned by

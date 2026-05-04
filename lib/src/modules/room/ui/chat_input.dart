@@ -25,12 +25,9 @@ class ChatInput extends StatefulWidget {
   final void Function() onCancel;
   final ReadonlySignal<AgentSessionState?>? sessionState;
 
-  /// Optional gate for the Stop button. When provided, the Stop button
-  /// renders disabled (greyed out) while the signal reads `false` —
-  /// even though the input layout still shows it (because [sessionState]
-  /// is `spawning` or `running`). Use this to suppress cancels that
-  /// would otherwise be silently dropped by the orchestrator's idle
-  /// window. Defaults to `true` when omitted.
+  /// When provided, the Stop button is disabled while this signal is
+  /// `false` (it still renders, since [sessionState] is `spawning` or
+  /// `running`). Defaults to `true`.
   final ReadonlySignal<bool>? cancelEnabled;
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -266,9 +263,6 @@ class _ChatInputState extends State<ChatInput> {
               if (active)
                 IconButton(
                   icon: const Icon(Icons.stop),
-                  // `null` renders disabled. Suppresses cancels that would
-                  // be a silent no-op at the orchestrator level — see
-                  // `RunOrchestrator.cancelRun`'s default arm.
                   onPressed: cancelEnabled ? widget.onCancel : null,
                 )
               else

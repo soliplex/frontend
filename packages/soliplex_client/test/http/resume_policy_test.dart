@@ -1,7 +1,7 @@
-import 'dart:math';
-
 import 'package:soliplex_client/src/http/resume_policy.dart';
 import 'package:test/test.dart';
+
+import '_constant_random.dart';
 
 void main() {
   group('ResumePolicy construction', () {
@@ -48,7 +48,7 @@ void main() {
       final policy = ResumePolicy(
         initialBackoff: const Duration(milliseconds: 250),
         jitter: 0,
-        random: Random(0),
+        random: ConstantRandom(0),
       );
       expect(policy.backoffFor(1), const Duration(milliseconds: 250));
     });
@@ -61,7 +61,7 @@ void main() {
         initialBackoff: const Duration(milliseconds: 100),
         maxBackoff: const Duration(milliseconds: 200),
         jitter: 1,
-        random: _ConstantRandom(0),
+        random: ConstantRandom(0),
       );
       expect(policy.backoffFor(1), Duration.zero);
     });
@@ -100,19 +100,4 @@ void main() {
       expect(status.error, same(exception));
     });
   });
-}
-
-class _ConstantRandom implements Random {
-  _ConstantRandom(this._value);
-
-  final double _value;
-
-  @override
-  bool nextBool() => false;
-
-  @override
-  double nextDouble() => _value;
-
-  @override
-  int nextInt(int max) => 0;
 }

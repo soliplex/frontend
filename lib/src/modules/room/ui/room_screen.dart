@@ -1082,9 +1082,9 @@ class _ReconnectBannerState extends State<_ReconnectBanner> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final (icon, label) = switch (widget.status) {
-      Reconnecting() => (
+      Reconnecting(:final attempt) => (
           const _SpinnerIcon(),
-          'Reconnecting…',
+          'Reconnecting… (attempt $attempt)',
         ),
       Reconnected() => (
           Icon(Icons.check_circle_outline, size: 16, color: scheme.primary),

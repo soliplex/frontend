@@ -43,6 +43,22 @@ void main() {
       });
     });
 
+    group('NetworkException unwrap', () {
+      test('unwraps to AuthException original cause as authExpired', () {
+        const original = AuthException(message: '401');
+        const wrapped = NetworkException(
+          message: 'Stream resume failed: …',
+          originalError: original,
+        );
+        expect(classifyError(wrapped), equals(FailureReason.authExpired));
+      });
+
+      test('falls back to networkLost when originalError is null', () {
+        const wrapped = NetworkException(message: 'connection reset');
+        expect(classifyError(wrapped), equals(FailureReason.networkLost));
+      });
+    });
+
     group('unknown errors', () {
       test('FormatException maps to internalError', () {
         const error = FormatException('bad json');

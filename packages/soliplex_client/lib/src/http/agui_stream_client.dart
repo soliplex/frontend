@@ -114,6 +114,7 @@ class AgUiStreamClient {
       var sawTerminalEvent = false;
       var announcedResume = !isResumeRequest;
       Object? streamError;
+      StackTrace? streamErrorStack;
 
       try {
         // Construct the parser inside the try so a synchronous throw
@@ -146,8 +147,9 @@ class AgUiStreamClient {
         }
       } on CancelledException {
         rethrow;
-      } on Object catch (e) {
+      } on Object catch (e, st) {
         streamError = e;
+        streamErrorStack = st;
         developer.log(
           'SSE stream dropped after id=${lastEventId ?? "<none>"}: $e',
           name: _logName,
@@ -161,10 +163,13 @@ class AgUiStreamClient {
       }
 
       if (lastEventId == null) {
+        // No id was ever emitted, so no resume is possible. Rethrow the
+        // underlying error directly — wrapping with `streamResumeFailedPrefix`
+        // would mislead consumers into treating this as a resume failure.
         _flushSkippedWarning(skippedEventCount);
-        throw NetworkException(
-          message: _resumeFailureMessage(streamError, skippedEventCount),
-          originalError: streamError,
+        Error.throwWithStackTrace(
+          streamError,
+          streamErrorStack ?? StackTrace.current,
         );
       }
 
@@ -320,20 +325,12 @@ class AgUiStreamClient {
       }),
     );
     await completer.future;
-    // Idempotent: a no-op when the timer has already fired or been
-    // cancelled. Belt-and-suspenders against a future refactor that
-    // adds a path through `await completer.future` without firing
-    // either branch.
     timer.cancel();
     token.throwIfCancelled();
   }
 
-  /// Surfaces a non-zero skipped-event count. Always emits a
-  /// `developer.log` summary on the same `_logName` channel as the
-  /// per-event skip logs, and also forwards to [_onWarning] when the
-  /// host opted in to structured handling. Stateless — callers must
-  /// invoke this exactly once per terminal step (each `return`/`throw`
-  /// path inside `runAgent`).
+  /// Logs and forwards a non-zero skipped-event count via [_onWarning].
+  /// Caller invokes once per terminal exit from `runAgent`.
   void _flushSkippedWarning(int count) {
     if (count == 0) return;
     final noun = count == 1 ? 'event' : 'events';
@@ -343,9 +340,10 @@ class AgUiStreamClient {
   }
 
   String _resumeFailureMessage(Object error, int skippedEventCount) {
-    if (skippedEventCount == 0) return '$streamResumeFailedPrefix $error';
+    final inner = error is SoliplexException ? error.message : error.toString();
+    if (skippedEventCount == 0) return '$streamResumeFailedPrefix $inner';
     final noun = skippedEventCount == 1 ? 'event' : 'events';
-    return '$streamResumeFailedPrefix $error '
+    return '$streamResumeFailedPrefix $inner '
         '(skipped $skippedEventCount malformed $noun)';
   }
 
