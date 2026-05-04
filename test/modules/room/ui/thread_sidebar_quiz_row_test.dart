@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 
 void main() {
+  final emptyRunning = Signal(<String>{}).readonly();
+
   Widget buildSidebar({
     Map<String, String> quizzes = const {},
     void Function(String)? onQuizTapped,
@@ -20,8 +23,10 @@ void main() {
             onBackToLobby: () {},
             onCreateThread: () {},
             onNetworkInspector: () {},
+            onVersions: () {},
             onRoomInfo: () {},
             roomName: 'Test Room',
+            runningThreadIds: emptyRunning,
             quizzes: quizzes,
             onQuizTapped: onQuizTapped,
           ),

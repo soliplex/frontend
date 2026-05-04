@@ -10,6 +10,7 @@ import '../../../shared/theme_toggle_button.dart';
 
 import '../pick_file.dart';
 
+import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
@@ -88,7 +89,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
               context.pop();
             } else {
               context.go(
-                '/room/${widget.serverEntry.alias}/${widget.roomId}',
+                AppRoutes.room(widget.serverEntry.alias, widget.roomId),
               );
             }
           },
@@ -209,14 +210,14 @@ class _RoomInfoBody extends StatelessWidget {
           FeaturesCard(room: room, api: api, roomId: roomId),
           QuizzesCard(
             quizzes: room.quizzes,
-            onQuizTapped: (quizId) {
-              final from = Uri.encodeComponent(
-                '/room/$serverAlias/$roomId/info',
-              );
-              context.go(
-                '/room/$serverAlias/$roomId/quiz/$quizId?from=$from',
-              );
-            },
+            onQuizTapped: (quizId) => context.go(
+              AppRoutes.quiz(
+                serverAlias,
+                roomId,
+                quizId,
+                from: AppRoutes.roomInfo(serverAlias, roomId),
+              ),
+            ),
           ),
           ExpandableListCard<MapEntry<String, RoomSkill>>(
             key: const ValueKey('skills'),

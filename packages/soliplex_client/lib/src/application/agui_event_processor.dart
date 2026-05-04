@@ -296,64 +296,75 @@ EventProcessingResult _processTextStart(
   );
 }
 
-// TODO(cleanup): Extract streaming guard pattern if a third streaming event
-// type is added. Both _processTextContent and _processTextEnd share the
-// "check if streaming matches messageId, else return unchanged" pattern.
+/// Events for a stale or already-closed stream are ignored.
+EventProcessingResult _onActiveTextStream(
+  Conversation conversation,
+  StreamingState streaming,
+  String messageId,
+  EventProcessingResult Function(TextStreaming active) onMatch,
+) {
+  if (streaming is TextStreaming && streaming.messageId == messageId) {
+    return onMatch(streaming);
+  }
+  return EventProcessingResult(
+    conversation: conversation,
+    streaming: streaming,
+  );
+}
+
 EventProcessingResult _processTextContent(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
   String delta,
-) {
-  if (streaming is TextStreaming && streaming.messageId == messageId) {
-    return EventProcessingResult(
-      conversation: conversation,
-      streaming: streaming.appendDelta(delta),
+) =>
+    _onActiveTextStream(
+      conversation,
+      streaming,
+      messageId,
+      (active) => EventProcessingResult(
+        conversation: conversation,
+        streaming: active.appendDelta(delta),
+      ),
     );
-  }
-  return EventProcessingResult(
-    conversation: conversation,
-    streaming: streaming,
-  );
-}
 
 EventProcessingResult _processTextEnd(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
-) {
-  if (streaming is TextStreaming && streaming.messageId == messageId) {
-    // Skip if a message with this ID already exists — idempotency guard
-    // against duplicate events (e.g. from history replay).
-    if (conversation.messages.any((m) => m.id == messageId)) {
-      developer.log(
-        'Skipped duplicate message ID: $messageId',
-        name: 'soliplex_client.event_processor',
-        level: 800,
-      );
-      return EventProcessingResult(
-        conversation: conversation,
-        streaming: const AwaitingText(),
-      );
-    }
+) =>
+    _onActiveTextStream(
+      conversation,
+      streaming,
+      messageId,
+      (active) {
+        // Skip if a message with this ID already exists — idempotency guard
+        // against duplicate events (e.g. from history replay).
+        if (conversation.messages.any((m) => m.id == messageId)) {
+          developer.log(
+            'Skipped duplicate message ID: $messageId',
+            name: 'soliplex_client.event_processor',
+            level: 800,
+          );
+          return EventProcessingResult(
+            conversation: conversation,
+            streaming: const AwaitingText(),
+          );
+        }
 
-    final newMessage = TextMessage.create(
-      id: messageId,
-      user: streaming.user,
-      text: streaming.text,
-      thinkingText: streaming.thinkingText,
-    );
+        final newMessage = TextMessage.create(
+          id: messageId,
+          user: active.user,
+          text: active.text,
+          thinkingText: active.thinkingText,
+        );
 
-    return EventProcessingResult(
-      conversation: conversation.withAppendedMessage(newMessage),
-      streaming: const AwaitingText(),
+        return EventProcessingResult(
+          conversation: conversation.withAppendedMessage(newMessage),
+          streaming: const AwaitingText(),
+        );
+      },
     );
-  }
-  return EventProcessingResult(
-    conversation: conversation,
-    streaming: streaming,
-  );
-}
 
 /// Maps AG-UI TextMessageRole to domain ChatUser.
 ChatUser _mapRoleToChatUser(TextMessageRole role) {

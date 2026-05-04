@@ -148,6 +148,25 @@ void main() {
       await controller.close();
     });
 
+    test('spawnChild without roomId defaults to parent roomId', () async {
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      final controller = StreamController<BaseEvent>.broadcast();
+      stubRunAgent(stream: controller.stream);
+
+      // Parent on _roomB so a regression that hardcodes _roomA in
+      // spawnChild's defaulting wouldn't pass.
+      final parent = await runtime.spawn(roomId: _roomB, prompt: 'Hello');
+      final child = await parent.spawnChild(prompt: 'Sub-task');
+
+      expect(child.threadKey.roomId, equals(_roomB));
+      expect(parent.children, contains(child));
+
+      _happyPathEvents().forEach(controller.add);
+      await controller.close();
+    });
+
     test('parent cancel cascades to children', () async {
       stubCreateThread();
       stubCreateRun();

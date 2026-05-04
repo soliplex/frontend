@@ -1,0 +1,98 @@
+import 'package:meta/meta.dart';
+import 'package:signals_core/signals_core.dart';
+import 'package:soliplex_agent/src/runtime/session_extension.dart';
+
+/// Marker interface for extensions that expose a type-erased reactive state
+/// signal. Used by `SessionCoordinator.statefulObservations` to enumerate
+/// stateful extensions without knowing concrete type parameters.
+abstract interface class HasStatefulObservation {
+  ReadonlySignal<Object?> get stateSignalAsObject;
+}
+
+/// Adds a single typed reactive-state signal to a [SessionExtension].
+///
+/// Call [setInitialState] in the constructor before [onAttach] runs.
+/// Read [state] / write [state] to drive the signal. Dispose is handled
+/// automatically — override [onDispose] and call `super.onDispose()` to
+/// chain cleanup.
+///
+/// ```dart
+/// class MyExtension extends SessionExtension
+///     with StatefulSessionExtension<MySnapshot> {
+///   MyExtension() {
+///     setInitialState(const MySnapshot());
+///   }
+///
+///   @override
+///   String get namespace => 'my_extension';
+///
+///   @override
+///   Future<void> onAttach(AgentSession session) async {
+///     // subscribe to session signals here
+///   }
+///
+///   @override
+///   List<ClientTool> get tools => const [];
+///
+///   @override
+///   void onDispose() {
+///     // clean up subscriptions
+///     super.onDispose(); // disposes the state signal
+///   }
+/// }
+/// ```
+mixin StatefulSessionExtension<T> on SessionExtension
+    implements HasStatefulObservation {
+  Signal<T>? _stateSignal;
+  ReadonlySignal<Object?>? _objectSignal;
+  bool _disposed = false;
+
+  /// Initialises the backing signal. Must be called exactly once, in the
+  /// constructor, before [onAttach] runs.
+  @protected
+  void setInitialState(T initial) {
+    assert(_stateSignal == null, 'setInitialState() called more than once');
+    _stateSignal = signal(initial);
+  }
+
+  /// Typed read-only view of the state signal.
+  ReadonlySignal<T> get stateSignal {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    return _stateSignal!.readonly();
+  }
+
+  /// Current state value.
+  T get state {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    return _stateSignal!.value;
+  }
+
+  /// Replaces the current state, notifying all subscribers.
+  ///
+  /// No-op once the extension is disposed: late writes from async tool
+  /// operations that resume after [onDispose] would otherwise throw on a
+  /// disposed signal and surface as opaque "tool failed" errors.
+  set state(T value) {
+    if (_disposed) return;
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    _stateSignal!.value = value;
+  }
+
+  /// Type-erased view of [stateSignal] for use by `SessionCoordinator`.
+  ///
+  /// Backed by a `computed` signal to avoid unsafe generic casts at runtime.
+  @override
+  ReadonlySignal<Object?> get stateSignalAsObject {
+    assert(_stateSignal != null, 'Call setInitialState() in the constructor');
+    return _objectSignal ??= computed<Object?>(() => _stateSignal!.value);
+  }
+
+  @override
+  void onDispose() {
+    _disposed = true;
+    _objectSignal?.dispose();
+    _objectSignal = null;
+    _stateSignal?.dispose();
+    _stateSignal = null;
+  }
+}

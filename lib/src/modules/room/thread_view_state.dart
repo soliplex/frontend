@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
+import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
+import 'human_approval_extension.dart';
 import 'run_registry.dart';
 import 'send_error.dart';
-import 'tracker_registry.dart';
+import 'session_spawner.dart';
+import 'tool_calls_extension.dart';
 
 export 'send_error.dart';
 
@@ -79,10 +82,11 @@ class ThreadViewState {
       );
 
   CancelToken? _cancelToken;
-  AgentSession? _activeSession;
-  Future<AgentSession>? _pendingSpawn;
+  final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
   bool _isDisposed = false;
+
+  final SessionSpawner _spawner = SessionSpawner();
 
   final Signal<ThreadViewStatus> _messages =
       Signal<ThreadViewStatus>(MessagesLoading());
@@ -91,10 +95,9 @@ class ThreadViewState {
   final Signal<StreamingState?> _streamingState = Signal<StreamingState?>(null);
   ReadonlySignal<StreamingState?> get streamingState => _streamingState;
 
-  // Lifecycle: null → spawning (sendMessage) → running (_onRunState)
-  //            → null (_detachSession on terminal state, or cancelRun).
-  //            Doubles as a concurrency guard (sendMessage rejects if non-null)
-  //            and the UI signal for ChatInput's cancel button.
+  /// Tracks the session lifecycle: null → spawning → running → null.
+  /// Driven by [_spawner] during spawn (via its state-transition callback)
+  /// and updated directly here for attach, running, and detach transitions.
   final Signal<AgentSessionState?> _sessionState =
       Signal<AgentSessionState?>(null);
   ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
@@ -102,9 +105,45 @@ class ThreadViewState {
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
-  final TrackerRegistry _trackerRegistry = TrackerRegistry();
-  Map<String, ExecutionTracker> get executionTrackers =>
-      _trackerRegistry.trackers;
+  // Persists historical trackers from loaded thread history and from
+  // completed sessions (absorbed in _detachSession). Plain map — the live
+  // registry lives inside ExecutionTrackerExtension, which outlives the
+  // view when the session runs in the background.
+  final Map<String, ExecutionTracker> _historicalTrackers = {};
+
+  /// Returns all execution trackers for this thread: historical (from loaded
+  /// thread history) merged with any live trackers from the active session.
+  Map<String, ExecutionTracker> get executionTrackers {
+    final ext = _activeSession.value?.getExtension<ExecutionTrackerExtension>();
+    if (ext == null) return Map.unmodifiable(_historicalTrackers);
+    return {..._historicalTrackers, ...ext.trackers};
+  }
+
+  /// Live tool call statuses from the active session, or null if no session
+  /// is attached or the active session has no [ToolCallsExtension].
+  ///
+  /// Status is intentionally not persisted past the session's lifetime: this
+  /// signal returns null the moment the session detaches, even if its list
+  /// had populated entries.
+  ReadonlySignal<List<ToolCallEntry>>? get toolCalls =>
+      _activeSession.value?.getExtension<ToolCallsExtension>()?.stateSignal;
+
+  /// Pending approval for the active session, or `null` when no session is
+  /// attached, the session has no `HumanApprovalExtension`, or nothing is
+  /// pending. Updates across session swaps via `computed`.
+  late final ReadonlySignal<ApprovalRequest?> pendingApproval = computed(() {
+    final session = _activeSession.value;
+    return session?.getExtension<HumanApprovalExtension>()?.stateSignal.value;
+  });
+
+  /// Resolves [request] on the active session's [HumanApprovalExtension]
+  /// with [approved]. No-op if no session is attached, the session has no
+  /// extension, or [request] is not the currently pending request.
+  void respondToApproval(ApprovalRequest request, bool approved) {
+    _activeSession.value
+        ?.getExtension<HumanApprovalExtension>()
+        ?.respond(request, approved);
+  }
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
     unawaited(
@@ -124,34 +163,31 @@ class ThreadViewState {
     String prompt,
     AgentRuntime runtime, {
     Map<String, dynamic>? stateOverlay,
-  }) async {
-    if (_sessionState.value != null) return;
-    _lastSendError.value = null;
-    _sessionState.value = AgentSessionState.spawning;
-    Future<AgentSession>? spawnFuture;
-    try {
-      spawnFuture = runtime.spawn(
+  }) {
+    // Guard against sends while a session is already spawning/running.
+    // The spawner's own re-entrancy guard only covers in-flight spawns;
+    // this blocks overlapping sends when a prior session is attached.
+    if (_sessionState.value != null) return Future<void>.value();
+    return _spawner.spawn(
+      spawnFn: () => runtime.spawn(
         roomId: _roomId,
         prompt: prompt,
         threadId: threadId,
         stateOverlay: stateOverlay,
-      );
-      _pendingSpawn = spawnFuture;
-      final session = await spawnFuture;
-      if (_pendingSpawn != spawnFuture) return;
-      _pendingSpawn = null;
-      _registry.register(threadKey, session);
-      if (_isDisposed) return;
-      _attachSession(session);
-    } on Object catch (error) {
-      if (_isDisposed || _sessionState.value == null) return;
-      _lastSendError.value = SendError(error, unsentText: prompt);
-    } finally {
-      if (_pendingSpawn == spawnFuture) {
-        _pendingSpawn = null;
-        _sessionState.value = null;
-      }
-    }
+      ),
+      errorSignal: _lastSendError,
+      prompt: prompt,
+      isDisposed: () => _isDisposed,
+      onSpawned: (session) {
+        _registry.register(threadKey, session);
+        if (_isDisposed) return;
+        _attachSession(session);
+      },
+      onStateTransition: (state) {
+        if (_isDisposed) return;
+        _sessionState.value = state;
+      },
+    );
   }
 
   void attachSession(AgentSession session) {
@@ -159,38 +195,23 @@ class ThreadViewState {
   }
 
   void cancelRun() {
-    if (_cancelPendingSpawn()) return;
-    _activeSession?.cancel();
-  }
-
-  /// Cancels a pending spawn if one exists. Returns true if a spawn was
-  /// cancelled, false if there was nothing pending.
-  bool _cancelPendingSpawn() {
-    final pending = _pendingSpawn;
-    if (pending == null) return false;
-    _pendingSpawn = null;
-    _sessionState.value = null;
-    unawaited(pending.then((s) {
-      s.cancel();
-      s.dispose();
-    }).catchError((Object e) {
-      debugPrint('Cancelled spawn cleanup failed: $e');
-    }));
-    return true;
+    if (_spawner.cancel()) {
+      _sessionState.value = null;
+      return;
+    }
+    _activeSession.value?.cancel();
   }
 
   void _attachSession(AgentSession session) {
     if (_isDisposed) return;
     _detachSession();
     _cancelToken?.cancel('session attached');
-    _activeSession = session;
+    _activeSession.value = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
   }
 
   void _onRunState(RunState runState) {
-    final session = _activeSession;
-    if (session == null) return;
     switch (runState) {
       case RunningState(:final conversation, :final streaming):
         final current = _messages.value;
@@ -200,23 +221,16 @@ class ThreadViewState {
         }
         _streamingState.value = streaming;
         _sessionState.value = AgentSessionState.running;
-        _trackerRegistry.onStreaming(
-          streaming,
-          session.lastExecutionEvent,
-        );
       case CompletedState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final error):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         _lastSendError.value = SendError(error);
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
       case CancelledState(:final conversation):
-        _trackerRegistry.onRunTerminated();
         _detachSession();
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
@@ -240,9 +254,18 @@ class ThreadViewState {
   }
 
   void _detachSession() {
+    // Absorb live trackers from the extension before clearing the session
+    // reference, so historical data persists after the session ends.
+    final ext = _activeSession.value?.getExtension<ExecutionTrackerExtension>();
+    if (ext != null) {
+      // Live tracker wins over any historical entry with the same key.
+      for (final entry in ext.trackers.entries) {
+        _historicalTrackers[entry.key] = entry.value;
+      }
+    }
     _runStateUnsub?.call();
     _runStateUnsub = null;
-    _activeSession = null;
+    _activeSession.value = null;
     _streamingState.value = null;
     _sessionState.value = null;
   }
@@ -292,7 +315,12 @@ class ThreadViewState {
         .then((history) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      _trackerRegistry.seedHistorical(replayToTrackers(history.runs));
+      // putIfAbsent (not []=) on refresh: server replay must not overwrite a
+      // tracker already absorbed from a live session (`_detachSession`), which
+      // captured the full client-side event stream.
+      for (final entry in replayToTrackers(history.runs).entries) {
+        _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
+      }
       _messages.value = MessagesLoaded(
         messages: history.messages,
         messageStates: history.messageStates,
@@ -311,6 +339,6 @@ class ThreadViewState {
     _isDisposed = true;
     _cancelToken?.cancel('disposed');
     _detachSession();
-    _trackerRegistry.dispose();
+    _sessionState.dispose();
   }
 }

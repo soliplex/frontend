@@ -356,6 +356,54 @@ class FakeAgUiStreamClient extends AgUiStreamClient {
         );
 }
 
+/// AgentSession fake whose terminal state and result future are
+/// controlled by the test. Without [completeAsCancelled] /
+/// [completeWithoutTransition], the session never terminates — handy
+/// for asserting widget state while a session is "in flight".
+class ManualAgentSession implements AgentSession {
+  ManualAgentSession(this.threadKey);
+
+  @override
+  final ThreadKey threadKey;
+  final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
+  final Signal<RunState> _runState = Signal<RunState>(const IdleState());
+  bool cancelCalled = false;
+
+  @override
+  Future<AgentResult> get result => _resultCompleter.future;
+
+  @override
+  ReadonlySignal<RunState> get runState => _runState;
+
+  @override
+  void cancel() {
+    cancelCalled = true;
+  }
+
+  void completeAsCancelled() {
+    _runState.value = CancelledState(threadKey: threadKey);
+    _resultCompleter.complete(AgentFailure(
+      threadKey: threadKey,
+      reason: FailureReason.cancelled,
+      error: 'cancelled',
+    ));
+  }
+
+  /// Resolves [result] without driving [runState] into a terminal
+  /// subtype. Used to exercise the contract-violation branch of
+  /// `RunRegistry._outcomeFrom`.
+  void completeWithoutTransition() {
+    _resultCompleter.complete(AgentFailure(
+      threadKey: threadKey,
+      reason: FailureReason.cancelled,
+      error: 'no transition',
+    ));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 /// Logger for tests. Uses soliplex_logging's LogManager.
 Logger testLogger() {
   return LogManager.instance.getLogger('test');

@@ -88,7 +88,7 @@ class _TestScriptEnvironment implements ScriptEnvironment {
   void dispose() => disposeCount++;
 }
 
-class _TestExtension implements SessionExtension {
+class _TestExtension extends SessionExtension {
   int attachCount = 0;
   int disposeCount = 0;
   AgentSession? attachedSession;
@@ -106,7 +106,7 @@ class _TestExtension implements SessionExtension {
   void onDispose() => disposeCount++;
 }
 
-class _TestExtensionWithTool implements SessionExtension {
+class _TestExtensionWithTool extends SessionExtension {
   _TestExtensionWithTool(this._tool);
 
   final ClientTool _tool;
@@ -143,14 +143,26 @@ AgentSession createSession({
     toolRegistry: registry,
     logger: logger,
   );
+  final effectiveRuntime = runtime ?? MockAgentRuntime();
+  // Stub ensureThreadState — `AgentSession.bus` resolves through it,
+  // and `_onStateChange` calls `bus.setAgentState(...)` on every
+  // RunState transition. Without this, mocktail returns null and
+  // crashes the chain.
+  if (effectiveRuntime is MockAgentRuntime) {
+    registerFallbackValue(
+      const (serverId: 'fb', roomId: 'fb', threadId: 'fb'),
+    );
+    when(() => effectiveRuntime.ensureThreadState(any<ThreadKey>()))
+        .thenReturn(ThreadState());
+  }
   return AgentSession(
     threadKey: _key,
     ephemeral: ephemeral,
     depth: 0,
-    runtime: runtime ?? MockAgentRuntime(),
+    runtime: effectiveRuntime,
     orchestrator: orchestrator,
     toolRegistry: registry,
-    extensions: extensions,
+    coordinator: SessionCoordinator(extensions, logger: logger),
     logger: logger,
   );
 }

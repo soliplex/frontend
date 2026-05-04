@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routes.dart';
 import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
@@ -78,7 +79,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         ),
       );
 
-      if (mounted) context.go('/lobby');
+      if (mounted) context.go(AppRoutes.lobby);
     } catch (e, st) {
       dev.log('Auth callback failed', error: e, stackTrace: st);
       _fail('Something went wrong. Please try again.');
@@ -117,7 +118,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
               Text(_error ?? 'An error occurred'),
               const SizedBox(height: SoliplexSpacing.s4),
               FilledButton(
-                onPressed: () => context.go('/'),
+                onPressed: () => context.go(AppRoutes.home),
                 child: const Text('Back to home'),
               ),
             ],

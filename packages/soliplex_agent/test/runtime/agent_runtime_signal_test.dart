@@ -161,25 +161,6 @@ void main() {
       await controller.close();
     });
 
-    test('disposed signal retains last value', () async {
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
-      final controller = StreamController<BaseEvent>();
-      stubRunAgent(stream: controller.stream);
-
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello');
-      final valueBeforeDispose = runtime.sessions.value;
-      expect(valueBeforeDispose, hasLength(1));
-
-      await runtime.dispose();
-
-      // After dispose, signal retains its last value (frozen)
-      expect(runtime.sessions.value, hasLength(1));
-
-      await controller.close();
-    });
-
     test('signal and stream emit in same order', () async {
       stubCreateThread();
       stubCreateRun();
@@ -201,6 +182,63 @@ void main() {
       expect(streamEmissions, isNotEmpty);
       // First emission is the spawn (length 1)
       expect(streamEmissions.first, equals(1));
+    });
+  });
+
+  group('session disposal during pending completion', () {
+    test('external dispose does not read session signals after disposal',
+        () async {
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      final captured = <String>[];
+      await runZoned(
+        () async {
+          final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+          session.dispose();
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        },
+        zoneSpecification: ZoneSpecification(
+          print: (_, __, ___, line) => captured.add(line),
+        ),
+      );
+
+      expect(
+        captured.where((line) => line.contains('read after disposed')),
+        isEmpty,
+        reason: 'No session signal may be read after session.dispose().',
+      );
+      unawaited(controller.close());
+    });
+
+    test('autoDispose session is removed from tracking after external dispose',
+        () async {
+      // The runtime's completion handler must run even when the session was
+      // disposed by its owner — otherwise _rootTimeoutTimers, _sessions,
+      // and the spawn queue all leak the disposed session.
+      stubCreateThread();
+      stubCreateRun();
+      stubDeleteThread();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      final session = await runtime.spawn(
+        roomId: _roomId,
+        prompt: 'Hello',
+        autoDispose: true,
+      );
+      expect(runtime.sessions.value, hasLength(1));
+
+      session.dispose();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(runtime.sessions.value, isEmpty);
+      expect(runtime.activeSessions, isEmpty);
+
+      unawaited(controller.close());
     });
   });
 }

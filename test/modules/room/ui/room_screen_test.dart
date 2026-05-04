@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
@@ -194,6 +195,91 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('narrow layout: drawer thread tile spinner appears and clears',
+      (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+
+    final key = (
+      serverId: entry.serverId,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+    await tester.pump();
+
+    final spinnerInDrawer = find.descendant(
+      of: find.byType(Drawer),
+      matching: find.byType(CircularProgressIndicator),
+    );
+    expect(spinnerInDrawer, findsOneWidget);
+
+    session.completeAsCancelled();
+    await tester.pump();
+    await tester.pump();
+
+    expect(spinnerInDrawer, findsNothing);
+  });
+
+  testWidgets('wide layout: sidebar thread tile spinner appears and clears',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final key = (
+      serverId: entry.serverId,
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    );
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+    await tester.pump();
+
+    final spinnerInSidebar = find.descendant(
+      of: find.byType(ThreadSidebar),
+      matching: find.byType(CircularProgressIndicator),
+    );
+    expect(spinnerInSidebar, findsOneWidget);
+
+    session.completeAsCancelled();
+    await tester.pump();
+    await tester.pump();
+
+    expect(spinnerInSidebar, findsNothing);
   });
 
   testWidgets('shows RoomWelcome fallback when no thread selected',

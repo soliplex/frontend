@@ -6,10 +6,10 @@ import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../core/models/font_config.dart';
 import '../core/models/theme_config.dart';
+import '../core/routes.dart';
 import '../core/shell_config.dart';
-import '../core/signal_listenable.dart';
 import '../design/design.dart';
-import '../interfaces/auth_state.dart';
+import '../interfaces/auth_state.dart' show Authenticated;
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
@@ -24,8 +24,12 @@ import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
+import '../modules/room/execution_tracker_extension.dart';
+import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
+import '../modules/room/tool_calls_extension.dart';
+import '../modules/versions/versions_module.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
@@ -97,7 +101,6 @@ Future<ShellConfig> standard({
         webOrigin: kIsWeb ? Uri.base : null,
       );
 
-  final authListenable = SignalListenable(serverManager.authState);
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
 
   final runtimeManager = AgentRuntimeManager(
@@ -106,11 +109,27 @@ Future<ShellConfig> standard({
         : const NativePlatformConstraints(),
     toolRegistryResolver: (_) async => const ToolRegistry(),
     logger: LogManager.instance.getLogger('room'),
+    extensionFactory: () async => [
+      ExecutionTrackerExtension(),
+      ToolCallsExtension(),
+      HumanApprovalExtension(),
+    ],
   );
 
   final registry = RunRegistry();
 
-  return ShellConfig(
+  final authMod = AuthAppModule(
+    serverManager: serverManager,
+    probeClient: plainClient,
+    authFlow: authFlow,
+    appName: appName,
+    callbackParams: callbackParams is! NoCallbackParams ? callbackParams : null,
+    consentNotice: consentNotice,
+    logo: logo,
+    defaultBackendUrl: resolvedUrl,
+  );
+
+  return ShellConfig.fromModules(
     appName: appName,
     logo: logo,
     theme: soliplexLightTheme(
@@ -122,36 +141,25 @@ Future<ShellConfig> standard({
       fontConfig: themeConfig?.fontConfig ?? _defaultFontConfig,
     ),
     initialRoute: callbackParams is! NoCallbackParams
-        ? '/auth/callback'
-        : (serverManager.authState.value is Authenticated ? '/lobby' : '/'),
-    refreshListenable: authListenable,
-    onDispose: () {
-      authListenable.dispose();
-      serverManager.dispose();
-      plainClient.close();
-      runtimeManager.dispose();
-      registry.dispose();
-      inspector.dispose();
-    },
+        ? AppRoutes.authCallback
+        : (serverManager.authState.value is Authenticated
+            ? AppRoutes.lobby
+            : AppRoutes.home),
+    refreshListenable: authMod.refreshListenable,
     modules: [
-      diagnosticsModule(inspector: inspector),
-      lobbyModule(serverManager: serverManager),
-      roomModule(
+      DiagnosticsAppModule(inspector: inspector),
+      authMod,
+      LobbyAppModule(serverManager: serverManager),
+      RoomAppModule(
         serverManager: serverManager,
         runtimeManager: runtimeManager,
         registry: registry,
         enableDocumentFilter: true,
       ),
-      quizModule(serverManager: serverManager),
-      authModule(
-        serverManager: serverManager,
-        authFlow: authFlow,
-        probeClient: plainClient,
+      QuizAppModule(serverManager: serverManager),
+      VersionsAppModule(
         appName: appName,
-        callbackParams: callbackParams,
-        consentNotice: consentNotice,
-        logo: logo,
-        defaultBackendUrl: resolvedUrl,
+        serverManager: serverManager,
       ),
     ],
   );

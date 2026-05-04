@@ -21,6 +21,7 @@ Widget _buildSidebar({
   VoidCallback? onServerTap,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
+  VoidCallback? onVersions,
 }) {
   return ProviderScope(
     child: MaterialApp(
@@ -31,6 +32,7 @@ Widget _buildSidebar({
           onServerTap: onServerTap ?? () {},
           onAddServer: onAddServer ?? () {},
           onNetworkInspector: onNetworkInspector ?? () {},
+          onVersions: onVersions ?? () {},
         ),
       ),
     ),

@@ -21,6 +21,7 @@ ServerManager _createManager() => ServerManager(
 void main() {
   late AgentRuntimeManager runtimeManager;
   late RunRegistry registry;
+  late RoomAppModule module;
 
   setUp(() {
     runtimeManager = AgentRuntimeManager(
@@ -29,20 +30,19 @@ void main() {
       logger: testLogger(),
     );
     registry = RunRegistry();
-  });
-
-  tearDown(() async {
-    await runtimeManager.dispose();
-    registry.dispose();
-  });
-
-  test('contributes room routes', () {
-    final manager = _createManager();
-    final contribution = roomModule(
-      serverManager: manager,
+    module = RoomAppModule(
+      serverManager: _createManager(),
       runtimeManager: runtimeManager,
       registry: registry,
     );
+  });
+
+  tearDown(() async {
+    await module.onDispose();
+  });
+
+  test('contributes room routes', () {
+    final contribution = module.build();
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
     expect(paths, contains('/room/:serverAlias/:roomId'));
@@ -50,12 +50,7 @@ void main() {
   });
 
   test('contributes room info route before thread route', () {
-    final manager = _createManager();
-    final contribution = roomModule(
-      serverManager: manager,
-      runtimeManager: runtimeManager,
-      registry: registry,
-    );
+    final contribution = module.build();
     final paths =
         contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
     expect(paths, contains('/room/:serverAlias/:roomId/info'));
@@ -69,12 +64,7 @@ void main() {
   });
 
   test('overrides messageExpansionsProvider so reads succeed', () {
-    final manager = _createManager();
-    final contribution = roomModule(
-      serverManager: manager,
-      runtimeManager: runtimeManager,
-      registry: registry,
-    );
+    final contribution = module.build();
 
     // Resolving the provider through the module's overrides must not
     // throw — the default provider throws StateError.

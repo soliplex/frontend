@@ -25,7 +25,7 @@ class _FakeCancelToken extends Fake implements CancelToken {}
 // Test doubles
 // ---------------------------------------------------------------------------
 
-class _TestExtension implements SessionExtension {
+class _TestExtension extends SessionExtension {
   _TestExtension({this.toolList = const []});
 
   final List<ClientTool> toolList;
@@ -42,7 +42,7 @@ class _TestExtension implements SessionExtension {
   void onDispose() => disposeCount++;
 }
 
-class _ThrowingExtension implements SessionExtension {
+class _ThrowingExtension extends SessionExtension {
   @override
   Future<void> onAttach(AgentSession session) async =>
       throw StateError('onAttach boom');
@@ -269,7 +269,10 @@ void main() {
           'citations': <dynamic>[],
         },
       };
-      runtime.seedThreadState(_threadId, initialState);
+      runtime.seedThreadState(
+        (serverId: 'default', roomId: _roomId, threadId: _threadId),
+        initialState,
+      );
 
       stubCreateRun();
       stubDeleteThread();

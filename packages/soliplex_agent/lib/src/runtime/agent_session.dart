@@ -10,8 +10,9 @@ import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
 import 'package:soliplex_agent/src/orchestration/run_state.dart';
 import 'package:soliplex_agent/src/runtime/agent_runtime.dart';
 import 'package:soliplex_agent/src/runtime/agent_session_state.dart';
-import 'package:soliplex_agent/src/runtime/agent_ui_delegate.dart';
+import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
+import 'package:soliplex_agent/src/runtime/tool_approval_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_execution_context.dart';
 import 'package:soliplex_agent/src/tools/tool_registry.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -42,13 +43,11 @@ class AgentSession implements ToolExecutionContext {
     required RunOrchestrator orchestrator,
     required ToolRegistry toolRegistry,
     required Logger logger,
-    List<SessionExtension> extensions = const [],
-    AgentUiDelegate? uiDelegate,
+    required SessionCoordinator coordinator,
   })  : _runtime = runtime,
         _orchestrator = orchestrator,
         _toolRegistry = toolRegistry,
-        _extensions = extensions,
-        _uiDelegate = uiDelegate,
+        _coordinator = coordinator,
         _logger = logger,
         id = '${threadKey.threadId}-'
             '${DateTime.now().microsecondsSinceEpoch}';
@@ -68,8 +67,7 @@ class AgentSession implements ToolExecutionContext {
   final AgentRuntime _runtime;
   final RunOrchestrator _orchestrator;
   final ToolRegistry _toolRegistry;
-  final List<SessionExtension> _extensions;
-  final AgentUiDelegate? _uiDelegate;
+  final SessionCoordinator _coordinator;
   final Logger _logger;
 
   static const _toolTimeout = Duration(seconds: 60);
@@ -91,6 +89,12 @@ class AgentSession implements ToolExecutionContext {
 
   /// Current session lifecycle state.
   AgentSessionState get state => _state;
+
+  /// Whether [dispose] has run. Deferred callbacks that might fire after
+  /// the session's owner has torn down should short-circuit on this
+  /// before reading the session's signals (which are disposed inside
+  /// [dispose]).
+  bool get isDisposed => _disposed;
 
   /// Completes when the session reaches a terminal state.
   Future<AgentResult> get result => _resultCompleter.future;
@@ -117,6 +121,32 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the latest [RunState] from the orchestrator.
   ReadonlySignal<RunState> get runState => _runStateSignal.readonly();
 
+  /// Reactive signal tracking the agent's `aguiState` map across the
+  /// session lifetime.
+  ///
+  /// View of the per-thread [bus]'s `agentState` signal. The bus is
+  /// fed by `_onStateChange` on every [RunState] transition, so
+  /// `session.agentState` and `bus.agentState` see the same snapshot
+  /// at all times — no parallel compute path.
+  ///
+  /// Hosts that previously subscribed to this signal and forwarded
+  /// values into a separate `StateBus` no longer need to: the bus is
+  /// already the source. Subscribe to `bus.agentState` directly when
+  /// reaching the bus is more natural (e.g. inside `bus.project(...)`
+  /// projections).
+  ReadonlySignal<Map<String, dynamic>> get agentState => bus.agentState;
+
+  /// The per-thread reactive bus this session writes into. Owned by
+  /// the runtime; survives session boundaries within the thread's
+  /// lifetime.
+  ///
+  /// Resolves through `runtime.ensureThreadState(threadKey).bus`,
+  /// creating a fresh `ThreadState` if no prior `seedThreadState` /
+  /// `seedThreadHistory` call registered one. Late-evaluated, so a
+  /// session that never reads `bus` never causes a `StateBus` to be
+  /// constructed.
+  StateBus get bus => _runtime.ensureThreadState(threadKey).bus;
+
   /// Reactive signal tracking the [AgentSessionState] lifecycle.
   ReadonlySignal<AgentSessionState> get sessionState =>
       _sessionStateSignal.readonly();
@@ -142,8 +172,16 @@ class AgentSession implements ToolExecutionContext {
   // ToolExecutionContext implementation
   // ---------------------------------------------------------------------------
 
+  /// CancelToken from the underlying orchestrator, or a pre-cancelled token
+  /// once the session has been disposed.
+  ///
+  /// Late tool callers (a microtask resuming after [dispose]) read a
+  /// cancelled token rather than triggering the orchestrator's
+  /// disposed-getter guard, so dispose-race short-circuits return cleanly
+  /// instead of surfacing as opaque "tool failed" errors.
   @override
-  CancelToken get cancelToken => _orchestrator.cancelToken;
+  CancelToken get cancelToken =>
+      _disposed ? (CancelToken()..cancel()) : _orchestrator.cancelToken;
 
   @override
   Future<AgentSession> spawnChild({
@@ -153,6 +191,19 @@ class AgentSession implements ToolExecutionContext {
     Duration? timeout,
     bool ephemeral = true,
   }) {
+    if (_disposed) {
+      _logger.debug(
+        'spawnChild denied: session $id already disposed '
+        '(prompt="$prompt", roomId=$roomId).',
+      );
+      // Future.error rather than sync-throw so a fire-and-forget caller or
+      // a chained .catchError sees the failure instead of crashing the
+      // isolate with an uncaught synchronous exception.
+      return Future<AgentSession>.error(
+        StateError('Cannot spawnChild on disposed session $id'),
+        StackTrace.current,
+      );
+    }
     return _runtime.spawn(
       roomId: roomId ?? threadKey.roomId,
       prompt: prompt,
@@ -170,8 +221,33 @@ class AgentSession implements ToolExecutionContext {
     required String toolName,
     required Map<String, dynamic> arguments,
     required String rationale,
-  }) async {
-    if (_uiDelegate == null) return false;
+  }) {
+    // Late callers (microtask resuming after dispose): deny without
+    // touching the already-disposed extension.
+    if (_disposed) {
+      _logger.debug(
+        'requestApproval denied: session $id already disposed '
+        '(tool $toolName, $toolCallId).',
+      );
+      return Future<bool>.value(false);
+    }
+    // Short-circuit before the extension call so a cancelled session never
+    // surfaces an approval dialog the orchestrator is about to throw away.
+    if (cancelToken.isCancelled) {
+      _logger.debug(
+        'requestApproval denied: session $id already cancelled '
+        '(tool $toolName, $toolCallId).',
+      );
+      return Future<bool>.value(false);
+    }
+    final ext = _coordinator.getExtension<ToolApprovalExtension>();
+    if (ext == null) {
+      _logger.warning(
+        'Tool $toolName ($toolCallId) requested approval on session $id '
+        'but no ToolApprovalExtension is registered; denying by default.',
+      );
+      return Future<bool>.value(false);
+    }
     emitEvent(
       AwaitingApproval(
         toolCallId: toolCallId,
@@ -179,15 +255,12 @@ class AgentSession implements ToolExecutionContext {
         rationale: rationale,
       ),
     );
-    return Future.any([
-      _uiDelegate.requestToolApproval(
-        session: this,
-        toolName: toolName,
-        arguments: arguments,
-        rationale: rationale,
-      ),
-      cancelToken.whenCancelled.then((_) => false),
-    ]);
+    return ext.requestApproval(
+      toolCallId: toolCallId,
+      toolName: toolName,
+      arguments: arguments,
+      rationale: rationale,
+    );
   }
 
   @override
@@ -212,12 +285,12 @@ class AgentSession implements ToolExecutionContext {
   }
 
   @override
-  T? getExtension<T extends SessionExtension>() {
-    for (final ext in _extensions) {
-      if (ext is T) return ext;
-    }
-    return null;
-  }
+  T? getExtension<T extends SessionExtension>() =>
+      _coordinator.getExtension<T>();
+
+  /// See [SessionCoordinator.statefulObservations].
+  Iterable<(String, ReadonlySignal<Object?>)> statefulObservations() =>
+      _coordinator.statefulObservations();
 
   // ---------------------------------------------------------------------------
   // Child management
@@ -278,7 +351,16 @@ class AgentSession implements ToolExecutionContext {
     if (_disposed) return;
     _disposed = true;
     for (final child in _children.toList()) {
-      child.dispose();
+      try {
+        child.dispose();
+      } on Object catch (e, st) {
+        _logger.error(
+          'Child AgentSession dispose threw (parent=$id, '
+          'thread=${threadKey.threadId}, child=${child.id})',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
     _children.clear();
     _disposeExtensions();
@@ -286,7 +368,16 @@ class AgentSession implements ToolExecutionContext {
     _subscription = null;
     unawaited(_baseEventSubscription?.cancel());
     _baseEventSubscription = null;
-    _orchestrator.dispose();
+    try {
+      _orchestrator.dispose();
+    } on Object catch (e, st) {
+      _logger.error(
+        'Orchestrator dispose threw (session=$id, '
+        'thread=${threadKey.threadId})',
+        error: e,
+        stackTrace: st,
+      );
+    }
     _completeIfPending();
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
@@ -297,17 +388,9 @@ class AgentSession implements ToolExecutionContext {
   // Extension lifecycle
   // ---------------------------------------------------------------------------
 
-  Future<void> _attachExtensions() async {
-    for (final ext in _extensions) {
-      await ext.onAttach(this);
-    }
-  }
+  Future<void> _attachExtensions() => _coordinator.attachAll(this);
 
-  void _disposeExtensions() {
-    for (final ext in _extensions) {
-      ext.onDispose();
-    }
-  }
+  void _disposeExtensions() => _coordinator.disposeAll();
 
   // ---------------------------------------------------------------------------
   // State listener
@@ -316,6 +399,15 @@ class AgentSession implements ToolExecutionContext {
   void _onStateChange(RunState runState) {
     if (_disposed) return;
     _runStateSignal.value = runState;
+    // Forward the new agent state into the per-thread bus. AG-UI
+    // events were already applied to the conversation by
+    // `processEvent`; this propagates the result so bus consumers
+    // (projections, render targets) see it on every state-altering
+    // event without each consumer re-listening to the orchestrator.
+    final next = _aguiStateOf(runState);
+    if (next != null) {
+      bus.setAgentState(next);
+    }
     switch (runState) {
       case RunningState():
         _state = AgentSessionState.running;
@@ -429,6 +521,20 @@ class AgentSession implements ToolExecutionContext {
         .whereType<TextMessage>()
         .where((m) => m.user == ChatUser.assistant);
     return assistantMessages.lastOrNull?.text ?? '';
+  }
+
+  /// Pulls the `aguiState` map out of any [RunState] variant. Returns
+  /// null when the variant carries no conversation (Idle, or a
+  /// Failed/Cancelled state with no captured conversation).
+  static Map<String, dynamic>? _aguiStateOf(RunState state) {
+    return switch (state) {
+      IdleState() => null,
+      RunningState(:final conversation) => conversation.aguiState,
+      ToolYieldingState(:final conversation) => conversation.aguiState,
+      CompletedState(:final conversation) => conversation.aguiState,
+      FailedState(:final conversation) => conversation?.aguiState,
+      CancelledState(:final conversation) => conversation?.aguiState,
+    };
   }
 
   // ---------------------------------------------------------------------------

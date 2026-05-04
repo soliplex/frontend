@@ -13,18 +13,18 @@ ServerManager _createManager() => ServerManager(
     );
 
 void main() {
-  group('lobbyModule', () {
+  group('LobbyAppModule', () {
     test('contributes /lobby route', () {
-      final contribution = lobbyModule(serverManager: _createManager());
-
+      final contribution =
+          LobbyAppModule(serverManager: _createManager()).build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
       expect(paths, contains('/lobby'));
     });
 
     test('does not contribute a redirect', () {
-      final contribution = lobbyModule(serverManager: _createManager());
-
+      final contribution =
+          LobbyAppModule(serverManager: _createManager()).build();
       expect(contribution.redirect, isNull);
     });
   });

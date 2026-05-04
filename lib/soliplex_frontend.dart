@@ -1,13 +1,14 @@
 /// Modular Flutter frontend framework for Soliplex.
 library;
 
+export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 export 'src/core/models/color_config.dart' show ColorPalette, ColorConfig;
 export 'src/core/models/font_config.dart' show FontConfig;
 export 'src/core/models/theme_config.dart' show ThemeConfig;
 export 'src/core/providers/theme_provider.dart'
     show themeModeProvider, initializeTheme;
 export 'src/core/shell.dart' show runSoliplexShell;
-export 'src/core/shell_config.dart' show ModuleContribution, ShellConfig;
+export 'src/core/shell_config.dart' show ShellConfig;
 export 'src/design/design.dart';
 export 'src/interfaces/auth_state.dart'
     show AuthState, Authenticated, Unauthenticated;

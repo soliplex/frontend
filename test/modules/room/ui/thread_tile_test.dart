@@ -195,6 +195,82 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('mobile: spinner replaces menu when isRunning', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadTile(
+          thread: thread,
+          isSelected: false,
+          isRunning: true,
+          onTap: () {},
+          onRename: () {},
+          onDelete: () {},
+        ),
+      ),
+    ));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('desktop hover: spinner replaces menu when isRunning',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            child: ThreadTile(
+              thread: thread,
+              isSelected: false,
+              isRunning: true,
+              onTap: () {},
+              onRename: () {},
+              onDelete: () {},
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.addPointer(location: Offset.zero);
+    await gesture.moveTo(tester.getCenter(find.byType(ThreadTile)));
+    // Spinner animates indefinitely; pump a frame instead of settling.
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets(
+      'renders no trailing widget when not running and not selected/hovered '
+      '(desktop)', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadTile(
+          thread: thread,
+          isSelected: false,
+          onTap: () {},
+          onRename: () {},
+          onDelete: () {},
+        ),
+      ),
+    ));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('Delete menu item uses error color', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(

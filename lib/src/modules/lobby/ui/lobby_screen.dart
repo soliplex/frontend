@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../soliplex_frontend.dart';
+import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../lobby_state.dart';
 import 'room_card.dart';
@@ -35,24 +36,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.dispose();
   }
 
-  void _onAddServer() => context.go('/');
+  void _onAddServer() => context.go(AppRoutes.home);
 
-  void _onServerTap() => context.push('/servers');
+  void _onServerTap() => context.push(AppRoutes.servers);
 
-  void _onNetworkInspector() => context.push('/diagnostics/network');
+  void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
+
+  void _onVersions() => context.push(AppRoutes.versions);
 
   void _onRoomTap(String serverId, String roomId) {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Room tap for unknown serverId: $serverId');
     if (entry == null) return;
-    context.go('/room/${entry.alias}/$roomId');
+    context.go(AppRoutes.room(entry.alias, roomId));
   }
 
   void _onInfoTap(String serverId, String roomId) {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Info tap for unknown serverId: $serverId');
     if (entry == null) return;
-    context.push('/room/${entry.alias}/$roomId/info');
+    context.push(AppRoutes.roomInfo(entry.alias, roomId));
   }
 
   @override
@@ -71,6 +74,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
+                onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
               )
@@ -81,6 +85,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
+                onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
               );
@@ -97,6 +102,7 @@ class _WideLayout extends StatelessWidget {
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
+    required this.onVersions,
     required this.onRoomTap,
     required this.onInfoTap,
   });
@@ -107,6 +113,7 @@ class _WideLayout extends StatelessWidget {
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
+  final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -123,6 +130,7 @@ class _WideLayout extends StatelessWidget {
               onServerTap: onServerTap,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
+              onVersions: onVersions,
             ),
           ),
           const VerticalDivider(width: 1),
@@ -149,6 +157,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
+    required this.onVersions,
     required this.onRoomTap,
     required this.onInfoTap,
   });
@@ -159,6 +168,7 @@ class _NarrowLayout extends StatelessWidget {
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
+  final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -180,6 +190,7 @@ class _NarrowLayout extends StatelessWidget {
           onServerTap: onServerTap,
           onAddServer: onAddServer,
           onNetworkInspector: onNetworkInspector,
+          onVersions: onVersions,
         ),
       ),
       body: _RoomContent(

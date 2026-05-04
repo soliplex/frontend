@@ -6,6 +6,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 
+final _emptyRunning = Signal(<String>{}).readonly();
+
 void main() {
   testWidgets('shows loading indicator when loading', (tester) async {
     await tester.pumpWidget(ProviderScope(
@@ -18,8 +20,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -53,8 +57,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -85,8 +91,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -109,8 +117,10 @@ void main() {
           onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -134,8 +144,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () => inspectorCalled = true,
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -158,8 +170,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () => infoCalled = true,
           roomName: 'My Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -190,8 +204,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
       ),
@@ -212,8 +228,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
         ),
       ),
     )));
@@ -242,8 +260,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (id, name) => renamedId = id,
           onDeleteThread: (_) {},
@@ -257,6 +277,94 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(renamedId, 't-1');
+  });
+
+  testWidgets('spinner appears and disappears as runningThreadIds changes',
+      (tester) async {
+    final running = Signal(<String>{});
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Thread',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onVersions: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          runningThreadIds: running.readonly(),
+        ),
+      ),
+    ));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    running.value = {'t-1'};
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    running.value = {};
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('spinner shows only on the running tile, not the selected one',
+      (tester) async {
+    final running = Signal(<String>{'t-2'});
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'Selected',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+      ThreadInfo(
+        id: 't-2',
+        roomId: 'room-1',
+        name: 'Running',
+        createdAt: DateTime(2026, 3, 2),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: 't-1',
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          onNetworkInspector: () {},
+          onVersions: () {},
+          onRoomInfo: () {},
+          roomName: 'Test Room',
+          runningThreadIds: running.readonly(),
+        ),
+      ),
+    ));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Running'),
+          matching: find.byType(ListTile),
+        ),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('delete callback propagates from ThreadTile', (tester) async {
@@ -280,8 +388,10 @@ void main() {
           onBackToLobby: () {},
           onCreateThread: () {},
           onNetworkInspector: () {},
+          onVersions: () {},
           onRoomInfo: () {},
           roomName: 'Test Room',
+          runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (_, __) {},
           onDeleteThread: (id) => deletedId = id,
