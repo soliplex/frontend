@@ -359,7 +359,15 @@ class ThreadViewState {
       case CompletedRun(:final conversation):
         _messages.value = _messagesLoaded(conversation);
       case FailedRun(:final conversation, :final error):
-        _lastSendError.value = SendError(error);
+        // Mirrors the live `_onRunState` `FailedState` arm: a registered
+        // failure restored on re-attach must get the same friendly copy
+        // a live failure would, so the user never sees the raw
+        // `Stream resume failed: …` marker after a navigation round-trip.
+        // `FailedRun.error` is `Object` (may be a String from
+        // `FailedState.error`, or an exception from `AgentFailure.error`).
+        // `toString` is a no-op when the orchestrator already supplied
+        // a clean `String` and stringifies exceptions cleanly otherwise.
+        _lastSendError.value = SendError(_friendlyMessage(error.toString()));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
