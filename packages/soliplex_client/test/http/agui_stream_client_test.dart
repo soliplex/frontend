@@ -1060,6 +1060,34 @@ void main() {
           expect(completed, isTrue);
         });
       });
+
+      test('cancel cancels the underlying delay Timer', () {
+        // Regression: the original `Future.any([Future.delayed, …])`
+        // left the losing `Timer` alive until full expiry. With a
+        // cap of 8 s and frequent cancels, that stranded a Timer per
+        // cancel in the event loop. The fix owns the Timer; this
+        // test pins it via `FakeAsync.pendingTimers`.
+        fakeAsync((async) {
+          final token = CancelToken();
+          unawaited(
+            AgUiStreamClient.raceBackoff(const Duration(seconds: 5), token)
+                .catchError((_) {}),
+          );
+          // Microtasks drain so the Timer is registered.
+          async.elapse(Duration.zero);
+          expect(async.pendingTimers, hasLength(1));
+
+          token.cancel('user');
+          // Drain microtasks so the cancel handler runs and cancels
+          // the timer; we don't elapse the full 5 s.
+          async.elapse(Duration.zero);
+          expect(
+            async.pendingTimers,
+            isEmpty,
+            reason: 'cancel must cancel the underlying delay Timer',
+          );
+        });
+      });
     });
   });
 }

@@ -305,6 +305,13 @@ class AgUiStreamClient {
   /// after the full delay. Throws [CancelledException] when the token
   /// fires before the delay elapses.
   ///
+  /// The earlier implementation used
+  /// `Future.any([Future.delayed(d), token.whenCancelled])`, which left
+  /// the loser's `Timer` running until expiry — so cancelling a
+  /// long-cap (8s) backoff repeatedly accumulated stranded Timers in
+  /// the event loop. This version owns the `Timer` so cancel can
+  /// `.cancel()` it.
+  ///
   /// Exposed for direct unit testing of Decision 3 (cancel-aware
   /// backoff). Not part of the public API.
   @visibleForTesting
@@ -313,10 +320,22 @@ class AgUiStreamClient {
       await Future<void>.delayed(d);
       return;
     }
-    await Future.any<void>([
-      Future<void>.delayed(d),
-      token.whenCancelled,
-    ]);
+    final completer = Completer<void>();
+    final timer = Timer(d, () {
+      if (!completer.isCompleted) completer.complete();
+    });
+    unawaited(
+      token.whenCancelled.then((_) {
+        timer.cancel();
+        if (!completer.isCompleted) completer.complete();
+      }),
+    );
+    await completer.future;
+    // Idempotent: a no-op when the timer has already fired or been
+    // cancelled. Belt-and-suspenders against a future refactor that
+    // adds a path through `await completer.future` without firing
+    // either branch.
+    timer.cancel();
     token.throwIfCancelled();
   }
 
