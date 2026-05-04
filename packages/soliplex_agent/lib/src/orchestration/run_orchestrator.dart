@@ -807,7 +807,7 @@ class RunOrchestrator {
     _cleanup();
     final withCitations =
         _extractCitations(running.conversation, running.runId);
-    if (error is CancellationError) {
+    if (error is CancelledException || error is CancellationError) {
       _setState(
         CancelledState(
           threadKey: running.threadKey,
@@ -830,6 +830,16 @@ class RunOrchestrator {
 
   void _handleStartError(ThreadKey key, Object error, StackTrace stackTrace) {
     _cleanup();
+    if (error is CancelledException || error is CancellationError) {
+      // A cancel that fired while `_initializeStream → startRun` was
+      // in flight surfaces here. Route to `CancelledState` so the
+      // user-visible result mirrors mid-stream cancel handling —
+      // not a `FailedState(reason: internalError)`. Accepts both
+      // `CancelledException` (from our `CancelToken`) and
+      // `CancellationError` (Dart core / ag_ui interop).
+      _setState(CancelledState(threadKey: key));
+      return;
+    }
     final reason = classifyError(error);
     _logger.error('Failed to start run', error: error, stackTrace: stackTrace);
     _setState(

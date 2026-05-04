@@ -1271,6 +1271,52 @@ void main() {
 
       expect(orchestrator.currentState, isA<CancelledState>());
     });
+
+    test(
+      'CancelledException through stream → CancelledState (not FailedState)',
+      () async {
+        // `_onStreamError` previously only checked `is CancellationError`
+        // (the Dart-core type used by `CancelableOperation`). Our
+        // `CancelToken` throws `CancelledException` (a
+        // `SoliplexException`), so cancellations surfacing through
+        // the stream landed in `FailedState(reason: internalError)`
+        // instead of `CancelledState`. The fix accepts both shapes;
+        // this pins the `CancelledException` arm. (The
+        // `CancellationError` arm is exercised by
+        // `run_to_completion_test.dart`'s
+        // `'completer resolves for CancelledState'`.)
+        stubCreateRun();
+        final controller = StreamController<BaseEvent>();
+        addTearDown(controller.close);
+        stubRunAgent(stream: controller.stream);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<RunningState>());
+
+        controller.addError(const CancelledException(reason: 'user'));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<CancelledState>());
+      },
+    );
+
+    test(
+      'CancelledException from initial startRun → CancelledState',
+      () async {
+        // Mirrors the `_handleStartError` companion fix. If a cancel
+        // fires while the orchestrator is awaiting the very first
+        // `startRun` (the IdleState window), `_handleStartError`
+        // must route to `CancelledState` rather than classify the
+        // exception into `FailedState`.
+        when(() => api.createRun(any(), any()))
+            .thenThrow(const CancelledException(reason: 'user'));
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+
+        expect(orchestrator.currentState, isA<CancelledState>());
+      },
+    );
   });
 
   group('graceful SSE close', () {
