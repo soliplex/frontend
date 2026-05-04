@@ -163,8 +163,14 @@ class ThreadViewState {
     }
     final session = _activeSession.value;
     if (session == null) return false;
-    final runState = session.runState.value;
-    return runState is RunningState || runState is ToolYieldingState;
+    return switch (session.runState.value) {
+      RunningState() => true,
+      ToolYieldingState() => true,
+      IdleState() => false,
+      CompletedState() => false,
+      FailedState() => false,
+      CancelledState() => false,
+    };
   });
 
   /// Resolves [request] on the active session's [HumanApprovalExtension]

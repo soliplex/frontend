@@ -103,7 +103,7 @@ class AgUiStreamClient {
           Reconnecting(
             attempt: attempt,
             lastEventId: lastEventId,
-            error: e.toString(),
+            error: e,
           ),
         );
         _logAttempt(attempt, lastEventId, e);
@@ -184,7 +184,7 @@ class AgUiStreamClient {
         Reconnecting(
           attempt: attempt,
           lastEventId: lastEventId,
-          error: streamError.toString(),
+          error: streamError,
         ),
       );
       _logAttempt(attempt, lastEventId, streamError);
@@ -232,8 +232,10 @@ class AgUiStreamClient {
   ///
   ///   - Single-event JSON object → `(events: [decoded], skipped: 0)`.
   ///   - JSON array batch → `(events: [decoded...], skipped: N)`
-  ///     where N counts items that failed [EventDecoder.decodeJson].
-  ///   - Malformed JSON → `(events: [], skipped: 1)`.
+  ///     where N counts items that fail to decode or are not JSON
+  ///     objects.
+  ///   - Malformed JSON or any top-level decode failure
+  ///     → `(events: [], skipped: 1)`.
   ({List<BaseEvent> events, int skipped}) _decodeOne(String data) {
     const decoder = EventDecoder();
     final decoded = <BaseEvent>[];
@@ -327,23 +329,24 @@ class AgUiStreamClient {
   }
 
   /// Surfaces a non-zero skipped-event count. Always emits a
-  /// `developer.log` summary (matches per-event log channel) and
-  /// also forwards to [_onWarning] when the host opted in to
-  /// structured handling. Stateless — callers must invoke this
-  /// exactly once per terminal step (each `return`/`throw` path
-  /// inside `runAgent`).
+  /// `developer.log` summary on the same `_logName` channel as the
+  /// per-event skip logs, and also forwards to [_onWarning] when the
+  /// host opted in to structured handling. Stateless — callers must
+  /// invoke this exactly once per terminal step (each `return`/`throw`
+  /// path inside `runAgent`).
   void _flushSkippedWarning(int count) {
     if (count == 0) return;
-    final message = 'Skipped $count malformed event(s) during streaming';
+    final noun = count == 1 ? 'event' : 'events';
+    final message = 'Skipped $count malformed $noun during streaming';
     developer.log(message, name: _logName, level: 900);
     _onWarning?.call(message);
   }
 
   String _resumeFailureMessage(Object error, int skippedEventCount) {
-    final skippedSuffix = skippedEventCount > 0
-        ? ' (skipped $skippedEventCount malformed events)'
-        : '';
-    return '$streamResumeFailedPrefix $error$skippedSuffix';
+    if (skippedEventCount == 0) return '$streamResumeFailedPrefix $error';
+    final noun = skippedEventCount == 1 ? 'event' : 'events';
+    return '$streamResumeFailedPrefix $error '
+        '(skipped $skippedEventCount malformed $noun)';
   }
 
   void _logAttempt(int attempt, String? lastId, Object? err) {

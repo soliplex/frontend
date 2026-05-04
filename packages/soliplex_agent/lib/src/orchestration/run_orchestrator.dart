@@ -236,6 +236,10 @@ class RunOrchestrator {
         // the pending `createRun` await is not wired into this arm.
         // Hosts that need to hide this window gate the cancel
         // affordance on a separate is-cancellable signal.
+        _logger.warning(
+          'cancelRun ignored: no cancellable run '
+          '(state=${_currentState.runtimeType})',
+        );
         return;
     }
   }
@@ -384,8 +388,8 @@ class RunOrchestrator {
       List<ToolCallInfo> results;
       try {
         results = await toolExecutor(state.pendingToolCalls);
-      } on Object catch (e) {
-        return _failFromYielding(key, state, e);
+      } on Object catch (e, stackTrace) {
+        return _failFromYielding(key, state, e, stackTrace);
       }
       if (_disposed) return _cancelledFromYielding(key, state);
       if (_currentState is CancelledState) return _currentState;
@@ -395,12 +399,12 @@ class RunOrchestrator {
           return _failDepthExceeded(key, state);
         }
         await _resumeStream(state, results);
-      } on Object catch (e) {
+      } on Object catch (e, stackTrace) {
         // If `cancelRun` already transitioned to CancelledState, the
         // exception is the byproduct of cancellation propagating through
         // the in-flight `startRun` await — not a true failure.
         if (_currentState is CancelledState) return _currentState;
-        return _failFromYielding(key, state, e);
+        return _failFromYielding(key, state, e, stackTrace);
       }
     }
   }
@@ -427,6 +431,12 @@ class RunOrchestrator {
     // the unowned event stream so the underlying SSE socket releases —
     // without subscribe-then-cancel, the HTTP transport holds it open.
     if (_disposed || _currentState is! ToolYieldingState) {
+      if (!_disposed && _currentState is! CancelledState) {
+        _logger.warning(
+          'resumeStream aborted: unexpected post-await state '
+          '(state=${_currentState.runtimeType})',
+        );
+      }
       unawaited(handle.events.listen(null).cancel());
       return;
     }
@@ -454,7 +464,13 @@ class RunOrchestrator {
     ThreadKey key,
     ToolYieldingState state,
     Object error,
+    StackTrace stackTrace,
   ) {
+    _logger.error(
+      'Tool yielding failed',
+      error: error,
+      stackTrace: stackTrace,
+    );
     final failed = FailedState(
       threadKey: key,
       reason: FailureReason.toolExecutionFailed,
@@ -648,6 +664,10 @@ class RunOrchestrator {
     RunningState initialState,
   ) {
     // Cancel stale subscription from the previous run.
+    // `_subscriptionEpoch` (incremented below) guards `onDone` only,
+    // which can fire after the new subscription replaces the old one.
+    // `onData`/`onError` cease firing on the cancelled subscription, so
+    // they need no epoch guard.
     unawaited(_subscription?.cancel());
     _subscription = null;
     _cancelToken ??= CancelToken();

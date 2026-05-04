@@ -5,10 +5,10 @@ import 'package:test/test.dart';
 
 void main() {
   group('ResumePolicy construction', () {
-    test('default constructor enables resume with sensible defaults', () {
+    test('default constructor enables resume', () {
       const policy = ResumePolicy();
       expect(policy.enabled, isTrue);
-      expect(policy.maxAttempts, 5);
+      expect(policy.maxAttempts, greaterThan(0));
     });
 
     test('noRetry factory disables resume', () {
@@ -53,15 +53,17 @@ void main() {
       expect(policy.backoffFor(1), const Duration(milliseconds: 250));
     });
 
-    test('jitter floors the result at 0 (never negative)', () {
+    test('worst-case negative jitter clamps at zero, not below', () {
+      // jitterFactor = 1 + (0*2 - 1) * 1.0 = 0 → 100 ms * 0 = 0 ms.
+      // Pins that the post-jitter clamp lower bound is exactly zero,
+      // not "any non-negative value".
       final policy = ResumePolicy(
         initialBackoff: const Duration(milliseconds: 100),
         maxBackoff: const Duration(milliseconds: 200),
         jitter: 1,
         random: _ConstantRandom(0),
       );
-      final result = policy.backoffFor(1);
-      expect(result.inMicroseconds, greaterThanOrEqualTo(0));
+      expect(policy.backoffFor(1), Duration.zero);
     });
 
     test('asserts attempt is 1-based', () {

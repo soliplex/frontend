@@ -9,6 +9,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
         RagDocument,
+        ReconnectFailed,
         ReconnectStatus,
         Reconnected,
         Reconnecting,
@@ -1089,8 +1090,10 @@ class _ReconnectBannerState extends State<_ReconnectBanner> {
           Icon(Icons.check_circle_outline, size: 16, color: scheme.primary),
           'Reconnected.',
         ),
-      // ignore: no_default_cases — guarded by call-site `is` check
-      _ => (const SizedBox.shrink(), ''),
+      // Filtered at call site, but exhaustive here so a future
+      // ReconnectStatus subclass forces a build break instead of
+      // silently rendering an empty banner.
+      ReconnectFailed() => (const SizedBox.shrink(), ''),
     };
     return Container(
       width: double.infinity,

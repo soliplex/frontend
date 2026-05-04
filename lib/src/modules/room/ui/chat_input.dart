@@ -267,8 +267,8 @@ class _ChatInputState extends State<ChatInput> {
                 IconButton(
                   icon: const Icon(Icons.stop),
                   // `null` renders disabled. Suppresses cancels that would
-                  // be no-ops at the orchestrator level (see Gap 3 in
-                  // `RunOrchestrator.cancelRun`).
+                  // be a silent no-op at the orchestrator level — see
+                  // `RunOrchestrator.cancelRun`'s default arm.
                   onPressed: cancelEnabled ? widget.onCancel : null,
                 )
               else

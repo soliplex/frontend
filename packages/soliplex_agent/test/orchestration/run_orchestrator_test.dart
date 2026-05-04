@@ -1181,15 +1181,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
 
-      // Make the *resume* createRun hang — this is the await we'll
-      // cancel into.
       final resumeCreateRun = Completer<RunInfo>();
       when(
         () => api.createRun(any(), any()),
       ).thenAnswer((_) => resumeCreateRun.future);
 
-      // Release the tool executor; orchestrator is now suspended on
-      // resumeCreateRun.future inside _resumeStream.
       toolExecutorTrigger.complete();
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
@@ -1201,7 +1197,6 @@ void main() {
         reason: 'cancelRun must transition to CancelledState immediately',
       );
 
-      // Simulate createRun completing despite the cancel.
       resumeCreateRun.complete(_runInfo());
       final result = await runFuture;
 
