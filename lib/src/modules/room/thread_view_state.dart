@@ -419,5 +419,6 @@ class ThreadViewState {
     _detachSession();
     _sessionState.dispose();
     _reconnectStatus.dispose();
+    isCancellable.dispose();
   }
 }
