@@ -221,6 +221,12 @@ class RunOrchestrator {
           CancelledState(threadKey: threadKey, conversation: withCitations),
         );
       case ToolYieldingState(:final threadKey, :final conversation):
+        // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
+        // with the live cancel token. Cancel the token + cleanup so that
+        // await aborts before `_subscribeToStream` fires and overwrites
+        // the CancelledState we set below.
+        _cancelToken?.cancel();
+        _cleanup();
         _setState(
           CancelledState(threadKey: threadKey, conversation: conversation),
         );
@@ -385,6 +391,10 @@ class RunOrchestrator {
         }
         await _resumeStream(state, results);
       } on Object catch (e) {
+        // If `cancelRun` already transitioned to CancelledState, the
+        // exception is the byproduct of cancellation propagating through
+        // the in-flight `startRun` await — not a true failure.
+        if (_currentState is CancelledState) return _currentState;
         return _failFromYielding(key, state, e);
       }
     }
@@ -406,7 +416,10 @@ class RunOrchestrator {
       cancelToken: _cancelToken,
       onReconnectStatus: _activeOnReconnectStatus,
     );
-    if (_disposed) return;
+    // Cancel/dispose during the await leaves state as CancelledState (or
+    // disposed). Subscribing here would overwrite that with RunningState
+    // and silently resume the run after the user pressed Stop.
+    if (_disposed || _currentState is! ToolYieldingState) return;
     _subscribeToStream(
       handle.events,
       RunningState(

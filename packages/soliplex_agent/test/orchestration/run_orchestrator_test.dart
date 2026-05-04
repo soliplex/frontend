@@ -1029,6 +1029,148 @@ void main() {
         ),
       );
     });
+
+    test('cancelRun during RunningState cancels the token passed to runAgent',
+        () async {
+      // Regression for the orchestrator → SSE-client cancel handshake:
+      // before commit 3b9dd40, `_cancelToken` was null when handed to
+      // `runAgent`, so cancellation could not propagate to the in-flight
+      // SSE stream. This test pins the contract that the orchestrator
+      // (a) passes a non-null token and (b) cancels it on cancelRun.
+      CancelToken? capturedToken;
+      final controller = StreamController<BaseEvent>();
+      addTearDown(controller.close);
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((invocation) {
+        capturedToken = invocation.namedArguments[#cancelToken] as CancelToken?;
+        return controller.stream;
+      });
+      stubCreateRun();
+
+      unawaited(
+        orchestrator.runToCompletion(
+          key: _key,
+          userMessage: 'Hi',
+          toolExecutor: (_) async => [],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<RunningState>());
+      expect(
+        capturedToken,
+        isNotNull,
+        reason: 'orchestrator must pass a non-null cancel token',
+      );
+      expect(capturedToken!.isCancelled, isFalse);
+
+      orchestrator.cancelRun();
+
+      expect(
+        capturedToken!.isCancelled,
+        isTrue,
+        reason: "cancelRun must propagate to the SSE client's token",
+      );
+      expect(orchestrator.currentState, isA<CancelledState>());
+    });
+
+    test('cancelRun during _resumeStream createRun await yields CancelledState',
+        () async {
+      // Regression for three coupled gaps that trigger when the user
+      // presses Stop during a tool-yield resume:
+      //   - cancelRun's ToolYieldingState arm must cancel the live token
+      //     so the in-flight createRun await aborts.
+      //   - _resumeStream must not call _subscribeToStream after the
+      //     await if state has transitioned away from ToolYieldingState
+      //     (otherwise CancelledState is overwritten with RunningState).
+      //   - _driveToolLoop's catch must not turn the resulting
+      //     CancellationException into FailedState.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      // First runAgent call: tool call events drive us to ToolYieldingState.
+      // Second runAgent call: resume; an empty stream is enough — if the
+      // post-await state check fails to fire, `_subscribeToStream` would
+      // run, transition to RunningState, observe `onDone`, and end in
+      // FailedState (`_onStreamDone`'s "Stream ended without terminal
+      // event" path). The fix keeps the state at CancelledState instead.
+      var runAgentCallCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        runAgentCallCount++;
+        if (runAgentCallCount == 1) {
+          return Stream.fromIterable(_toolCallEvents());
+        }
+        return const Stream<BaseEvent>.empty();
+      });
+
+      // Block the tool executor so the test can re-stub createRun before
+      // _resumeStream fires.
+      final toolExecutorTrigger = Completer<void>();
+      final runFuture = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Weather?',
+        toolExecutor: (_) async {
+          await toolExecutorTrigger.future;
+          return _executedTools();
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      // Make the *resume* createRun hang — this is the await we'll
+      // cancel into.
+      final resumeCreateRun = Completer<RunInfo>();
+      when(
+        () => api.createRun(any(), any()),
+      ).thenAnswer((_) => resumeCreateRun.future);
+
+      // Release the tool executor; orchestrator is now suspended on
+      // resumeCreateRun.future inside _resumeStream.
+      toolExecutorTrigger.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      orchestrator.cancelRun();
+      expect(
+        orchestrator.currentState,
+        isA<CancelledState>(),
+        reason: 'cancelRun must transition to CancelledState immediately',
+      );
+
+      // Simulate createRun completing despite the cancel.
+      resumeCreateRun.complete(_runInfo());
+      final result = await runFuture;
+
+      expect(
+        result,
+        isA<CancelledState>(),
+        reason: 'state must remain CancelledState — without the fix, '
+            '`_subscribeToStream` would overwrite it with RunningState, '
+            'and the empty resume stream would then flip to FailedState '
+            'via `_onStreamDone`',
+      );
+      expect(runAgentCallCount, equals(2));
+    });
   });
 
   group('cancel during async gap', () {
