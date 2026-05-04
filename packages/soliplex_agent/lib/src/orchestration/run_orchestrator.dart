@@ -231,22 +231,11 @@ class RunOrchestrator {
           CancelledState(threadKey: threadKey, conversation: conversation),
         );
       case _:
-        // TODO(gap-3): Cancel during the IdleState window between
-        // `runToCompletion` start and the first `_subscribeToStream`
-        // is silently dropped here — `_cancelToken` is non-null
-        // (initialized in `_initializeStream`) but no caller cancels
-        // it, so the pending `_llmProvider.startRun → createRun`
-        // await proceeds to completion. The window is a few hundred
-        // milliseconds while the createRun HTTP request is in flight.
-        // The Soliplex frontend hides this from users by gating the
-        // Stop button via `ThreadViewState.isCancellable`; non-UI
-        // consumers (e.g. CLI tools, bulk-cancel automation) can
-        // still hit it. Closing the gap requires storing the active
-        // threadKey at the top of `runToCompletion`, cancelling the
-        // token here + setting CancelledState, adding a
-        // `_currentState is CancelledState` recheck after the await
-        // in `_initializeStream`, and letting `_handleStartError`
-        // honor the cancelled state instead of routing to FailedState.
+        // No active run. Cancel during the IdleState window between
+        // `runToCompletion` and the first event is dropped here —
+        // the pending `createRun` await is not wired into this arm.
+        // Hosts that need to hide this window gate the cancel
+        // affordance on a separate is-cancellable signal.
         return;
     }
   }
@@ -434,8 +423,13 @@ class RunOrchestrator {
     );
     // Cancel/dispose during the await leaves state as CancelledState (or
     // disposed). Subscribing here would overwrite that with RunningState
-    // and silently resume the run after the user pressed Stop.
-    if (_disposed || _currentState is! ToolYieldingState) return;
+    // and silently resume the run after the user pressed Stop. Drain
+    // the unowned event stream so the underlying SSE socket releases —
+    // without subscribe-then-cancel, the HTTP transport holds it open.
+    if (_disposed || _currentState is! ToolYieldingState) {
+      unawaited(handle.events.listen(null).cancel());
+      return;
+    }
     _subscribeToStream(
       handle.events,
       RunningState(
@@ -863,14 +857,10 @@ class RunOrchestrator {
     _cancelToken = null;
   }
 
-  /// Surfaces a [SoliplexException]'s underlying message without the
-  /// `RuntimeType: ` prefix that `toString` adds.
-  ///
-  /// Downstream consumers like `ThreadViewState._friendlyMessage` match
-  /// on prefixes (e.g. [streamResumeFailedPrefix]) and would otherwise
-  /// have to know about the wrapper. Plain `Object` errors fall back to
-  /// `toString` so non-Soliplex exceptions still surface a usable
-  /// description.
+  /// Returns a clean message string for [error], unwrapping
+  /// [SoliplexException] so prefix-based matching downstream
+  /// (e.g. on [streamResumeFailedPrefix]) sees the raw message rather
+  /// than `RuntimeType: …`.
   String _messageOf(Object error) =>
       error is SoliplexException ? error.message : error.toString();
 }

@@ -107,9 +107,9 @@ class ThreadViewState {
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
 
   /// Mirror of the active session's reconnect lifecycle. `null` means
-  /// no reconnect activity. The room screen renders a banner only for
-  /// [Reconnecting] / [Reconnected]; [ReconnectFailed] surfaces through
-  /// the existing [SendError] banner via [_friendlyMessage].
+  /// no reconnect activity. UI surfaces this for [Reconnecting] and
+  /// [Reconnected] only — [ReconnectFailed] flows through
+  /// [lastSendError] with friendly copy applied.
   final Signal<ReconnectStatus?> _reconnectStatus =
       Signal<ReconnectStatus?>(null);
   ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
@@ -149,18 +149,13 @@ class ThreadViewState {
     return session?.getExtension<HumanApprovalExtension>()?.stateSignal.value;
   });
 
-  /// Whether the cancel/stop affordance should be enabled.
+  /// Whether the cancel/stop affordance should take effect.
   ///
-  /// True only when [cancelRun] would actually take effect:
-  ///   - A spawn is in progress (handled by `_spawner.cancel`), or
-  ///   - The active session's orchestrator is in [RunningState] or
-  ///     [ToolYieldingState] (handled by `RunOrchestrator.cancelRun`'s
-  ///     `RunningState` / `ToolYieldingState` arms).
-  ///
-  /// Returns false during the brief window between session attach and
-  /// the first SSE event, where the orchestrator's run state is still
-  /// [IdleState] and `cancelRun` is a no-op (Gap 3 — see
-  /// `RunOrchestrator.cancelRun`'s default arm).
+  /// True when a spawn is in progress, or when the active session's
+  /// orchestrator is in a state from which [cancelRun] can actually
+  /// transition to [CancelledState]. False during the IdleState window
+  /// between session attach and the first SSE event, where [cancelRun]
+  /// would be a silent no-op.
   late final ReadonlySignal<bool> isCancellable = computed(() {
     if (_sessionState.value == AgentSessionState.spawning &&
         _activeSession.value == null) {
@@ -331,13 +326,16 @@ class ThreadViewState {
 
   /// Translates orchestrator failure copy into user-facing copy.
   /// Resume-failure markers from `AgUiStreamClient` get a friendly
-  /// message; other failures pass through unchanged.
+  /// message; the skipped-event count, when present, is preserved as
+  /// a parenthetical so the user knows data was dropped along the way.
+  /// Other failures pass through unchanged.
   String _friendlyMessage(String error) {
-    if (error.startsWith(streamResumeFailedPrefix)) {
-      return 'Connection lost. The response may be incomplete — '
-          'you can send your message again.';
-    }
-    return error;
+    if (!error.startsWith(streamResumeFailedPrefix)) return error;
+    const base = 'Connection lost. The response may be incomplete — '
+        'you can send your message again.';
+    final skipped =
+        RegExp(r'\(skipped \d+ malformed events?\)').firstMatch(error);
+    return skipped == null ? base : '$base ${skipped.group(0)}';
   }
 
   bool _restoreFromRegistry() {
@@ -359,14 +357,12 @@ class ThreadViewState {
       case CompletedRun(:final conversation):
         _messages.value = _messagesLoaded(conversation);
       case FailedRun(:final conversation, :final error):
-        // Mirrors the live `_onRunState` `FailedState` arm: a registered
-        // failure restored on re-attach must get the same friendly copy
-        // a live failure would, so the user never sees the raw
-        // `Stream resume failed: …` marker after a navigation round-trip.
-        // `FailedRun.error` is `Object` (may be a String from
-        // `FailedState.error`, or an exception from `AgentFailure.error`).
-        // `toString` is a no-op when the orchestrator already supplied
-        // a clean `String` and stringifies exceptions cleanly otherwise.
+        // Apply friendly copy symmetrically with the live `FailedState`
+        // arm so a registered failure restored on re-attach (e.g.
+        // after a navigation round-trip) doesn't surface the raw
+        // transport marker. `FailedRun.error` is `Object`; `toString`
+        // is a no-op when the orchestrator supplied a `String` and
+        // stringifies exceptions cleanly otherwise.
         _lastSendError.value = SendError(_friendlyMessage(error.toString()));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);

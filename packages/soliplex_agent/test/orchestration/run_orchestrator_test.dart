@@ -1070,11 +1070,10 @@ void main() {
 
     test('cancelRun during RunningState cancels the token passed to runAgent',
         () async {
-      // Regression for the orchestrator → SSE-client cancel handshake:
-      // before commit 3b9dd40, `_cancelToken` was null when handed to
-      // `runAgent`, so cancellation could not propagate to the in-flight
-      // SSE stream. This test pins the contract that the orchestrator
-      // (a) passes a non-null token and (b) cancels it on cancelRun.
+      // Pins the orchestrator → SSE-client cancel handshake: the
+      // orchestrator must (a) pass a non-null token to `runAgent`
+      // and (b) cancel it on `cancelRun`, so cancellation propagates
+      // to the in-flight SSE stream.
       CancelToken? capturedToken;
       final controller = StreamController<BaseEvent>();
       addTearDown(controller.close);
@@ -1120,15 +1119,16 @@ void main() {
 
     test('cancelRun during _resumeStream createRun await yields CancelledState',
         () async {
-      // Regression for three coupled gaps that trigger when the user
-      // presses Stop during a tool-yield resume:
-      //   - cancelRun's ToolYieldingState arm must cancel the live token
+      // Pins three coupled contracts that fire when the user presses
+      // Stop during a tool-yield resume:
+      //   - cancelRun's ToolYieldingState arm cancels the live token
       //     so the in-flight createRun await aborts.
-      //   - _resumeStream must not call _subscribeToStream after the
+      //   - _resumeStream does not call _subscribeToStream after the
       //     await if state has transitioned away from ToolYieldingState
-      //     (otherwise CancelledState is overwritten with RunningState).
-      //   - _driveToolLoop's catch must not turn the resulting
-      //     CancellationException into FailedState.
+      //     (otherwise CancelledState would be overwritten with
+      //     RunningState).
+      //   - _driveToolLoop's catch routes a cancel-byproduct exception
+      //     to CancelledState, not FailedState.
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
           api: api,
@@ -1139,12 +1139,18 @@ void main() {
       );
       stubCreateRun();
       // First runAgent call: tool call events drive us to ToolYieldingState.
-      // Second runAgent call: resume; an empty stream is enough — if the
-      // post-await state check fails to fire, `_subscribeToStream` would
-      // run, transition to RunningState, observe `onDone`, and end in
-      // FailedState (`_onStreamDone`'s "Stream ended without terminal
-      // event" path). The fix keeps the state at CancelledState instead.
+      // Second runAgent call: resume; an empty stream is enough. The
+      // post-await `_currentState is! ToolYieldingState` guard in
+      // `_resumeStream` prevents `_subscribeToStream` from running —
+      // if it ran, RunningState would overwrite CancelledState, then
+      // `_onStreamDone` would flip to FailedState via the "Stream
+      // ended without terminal event" path.
       var runAgentCallCount = 0;
+      var resumeStreamSubscribeCount = 0;
+      final resumeStreamController = StreamController<BaseEvent>(
+        onListen: () => resumeStreamSubscribeCount++,
+      );
+      addTearDown(resumeStreamController.close);
       when(
         () => agUiStreamClient.runAgent(
           any(),
@@ -1158,7 +1164,7 @@ void main() {
         if (runAgentCallCount == 1) {
           return Stream.fromIterable(_toolCallEvents());
         }
-        return const Stream<BaseEvent>.empty();
+        return resumeStreamController.stream;
       });
 
       // Block the tool executor so the test can re-stub createRun before
@@ -1202,12 +1208,19 @@ void main() {
       expect(
         result,
         isA<CancelledState>(),
-        reason: 'state must remain CancelledState — without the fix, '
-            '`_subscribeToStream` would overwrite it with RunningState, '
-            'and the empty resume stream would then flip to FailedState '
-            'via `_onStreamDone`',
+        reason: 'state must remain CancelledState; without the post-await '
+            'guard, `_subscribeToStream` would overwrite it with '
+            'RunningState and the empty resume stream would then flip '
+            'to FailedState via `_onStreamDone`',
       );
       expect(runAgentCallCount, equals(2));
+      expect(
+        resumeStreamSubscribeCount,
+        equals(1),
+        reason: 'orchestrator must drain the abandoned LlmRunHandle.events '
+            'stream so the underlying SSE socket releases — without the '
+            'subscribe-then-cancel, the HTTP transport would hold it open',
+      );
     });
   });
 
@@ -1275,16 +1288,12 @@ void main() {
     test(
       'CancelledException through stream → CancelledState (not FailedState)',
       () async {
-        // `_onStreamError` previously only checked `is CancellationError`
-        // (the Dart-core type used by `CancelableOperation`). Our
-        // `CancelToken` throws `CancelledException` (a
-        // `SoliplexException`), so cancellations surfacing through
-        // the stream landed in `FailedState(reason: internalError)`
-        // instead of `CancelledState`. The fix accepts both shapes;
-        // this pins the `CancelledException` arm. (The
-        // `CancellationError` arm is exercised by
-        // `run_to_completion_test.dart`'s
-        // `'completer resolves for CancelledState'`.)
+        // Pins that `_onStreamError` routes both cancellation shapes
+        // to `CancelledState`: `CancelledException` (from our
+        // `CancelToken`) and Dart-core `CancellationError` (from
+        // `CancelableOperation`). The `CancellationError` arm is
+        // exercised by `run_to_completion_test.dart`'s
+        // `'completer resolves for CancelledState'`.
         stubCreateRun();
         final controller = StreamController<BaseEvent>();
         addTearDown(controller.close);
@@ -1304,11 +1313,9 @@ void main() {
     test(
       'CancelledException from initial startRun → CancelledState',
       () async {
-        // Mirrors the `_handleStartError` companion fix. If a cancel
-        // fires while the orchestrator is awaiting the very first
-        // `startRun` (the IdleState window), `_handleStartError`
-        // must route to `CancelledState` rather than classify the
-        // exception into `FailedState`.
+        // Pins that `_handleStartError` routes a cancel during the
+        // initial `startRun` await (the IdleState window) to
+        // `CancelledState`, not `FailedState`.
         when(() => api.createRun(any(), any()))
             .thenThrow(const CancelledException(reason: 'user'));
 

@@ -377,9 +377,8 @@ void main() {
       test(
         'mixed batch with two undecodable items reports skipped=2',
         () async {
-          // Decision 2: _decodeOne returns ({events, skipped}); the
-          // caller-side accumulator must count both undecodable items
-          // and surface them as a single onWarning at clean termination.
+          // The caller accumulates skips across batches and surfaces
+          // them through a single `onWarning` at clean termination.
           final warnings = <String>[];
           final clientWithWarning = AgUiStreamClient(
             httpTransport: mockTransport,
@@ -442,9 +441,9 @@ void main() {
 
     group('resume', () {
       test('resumes after mid-stream drop using Last-Event-ID', () async {
-        // Decision 1: reconnect lifecycle flows through the
-        // onReconnectStatus callback, NOT via synthetic CustomEvents
-        // on the BaseEvent stream.
+        // Reconnect lifecycle flows through the `onReconnectStatus`
+        // callback — never as synthetic events on the `BaseEvent`
+        // stream.
         final statuses = <ReconnectStatus>[];
         final resumeClient = AgUiStreamClient(
           httpTransport: mockTransport,
@@ -581,10 +580,10 @@ void main() {
       test(
         'multi-resume: cursor preserved across two consecutive drops',
         () async {
-          // Plan A4: drops twice consecutively → Reconnecting × 2,
-          // Reconnected × 1. Resume #1 fails at the transport layer
-          // (no body events yielded → no Reconnected fires); resume #2
-          // succeeds and fires Reconnected once.
+          // Two consecutive drops → Reconnecting × 2, Reconnected × 1.
+          // Resume #1 fails at the transport layer (no body events
+          // yielded → no Reconnected fires); resume #2 succeeds and
+          // fires Reconnected once.
           final statuses = <ReconnectStatus>[];
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
@@ -690,8 +689,8 @@ void main() {
       test(
         'retry-budget exhausted: throws NetworkException with marker prefix',
         () async {
-          // Decision 4: streamResumeFailedPrefix is the exact prefix of
-          // the thrown NetworkException's message on retry exhaustion.
+          // `streamResumeFailedPrefix` must be the exact prefix of the
+          // thrown `NetworkException` message on retry exhaustion.
           final statuses = <ReconnectStatus>[];
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
@@ -758,7 +757,7 @@ void main() {
           expect(statuses.whereType<Reconnecting>(), hasLength(2));
           expect(statuses.whereType<ReconnectFailed>(), hasLength(1));
           expect(statuses.last, isA<ReconnectFailed>());
-          expect((statuses.last as ReconnectFailed).attempts, 2);
+          expect((statuses.last as ReconnectFailed).attempt, 2);
           expect(callCount, 3); // initial + 2 retries
         },
       );
@@ -767,9 +766,8 @@ void main() {
         'retry exhaustion still flushes skipped-event warning and embeds '
         'count in NetworkException message',
         () async {
-          // Decision 6: skipped-event diagnostics survive terminal
-          // failure. Both _onWarning AND the thrown message carry the
-          // count.
+          // Skipped-event diagnostics survive terminal failure. Both
+          // `_onWarning` AND the thrown message carry the count.
           final warnings = <String>[];
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
@@ -849,10 +847,10 @@ void main() {
       test(
         'no-cursor mid-flight drop: NetworkException carries marker prefix',
         () async {
-          // Decision 5 (friendly-message routing): when the stream
-          // errors before any id has been seen, there is nothing to
-          // resume against, but we still wrap the failure so the UI
-          // renders friendly copy via _friendlyMessage.
+          // When the stream errors before any id has been seen, there
+          // is nothing to resume against, but the failure is still
+          // wrapped with `streamResumeFailedPrefix` so consumers can
+          // render friendly copy.
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
             urlBuilder: UrlBuilder(baseUrl),
@@ -1029,7 +1027,7 @@ void main() {
       );
     });
 
-    group('raceBackoff (Decision 3 — cancel-aware backoff)', () {
+    group('raceBackoff (cancel-aware backoff)', () {
       test('returns normally when delay elapses without cancellation', () {
         fakeAsync((async) {
           final token = CancelToken();
@@ -1079,12 +1077,10 @@ void main() {
       });
 
       test('backoff respects maxBackoff under worst-case +jitter', () {
-        // The original `backoffFor` clamped to `maxBackoff` before
-        // applying ±jitter — so the worst-case +jitter on the cap
-        // exceeded the documented ceiling. `backoffFor` is pure math
-        // (returns a `Duration` without sleeping), so values are kept
-        // small for readability — the contract is "post-jitter result
-        // must not exceed maxBackoff" regardless of magnitude.
+        // Pins the `backoffFor` contract: the post-jitter result must
+        // not exceed `maxBackoff`. `backoffFor` is pure math (returns
+        // a `Duration` without sleeping), so values are kept small
+        // for readability — the contract holds regardless of magnitude.
         final policy = ResumePolicy(
           initialBackoff: const Duration(milliseconds: 10),
           maxBackoff: const Duration(milliseconds: 100),
@@ -1092,7 +1088,8 @@ void main() {
           random: _ConstantRandom(0.999),
         );
         // attempt 5: raw = 10 * 2^4 = 160 ms → cap to 100 ms.
-        // jitterFactor ≈ 1.499 → 150 ms pre-fix; clamped to 100 post-fix.
+        // jitterFactor ≈ 1.499 applied to the 100 ms cap → re-clamped
+        // back to 100 ms by the post-jitter clamp.
         expect(
           policy.backoffFor(5),
           const Duration(milliseconds: 100),
@@ -1105,11 +1102,11 @@ void main() {
       });
 
       test('cancel cancels the underlying delay Timer', () {
-        // Regression: the original `Future.any([Future.delayed, …])`
-        // left the losing `Timer` alive until full expiry. With a
-        // cap of 8 s and frequent cancels, that stranded a Timer per
-        // cancel in the event loop. The fix owns the Timer; this
-        // test pins it via `FakeAsync.pendingTimers`.
+        // Pins that cancel actually stops the delay Timer instead of
+        // leaving it to expire on its own — verified via
+        // `FakeAsync.pendingTimers`. At high cap durations and
+        // frequent cancels, a leaked timer per cancel would
+        // accumulate in the event loop.
         fakeAsync((async) {
           final token = CancelToken();
           unawaited(

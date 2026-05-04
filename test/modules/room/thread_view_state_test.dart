@@ -924,6 +924,45 @@ void main() {
     );
 
     test(
+      'FailedState with skipped-events suffix preserves the count in '
+      'friendly copy',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+
+        session.emit(
+          FailedState(
+            threadKey: (
+              serverId: 'test-server',
+              roomId: 'room-1',
+              threadId: 'thread-1',
+            ),
+            reason: FailureReason.networkLost,
+            error: '$streamResumeFailedPrefix NetworkException: server gone '
+                '(skipped 3 malformed events)',
+          ),
+        );
+
+        final sendError = state.lastSendError.value;
+        expect(sendError, isNotNull);
+        expect(sendError!.error, contains('Connection lost'));
+        expect(sendError.error, contains('(skipped 3 malformed events)'));
+
+        state.dispose();
+      },
+    );
+
+    test(
       'FailedState without the marker prefix passes the raw error through',
       () async {
         api.nextThreadHistory = ThreadHistory(messages: const []);
@@ -987,8 +1026,9 @@ void main() {
     test(
       'attaching a new session clears non-Reconnected mirrored state',
       () async {
-        // Plan B2 step 5: only `Reconnected` survives `_detachSession`
-        // (so its 4s auto-dismiss timer can run). Other states clear.
+        // Only `Reconnected` survives `_detachSession` (so its 4s
+        // auto-dismiss timer can run). Other states clear so a stale
+        // in-flight banner does not linger across sessions.
         api.nextThreadHistory = ThreadHistory(messages: const []);
 
         final state = ThreadViewState(
@@ -1057,9 +1097,9 @@ void main() {
 
   group('isCancellable', () {
     test('false during the post-attach IdleState window', () async {
-      // The Gap 3 regression: session is attached but the orchestrator
-      // hasn't emitted RunningState yet. Without the gate, the Stop
-      // button is rendered enabled but `cancelRun` is a silent no-op.
+      // Session is attached but the orchestrator hasn't emitted
+      // RunningState yet. Without this gate, the Stop button would
+      // be enabled but `cancelRun` is a silent no-op in this window.
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,

@@ -1024,13 +1024,11 @@ class _SendErrorBanner extends StatelessWidget {
   }
 }
 
-/// Banner that surfaces in-flight SSE reconnect lifecycle states.
+/// Banner for in-flight SSE reconnect lifecycle states.
 ///
-/// Renders [Reconnecting] and [Reconnected] only — [ReconnectFailed]
-/// flows through the existing `_SendErrorBanner` via
-/// `ThreadViewState._friendlyMessage`. The `is` guard at the call site
-/// in `_buildThreadBody` keeps `ReconnectFailed` out of this widget,
-/// so the `switch` here does not need a third arm.
+/// Renders [Reconnecting] and [Reconnected] only. Callers must filter
+/// out [ReconnectFailed] (which surfaces through the send-error
+/// banner) before passing a status to this widget.
 class _ReconnectBanner extends StatefulWidget {
   const _ReconnectBanner({required this.status, required this.onDismiss});
 

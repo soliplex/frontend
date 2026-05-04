@@ -13,15 +13,9 @@ import 'package:soliplex_client/src/http/resume_policy.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 
-/// Marker prefix used by `AgUiStreamClient` when wrapping a resume
-/// failure into [NetworkException]. `ThreadViewState._friendlyMessage`
-/// (in the Flutter app) matches this prefix to render user-friendly
-/// "Connection lost" copy.
-///
-/// Both sides of the contract import this constant so a typo cannot
-/// drift across the two callsites. A future structured
-/// `FailureReason.resumeFailed` enum value would replace this string
-/// match end-to-end; out of scope for this port.
+/// Marker prefix on [NetworkException.message] when [AgUiStreamClient]
+/// wraps a resume failure. Consumers match on this prefix to render
+/// user-friendly copy in place of the raw transport error.
 const String streamResumeFailedPrefix = 'Stream resume failed:';
 
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
@@ -96,7 +90,7 @@ class AgUiStreamClient {
         if (!isResumeRequest) rethrow;
         if (!_retryable(e) || !_canRetry(policy, attempt)) {
           onReconnectStatus?.call(
-            ReconnectFailed(attempts: attempt, error: e.toString()),
+            ReconnectFailed(attempt: attempt, error: e),
           );
           _flushSkippedWarning(skippedEventCount);
           throw NetworkException(
@@ -176,7 +170,7 @@ class AgUiStreamClient {
 
       if (!_canRetry(policy, attempt)) {
         onReconnectStatus?.call(
-          ReconnectFailed(attempts: attempt, error: streamError.toString()),
+          ReconnectFailed(attempt: attempt, error: streamError),
         );
         _flushSkippedWarning(skippedEventCount);
         throw NetworkException(
@@ -198,7 +192,7 @@ class AgUiStreamClient {
     }
   }
 
-  /// Closes the underlying transport.
+  /// Closes the underlying transport. Subsequent [runAgent] calls fail.
   void close() => _httpTransport.close();
 
   bool _retryable(Object e) => switch (e) {
@@ -272,8 +266,8 @@ class AgUiStreamClient {
         }
       } else {
         // JSON scalar (string/number/bool/null) at the top level —
-        // not a valid AG-UI payload. Count it so Decision 6's
-        // diagnostic surfaces this kind of server-side anomaly.
+        // not a valid AG-UI payload. Counted so the skipped-event
+        // diagnostic surfaces server-side anomalies of this shape.
         skipped++;
         developer.log(
           'Skipped non-object JSON scalar in SSE event: '
@@ -305,15 +299,8 @@ class AgUiStreamClient {
   /// after the full delay. Throws [CancelledException] when the token
   /// fires before the delay elapses.
   ///
-  /// The earlier implementation used
-  /// `Future.any([Future.delayed(d), token.whenCancelled])`, which left
-  /// the loser's `Timer` running until expiry — so cancelling a
-  /// long-cap (8s) backoff repeatedly accumulated stranded Timers in
-  /// the event loop. This version owns the `Timer` so cancel can
-  /// `.cancel()` it.
-  ///
-  /// Exposed for direct unit testing of Decision 3 (cancel-aware
-  /// backoff). Not part of the public API.
+  /// Owns its underlying [Timer] so cancel can stop it directly,
+  /// avoiding stranded timers that would otherwise expire on their own.
   @visibleForTesting
   static Future<void> raceBackoff(Duration d, CancelToken? token) async {
     if (token == null) {
@@ -339,15 +326,17 @@ class AgUiStreamClient {
     token.throwIfCancelled();
   }
 
-  /// Surfaces a non-zero skipped-event count via the warning callback.
-  /// Stateless — callers must invoke this exactly once per terminal
-  /// step (each `return`/`throw` path inside `runAgent`).
+  /// Surfaces a non-zero skipped-event count. Always emits a
+  /// `developer.log` summary (matches per-event log channel) and
+  /// also forwards to [_onWarning] when the host opted in to
+  /// structured handling. Stateless — callers must invoke this
+  /// exactly once per terminal step (each `return`/`throw` path
+  /// inside `runAgent`).
   void _flushSkippedWarning(int count) {
-    if (count > 0) {
-      _onWarning?.call(
-        'Skipped $count malformed event(s) during streaming',
-      );
-    }
+    if (count == 0) return;
+    final message = 'Skipped $count malformed event(s) during streaming';
+    developer.log(message, name: _logName, level: 900);
+    _onWarning?.call(message);
   }
 
   String _resumeFailureMessage(Object error, int skippedEventCount) {

@@ -131,11 +131,9 @@ class AgentSession implements ToolExecutionContext {
   /// `session.agentState` and `bus.agentState` see the same snapshot
   /// at all times — no parallel compute path.
   ///
-  /// Hosts that previously subscribed to this signal and forwarded
-  /// values into a separate `StateBus` no longer need to: the bus is
-  /// already the source. Subscribe to `bus.agentState` directly when
-  /// reaching the bus is more natural (e.g. inside `bus.project(...)`
-  /// projections).
+  /// Hosts can subscribe to `bus.agentState` directly when reaching
+  /// the bus is more natural (e.g. inside `bus.project(...)`
+  /// projections) — both views see the same snapshot.
   ReadonlySignal<Map<String, dynamic>> get agentState => bus.agentState;
 
   /// The per-thread reactive bus this session writes into. Owned by
@@ -356,21 +354,10 @@ class AgentSession implements ToolExecutionContext {
   }
 
   /// Bridges reconnect-lifecycle callbacks from `RunOrchestrator` /
-  /// `AgUiStreamClient` into the [reconnectStatus] signal. Defensive
-  /// try/catch ensures a misbehaving listener can never propagate back
-  /// into the run and convert a transient drop into a hard failure.
+  /// `AgUiStreamClient` into the [reconnectStatus] signal.
   void _onReconnectStatus(ReconnectStatus status) {
     if (_disposed) return;
-    try {
-      _reconnectStatusSignal.value = status;
-    } on Object catch (e, st) {
-      _logger.warning(
-        'Reconnect status listener threw (session=$id, '
-        'thread=${threadKey.threadId})',
-        error: e,
-        stackTrace: st,
-      );
-    }
+    _reconnectStatusSignal.value = status;
   }
 
   /// Releases all resources, cascading to children first.

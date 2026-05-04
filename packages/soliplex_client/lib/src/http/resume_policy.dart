@@ -16,10 +16,13 @@ class ResumePolicy {
     this.backoffMultiplier = 2.0,
     this.jitter = 0.2,
     Random? random,
-  }) : _random = random;
+  })  : _random = random,
+        assert(maxAttempts >= 0, 'maxAttempts must be non-negative'),
+        assert(backoffMultiplier >= 1.0, 'backoffMultiplier must be >= 1.0'),
+        assert(jitter >= 0 && jitter <= 1, 'jitter must be in [0, 1]');
 
-  /// One attempt, no retries — the pre-resume behavior. Useful for
-  /// tests and consumers that want to opt out of resume.
+  /// One attempt, no retries. Useful for tests and consumers that
+  /// want to opt out of resume.
   const ResumePolicy.noRetry() : this(maxAttempts: 0);
 
   /// Maximum number of consecutive resume attempts after a drop before
@@ -69,18 +72,19 @@ class ResumePolicy {
 /// callback. The callback is the only channel for reconnect lifecycle —
 /// the `BaseEvent` stream is reserved for actual server events.
 sealed class ReconnectStatus {
-  /// Const subclass constructor.
+  /// Subclass-only constructor for the sealed [ReconnectStatus]
+  /// hierarchy. `const` so subclasses can be `const` themselves.
   const ReconnectStatus();
 }
 
 /// A resume attempt is about to begin.
 class Reconnecting extends ReconnectStatus {
-  /// Creates a [Reconnecting] status.
+  /// Marks a resume attempt about to start at [attempt].
   const Reconnecting({
     required this.attempt,
     this.lastEventId,
     this.error,
-  });
+  }) : assert(attempt >= 1, 'attempt is 1-based');
 
   /// 1-based attempt index (first retry = 1).
   final int attempt;
@@ -88,14 +92,15 @@ class Reconnecting extends ReconnectStatus {
   /// The `Last-Event-ID` the client is about to reconnect with.
   final String? lastEventId;
 
-  /// Error message that triggered the drop, for display.
-  final String? error;
+  /// Error that triggered the drop. Consumers stringify on demand.
+  final Object? error;
 }
 
 /// Resume succeeded — the stream is live again.
 class Reconnected extends ReconnectStatus {
-  /// Creates a [Reconnected] status.
-  const Reconnected({required this.attempt});
+  /// Marks the first successful event after a resume on [attempt].
+  const Reconnected({required this.attempt})
+      : assert(attempt >= 1, 'attempt is 1-based');
 
   /// Attempt number that succeeded (1-based).
   final int attempt;
@@ -105,12 +110,13 @@ class Reconnected extends ReconnectStatus {
 /// `NetworkException` (with `streamResumeFailedPrefix`) immediately
 /// after delivering this status.
 class ReconnectFailed extends ReconnectStatus {
-  /// Creates a [ReconnectFailed] status.
-  const ReconnectFailed({required this.attempts, this.error});
+  /// Marks the resume budget as exhausted after [attempt] tries.
+  const ReconnectFailed({required this.attempt, this.error})
+      : assert(attempt >= 1, 'attempt is 1-based');
 
-  /// Total number of attempts performed before giving up.
-  final int attempts;
+  /// Total number of attempts performed before giving up (1-based).
+  final int attempt;
 
-  /// Error message from the last attempt, for display.
-  final String? error;
+  /// Error from the last attempt. Consumers stringify on demand.
+  final Object? error;
 }
