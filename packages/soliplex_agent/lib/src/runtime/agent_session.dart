@@ -420,6 +420,10 @@ class AgentSession implements ToolExecutionContext {
     // event without each consumer re-listening to the orchestrator.
     final next = _aguiStateOf(runState);
     if (next != null) {
+      // Untagged at the agent layer. Diagnostics consumers (e.g. the
+      // bus inspector) correlate this commit with the most recent
+      // AG-UI event seen via the runtime's event observer to infer
+      // whether it was a snapshot, delta, or run-state-only update.
       bus.setAgentState(next);
     }
     switch (runState) {
@@ -442,7 +446,12 @@ class AgentSession implements ToolExecutionContext {
   /// Maps raw AG-UI [BaseEvent]s to [ExecutionEvent] emissions so that
   /// consumers observing [lastExecutionEvent] see streaming text, thinking,
   /// server tool calls, and terminal events without polling [runState].
+  ///
+  /// Also fans the raw event to the runtime's optional thread-event
+  /// observer so diagnostics consumers can subscribe without coupling
+  /// the agent to any inspector implementation.
   void _bridgeBaseEvent(BaseEvent event) {
+    _runtime.notifyThreadEvent(threadKey, event);
     final executionEvent = bridgeBaseEvent(event);
     if (executionEvent != null) emitEvent(executionEvent);
   }
