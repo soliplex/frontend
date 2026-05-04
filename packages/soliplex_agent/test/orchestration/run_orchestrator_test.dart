@@ -117,6 +117,8 @@ void main() {
         any(),
         any(),
         cancelToken: any(named: 'cancelToken'),
+        resumePolicy: any(named: 'resumePolicy'),
+        onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
     ).thenAnswer((_) => stream);
   }
@@ -297,6 +299,44 @@ void main() {
         expect(orchestrator.currentState, isA<CompletedState>());
 
         await controller.close();
+      },
+    );
+
+    test(
+      'FailedState.error unwraps SoliplexException to its message',
+      () async {
+        // The friendly-error rewrite in
+        // `ThreadViewState._friendlyMessage` matches
+        // `error.startsWith(streamResumeFailedPrefix)`. Without
+        // unwrapping, `SoliplexException.toString()` adds a
+        // `RuntimeType: ` prefix that defeats the match — the user
+        // ends up seeing the raw nested exception text instead of
+        // "Connection lost. The response may be incomplete — you
+        // can send your message again."
+        stubCreateRun();
+        final controller = StreamController<BaseEvent>();
+        addTearDown(controller.close);
+        stubRunAgent(stream: controller.stream);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await Future<void>.delayed(Duration.zero);
+
+        controller.addError(
+          const NetworkException(
+            message: 'Stream resume failed: transient',
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<FailedState>());
+        final failed = orchestrator.currentState as FailedState;
+        expect(
+          failed.error,
+          equals('Stream resume failed: transient'),
+          reason: 'must surface NetworkException.message — not the '
+              'type-prefixed toString — so the friendly-message '
+              "contract's startsWith check matches",
+        );
       },
     );
   });
@@ -828,6 +868,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -905,6 +947,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -948,6 +992,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) => Stream.fromIterable(_toolCallEvents()));
 
@@ -967,6 +1013,56 @@ void main() {
       final failed = orchestrator.currentState as FailedState;
       expect(failed.reason, equals(FailureReason.toolExecutionFailed));
       expect(failed.error, contains('depth limit'));
+    });
+
+    test('NetworkException during resume → FailedState(networkLost)', () async {
+      // The post-tool-yield resume goes through `_failResume`, which must
+      // route via `classifyError` rather than hardcoding
+      // `toolExecutionFailed`. A transport drop on the resume should
+      // surface as `networkLost` so the UI can render reconnect copy
+      // instead of a tool-failure message.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var runAgentCallCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        runAgentCallCount++;
+        if (runAgentCallCount == 1) {
+          return Stream.fromIterable(_toolCallEvents());
+        }
+        return Stream<BaseEvent>.error(
+          const NetworkException(message: 'transport drop on resume'),
+        );
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Weather?',
+        toolExecutor: (_) async => _executedTools(),
+      );
+
+      expect(result, isA<FailedState>());
+      final failed = result as FailedState;
+      expect(
+        failed.reason,
+        equals(FailureReason.networkLost),
+        reason: 'transport failure during resume must classify as '
+            'networkLost, not toolExecutionFailed',
+      );
     });
   });
 
@@ -1019,6 +1115,156 @@ void main() {
             contains('already active'),
           ),
         ),
+      );
+    });
+
+    test('cancelRun during RunningState cancels the token passed to runAgent',
+        () async {
+      // Pins the orchestrator → SSE-client cancel handshake: the
+      // orchestrator must (a) pass a non-null token to `runAgent`
+      // and (b) cancel it on `cancelRun`, so cancellation propagates
+      // to the in-flight SSE stream.
+      CancelToken? capturedToken;
+      final controller = StreamController<BaseEvent>();
+      addTearDown(controller.close);
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((invocation) {
+        capturedToken = invocation.namedArguments[#cancelToken] as CancelToken?;
+        return controller.stream;
+      });
+      stubCreateRun();
+
+      unawaited(
+        orchestrator.runToCompletion(
+          key: _key,
+          userMessage: 'Hi',
+          toolExecutor: (_) async => [],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<RunningState>());
+      expect(
+        capturedToken,
+        isNotNull,
+        reason: 'orchestrator must pass a non-null cancel token',
+      );
+      expect(capturedToken!.isCancelled, isFalse);
+
+      orchestrator.cancelRun();
+
+      expect(
+        capturedToken!.isCancelled,
+        isTrue,
+        reason: "cancelRun must propagate to the SSE client's token",
+      );
+      expect(orchestrator.currentState, isA<CancelledState>());
+    });
+
+    test('cancelRun during _resumeStream createRun await yields CancelledState',
+        () async {
+      // Pins three coupled contracts that fire when the user presses
+      // Stop during a tool-yield resume:
+      //   - cancelRun's ToolYieldingState arm cancels the live token
+      //     so the in-flight createRun await aborts.
+      //   - _resumeStream does not call _subscribeToStream after the
+      //     await if state has transitioned away from ToolYieldingState
+      //     (otherwise CancelledState would be overwritten with
+      //     RunningState).
+      //   - _driveToolLoop's catch routes a cancel-byproduct exception
+      //     to CancelledState, not FailedState.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      // First runAgent call: tool call events drive us to ToolYieldingState.
+      // Second runAgent call: resume; an empty stream is enough. The
+      // post-await `_currentState is! ToolYieldingState` guard in
+      // `_resumeStream` prevents `_subscribeToStream` from running —
+      // if it ran, RunningState would overwrite CancelledState, then
+      // `_onStreamDone` would flip to FailedState via the "Stream
+      // ended without terminal event" path.
+      var runAgentCallCount = 0;
+      var resumeStreamSubscribeCount = 0;
+      final resumeStreamController = StreamController<BaseEvent>(
+        onListen: () => resumeStreamSubscribeCount++,
+      );
+      addTearDown(resumeStreamController.close);
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        runAgentCallCount++;
+        if (runAgentCallCount == 1) {
+          return Stream.fromIterable(_toolCallEvents());
+        }
+        return resumeStreamController.stream;
+      });
+
+      // Block the tool executor so the test can re-stub createRun before
+      // _resumeStream fires.
+      final toolExecutorTrigger = Completer<void>();
+      final runFuture = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Weather?',
+        toolExecutor: (_) async {
+          await toolExecutorTrigger.future;
+          return _executedTools();
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      final resumeCreateRun = Completer<RunInfo>();
+      when(
+        () => api.createRun(any(), any()),
+      ).thenAnswer((_) => resumeCreateRun.future);
+
+      toolExecutorTrigger.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      orchestrator.cancelRun();
+      expect(
+        orchestrator.currentState,
+        isA<CancelledState>(),
+        reason: 'cancelRun must transition to CancelledState immediately',
+      );
+
+      resumeCreateRun.complete(_runInfo());
+      final result = await runFuture;
+
+      expect(
+        result,
+        isA<CancelledState>(),
+        reason: 'state must remain CancelledState; without the post-await '
+            'guard, `_subscribeToStream` would overwrite it with '
+            'RunningState and the empty resume stream would then flip '
+            'to FailedState via `_onStreamDone`',
+      );
+      expect(runAgentCallCount, equals(2));
+      expect(
+        resumeStreamSubscribeCount,
+        equals(1),
+        reason: 'orchestrator must drain the abandoned LlmRunHandle.events '
+            'stream so the underlying SSE socket releases — without the '
+            'subscribe-then-cancel, the HTTP transport would hold it open',
       );
     });
   });
@@ -1083,6 +1329,46 @@ void main() {
 
       expect(orchestrator.currentState, isA<CancelledState>());
     });
+
+    test(
+      'CancelledException through stream → CancelledState (not FailedState)',
+      () async {
+        // Pins that `_onStreamError` routes both cancellation shapes
+        // to `CancelledState`: `CancelledException` (from our
+        // `CancelToken`) and Dart-core `CancellationError` (from
+        // `CancelableOperation`). The `CancellationError` arm is
+        // exercised by `run_to_completion_test.dart`'s
+        // `'completer resolves for CancelledState'`.
+        stubCreateRun();
+        final controller = StreamController<BaseEvent>();
+        addTearDown(controller.close);
+        stubRunAgent(stream: controller.stream);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<RunningState>());
+
+        controller.addError(const CancelledException(reason: 'user'));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<CancelledState>());
+      },
+    );
+
+    test(
+      'CancelledException from initial startRun → CancelledState',
+      () async {
+        // Pins that `_handleStartError` routes a cancel during the
+        // initial `startRun` await (the IdleState window) to
+        // `CancelledState`, not `FailedState`.
+        when(() => api.createRun(any(), any()))
+            .thenThrow(const CancelledException(reason: 'user'));
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+
+        expect(orchestrator.currentState, isA<CancelledState>());
+      },
+    );
   });
 
   group('graceful SSE close', () {
@@ -1215,6 +1501,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1242,6 +1530,8 @@ void main() {
             any(),
             captureAny(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) {
           callCount++;
@@ -1282,6 +1572,8 @@ void main() {
             any(),
             captureAny(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).captured;
 
@@ -1309,6 +1601,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -1373,6 +1667,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1417,6 +1713,8 @@ void main() {
           any(),
           captureAny(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).captured;
 
@@ -1604,6 +1902,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;
@@ -1709,6 +2009,8 @@ void main() {
           any(),
           any(),
           cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
       ).thenAnswer((_) {
         callCount++;

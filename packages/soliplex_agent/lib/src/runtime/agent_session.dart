@@ -83,6 +83,8 @@ class AgentSession implements ToolExecutionContext {
     AgentSessionState.spawning,
   );
   final Signal<ExecutionEvent?> _executionEventSignal = signal(null);
+  final Signal<ReconnectStatus?> _reconnectStatusSignal =
+      signal<ReconnectStatus?>(null);
 
   /// Child sessions spawned by this session.
   List<AgentSession> get children => List.unmodifiable(_children);
@@ -128,12 +130,6 @@ class AgentSession implements ToolExecutionContext {
   /// fed by `_onStateChange` on every [RunState] transition, so
   /// `session.agentState` and `bus.agentState` see the same snapshot
   /// at all times — no parallel compute path.
-  ///
-  /// Hosts that previously subscribed to this signal and forwarded
-  /// values into a separate `StateBus` no longer need to: the bus is
-  /// already the source. Subscribe to `bus.agentState` directly when
-  /// reaching the bus is more natural (e.g. inside `bus.project(...)`
-  /// projections).
   ReadonlySignal<Map<String, dynamic>> get agentState => bus.agentState;
 
   /// The per-thread reactive bus this session writes into. Owned by
@@ -154,6 +150,15 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the most recent [ExecutionEvent].
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent =>
       _executionEventSignal.readonly();
+
+  /// Reactive signal tracking SSE stream reconnect lifecycle.
+  ///
+  /// `null` means no reconnect activity. Emits [Reconnecting] while a
+  /// resume attempt is in flight, [Reconnected] on the first decoded
+  /// event after a successful resume, [ReconnectFailed] when the retry
+  /// budget is exhausted. Hosts can mirror this into a banner.
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus =>
+      _reconnectStatusSignal.readonly();
 
   /// Waits for the session result with an optional timeout.
   Future<AgentResult> awaitResult({Duration? timeout}) {
@@ -339,8 +344,16 @@ class AgentSession implements ToolExecutionContext {
         existingRunId: existingRunId,
         cachedHistory: cachedHistory,
         stateOverlay: stateOverlay,
+        onReconnectStatus: _onReconnectStatus,
       ),
     );
+  }
+
+  /// Bridges reconnect-lifecycle callbacks from `RunOrchestrator` /
+  /// `AgUiStreamClient` into the [reconnectStatus] signal.
+  void _onReconnectStatus(ReconnectStatus status) {
+    if (_disposed) return;
+    _reconnectStatusSignal.value = status;
   }
 
   /// Releases all resources, cascading to children first.
@@ -382,6 +395,7 @@ class AgentSession implements ToolExecutionContext {
     _runStateSignal.dispose();
     _sessionStateSignal.dispose();
     _executionEventSignal.dispose();
+    _reconnectStatusSignal.dispose();
   }
 
   // ---------------------------------------------------------------------------

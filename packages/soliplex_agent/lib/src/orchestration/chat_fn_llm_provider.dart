@@ -53,6 +53,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     required SimpleRunAgentInput input,
     String? existingRunId,
     CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
     final runId =
         existingRunId ?? 'local-${DateTime.now().microsecondsSinceEpoch}';
@@ -110,8 +111,15 @@ class ChatFnLlmProvider implements AgentLlmProvider {
       }
 
       yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+    } on CancelledException {
+      // Surface cancels as a stream error so the orchestrator routes
+      // them to `CancelledState` via `_onStreamError`. Yielding a
+      // `RunErrorEvent` would land in `FailedState(serverError)` with
+      // the runtime-type stringified into the user-facing message.
+      rethrow;
     } on Object catch (e) {
-      yield RunErrorEvent(message: e.toString());
+      final msg = e is SoliplexException ? e.message : e.toString();
+      yield RunErrorEvent(message: msg);
     }
   }
 

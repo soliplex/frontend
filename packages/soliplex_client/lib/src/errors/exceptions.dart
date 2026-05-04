@@ -74,6 +74,20 @@ class NetworkException extends SoliplexException {
   }
 }
 
+/// Exception thrown when the SSE `Last-Event-ID` resume budget is
+/// exhausted or a non-retryable error occurs during a resume attempt.
+class StreamResumeFailedException extends NetworkException {
+  /// Creates a stream-resume-failed exception.
+  const StreamResumeFailedException({
+    required super.message,
+    super.originalError,
+    super.stackTrace,
+  });
+
+  @override
+  String toString() => 'StreamResumeFailedException: $message';
+}
+
 /// Exception thrown when an API error occurs (4xx, 5xx except 401/403/404).
 ///
 /// UI should show error message.

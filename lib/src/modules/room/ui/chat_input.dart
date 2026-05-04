@@ -11,6 +11,7 @@ class ChatInput extends StatefulWidget {
     required this.onSend,
     required this.onCancel,
     this.sessionState,
+    this.cancelEnabled,
     this.controller,
     this.focusNode,
     this.enabled = true,
@@ -23,6 +24,11 @@ class ChatInput extends StatefulWidget {
   final void Function(String text) onSend;
   final void Function() onCancel;
   final ReadonlySignal<AgentSessionState?>? sessionState;
+
+  /// When provided, the Stop button is disabled while this signal is
+  /// `false` (it still renders, since [sessionState] is `spawning` or
+  /// `running`). Defaults to `true`.
+  final ReadonlySignal<bool>? cancelEnabled;
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final bool enabled;
@@ -109,6 +115,7 @@ class _ChatInputState extends State<ChatInput> {
     final state = widget.sessionState?.watch(context);
     final active = _isActive(state);
     final disabled = !widget.enabled || active;
+    final cancelEnabled = widget.cancelEnabled?.watch(context) ?? true;
 
     return Padding(
       padding: const EdgeInsets.all(8),
@@ -256,7 +263,7 @@ class _ChatInputState extends State<ChatInput> {
               if (active)
                 IconButton(
                   icon: const Icon(Icons.stop),
-                  onPressed: widget.onCancel,
+                  onPressed: cancelEnabled ? widget.onCancel : null,
                 )
               else
                 ValueListenableBuilder<TextEditingValue>(

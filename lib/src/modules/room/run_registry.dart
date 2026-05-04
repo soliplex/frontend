@@ -17,9 +17,10 @@ class CompletedRun extends RunOutcome {
 
 /// The run failed.
 class FailedRun extends RunOutcome {
-  const FailedRun(this.conversation, this.error);
+  const FailedRun(this.conversation, this.error, {required this.reason});
   final Conversation? conversation;
   final Object error;
+  final FailureReason reason;
 }
 
 /// The run was cancelled.
@@ -124,22 +125,32 @@ class RunRegistry {
     return switch (state) {
       CompletedState(:final conversation, :final runId) =>
         CompletedRun(conversation, runId: runId),
-      FailedState(:final conversation, :final error) =>
-        FailedRun(conversation, error),
+      FailedState(:final conversation, :final error, :final reason) =>
+        FailedRun(conversation, error, reason: reason),
       CancelledState(:final conversation) => CancelledRun(conversation),
       // No terminal RunState was captured (external dispose ran before
       // any terminal state arrived) — derive the outcome from result.
       null => switch (result) {
           AgentFailure(:final reason) when reason == FailureReason.cancelled =>
             CancelledRun(null),
-          AgentFailure(:final error) => FailedRun(null, error),
-          AgentTimedOut() => FailedRun(null, 'Session timed out'),
-          AgentSuccess() => FailedRun(null, 'Completed without terminal state'),
+          AgentFailure(:final error, :final reason) =>
+            FailedRun(null, error, reason: reason),
+          AgentTimedOut() => FailedRun(
+              null,
+              'Session timed out',
+              reason: FailureReason.internalError,
+            ),
+          AgentSuccess() => FailedRun(
+              null,
+              'Completed without terminal state',
+              reason: FailureReason.internalError,
+            ),
         },
       IdleState() || RunningState() || ToolYieldingState() => FailedRun(
           null,
           'Session result arrived in non-terminal state '
           '${state.runtimeType}: $result',
+          reason: FailureReason.internalError,
         ),
     };
   }

@@ -57,6 +57,8 @@ void main() {
             any(),
             any(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) => const Stream.empty());
 
@@ -78,6 +80,8 @@ void main() {
             any(),
             any(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) => const Stream.empty());
 
@@ -100,6 +104,8 @@ void main() {
             any(),
             any(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) => const Stream.empty());
 
@@ -117,6 +123,8 @@ void main() {
             'rooms/room-1/agui/thread-1/run-99',
             any(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).called(1);
       });
@@ -127,6 +135,8 @@ void main() {
             any(),
             any(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) => const Stream.empty());
 
@@ -145,6 +155,8 @@ void main() {
             any(),
             captureAny(),
             cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).captured;
 

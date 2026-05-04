@@ -72,7 +72,13 @@ void _stubHappyPath(
   ).thenAnswer((_) async => _runInfo(threadId));
   when(() => api.deleteThread(any(), any())).thenAnswer((_) async {});
   when(
-    () => agUi.runAgent(any(), any(), cancelToken: any(named: 'cancelToken')),
+    () => agUi.runAgent(
+      any(),
+      any(),
+      cancelToken: any(named: 'cancelToken'),
+      resumePolicy: any(named: 'resumePolicy'),
+      onReconnectStatus: any(named: 'onReconnectStatus'),
+    ),
   ).thenAnswer(
     (_) => stream ?? Stream.fromIterable(_happyPathEvents(threadId)),
   );

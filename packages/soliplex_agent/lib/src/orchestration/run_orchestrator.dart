@@ -105,6 +105,10 @@ class RunOrchestrator {
   int _subscriptionEpoch = 0;
   bool _runToCompletionActive = false;
 
+  /// Reconnect callback for the active `runToCompletion`, threaded
+  /// through every `startRun` call (initial + post-tool-yield resumes).
+  void Function(ReconnectStatus)? _activeOnReconnectStatus;
+
   /// The current state of the orchestrator.
   RunState get currentState => _currentState;
 
@@ -138,9 +142,14 @@ class RunOrchestrator {
     String? existingRunId,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
+    void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
     _guardRunToCompletion();
     _runToCompletionActive = true;
+    _activeOnReconnectStatus = (status) {
+      _logReconnectStatus(status);
+      onReconnectStatus?.call(status);
+    };
     _toolDepth = 0;
     try {
       try {
@@ -159,6 +168,7 @@ class RunOrchestrator {
       return await _driveToolLoop(key, toolExecutor);
     } finally {
       _runToCompletionActive = false;
+      _activeOnReconnectStatus = null;
     }
   }
 
@@ -212,10 +222,23 @@ class RunOrchestrator {
           CancelledState(threadKey: threadKey, conversation: withCitations),
         );
       case ToolYieldingState(:final threadKey, :final conversation):
+        // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
+        // with the live cancel token. Cancel the token + cleanup so that
+        // await aborts before `_subscribeToStream` fires and overwrites
+        // the CancelledState we set below.
+        _cancelToken?.cancel();
+        _cleanup();
         _setState(
           CancelledState(threadKey: threadKey, conversation: conversation),
         );
       case _:
+        // IdleState (after `runToCompletion` started but before the first
+        // event) is not cancellable here — no cancel token is wired in
+        // for the in-flight `createRun`.
+        _logger.warning(
+          'cancelRun ignored: no cancellable run '
+          '(state=${_currentState.runtimeType})',
+        );
         return;
     }
   }
@@ -326,6 +349,7 @@ class RunOrchestrator {
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
   ) async {
+    _cancelToken ??= CancelToken();
     final conversation =
         _buildConversation(key, userMessage, cachedHistory, stateOverlay);
     final input = _buildInput(key, conversation);
@@ -334,6 +358,7 @@ class RunOrchestrator {
       input: input,
       existingRunId: existingRunId,
       cancelToken: _cancelToken,
+      onReconnectStatus: _activeOnReconnectStatus,
     );
     if (_disposed) return;
     _subscribeToStream(
@@ -362,8 +387,11 @@ class RunOrchestrator {
       List<ToolCallInfo> results;
       try {
         results = await toolExecutor(state.pendingToolCalls);
-      } on Object catch (e) {
-        return _failFromYielding(key, state, e);
+      } on Object catch (e, stackTrace) {
+        if (e is CancelledException || e is CancellationError) {
+          return _cancelledFromYielding(key, state);
+        }
+        return _failToolExecution(key, state, e, stackTrace);
       }
       if (_disposed) return _cancelledFromYielding(key, state);
       if (_currentState is CancelledState) return _currentState;
@@ -373,8 +401,12 @@ class RunOrchestrator {
           return _failDepthExceeded(key, state);
         }
         await _resumeStream(state, results);
-      } on Object catch (e) {
-        return _failFromYielding(key, state, e);
+      } on Object catch (e, stackTrace) {
+        // If `cancelRun` already transitioned to CancelledState, the
+        // exception is the byproduct of cancellation propagating through
+        // the in-flight `startRun` await — not a true failure.
+        if (_currentState is CancelledState) return _currentState;
+        return _failResume(key, state, e, stackTrace);
       }
     }
   }
@@ -386,14 +418,38 @@ class RunOrchestrator {
     ToolYieldingState yielding,
     List<ToolCallInfo> executedTools,
   ) async {
+    // `_handleRunFinished` cleared the token for the tool-yield window;
+    // mint a fresh one for the resume.
+    _cancelToken ??= CancelToken();
     final conversation = _buildResumeConversation(yielding, executedTools);
     final input = _buildInput(yielding.threadKey, conversation);
     final handle = await _llmProvider.startRun(
       key: yielding.threadKey,
       input: input,
       cancelToken: _cancelToken,
+      onReconnectStatus: _activeOnReconnectStatus,
     );
-    if (_disposed) return;
+    // Cancel/dispose during the await leaves state as CancelledState (or
+    // disposed). Subscribing here would overwrite that with RunningState
+    // and silently resume the run after the user pressed Stop. Drain
+    // the unowned event stream so the underlying SSE socket releases.
+    if (_disposed || _currentState is! ToolYieldingState) {
+      if (!_disposed && _currentState is! CancelledState) {
+        _logger.warning(
+          'resumeStream aborted: unexpected post-await state '
+          '(state=${_currentState.runtimeType})',
+        );
+      }
+      // The drain is a byproduct of cancel/dispose, not an event we
+      // want to surface — but log so a future bug landing here from a
+      // non-cancel path leaves a breadcrumb.
+      unawaited(
+        handle.events
+            .listen(null, onError: (Object e) => _logger.debug('drain: $e'))
+            .cancel(),
+      );
+      return;
+    }
     _subscribeToStream(
       handle.events,
       RunningState(
@@ -405,24 +461,60 @@ class RunOrchestrator {
     );
   }
 
-  /// Returns a [CancelledState] from a tool-yielding context.
+  /// Transitions to [CancelledState] from a tool-yielding context.
+  ///
+  /// Mirrors the `_failX` helpers: fires the state through `_setState` so
+  /// `stateChanges` observers see the terminal transition. A no-op
+  /// constructor would leave `_currentState` at `ToolYieldingState`,
+  /// so `AgentSession._completeWith` would never run and `result` would
+  /// hang.
   CancelledState _cancelledFromYielding(
     ThreadKey key,
     ToolYieldingState state,
   ) {
-    return CancelledState(threadKey: key, conversation: state.conversation);
+    final cancelled =
+        CancelledState(threadKey: key, conversation: state.conversation);
+    _setState(cancelled);
+    return cancelled;
   }
 
-  /// Returns a [FailedState] for a tool execution error during the loop.
-  RunState _failFromYielding(
+  /// Returns a [FailedState] for an error thrown by the tool executor.
+  RunState _failToolExecution(
     ThreadKey key,
     ToolYieldingState state,
     Object error,
+    StackTrace stackTrace,
   ) {
+    _logger.error(
+      'Tool execution failed',
+      error: error,
+      stackTrace: stackTrace,
+    );
     final failed = FailedState(
       threadKey: key,
       reason: FailureReason.toolExecutionFailed,
-      error: error.toString(),
+      error: _messageOf(error),
+      conversation: state.conversation,
+    );
+    _setState(failed);
+    return failed;
+  }
+
+  /// Returns a [FailedState] for an error thrown while resuming the run
+  /// after a tool yield. Routes the reason through [classifyError] so
+  /// transport-layer failures surface as their actual category rather
+  /// than as `toolExecutionFailed`.
+  RunState _failResume(
+    ThreadKey key,
+    ToolYieldingState state,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    _logger.error('Resume run failed', error: error, stackTrace: stackTrace);
+    final failed = FailedState(
+      threadKey: key,
+      reason: classifyError(error),
+      error: _messageOf(error),
       conversation: state.conversation,
     );
     _setState(failed);
@@ -612,6 +704,10 @@ class RunOrchestrator {
     RunningState initialState,
   ) {
     // Cancel stale subscription from the previous run.
+    // `_subscriptionEpoch` (incremented below) guards `onDone` only,
+    // which can fire after the new subscription replaces the old one.
+    // `onData`/`onError` cease firing on the cancelled subscription, so
+    // they need no epoch guard.
     unawaited(_subscription?.cancel());
     _subscription = null;
     _cancelToken ??= CancelToken();
@@ -765,7 +861,7 @@ class RunOrchestrator {
     _cleanup();
     final withCitations =
         _extractCitations(running.conversation, running.runId);
-    if (error is CancellationError) {
+    if (error is CancelledException || error is CancellationError) {
       _setState(
         CancelledState(
           threadKey: running.threadKey,
@@ -780,7 +876,7 @@ class RunOrchestrator {
       FailedState(
         threadKey: running.threadKey,
         reason: reason,
-        error: error.toString(),
+        error: _messageOf(error),
         conversation: withCitations,
       ),
     );
@@ -788,10 +884,20 @@ class RunOrchestrator {
 
   void _handleStartError(ThreadKey key, Object error, StackTrace stackTrace) {
     _cleanup();
+    if (error is CancelledException || error is CancellationError) {
+      // A cancel that fired while `_initializeStream → startRun` was
+      // in flight surfaces here. Route to `CancelledState` so the
+      // user-visible result mirrors mid-stream cancel handling —
+      // not a `FailedState(reason: internalError)`. Accepts both
+      // `CancelledException` (from our `CancelToken`) and
+      // `CancellationError` (Dart core / ag_ui interop).
+      _setState(CancelledState(threadKey: key));
+      return;
+    }
     final reason = classifyError(error);
     _logger.error('Failed to start run', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(threadKey: key, reason: reason, error: error.toString()),
+      FailedState(threadKey: key, reason: reason, error: _messageOf(error)),
     );
   }
 
@@ -809,5 +915,37 @@ class RunOrchestrator {
     unawaited(_subscription?.cancel());
     _subscription = null;
     _cancelToken = null;
+  }
+
+  /// Returns a clean message string for [error], unwrapping
+  /// [SoliplexException] so prefix-based matching downstream
+  /// (e.g. on [streamResumeFailedPrefix]) sees the raw message rather
+  /// than `RuntimeType: …`.
+  String _messageOf(Object error) =>
+      error is SoliplexException ? error.message : error.toString();
+
+  void _logReconnectStatus(ReconnectStatus status) {
+    switch (status) {
+      case Reconnecting(:final attempt, :final lastEventId, :final error):
+        _logger.info(
+          'SSE reconnecting (attempt $attempt)',
+          error: error,
+          attributes: {
+            'attempt': attempt,
+            if (lastEventId != null) 'lastEventId': lastEventId,
+          },
+        );
+      case Reconnected(:final attempt):
+        _logger.info(
+          'SSE reconnected after $attempt attempt(s)',
+          attributes: {'attempt': attempt},
+        );
+      case ReconnectFailed(:final attempt, :final error):
+        _logger.warning(
+          'SSE reconnect failed after $attempt attempt(s)',
+          error: error,
+          attributes: {'attempt': attempt},
+        );
+    }
   }
 }

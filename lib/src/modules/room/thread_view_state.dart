@@ -84,6 +84,7 @@ class ThreadViewState {
   CancelToken? _cancelToken;
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
+  void Function()? _reconnectStatusUnsub;
   bool _isDisposed = false;
 
   final SessionSpawner _spawner = SessionSpawner();
@@ -104,6 +105,18 @@ class ThreadViewState {
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
   ReadonlySignal<SendError?> get lastSendError => _lastSendError;
+
+  /// Mirror of the active session's reconnect lifecycle. `null` means
+  /// no reconnect activity. UI surfaces this for [Reconnecting] and
+  /// [Reconnected] only — [ReconnectFailed] flows through
+  /// [lastSendError] with friendly copy applied.
+  final Signal<ReconnectStatus?> _reconnectStatus =
+      Signal<ReconnectStatus?>(null);
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
+
+  /// Clears the reconnect banner. The "Reconnected" tile also auto-
+  /// dismisses; this is for explicit user dismissal.
+  void dismissReconnectStatus() => _reconnectStatus.value = null;
 
   // Persists historical trackers from loaded thread history and from
   // completed sessions (absorbed in _detachSession). Plain map — the live
@@ -134,6 +147,30 @@ class ThreadViewState {
   late final ReadonlySignal<ApprovalRequest?> pendingApproval = computed(() {
     final session = _activeSession.value;
     return session?.getExtension<HumanApprovalExtension>()?.stateSignal.value;
+  });
+
+  /// Whether the cancel/stop affordance should take effect.
+  ///
+  /// True when a spawn is in progress, or when the active session's
+  /// orchestrator is in a state from which [cancelRun] can actually
+  /// transition to [CancelledState]. False during the IdleState window
+  /// between session attach and the first SSE event, where [cancelRun]
+  /// would be a silent no-op.
+  late final ReadonlySignal<bool> isCancellable = computed(() {
+    if (_sessionState.value == AgentSessionState.spawning &&
+        _activeSession.value == null) {
+      return true;
+    }
+    final session = _activeSession.value;
+    if (session == null) return false;
+    return switch (session.runState.value) {
+      RunningState() => true,
+      ToolYieldingState() => true,
+      IdleState() => false,
+      CompletedState() => false,
+      FailedState() => false,
+      CancelledState() => false,
+    };
   });
 
   /// Resolves [request] on the active session's [HumanApprovalExtension]
@@ -209,6 +246,18 @@ class ThreadViewState {
     _activeSession.value = session;
     _sessionState.value = session.state;
     _runStateUnsub = session.runState.subscribe(_onRunState);
+    // `subscribe` fires synchronously with the new session's current
+    // value — null for fresh sessions, the live status for sessions
+    // restored from the registry. Either way, the mirror is up to date
+    // without an explicit reset (which would erase a live status from
+    // a restored session).
+    _reconnectStatusUnsub =
+        session.reconnectStatus.subscribe(_onReconnectStatus);
+  }
+
+  void _onReconnectStatus(ReconnectStatus? status) {
+    if (_isDisposed) return;
+    _reconnectStatus.value = status;
   }
 
   void _onRunState(RunState runState) {
@@ -224,9 +273,9 @@ class ThreadViewState {
       case CompletedState(:final conversation):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
-      case FailedState(:final conversation, :final error):
+      case FailedState(:final conversation, :final reason, :final error):
         _detachSession();
-        _lastSendError.value = SendError(error);
+        _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -265,9 +314,32 @@ class ThreadViewState {
     }
     _runStateUnsub?.call();
     _runStateUnsub = null;
+    _reconnectStatusUnsub?.call();
+    _reconnectStatusUnsub = null;
     _activeSession.value = null;
     _streamingState.value = null;
     _sessionState.value = null;
+    // Preserve `Reconnected` so its banner-side auto-dismiss runs.
+    // Other states have no auto-dismiss; clear them here.
+    if (_reconnectStatus.value is! Reconnected) {
+      _reconnectStatus.value = null;
+    }
+  }
+
+  /// Translates orchestrator failure copy into user-facing copy.
+  ///
+  /// `streamResumeFailed` failures get a friendly base message. The
+  /// skipped-event count, when present in the underlying error string,
+  /// is preserved as a parenthetical suffix — best-effort: the base
+  /// message still appears if the suffix format ever drifts. Other
+  /// failures pass through unchanged.
+  String _friendlyMessage(FailureReason reason, String error) {
+    if (reason != FailureReason.streamResumeFailed) return error;
+    const base = 'Connection lost. The response may be incomplete — '
+        'you can send your message again.';
+    final skipped =
+        RegExp(r'\(skipped \d+ malformed events?\)').firstMatch(error);
+    return skipped == null ? base : '$base ${skipped.group(0)}';
   }
 
   bool _restoreFromRegistry() {
@@ -288,8 +360,10 @@ class ThreadViewState {
     switch (outcome) {
       case CompletedRun(:final conversation):
         _messages.value = _messagesLoaded(conversation);
-      case FailedRun(:final conversation, :final error):
-        _lastSendError.value = SendError(error);
+      case FailedRun(:final conversation, :final error, :final reason):
+        // Apply friendly copy on re-attach, same as the live FailedState arm.
+        _lastSendError.value =
+            SendError(_friendlyMessage(reason, error.toString()));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -340,5 +414,8 @@ class ThreadViewState {
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
+    _reconnectStatus.dispose();
+    isCancellable.dispose();
+    pendingApproval.dispose();
   }
 }

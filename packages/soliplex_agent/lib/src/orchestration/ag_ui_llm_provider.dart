@@ -24,6 +24,7 @@ class AgUiLlmProvider implements AgentLlmProvider {
     required SimpleRunAgentInput input,
     String? existingRunId,
     CancelToken? cancelToken,
+    void Function(ReconnectStatus)? onReconnectStatus,
   }) async {
     final runId = existingRunId ?? await _createRun(key);
     final updatedInput = SimpleRunAgentInput(
@@ -38,6 +39,7 @@ class AgUiLlmProvider implements AgentLlmProvider {
       endpoint,
       updatedInput,
       cancelToken: cancelToken,
+      onReconnectStatus: onReconnectStatus,
     );
     return LlmRunHandle(runId: runId, events: events);
   }

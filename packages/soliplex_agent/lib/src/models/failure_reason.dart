@@ -13,6 +13,10 @@ enum FailureReason {
   /// Network lost — SSE stream ended without a terminal event.
   networkLost,
 
+  /// SSE `Last-Event-ID` resume failed — either the retry budget was
+  /// exhausted or a non-retryable error surfaced during a resume.
+  streamResumeFailed,
+
   /// Server returned 429 Too Many Requests.
   rateLimited,
 
