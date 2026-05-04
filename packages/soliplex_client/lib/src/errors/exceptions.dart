@@ -76,21 +76,13 @@ class NetworkException extends SoliplexException {
 
 /// Exception thrown when the SSE `Last-Event-ID` resume budget is
 /// exhausted or a non-retryable error occurs during a resume attempt.
-///
-/// Carries [skippedEventCount] so consumers can surface a typed count
-/// of malformed events that were dropped during streaming, rather than
-/// parsing the message string.
 class StreamResumeFailedException extends NetworkException {
   /// Creates a stream-resume-failed exception.
   const StreamResumeFailedException({
     required super.message,
     super.originalError,
     super.stackTrace,
-    this.skippedEventCount = 0,
   });
-
-  /// Number of malformed events skipped over the run. Zero is common.
-  final int skippedEventCount;
 
   @override
   String toString() => 'StreamResumeFailedException: $message';

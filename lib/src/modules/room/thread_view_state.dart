@@ -416,5 +416,6 @@ class ThreadViewState {
     _sessionState.dispose();
     _reconnectStatus.dispose();
     isCancellable.dispose();
+    pendingApproval.dispose();
   }
 }

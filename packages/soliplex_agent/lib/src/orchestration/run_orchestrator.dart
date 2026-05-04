@@ -440,9 +440,14 @@ class RunOrchestrator {
           '(state=${_currentState.runtimeType})',
         );
       }
-      // `onError` swallows errors that race the cancel — the drain is
-      // a byproduct of cancel/dispose, not an event we want to surface.
-      unawaited(handle.events.listen(null, onError: (_, __) {}).cancel());
+      // The drain is a byproduct of cancel/dispose, not an event we
+      // want to surface — but log so a future bug landing here from a
+      // non-cancel path leaves a breadcrumb.
+      unawaited(
+        handle.events
+            .listen(null, onError: (Object e) => _logger.debug('drain: $e'))
+            .cancel(),
+      );
       return;
     }
     _subscribeToStream(

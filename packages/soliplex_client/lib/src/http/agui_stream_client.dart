@@ -97,7 +97,6 @@ class AgUiStreamClient {
           throw StreamResumeFailedException(
             message: _resumeFailureMessage(e, skippedEventCount),
             originalError: e,
-            skippedEventCount: skippedEventCount,
           );
         }
         attempt += 1;
@@ -183,7 +182,6 @@ class AgUiStreamClient {
         throw StreamResumeFailedException(
           message: _resumeFailureMessage(streamError, skippedEventCount),
           originalError: streamError,
-          skippedEventCount: skippedEventCount,
         );
       }
 

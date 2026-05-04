@@ -133,7 +133,8 @@ class StreamingLlmProvider implements AgentLlmProvider {
       // the runtime-type stringified into the user-facing message.
       rethrow;
     } on Object catch (e) {
-      yield RunErrorEvent(message: e.toString());
+      final msg = e is SoliplexException ? e.message : e.toString();
+      yield RunErrorEvent(message: msg);
     }
   }
 
