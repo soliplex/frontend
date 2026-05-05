@@ -105,18 +105,21 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (icon, color) = switch (_feedback) {
+    final (icon, color, tooltip) = switch (_feedback) {
       _DownloadFeedback.idle => (
           Icons.download_outlined,
           theme.colorScheme.primary,
+          'Download',
         ),
       _DownloadFeedback.success => (
           Icons.check,
           theme.colorScheme.onSurfaceVariant,
+          'Saved',
         ),
       _DownloadFeedback.error => (
           Icons.error_outline,
           theme.colorScheme.error,
+          "Couldn't save",
         ),
     };
     return InkWell(
@@ -139,7 +142,10 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(icon, size: 16, color: color),
+            Tooltip(
+              message: tooltip,
+              child: Icon(icon, size: 16, color: color),
+            ),
           ],
         ),
       ),
