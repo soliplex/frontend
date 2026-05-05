@@ -43,6 +43,7 @@ import 'error_retry_panel.dart';
 import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
+import 'workdir_files_section.dart' show DownloadOutcome;
 import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
@@ -875,7 +876,7 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  Future<void> _downloadWorkdirFile(
+  Future<DownloadOutcome> _downloadWorkdirFile(
     String threadId,
     String runId,
     WorkdirFile file,
@@ -889,30 +890,37 @@ class _RoomScreenState extends State<RoomScreen> {
         runId,
         file.filename,
       );
-      _workdirLogger
-          .debug('workdir download ok runId=$runId bytes=${bytes.length}');
       if (kIsWeb) {
         await FileSaver.instance.saveFile(
           name: file.filename,
           bytes: bytes,
           mimeType: MimeType.other,
         );
-      } else {
-        await FileSaver.instance.saveAs(
-          name: file.filename,
-          bytes: bytes,
-          fileExtension: '',
-          includeExtension: false,
-          mimeType: MimeType.other,
-        );
+        _workdirLogger
+            .debug('workdir download ok runId=$runId bytes=${bytes.length}');
+        return DownloadOutcome.success;
       }
+      final path = await FileSaver.instance.saveAs(
+        name: file.filename,
+        bytes: bytes,
+        fileExtension: '',
+        includeExtension: false,
+        mimeType: MimeType.other,
+      );
+      if (path == null) {
+        _workdirLogger.debug('workdir download cancelled runId=$runId');
+        return DownloadOutcome.cancelled;
+      }
+      _workdirLogger
+          .debug('workdir download ok runId=$runId bytes=${bytes.length}');
+      return DownloadOutcome.success;
     } catch (e, st) {
       _workdirLogger.warning(
         'workdir download failed runId=$runId',
         error: e,
         stackTrace: st,
       );
-      rethrow;
+      return DownloadOutcome.failed;
     }
   }
 

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
 
-typedef DownloadWorkdirFile = Future<void> Function(
+enum DownloadOutcome { success, cancelled, failed }
+
+typedef DownloadWorkdirFile = Future<DownloadOutcome> Function(
   String runId,
   WorkdirFile file,
 );
@@ -61,17 +65,62 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
   }
 }
 
-class _WorkdirFileRow extends StatelessWidget {
+class _WorkdirFileRow extends StatefulWidget {
   const _WorkdirFileRow({required this.file, required this.onTap});
 
   final WorkdirFile file;
-  final VoidCallback onTap;
+  final Future<DownloadOutcome> Function() onTap;
+
+  @override
+  State<_WorkdirFileRow> createState() => _WorkdirFileRowState();
+}
+
+enum _DownloadFeedback { idle, success, error }
+
+class _WorkdirFileRowState extends State<_WorkdirFileRow> {
+  _DownloadFeedback _feedback = _DownloadFeedback.idle;
+  Timer? _revertTimer;
+
+  @override
+  void dispose() {
+    _revertTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleTap() async {
+    final outcome = await widget.onTap();
+    if (!mounted) return;
+    final feedback = switch (outcome) {
+      DownloadOutcome.success => _DownloadFeedback.success,
+      DownloadOutcome.cancelled => _DownloadFeedback.error,
+      DownloadOutcome.failed => _DownloadFeedback.error,
+    };
+    setState(() => _feedback = feedback);
+    _revertTimer?.cancel();
+    _revertTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final (icon, color) = switch (_feedback) {
+      _DownloadFeedback.idle => (
+          Icons.download_outlined,
+          theme.colorScheme.primary,
+        ),
+      _DownloadFeedback.success => (
+          Icons.check,
+          theme.colorScheme.onSurfaceVariant,
+        ),
+      _DownloadFeedback.error => (
+          Icons.error_outline,
+          theme.colorScheme.error,
+        ),
+    };
     return InkWell(
-      onTap: onTap,
+      onTap: _feedback == _DownloadFeedback.idle ? _handleTap : null,
       borderRadius: BorderRadius.circular(6),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
@@ -85,16 +134,12 @@ class _WorkdirFileRow extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                file.filename,
+                widget.file.filename,
                 style: theme.textTheme.bodySmall,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(
-              Icons.download_outlined,
-              size: 16,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(icon, size: 16, color: color),
           ],
         ),
       ),

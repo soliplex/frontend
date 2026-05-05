@@ -15,7 +15,7 @@ void main() {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
       runId: 'run-1',
       fetchFiles: (_) async => [_file('report.pdf'), _file('plot.png')],
-      onDownload: (_, __) async {},
+      onDownload: (_, __) async => DownloadOutcome.success,
     )));
     await tester.pump();
 
@@ -28,7 +28,7 @@ void main() {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
       runId: 'run-1',
       fetchFiles: (_) async => const [],
-      onDownload: (_, __) async {},
+      onDownload: (_, __) async => DownloadOutcome.success,
     )));
     await tester.pump();
 
@@ -42,7 +42,7 @@ void main() {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
       runId: 'run-1',
       fetchFiles: (_) async => throw Exception('boom'),
-      onDownload: (_, __) async {},
+      onDownload: (_, __) async => DownloadOutcome.success,
     )));
     await tester.pump();
 
@@ -59,7 +59,7 @@ void main() {
         if (calls == 1) throw Exception('boom');
         return [_file('report.pdf')];
       },
-      onDownload: (_, __) async {},
+      onDownload: (_, __) async => DownloadOutcome.success,
     )));
     await tester.pump();
     expect(find.byIcon(Icons.refresh), findsOneWidget);
@@ -84,6 +84,7 @@ void main() {
       onDownload: (runId, f) async {
         gotRunId = runId;
         gotFile = f;
+        return DownloadOutcome.success;
       },
     )));
     await tester.pump();
@@ -93,5 +94,83 @@ void main() {
 
     expect(gotRunId, 'run-42');
     expect(gotFile, same(file));
+  });
+
+  testWidgets('shows check icon briefly on success and reverts after 2s',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byIcon(Icons.download_outlined), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNothing);
+  });
+
+  testWidgets('shows error icon briefly on failed and reverts after 2s',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) async => DownloadOutcome.failed,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+  });
+
+  testWidgets('shows error icon briefly on cancelled (matches failed UX)',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) async => DownloadOutcome.cancelled,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
+  testWidgets('second tap during feedback window is a no-op', (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) async {
+        calls++;
+        return DownloadOutcome.success;
+      },
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+    expect(calls, 1);
+
+    // Try tapping the (now check) icon — should not fire again.
+    await tester.tap(find.byIcon(Icons.check));
+    await tester.pump();
+    expect(calls, 1);
   });
 }
