@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
@@ -117,6 +118,48 @@ class HttpTransport {
 
     // Decode response
     return _decodeResponse<T>(response, fromJson);
+  }
+
+  /// Performs an HTTP request and returns the raw response bytes.
+  ///
+  /// Use this for binary downloads (images, file contents, archives) where
+  /// JSON decoding would corrupt the payload. Status-to-exception mapping
+  /// is identical to [request].
+  ///
+  /// Parameters:
+  /// - [method]: HTTP method (typically GET).
+  /// - [uri]: The request URI.
+  /// - [headers]: Optional request headers.
+  /// - [timeout]: Request timeout. Uses [defaultTimeout] if not specified.
+  /// - [cancelToken]: Optional token for cancelling the request.
+  ///
+  /// Throws:
+  /// - [CancelledException] if the request was cancelled via [cancelToken]
+  /// - [AuthException] for 401 and 403 responses
+  /// - [NotFoundException] for 404 responses
+  /// - [ApiException] for other 4xx and 5xx responses
+  /// - [NetworkException] for connection failures (from client)
+  Future<Uint8List> requestBytes(
+    String method,
+    Uri uri, {
+    Map<String, String>? headers,
+    Duration? timeout,
+    CancelToken? cancelToken,
+  }) async {
+    cancelToken?.throwIfCancelled();
+
+    final response = await _client.request(
+      method,
+      uri,
+      headers: {...?headers},
+      timeout: timeout ?? defaultTimeout,
+    );
+
+    cancelToken?.throwIfCancelled();
+
+    _throwForStatusCode(response, uri);
+
+    return response.bodyBytes;
   }
 
   /// Performs a streaming HTTP request and returns a [StreamedHttpResponse].

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
@@ -220,6 +222,151 @@ void main() {
     test('throws ArgumentError for empty runId', () {
       expect(
         () => api.getRunWorkdirFiles('room-1', 'thread-1', ''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
+
+  group('getRunWorkdirFile', () {
+    test('returns the response bytes verbatim', () async {
+      final payload = Uint8List.fromList([0xCA, 0xFE, 0xBA, 0xBE]);
+      when(
+        () => mockTransport.requestBytes(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => payload);
+
+      final bytes = await api.getRunWorkdirFile(
+        'room-123',
+        'thread-456',
+        'run-789',
+        'output.bin',
+      );
+
+      expect(bytes, equals(payload));
+    });
+
+    test(
+      'uses /workdirs/{roomId}/thread/{threadId}/run/{runId}/file/{filename} URL',
+      () async {
+        when(
+          () => mockTransport.requestBytes(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => Uint8List(0));
+
+        await api.getRunWorkdirFile(
+          'room-abc',
+          'thread-xyz',
+          'run-999',
+          'plot.png',
+        );
+
+        final captured = verify(
+          () => mockTransport.requestBytes(
+            'GET',
+            captureAny(),
+            cancelToken: any(named: 'cancelToken'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).captured.single as Uri;
+
+        expect(
+          captured.path,
+          endsWith(
+            '/workdirs/room-abc/thread/thread-xyz/run/run-999/file/plot.png',
+          ),
+        );
+      },
+    );
+
+    test('percent-encodes filenames with spaces and special characters',
+        () async {
+      when(
+        () => mockTransport.requestBytes(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => Uint8List(0));
+
+      await api.getRunWorkdirFile(
+        'room-1',
+        'thread-1',
+        'run-1',
+        'my report (final).pdf',
+      );
+
+      final captured = verify(
+        () => mockTransport.requestBytes(
+          'GET',
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured.single as Uri;
+
+      expect(captured.pathSegments.last, equals('my report (final).pdf'));
+    });
+
+    test('propagates exceptions from the transport', () async {
+      when(
+        () => mockTransport.requestBytes(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async {
+        throw const NotFoundException(
+          message: 'No workdir file',
+          resource: '/file',
+        );
+      });
+
+      await expectLater(
+        api.getRunWorkdirFile('room-1', 'thread-1', 'run-1', 'missing.txt'),
+        throwsA(isA<NotFoundException>()),
+      );
+    });
+
+    test('throws ArgumentError for empty roomId', () {
+      expect(
+        () => api.getRunWorkdirFile('', 'thread-1', 'run-1', 'a.txt'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for empty threadId', () {
+      expect(
+        () => api.getRunWorkdirFile('room-1', '', 'run-1', 'a.txt'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for empty runId', () {
+      expect(
+        () => api.getRunWorkdirFile('room-1', 'thread-1', '', 'a.txt'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for empty filename', () {
+      expect(
+        () => api.getRunWorkdirFile('room-1', 'thread-1', 'run-1', ''),
         throwsA(isA<ArgumentError>()),
       );
     });

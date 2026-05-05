@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 import 'package:soliplex_client/src/api/mappers.dart';
@@ -1140,6 +1141,54 @@ class SoliplexApi {
     );
 
     return _parseFileList(response, 'files', workdirFileFromJson);
+  }
+
+  /// Downloads a single file written by an agent run to its workdir.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  /// - [runId]: The run ID (must not be empty)
+  /// - [filename]: The filename within the run's workdir (must not be empty)
+  ///
+  /// Returns the raw file bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty
+  /// - [NotFoundException] if the sandbox is not configured or the file does
+  ///   not exist (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getRunWorkdirFile(
+    String roomId,
+    String threadId,
+    String runId,
+    String filename, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireNonEmpty(runId, 'runId');
+    _requireNonEmpty(filename, 'filename');
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: [
+          'workdirs',
+          roomId,
+          'thread',
+          threadId,
+          'run',
+          runId,
+          'file',
+          filename,
+        ],
+      ),
+      cancelToken: cancelToken,
+    );
   }
 
   // ============================================================
