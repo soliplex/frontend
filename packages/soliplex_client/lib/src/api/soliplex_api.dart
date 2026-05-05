@@ -17,6 +17,7 @@ import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/multipart_encoder.dart';
@@ -1013,7 +1014,7 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    return _parseUploadsList(response);
+    return _parseFileList(response, 'uploads', fileUploadFromJson);
   }
 
   /// Lists files uploaded to a thread within a room.
@@ -1046,7 +1047,7 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    return _parseUploadsList(response);
+    return _parseFileList(response, 'uploads', fileUploadFromJson);
   }
 
   /// Uploads a file to a room's shared upload directory.
@@ -1099,6 +1100,49 @@ class SoliplexApi {
   }
 
   // ============================================================
+  // Workdir files
+  // ============================================================
+
+  /// Lists files written by the agent to the run working directory.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [threadId]: The thread ID (must not be empty)
+  /// - [runId]: The run ID (must not be empty)
+  ///
+  /// Returns a list of [WorkdirFile] entries. Malformed entries in the
+  /// response are logged and skipped.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty
+  /// - [NotFoundException] if sandbox is not configured (404) — callers
+  ///   should catch this and show an appropriate unavailable state
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<List<WorkdirFile>> getRunWorkdirFiles(
+    String roomId,
+    String threadId,
+    String runId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(threadId, 'threadId');
+    _requireNonEmpty(runId, 'runId');
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['workdirs', roomId, 'thread', threadId, runId],
+      ),
+      cancelToken: cancelToken,
+    );
+
+    return _parseFileList(response, 'files', workdirFileFromJson);
+  }
+
+  // ============================================================
   // Lifecycle
   // ============================================================
 
@@ -1121,18 +1165,21 @@ class SoliplexApi {
     }
   }
 
-  /// Extracts `FileUpload` entries from an uploads-list response.
+  /// Extracts typed entries from a list field in a JSON response.
   ///
-  /// Missing `uploads` key is logged and treated as an empty list so a
-  /// transient server omission doesn't break the UI. A non-list value
-  /// under `uploads` indicates a schema mismatch and is raised as
-  /// [UnexpectedException] so callers surface a real error. Malformed
-  /// per-entry rows are logged and skipped.
-  List<FileUpload> _parseUploadsList(Map<String, dynamic> response) {
-    final raw = response['uploads'];
+  /// Missing [jsonKey] is logged and treated as an empty list so a transient
+  /// server omission doesn't break the UI. A non-list value indicates a schema
+  /// mismatch and is raised as [UnexpectedException]. Malformed per-entry rows
+  /// are logged and skipped.
+  List<T> _parseFileList<T>(
+    Map<String, dynamic> response,
+    String jsonKey,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    final raw = response[jsonKey];
     if (raw == null) {
       developer.log(
-        'Upload list response missing "uploads" key; treating as empty',
+        'Response missing "$jsonKey" key; treating as empty',
         name: 'soliplex_client.api',
         level: 900,
       );
@@ -1140,16 +1187,15 @@ class SoliplexApi {
     }
     if (raw is! List) {
       throw UnexpectedException(
-        message: 'Upload list response has non-list "uploads" field: '
-            '${raw.runtimeType}',
+        message: 'Response has non-list "$jsonKey" field: ${raw.runtimeType}',
       );
     }
     if (raw.isEmpty) return const [];
-    final result = <FileUpload>[];
+    final result = <T>[];
     for (final entry in raw) {
       if (entry is! Map<String, dynamic>) {
         developer.log(
-          'Malformed file upload ignored: expected a JSON object, '
+          'Malformed "$jsonKey" entry ignored: expected a JSON object, '
           'got ${entry.runtimeType}',
           name: 'soliplex_client.api',
           level: 900,
@@ -1157,10 +1203,10 @@ class SoliplexApi {
         continue;
       }
       try {
-        result.add(fileUploadFromJson(entry));
+        result.add(fromJson(entry));
       } on FormatException catch (e) {
         developer.log(
-          'Malformed file upload ignored: $e',
+          'Malformed "$jsonKey" entry ignored: $e',
           name: 'soliplex_client.api',
           level: 900,
         );

@@ -11,6 +11,7 @@ import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/workdir_file.dart';
 
 // ============================================================
 // Timestamp helpers
@@ -408,6 +409,20 @@ FileUpload fileUploadFromJson(Map<String, dynamic> json) {
   return FileUpload(
     filename: _requireString(json, 'filename', 'file upload'),
     url: Uri.parse(_requireString(json, 'url', 'file upload')),
+  );
+}
+
+// ============================================================
+// WorkdirFile mappers
+// ============================================================
+
+/// Creates a [WorkdirFile] from JSON.
+///
+/// Throws [FormatException] if `filename` or `url` is missing or malformed.
+WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
+  return WorkdirFile(
+    filename: _requireString(json, 'filename', 'workdir file'),
+    url: Uri.parse(_requireString(json, 'url', 'workdir file')),
   );
 }
 

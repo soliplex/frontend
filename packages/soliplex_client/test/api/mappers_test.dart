@@ -7,6 +7,7 @@ import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -1935,6 +1936,69 @@ void main() {
         expect(
           () => fileUploadFromJson({
             'filename': 'a.pdf',
+            'url': 'http://[::1',
+          }),
+          throwsFormatException,
+        );
+      });
+    });
+  });
+
+  group('WorkdirFile mappers', () {
+    group('workdirFileFromJson', () {
+      test('parses correctly with all fields', () {
+        final result = workdirFileFromJson({
+          'filename': 'output.csv',
+          'url':
+              'https://example.com/workdirs/room-1/thread-1/run-1/output.csv',
+        });
+
+        expect(result.filename, 'output.csv');
+        expect(
+          result.url.toString(),
+          'https://example.com/workdirs/room-1/thread-1/run-1/output.csv',
+        );
+        expect(result, isA<WorkdirFile>());
+      });
+
+      test('throws FormatException when filename is missing', () {
+        expect(
+          () => workdirFileFromJson({'url': 'https://example.com/a'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when url is missing', () {
+        expect(
+          () => workdirFileFromJson({'filename': 'output.csv'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename is non-string', () {
+        expect(
+          () => workdirFileFromJson({
+            'filename': 42,
+            'url': 'https://example.com/a',
+          }),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when url is non-string', () {
+        expect(
+          () => workdirFileFromJson({
+            'filename': 'output.csv',
+            'url': ['not', 'a', 'string'],
+          }),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when url is not a valid URI', () {
+        expect(
+          () => workdirFileFromJson({
+            'filename': 'output.csv',
             'url': 'http://[::1',
           }),
           throwsFormatException,

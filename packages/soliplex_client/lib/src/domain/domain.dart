@@ -22,3 +22,4 @@ export 'source_reference.dart';
 export 'surface.dart';
 export 'thread_history.dart';
 export 'thread_info.dart';
+export 'workdir_file.dart';
