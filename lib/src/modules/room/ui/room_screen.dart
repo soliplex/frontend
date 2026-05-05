@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
+        NotFoundException,
         RagDocument,
         ReconnectFailed,
         ReconnectStatus,
@@ -15,7 +17,9 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnecting,
         Room,
         SourceReferenceFormatting,
+        WorkdirFile,
         buildDocumentFilter;
+import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
@@ -45,6 +49,8 @@ import '../upload_tracker_registry.dart';
 
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;
+
+final _workdirLogger = LogManager.instance.getLogger('workdir_files');
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -91,6 +97,7 @@ class _RoomScreenState extends State<RoomScreen> {
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   bool _filesExpanded = false;
+  final _workdirCache = <String, Future<List<WorkdirFile>>>{};
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -843,6 +850,61 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  Future<List<WorkdirFile>> _fetchWorkdirFiles(String threadId, String runId) {
+    return _workdirCache.putIfAbsent(runId, () async {
+      _workdirLogger.debug('workdir fetch start runId=$runId');
+      try {
+        final files = await widget.serverEntry.connection.api
+            .getRunWorkdirFiles(widget.roomId, threadId, runId);
+        _workdirLogger.debug('workdir fetch ok runId=$runId n=${files.length}');
+        return files;
+      } on NotFoundException {
+        _workdirLogger
+            .debug('workdir fetch 404 (sandbox unconfigured) runId=$runId');
+        return const [];
+      } catch (e, st) {
+        _workdirLogger.warning(
+          'workdir fetch failed runId=$runId',
+          error: e,
+          stackTrace: st,
+        );
+        _workdirCache.remove(runId);
+        rethrow;
+      }
+    });
+  }
+
+  Future<void> _downloadWorkdirFile(
+    String threadId,
+    String runId,
+    WorkdirFile file,
+  ) async {
+    _workdirLogger
+        .debug('workdir download start runId=$runId name=${file.filename}');
+    try {
+      final bytes = await widget.serverEntry.connection.api.getRunWorkdirFile(
+        widget.roomId,
+        threadId,
+        runId,
+        file.filename,
+      );
+      _workdirLogger
+          .debug('workdir download ok runId=$runId bytes=${bytes.length}');
+      await FileSaver.instance.saveFile(
+        name: file.filename,
+        bytes: bytes,
+        mimeType: MimeType.other,
+      );
+    } catch (e, st) {
+      _workdirLogger.warning(
+        'workdir download failed runId=$runId',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
+
   Widget _buildThreadBody(ThreadViewState threadView, Room? room) {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
@@ -920,6 +982,14 @@ class _RoomScreenState extends State<RoomScreen> {
                             chunkId: ref.chunkId,
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
+                          ),
+                          onFetchWorkdirFiles: (runId) =>
+                              _fetchWorkdirFiles(threadView.threadId, runId),
+                          onDownloadWorkdirFile: (runId, file) =>
+                              _downloadWorkdirFile(
+                            threadView.threadId,
+                            runId,
+                            file,
                           ),
                         ),
               },

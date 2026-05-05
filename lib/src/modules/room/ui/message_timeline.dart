@@ -10,6 +10,7 @@ import '../source_references_resolver.dart';
 import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
+import 'workdir_files_section.dart';
 
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({
@@ -22,6 +23,8 @@ class MessageTimeline extends StatefulWidget {
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
+    this.onFetchWorkdirFiles,
+    this.onDownloadWorkdirFile,
   });
 
   final String roomId;
@@ -33,6 +36,8 @@ class MessageTimeline extends StatefulWidget {
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
+  final FetchWorkdirFiles? onFetchWorkdirFiles;
+  final DownloadWorkdirFile? onDownloadWorkdirFile;
 
   @override
   State<MessageTimeline> createState() => _MessageTimelineState();
@@ -211,6 +216,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
                       onFeedbackSubmit: widget.onFeedbackSubmit,
                       onInspect: widget.onInspect,
                       onShowChunkVisualization: widget.onShowChunkVisualization,
+                      onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
+                      onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
                       executionTracker: widget.executionTrackers[message.id] ??
                           (message is LoadingMessage
                               ? widget.executionTrackers[awaitingTrackerKey]

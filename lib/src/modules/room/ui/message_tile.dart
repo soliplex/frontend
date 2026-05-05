@@ -7,6 +7,7 @@ import 'gen_ui_tile.dart';
 import 'loading_message_tile.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
+import 'workdir_files_section.dart';
 
 class MessageTile extends StatelessWidget {
   const MessageTile({
@@ -18,6 +19,8 @@ class MessageTile extends StatelessWidget {
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
+    this.onFetchWorkdirFiles,
+    this.onDownloadWorkdirFile,
     this.executionTracker,
     this.streamingActivity,
   });
@@ -30,6 +33,8 @@ class MessageTile extends StatelessWidget {
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
+  final FetchWorkdirFiles? onFetchWorkdirFiles;
+  final DownloadWorkdirFile? onDownloadWorkdirFile;
   final ExecutionTracker? executionTracker;
   final ActivityType? streamingActivity;
 
@@ -51,6 +56,8 @@ class MessageTile extends StatelessWidget {
                 ? () => onInspect!(runId!)
                 : null,
             onShowChunkVisualization: onShowChunkVisualization,
+            onFetchWorkdirFiles: onFetchWorkdirFiles,
+            onDownloadWorkdirFile: onDownloadWorkdirFile,
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),
