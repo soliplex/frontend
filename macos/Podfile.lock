@@ -10,8 +10,6 @@ PODS:
     - FlutterMacOS
   - file_picker (0.0.1):
     - FlutterMacOS
-  - file_saver (0.0.1):
-    - FlutterMacOS
   - flutter_appauth (0.0.1):
     - AppAuth (= 2.0.0)
     - FlutterMacOS
@@ -30,7 +28,6 @@ PODS:
 DEPENDENCIES:
   - cupertino_http (from `Flutter/ephemeral/.symlinks/plugins/cupertino_http/darwin`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
-  - file_saver (from `Flutter/ephemeral/.symlinks/plugins/file_saver/macos`)
   - flutter_appauth (from `Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -47,8 +44,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/cupertino_http/darwin
   file_picker:
     :path: Flutter/ephemeral/.symlinks/plugins/file_picker/macos
-  file_saver:
-    :path: Flutter/ephemeral/.symlinks/plugins/file_saver/macos
   flutter_appauth:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos
   flutter_secure_storage_darwin:
@@ -66,7 +61,6 @@ SPEC CHECKSUMS:
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
-  file_saver: e35bd97de451dde55ff8c38862ed7ad0f3418d0f
   flutter_appauth: a7af6f450a5cbe7938c2222eddf34d13521038e6
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1

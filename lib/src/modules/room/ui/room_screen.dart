@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
-import 'package:file_saver/file_saver.dart';
+import 'package:file_picker/file_picker.dart' show FilePicker;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -890,24 +890,14 @@ class _RoomScreenState extends State<RoomScreen> {
         runId,
         file.filename,
       );
-      if (kIsWeb) {
-        await FileSaver.instance.saveFile(
-          name: file.filename,
-          bytes: bytes,
-          mimeType: MimeType.other,
-        );
-        _workdirLogger
-            .debug('workdir download ok runId=$runId bytes=${bytes.length}');
-        return DownloadOutcome.success;
-      }
-      final path = await FileSaver.instance.saveAs(
-        name: file.filename,
+      final path = await FilePicker.saveFile(
+        fileName: file.filename,
         bytes: bytes,
-        fileExtension: '',
-        includeExtension: false,
-        mimeType: MimeType.other,
       );
-      if (path == null) {
+      // On web, the browser triggers the download immediately and saveFile
+      // returns null even on success — there's no cancel UX. On native
+      // platforms, null means the user cancelled the save dialog.
+      if (!kIsWeb && path == null) {
         _workdirLogger.debug('workdir download cancelled runId=$runId');
         return DownloadOutcome.cancelled;
       }
