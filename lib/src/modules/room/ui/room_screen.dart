@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as dev;
 
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -890,11 +891,21 @@ class _RoomScreenState extends State<RoomScreen> {
       );
       _workdirLogger
           .debug('workdir download ok runId=$runId bytes=${bytes.length}');
-      await FileSaver.instance.saveFile(
-        name: file.filename,
-        bytes: bytes,
-        mimeType: MimeType.other,
-      );
+      if (kIsWeb) {
+        await FileSaver.instance.saveFile(
+          name: file.filename,
+          bytes: bytes,
+          mimeType: MimeType.other,
+        );
+      } else {
+        await FileSaver.instance.saveAs(
+          name: file.filename,
+          bytes: bytes,
+          fileExtension: '',
+          includeExtension: false,
+          mimeType: MimeType.other,
+        );
+      }
     } catch (e, st) {
       _workdirLogger.warning(
         'workdir download failed runId=$runId',
