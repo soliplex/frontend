@@ -49,16 +49,31 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
         if (files == null || files.isEmpty) {
           return const SizedBox.shrink();
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            for (final file in files)
-              _WorkdirFileRow(
-                file: file,
-                onTap: () => widget.onDownload(widget.runId, file),
+        final theme = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final file in files)
+                      _WorkdirFileRow(
+                        file: file,
+                        onTap: () => widget.onDownload(widget.runId, file),
+                      ),
+                  ],
+                ),
               ),
-          ],
+            ),
+          ),
         );
       },
     );
@@ -152,10 +167,9 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                widget.file.filename,
+              child: _FilenameText(
+                filename: widget.file.filename,
                 style: theme.textTheme.bodySmall,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             Tooltip(
@@ -167,6 +181,91 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
       ),
     );
   }
+}
+
+/// Single-line filename that preserves the extension when truncating.
+///
+/// End-ellipsis on a long filename hides the extension, which is the
+/// most informative byte for telling files apart. This widget keeps the
+/// extension intact and ellipsizes the basename instead. Wraps in a
+/// [Tooltip] so the full name is reachable on hover / long-press.
+class _FilenameText extends StatelessWidget {
+  const _FilenameText({required this.filename, this.style});
+
+  final String filename;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final display = _fitFilename(filename, style, constraints.maxWidth);
+        // Align lets the Text size to its content (instead of being stretched
+        // by the parent Expanded), so the Tooltip anchors to the actual
+        // painted text bounds and appears near the cursor.
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Tooltip(
+            message: filename,
+            waitDuration: const Duration(milliseconds: 500),
+            child: Text(
+              display,
+              style: style,
+              maxLines: 1,
+              softWrap: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _fitFilename(String name, TextStyle? style, double maxWidth) {
+  if (_measure(name, style) <= maxWidth) return name;
+
+  final dot = name.lastIndexOf('.');
+  // Treat as no extension if name starts with a dot (e.g. ".bashrc"), or
+  // the extension is long enough that preserving it isn't useful.
+  final hasUsefulExtension = dot > 0 && name.length - dot - 1 <= 8;
+  if (!hasUsefulExtension) {
+    return _truncateWithEllipsis(name, '', style, maxWidth);
+  }
+
+  final basename = name.substring(0, dot);
+  final extension = name.substring(dot);
+  return _truncateWithEllipsis(basename, extension, style, maxWidth);
+}
+
+String _truncateWithEllipsis(
+  String head,
+  String tail,
+  TextStyle? style,
+  double maxWidth,
+) {
+  const ellipsis = '…';
+  // Binary-search the largest prefix of [head] that still fits.
+  var lo = 0;
+  var hi = head.length;
+  while (lo < hi) {
+    final mid = (lo + hi + 1) ~/ 2;
+    final candidate = '${head.substring(0, mid)}$ellipsis$tail';
+    if (_measure(candidate, style) <= maxWidth) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return '${head.substring(0, lo)}$ellipsis$tail';
+}
+
+double _measure(String text, TextStyle? style) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  )..layout();
+  return painter.width;
 }
 
 class _WorkdirErrorRow extends StatelessWidget {
