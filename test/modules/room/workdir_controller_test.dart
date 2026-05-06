@@ -10,7 +10,8 @@ import 'package:soliplex_frontend/src/modules/room/workdir_controller.dart';
 
 class _MockApi extends Mock implements SoliplexApi {}
 
-WorkdirFile _file(String name) => WorkdirFile(filename: name);
+WorkdirFile _file(String name) =>
+    WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
 void main() {
   late _MockApi api;

@@ -419,7 +419,8 @@ FileUpload fileUploadFromJson(Map<String, dynamic> json) {
 /// Creates a [WorkdirFile] from JSON.
 ///
 /// Throws [FormatException] if `filename` is missing, empty, contains a
-/// path separator, or contains a NUL byte.
+/// path separator, or contains a NUL byte; or if `url` is missing or
+/// malformed.
 WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   final filename = _requireString(json, 'filename', 'workdir file');
   if (filename.isEmpty) {
@@ -435,7 +436,10 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
       'workdir file filename must not contain NUL bytes',
     );
   }
-  return WorkdirFile(filename: filename);
+  return WorkdirFile(
+    filename: filename,
+    url: Uri.parse(_requireString(json, 'url', 'workdir file')),
+  );
 }
 
 // ============================================================

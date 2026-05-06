@@ -7,7 +7,6 @@ import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
-import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -1946,26 +1945,43 @@ void main() {
 
   group('WorkdirFile mappers', () {
     group('workdirFileFromJson', () {
-      test('parses a filename', () {
-        final result = workdirFileFromJson({'filename': 'output.csv'});
+      test('parses filename and url', () {
+        final result = workdirFileFromJson({
+          'filename': 'output.csv',
+          'url': 'https://example.test/output.csv',
+        });
         expect(result.filename, 'output.csv');
-        expect(result, isA<WorkdirFile>());
+        expect(result.url, Uri.parse('https://example.test/output.csv'));
       });
 
       test('throws FormatException when filename is missing', () {
-        expect(() => workdirFileFromJson({}), throwsFormatException);
+        expect(
+          () => workdirFileFromJson({'url': 'https://example.test/x'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when url is missing', () {
+        expect(
+          () => workdirFileFromJson({'filename': 'output.csv'}),
+          throwsFormatException,
+        );
       });
 
       test('throws FormatException when filename is non-string', () {
         expect(
-          () => workdirFileFromJson({'filename': 42}),
+          () => workdirFileFromJson(
+            {'filename': 42, 'url': 'https://example.test/x'},
+          ),
           throwsFormatException,
         );
       });
 
       test('throws FormatException when filename is empty', () {
         expect(
-          () => workdirFileFromJson({'filename': ''}),
+          () => workdirFileFromJson(
+            {'filename': '', 'url': 'https://example.test/x'},
+          ),
           throwsFormatException,
         );
       });
@@ -1973,14 +1989,18 @@ void main() {
       test('throws FormatException when filename contains a path separator',
           () {
         expect(
-          () => workdirFileFromJson({'filename': 'sub/file.txt'}),
+          () => workdirFileFromJson(
+            {'filename': 'sub/file.txt', 'url': 'https://example.test/x'},
+          ),
           throwsFormatException,
         );
       });
 
       test('throws FormatException when filename contains a NUL byte', () {
         expect(
-          () => workdirFileFromJson({'filename': 'a\x00b.txt'}),
+          () => workdirFileFromJson(
+            {'filename': 'a\x00b.txt', 'url': 'https://example.test/x'},
+          ),
           throwsFormatException,
         );
       });

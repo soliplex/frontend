@@ -6,7 +6,8 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart';
 
-WorkdirFile _file(String name) => WorkdirFile(filename: name);
+WorkdirFile _file(String name) =>
+    WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 

@@ -46,8 +46,14 @@ void main() {
           'thread_id': 'thread-456',
           'run_id': 'run-789',
           'files': [
-            {'filename': 'output.csv'},
-            {'filename': 'plot.png'},
+            {
+              'filename': 'output.csv',
+              'url': 'https://example.test/output.csv',
+            },
+            {
+              'filename': 'plot.png',
+              'url': 'https://example.test/plot.png',
+            },
           ],
         },
       );
@@ -60,7 +66,9 @@ void main() {
 
       expect(files, hasLength(2));
       expect(files[0].filename, 'output.csv');
+      expect(files[0].url, Uri.parse('https://example.test/output.csv'));
       expect(files[1].filename, 'plot.png');
+      expect(files[1].url, Uri.parse('https://example.test/plot.png'));
     });
 
     test('returns empty list when files array is empty', () async {
@@ -146,12 +154,27 @@ void main() {
         (_) async => {
           'room_id': 'room-123',
           'files': [
-            {'filename': 'good.csv'},
-            {'filename': ''},
-            {'filename': 'sub/file.txt'},
+            {
+              'filename': 'good.csv',
+              'url': 'https://example.test/good.csv',
+            },
+            {
+              'filename': '',
+              'url': 'https://example.test/empty',
+            },
+            {
+              'filename': 'sub/file.txt',
+              'url': 'https://example.test/sub.txt',
+            },
+            {
+              'filename': 'no-url.csv',
+            },
             <String, dynamic>{},
             'not a map',
-            {'filename': 'also-good.csv'},
+            {
+              'filename': 'also-good.csv',
+              'url': 'https://example.test/also-good.csv',
+            },
           ],
         },
       );

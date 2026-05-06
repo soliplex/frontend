@@ -7,20 +7,25 @@ import 'package:meta/meta.dart';
 @immutable
 class WorkdirFile {
   /// Creates a workdir file entry.
-  const WorkdirFile({required this.filename});
+  const WorkdirFile({required this.filename, required this.url});
 
   /// User-visible filename as written by the agent into the workdir.
   final String filename;
 
+  /// URL for downloading the file.
+  final Uri url;
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is WorkdirFile && other.filename == filename;
+    return other is WorkdirFile &&
+        other.filename == filename &&
+        other.url == url;
   }
 
   @override
-  int get hashCode => filename.hashCode;
+  int get hashCode => Object.hash(filename, url);
 
   @override
-  String toString() => 'WorkdirFile(filename: $filename)';
+  String toString() => 'WorkdirFile(filename: $filename, url: $url)';
 }
