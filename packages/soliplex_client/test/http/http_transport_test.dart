@@ -1405,26 +1405,8 @@ void main() {
         expect(result, equals(payload));
       });
 
-      test('returns empty Uint8List for 204', () async {
-        when(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((_) async => bytesResponse(204));
-
-        final result = await transport.requestBytes(
-          'GET',
-          Uri.parse('https://api.example.com/file'),
-        );
-
-        expect(result, isEmpty);
-      });
-
-      test('throws AuthException for 401', () async {
+      test('maps non-2xx via _throwForStatusCode (representative: 401)',
+          () async {
         when(
           () => mockClient.request(
             any(),
@@ -1444,56 +1426,6 @@ void main() {
           ),
           throwsA(
             isA<AuthException>().having((e) => e.statusCode, 'statusCode', 401),
-          ),
-        );
-      });
-
-      test('throws NotFoundException for 404', () async {
-        when(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => jsonResponse(404, body: {'detail': 'No such file'}),
-        );
-
-        await expectLater(
-          transport.requestBytes(
-            'GET',
-            Uri.parse('https://api.example.com/file/missing.txt'),
-          ),
-          throwsA(
-            isA<NotFoundException>()
-                .having((e) => e.resource, 'resource', '/file/missing.txt')
-                .having((e) => e.message, 'message', 'No such file'),
-          ),
-        );
-      });
-
-      test('throws ApiException for 500', () async {
-        when(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => jsonResponse(500, body: {'message': 'boom'}),
-        );
-
-        await expectLater(
-          transport.requestBytes(
-            'GET',
-            Uri.parse('https://api.example.com/file'),
-          ),
-          throwsA(
-            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
           ),
         );
       });

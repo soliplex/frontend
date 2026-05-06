@@ -4,8 +4,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart';
 
-WorkdirFile _file(String name) =>
-    WorkdirFile(filename: name, url: Uri.parse('https://example.com/$name'));
+WorkdirFile _file(String name) => WorkdirFile(filename: name);
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -137,12 +136,29 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsNothing);
   });
 
-  testWidgets('shows error icon briefly on cancelled (matches failed UX)',
+  testWidgets('cancellation reverts to idle without any feedback swap',
       (tester) async {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
       runId: 'run-1',
       fetchFiles: (_) async => [_file('report.pdf')],
       onDownload: (_, __) async => DownloadOutcome.cancelled,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNothing);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+  });
+
+  testWidgets('a throwing onDownload still flips to the error icon',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) async => throw Exception('boom'),
     )));
     await tester.pump();
 

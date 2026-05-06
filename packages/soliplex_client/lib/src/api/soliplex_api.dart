@@ -1116,8 +1116,7 @@ class SoliplexApi {
   ///
   /// Throws:
   /// - [ArgumentError] if any parameter is empty
-  /// - [NotFoundException] if sandbox is not configured (404) — callers
-  ///   should catch this and show an appropriate unavailable state
+  /// - [NotFoundException] if the sandbox is not configured (404)
   /// - [AuthException] if not authenticated (401/403)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
@@ -1144,6 +1143,10 @@ class SoliplexApi {
   }
 
   /// Downloads a single file written by an agent run to its workdir.
+  ///
+  /// Buffers the entire response in memory; intended for the small text /
+  /// data files agents typically produce. Multi-hundred-MB downloads should
+  /// use a streaming endpoint (not yet implemented).
   ///
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
@@ -1216,10 +1219,10 @@ class SoliplexApi {
 
   /// Extracts typed entries from a list field in a JSON response.
   ///
-  /// Missing [jsonKey] is logged and treated as an empty list so a transient
-  /// server omission doesn't break the UI. A non-list value indicates a schema
-  /// mismatch and is raised as [UnexpectedException]. Malformed per-entry rows
-  /// are logged and skipped.
+  /// Missing [jsonKey] surfaces as a warning and an empty list, so a
+  /// transient server omission doesn't break callers. A non-list value
+  /// indicates a schema mismatch and is raised as [UnexpectedException].
+  /// Malformed per-entry rows surface as warnings and are skipped.
   List<T> _parseFileList<T>(
     Map<String, dynamic> response,
     String jsonKey,
@@ -1227,11 +1230,7 @@ class SoliplexApi {
   ) {
     final raw = response[jsonKey];
     if (raw == null) {
-      developer.log(
-        'Response missing "$jsonKey" key; treating as empty',
-        name: 'soliplex_client.api',
-        level: 900,
-      );
+      _onWarning?.call('Response missing "$jsonKey" key; treating as empty');
       return const [];
     }
     if (raw is! List) {
@@ -1243,22 +1242,16 @@ class SoliplexApi {
     final result = <T>[];
     for (final entry in raw) {
       if (entry is! Map<String, dynamic>) {
-        developer.log(
+        _onWarning?.call(
           'Malformed "$jsonKey" entry ignored: expected a JSON object, '
           'got ${entry.runtimeType}',
-          name: 'soliplex_client.api',
-          level: 900,
         );
         continue;
       }
       try {
         result.add(fromJson(entry));
       } on FormatException catch (e) {
-        developer.log(
-          'Malformed "$jsonKey" entry ignored: $e',
-          name: 'soliplex_client.api',
-          level: 900,
-        );
+        _onWarning?.call('Malformed "$jsonKey" entry ignored: $e');
       }
     }
     return result;

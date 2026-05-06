@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
-import 'package:file_picker/file_picker.dart' show FilePicker;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
-        NotFoundException,
         RagDocument,
         ReconnectFailed,
         ReconnectStatus,
@@ -18,9 +15,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnecting,
         Room,
         SourceReferenceFormatting,
-        WorkdirFile,
         buildDocumentFilter;
-import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
@@ -35,6 +30,7 @@ import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
 import '../compute_display_messages.dart';
+import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
@@ -43,7 +39,6 @@ import 'error_retry_panel.dart';
 import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_welcome.dart';
-import 'workdir_files_section.dart' show DownloadOutcome;
 import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
@@ -51,8 +46,6 @@ import '../upload_tracker_registry.dart';
 
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;
-
-final _workdirLogger = LogManager.instance.getLogger('workdir_files');
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -95,11 +88,11 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   late RoomState _state;
+  late WorkdirController _workdirs;
   void Function()? _autoSelectUnsub;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   bool _filesExpanded = false;
-  final _workdirCache = <String, Future<List<WorkdirFile>>>{};
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -150,6 +143,7 @@ class _RoomScreenState extends State<RoomScreen> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
     _state = _createRoomState();
+    _workdirs = _createWorkdirController();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
     } else {
@@ -166,6 +160,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _state.dispose();
       _chatController.clear();
       _state = _createRoomState();
+      _workdirs = _createWorkdirController();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -175,6 +170,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
+        _workdirs.clearCache();
         if (_filterEnabled && oldWidget.threadId == null) {
           _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
         }
@@ -210,6 +206,11 @@ class _RoomScreenState extends State<RoomScreen> {
         registry: widget.registry,
         uploadRegistry: widget.uploadRegistry,
         onNavigateToThread: (id) => _navigateToThread(id),
+      );
+
+  WorkdirController _createWorkdirController() => WorkdirController(
+        api: widget.serverEntry.connection.api,
+        roomId: widget.roomId,
       );
 
   void _navigateToThread(String? threadId, {bool replace = false}) {
@@ -852,68 +853,6 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Future<List<WorkdirFile>> _fetchWorkdirFiles(String threadId, String runId) {
-    return _workdirCache.putIfAbsent(runId, () async {
-      _workdirLogger.debug('workdir fetch start runId=$runId');
-      try {
-        final files = await widget.serverEntry.connection.api
-            .getRunWorkdirFiles(widget.roomId, threadId, runId);
-        _workdirLogger.debug('workdir fetch ok runId=$runId n=${files.length}');
-        return files;
-      } on NotFoundException {
-        _workdirLogger
-            .debug('workdir fetch 404 (sandbox unconfigured) runId=$runId');
-        return const [];
-      } catch (e, st) {
-        _workdirLogger.warning(
-          'workdir fetch failed runId=$runId',
-          error: e,
-          stackTrace: st,
-        );
-        _workdirCache.remove(runId);
-        rethrow;
-      }
-    });
-  }
-
-  Future<DownloadOutcome> _downloadWorkdirFile(
-    String threadId,
-    String runId,
-    WorkdirFile file,
-  ) async {
-    _workdirLogger
-        .debug('workdir download start runId=$runId name=${file.filename}');
-    try {
-      final bytes = await widget.serverEntry.connection.api.getRunWorkdirFile(
-        widget.roomId,
-        threadId,
-        runId,
-        file.filename,
-      );
-      final path = await FilePicker.saveFile(
-        fileName: file.filename,
-        bytes: bytes,
-      );
-      // On web, the browser triggers the download immediately and saveFile
-      // returns null even on success — there's no cancel UX. On native
-      // platforms, null means the user cancelled the save dialog.
-      if (!kIsWeb && path == null) {
-        _workdirLogger.debug('workdir download cancelled runId=$runId');
-        return DownloadOutcome.cancelled;
-      }
-      _workdirLogger
-          .debug('workdir download ok runId=$runId bytes=${bytes.length}');
-      return DownloadOutcome.success;
-    } catch (e, st) {
-      _workdirLogger.warning(
-        'workdir download failed runId=$runId',
-        error: e,
-        stackTrace: st,
-      );
-      return DownloadOutcome.failed;
-    }
-  }
-
   Widget _buildThreadBody(ThreadViewState threadView, Room? room) {
     final status = threadView.messages.watch(context);
     final streaming = threadView.streamingState.watch(context);
@@ -993,9 +932,9 @@ class _RoomScreenState extends State<RoomScreen> {
                             pageNumbers: ref.pageNumbers,
                           ),
                           onFetchWorkdirFiles: (runId) =>
-                              _fetchWorkdirFiles(threadView.threadId, runId),
+                              _workdirs.fetchFiles(threadView.threadId, runId),
                           onDownloadWorkdirFile: (runId, file) =>
-                              _downloadWorkdirFile(
+                              _workdirs.download(
                             threadView.threadId,
                             runId,
                             file,

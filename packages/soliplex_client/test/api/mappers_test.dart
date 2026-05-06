@@ -1946,61 +1946,41 @@ void main() {
 
   group('WorkdirFile mappers', () {
     group('workdirFileFromJson', () {
-      test('parses correctly with all fields', () {
-        final result = workdirFileFromJson({
-          'filename': 'output.csv',
-          'url':
-              'https://example.com/workdirs/room-1/thread-1/run-1/output.csv',
-        });
-
+      test('parses a filename', () {
+        final result = workdirFileFromJson({'filename': 'output.csv'});
         expect(result.filename, 'output.csv');
-        expect(
-          result.url.toString(),
-          'https://example.com/workdirs/room-1/thread-1/run-1/output.csv',
-        );
         expect(result, isA<WorkdirFile>());
       });
 
       test('throws FormatException when filename is missing', () {
-        expect(
-          () => workdirFileFromJson({'url': 'https://example.com/a'}),
-          throwsFormatException,
-        );
-      });
-
-      test('throws FormatException when url is missing', () {
-        expect(
-          () => workdirFileFromJson({'filename': 'output.csv'}),
-          throwsFormatException,
-        );
+        expect(() => workdirFileFromJson({}), throwsFormatException);
       });
 
       test('throws FormatException when filename is non-string', () {
         expect(
-          () => workdirFileFromJson({
-            'filename': 42,
-            'url': 'https://example.com/a',
-          }),
+          () => workdirFileFromJson({'filename': 42}),
           throwsFormatException,
         );
       });
 
-      test('throws FormatException when url is non-string', () {
+      test('throws FormatException when filename is empty', () {
         expect(
-          () => workdirFileFromJson({
-            'filename': 'output.csv',
-            'url': ['not', 'a', 'string'],
-          }),
+          () => workdirFileFromJson({'filename': ''}),
           throwsFormatException,
         );
       });
 
-      test('throws FormatException when url is not a valid URI', () {
+      test('throws FormatException when filename contains a path separator',
+          () {
         expect(
-          () => workdirFileFromJson({
-            'filename': 'output.csv',
-            'url': 'http://[::1',
-          }),
+          () => workdirFileFromJson({'filename': 'sub/file.txt'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename contains a NUL byte', () {
+        expect(
+          () => workdirFileFromJson({'filename': 'a\x00b.txt'}),
           throwsFormatException,
         );
       });

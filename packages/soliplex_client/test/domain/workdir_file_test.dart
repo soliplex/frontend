@@ -3,49 +3,32 @@ import 'package:test/test.dart';
 
 void main() {
   group('WorkdirFile', () {
-    group('equality', () {
-      test('equals by filename and url', () {
-        final a = WorkdirFile(
-          filename: 'output.csv',
-          url: Uri.parse(
-            'https://example.com/workdirs/room/thread/run/output.csv',
-          ),
-        );
-        final b = WorkdirFile(
-          filename: 'output.csv',
-          url: Uri.parse(
-            'https://example.com/workdirs/room/thread/run/output.csv',
-          ),
-        );
+    test('value-equality is by filename', () {
+      final a = WorkdirFile(filename: 'output.csv');
+      final aDup = WorkdirFile(filename: 'output.csv');
+      final b = WorkdirFile(filename: 'other.csv');
+      expect(a, equals(aDup));
+      expect(a.hashCode, equals(aDup.hashCode));
+      expect(a, isNot(equals(b)));
+    });
 
-        expect(a, equals(b));
-        expect(a.hashCode, equals(b.hashCode));
+    group('invariants', () {
+      test('asserts non-empty filename', () {
+        expect(() => WorkdirFile(filename: ''), throwsA(isA<AssertionError>()));
       });
 
-      test('not equals with different filename', () {
-        final a = WorkdirFile(
-          filename: 'a.csv',
-          url: Uri.parse('https://example.com/a'),
+      test('asserts no path separators', () {
+        expect(
+          () => WorkdirFile(filename: 'sub/file.txt'),
+          throwsA(isA<AssertionError>()),
         );
-        final b = WorkdirFile(
-          filename: 'b.csv',
-          url: Uri.parse('https://example.com/a'),
-        );
-
-        expect(a, isNot(equals(b)));
       });
 
-      test('not equals with different url', () {
-        final a = WorkdirFile(
-          filename: 'a.csv',
-          url: Uri.parse('https://example.com/a'),
+      test('asserts no NUL bytes', () {
+        expect(
+          () => WorkdirFile(filename: 'a\x00b.txt'),
+          throwsA(isA<AssertionError>()),
         );
-        final b = WorkdirFile(
-          filename: 'a.csv',
-          url: Uri.parse('https://example.com/b'),
-        );
-
-        expect(a, isNot(equals(b)));
       });
     });
   });

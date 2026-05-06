@@ -88,14 +88,25 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
   }
 
   Future<void> _handleTap() async {
-    final outcome = await widget.onTap();
+    DownloadOutcome outcome;
+    try {
+      outcome = await widget.onTap();
+    } catch (_) {
+      // The contract is `Future<DownloadOutcome>`, but defend against an
+      // implementation that throws so the row doesn't get stuck in idle.
+      outcome = DownloadOutcome.failed;
+    }
     if (!mounted) return;
-    final feedback = switch (outcome) {
-      DownloadOutcome.success => _DownloadFeedback.success,
-      DownloadOutcome.cancelled => _DownloadFeedback.error,
-      DownloadOutcome.failed => _DownloadFeedback.error,
-    };
-    setState(() => _feedback = feedback);
+    if (outcome == DownloadOutcome.cancelled) {
+      // User dismissed the save dialog deliberately — that isn't an error
+      // and doesn't warrant feedback. Stay idle.
+      return;
+    }
+    setState(() {
+      _feedback = outcome == DownloadOutcome.success
+          ? _DownloadFeedback.success
+          : _DownloadFeedback.error;
+    });
     _revertTimer?.cancel();
     _revertTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _feedback = _DownloadFeedback.idle);

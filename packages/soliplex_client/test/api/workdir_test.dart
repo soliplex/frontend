@@ -46,16 +46,8 @@ void main() {
           'thread_id': 'thread-456',
           'run_id': 'run-789',
           'files': [
-            {
-              'filename': 'output.csv',
-              'url':
-                  'https://example.com/workdirs/room-123/thread-456/run-789/output.csv',
-            },
-            {
-              'filename': 'plot.png',
-              'url':
-                  'https://example.com/workdirs/room-123/thread-456/run-789/plot.png',
-            },
+            {'filename': 'output.csv'},
+            {'filename': 'plot.png'},
           ],
         },
       );
@@ -68,10 +60,6 @@ void main() {
 
       expect(files, hasLength(2));
       expect(files[0].filename, 'output.csv');
-      expect(
-        files[0].url.toString(),
-        'https://example.com/workdirs/room-123/thread-456/run-789/output.csv',
-      );
       expect(files[1].filename, 'plot.png');
     });
 
@@ -158,10 +146,12 @@ void main() {
         (_) async => {
           'room_id': 'room-123',
           'files': [
-            {'filename': 'good.csv', 'url': 'https://example.com/good'},
-            {'filename': 'missing-url'},
+            {'filename': 'good.csv'},
+            {'filename': ''},
+            {'filename': 'sub/file.txt'},
+            <String, dynamic>{},
             'not a map',
-            {'filename': 'also-good.csv', 'url': 'https://example.com/good2'},
+            {'filename': 'also-good.csv'},
           ],
         },
       );
@@ -319,6 +309,42 @@ void main() {
       ).captured.single as Uri;
 
       expect(captured.pathSegments.last, equals('my report (final).pdf'));
+    });
+
+    test(
+        'percent-encodes ? and # in filenames so they cannot inject query '
+        'or fragment', () async {
+      when(
+        () => mockTransport.requestBytes(
+          'GET',
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) async => Uint8List(0));
+
+      await api.getRunWorkdirFile(
+        'room-1',
+        'thread-1',
+        'run-1',
+        'a?b#c.txt',
+      );
+
+      final captured = verify(
+        () => mockTransport.requestBytes(
+          'GET',
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          headers: any(named: 'headers'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured.single as Uri;
+
+      expect(captured.pathSegments.last, equals('a?b#c.txt'));
+      expect(captured.query, isEmpty);
+      expect(captured.fragment, isEmpty);
+      expect(captured.toString(), contains('a%3Fb%23c.txt'));
     });
 
     test('propagates exceptions from the transport', () async {

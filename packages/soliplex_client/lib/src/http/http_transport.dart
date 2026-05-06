@@ -124,7 +124,8 @@ class HttpTransport {
   ///
   /// Use this for binary downloads (images, file contents, archives) where
   /// JSON decoding would corrupt the payload. Status-to-exception mapping
-  /// is identical to [request].
+  /// is identical to [request]. Buffers the entire response in memory; for
+  /// large payloads, use [requestStream] instead.
   ///
   /// Parameters:
   /// - [method]: HTTP method (typically GET).

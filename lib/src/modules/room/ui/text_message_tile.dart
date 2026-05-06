@@ -132,6 +132,9 @@ class TextMessageTile extends StatelessWidget {
             onFetchWorkdirFiles != null &&
             onDownloadWorkdirFile != null)
           WorkdirFilesSection(
+            // Force re-mount (and re-fetch) if the assistant message is
+            // ever rebuilt with a different runId.
+            key: ValueKey(runId),
             runId: runId!,
             fetchFiles: onFetchWorkdirFiles!,
             onDownload: onDownloadWorkdirFile!,
