@@ -1,4 +1,7 @@
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _apiLogger = LogManager.instance.getLogger('soliplex_client.api');
 
 /// Bundle of API clients for a single backend server.
 ///
@@ -40,7 +43,11 @@ class ServerConnection {
     final urlBuilder = UrlBuilder(baseUrl);
     return ServerConnection(
       serverId: serverId,
-      api: SoliplexApi(transport: transport, urlBuilder: urlBuilder),
+      api: SoliplexApi(
+        transport: transport,
+        urlBuilder: urlBuilder,
+        onWarning: _apiLogger.warning,
+      ),
       agUiStreamClient: AgUiStreamClient(
         httpTransport: transport,
         urlBuilder: urlBuilder,

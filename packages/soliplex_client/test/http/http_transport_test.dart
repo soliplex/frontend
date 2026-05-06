@@ -1371,5 +1371,126 @@ void main() {
         );
       });
     });
+
+    group('requestBytes', () {
+      HttpResponse bytesResponse(
+        int statusCode, {
+        Uint8List? bodyBytes,
+        Map<String, String>? headers,
+      }) {
+        return HttpResponse(
+          statusCode: statusCode,
+          bodyBytes: bodyBytes ?? Uint8List(0),
+          headers: {'content-type': 'application/octet-stream', ...?headers},
+        );
+      }
+
+      test('returns the response bytes verbatim for 200', () async {
+        final payload = Uint8List.fromList([0, 1, 2, 253, 254, 255]);
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => bytesResponse(200, bodyBytes: payload));
+
+        final result = await transport.requestBytes(
+          'GET',
+          Uri.parse('https://api.example.com/file'),
+        );
+
+        expect(result, equals(payload));
+      });
+
+      test('maps non-2xx via _throwForStatusCode (representative: 401)',
+          () async {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(statusCode: 401, bodyBytes: Uint8List(0)),
+        );
+
+        await expectLater(
+          transport.requestBytes(
+            'GET',
+            Uri.parse('https://api.example.com/file'),
+          ),
+          throwsA(
+            isA<AuthException>().having((e) => e.statusCode, 'statusCode', 401),
+          ),
+        );
+      });
+
+      test(
+        'throws CancelledException when token is already cancelled',
+        () async {
+          final token = CancelToken()..cancel('Pre-cancelled');
+
+          await expectLater(
+            transport.requestBytes(
+              'GET',
+              Uri.parse('https://api.example.com/file'),
+              cancelToken: token,
+            ),
+            throwsA(
+              isA<CancelledException>().having(
+                (e) => e.reason,
+                'reason',
+                'Pre-cancelled',
+              ),
+            ),
+          );
+
+          verifyNever(
+            () => mockClient.request(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              timeout: any(named: 'timeout'),
+            ),
+          );
+        },
+      );
+
+      test('forwards headers to the underlying client', () async {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => bytesResponse(200));
+
+        await transport.requestBytes(
+          'GET',
+          Uri.parse('https://api.example.com/file'),
+          headers: {'X-Trace-Id': 'abc123'},
+        );
+
+        final captured = verify(
+          () => mockClient.request(
+            'GET',
+            any(),
+            headers: captureAny(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).captured.single as Map<String, String>;
+
+        expect(captured, containsPair('X-Trace-Id', 'abc123'));
+      });
+    });
   });
 }

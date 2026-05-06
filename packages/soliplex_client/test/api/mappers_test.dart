@@ -1942,4 +1942,68 @@ void main() {
       });
     });
   });
+
+  group('WorkdirFile mappers', () {
+    group('workdirFileFromJson', () {
+      test('parses filename and url', () {
+        final result = workdirFileFromJson({
+          'filename': 'output.csv',
+          'url': 'https://example.test/output.csv',
+        });
+        expect(result.filename, 'output.csv');
+        expect(result.url, Uri.parse('https://example.test/output.csv'));
+      });
+
+      test('throws FormatException when filename is missing', () {
+        expect(
+          () => workdirFileFromJson({'url': 'https://example.test/x'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when url is missing', () {
+        expect(
+          () => workdirFileFromJson({'filename': 'output.csv'}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename is non-string', () {
+        expect(
+          () => workdirFileFromJson(
+            {'filename': 42, 'url': 'https://example.test/x'},
+          ),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename is empty', () {
+        expect(
+          () => workdirFileFromJson(
+            {'filename': '', 'url': 'https://example.test/x'},
+          ),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename contains a path separator',
+          () {
+        expect(
+          () => workdirFileFromJson(
+            {'filename': 'sub/file.txt', 'url': 'https://example.test/x'},
+          ),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when filename contains a NUL byte', () {
+        expect(
+          () => workdirFileFromJson(
+            {'filename': 'a\x00b.txt', 'url': 'https://example.test/x'},
+          ),
+          throwsFormatException,
+        );
+      });
+    });
+  });
 }

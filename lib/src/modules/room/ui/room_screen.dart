@@ -30,6 +30,7 @@ import '../run_registry.dart';
 import '../thread_list_state.dart';
 import '../thread_view_state.dart';
 import '../compute_display_messages.dart';
+import '../workdir_controller.dart';
 import 'approval_handler.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
@@ -87,6 +88,7 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   late RoomState _state;
+  late WorkdirController _workdirs;
   void Function()? _autoSelectUnsub;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
@@ -141,6 +143,7 @@ class _RoomScreenState extends State<RoomScreen> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
     _state = _createRoomState();
+    _workdirs = _createWorkdirController();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
     } else {
@@ -157,6 +160,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _state.dispose();
       _chatController.clear();
       _state = _createRoomState();
+      _workdirs = _createWorkdirController();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -166,6 +170,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (widget.threadId != null) {
         _cancelAutoSelect();
         _chatController.clear();
+        _workdirs.clearCache();
         if (_filterEnabled && oldWidget.threadId == null) {
           _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
         }
@@ -201,6 +206,11 @@ class _RoomScreenState extends State<RoomScreen> {
         registry: widget.registry,
         uploadRegistry: widget.uploadRegistry,
         onNavigateToThread: (id) => _navigateToThread(id),
+      );
+
+  WorkdirController _createWorkdirController() => WorkdirController(
+        api: widget.serverEntry.connection.api,
+        roomId: widget.roomId,
       );
 
   void _navigateToThread(String? threadId, {bool replace = false}) {
@@ -920,6 +930,14 @@ class _RoomScreenState extends State<RoomScreen> {
                             chunkId: ref.chunkId,
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
+                          ),
+                          onFetchWorkdirFiles: (runId) =>
+                              _workdirs.fetchFiles(threadView.threadId, runId),
+                          onDownloadWorkdirFile: (runId, file) =>
+                              _workdirs.download(
+                            threadView.threadId,
+                            runId,
+                            file,
                           ),
                         ),
               },

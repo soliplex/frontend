@@ -11,6 +11,7 @@ import 'package:soliplex_client/src/domain/room_skill.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/workdir_file.dart';
 
 // ============================================================
 // Timestamp helpers
@@ -408,6 +409,36 @@ FileUpload fileUploadFromJson(Map<String, dynamic> json) {
   return FileUpload(
     filename: _requireString(json, 'filename', 'file upload'),
     url: Uri.parse(_requireString(json, 'url', 'file upload')),
+  );
+}
+
+// ============================================================
+// WorkdirFile mappers
+// ============================================================
+
+/// Creates a [WorkdirFile] from JSON.
+///
+/// Throws [FormatException] if `filename` is missing, empty, contains a
+/// path separator, or contains a NUL byte; or if `url` is missing or
+/// malformed.
+WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
+  final filename = _requireString(json, 'filename', 'workdir file');
+  if (filename.isEmpty) {
+    throw const FormatException('workdir file filename must not be empty');
+  }
+  if (filename.contains('/')) {
+    throw FormatException(
+      'workdir file filename must not contain path separators: $filename',
+    );
+  }
+  if (filename.contains('\x00')) {
+    throw const FormatException(
+      'workdir file filename must not contain NUL bytes',
+    );
+  }
+  return WorkdirFile(
+    filename: filename,
+    url: Uri.parse(_requireString(json, 'url', 'workdir file')),
   );
 }
 
