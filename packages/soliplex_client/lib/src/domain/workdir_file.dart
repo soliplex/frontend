@@ -1,23 +1,15 @@
 import 'package:meta/meta.dart';
 
 /// A file written by the agent into the run working directory.
+///
+/// Validation of [filename] (non-empty, no path separators, no NUL bytes)
+/// is enforced at parse time by the mapper, not in this constructor.
 @immutable
 class WorkdirFile {
-  /// Throws if [filename] is empty, contains a path separator, or contains
-  /// a NUL byte.
-  WorkdirFile({required this.filename})
-      : assert(filename.isNotEmpty, 'filename must be non-empty'),
-        assert(
-          !filename.contains('/'),
-          'filename must not contain path separators',
-        ),
-        assert(
-          !filename.contains('\x00'),
-          'filename must not contain NUL bytes',
-        );
+  /// Creates a workdir file entry.
+  const WorkdirFile({required this.filename});
 
-  /// Filename as written by the agent into the workdir. Always non-empty
-  /// and free of path separators or NUL bytes.
+  /// User-visible filename as written by the agent into the workdir.
   final String filename;
 
   @override

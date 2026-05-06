@@ -51,8 +51,8 @@ class WorkdirController {
   final _cache = <String, Future<List<WorkdirFile>>>{};
 
   /// Lists the files an agent run wrote to its workdir. Caches the
-  /// resolved list (well, the future) so SliverList recycling doesn't
-  /// re-fetch on scroll-back.
+  /// pending future so SliverList recycling doesn't re-fetch on
+  /// scroll-back.
   ///
   /// The 404 returned when the backend has no sandbox configured is
   /// converted to an empty list so chat tiles silently collapse the

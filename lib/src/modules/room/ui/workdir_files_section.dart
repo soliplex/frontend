@@ -79,6 +79,7 @@ enum _DownloadFeedback { idle, success, error }
 
 class _WorkdirFileRowState extends State<_WorkdirFileRow> {
   _DownloadFeedback _feedback = _DownloadFeedback.idle;
+  bool _isInFlight = false;
   Timer? _revertTimer;
 
   @override
@@ -88,6 +89,8 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
   }
 
   Future<void> _handleTap() async {
+    if (_isInFlight) return;
+    _isInFlight = true;
     DownloadOutcome outcome;
     try {
       outcome = await widget.onTap();
@@ -95,6 +98,8 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
       // The contract is `Future<DownloadOutcome>`, but defend against an
       // implementation that throws so the row doesn't get stuck in idle.
       outcome = DownloadOutcome.failed;
+    } finally {
+      _isInFlight = false;
     }
     if (!mounted) return;
     if (outcome == DownloadOutcome.cancelled) {

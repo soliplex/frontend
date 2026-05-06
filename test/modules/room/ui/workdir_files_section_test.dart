@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -166,6 +168,32 @@ void main() {
     await tester.pump();
 
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
+  testWidgets('second tap during an in-flight download is a no-op',
+      (tester) async {
+    final completer = Completer<DownloadOutcome>();
+    var calls = 0;
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) {
+        calls++;
+        return completer.future;
+      },
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+    expect(calls, 1);
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+    expect(calls, 1);
+
+    completer.complete(DownloadOutcome.success);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {
