@@ -30,5 +30,23 @@ void main() {
       const event = ThinkingTextMessageContentEvent(delta: 'hmm');
       expect(bridgeBaseEvent(event), const ThinkingContent(delta: 'hmm'));
     });
+
+    // Decision: all four AG-UI thinking-end variants must bridge to the
+    // same ThinkingEnded execution event so the spinner clears on any
+    // form. If one were dropped from the arm, that variant's runs would
+    // leave the spinner stuck — exactly the historical-thread bug this
+    // change fixes.
+    test('routes all four thinking-end variants to ThinkingEnded', () {
+      const events = <BaseEvent>[
+        ThinkingTextMessageEndEvent(),
+        ThinkingEndEvent(),
+        ReasoningEndEvent(messageId: 'reas-1'),
+        ReasoningMessageEndEvent(messageId: 'reas-1'),
+      ];
+
+      for (final e in events) {
+        expect(bridgeBaseEvent(e), const ThinkingEnded(), reason: '$e');
+      }
+    });
   });
 }

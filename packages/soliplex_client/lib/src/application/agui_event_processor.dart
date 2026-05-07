@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/json_patch.dart';
+import 'package:soliplex_client/src/application/no_response_synthesis.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -50,14 +51,17 @@ EventProcessingResult processEvent(
         conversation: conversation.withStatus(Running(runId: runId)),
         streaming: streaming,
       ),
-    RunFinishedEvent() => EventProcessingResult(
-        conversation: conversation.withStatus(const Completed()),
+    RunFinishedEvent(:final runId) => EventProcessingResult(
+        conversation: synthesizeNoResponseIfNeeded(
+          conversation: conversation,
+          streaming: streaming,
+          runId: runId,
+          reason: TerminalReason.finished,
+        ).withStatus(const Completed()),
         streaming: const AwaitingText(),
       ),
-    RunErrorEvent(:final message) => EventProcessingResult(
-        conversation: conversation.withStatus(Failed(error: message)),
-        streaming: const AwaitingText(),
-      ),
+    RunErrorEvent(:final message) =>
+      _processRunError(conversation, streaming, message),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -555,6 +559,66 @@ StreamingState _withToolCallActivity(
     AwaitingText() => streaming.copyWith(currentActivity: newActivity),
     TextStreaming() => streaming.copyWith(currentActivity: newActivity),
   };
+}
+
+// Run-error handling
+
+/// Handles `RunErrorEvent` with a runId-aware no-response synthesis path.
+///
+/// The synthesis helper needs a runId to mint a stable message id. The
+/// authoritative source for an in-flight runId is `Running` status; the
+/// event itself doesn't carry one. When the conversation is in any other
+/// status at the time `RunErrorEvent` arrives — `Idle` (pre-run error),
+/// `Completed` / `Failed` / `Cancelled` (post-terminal duplicate or
+/// out-of-order event) — we can't synthesize and shouldn't silently
+/// corrupt the existing terminal status either.
+///
+/// Fall-through behavior:
+/// - Status is preserved when already terminal (`Completed`, `Failed`,
+///   `Cancelled`) — overwriting would silently mutate a visible state
+///   the user has already observed.
+/// - Status transitions to `Failed(error: message)` only from `Idle`
+///   (no terminal state to preserve).
+/// - The fall-through always logs at `level: 900`, regardless of whether
+///   buffered thinking is present, so the unexpected protocol case is
+///   observable. The log includes the buffered-thinking length when
+///   relevant since that's data the dropping costs us.
+EventProcessingResult _processRunError(
+  Conversation conversation,
+  StreamingState streaming,
+  String message,
+) {
+  if (conversation.status case Running(:final runId)) {
+    return EventProcessingResult(
+      conversation: synthesizeNoResponseIfNeeded(
+        conversation: conversation,
+        streaming: streaming,
+        runId: runId,
+        reason: TerminalReason.failed,
+      ).withStatus(Failed(error: message)),
+      streaming: const AwaitingText(),
+    );
+  }
+  final droppedThinkingChars =
+      streaming is AwaitingText ? streaming.bufferedThinkingText.length : 0;
+  developer.log(
+    'RunErrorEvent received while status is non-Running '
+    '(${conversation.status.runtimeType}, message="$message"); '
+    'cannot synthesize without a runId. Possible cases: pre-run error, '
+    'duplicate after terminal, or out-of-order event. '
+    'Dropping $droppedThinkingChars chars of buffered thinking.',
+    name: 'soliplex_client.event_processor',
+    level: 900,
+  );
+  // Preserve terminal status; only Idle transitions to Failed.
+  final nextStatus = switch (conversation.status) {
+    Idle() => Failed(error: message),
+    _ => conversation.status,
+  };
+  return EventProcessingResult(
+    conversation: conversation.withStatus(nextStatus),
+    streaming: const AwaitingText(),
+  );
 }
 
 // State events - apply JSON Patch

@@ -59,6 +59,142 @@ void main() {
         );
         expect(result.streaming, isA<app_streaming.AwaitingText>());
       });
+
+      // Decision: when a run reaches RunFinished with buffered thinking
+      // but no assistant TextMessage, synthesize a TextMessage
+      // (text: '', terminalReason: finished, thinkingText: <buffered>)
+      // so the model's reasoning isn't silently discarded.
+      test(
+          'RunFinishedEvent with buffered thinking synthesizes a no-response '
+          'message', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'I considered the options...',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result =
+            processEvent(runningConversation, streamingWithThinking, event);
+
+        final synthesized = result.conversation.messages.last as TextMessage;
+        expect(synthesized.id, equals('no-response-run-1'));
+        expect(synthesized.user, equals(ChatUser.assistant));
+        expect(synthesized.text, isEmpty);
+        expect(
+          synthesized.thinkingText,
+          equals('I considered the options...'),
+        );
+        expect(synthesized.terminalReason, equals(TerminalReason.finished));
+      });
+
+      // Decision: don't synthesize when thinking buffer is empty —
+      // there's no model output to preserve, so an empty muted bubble
+      // would just be noise.
+      test(
+          'RunFinishedEvent with empty thinking buffer does NOT '
+          'synthesize a no-response message', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(runningConversation, streaming, event);
+
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      // Decision: don't synthesize when the conversation has any tool
+      // call still pending or streaming. A run that ends with buffered
+      // thinking AND a pending tool call is yielding to client tools —
+      // the tool call IS the response, not a missing one.
+      test(
+          'RunFinishedEvent with pending tool call does NOT '
+          'synthesize a no-response message', () {
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(
+                    id: 'tc1',
+                    name: 'search',
+                  ),
+                );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'planning the call',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        // No TextMessage was synthesized.
+        expect(
+          result.conversation.messages.whereType<TextMessage>(),
+          isEmpty,
+        );
+      });
+
+      // Decision: when RunErrorEvent arrives with terminal status
+      // already set, do NOT overwrite it. Mutating Completed → Failed
+      // (or Cancelled → Failed) on a duplicate / out-of-order error
+      // would silently corrupt visible state the user has already
+      // observed. The fall-through preserves the terminal status, no
+      // synthesis (no usable runId), and no message change. Only Idle
+      // transitions to Failed (no terminal state to preserve).
+      test(
+          'RunErrorEvent on Completed conversation preserves the '
+          'terminal Completed status (no silent corruption)', () {
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const event = RunErrorEvent(message: 'late error');
+
+        final result = processEvent(completedConversation, streaming, event);
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      test(
+          'RunErrorEvent on Idle conversation transitions to Failed '
+          '(no terminal status to preserve)', () {
+        const event = RunErrorEvent(message: 'pre-run error');
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.status, isA<Failed>());
+        expect(
+          (result.conversation.status as Failed).error,
+          equals('pre-run error'),
+        );
+      });
+
+      // Decision: RunErrorEvent uses TerminalReason.failed so the
+      // rendered tile says "Run failed without a response" rather
+      // than the wrong "finished" copy.
+      test(
+          'RunErrorEvent with buffered thinking synthesizes a no-response '
+          'message with reason: failed', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'partial reasoning',
+        );
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        final synthesized = result.conversation.messages.last as TextMessage;
+        expect(synthesized.terminalReason, equals(TerminalReason.failed));
+      });
     });
 
     group('text message streaming', () {

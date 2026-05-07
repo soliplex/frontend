@@ -214,14 +214,36 @@ class RunOrchestrator {
   void cancelRun() {
     _guardNotDisposed();
     switch (_currentState) {
-      case RunningState(:final threadKey, :final runId, :final conversation):
+      case RunningState(
+          :final threadKey,
+          :final runId,
+          :final conversation,
+          :final streaming,
+        ):
         _cancelToken?.cancel();
         _cleanup();
-        final withCitations = _extractCitations(conversation, runId);
-        _setState(
-          CancelledState(threadKey: threadKey, conversation: withCitations),
+        // If the run had buffered thinking but never produced an
+        // assistant text reply, synthesize a "no response" tile so the
+        // model's reasoning isn't lost on cancel.
+        final withSynthesized = synthesizeNoResponseIfNeeded(
+          conversation: conversation,
+          streaming: streaming,
+          runId: runId,
+          reason: TerminalReason.cancelled,
         );
-      case ToolYieldingState(:final threadKey, :final conversation):
+        final withCitations = _extractCitations(withSynthesized, runId);
+        _setState(
+          CancelledState(
+            threadKey: threadKey,
+            runId: runId,
+            conversation: withCitations,
+          ),
+        );
+      case ToolYieldingState(
+          :final threadKey,
+          :final runId,
+          :final conversation,
+        ):
         // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
         // with the live cancel token. Cancel the token + cleanup so that
         // await aborts before `_subscribeToStream` fires and overwrites
@@ -229,7 +251,11 @@ class RunOrchestrator {
         _cancelToken?.cancel();
         _cleanup();
         _setState(
-          CancelledState(threadKey: threadKey, conversation: conversation),
+          CancelledState(
+            threadKey: threadKey,
+            runId: runId,
+            conversation: conversation,
+          ),
         );
       case _:
         // IdleState (after `runToCompletion` started but before the first
@@ -285,6 +311,7 @@ class RunOrchestrator {
       _setState(
         FailedState(
           threadKey: yielding.threadKey,
+          runId: yielding.runId,
           reason: FailureReason.toolExecutionFailed,
           error: 'Tool depth limit exceeded ($_maxToolDepth)',
           conversation: yielding.conversation,
@@ -472,8 +499,11 @@ class RunOrchestrator {
     ThreadKey key,
     ToolYieldingState state,
   ) {
-    final cancelled =
-        CancelledState(threadKey: key, conversation: state.conversation);
+    final cancelled = CancelledState(
+      threadKey: key,
+      runId: state.runId,
+      conversation: state.conversation,
+    );
     _setState(cancelled);
     return cancelled;
   }
@@ -492,6 +522,7 @@ class RunOrchestrator {
     );
     final failed = FailedState(
       threadKey: key,
+      runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: _messageOf(error),
       conversation: state.conversation,
@@ -513,6 +544,7 @@ class RunOrchestrator {
     _logger.error('Resume run failed', error: error, stackTrace: stackTrace);
     final failed = FailedState(
       threadKey: key,
+      runId: state.runId,
       reason: classifyError(error),
       error: _messageOf(error),
       conversation: state.conversation,
@@ -525,6 +557,7 @@ class RunOrchestrator {
   RunState _failDepthExceeded(ThreadKey key, ToolYieldingState state) {
     final failed = FailedState(
       threadKey: key,
+      runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: 'Tool depth limit exceeded ($_maxToolDepth)',
       conversation: state.conversation,
@@ -753,6 +786,7 @@ class RunOrchestrator {
       _setState(
         FailedState(
           threadKey: previous.threadKey,
+          runId: previous.runId,
           reason: FailureReason.serverError,
           error: event.message,
           conversation: withCitations,
@@ -865,6 +899,7 @@ class RunOrchestrator {
       _setState(
         CancelledState(
           threadKey: running.threadKey,
+          runId: running.runId,
           conversation: withCitations,
         ),
       );
@@ -875,6 +910,7 @@ class RunOrchestrator {
     _setState(
       FailedState(
         threadKey: running.threadKey,
+        runId: running.runId,
         reason: reason,
         error: _messageOf(error),
         conversation: withCitations,

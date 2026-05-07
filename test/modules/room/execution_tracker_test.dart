@@ -526,6 +526,43 @@ void main() {
       expect(tracker.timeline.value, isEmpty);
       tracker.dispose();
     });
+
+    // Decision: when historical events end mid-thinking (no clearing
+    // ThinkingEnded / RunCompleted / ToolCallStarted), the constructor
+    // must finalize so the spinner doesn't stay on forever and the
+    // active step is marked completed. Regression guard for the stuck-
+    // spinner bug on historical runs that produced no terminal event.
+    test(
+        'events ending mid-thinking are finalized: no spinner, no '
+        'active step', () {
+      final tracker = ExecutionTracker.historical(
+        events: const [
+          ThinkingStarted(),
+          ThinkingContent(delta: 'reasoning'),
+        ],
+      );
+
+      expect(tracker.isThinkingStreaming.value, isFalse);
+      expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
+      tracker.dispose();
+    });
+  });
+
+  // Decision: freeze() on a live tracker in mid-thinking must clear the
+  // spinner and complete active steps (the same finalization the
+  // historical constructor does). Without this, a thread that's frozen
+  // before its run produces a terminal event leaves a stuck spinner.
+  test('freeze mid-thinking clears spinner and completes active step', () {
+    events.value = const ThinkingStarted();
+    events.value = const ThinkingContent(delta: 'hello');
+
+    expect(tracker.isThinkingStreaming.value, isTrue);
+    expect(tracker.steps.value.single.status, StepStatus.active);
+
+    tracker.freeze();
+
+    expect(tracker.isThinkingStreaming.value, isFalse);
+    expect(tracker.steps.value.single.status, StepStatus.completed);
   });
 }
 

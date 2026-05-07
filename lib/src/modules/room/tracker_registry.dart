@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
@@ -49,6 +51,39 @@ class TrackerRegistry {
   /// Freeze the active tracker when a run reaches a terminal state.
   void onRunTerminated() {
     _freezeActive();
+  }
+
+  /// Renames the awaiting tracker to [key] so that the tile rendered for
+  /// a synthesized "no response" message attaches to the same tracker
+  /// that captured the run's thinking.
+  ///
+  /// No-op when the awaiting tracker doesn't exist or [key] is the same
+  /// as the awaiting key. Called by `ExecutionTrackerExtension` on
+  /// terminal `RunState` transitions for runs that ended with buffered
+  /// thinking but no assistant text.
+  ///
+  /// The "synthesized message exists but no awaiting tracker present"
+  /// case is a state divergence — the tile will still render the
+  /// thinking text from `TextMessage.thinkingText` (set at synthesis
+  /// time), but it won't have the tracker-attached execution-step
+  /// timeline. Logs a warning so the divergence is observable.
+  void renameAwaitingTo(String key) {
+    if (key == awaitingTrackerKey) return;
+    final tracker = _trackers.remove(awaitingTrackerKey);
+    if (tracker == null) {
+      developer.log(
+        'renameAwaitingTo($key) called but no awaiting tracker exists; '
+        'the synthesized no-response tile will still show its thinking '
+        'text but will lack the tracker-attached execution-step timeline.',
+        name: 'soliplex_frontend.tracker_registry',
+        level: 900,
+      );
+      return;
+    }
+    _trackers[key] = tracker;
+    if (_activeId == awaitingTrackerKey) {
+      _activeId = key;
+    }
   }
 
   /// Bulk-inserts already-frozen trackers produced from a loaded thread's

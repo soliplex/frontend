@@ -126,19 +126,88 @@ void main() {
       expect(step.activities.single.toolName, 'execute_script');
     });
 
-    test('runs with no assistant message produce no tracker', () {
+    test(
+        'no-response bundle (no assistant text, no tool call) produces a '
+        'tracker keyed under the no-response id so its thinking attaches '
+        'to the synthesized tile', () {
       final runs = [
         RunEventBundle(
           runId: 'run-1',
           events: const [
             TextMessageStartEvent(
-                messageId: 'user-1', role: TextMessageRole.user),
+              messageId: 'user-1',
+              role: TextMessageRole.user,
+            ),
             TextMessageEndEvent(messageId: 'user-1'),
+            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageContentEvent(delta: 'reasoning'),
+            ThinkingTextMessageEndEvent(),
+            RunFinishedEvent(threadId: 't', runId: 'run-1'),
           ],
         ),
       ];
 
-      expect(replayToTrackers(runs), isEmpty);
+      final trackers = replayToTrackers(runs);
+
+      expect(trackers.keys, contains('no-response-run-1'));
+      expect(trackers['no-response-run-1']!.thinkingBlocks.value, [
+        'reasoning',
+      ]);
+    });
+
+    // Decision: a tool-yield bundle (ToolCallStart, no assistant text)
+    // is not standalone — its events (thinking, tool steps) belong to
+    // the surrounding run from the user's perspective. They must be
+    // hoisted across the bundle boundary and absorbed by the next
+    // normal bundle's first assistant tracker. Without this, every
+    // loaded thread that interleaves tool yields silently loses its
+    // pre-tool thinking.
+    test(
+        "tool-yield bundle's events forward into the next normal "
+        "bundle's first assistant tracker", () {
+      final runs = [
+        // Tool-yield bundle: thinking + tool call, no assistant text.
+        RunEventBundle(
+          runId: 'run-yield',
+          events: const [
+            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            ThinkingTextMessageEndEvent(),
+            ToolCallStartEvent(
+              toolCallId: 'tc-1',
+              toolCallName: 'search',
+              parentMessageId: 'parent-1',
+            ),
+            ToolCallEndEvent(toolCallId: 'tc-1'),
+            ToolCallResultEvent(
+              toolCallId: 'tc-1',
+              content: 'ok',
+              messageId: 'tool-msg-1',
+            ),
+          ],
+        ),
+        // Normal bundle: assistant text resumes.
+        RunEventBundle(
+          runId: 'run-resume',
+          events: const [
+            TextMessageStartEvent(messageId: 'asst-1'),
+            TextMessageEndEvent(messageId: 'asst-1'),
+          ],
+        ),
+      ];
+
+      final trackers = replayToTrackers(runs);
+
+      // Only one tracker exists (no tracker for the tool-yield bundle).
+      expect(trackers.keys, ['asst-1']);
+      // The tool-yield bundle's pre-tool thinking made it into the
+      // resuming bundle's tracker.
+      expect(trackers['asst-1']!.thinkingBlocks.value, ['pre-tool']);
+      // Tool steps (search) are present in the resuming bundle too.
+      expect(
+        trackers['asst-1']!.steps.value.map((s) => s.label),
+        ['Thinking', 'search'],
+      );
     });
 
     test('multi-run thread yields one tracker per assistant message', () {

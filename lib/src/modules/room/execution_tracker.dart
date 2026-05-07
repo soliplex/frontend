@@ -23,8 +23,7 @@ class ExecutionTracker {
     for (final event in events) {
       _onEvent(event);
     }
-    _stopwatch.stop();
-    _isFrozen = true;
+    freeze();
   }
 
   final Stopwatch _stopwatch = Stopwatch();
@@ -60,7 +59,23 @@ class ExecutionTracker {
       Signal<List<TimelineEntry>>(const []);
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
 
+  /// Marks the tracker terminal: stops the spinner, completes any
+  /// still-active steps, releases the subscription, and stops the
+  /// stopwatch. Called by [freeze] (live path) and the
+  /// [ExecutionTracker.historical] constructor (replay path) so that
+  /// bundles ending mid-thinking — no clearing terminal event — don't
+  /// leave a stuck spinner or active steps.
+  ///
+  /// Ordering matters: `_completeAllSteps` and the spinner reset must
+  /// run before `_isFrozen = true`. `_completeAllSteps` is asserted
+  /// non-frozen so a future maintainer who swaps the lines fails fast
+  /// in debug instead of silently mutating signals on a frozen tracker.
+  /// Synchronous signal subscribers re-read state from inside their
+  /// callbacks; they should observe the cleared spinner before the
+  /// frozen flag, never the reverse.
   void freeze() {
+    _isThinkingStreaming.value = false;
+    _completeAllSteps(StepStatus.completed);
     _unsub?.call();
     _unsub = null;
     _stopwatch.stop();
@@ -84,6 +99,11 @@ class ExecutionTracker {
             blocks.last + delta,
           ];
         }
+      case ThinkingEnded():
+        // Clear the spinner without touching step lifecycle. Active
+        // step (if any) is left for the next event (tool call /
+        // run terminal) to mark complete.
+        _isThinkingStreaming.value = false;
       case ServerToolCallStarted(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
@@ -184,6 +204,7 @@ class ExecutionTracker {
   }
 
   void _completeAllSteps(StepStatus status) {
+    assert(!_isFrozen, 'Cannot complete steps on a frozen ExecutionTracker');
     final now = _stopwatch.elapsed;
     _steps.value = [
       for (final step in _steps.value)

@@ -78,25 +78,7 @@ class TextMessageTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isUser
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: isUser
-              ? SelectableText(
-                  message.text,
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                )
-              : message.text.isEmpty
-                  ? const Text('...')
-                  : FlutterMarkdownPlusRenderer(data: message.text),
-        ),
+        _MessageBubble(message: message),
         const SizedBox(height: 4),
         Row(
           children: [
@@ -140,6 +122,92 @@ class TextMessageTile extends StatelessWidget {
             onDownload: onDownloadWorkdirFile!,
           ),
       ],
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({required this.message});
+
+  final TextMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isUser = message.user == ChatUser.user;
+    final terminalReason = message.terminalReason;
+
+    if (terminalReason != null) {
+      return _TerminalReasonBubble(reason: terminalReason);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isUser
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: isUser
+          ? SelectableText(
+              message.text,
+              style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
+            )
+          : message.text.isEmpty
+              ? const Text('...')
+              : FlutterMarkdownPlusRenderer(data: message.text),
+    );
+  }
+}
+
+/// Muted bubble for an assistant `TextMessage` synthesized after a run
+/// terminated without producing assistant text. The icon and copy depend
+/// on the [TerminalReason] so cancelled / failed / finished read
+/// distinctly.
+class _TerminalReasonBubble extends StatelessWidget {
+  const _TerminalReasonBubble({required this.reason});
+
+  final TerminalReason reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (icon, label) = switch (reason) {
+      TerminalReason.finished => (
+          Icons.info_outline,
+          'Run finished without a response',
+        ),
+      TerminalReason.failed => (
+          Icons.error_outline,
+          'Run failed without a response',
+        ),
+      TerminalReason.cancelled => (
+          Icons.cancel_outlined,
+          'Run cancelled without a response',
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

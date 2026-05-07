@@ -370,6 +370,48 @@ void main() {
       orchestrator.cancelRun();
       expect(orchestrator.currentState, isA<IdleState>());
     });
+
+    // Decision: cancelRun must call synthesizeNoResponseIfNeeded before
+    // building CancelledState so a run that buffered thinking but
+    // produced no reply has its model output preserved as a no-response
+    // tile. A future refactor that drops the synthesis call would lose
+    // the reasoning silently — only this test catches that.
+    test(
+        'cancelRun on Running with buffered thinking and no reply '
+        'synthesizes a no-response TextMessage with reason: cancelled',
+        () async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      // Stream a thinking-only run: model reasons but never starts a
+      // text message. cancelRun should preserve the thinking.
+      controller
+        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const ThinkingStartEvent())
+        ..add(const ThinkingTextMessageStartEvent())
+        ..add(
+          const ThinkingTextMessageContentEvent(
+            delta: 'considering options',
+          ),
+        )
+        ..add(const ThinkingTextMessageEndEvent());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.cancelRun();
+
+      final cancelled = orchestrator.currentState as CancelledState;
+      final synthesized = cancelled.conversation!.messages.last as TextMessage;
+      expect(synthesized.id, equals('no-response-$_runId'));
+      expect(synthesized.terminalReason, equals(TerminalReason.cancelled));
+      expect(synthesized.thinkingText, equals('considering options'));
+      expect(synthesized.text, isEmpty);
+
+      await controller.close();
+    });
   });
 
   group('guard', () {

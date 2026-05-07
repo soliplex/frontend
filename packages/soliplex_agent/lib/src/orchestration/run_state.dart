@@ -138,11 +138,17 @@ class FailedState extends RunState {
     required this.threadKey,
     required this.reason,
     required this.error,
+    this.runId,
     this.conversation,
   });
 
   /// The thread this run belonged to.
   final ThreadKey threadKey;
+
+  /// The backend run ID, if a run was in flight at the time of failure.
+  /// Null when the failure happened before any run started (e.g.,
+  /// `_handleStartError` before `RunningState`).
+  final String? runId;
 
   /// Classification of why the run failed.
   final FailureReason reason;
@@ -158,16 +164,18 @@ class FailedState extends RunState {
       identical(this, other) ||
       other is FailedState &&
           threadKey == other.threadKey &&
+          runId == other.runId &&
           reason == other.reason &&
           error == other.error &&
           conversation == other.conversation;
 
   @override
-  int get hashCode => Object.hash(threadKey, reason, error, conversation);
+  int get hashCode =>
+      Object.hash(threadKey, runId, reason, error, conversation);
 
   @override
   String toString() => 'FailedState(reason: $reason, error: $error, '
-      'threadKey: $threadKey)';
+      'runId: $runId, threadKey: $threadKey)';
 }
 
 /// Run yielded pending tool calls for client-side execution.
@@ -240,10 +248,19 @@ bool _listEquals<T>(List<T> a, List<T> b) {
 @immutable
 class CancelledState extends RunState {
   /// Creates a [CancelledState].
-  const CancelledState({required this.threadKey, this.conversation});
+  const CancelledState({
+    required this.threadKey,
+    this.runId,
+    this.conversation,
+  });
 
   /// The thread this run belonged to.
   final ThreadKey threadKey;
+
+  /// The backend run ID, if a run was in flight at the time of cancellation.
+  /// Null when cancellation happened before any run started (e.g., disposed
+  /// during `runToCompletion`'s in-flight `createRun`).
+  final String? runId;
 
   /// Conversation state at time of cancellation, if available.
   final Conversation? conversation;
@@ -253,11 +270,12 @@ class CancelledState extends RunState {
       identical(this, other) ||
       other is CancelledState &&
           threadKey == other.threadKey &&
+          runId == other.runId &&
           conversation == other.conversation;
 
   @override
-  int get hashCode => Object.hash(threadKey, conversation);
+  int get hashCode => Object.hash(threadKey, runId, conversation);
 
   @override
-  String toString() => 'CancelledState(threadKey: $threadKey)';
+  String toString() => 'CancelledState(runId: $runId, threadKey: $threadKey)';
 }

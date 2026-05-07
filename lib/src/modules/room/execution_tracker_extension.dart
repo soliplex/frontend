@@ -58,11 +58,39 @@ class ExecutionTrackerExtension extends SessionExtension
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);
         _sync();
-      case CompletedState() || FailedState() || CancelledState():
+      case CompletedState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
+        _registry.onRunTerminated();
+        _sync();
+      case FailedState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
+        _registry.onRunTerminated();
+        _sync();
+      case CancelledState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
         _registry.onRunTerminated();
         _sync();
       case IdleState() || ToolYieldingState():
         break;
+    }
+  }
+
+  /// If the terminal conversation contains a synthesized "no response"
+  /// assistant message for this run, rekey the awaiting tracker under
+  /// that message's id so its captured thinking attaches to the rendered
+  /// tile.
+  ///
+  /// Safe to call unconditionally on every terminal transition — the
+  /// registry call is a no-op when the awaiting tracker doesn't exist or
+  /// when the synthesized id isn't present in the conversation.
+  void _rekeyAwaitingForNoResponseIfPresent(
+    String? runId,
+    Conversation? conversation,
+  ) {
+    if (runId == null || conversation == null) return;
+    final synthesizedId = '$noResponseIdPrefix$runId';
+    if (conversation.messages.any((m) => m.id == synthesizedId)) {
+      _registry.renameAwaitingTo(synthesizedId);
     }
   }
 
