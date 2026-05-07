@@ -42,6 +42,22 @@ sealed class ChatMessage {
   int get hashCode => Object.hash(runtimeType, id);
 }
 
+/// Reason a run reached a terminal state without producing assistant text.
+///
+/// Set on a `TextMessage` (with empty `text`) synthesized when a run finishes
+/// with buffered thinking but no `TextMessageStart`/`Content`/`End` for an
+/// assistant reply.
+enum TerminalReason {
+  /// Run completed normally (`RunFinishedEvent`).
+  finished,
+
+  /// Run failed (`RunErrorEvent`).
+  failed,
+
+  /// Run was cancelled (`cancelRun`).
+  cancelled,
+}
+
 /// A text message.
 @immutable
 class TextMessage extends ChatMessage {
@@ -53,6 +69,7 @@ class TextMessage extends ChatMessage {
     required this.text,
     this.isStreaming = false,
     this.thinkingText = '',
+    this.terminalReason,
   });
 
   /// Creates a text message with the given ID and auto-generated timestamp.
@@ -62,6 +79,7 @@ class TextMessage extends ChatMessage {
     required String text,
     bool isStreaming = false,
     String thinkingText = '',
+    TerminalReason? terminalReason,
   }) {
     return TextMessage(
       id: id,
@@ -69,6 +87,7 @@ class TextMessage extends ChatMessage {
       text: text,
       isStreaming: isStreaming,
       thinkingText: thinkingText,
+      terminalReason: terminalReason,
       createdAt: DateTime.now(),
     );
   }
@@ -82,6 +101,12 @@ class TextMessage extends ChatMessage {
   /// The thinking/reasoning text if available.
   final String thinkingText;
 
+  /// Non-null when this message was synthesized for a run that terminated
+  /// without an assistant reply. Carries enough state for the tile to
+  /// render the appropriate "Run finished/failed/cancelled without a
+  /// response" copy.
+  final TerminalReason? terminalReason;
+
   /// Whether this message has thinking text.
   bool get hasThinkingText => thinkingText.isNotEmpty;
 
@@ -93,6 +118,7 @@ class TextMessage extends ChatMessage {
     String? text,
     bool? isStreaming,
     String? thinkingText,
+    TerminalReason? terminalReason,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -101,6 +127,7 @@ class TextMessage extends ChatMessage {
       text: text ?? this.text,
       isStreaming: isStreaming ?? this.isStreaming,
       thinkingText: thinkingText ?? this.thinkingText,
+      terminalReason: terminalReason ?? this.terminalReason,
     );
   }
 
@@ -234,6 +261,82 @@ class LoadingMessage extends ChatMessage {
 
   @override
   String toString() => 'LoadingMessage(id: $id)';
+}
+
+/// Where a dropped event was caught.
+enum DropSource {
+  /// `decodeEventSafely` produced `DecodeFailed` — either malformed JSON or
+  /// a `type` field the decoder doesn't recognize.
+  decode,
+
+  /// The per-event-loop wrapper caught a throw from `processEvent` itself
+  /// or one of its downstream side effects (e.g., citation extraction).
+  eventProcessing,
+
+  /// Historical replay bridging or `ExecutionTracker._onEvent` threw on a
+  /// per-event basis.
+  activityProcessing,
+
+  /// Catch-all for future drop sites.
+  other,
+}
+
+/// An event the client received but couldn't decode or process, surfaced as
+/// a tile in the timeline so the user sees something happened and devs can
+/// inspect the raw payload.
+///
+/// Synthesized by the data-layer wrappers in Phase 3
+/// (`decodeEventSafely`, the per-event-loop wrapper, and the
+/// `historical_replay` / `ExecutionTracker` boundaries). Never sent over
+/// the wire.
+@immutable
+class DroppedEventMessage extends ChatMessage {
+  /// Creates a dropped-event message with all properties.
+  const DroppedEventMessage({
+    required super.id,
+    required super.createdAt,
+    required this.source,
+    required this.reason,
+    this.runId,
+    this.rawPayload,
+  }) : super(user: ChatUser.system);
+
+  /// Creates a dropped-event message with the given id and auto-generated
+  /// timestamp.
+  factory DroppedEventMessage.create({
+    required String id,
+    required DropSource source,
+    required String reason,
+    String? runId,
+    Map<String, dynamic>? rawPayload,
+  }) {
+    return DroppedEventMessage(
+      id: id,
+      source: source,
+      reason: reason,
+      runId: runId,
+      rawPayload: rawPayload,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// Run the drop happened inside, when known. Null for non-run-scoped
+  /// drops (e.g., decode failures that arrive before any run is in flight).
+  final String? runId;
+
+  /// Where the drop was caught.
+  final DropSource source;
+
+  /// Short human-readable reason. Shown as the collapsed-state subtitle.
+  final String reason;
+
+  /// Original payload for inspection. Null when serialization itself
+  /// failed; the tile renders "(payload unavailable)" in that case.
+  final Map<String, dynamic>? rawPayload;
+
+  @override
+  String toString() =>
+      'DroppedEventMessage(id: $id, source: $source, reason: $reason)';
 }
 
 /// Status of a tool call.
