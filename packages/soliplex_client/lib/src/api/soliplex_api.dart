@@ -759,17 +759,32 @@ class SoliplexApi {
         }
       }
 
-      // Process all events in this run
+      // Process all events in this run.
+      //
+      // Catches any error so that one malformed event (decode failure,
+      // unexpected shape, cast failure inside processEvent) cannot abort
+      // replay and leave the user with a half-loaded thread. Bad events
+      // are skipped, surrounding messages still appear, and the
+      // skippedEventCount surfaces as a non-blocking warning below.
       final decodedEvents = <BaseEvent>[];
-      for (final eventJson in events) {
+      for (var i = 0; i < events.length; i++) {
+        final eventJson = events[i];
         try {
           final event = decoder.decodeJson(eventJson);
           decodedEvents.add(event);
           final result = processEvent(conversation, streaming, event);
           conversation = result.conversation;
           streaming = result.streaming;
-        } on DecodingError {
+        } on Object catch (error, stackTrace) {
           skippedEventCount++;
+          developer.log(
+            'replay: skipping events[$i] (type=${eventJson['type']}) '
+            'in run $runId of thread $threadId.',
+            name: 'soliplex_client.replay',
+            level: 900,
+            error: error,
+            stackTrace: stackTrace,
+          );
         }
       }
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
