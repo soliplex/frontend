@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -60,6 +61,22 @@ class _CitationsSectionState extends State<CitationsSection> {
                   size: 16,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: () => _copyAllToClipboard(context),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Tooltip(
+                      message: 'Copy all',
+                      child: Icon(
+                        Icons.copy_all,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -84,6 +101,23 @@ class _CitationsSectionState extends State<CitationsSection> {
           }),
         ],
       ],
+    );
+  }
+
+  Future<void> _copyAllToClipboard(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final blocks = widget.sourceReferences
+        .map(_formatForClipboard)
+        .toList(growable: false);
+    await Clipboard.setData(ClipboardData(text: blocks.join('\n\n---\n\n')));
+    final count = widget.sourceReferences.length;
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          count == 1 ? 'Citation copied' : '$count citations copied',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }
@@ -216,22 +250,71 @@ class _SourceReferenceRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          if (sourceReference.isPdf && onShowChunkVisualization != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: TextButton.icon(
-                onPressed: () => onShowChunkVisualization!(sourceReference),
-                icon: const Icon(Icons.picture_as_pdf, size: 16),
-                label: const Text('View in PDF'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _copyToClipboard(context),
+                  icon: const Icon(Icons.copy, size: 16),
+                  label: const Text('Copy'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
-              ),
+                if (sourceReference.isPdf && onShowChunkVisualization != null)
+                  TextButton.icon(
+                    onPressed: () => onShowChunkVisualization!(sourceReference),
+                    icon: const Icon(Icons.picture_as_pdf, size: 16),
+                    label: const Text('View in PDF'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
+
+  Future<void> _copyToClipboard(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await Clipboard.setData(
+      ClipboardData(text: _formatForClipboard(sourceReference)),
+    );
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text('Citation copied'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+String _formatForClipboard(SourceReference ref) {
+  final lines = <String>[ref.displayTitle];
+  if (ref.headings.isNotEmpty) {
+    lines.add(ref.headings.join(' > '));
+  }
+  final pages = ref.formattedPageNumbers;
+  if (pages != null) {
+    lines.add(pages);
+  }
+  if (ref.documentUri.isNotEmpty) {
+    lines.add(ref.documentUri);
+  }
+  if (ref.content.isNotEmpty) {
+    lines
+      ..add('')
+      ..add(ref.content);
+  }
+  return lines.join('\n');
 }
