@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -159,5 +160,94 @@ void main() {
     await tester.pump();
 
     expect(tappedRef?.documentId, 'doc-2');
+  });
+
+  testWidgets('copy button writes citation details to the clipboard',
+      (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            title: 'Doc',
+            headings: ['Chapter 1', 'Section 2'],
+            content: 'Preview text here',
+            pageNumbers: [5, 6],
+          ),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('Doc'));
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Copy'));
+    await tester.pump();
+
+    expect(copied, isNotNull);
+    expect(copied, contains('Doc'));
+    expect(copied, contains('Chapter 1 > Section 2'));
+    expect(copied, contains('p.5-6'));
+    expect(copied, contains('file://doc-1.txt'));
+    expect(copied, contains('Preview text here'));
+    expect(find.text('Citation copied'), findsOneWidget);
+  });
+
+  testWidgets('copy-all button copies every citation', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, title: 'Alpha', content: 'first'),
+          _ref(index: 2, title: 'Beta', content: 'second'),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.byTooltip('Copy all'));
+    await tester.pump();
+
+    expect(copied, isNotNull);
+    expect(copied, contains('Alpha'));
+    expect(copied, contains('first'));
+    expect(copied, contains('Beta'));
+    expect(copied, contains('second'));
+    expect(copied, contains('---'));
+    expect(find.text('2 citations copied'), findsOneWidget);
   });
 }
