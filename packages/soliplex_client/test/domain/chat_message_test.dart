@@ -186,6 +186,20 @@ void main() {
     });
   });
 
+  group('DroppedEventMessage', () {
+    test('user is system (not assistant or user)', () {
+      // The constructor hardcodes ChatUser.system. Encoded decision:
+      // dropped events are diagnostics, not chat turns from any party.
+      final message = DroppedEventMessage.create(
+        id: 'drop-1',
+        source: DropSource.decode,
+        reason: 'unknown event type',
+      );
+
+      expect(message.user, equals(ChatUser.system));
+    });
+  });
+
   group('ErrorMessage', () {
     test('create with message', () {
       final message = ErrorMessage.create(
@@ -404,6 +418,11 @@ void main() {
           data: const {},
         ),
         LoadingMessage.create(id: 'loading-1'),
+        DroppedEventMessage.create(
+          id: 'drop-1',
+          source: DropSource.decode,
+          reason: 'malformed JSON',
+        ),
       ];
 
       final types = messages.map((m) {
@@ -413,10 +432,14 @@ void main() {
           ToolCallMessage() => 'toolCall',
           GenUiMessage() => 'genUi',
           LoadingMessage() => 'loading',
+          DroppedEventMessage() => 'dropped',
         };
       }).toList();
 
-      expect(types, equals(['text', 'error', 'toolCall', 'genUi', 'loading']));
+      expect(
+        types,
+        equals(['text', 'error', 'toolCall', 'genUi', 'loading', 'dropped']),
+      );
     });
 
     test('extract text from different message types', () {

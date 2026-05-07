@@ -70,6 +70,10 @@ class MessageTile extends StatelessWidget {
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),
+        // Phase 3 wires this up to dropped_event_message_tile.dart. Until
+        // then no production code creates a DroppedEventMessage so the arm
+        // is unreachable in practice.
+        DroppedEventMessage() => const SizedBox.shrink(),
       },
     );
   }

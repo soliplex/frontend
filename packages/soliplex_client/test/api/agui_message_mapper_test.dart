@@ -214,6 +214,21 @@ void main() {
 
         expect(aguiMessages, isEmpty);
       });
+
+      test('skips DroppedEventMessage', () {
+        final chatMessages = [
+          DroppedEventMessage(
+            id: 'drop-1',
+            createdAt: DateTime.now(),
+            source: DropSource.decode,
+            reason: 'unknown event type',
+          ),
+        ];
+
+        final aguiMessages = convertToAgui(chatMessages);
+
+        expect(aguiMessages, isEmpty);
+      });
     });
 
     group('mixed message list', () {
