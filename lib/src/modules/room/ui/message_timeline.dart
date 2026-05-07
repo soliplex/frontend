@@ -1,5 +1,3 @@
-import 'dart:developer' as developer;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
@@ -206,8 +204,24 @@ class _MessageTimelineState extends State<MessageTimeline> {
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: _safeMessageTile(
+                    child: MessageTile(
+                      roomId: widget.roomId,
                       message: message,
+                      runId: _runIdMap[message.id] ??
+                          (message is TextMessage &&
+                                  message.user == ChatUser.user
+                              ? widget.messageStates[message.id]?.runId
+                              : null),
+                      sourceReferences: _sourceReferencesMap[message.id],
+                      onFeedbackSubmit: widget.onFeedbackSubmit,
+                      onInspect: widget.onInspect,
+                      onShowChunkVisualization: widget.onShowChunkVisualization,
+                      onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
+                      onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
+                      executionTracker: widget.executionTrackers[message.id] ??
+                          (message is LoadingMessage
+                              ? widget.executionTrackers[awaitingTrackerKey]
+                              : null),
                       streamingActivity: isLastItem ? streamingActivity : null,
                     ),
                   );
@@ -225,71 +239,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
           ),
         ),
       ],
-    );
-  }
-
-  /// Wraps `MessageTile` construction in try/catch so a malformed message
-  /// (bad shape upstream, unexpected null, cast failure when computing
-  /// arguments) cannot abort the entire `SliverList.builder` and leave the
-  /// user with no chat history.
-  Widget _safeMessageTile({
-    required ChatMessage message,
-    required ActivityType? streamingActivity,
-  }) {
-    try {
-      return MessageTile(
-        roomId: widget.roomId,
-        message: message,
-        runId: _runIdMap[message.id] ??
-            (message is TextMessage && message.user == ChatUser.user
-                ? widget.messageStates[message.id]?.runId
-                : null),
-        sourceReferences: _sourceReferencesMap[message.id],
-        onFeedbackSubmit: widget.onFeedbackSubmit,
-        onInspect: widget.onInspect,
-        onShowChunkVisualization: widget.onShowChunkVisualization,
-        onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
-        onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
-        executionTracker: widget.executionTrackers[message.id] ??
-            (message is LoadingMessage
-                ? widget.executionTrackers[awaitingTrackerKey]
-                : null),
-        streamingActivity: streamingActivity,
-      );
-    } on Object catch (error, stackTrace) {
-      developer.log(
-        'MessageTimeline: failed to build tile for message '
-        '${message.id} (runtimeType=${message.runtimeType}); '
-        'rendering fallback so surrounding messages still appear.',
-        name: 'soliplex_frontend.message_timeline',
-        level: 900,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      return _MessageRenderFallback(messageId: message.id);
-    }
-  }
-}
-
-class _MessageRenderFallback extends StatelessWidget {
-  const _MessageRenderFallback({required this.messageId});
-
-  final String messageId;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          'Could not render message $messageId.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onErrorContainer,
-          ),
-        ),
-      ),
     );
   }
 }
