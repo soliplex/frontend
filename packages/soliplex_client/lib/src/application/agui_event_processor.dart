@@ -134,12 +134,8 @@ EventProcessingResult processEvent(
       _processToolCallResult(conversation, streaming, toolCallId, content),
 
     // State events - apply to conversation.aguiState
-    StateSnapshotEvent(:final snapshot) => EventProcessingResult(
-        conversation: conversation.copyWith(
-          aguiState: snapshot as Map<String, dynamic>,
-        ),
-        streaming: streaming,
-      ),
+    StateSnapshotEvent(:final snapshot) =>
+      _processStateSnapshot(conversation, streaming, snapshot),
     StateDeltaEvent(:final delta) => _processStateDelta(
         conversation,
         streaming,
@@ -562,6 +558,29 @@ StreamingState _withToolCallActivity(
 }
 
 // State events - apply JSON Patch
+
+EventProcessingResult _processStateSnapshot(
+  Conversation conversation,
+  StreamingState streaming,
+  dynamic snapshot,
+) {
+  if (snapshot is! Map<String, dynamic>) {
+    developer.log(
+      'StateSnapshotEvent: skipping non-Map snapshot '
+      '(runtimeType=${snapshot.runtimeType}); state unchanged.',
+      name: 'soliplex_client.event_processor',
+      level: 900,
+    );
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    );
+  }
+  return EventProcessingResult(
+    conversation: conversation.copyWith(aguiState: snapshot),
+    streaming: streaming,
+  );
+}
 
 EventProcessingResult _processStateDelta(
   Conversation conversation,

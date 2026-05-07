@@ -2082,6 +2082,91 @@ void main() {
         apiWithWarning.close();
       });
 
+      test('replay survives a STATE_SNAPSHOT with a non-Map snapshot',
+          () async {
+        // Backend shape drift used to throw an unguarded cast inside
+        // processEvent, abort the replay, and reject getThreadHistory —
+        // leaving the user with no messages at all. After Phase 1 the bad
+        // event is a no-op and surrounding messages still appear.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-1',
+                'delta': 'before',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': ['not', 'a', 'map'],
+              },
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-2',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-2',
+                'delta': 'after',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-2'},
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messages, hasLength(2));
+        expect((history.messages[0] as TextMessage).text, equals('before'));
+        expect((history.messages[1] as TextMessage).text, equals('after'));
+      });
+
       test('calls onWarning callback on partial failure', () async {
         final warnings = <String>[];
         final apiWithWarning = SoliplexApi(
