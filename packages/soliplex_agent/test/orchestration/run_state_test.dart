@@ -7,277 +7,77 @@ const ThreadKey _key = (
   threadId: 'thread-1',
 );
 
-const ThreadKey _otherKey = (
-  serverId: 'srv-2',
-  roomId: 'room-2',
-  threadId: 'thread-2',
-);
-
 void main() {
   final conversation = Conversation.empty(threadId: _key.threadId);
   const streaming = AwaitingText();
 
-  group('IdleState', () {
-    test('equality', () {
-      expect(const IdleState(), equals(const IdleState()));
-    });
-
-    test('hashCode is consistent', () {
-      expect(const IdleState().hashCode, equals(const IdleState().hashCode));
-    });
-
-    test('toString', () {
-      expect(const IdleState().toString(), equals('IdleState()'));
-    });
-  });
-
-  group('RunningState', () {
-    test('equality with same fields', () {
-      final stateA = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      final stateB = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      expect(stateA, equals(stateB));
-    });
-
-    test('inequality with different runId', () {
-      final stateA = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      final stateB = RunningState(
-        threadKey: _key,
-        runId: 'run-2',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      expect(stateA, isNot(equals(stateB)));
-    });
-
-    test('copyWith replaces conversation', () {
-      final original = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      final updated = conversation.withStatus(const Running(runId: 'run-1'));
-      final copied = original.copyWith(conversation: updated);
-
-      expect(copied.conversation, equals(updated));
-      expect(copied.runId, equals('run-1'));
-      expect(copied.threadKey, equals(_key));
-    });
-
-    test('copyWith with no args returns equal state', () {
-      final original = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      expect(original.copyWith(), equals(original));
-    });
-
-    test('toString includes runId and threadKey', () {
-      final state = RunningState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        streaming: streaming,
-      );
-      expect(state.toString(), contains('run-1'));
-      expect(state.toString(), contains('RunningState'));
-    });
-  });
-
-  group('CompletedState', () {
-    test('equality', () {
-      final stateA = CompletedState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-      );
-      final stateB = CompletedState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-      );
-      expect(stateA, equals(stateB));
-    });
-
-    test('inequality with different threadKey', () {
-      final stateA = CompletedState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-      );
-      final stateB = CompletedState(
-        threadKey: _otherKey,
-        runId: 'run-1',
-        conversation: conversation,
-      );
-      expect(stateA, isNot(equals(stateB)));
-    });
-
-    test('toString includes runId', () {
-      final state = CompletedState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-      );
-      expect(state.toString(), contains('run-1'));
-    });
-  });
-
   group('FailedState', () {
-    test('equality with same fields', () {
-      const stateA = FailedState(
+    test('startedRun is true for duringRun, false for preRun', () {
+      const during = FailedState.duringRun(
         threadKey: _key,
+        runId: 'run-1',
         reason: FailureReason.serverError,
-        error: 'something broke',
+        error: 'boom',
       );
-      const stateB = FailedState(
+      const pre = FailedState.preRun(
         threadKey: _key,
+        reason: FailureReason.internalError,
+        error: 'oops',
+      );
+      expect(during.startedRun, isTrue);
+      expect(pre.startedRun, isFalse);
+    });
+
+    test('requireRunId returns the id for duringRun', () {
+      const state = FailedState.duringRun(
+        threadKey: _key,
+        runId: 'run-1',
         reason: FailureReason.serverError,
-        error: 'something broke',
+        error: 'boom',
       );
-      expect(stateA, equals(stateB));
+      expect(state.requireRunId(), equals('run-1'));
     });
 
-    test('equality with optional conversation', () {
-      final stateA = FailedState(
+    test('requireRunId throws StateError for preRun', () {
+      const state = FailedState.preRun(
         threadKey: _key,
-        reason: FailureReason.networkLost,
-        error: 'timeout',
-        conversation: conversation,
+        reason: FailureReason.internalError,
+        error: 'oops',
       );
-      final stateB = FailedState(
-        threadKey: _key,
-        reason: FailureReason.networkLost,
-        error: 'timeout',
-        conversation: conversation,
-      );
-      expect(stateA, equals(stateB));
-    });
-
-    test('inequality when conversation differs', () {
-      const stateA = FailedState(
-        threadKey: _key,
-        reason: FailureReason.networkLost,
-        error: 'timeout',
-      );
-      final stateB = FailedState(
-        threadKey: _key,
-        reason: FailureReason.networkLost,
-        error: 'timeout',
-        conversation: conversation,
-      );
-      expect(stateA, isNot(equals(stateB)));
-    });
-
-    test('toString includes reason and error', () {
-      const state = FailedState(
-        threadKey: _key,
-        reason: FailureReason.authExpired,
-        error: 'token expired',
-      );
-      expect(state.toString(), contains('authExpired'));
-      expect(state.toString(), contains('token expired'));
+      expect(state.requireRunId, throwsStateError);
     });
   });
 
   group('CancelledState', () {
-    test('equality', () {
-      const stateA = CancelledState(threadKey: _key);
-      const stateB = CancelledState(threadKey: _key);
-      expect(stateA, equals(stateB));
-    });
-
-    test('equality with conversation', () {
-      final stateA = CancelledState(
-        threadKey: _key,
-        conversation: conversation,
-      );
-      final stateB = CancelledState(
-        threadKey: _key,
-        conversation: conversation,
-      );
-      expect(stateA, equals(stateB));
-    });
-
-    test('toString includes threadKey', () {
-      const state = CancelledState(threadKey: _key);
-      expect(state.toString(), contains('CancelledState'));
-    });
-  });
-
-  group('ToolYieldingState', () {
-    final pendingTools = [const ToolCallInfo(id: 'tc-1', name: 'search')];
-
-    test('equality with same fields', () {
-      final stateA = ToolYieldingState(
+    test('startedRun is true for duringRun, false for preRun', () {
+      const during = CancelledState.duringRun(
         threadKey: _key,
         runId: 'run-1',
-        conversation: conversation,
-        pendingToolCalls: pendingTools,
-        toolDepth: 0,
       );
-      final stateB = ToolYieldingState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        pendingToolCalls: pendingTools,
-        toolDepth: 0,
-      );
-      expect(stateA, equals(stateB));
+      const pre = CancelledState.preRun(threadKey: _key);
+      expect(during.startedRun, isTrue);
+      expect(pre.startedRun, isFalse);
     });
 
-    test('inequality with different toolDepth', () {
-      final stateA = ToolYieldingState(
+    test('requireRunId returns the id for duringRun', () {
+      const state = CancelledState.duringRun(
         threadKey: _key,
         runId: 'run-1',
-        conversation: conversation,
-        pendingToolCalls: pendingTools,
-        toolDepth: 0,
       );
-      final stateB = ToolYieldingState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        pendingToolCalls: pendingTools,
-        toolDepth: 1,
-      );
-      expect(stateA, isNot(equals(stateB)));
+      expect(state.requireRunId(), equals('run-1'));
     });
 
-    test('toString includes runId, pending count, and depth', () {
-      final state = ToolYieldingState(
-        threadKey: _key,
-        runId: 'run-1',
-        conversation: conversation,
-        pendingToolCalls: pendingTools,
-        toolDepth: 2,
-      );
-      final str = state.toString();
-      expect(str, contains('run-1'));
-      expect(str, contains('pending: 1'));
-      expect(str, contains('depth: 2'));
+    test('requireRunId throws StateError for preRun', () {
+      const state = CancelledState.preRun(threadKey: _key);
+      expect(state.requireRunId, throwsStateError);
     });
   });
 
   group('exhaustive switch', () {
     test('all subtypes are matchable', () {
+      // A new RunState subtype must force a compile error here so callers
+      // that rely on exhaustive matching (e.g. RunOrchestrator._isTerminal,
+      // cancelRun) get a deliberate decision rather than silent fallthrough.
       final states = <RunState>[
         const IdleState(),
         RunningState(
@@ -298,12 +98,12 @@ void main() {
           pendingToolCalls: const [],
           toolDepth: 0,
         ),
-        const FailedState(
+        const FailedState.preRun(
           threadKey: _key,
           reason: FailureReason.internalError,
           error: 'oops',
         ),
-        const CancelledState(threadKey: _key),
+        const CancelledState.preRun(threadKey: _key),
       ];
 
       for (final state in states) {

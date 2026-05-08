@@ -151,7 +151,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               _activityRow(activity, theme, indent: 20),
           ],
         );
-      case TimelineOrphanActivity(:final activity):
+      case TimelineStandaloneActivity(:final activity):
         return _activityRow(activity, theme, indent: 0);
     }
   }

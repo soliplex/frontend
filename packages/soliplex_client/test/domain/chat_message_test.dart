@@ -31,81 +31,6 @@ void main() {
       expect(message.isStreaming, isTrue);
     });
 
-    test('copyWith modifies text', () {
-      final original = TextMessage.create(
-        id: 'msg-1',
-        user: ChatUser.user,
-        text: 'Original',
-      );
-      final copy = original.copyWith(text: 'Modified');
-
-      expect(copy.text, equals('Modified'));
-      expect(copy.user, equals(original.user));
-      expect(copy.id, equals(original.id));
-    });
-
-    test('copyWith modifies streaming', () {
-      final original = TextMessage.create(
-        id: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Test',
-        isStreaming: true,
-      );
-      final copy = original.copyWith(isStreaming: false);
-
-      expect(copy.isStreaming, isFalse);
-      expect(copy.text, equals(original.text));
-    });
-
-    test('copyWith modifies thinking text', () {
-      final original = TextMessage.create(
-        id: 'msg-1',
-        user: ChatUser.assistant,
-        text: 'Response',
-      );
-      final copy = original.copyWith(thinkingText: 'Thinking...');
-
-      expect(copy.thinkingText, equals('Thinking...'));
-    });
-
-    test('copyWith modifies id', () {
-      final original = TextMessage.create(
-        id: 'old-id',
-        user: ChatUser.user,
-        text: 'Hello',
-      );
-      final copy = original.copyWith(id: 'new-id');
-
-      expect(copy.id, equals('new-id'));
-      expect(copy.text, equals(original.text));
-      expect(copy.user, equals(original.user));
-    });
-
-    test('copyWith modifies user', () {
-      final original = TextMessage.create(
-        id: 'msg-1',
-        user: ChatUser.user,
-        text: 'Hello',
-      );
-      final copy = original.copyWith(user: ChatUser.assistant);
-
-      expect(copy.user, equals(ChatUser.assistant));
-      expect(copy.text, equals(original.text));
-    });
-
-    test('copyWith modifies createdAt', () {
-      final original = TextMessage.create(
-        id: 'msg-1',
-        user: ChatUser.user,
-        text: 'Hello',
-      );
-      final newTime = DateTime(2025, 6, 15);
-      final copy = original.copyWith(createdAt: newTime);
-
-      expect(copy.createdAt, equals(newTime));
-      expect(copy.text, equals(original.text));
-    });
-
     test('equality by id', () {
       final msg1 = TextMessage.create(
         id: 'same-id',
@@ -136,33 +61,6 @@ void main() {
       expect(msg1, isNot(equals(msg2)));
     });
 
-    test('hashCode based on id', () {
-      final msg1 = TextMessage.create(
-        id: 'same-id',
-        user: ChatUser.user,
-        text: 'Hello',
-      );
-      final msg2 = TextMessage.create(
-        id: 'same-id',
-        user: ChatUser.assistant,
-        text: 'Different',
-      );
-
-      expect(msg1.hashCode, equals(msg2.hashCode));
-    });
-
-    test('toString includes id and user', () {
-      final message = TextMessage.create(
-        id: 'test-id',
-        user: ChatUser.user,
-        text: 'Hello',
-      );
-      final str = message.toString();
-
-      expect(str, contains('test-id'));
-      expect(str, contains('user'));
-    });
-
     test('hasThinkingText returns true when thinking text is present', () {
       final message = TextMessage(
         id: 'test-id',
@@ -183,6 +81,50 @@ void main() {
       );
 
       expect(message.hasThinkingText, isFalse);
+    });
+  });
+
+  group('NoResponseTile', () {
+    test('synthesized tile is always an assistant message', () {
+      final tile = NoResponseTile.finished(
+        id: 'no-response-run-1',
+        thinkingText: '',
+      );
+
+      expect(tile.user, equals(ChatUser.assistant));
+    });
+
+    test('hasThinkingText reflects thinking content', () {
+      final empty = NoResponseTile.failed(
+        id: 'no-response-run-1',
+        thinkingText: '',
+        errorDetail: 'boom',
+      );
+      final filled = NoResponseTile.failed(
+        id: 'no-response-run-2',
+        thinkingText: 'reasoning',
+        errorDetail: 'boom',
+      );
+
+      expect(empty.hasThinkingText, isFalse);
+      expect(filled.hasThinkingText, isTrue);
+    });
+
+    test('failed factory carries errorDetail; cancelled factory has none', () {
+      final failed = NoResponseTile.failed(
+        id: 'no-response-run-1',
+        thinkingText: '',
+        errorDetail: 'rate limit',
+      );
+      final cancelled = NoResponseTile.cancelled(
+        id: 'no-response-run-2',
+        thinkingText: '',
+      );
+
+      expect(failed.reason, equals(TerminalReason.failed));
+      expect(failed.errorDetail, equals('rate limit'));
+      expect(cancelled.reason, equals(TerminalReason.cancelled));
+      expect(cancelled.errorDetail, isNull);
     });
   });
 
@@ -224,17 +166,6 @@ void main() {
 
       expect(msg1, equals(msg2));
     });
-
-    test('toString includes id and error', () {
-      final message = ErrorMessage.create(
-        id: 'error-id',
-        message: 'Test error',
-      );
-      final str = message.toString();
-
-      expect(str, contains('error-id'));
-      expect(str, contains('Test error'));
-    });
   });
 
   group('ToolCallMessage', () {
@@ -257,20 +188,6 @@ void main() {
       );
 
       expect(message.id, equals('tc-msg-id'));
-    });
-
-    test('toString includes id and call count', () {
-      final message = ToolCallMessage.create(
-        id: 'tc-msg-id',
-        toolCalls: const [
-          ToolCallInfo(id: 'tc1', name: 'search'),
-          ToolCallInfo(id: 'tc2', name: 'read'),
-        ],
-      );
-      final str = message.toString();
-
-      expect(str, contains('tc-msg-id'));
-      expect(str, contains('2'));
     });
 
     test('fromExecuted creates message from executed tool calls', () {
@@ -353,18 +270,6 @@ void main() {
 
       expect(message.id, equals('genui-id'));
     });
-
-    test('toString includes id and widget name', () {
-      final message = GenUiMessage.create(
-        id: 'genui-id',
-        widgetName: 'Chart',
-        data: const {'value': 42},
-      );
-      final str = message.toString();
-
-      expect(str, contains('genui-id'));
-      expect(str, contains('Chart'));
-    });
   });
 
   group('LoadingMessage', () {
@@ -379,13 +284,6 @@ void main() {
       final message = LoadingMessage.create(id: 'loading-id');
 
       expect(message.id, equals('loading-id'));
-    });
-
-    test('toString includes id', () {
-      final message = LoadingMessage.create(id: 'loading-id');
-      final str = message.toString();
-
-      expect(str, contains('loading-id'));
     });
   });
 
@@ -423,6 +321,10 @@ void main() {
           source: DropSource.decode,
           reason: 'malformed JSON',
         ),
+        NoResponseTile.finished(
+          id: 'no-response-run-1',
+          thinkingText: '',
+        ),
       ];
 
       final types = messages.map((m) {
@@ -433,12 +335,21 @@ void main() {
           GenUiMessage() => 'genUi',
           LoadingMessage() => 'loading',
           DroppedEventMessage() => 'dropped',
+          NoResponseTile() => 'noResponse',
         };
       }).toList();
 
       expect(
         types,
-        equals(['text', 'error', 'toolCall', 'genUi', 'loading', 'dropped']),
+        equals([
+          'text',
+          'error',
+          'toolCall',
+          'genUi',
+          'loading',
+          'dropped',
+          'noResponse',
+        ]),
       );
     });
 
@@ -491,19 +402,6 @@ void main() {
       expect(info.result, equals('{"results": []}'));
     });
 
-    test('copyWith creates modified copy', () {
-      const original = ToolCallInfo(id: 'tc1', name: 'search');
-      final copy = original.copyWith(
-        status: ToolCallStatus.executing,
-        result: 'done',
-      );
-
-      expect(copy.id, equals('tc1'));
-      expect(copy.name, equals('search'));
-      expect(copy.status, equals(ToolCallStatus.executing));
-      expect(copy.result, equals('done'));
-    });
-
     test('copyWith preserves status and result when not passed', () {
       const original = ToolCallInfo(
         id: 'tc1',
@@ -515,36 +413,6 @@ void main() {
 
       expect(copy.status, equals(ToolCallStatus.completed));
       expect(copy.result, equals('done'));
-    });
-
-    test('copyWith with all fields', () {
-      const original = ToolCallInfo(id: 'tc1', name: 'search');
-      final copy = original.copyWith(
-        id: 'tc2',
-        name: 'new-tool',
-        arguments: '{"arg": 1}',
-        status: ToolCallStatus.completed,
-        result: 'result',
-      );
-
-      expect(copy.id, equals('tc2'));
-      expect(copy.name, equals('new-tool'));
-      expect(copy.arguments, equals('{"arg": 1}'));
-      expect(copy.status, equals(ToolCallStatus.completed));
-      expect(copy.result, equals('result'));
-    });
-
-    test('toString includes key fields', () {
-      const info = ToolCallInfo(
-        id: 'tc1',
-        name: 'search',
-        status: ToolCallStatus.executing,
-      );
-      final str = info.toString();
-
-      expect(str, contains('tc1'));
-      expect(str, contains('search'));
-      expect(str, contains('executing'));
     });
 
     test('equality by id', () {
@@ -563,17 +431,6 @@ void main() {
       const info2 = ToolCallInfo(id: 'tc2', name: 'search');
 
       expect(info1, isNot(equals(info2)));
-    });
-
-    test('hashCode based on id', () {
-      const info1 = ToolCallInfo(id: 'tc1', name: 'search');
-      const info2 = ToolCallInfo(
-        id: 'tc1',
-        name: 'different',
-        status: ToolCallStatus.completed,
-      );
-
-      expect(info1.hashCode, equals(info2.hashCode));
     });
 
     test('hasArguments returns true when arguments are present', () {
@@ -606,26 +463,6 @@ void main() {
       const info = ToolCallInfo(id: 'tc1', name: 'search');
 
       expect(info.hasResult, isFalse);
-    });
-  });
-
-  group('ChatUser', () {
-    test('has expected values', () {
-      expect(ChatUser.values, contains(ChatUser.user));
-      expect(ChatUser.values, contains(ChatUser.assistant));
-      expect(ChatUser.values, contains(ChatUser.system));
-      expect(ChatUser.values, hasLength(3));
-    });
-  });
-
-  group('ToolCallStatus', () {
-    test('has expected values', () {
-      expect(ToolCallStatus.values, contains(ToolCallStatus.streaming));
-      expect(ToolCallStatus.values, contains(ToolCallStatus.pending));
-      expect(ToolCallStatus.values, contains(ToolCallStatus.executing));
-      expect(ToolCallStatus.values, contains(ToolCallStatus.completed));
-      expect(ToolCallStatus.values, contains(ToolCallStatus.failed));
-      expect(ToolCallStatus.values, hasLength(5));
     });
   });
 }

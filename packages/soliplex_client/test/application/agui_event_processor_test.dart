@@ -1,5 +1,6 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
+import 'package:soliplex_client/src/application/no_response_synthesis.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart'
     as app_streaming;
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -58,6 +59,297 @@ void main() {
           equals('Something went wrong'),
         );
         expect(result.streaming, isA<app_streaming.AwaitingText>());
+      });
+
+      test(
+          'RunFinishedEvent with buffered thinking synthesizes a no-response '
+          'message', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'I considered the options...',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result =
+            processEvent(runningConversation, streamingWithThinking, event);
+
+        final synthesized = result.conversation.messages.last as NoResponseTile;
+        expect(synthesized.id, equals(noResponseMessageId('run-1')));
+        expect(synthesized.user, equals(ChatUser.assistant));
+        expect(
+          synthesized.thinkingText,
+          equals('I considered the options...'),
+        );
+        expect(synthesized.reason, equals(TerminalReason.finished));
+      });
+
+      test(
+          'RunFinishedEvent with empty thinking buffer does NOT '
+          'synthesize a no-response message', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(runningConversation, streaming, event);
+
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      test(
+          'RunFinishedEvent while streaming text does NOT '
+          'synthesize a no-response message', () {
+        // A reply was in progress (TextMessageStart fired). The reply is
+        // the response — there's nothing to synthesize.
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const textStreaming = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: ChatUser.assistant,
+          text: 'partial',
+          thinkingText: 'reasoning',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(runningConversation, textStreaming, event);
+
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
+          'RunFinishedEvent with pending tool call does NOT '
+          'synthesize a no-response message', () {
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(
+                    id: 'tc1',
+                    name: 'search',
+                  ),
+                );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'planning the call',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
+          'RunErrorEvent on Completed conversation preserves the '
+          'terminal Completed status (no silent corruption)', () {
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const event = RunErrorEvent(message: 'late error');
+
+        final result = processEvent(completedConversation, streaming, event);
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      test(
+          'RunErrorEvent on Idle conversation flips to Failed and appends '
+          'a stable-id ErrorMessage so the user sees a visible failure row',
+          () {
+        // Backend protocol violation: RunErrorEvent without a preceding
+        // RunStartedEvent. Status alone doesn't render in the messages
+        // list, so the user would otherwise see nothing.
+        const event = RunErrorEvent(message: 'pre-run error');
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.status, isA<Failed>());
+        expect(
+          (result.conversation.status as Failed).error,
+          equals('pre-run error'),
+        );
+        final surfaced = result.conversation.messages.last as ErrorMessage;
+        expect(
+          surfaced.id,
+          equals(preRunErrorMessageId(conversation.threadId, 'pre-run error')),
+        );
+        expect(surfaced.errorText, equals('pre-run error'));
+      });
+
+      test(
+          'RunErrorEvent with buffered thinking synthesizes a no-response '
+          'message with reason: failed', () {
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'partial reasoning',
+        );
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        final synthesized = result.conversation.messages.last as NoResponseTile;
+        expect(synthesized.reason, equals(TerminalReason.failed));
+        // The backend error must be attached to the persisted tile so it
+        // survives reload — not just the transient send-error banner.
+        expect(synthesized.errorDetail, equals('boom'));
+      });
+
+      test(
+          'RunErrorEvent with empty buffered thinking surfaces the '
+          'failure as an ErrorMessage', () {
+        // Synthesis declines when there's nothing to preserve; without a
+        // surfaced tile the user would have no signal that the run
+        // failed (status alone doesn't render in the messages list).
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const event = RunErrorEvent(message: 'boom');
+
+        final result = processEvent(runningConversation, streaming, event);
+
+        final surfaced = result.conversation.messages.last as ErrorMessage;
+        expect(surfaced.errorText, equals('boom'));
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+          reason: 'no thinking to preserve — ErrorMessage carries the signal',
+        );
+      });
+
+      test(
+          'duplicate RunFinishedEvent on Completed conversation does NOT '
+          'synthesize a second tile or alter status', () {
+        // Out-of-order or duplicate terminal events from the backend must
+        // not double-append a no-response tile.
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(completedConversation, streaming, event);
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      test(
+          'duplicate RunFinishedEvent on Completed conversation with buffered '
+          'thinking does NOT re-synthesize a NoResponseTile (status guard '
+          'precedes synthesis decline)', () {
+        // Without the status guard, buffered thinking would let synthesis
+        // fire a second NoResponseTile and collide on
+        // `noResponseMessageId('run-1')`.
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'leftover thinking from a prior synthesis',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          completedConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
+          'RunFinishedEvent on Failed conversation preserves the prior '
+          'terminal status and does not synthesize', () {
+        final failedConversation = conversation.withStatus(
+          const Failed(error: 'earlier failure'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'thinking',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          failedConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(result.conversation.status, isA<Failed>());
+        expect(
+          (result.conversation.status as Failed).error,
+          equals('earlier failure'),
+        );
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
+          'RunFinishedEvent followed by RunErrorEvent preserves the first '
+          'terminal status (Completed wins)', () {
+        // A late RunErrorEvent arriving after RunFinished must not flip
+        // the conversation back to Failed and must not append a tile.
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const finished = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+        const errored = RunErrorEvent(message: 'late error');
+
+        final afterFinished =
+            processEvent(runningConversation, streaming, finished);
+        final afterErrored = processEvent(
+          afterFinished.conversation,
+          afterFinished.streaming,
+          errored,
+        );
+
+        expect(afterErrored.conversation.status, isA<Completed>());
+        expect(afterErrored.conversation.messages, isEmpty);
+      });
+
+      test(
+          'RunErrorEvent with unresolved tool call surfaces the '
+          'failure as an ErrorMessage', () {
+        // Tool-call synthesis declines (the tool call IS the response);
+        // a real failure still needs to be visible to the user.
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(id: 'tc1', name: 'search'),
+                );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'planning the call',
+        );
+        const event = RunErrorEvent(message: 'tool failure');
+
+        final result = processEvent(
+          runningConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        final surfaced = result.conversation.messages.last as ErrorMessage;
+        expect(surfaced.errorText, equals('tool failure'));
       });
     });
 

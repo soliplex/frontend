@@ -715,7 +715,7 @@ void main() {
 
       // Attach a session whose extension will produce a live tracker under
       // the same message id.
-      final ext = ExecutionTrackerExtension();
+      final ext = ExecutionTrackerExtension(logger: testLogger());
       final fakeSession = _FakeAgentSession(extensions: [ext]);
       await ext.onAttach(fakeSession);
       state.attachSession(fakeSession);
@@ -903,7 +903,7 @@ void main() {
         state.attachSession(session);
 
         session.emit(
-          FailedState(
+          FailedState.preRun(
             threadKey: (
               serverId: 'test-server',
               roomId: 'room-1',
@@ -941,7 +941,7 @@ void main() {
         state.attachSession(session);
 
         session.emit(
-          FailedState(
+          FailedState.preRun(
             threadKey: (
               serverId: 'test-server',
               roomId: 'room-1',
@@ -979,7 +979,7 @@ void main() {
         state.attachSession(session);
 
         session.emit(
-          FailedState(
+          FailedState.preRun(
             threadKey: (
               serverId: 'test-server',
               roomId: 'room-1',

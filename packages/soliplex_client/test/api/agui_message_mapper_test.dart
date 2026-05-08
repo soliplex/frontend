@@ -229,6 +229,44 @@ void main() {
 
         expect(aguiMessages, isEmpty);
       });
+
+      test('skips NoResponseTile so it never reaches the wire', () {
+        // The synthesized no-response tile is a frontend-only signal.
+        // Sending it back to the backend on a continuation run would
+        // appear as an empty assistant message — exactly the wire-leak
+        // this guard prevents. The exhaustive-switch test catches a
+        // missing case at compile time; this exercises the runtime skip.
+        final chatMessages = [
+          TextMessage(
+            id: 'user-1',
+            user: ChatUser.user,
+            text: 'first',
+            createdAt: DateTime.now(),
+          ),
+          NoResponseTile.cancelled(
+            id: 'no-response-run-1',
+            thinkingText: 'reasoning preserved on cancel',
+          ),
+          TextMessage(
+            id: 'user-2',
+            user: ChatUser.user,
+            text: 'second',
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        final aguiMessages = convertToAgui(chatMessages);
+
+        expect(aguiMessages, hasLength(2));
+        expect(aguiMessages[0], isA<UserMessage>());
+        expect((aguiMessages[0] as UserMessage).id, equals('user-1'));
+        expect(aguiMessages[1], isA<UserMessage>());
+        expect((aguiMessages[1] as UserMessage).id, equals('user-2'));
+        expect(
+          aguiMessages.any((m) => m.id == 'no-response-run-1'),
+          isFalse,
+        );
+      });
     });
 
     group('mixed message list', () {

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../helpers/test_logger.dart';
+
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -63,7 +65,8 @@ void main() {
 
   testWidgets('ExecutionTimeline shows event count', (tester) async {
     final events = Signal<ExecutionEvent?>(null);
-    final tracker = ExecutionTracker(executionEvents: events);
+    final tracker =
+        ExecutionTracker(executionEvents: events, logger: testLogger());
 
     events.value = const ThinkingStarted();
     events.value = const ServerToolCallStarted(
@@ -88,7 +91,8 @@ void main() {
 
   testWidgets('ExecutionThinkingBlock shows thinking label', (tester) async {
     final events = Signal<ExecutionEvent?>(null);
-    final tracker = ExecutionTracker(executionEvents: events);
+    final tracker =
+        ExecutionTracker(executionEvents: events, logger: testLogger());
 
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'Let me think about this');

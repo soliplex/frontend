@@ -3,9 +3,9 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../../execution_step.dart';
 
-/// A single row in the unified execution timeline. A [TimelineStep]
-/// groups a step with the activities that arrived while it was active;
-/// a [TimelineOrphanActivity] is an activity with no owning step
+/// A single row in the execution timeline. A [TimelineStep] groups a
+/// step with the activities that arrived while it was active; a
+/// [TimelineStandaloneActivity] is an activity with no owning step
 /// (observed before the first step or after all steps completed).
 sealed class TimelineEntry {
   const TimelineEntry();
@@ -26,8 +26,8 @@ final class TimelineStep extends TimelineEntry {
 }
 
 @immutable
-final class TimelineOrphanActivity extends TimelineEntry {
-  const TimelineOrphanActivity({required this.activity});
+final class TimelineStandaloneActivity extends TimelineEntry {
+  const TimelineStandaloneActivity({required this.activity});
 
   final SkillToolCallActivity activity;
 }

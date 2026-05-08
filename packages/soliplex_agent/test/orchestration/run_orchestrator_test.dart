@@ -256,6 +256,9 @@ void main() {
         expect(orchestrator.currentState, isA<FailedState>());
         final failed = orchestrator.currentState as FailedState;
         expect(failed.reason, equals(FailureReason.networkLost));
+        // runId must be threaded through so terminal-state listeners
+        // (e.g., the no-response tracker rekey) can find this run.
+        expect(failed.runId, equals(_runId));
       },
     );
 
@@ -339,6 +342,90 @@ void main() {
         );
       },
     );
+
+    test(
+        'RunErrorEvent with buffered thinking surfaces NoResponseTile in '
+        'FailedState.conversation', () async {
+      // Locks the cross-layer contract: processEvent appends the
+      // synthesized tile, _mapEventResult must thread it through into
+      // the terminal state's conversation.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const ThinkingStartEvent(),
+          const ThinkingTextMessageStartEvent(),
+          const ThinkingTextMessageContentEvent(delta: 'partial reasoning'),
+          const ThinkingTextMessageEndEvent(),
+          const RunErrorEvent(message: 'boom'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final synthesized = failed.conversation!.messages.last as NoResponseTile;
+      expect(synthesized.id, equals(noResponseMessageId(_runId)));
+      expect(synthesized.reason, equals(TerminalReason.failed));
+      expect(synthesized.errorDetail, equals('boom'));
+      expect(synthesized.thinkingText, equals('partial reasoning'));
+    });
+
+    test(
+        'RunErrorEvent with empty thinking surfaces ErrorMessage in '
+        'FailedState.conversation', () async {
+      // Same cross-layer contract test for the empty-thinking fallback
+      // branch. Without this, a regression that drops result.conversation
+      // in _mapEventResult would not be caught.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const RunErrorEvent(message: 'rate limited'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final surfaced = failed.conversation!.messages.last as ErrorMessage;
+      expect(surfaced.id, equals('run-error-$_runId'));
+      expect(surfaced.errorText, equals('rate limited'));
+    });
+
+    test(
+        'RunErrorEvent mid-text-stream commits the partial reply text and '
+        'appends ErrorMessage', () async {
+      // Without this commit the half-streamed reply the user was already
+      // reading vanishes when streaming resets to AwaitingText.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'partial'),
+          const RunErrorEvent(message: 'connection lost'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final messages = failed.conversation!.messages;
+      final committed =
+          messages.firstWhere((m) => m.id == 'msg-1') as TextMessage;
+      expect(committed.text, equals('partial'));
+      expect(committed.user, equals(ChatUser.assistant));
+      final surfaced = messages.firstWhere((m) => m.id == 'run-error-$_runId')
+          as ErrorMessage;
+      expect(surfaced.errorText, equals('connection lost'));
+    });
   });
 
   group('cancel', () {
@@ -369,6 +456,139 @@ void main() {
       expect(orchestrator.currentState, isA<IdleState>());
       orchestrator.cancelRun();
       expect(orchestrator.currentState, isA<IdleState>());
+    });
+
+    test('cancelRun on Completed state is a no-op', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<CompletedState>());
+
+      orchestrator.cancelRun();
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+    });
+
+    test('cancelRun on Failed state is a no-op', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const RunErrorEvent(message: 'backend error'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<FailedState>());
+
+      orchestrator.cancelRun();
+
+      expect(orchestrator.currentState, isA<FailedState>());
+    });
+
+    test('cancelRun on Cancelled state is a no-op', () async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      controller.add(
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      orchestrator.cancelRun();
+      expect(orchestrator.currentState, isA<CancelledState>());
+
+      orchestrator.cancelRun();
+      expect(orchestrator.currentState, isA<CancelledState>());
+
+      await controller.close();
+    });
+
+    test(
+        'cancelRun on Running with buffered thinking and no reply '
+        'synthesizes a NoResponseTile with reason: cancelled', () async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      controller
+        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const ThinkingStartEvent())
+        ..add(const ThinkingTextMessageStartEvent())
+        ..add(
+          const ThinkingTextMessageContentEvent(
+            delta: 'considering options',
+          ),
+        )
+        ..add(const ThinkingTextMessageEndEvent());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.cancelRun();
+
+      final cancelled = orchestrator.currentState as CancelledState;
+      final synthesized =
+          cancelled.conversation!.messages.last as NoResponseTile;
+      expect(synthesized.id, equals(noResponseMessageId(_runId)));
+      expect(synthesized.reason, equals(TerminalReason.cancelled));
+      expect(synthesized.thinkingText, equals('considering options'));
+
+      await controller.close();
+    });
+
+    test(
+        'cancelRun mid-text-stream commits the partial reply as a finalized '
+        'TextMessage (mirrors RunFinished/RunError behavior)', () async {
+      // Without the partial-text commit, a half-streamed reply vanishes
+      // when streaming resets to AwaitingText on Stop. Synthesis declines
+      // on TextStreaming, so the commit is the only surfacing path.
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      controller
+        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const TextMessageStartEvent(messageId: 'reply-1'))
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'reply-1',
+            delta: 'half-rendered ',
+          ),
+        )
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'reply-1',
+            delta: 'reply',
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.cancelRun();
+
+      final cancelled = orchestrator.currentState as CancelledState;
+      final committed = cancelled.conversation!.messages
+          .whereType<TextMessage>()
+          .singleWhere((m) => m.id == 'reply-1');
+      expect(committed.text, equals('half-rendered reply'));
+      expect(committed.user, equals(ChatUser.assistant));
+      // No NoResponseTile — partial-commit is the user-visible signal,
+      // and synthesis declines on TextStreaming by design.
+      expect(
+        cancelled.conversation!.messages.whereType<NoResponseTile>(),
+        isEmpty,
+      );
+
+      await controller.close();
     });
   });
 
@@ -554,6 +774,78 @@ void main() {
         messages[2],
         isA<TextMessage>().having((m) => m.text, 'text', 'Turn 2'),
       );
+    });
+
+    test(
+        'continuation run excludes synthesized NoResponseTile, ErrorMessage, '
+        'LoadingMessage, and DroppedEventMessage from prior cachedHistory '
+        '(wire-leak regression for the convertToAgui skip set)', () async {
+      // The wire-leak fix in `agui_message_mapper.convertToAgui` is the
+      // last line of defense, but the only way to verify it through the
+      // orchestrator is to inspect what `_buildInput` actually sends. A
+      // future change that imports cachedHistory unfiltered (or routes
+      // around `convertToAgui`) would silently re-introduce the leak.
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: [
+          TextMessage.create(
+            id: 'prior-user',
+            user: ChatUser.user,
+            text: 'q',
+          ),
+          NoResponseTile.cancelled(
+            id: noResponseMessageId('prior-run'),
+            thinkingText: 'thinking',
+          ),
+          ErrorMessage.create(id: 'run-error-prior', message: 'boom'),
+          LoadingMessage.create(id: 'loading-prior'),
+          DroppedEventMessage.create(
+            id: 'dropped-prior',
+            source: DropSource.decode,
+            reason: 'malformed',
+          ),
+          TextMessage.create(
+            id: 'prior-assistant',
+            user: ChatUser.assistant,
+            text: 'a',
+          ),
+        ],
+      );
+
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'follow-up',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+      );
+
+      final captured = verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured;
+
+      final input = captured.single as SimpleRunAgentInput;
+      final wireMessages = input.messages ?? const [];
+      final wireIds = wireMessages.map((m) => m.id).toList();
+      // Real conversation messages survive.
+      expect(wireIds, contains('prior-user'));
+      expect(wireIds, contains('prior-assistant'));
+      // Frontend-synthesized tiles are filtered out.
+      expect(
+        wireIds,
+        isNot(contains(noResponseMessageId('prior-run'))),
+        reason: 'NoResponseTile is frontend-only; must not reach the backend',
+      );
+      expect(wireIds, isNot(contains('run-error-prior')));
+      expect(wireIds, isNot(contains('loading-prior')));
+      expect(wireIds, isNot(contains('dropped-prior')));
     });
   });
 
@@ -1369,6 +1661,58 @@ void main() {
         expect(orchestrator.currentState, isA<CancelledState>());
       },
     );
+
+    test(
+        'cancelRun during runToCompletion createRun await yields '
+        'CancelledState.preRun (IdleState arm + post-await race close)',
+        () async {
+      // Stop pressed during a slow createRun while in IdleState.
+      // Pins two coupled contracts:
+      //   - cancelRun's IdleState arm cancels `_cancelToken` so the
+      //     in-flight createRun await aborts (without this arm, the
+      //     run continues silently after the response arrives).
+      //   - _initializeStream's post-await race close throws
+      //     CancelledException when the await resolved before the
+      //     token cancellation propagated, so _handleStartError can
+      //     route the user's intent to CancelledState.preRun rather
+      //     than overwriting it with RunningState via _subscribeToStream.
+      final createRunCompleter = Completer<RunInfo>();
+      when(
+        () => api.createRun(any(), any()),
+      ).thenAnswer((_) => createRunCompleter.future);
+      stubRunAgent(stream: const Stream<BaseEvent>.empty());
+
+      final runFuture = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Hi',
+        toolExecutor: (_) async => [],
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<IdleState>());
+
+      orchestrator.cancelRun();
+
+      // Resolve the await *after* cancelRun has cancelled the token,
+      // simulating the race where startRun's future already had its
+      // value before the cancellation propagated.
+      createRunCompleter.complete(_runInfo());
+      final result = await runFuture;
+
+      expect(
+        result,
+        isA<CancelledState>(),
+        reason: 'state must be CancelledState; without the IdleState arm '
+            'the cancel is dropped, and without the post-await race '
+            'close _subscribeToStream would overwrite it with RunningState',
+      );
+      final cancelled = result as CancelledState;
+      expect(
+        cancelled.startedRun,
+        isFalse,
+        reason: 'pre-run cancel: no backend run was in flight from the '
+            'orchestrator-state perspective',
+      );
+    });
   });
 
   group('graceful SSE close', () {

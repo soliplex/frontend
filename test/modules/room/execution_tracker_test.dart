@@ -5,13 +5,15 @@ import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
+import '../../helpers/test_logger.dart';
+
 void main() {
   late Signal<ExecutionEvent?> events;
   late ExecutionTracker tracker;
 
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
-    tracker = ExecutionTracker(executionEvents: events);
+    tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
   });
 
   tearDown(() => tracker.dispose());
@@ -29,6 +31,16 @@ void main() {
     expect(tracker.steps.value.first.label, 'Thinking');
     expect(tracker.steps.value.first.status, StepStatus.active);
     expect(tracker.isThinkingStreaming.value, isTrue);
+  });
+
+  test('ThinkingEnded without preceding ThinkingStarted is a no-op', () {
+    // A ThinkingEnded that arrives without a matching ThinkingStarted
+    // (e.g., reasoning message bridged with no start) must clear the
+    // streaming flag without inventing a step.
+    events.value = const ThinkingEnded();
+
+    expect(tracker.steps.value, isEmpty);
+    expect(tracker.isThinkingStreaming.value, isFalse);
   });
 
   test('ThinkingContent accumulates in current thinking block', () {
@@ -140,6 +152,18 @@ void main() {
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.failed);
     }
+  });
+
+  test('freeze called twice is a no-op (idempotent)', () {
+    // freeze() mutates state (clears spinner, completes steps) before
+    // flipping _isFrozen = true. _completeAllSteps asserts non-frozen, so
+    // a second call must short-circuit before re-running it.
+    events.value = const ThinkingStarted();
+    tracker.freeze();
+    expect(tracker.isFrozen, isTrue);
+
+    expect(() => tracker.freeze(), returnsNormally);
+    expect(tracker.isFrozen, isTrue);
   });
 
   test('freeze stops listening but preserves data', () {
@@ -357,7 +381,7 @@ void main() {
       expect(step.activities.single.toolName, 'execute_script');
     });
 
-    test('activity arriving with no active step is an orphan', () {
+    test('activity arriving with no active step is standalone', () {
       events.value = const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -366,10 +390,11 @@ void main() {
       );
 
       expect(tracker.timeline.value, hasLength(1));
-      expect(tracker.timeline.value.single, isA<TimelineOrphanActivity>());
+      expect(tracker.timeline.value.single, isA<TimelineStandaloneActivity>());
     });
 
-    test('activity after a completed step with no new active step is orphan',
+    test(
+        'activity after a completed step with no new active step is standalone',
         () {
       events.value = const ClientToolExecuting(
         toolName: 'execute_skill',
@@ -388,7 +413,7 @@ void main() {
       );
 
       expect(tracker.timeline.value, hasLength(2));
-      expect(tracker.timeline.value.last, isA<TimelineOrphanActivity>());
+      expect(tracker.timeline.value.last, isA<TimelineStandaloneActivity>());
     });
 
     test('multiple steps each get their own activities', () {
@@ -479,7 +504,8 @@ void main() {
 
   group('ExecutionTracker.historical', () {
     test('returns frozen tracker', () {
-      final tracker = ExecutionTracker.historical(events: const []);
+      final tracker =
+          ExecutionTracker.historical(events: const [], logger: testLogger());
       expect(tracker.isFrozen, isTrue);
       tracker.dispose();
     });
@@ -493,6 +519,7 @@ void main() {
           ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
           RunCompleted(),
         ],
+        logger: testLogger(),
       );
 
       expect(tracker.steps.value.map((s) => s.label), ['Thinking', 'search']);
@@ -512,6 +539,7 @@ void main() {
             timestamp: 100,
           ),
         ],
+        logger: testLogger(),
       );
 
       final step = tracker.timeline.value.single as TimelineStep;
@@ -521,11 +549,41 @@ void main() {
     });
 
     test('empty events list yields empty timeline', () {
-      final tracker = ExecutionTracker.historical(events: const []);
+      final tracker =
+          ExecutionTracker.historical(events: const [], logger: testLogger());
       expect(tracker.steps.value, isEmpty);
       expect(tracker.timeline.value, isEmpty);
       tracker.dispose();
     });
+
+    test(
+        'events ending mid-thinking are finalized: no spinner, no '
+        'active step', () {
+      final tracker = ExecutionTracker.historical(
+        events: const [
+          ThinkingStarted(),
+          ThinkingContent(delta: 'reasoning'),
+        ],
+        logger: testLogger(),
+      );
+
+      expect(tracker.isThinkingStreaming.value, isFalse);
+      expect(tracker.steps.value.every((s) => s.status.isTerminal), isTrue);
+      tracker.dispose();
+    });
+  });
+
+  test('freeze mid-thinking clears spinner and completes active step', () {
+    events.value = const ThinkingStarted();
+    events.value = const ThinkingContent(delta: 'hello');
+
+    expect(tracker.isThinkingStreaming.value, isTrue);
+    expect(tracker.steps.value.single.status, StepStatus.active);
+
+    tracker.freeze();
+
+    expect(tracker.isThinkingStreaming.value, isFalse);
+    expect(tracker.steps.value.single.status, StepStatus.completed);
   });
 }
 

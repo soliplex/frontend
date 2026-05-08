@@ -607,6 +607,11 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ThinkingTextMessageContentEvent(:final delta) ||
     ReasoningMessageContentEvent(:final delta) =>
       ThinkingContent(delta: delta),
+    ThinkingTextMessageEndEvent() ||
+    ThinkingEndEvent() ||
+    ReasoningEndEvent() ||
+    ReasoningMessageEndEvent() =>
+      const ThinkingEnded(),
     ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
       ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
     ToolCallResultEvent(:final toolCallId, :final content) =>
@@ -634,8 +639,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||
     ThinkingStartEvent() ||
-    ThinkingTextMessageEndEvent() ||
-    ThinkingEndEvent() ||
     ThinkingContentEvent() ||
     ToolCallArgsEvent() ||
     ToolCallEndEvent() ||
@@ -648,8 +651,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     RawEvent() ||
     CustomEvent() ||
     ReasoningStartEvent() ||
-    ReasoningEndEvent() ||
-    ReasoningMessageEndEvent() ||
     ReasoningMessageChunkEvent() ||
     ReasoningEncryptedValueEvent() ||
     ActivityDeltaEvent() =>

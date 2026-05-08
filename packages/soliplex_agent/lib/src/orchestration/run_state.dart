@@ -131,18 +131,58 @@ class CompletedState extends RunState {
 }
 
 /// Run failed with a classified error.
+///
+/// Construct via [FailedState.preRun] (failure before any backend run
+/// started — [runId] is null) or [FailedState.duringRun] (failure during
+/// an in-flight run — [runId] is required). The link between [runId] and
+/// the pre/during disposition is enforced at the type level.
 @immutable
 class FailedState extends RunState {
-  /// Creates a [FailedState].
-  const FailedState({
+  /// Constructs a [FailedState] for a failure that happened before any
+  /// backend run started.
+  const FailedState.preRun({
+    required ThreadKey threadKey,
+    required FailureReason reason,
+    required String error,
+    Conversation? conversation,
+  }) : this._(
+          threadKey: threadKey,
+          reason: reason,
+          error: error,
+          conversation: conversation,
+        );
+
+  /// Constructs a [FailedState] for a failure that happened during a run.
+  /// [runId] is required.
+  const FailedState.duringRun({
+    required ThreadKey threadKey,
+    required String runId,
+    required FailureReason reason,
+    required String error,
+    Conversation? conversation,
+  }) : this._(
+          threadKey: threadKey,
+          runId: runId,
+          reason: reason,
+          error: error,
+          conversation: conversation,
+        );
+
+  const FailedState._({
     required this.threadKey,
     required this.reason,
     required this.error,
+    this.runId,
     this.conversation,
   });
 
   /// The thread this run belonged to.
   final ThreadKey threadKey;
+
+  /// The backend run ID, if a run was in flight at the time of failure.
+  /// Null iff the failure happened before any backend run started; see
+  /// [FailedState.preRun] / [FailedState.duringRun].
+  final String? runId;
 
   /// Classification of why the run failed.
   final FailureReason reason;
@@ -153,21 +193,39 @@ class FailedState extends RunState {
   /// Conversation state at time of failure, if available.
   final Conversation? conversation;
 
+  /// Whether a backend run was in flight at the time of failure.
+  bool get startedRun => runId != null;
+
+  /// Returns [runId] when a backend run was in flight, otherwise throws
+  /// [StateError].
+  String requireRunId() {
+    final id = runId;
+    if (id == null) {
+      throw StateError(
+        'FailedState.requireRunId() called on a pre-run failure '
+        '(reason: $reason).',
+      );
+    }
+    return id;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is FailedState &&
           threadKey == other.threadKey &&
+          runId == other.runId &&
           reason == other.reason &&
           error == other.error &&
           conversation == other.conversation;
 
   @override
-  int get hashCode => Object.hash(threadKey, reason, error, conversation);
+  int get hashCode =>
+      Object.hash(threadKey, runId, reason, error, conversation);
 
   @override
   String toString() => 'FailedState(reason: $reason, error: $error, '
-      'threadKey: $threadKey)';
+      'runId: $runId, threadKey: $threadKey)';
 }
 
 /// Run yielded pending tool calls for client-side execution.
@@ -237,27 +295,71 @@ bool _listEquals<T>(List<T> a, List<T> b) {
 }
 
 /// Run was cancelled by the user.
+///
+/// Construct via [CancelledState.preRun] (cancel before any backend run
+/// started — [runId] is null) or [CancelledState.duringRun] (cancel during
+/// an in-flight run — [runId] is required). The link between [runId] and
+/// the pre/during disposition is enforced at the type level.
 @immutable
 class CancelledState extends RunState {
-  /// Creates a [CancelledState].
-  const CancelledState({required this.threadKey, this.conversation});
+  /// Constructs a [CancelledState] for a cancel that happened before any
+  /// backend run started.
+  const CancelledState.preRun({
+    required ThreadKey threadKey,
+    Conversation? conversation,
+  }) : this._(threadKey: threadKey, conversation: conversation);
+
+  /// Constructs a [CancelledState] for a cancel that happened during a
+  /// run. [runId] is required.
+  const CancelledState.duringRun({
+    required ThreadKey threadKey,
+    required String runId,
+    Conversation? conversation,
+  }) : this._(threadKey: threadKey, runId: runId, conversation: conversation);
+
+  const CancelledState._({
+    required this.threadKey,
+    this.runId,
+    this.conversation,
+  });
 
   /// The thread this run belonged to.
   final ThreadKey threadKey;
 
+  /// The backend run ID, if a run was in flight at the time of cancellation.
+  /// Null iff cancellation happened before any backend run started; see
+  /// [CancelledState.preRun] / [CancelledState.duringRun].
+  final String? runId;
+
   /// Conversation state at time of cancellation, if available.
   final Conversation? conversation;
+
+  /// Whether a backend run was in flight at the time of cancellation.
+  bool get startedRun => runId != null;
+
+  /// Returns [runId] when a backend run was in flight, otherwise throws
+  /// [StateError].
+  String requireRunId() {
+    final id = runId;
+    if (id == null) {
+      throw StateError(
+        'CancelledState.requireRunId() called on a pre-run cancel.',
+      );
+    }
+    return id;
+  }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CancelledState &&
           threadKey == other.threadKey &&
+          runId == other.runId &&
           conversation == other.conversation;
 
   @override
-  int get hashCode => Object.hash(threadKey, conversation);
+  int get hashCode => Object.hash(threadKey, runId, conversation);
 
   @override
-  String toString() => 'CancelledState(threadKey: $threadKey)';
+  String toString() => 'CancelledState(runId: $runId, threadKey: $threadKey)';
 }

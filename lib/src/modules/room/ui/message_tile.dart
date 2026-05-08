@@ -5,6 +5,7 @@ import '../execution_tracker.dart';
 import 'error_message_tile.dart';
 import 'gen_ui_tile.dart';
 import 'loading_message_tile.dart';
+import 'no_response_tile_widget.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
 import 'workdir_files_section.dart';
@@ -61,6 +62,12 @@ class MessageTile extends StatelessWidget {
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),
+        final NoResponseTile m => NoResponseTileWidget(
+            roomId: roomId,
+            message: m,
+            executionTracker: executionTracker,
+            streamingActivity: streamingActivity,
+          ),
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),
         final GenUiMessage m => GenUiTile(message: m),
@@ -70,10 +77,19 @@ class MessageTile extends StatelessWidget {
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),
-        // Phase 3 wires this up to dropped_event_message_tile.dart. Until
-        // then no production code creates a DroppedEventMessage so the arm
-        // is unreachable in practice.
-        DroppedEventMessage() => const SizedBox.shrink(),
+        // No production path currently synthesizes DroppedEventMessage.
+        // Render a visible placeholder so a regression that starts
+        // producing them is observable instead of an invisible gap.
+        DroppedEventMessage(:final reason) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            child: Text(
+              '[Dropped event: $reason]',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
+          ),
       },
     );
   }

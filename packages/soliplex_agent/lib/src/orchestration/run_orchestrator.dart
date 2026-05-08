@@ -164,7 +164,7 @@ class RunOrchestrator {
         _handleStartError(key, error, stackTrace);
         return _currentState;
       }
-      if (_disposed) return CancelledState(threadKey: key);
+      if (_disposed) return CancelledState.preRun(threadKey: key);
       return await _driveToolLoop(key, toolExecutor);
     } finally {
       _runToCompletionActive = false;
@@ -214,14 +214,45 @@ class RunOrchestrator {
   void cancelRun() {
     _guardNotDisposed();
     switch (_currentState) {
-      case RunningState(:final threadKey, :final runId, :final conversation):
+      case RunningState(
+          :final threadKey,
+          :final runId,
+          :final conversation,
+          :final streaming,
+        ):
         _cancelToken?.cancel();
         _cleanup();
-        final withCitations = _extractCitations(conversation, runId);
-        _setState(
-          CancelledState(threadKey: threadKey, conversation: withCitations),
+        // Mirror `_processRunFinished`/`_processRunError`: commit any
+        // mid-stream reply text as a finalized `TextMessage` so the user
+        // keeps what was already on screen, then synthesize a
+        // "no response" tile if buffered thinking exists. When the user
+        // hits Stop before any text or thinking buffered (early cancel),
+        // neither fires — by design; the user knows they pressed Stop.
+        final withPartial = commitPartialTextOnTerminal(
+          conversation: conversation,
+          streaming: streaming,
+          runId: runId,
+          terminalEvent: 'cancelRun',
         );
-      case ToolYieldingState(:final threadKey, :final conversation):
+        final synthesisResult = synthesizeCancelledNoResponse(
+          conversation: withPartial,
+          streaming: streaming,
+          runId: runId,
+        );
+        final withCitations =
+            _extractCitations(synthesisResult.conversation, runId);
+        _setState(
+          CancelledState.duringRun(
+            threadKey: threadKey,
+            runId: runId,
+            conversation: withCitations,
+          ),
+        );
+      case ToolYieldingState(
+          :final threadKey,
+          :final runId,
+          :final conversation,
+        ):
         // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
         // with the live cancel token. Cancel the token + cleanup so that
         // await aborts before `_subscribeToStream` fires and overwrites
@@ -229,15 +260,38 @@ class RunOrchestrator {
         _cancelToken?.cancel();
         _cleanup();
         _setState(
-          CancelledState(threadKey: threadKey, conversation: conversation),
+          CancelledState.duringRun(
+            threadKey: threadKey,
+            runId: runId,
+            conversation: conversation,
+          ),
         );
-      case _:
-        // IdleState (after `runToCompletion` started but before the first
-        // event) is not cancellable here — no cancel token is wired in
-        // for the in-flight `createRun`.
+      case IdleState():
+        // `_initializeStream` wires `_cancelToken` before awaiting
+        // `startRun`, so an Idle state with `_runToCompletionActive` and
+        // a live token is the in-flight-createRun window. Cancelling the
+        // token aborts that await; `_handleStartError` then routes to
+        // `CancelledState.preRun`. Without this, the user's Stop press
+        // during a slow createRun is silently ignored and the run
+        // continues once the response arrives.
+        if (_runToCompletionActive && _cancelToken != null) {
+          _cancelToken!.cancel();
+          return;
+        }
         _logger.warning(
-          'cancelRun ignored: no cancellable run '
-          '(state=${_currentState.runtimeType})',
+          'cancelRun ignored: idle (no run active)',
+          attributes: {'state': _currentState.runtimeType.toString()},
+        );
+        return;
+      case CompletedState(:final threadKey) ||
+            FailedState(:final threadKey) ||
+            CancelledState(:final threadKey):
+        _logger.warning(
+          'cancelRun ignored: already terminal',
+          attributes: {
+            'state': _currentState.runtimeType.toString(),
+            'threadKey': threadKey.toString(),
+          },
         );
         return;
     }
@@ -283,8 +337,9 @@ class RunOrchestrator {
     _toolDepth++;
     if (_toolDepth > _maxToolDepth) {
       _setState(
-        FailedState(
+        FailedState.duringRun(
           threadKey: yielding.threadKey,
+          runId: yielding.runId,
           reason: FailureReason.toolExecutionFailed,
           error: 'Tool depth limit exceeded ($_maxToolDepth)',
           conversation: yielding.conversation,
@@ -360,7 +415,20 @@ class RunOrchestrator {
       cancelToken: _cancelToken,
       onReconnectStatus: _activeOnReconnectStatus,
     );
-    if (_disposed) return;
+    // Dispose during the await leaves us with an unowned stream; not
+    // draining here leaks the SSE socket. Token-cancellation race
+    // (Stop pressed during the await but resolved before cancellation
+    // propagated) leaves us with an unwanted subscription that would
+    // overwrite the user's cancel intent. Both paths drain and bail
+    // before _subscribeToStream.
+    if (_disposed) {
+      _drainUnownedStream(handle.events, 'Initialize drain failed');
+      return;
+    }
+    if (_cancelToken?.isCancelled ?? false) {
+      _drainUnownedStream(handle.events, 'Initialize drain failed');
+      throw CancelledException(reason: _cancelToken?.reason);
+    }
     _subscribeToStream(
       handle.events,
       RunningState(
@@ -372,10 +440,28 @@ class RunOrchestrator {
     );
   }
 
+  /// Drains an SSE stream we no longer own (cancel/dispose during a
+  /// post-`startRun` await). Listening with no `onData` and immediately
+  /// cancelling releases the underlying socket. `onError` routes through
+  /// `Logger.error` so a future bug landing here from a non-cancel path
+  /// leaves a Sentry-grade breadcrumb instead of an unhandled future.
+  void _drainUnownedStream(Stream<BaseEvent> events, String errorMessage) {
+    unawaited(
+      events
+          .listen(
+            null,
+            onError: (Object e, StackTrace st) =>
+                _logger.error(errorMessage, error: e, stackTrace: st),
+          )
+          .cancel(),
+    );
+  }
+
   /// Drives the tool yield/resume loop for [runToCompletion].
   ///
-  /// **R4:** Every operation inside the loop is wrapped in try/catch
-  /// that returns a terminal [RunState].
+  /// Every operation inside the loop is wrapped in try/catch that returns
+  /// a terminal [RunState], so a thrown exception cannot leave the
+  /// orchestrator in a non-terminal state with the future still hanging.
   Future<RunState> _driveToolLoop(
     ThreadKey key,
     ToolExecutorCallback toolExecutor,
@@ -440,14 +526,7 @@ class RunOrchestrator {
           '(state=${_currentState.runtimeType})',
         );
       }
-      // The drain is a byproduct of cancel/dispose, not an event we
-      // want to surface — but log so a future bug landing here from a
-      // non-cancel path leaves a breadcrumb.
-      unawaited(
-        handle.events
-            .listen(null, onError: (Object e) => _logger.debug('drain: $e'))
-            .cancel(),
-      );
+      _drainUnownedStream(handle.events, 'Resume drain failed');
       return;
     }
     _subscribeToStream(
@@ -472,8 +551,11 @@ class RunOrchestrator {
     ThreadKey key,
     ToolYieldingState state,
   ) {
-    final cancelled =
-        CancelledState(threadKey: key, conversation: state.conversation);
+    final cancelled = CancelledState.duringRun(
+      threadKey: key,
+      runId: state.runId,
+      conversation: state.conversation,
+    );
     _setState(cancelled);
     return cancelled;
   }
@@ -490,8 +572,9 @@ class RunOrchestrator {
       error: error,
       stackTrace: stackTrace,
     );
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
+      runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: _messageOf(error),
       conversation: state.conversation,
@@ -511,8 +594,9 @@ class RunOrchestrator {
     StackTrace stackTrace,
   ) {
     _logger.error('Resume run failed', error: error, stackTrace: stackTrace);
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
+      runId: state.runId,
       reason: classifyError(error),
       error: _messageOf(error),
       conversation: state.conversation,
@@ -523,8 +607,9 @@ class RunOrchestrator {
 
   /// Returns a [FailedState] when the tool depth limit is exceeded.
   RunState _failDepthExceeded(ThreadKey key, ToolYieldingState state) {
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
+      runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
       error: 'Tool depth limit exceeded ($_maxToolDepth)',
       conversation: state.conversation,
@@ -535,8 +620,8 @@ class RunOrchestrator {
 
   /// Whether [state] is terminal for the SSE subscription completer.
   ///
-  /// **R1:** Exhaustive switch expression — adding a new [RunState]
-  /// variant without updating this method causes a compile error.
+  /// Exhaustive switch expression — adding a new [RunState] variant
+  /// without updating this method causes a compile error.
   bool _isTerminal(RunState state) => switch (state) {
         CompletedState() => true,
         FailedState() => true,
@@ -546,15 +631,45 @@ class RunOrchestrator {
         IdleState() => false,
       };
 
-  /// Defensively completes [_terminalCompleter] during [dispose] (R4).
+  /// Completes [_terminalCompleter] when [dispose] runs while a backend
+  /// run is in flight, so `runToCompletion`'s await of the completer
+  /// future doesn't hang.
+  ///
+  /// The early return covers two of the three reachable states:
+  ///   - `IdleState` (and pre-run paths): completer is null because
+  ///     [_subscribeToStream] hasn't run yet; `?.isCompleted ?? true`
+  ///     evaluates to true.
+  ///   - Terminal states (`Completed`/`Failed`/`Cancelled`) and
+  ///     `ToolYieldingState`: [_setState] already completed the completer
+  ///     because [_isTerminal] returns true for all four.
+  ///
+  /// That leaves only `RunningState` reachable past the early return —
+  /// the synchronous window between [_subscribeToStream]'s completer
+  /// assignment and the next event-driven transition. There is no
+  /// microtask boundary where dispose could fall on any other state with
+  /// an uncompleted completer, so the other arms throw `StateError` to
+  /// surface invariant breakage instead of fabricating data.
   void _completeTerminalOnDispose() {
     if (_terminalCompleter?.isCompleted ?? true) return;
-    final key = switch (_currentState) {
-      RunningState(:final threadKey) => threadKey,
-      ToolYieldingState(:final threadKey) => threadKey,
-      _ => const (serverId: '', roomId: '', threadId: ''),
-    };
-    _terminalCompleter!.complete(CancelledState(threadKey: key));
+    if (_currentState
+        case RunningState(
+          :final threadKey,
+          :final runId,
+          :final conversation,
+        )) {
+      _terminalCompleter!.complete(
+        CancelledState.duringRun(
+          threadKey: threadKey,
+          runId: runId,
+          conversation: conversation,
+        ),
+      );
+      return;
+    }
+    throw StateError(
+      '_completeTerminalOnDispose: unexpected state '
+      '${_currentState.runtimeType} with uncompleted terminalCompleter',
+    );
   }
 
   void _guardRunToCompletion() {
@@ -751,8 +866,9 @@ class RunOrchestrator {
       final withCitations =
           _extractCitations(result.conversation, previous.runId);
       _setState(
-        FailedState(
+        FailedState.duringRun(
           threadKey: previous.threadKey,
+          runId: previous.runId,
           reason: FailureReason.serverError,
           error: event.message,
           conversation: withCitations,
@@ -770,7 +886,11 @@ class RunOrchestrator {
 
   void _handleRunFinished(RunningState previous, Conversation conversation) {
     _receivedTerminalEvent = true;
-    _subscription = null;
+    // Leave `_subscription` set so `_subscribeToStream` cancels it on
+    // resume. Nulling here would silently leak the prior subscription on
+    // a resume, since `_subscribeToStream`'s cancel-and-replace would
+    // skip its `?.cancel()` call. `onDone` (the natural SSE close) is
+    // also handled by `_onStreamDone`, which nulls the field.
     _cancelToken = null;
     final withCitations = _extractCitations(conversation, previous.runId);
     final pendingTools = _extractPendingTools(withCitations);
@@ -845,8 +965,9 @@ class RunOrchestrator {
     final withCitations =
         _extractCitations(running.conversation, running.runId);
     _setState(
-      FailedState(
+      FailedState.duringRun(
         threadKey: running.threadKey,
+        runId: running.runId,
         reason: FailureReason.networkLost,
         error: 'Stream ended without terminal event',
         conversation: withCitations,
@@ -863,8 +984,9 @@ class RunOrchestrator {
         _extractCitations(running.conversation, running.runId);
     if (error is CancelledException || error is CancellationError) {
       _setState(
-        CancelledState(
+        CancelledState.duringRun(
           threadKey: running.threadKey,
+          runId: running.runId,
           conversation: withCitations,
         ),
       );
@@ -873,8 +995,9 @@ class RunOrchestrator {
     final reason = classifyError(error);
     _logger.error('Run failed', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(
+      FailedState.duringRun(
         threadKey: running.threadKey,
+        runId: running.runId,
         reason: reason,
         error: _messageOf(error),
         conversation: withCitations,
@@ -891,13 +1014,17 @@ class RunOrchestrator {
       // not a `FailedState(reason: internalError)`. Accepts both
       // `CancelledException` (from our `CancelToken`) and
       // `CancellationError` (Dart core / ag_ui interop).
-      _setState(CancelledState(threadKey: key));
+      _setState(CancelledState.preRun(threadKey: key));
       return;
     }
     final reason = classifyError(error);
     _logger.error('Failed to start run', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(threadKey: key, reason: reason, error: _messageOf(error)),
+      FailedState.preRun(
+        threadKey: key,
+        reason: reason,
+        error: _messageOf(error),
+      ),
     );
   }
 

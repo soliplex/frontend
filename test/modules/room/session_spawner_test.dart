@@ -101,7 +101,7 @@ void main() {
 
     test(
         'cancel during spawn suppresses transition and error, '
-        'and disposes the orphaned session', () async {
+        'and disposes the spawned session', () async {
       final spawner = SessionSpawner();
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);

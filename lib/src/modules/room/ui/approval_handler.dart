@@ -95,7 +95,7 @@ class _ApprovalHandlerState extends State<ApprovalHandler> {
 
   @override
   void dispose() {
-    // Remove the orphan dialog so it does not float over the next screen.
+    // Dismiss the dialog so it does not float over the next screen.
     // The pending request is intentionally not denied here — if the user
     // returns to the screen, re-attaching the session re-shows the dialog
     // via the signal.

@@ -30,5 +30,18 @@ void main() {
       const event = ThinkingTextMessageContentEvent(delta: 'hmm');
       expect(bridgeBaseEvent(event), const ThinkingContent(delta: 'hmm'));
     });
+
+    test('routes all four thinking-end variants to ThinkingEnded', () {
+      const events = <BaseEvent>[
+        ThinkingTextMessageEndEvent(),
+        ThinkingEndEvent(),
+        ReasoningEndEvent(messageId: 'reas-1'),
+        ReasoningMessageEndEvent(messageId: 'reas-1'),
+      ];
+
+      for (final e in events) {
+        expect(bridgeBaseEvent(e), const ThinkingEnded(), reason: '$e');
+      }
+    });
   });
 }

@@ -60,9 +60,9 @@ void main() {
       expect(groups[0].status, HttpEventStatus.streamComplete);
     });
 
-    test('handles orphan response without matching request', () {
+    test('handles response with no matching request', () {
       final events = [
-        createResponseEvent(requestId: 'orphan', statusCode: 200),
+        createResponseEvent(requestId: 'unmatched', statusCode: 200),
       ];
       final groups = groupHttpEvents(events);
       expect(groups, hasLength(1));

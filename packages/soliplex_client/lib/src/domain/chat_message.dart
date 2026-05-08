@@ -44,9 +44,8 @@ sealed class ChatMessage {
 
 /// Reason a run reached a terminal state without producing assistant text.
 ///
-/// Set on a `TextMessage` (with empty `text`) synthesized when a run finishes
-/// with buffered thinking but no `TextMessageStart`/`Content`/`End` for an
-/// assistant reply.
+/// Carried by [NoResponseTile] when a run ends without a
+/// `TextMessageStart`/`Content`/`End` for an assistant reply.
 enum TerminalReason {
   /// Run completed normally (`RunFinishedEvent`).
   finished,
@@ -69,7 +68,6 @@ class TextMessage extends ChatMessage {
     required this.text,
     this.isStreaming = false,
     this.thinkingText = '',
-    this.terminalReason,
   });
 
   /// Creates a text message with the given ID and auto-generated timestamp.
@@ -79,7 +77,6 @@ class TextMessage extends ChatMessage {
     required String text,
     bool isStreaming = false,
     String thinkingText = '',
-    TerminalReason? terminalReason,
   }) {
     return TextMessage(
       id: id,
@@ -87,7 +84,6 @@ class TextMessage extends ChatMessage {
       text: text,
       isStreaming: isStreaming,
       thinkingText: thinkingText,
-      terminalReason: terminalReason,
       createdAt: DateTime.now(),
     );
   }
@@ -101,12 +97,6 @@ class TextMessage extends ChatMessage {
   /// The thinking/reasoning text if available.
   final String thinkingText;
 
-  /// Non-null when this message was synthesized for a run that terminated
-  /// without an assistant reply. Carries enough state for the tile to
-  /// render the appropriate "Run finished/failed/cancelled without a
-  /// response" copy.
-  final TerminalReason? terminalReason;
-
   /// Whether this message has thinking text.
   bool get hasThinkingText => thinkingText.isNotEmpty;
 
@@ -118,7 +108,6 @@ class TextMessage extends ChatMessage {
     String? text,
     bool? isStreaming,
     String? thinkingText,
-    TerminalReason? terminalReason,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -127,12 +116,93 @@ class TextMessage extends ChatMessage {
       text: text ?? this.text,
       isStreaming: isStreaming ?? this.isStreaming,
       thinkingText: thinkingText ?? this.thinkingText,
-      terminalReason: terminalReason ?? this.terminalReason,
     );
   }
 
   @override
   String toString() => 'TextMessage(id: $id, user: $user)';
+}
+
+/// Synthesized assistant tile shown when a run reached a terminal state
+/// without producing a `TextMessageStart`/`Content`/`End` reply.
+///
+/// Carries the run's buffered thinking (if any) and the [reason] the run
+/// ended so the UI can render the appropriate muted "Run
+/// finished/failed/cancelled without a response" tile. Frontend-only —
+/// never sent over the wire (filtered in `agui_message_mapper.dart`).
+///
+/// Construct via the named factories ([NoResponseTile.failed],
+/// [NoResponseTile.cancelled], [NoResponseTile.finished]); the link between
+/// `reason` and `errorDetail` is enforced at the type level.
+@immutable
+class NoResponseTile extends ChatMessage {
+  /// Run failed (`RunErrorEvent`). [errorDetail] is the backend message so
+  /// the tile renders "Run failed: <detail>" rather than the generic copy.
+  factory NoResponseTile.failed({
+    required String id,
+    required String thinkingText,
+    required String errorDetail,
+    DateTime? createdAt,
+  }) =>
+      NoResponseTile._(
+        id: id,
+        createdAt: createdAt ?? DateTime.now(),
+        thinkingText: thinkingText,
+        reason: TerminalReason.failed,
+        errorDetail: errorDetail,
+      );
+
+  /// Run was cancelled (`cancelRun`).
+  factory NoResponseTile.cancelled({
+    required String id,
+    required String thinkingText,
+    DateTime? createdAt,
+  }) =>
+      NoResponseTile._(
+        id: id,
+        createdAt: createdAt ?? DateTime.now(),
+        thinkingText: thinkingText,
+        reason: TerminalReason.cancelled,
+        errorDetail: null,
+      );
+
+  /// Run completed normally (`RunFinishedEvent`).
+  factory NoResponseTile.finished({
+    required String id,
+    required String thinkingText,
+    DateTime? createdAt,
+  }) =>
+      NoResponseTile._(
+        id: id,
+        createdAt: createdAt ?? DateTime.now(),
+        thinkingText: thinkingText,
+        reason: TerminalReason.finished,
+        errorDetail: null,
+      );
+
+  const NoResponseTile._({
+    required super.id,
+    required super.createdAt,
+    required this.thinkingText,
+    required this.reason,
+    required this.errorDetail,
+  }) : super(user: ChatUser.assistant);
+
+  /// Buffered thinking captured before the run terminated. May be empty.
+  final String thinkingText;
+
+  /// The terminal disposition of the run.
+  final TerminalReason reason;
+
+  /// Backend error message for `TerminalReason.failed`. Always null for
+  /// `finished` and `cancelled` — the named factories enforce this.
+  final String? errorDetail;
+
+  /// Whether this tile has thinking text to display.
+  bool get hasThinkingText => thinkingText.isNotEmpty;
+
+  @override
+  String toString() => 'NoResponseTile(id: $id, reason: $reason)';
 }
 
 /// An error message.

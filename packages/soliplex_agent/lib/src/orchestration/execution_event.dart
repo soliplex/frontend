@@ -57,6 +57,19 @@ class ThinkingContent extends ExecutionEvent {
   int get hashCode => delta.hashCode;
 }
 
+/// The thinking/reasoning phase has ended. Trackers clear the spinner
+/// without completing or modifying the active step.
+class ThinkingEnded extends ExecutionEvent {
+  const ThinkingEnded();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is ThinkingEnded;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+}
+
 /// A server-side tool call has started (observed, not executed locally).
 class ServerToolCallStarted extends ExecutionEvent {
   const ServerToolCallStarted({

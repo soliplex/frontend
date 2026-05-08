@@ -230,7 +230,7 @@ void main() {
     expect(registry.activeSession(_key), same(session2));
   });
 
-  test('orphan guard works for any superseded run, not only the first',
+  test('supersession guard works for any superseded run, not only the first',
       () async {
     final session1 = ManualAgentSession(_key);
     final session2 = ManualAgentSession(_key);
@@ -240,7 +240,7 @@ void main() {
     registry.register(_key, session2);
     registry.register(_key, session3);
 
-    // Terminate the middle session: it's orphaned (replaced by session3)
+    // Terminate the middle session: it's superseded by session3
     // and the guard must protect session3's slot.
     session2.completeAsCancelled();
     await Future<void>.delayed(Duration.zero);

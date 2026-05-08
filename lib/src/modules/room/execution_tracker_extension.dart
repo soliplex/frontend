@@ -15,7 +15,8 @@ import 'tracker_registry.dart';
 /// registry on detach, so execution data persists after the session ends.
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
-  ExecutionTrackerExtension() : _registry = TrackerRegistry() {
+  ExecutionTrackerExtension({required Logger logger})
+      : _registry = TrackerRegistry(logger: logger) {
     setInitialState(const <String, ExecutionTracker>{});
   }
 
@@ -58,11 +59,44 @@ class ExecutionTrackerExtension extends SessionExtension
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);
         _sync();
-      case CompletedState() || FailedState() || CancelledState():
+      // Order is load-bearing across the three terminal arms: rekey must
+      // run before `onRunTerminated`, because rekey moves the awaiting
+      // tracker to its synthesized id while the entry is still present;
+      // a future change that drops the awaiting entry on terminate would
+      // silently break the rekey if invoked first.
+      case CompletedState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
+        _registry.onRunTerminated();
+        _sync();
+      case FailedState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
+        _registry.onRunTerminated();
+        _sync();
+      case CancelledState(:final runId, :final conversation):
+        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
         _registry.onRunTerminated();
         _sync();
       case IdleState() || ToolYieldingState():
         break;
+    }
+  }
+
+  /// If the terminal conversation contains a synthesized "no response"
+  /// assistant message for this run, rekey the awaiting tracker under
+  /// that message's id so its captured thinking attaches to the rendered
+  /// tile.
+  ///
+  /// Safe to call unconditionally on every terminal transition — the
+  /// registry call is a no-op when the awaiting tracker doesn't exist or
+  /// when the synthesized id isn't present in the conversation.
+  void _rekeyAwaitingForNoResponseIfPresent(
+    String? runId,
+    Conversation? conversation,
+  ) {
+    if (runId == null || conversation == null) return;
+    final synthesizedId = noResponseMessageId(runId);
+    if (conversation.messages.any((m) => m.id == synthesizedId)) {
+      _registry.renameAwaitingTo(synthesizedId);
     }
   }
 

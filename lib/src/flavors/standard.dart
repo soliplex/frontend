@@ -138,7 +138,10 @@ Future<ShellConfig> standard({
     toolRegistryResolver: (_) async => const ToolRegistry(),
     logger: LogManager.instance.getLogger('room'),
     extensionFactory: () async => [
-      ExecutionTrackerExtension(),
+      ExecutionTrackerExtension(
+        logger: LogManager.instance
+            .getLogger('soliplex_frontend.execution_tracker'),
+      ),
       ToolCallsExtension(),
       HumanApprovalExtension(),
     ],

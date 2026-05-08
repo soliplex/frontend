@@ -8,8 +8,8 @@ import 'upload_tracker.dart';
 ///
 /// Trackers must outlive the widgets that mount them — an upload
 /// started on the room-info screen may complete *after* the user taps
-/// back, which would orphan a per-screen tracker. This registry is
-/// constructed once in `room_module.dart` (alongside
+/// back, leaving a per-screen tracker without an owning widget. This
+/// registry is constructed once in `room_module.dart` (alongside
 /// `AgentRuntimeManager` and `RunRegistry`) and threaded into
 /// `RoomScreen` and `RoomInfoScreen` so both read from the same
 /// underlying tracker instance.
