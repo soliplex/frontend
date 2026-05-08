@@ -95,7 +95,11 @@ class ExecutionTracker {
       // here would propagate up through the signals subscription that
       // pushed the event, destabilising any downstream observers. Log
       // and skip the mutation instead — surrounding events keep flowing.
-      _logger.warning(
+      // The drop is deliberately UI-silent: chat-message boundaries mint
+      // the drop tile; double-minting from this projection would surface
+      // the same backend event as two tiles. Logged at error so Sentry
+      // still sees the schema/code drift.
+      _logger.error(
         'ExecutionTracker dropped ${event.runtimeType}',
         error: e,
         stackTrace: st,

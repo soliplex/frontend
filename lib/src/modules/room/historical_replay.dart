@@ -29,8 +29,11 @@ final Logger _logger =
 ///   [noResponseMessageId] for the run so the synthesized no-response
 ///   tile has a tracker to attach to.
 ///
-/// A throw from [bridge] is logged and the offending event skipped so
-/// surrounding events in the same bundle still bucket correctly.
+/// A throw from [bridge] is logged at error and the offending event
+/// skipped so surrounding events in the same bundle still bucket
+/// correctly. The drop is deliberately UI-silent: chat-message
+/// boundaries mint the drop tile; double-minting from this tracker
+/// projection would surface the same backend event as two tiles.
 /// [bridge] defaults to [bridgeBaseEvent] and is overridable for tests.
 Map<String, ExecutionTracker> replayToTrackers(
   List<RunEventBundle> runs, {
@@ -45,7 +48,7 @@ Map<String, ExecutionTracker> replayToTrackers(
     try {
       return bridge(raw);
     } on Object catch (e, st) {
-      _logger.warning(
+      _logger.error(
         'bridge threw on ${raw.runtimeType}; event skipped',
         error: e,
         stackTrace: st,

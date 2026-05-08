@@ -26,6 +26,9 @@ import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/multipart_encoder.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex_client.api');
 
 /// API client for Soliplex backend CRUD operations.
 ///
@@ -764,25 +767,37 @@ class SoliplexApi {
       final decodedEvents = <BaseEvent>[];
       for (var i = 0; i < events.length; i++) {
         final eventJson = events[i];
+        void appendDrop({
+          required DropSource source,
+          required Object error,
+          required StackTrace stackTrace,
+          required String stage,
+        }) {
+          _logger.error(
+            'replay: $stage failed at events[$i] '
+            '(type=${eventJson['type']}) in run $runId of thread $threadId.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          conversation = conversation.withAppendedMessage(
+            DroppedEventMessage.create(
+              id: 'dropped-$runId-$i',
+              source: source,
+              reason: error.toString(),
+              runId: runId,
+              rawPayload: eventJson,
+            ),
+          );
+        }
+
         final outcome = decodeMapSafely(eventJson);
         switch (outcome) {
           case DecodeFailed(:final error, :final stackTrace):
-            developer.log(
-              'replay: decode failed at events[$i] '
-              '(type=${eventJson['type']}) in run $runId of thread $threadId.',
-              name: 'soliplex_client.replay',
-              level: 900,
+            appendDrop(
+              source: DropSource.decode,
               error: error,
-              stackTrace: stackTrace,
-            );
-            conversation = conversation.withAppendedMessage(
-              DroppedEventMessage.create(
-                id: 'dropped-$runId-$i',
-                source: DropSource.decode,
-                reason: error.toString(),
-                runId: runId,
-                rawPayload: eventJson,
-              ),
+              stackTrace: stackTrace ?? StackTrace.current,
+              stage: 'decode',
             );
           case DecodedEvent(:final event):
             decodedEvents.add(event);
@@ -791,23 +806,11 @@ class SoliplexApi {
               conversation = result.conversation;
               streaming = result.streaming;
             } on Object catch (error, stackTrace) {
-              developer.log(
-                'replay: processEvent threw on events[$i] '
-                '(type=${eventJson['type']}) in run $runId of '
-                'thread $threadId.',
-                name: 'soliplex_client.replay',
-                level: 900,
+              appendDrop(
+                source: DropSource.eventProcessing,
                 error: error,
                 stackTrace: stackTrace,
-              );
-              conversation = conversation.withAppendedMessage(
-                DroppedEventMessage.create(
-                  id: 'dropped-$runId-$i',
-                  source: DropSource.eventProcessing,
-                  reason: error.toString(),
-                  runId: runId,
-                  rawPayload: eventJson,
-                ),
+                stage: 'processEvent',
               );
             }
         }

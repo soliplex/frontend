@@ -42,7 +42,7 @@ abstract interface class AgentLlmProvider {
   /// event stream.
   ///
   /// The provider handles run creation internally. The returned
-  /// `LlmRunHandle.events` stream yields `BaseEvent`s that
+  /// `LlmRunHandle.events` stream yields `DecodeOutcome`s that
   /// `RunOrchestrator` processes via the existing event pipeline.
   ///
   /// [onReconnectStatus] receives SSE reconnect lifecycle updates from

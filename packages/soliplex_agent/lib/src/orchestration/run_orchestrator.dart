@@ -103,6 +103,18 @@ class RunOrchestrator {
   /// Index for the next event observed on the active subscription. Reset
   /// in [_subscribeToStream] so each run mints monotonically increasing
   /// drop-tile ids that pair with that run's id.
+  ///
+  /// Cross-path id alignment assumes one [DecodeOutcome] per backend-stored
+  /// `events[i]`. The replay path
+  /// (`SoliplexApi._replayEventsToHistory`) increments its loop index
+  /// once per stored event; this counter increments once per outcome.
+  /// They produce identical drop-tile ids when those two cardinalities
+  /// match — i.e., the AG-UI backend must store one event per
+  /// outcome the live decoder produces. If a future change makes
+  /// `AgUiStreamClient._decodeOne` emit multiple outcomes per stored
+  /// event (e.g., persisting batched SSE frames verbatim), reload-time
+  /// drop ids will diverge from the live ids and the conversation
+  /// will not round-trip.
   int _liveEventCounter = 0;
 
   // runToCompletion infrastructure
@@ -1008,13 +1020,19 @@ class RunOrchestrator {
   /// `CitationExtractor.extractNew` calls into generated schema types
   /// (`RagSnapshot.resolveCitation`, `SourceReference`'s ctor on
   /// non-null fields the wire might omit) — schema drift can surface
-  /// here as a runtime throw. The catch returns the conversation
-  /// unchanged so the run still completes, mirroring the existing
-  /// catch-and-log pattern around `RagSnapshot.fromJson` one layer
-  /// down. The throw bypasses the [_preRunAguiState] update so the
-  /// next run's diff still resolves against the prior baseline; only
-  /// this segment's citations are skipped. No drop tile — citations
-  /// are a derived projection, not user-facing content.
+  /// here as `FormatException`, `TypeError` (null on non-null), or
+  /// other generated-type throws. Catching `Object` is deliberate:
+  /// citations are a derived projection, so fail-soft (skip
+  /// citations, complete the run) is the right UX for both
+  /// data-drift and programming bugs — propagating instead would
+  /// abort a working run with no user benefit. Logged at `error`
+  /// with stack trace so Sentry / `BackendLogSink` still surface
+  /// real bugs. Mirrors the existing catch-and-log pattern around
+  /// `RagSnapshot.fromJson` one layer down. The throw bypasses the
+  /// [_preRunAguiState] update at the next line so the next run's
+  /// diff still resolves against the prior baseline; only this
+  /// segment's citations are skipped. No drop tile — citations are
+  /// a derived projection, not user-facing content.
   Conversation _extractCitations(Conversation conversation, String runId) {
     try {
       final userMessageId = _userMessageId;
@@ -1045,7 +1063,7 @@ class RunOrchestrator {
       );
       return conversation.withMessageState(userMessageId, messageState);
     } on Object catch (e, st) {
-      _logger.warning(
+      _logger.error(
         'Citation extraction failed for run $runId',
         error: e,
         stackTrace: st,
