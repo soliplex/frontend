@@ -31,6 +31,16 @@ void main() {
     expect(tracker.isThinkingStreaming.value, isTrue);
   });
 
+  test('ThinkingEnded without preceding ThinkingStarted is a no-op', () {
+    // Out-of-order replay: a ThinkingEnded that arrives without a
+    // matching ThinkingStarted (e.g., reasoning message bridged with no
+    // start) must clear the streaming flag without inventing a step.
+    events.value = const ThinkingEnded();
+
+    expect(tracker.steps.value, isEmpty);
+    expect(tracker.isThinkingStreaming.value, isFalse);
+  });
+
   test('ThinkingContent accumulates in current thinking block', () {
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'Hello ');

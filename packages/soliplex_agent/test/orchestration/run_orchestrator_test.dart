@@ -374,6 +374,59 @@ void main() {
       expect(orchestrator.currentState, isA<IdleState>());
     });
 
+    test('cancelRun on Completed state is a no-op', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<CompletedState>());
+
+      orchestrator.cancelRun();
+
+      // Already-terminal state must not flip back to Cancelled.
+      expect(orchestrator.currentState, isA<CompletedState>());
+    });
+
+    test('cancelRun on Failed state is a no-op', () async {
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const RunErrorEvent(message: 'backend error'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<FailedState>());
+
+      orchestrator.cancelRun();
+
+      // Already-terminal state must not flip from Failed to Cancelled.
+      expect(orchestrator.currentState, isA<FailedState>());
+    });
+
+    test('cancelRun on Cancelled state is a no-op', () async {
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      controller.add(
+        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      orchestrator.cancelRun();
+      expect(orchestrator.currentState, isA<CancelledState>());
+
+      orchestrator.cancelRun();
+      expect(orchestrator.currentState, isA<CancelledState>());
+
+      await controller.close();
+    });
+
     test(
         'cancelRun on Running with buffered thinking and no reply '
         'synthesizes a no-response TextMessage with reason: cancelled',

@@ -223,6 +223,45 @@ void main() {
       });
 
       test(
+          'duplicate RunFinishedEvent on Completed conversation does NOT '
+          'synthesize a second tile or alter status', () {
+        // Out-of-order or duplicate terminal events from the backend must
+        // not double-append a no-response tile.
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(completedConversation, streaming, event);
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(result.conversation.messages, isEmpty);
+      });
+
+      test(
+          'RunFinishedEvent followed by RunErrorEvent preserves the first '
+          'terminal status (Completed wins)', () {
+        // A late RunErrorEvent arriving after RunFinished must not flip
+        // the conversation back to Failed and must not append a tile.
+        final runningConversation = conversation.withStatus(
+          const Running(runId: 'run-1'),
+        );
+        const finished = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+        const errored = RunErrorEvent(message: 'late error');
+
+        final afterFinished =
+            processEvent(runningConversation, streaming, finished);
+        final afterErrored = processEvent(
+          afterFinished.conversation,
+          afterFinished.streaming,
+          errored,
+        );
+
+        expect(afterErrored.conversation.status, isA<Completed>());
+        expect(afterErrored.conversation.messages, isEmpty);
+      });
+
+      test(
           'RunErrorEvent with unresolved tool call surfaces the '
           'failure as an ErrorMessage', () {
         // Tool-call synthesis declines (the tool call IS the response);

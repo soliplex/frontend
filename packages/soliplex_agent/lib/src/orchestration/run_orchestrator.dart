@@ -257,10 +257,11 @@ class RunOrchestrator {
             conversation: conversation,
           ),
         );
-      case _:
+      case IdleState() || CompletedState() || FailedState() || CancelledState():
         // IdleState (after `runToCompletion` started but before the first
         // event) is not cancellable here — no cancel token is wired in
-        // for the in-flight `createRun`.
+        // for the in-flight `createRun`. Already-terminal states are
+        // no-ops by design.
         _logger.warning(
           'cancelRun ignored: no cancellable run '
           '(state=${_currentState.runtimeType})',
