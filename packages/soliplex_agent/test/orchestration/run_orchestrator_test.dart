@@ -342,6 +342,92 @@ void main() {
         );
       },
     );
+
+    test(
+        'RunErrorEvent with buffered thinking surfaces NoResponseTile in '
+        'FailedState.conversation', () async {
+      // Locks the cross-layer contract: processEvent appends the
+      // synthesized tile, _mapEventResult must thread it through into
+      // the terminal state's conversation.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const ThinkingStartEvent(),
+          const ThinkingTextMessageStartEvent(),
+          const ThinkingTextMessageContentEvent(delta: 'partial reasoning'),
+          const ThinkingTextMessageEndEvent(),
+          const RunErrorEvent(message: 'boom'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final synthesized = failed.conversation!.messages.last as NoResponseTile;
+      expect(synthesized.id, equals('no-response-$_runId'));
+      expect(synthesized.reason, equals(TerminalReason.failed));
+      expect(synthesized.errorDetail, equals('boom'));
+      expect(synthesized.thinkingText, equals('partial reasoning'));
+    });
+
+    test(
+        'RunErrorEvent with empty thinking surfaces ErrorMessage in '
+        'FailedState.conversation', () async {
+      // Same cross-layer contract test for the empty-thinking fallback
+      // branch. Without this, a regression that drops result.conversation
+      // in _mapEventResult would not be caught.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const RunErrorEvent(message: 'rate limited'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final surfaced = failed.conversation!.messages.last as ErrorMessage;
+      expect(surfaced.id, equals('run-error-$_runId'));
+      expect(surfaced.errorText, equals('rate limited'));
+    });
+
+    test(
+        'RunErrorEvent mid-text-stream commits the partial reply text and '
+        'appends ErrorMessage', () async {
+      // Without this commit the half-streamed reply the user was already
+      // reading vanishes when streaming resets to AwaitingText.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'partial'),
+          const RunErrorEvent(message: 'connection lost'),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<FailedState>());
+      final failed = orchestrator.currentState as FailedState;
+      final messages = failed.conversation!.messages;
+      // Partial text committed as a TextMessage (not vanished).
+      final committed =
+          messages.firstWhere((m) => m.id == 'msg-1') as TextMessage;
+      expect(committed.text, equals('partial'));
+      expect(committed.user, equals(ChatUser.assistant));
+      // ErrorMessage surfaces the failure alongside the partial reply.
+      final surfaced = messages.firstWhere((m) => m.id == 'run-error-$_runId')
+          as ErrorMessage;
+      expect(surfaced.errorText, equals('connection lost'));
+    });
   });
 
   group('cancel', () {

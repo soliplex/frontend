@@ -4,13 +4,15 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
+import '../../helpers/test_logger.dart';
+
 void main() {
   late Signal<ExecutionEvent?> events;
   late TrackerRegistry registry;
 
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
-    registry = TrackerRegistry();
+    registry = TrackerRegistry(logger: testLogger());
   });
 
   tearDown(() => registry.dispose());
@@ -165,8 +167,10 @@ void main() {
   group('seedHistorical', () {
     test('adds frozen trackers under their message ids', () {
       final historical = {
-        'asst-1': ExecutionTracker.historical(events: const []),
-        'asst-2': ExecutionTracker.historical(events: const []),
+        'asst-1':
+            ExecutionTracker.historical(events: const [], logger: testLogger()),
+        'asst-2':
+            ExecutionTracker.historical(events: const [], logger: testLogger()),
       };
 
       registry.seedHistorical(historical);
@@ -187,7 +191,8 @@ void main() {
       final live = registry.trackers['asst-1'];
 
       final historical = {
-        'asst-1': ExecutionTracker.historical(events: const []),
+        'asst-1':
+            ExecutionTracker.historical(events: const [], logger: testLogger()),
       };
       registry.seedHistorical(historical);
 

@@ -7,7 +7,13 @@ import 'package:soliplex_client/src/domain/conversation.dart';
 /// through this helper so they agree for the same run.
 String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
 
+/// Single source of truth for ids of `ErrorMessage`s synthesized when
+/// `_processRunError` falls back from `NoResponseTile` synthesis (no
+/// buffered thinking or unresolved tool calls).
+String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
+
 const _noResponseIdPrefix = 'no-response-';
+const _runErrorIdPrefix = 'run-error-';
 
 /// Appends a synthesized [NoResponseTile] to [conversation] when a run has
 /// reached a terminal state with buffered thinking but no assistant
@@ -16,8 +22,8 @@ const _noResponseIdPrefix = 'no-response-';
 /// Returns [conversation] unchanged when:
 /// - [streaming] is not [AwaitingText] (a reply was in progress).
 /// - The buffered thinking text is empty (no model output to preserve).
-/// - The conversation has any tool call with status `pending` or
-///   `streaming` (the run is yielding to client tools — the tool call
+/// - The conversation has any tool call with status `pending`, `streaming`,
+///   or `executing` (the run is yielding to client tools — the tool call
 ///   IS the response, not a missing one).
 ///
 /// Otherwise appends a [NoResponseTile] carrying [reason] and the buffered
@@ -48,7 +54,8 @@ Conversation synthesizeNoResponseIfNeeded({
 bool _hasUnresolvedToolCalls(Conversation conversation) {
   for (final tc in conversation.toolCalls) {
     if (tc.status == ToolCallStatus.pending ||
-        tc.status == ToolCallStatus.streaming) {
+        tc.status == ToolCallStatus.streaming ||
+        tc.status == ToolCallStatus.executing) {
       return true;
     }
   }

@@ -1,5 +1,4 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'execution_step.dart';
 import 'ui/execution/timeline_entry.dart';
@@ -7,10 +6,8 @@ import 'ui/execution/timeline_entry.dart';
 class ExecutionTracker {
   ExecutionTracker({
     required ReadonlySignal<ExecutionEvent?> executionEvents,
-    Logger? logger,
-  }) : _logger = logger ??
-            LogManager.instance
-                .getLogger('soliplex_frontend.execution_tracker') {
+    required Logger logger,
+  }) : _logger = logger {
     _stopwatch.start();
     _unsub = executionEvents.subscribe(_onEvent);
   }
@@ -22,9 +19,10 @@ class ExecutionTracker {
   /// The tracker opens no subscription; callers should not pass the
   /// returned instance to any signal. It is immutable from construction
   /// ([isFrozen] returns `true`).
-  ExecutionTracker.historical({required List<ExecutionEvent> events})
-      : _logger = LogManager.instance
-            .getLogger('soliplex_frontend.execution_tracker') {
+  ExecutionTracker.historical({
+    required List<ExecutionEvent> events,
+    required Logger logger,
+  }) : _logger = logger {
     _stopwatch.start();
     for (final event in events) {
       _onEvent(event);
@@ -70,7 +68,9 @@ class ExecutionTracker {
   /// Marks the tracker terminal: clears the spinner, completes any
   /// still-active steps, and releases the subscription. `_completeAllSteps`
   /// asserts non-frozen, so it must run before `_isFrozen = true`.
+  /// Idempotent — a second call is a no-op.
   void freeze() {
+    if (_isFrozen) return;
     _isThinkingStreaming.value = false;
     _completeAllSteps(StepStatus.completed);
     _unsub?.call();

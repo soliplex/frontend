@@ -565,6 +565,42 @@ StreamingState _withToolCallActivity(
   };
 }
 
+/// Commits an in-flight `TextStreaming` reply as a finalized `TextMessage`
+/// when a `RunErrorEvent` arrives mid-stream. Without this, the partial
+/// reply the user was already watching vanishes when streaming is reset
+/// to `AwaitingText`. No-op for `AwaitingText` or when the message id is
+/// already in the conversation (idempotency, mirroring `_processTextEnd`).
+Conversation _commitPartialTextOnError({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  required String errorMessage,
+}) {
+  if (streaming is! TextStreaming) return conversation;
+  final messageId = streaming.messageId;
+  if (conversation.messages.any((m) => m.id == messageId)) {
+    return conversation;
+  }
+  _logger.info(
+    'RunErrorEvent: committing partial reply text before failing run',
+    attributes: {
+      'runId': runId,
+      'messageId': messageId,
+      'committedTextChars': streaming.text.length,
+      'committedThinkingChars': streaming.thinkingText.length,
+      'errorMessage': errorMessage,
+    },
+  );
+  return conversation.withAppendedMessage(
+    TextMessage.create(
+      id: messageId,
+      user: streaming.user,
+      text: streaming.text,
+      thinkingText: streaming.thinkingText,
+    ),
+  );
+}
+
 /// Handles `RunErrorEvent` with a runId-aware no-response synthesis path.
 ///
 /// The synthesis helper needs a runId to mint a stable message id. The
@@ -574,26 +610,67 @@ StreamingState _withToolCallActivity(
 /// `Completed` / `Failed` / `Cancelled` (post-terminal duplicate or
 /// out-of-order event) — synthesis is impossible without a runId, and the
 /// existing terminal status must not be overwritten.
+///
+/// When `streaming` is `TextStreaming` (a reply was streaming when the
+/// error fired), the partial text is committed as a `TextMessage` before
+/// the conversation flips to `Failed` so the user keeps the half-rendered
+/// reply they were already reading.
 EventProcessingResult _processRunError(
   Conversation conversation,
   StreamingState streaming,
   String message,
 ) {
   if (conversation.status case Running(:final runId)) {
-    final synthesized = synthesizeNoResponseIfNeeded(
+    // Commit any in-flight reply text first so the user keeps what was
+    // already streaming. Without this the partial reply vanishes.
+    final withPartial = _commitPartialTextOnError(
       conversation: conversation,
+      streaming: streaming,
+      runId: runId,
+      errorMessage: message,
+    );
+    final synthesized = synthesizeNoResponseIfNeeded(
+      conversation: withPartial,
       streaming: streaming,
       runId: runId,
       reason: TerminalReason.failed,
       terminalErrorDetail: message,
     );
-    // Synthesis declines when there's no buffered thinking to preserve
-    // or a tool call is unresolved. Either way the run still failed; fall
-    // back to ErrorMessage so the user has a visible signal (status alone
-    // doesn't render in the messages list).
-    final surfaced = identical(synthesized, conversation)
-        ? conversation.withAppendedMessage(
-            ErrorMessage.create(id: 'run-error-$runId', message: message),
+    // Synthesis declines when there's no buffered thinking to preserve,
+    // a tool call is unresolved, or a reply was already streaming (the
+    // partial text we just committed IS the visible thread state). The
+    // run still failed; surface an ErrorMessage so the user has a
+    // visible failure signal — status alone doesn't render in the
+    // messages list.
+    final declined = identical(synthesized, withPartial);
+    if (declined) {
+      _logger.info(
+        'RunErrorEvent: NoResponseTile synthesis declined; falling back '
+        'to ErrorMessage',
+        attributes: {
+          'runId': runId,
+          'streaming': streaming.runtimeType.toString(),
+          'message': message,
+          'bufferedThinkingChars': streaming is AwaitingText
+              ? streaming.bufferedThinkingText.length
+              : 0,
+          'unresolvedToolCallCount': conversation.toolCalls
+              .where(
+                (tc) =>
+                    tc.status == ToolCallStatus.pending ||
+                    tc.status == ToolCallStatus.streaming ||
+                    tc.status == ToolCallStatus.executing,
+              )
+              .length,
+        },
+      );
+    }
+    final surfaced = declined
+        ? withPartial.withAppendedMessage(
+            ErrorMessage.create(
+              id: runErrorMessageId(runId),
+              message: message,
+            ),
           )
         : synthesized;
     return EventProcessingResult(

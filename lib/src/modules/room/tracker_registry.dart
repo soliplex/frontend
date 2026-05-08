@@ -1,5 +1,4 @@
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'execution_tracker.dart';
 
@@ -12,9 +11,7 @@ const awaitingTrackerKey = '_awaiting';
 /// re-keying when a message ID becomes available, and freezing when
 /// a run terminates.
 class TrackerRegistry {
-  TrackerRegistry({Logger? logger})
-      : _logger = logger ??
-            LogManager.instance.getLogger('soliplex_frontend.tracker_registry');
+  TrackerRegistry({required Logger logger}) : _logger = logger;
 
   final Map<String, ExecutionTracker> _trackers = {};
   String? _activeId;
@@ -40,7 +37,8 @@ class TrackerRegistry {
           }
         } else {
           _freezeActive();
-          _trackers[messageId] = ExecutionTracker(executionEvents: events);
+          _trackers[messageId] =
+              ExecutionTracker(executionEvents: events, logger: _logger);
         }
         _activeId = messageId;
       case AwaitingText():
@@ -48,6 +46,7 @@ class TrackerRegistry {
         _activeId = awaitingTrackerKey;
         _trackers[awaitingTrackerKey] = ExecutionTracker(
           executionEvents: events,
+          logger: _logger,
         );
     }
   }

@@ -1471,6 +1471,84 @@ void main() {
         expect(history.messages, isEmpty);
       });
 
+      test(
+          'no-response run synthesizes a NoResponseTile in '
+          'ThreadHistory.messages', () async {
+        // Replay drives the same processEvent machinery as the live
+        // path, so a run with buffered thinking but no assistant
+        // TextMessageStart must produce a synthesized NoResponseTile in
+        // history.messages — matching the no-response tracker keyed
+        // under the same id by replayToTrackers.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': [
+              {
+                'type': 'RUN_STARTED',
+                'threadId': 'thread-456',
+                'runId': 'run-1',
+              },
+              {'type': 'THINKING_TEXT_MESSAGE_START'},
+              {
+                'type': 'THINKING_TEXT_MESSAGE_CONTENT',
+                'delta': 'reasoning preserved',
+              },
+              {'type': 'THINKING_TEXT_MESSAGE_END'},
+              {
+                'type': 'RUN_FINISHED',
+                'threadId': 'thread-456',
+                'runId': 'run-1',
+              },
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        final synthesized = history.messages.singleWhere(
+          (m) => m.id == 'no-response-run-1',
+        ) as NoResponseTile;
+        expect(synthesized.reason, equals(TerminalReason.finished));
+        expect(synthesized.thinkingText, equals('reasoning preserved'));
+      });
+
       test('handles null runs gracefully', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(

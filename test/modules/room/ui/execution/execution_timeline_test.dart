@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../helpers/test_logger.dart';
+
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -20,7 +22,7 @@ void main() {
 
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
-    tracker = ExecutionTracker(executionEvents: events);
+    tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
     store = MessageExpansions();
   });
 
@@ -274,12 +276,14 @@ void main() {
       events.value = const ThinkingStarted();
 
       final events2 = Signal<ExecutionEvent?>(null);
-      final tracker2 = ExecutionTracker(executionEvents: events2);
+      final tracker2 =
+          ExecutionTracker(executionEvents: events2, logger: testLogger());
       addTearDown(tracker2.dispose);
       events2.value = const ThinkingStarted();
 
       final events3 = Signal<ExecutionEvent?>(null);
-      final tracker3 = ExecutionTracker(executionEvents: events3);
+      final tracker3 =
+          ExecutionTracker(executionEvents: events3, logger: testLogger());
       addTearDown(tracker3.dispose);
       events3.value = const ThinkingStarted();
 

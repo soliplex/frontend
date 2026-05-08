@@ -139,7 +139,11 @@ class NoResponseTile extends ChatMessage {
     required this.thinkingText,
     required this.reason,
     this.errorDetail,
-  }) : super(user: ChatUser.assistant);
+  })  : assert(
+          reason == TerminalReason.failed || errorDetail == null,
+          'errorDetail is only meaningful for TerminalReason.failed',
+        ),
+        super(user: ChatUser.assistant);
 
   /// Creates a no-response tile with the given id and auto-generated
   /// timestamp.

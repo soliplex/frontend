@@ -15,7 +15,8 @@ import 'tracker_registry.dart';
 /// registry on detach, so execution data persists after the session ends.
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
-  ExecutionTrackerExtension() : _registry = TrackerRegistry() {
+  ExecutionTrackerExtension({required Logger logger})
+      : _registry = TrackerRegistry(logger: logger) {
     setInitialState(const <String, ExecutionTracker>{});
   }
 

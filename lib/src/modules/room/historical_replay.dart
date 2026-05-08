@@ -79,17 +79,18 @@ Map<String, ExecutionTracker> replayToTrackers(List<RunEventBundle> runs) {
 
   // A trailing tool-yield bundle's hoisted events have no follow-up
   // assistant message to absorb them; logged here so the case is at
-  // least observable.
+  // least observable. Tracked: soliplex/frontend#221.
   if (pending.isNotEmpty) {
     _logger.warning(
       'Dropping unattached events from a trailing tool-yield bundle '
-      '(no follow-up bundle). See github.com/soliplex/frontend/issues/221.',
+      '(no follow-up bundle).',
       attributes: {'pendingCount': pending.length},
     );
   }
 
   return {
     for (final entry in buckets.entries)
-      entry.key: ExecutionTracker.historical(events: entry.value),
+      entry.key:
+          ExecutionTracker.historical(events: entry.value, logger: _logger),
   };
 }

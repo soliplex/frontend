@@ -5,13 +5,15 @@ import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
+import '../../helpers/test_logger.dart';
+
 void main() {
   late Signal<ExecutionEvent?> events;
   late ExecutionTracker tracker;
 
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
-    tracker = ExecutionTracker(executionEvents: events);
+    tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
   });
 
   tearDown(() => tracker.dispose());
@@ -150,6 +152,18 @@ void main() {
     for (final step in tracker.steps.value) {
       expect(step.status, StepStatus.failed);
     }
+  });
+
+  test('freeze called twice is a no-op (idempotent)', () {
+    // Phase-2 freeze() mutates state (clears spinner, completes steps)
+    // before flipping _isFrozen = true. A second call must not throw —
+    // _completeAllSteps asserts non-frozen, so order matters.
+    events.value = const ThinkingStarted();
+    tracker.freeze();
+    expect(tracker.isFrozen, isTrue);
+
+    expect(() => tracker.freeze(), returnsNormally);
+    expect(tracker.isFrozen, isTrue);
   });
 
   test('freeze stops listening but preserves data', () {
@@ -490,7 +504,8 @@ void main() {
 
   group('ExecutionTracker.historical', () {
     test('returns frozen tracker', () {
-      final tracker = ExecutionTracker.historical(events: const []);
+      final tracker =
+          ExecutionTracker.historical(events: const [], logger: testLogger());
       expect(tracker.isFrozen, isTrue);
       tracker.dispose();
     });
@@ -504,6 +519,7 @@ void main() {
           ServerToolCallCompleted(toolCallId: 'tc-1', result: 'ok'),
           RunCompleted(),
         ],
+        logger: testLogger(),
       );
 
       expect(tracker.steps.value.map((s) => s.label), ['Thinking', 'search']);
@@ -523,6 +539,7 @@ void main() {
             timestamp: 100,
           ),
         ],
+        logger: testLogger(),
       );
 
       final step = tracker.timeline.value.single as TimelineStep;
@@ -532,7 +549,8 @@ void main() {
     });
 
     test('empty events list yields empty timeline', () {
-      final tracker = ExecutionTracker.historical(events: const []);
+      final tracker =
+          ExecutionTracker.historical(events: const [], logger: testLogger());
       expect(tracker.steps.value, isEmpty);
       expect(tracker.timeline.value, isEmpty);
       tracker.dispose();
@@ -546,6 +564,7 @@ void main() {
           ThinkingStarted(),
           ThinkingContent(delta: 'reasoning'),
         ],
+        logger: testLogger(),
       );
 
       expect(tracker.isThinkingStreaming.value, isFalse);

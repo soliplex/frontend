@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../helpers/test_logger.dart';
+
 import 'package:soliplex_frontend/src/modules/room/compute_display_messages.dart'
     show loadingMessageId;
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
@@ -21,7 +23,7 @@ void main() {
 
     setUp(() {
       events = Signal<ExecutionEvent?>(null);
-      tracker = ExecutionTracker(executionEvents: events);
+      tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
       store = MessageExpansions();
     });
 

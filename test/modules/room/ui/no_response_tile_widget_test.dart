@@ -29,8 +29,7 @@ NoResponseTile _tile({
     );
 
 void main() {
-  testWidgets('finished renders "Run finished without a response"',
-      (tester) async {
+  testWidgets('finished renders the info icon', (tester) async {
     await tester.pumpWidget(_wrap(
       NoResponseTileWidget(
         roomId: 'r',
@@ -38,13 +37,10 @@ void main() {
       ),
     ));
 
-    expect(find.text('Run finished without a response'), findsOneWidget);
     expect(find.byIcon(Icons.info_outline), findsOneWidget);
   });
 
-  testWidgets(
-      'failed without detail falls back to "Run failed without a response"',
-      (tester) async {
+  testWidgets('failed without detail renders the error icon', (tester) async {
     await tester.pumpWidget(_wrap(
       NoResponseTileWidget(
         roomId: 'r',
@@ -52,7 +48,6 @@ void main() {
       ),
     ));
 
-    expect(find.text('Run failed without a response'), findsOneWidget);
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
@@ -76,8 +71,7 @@ void main() {
     );
   });
 
-  testWidgets('cancelled renders "Run cancelled without a response"',
-      (tester) async {
+  testWidgets('cancelled renders the cancel icon', (tester) async {
     await tester.pumpWidget(_wrap(
       NoResponseTileWidget(
         roomId: 'r',
@@ -85,7 +79,6 @@ void main() {
       ),
     ));
 
-    expect(find.text('Run cancelled without a response'), findsOneWidget);
     expect(find.byIcon(Icons.cancel_outlined), findsOneWidget);
   });
 

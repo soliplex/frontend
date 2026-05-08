@@ -164,7 +164,7 @@ class RunOrchestrator {
         _handleStartError(key, error, stackTrace);
         return _currentState;
       }
-      if (_disposed) return CancelledState(threadKey: key);
+      if (_disposed) return CancelledState.preRun(threadKey: key);
       return await _driveToolLoop(key, toolExecutor);
     } finally {
       _runToCompletionActive = false;
@@ -233,7 +233,7 @@ class RunOrchestrator {
         );
         final withCitations = _extractCitations(withSynthesized, runId);
         _setState(
-          CancelledState(
+          CancelledState.duringRun(
             threadKey: threadKey,
             runId: runId,
             conversation: withCitations,
@@ -251,7 +251,7 @@ class RunOrchestrator {
         _cancelToken?.cancel();
         _cleanup();
         _setState(
-          CancelledState(
+          CancelledState.duringRun(
             threadKey: threadKey,
             runId: runId,
             conversation: conversation,
@@ -262,9 +262,18 @@ class RunOrchestrator {
         // event) is not cancellable here — no cancel token is wired in
         // for the in-flight `createRun`. Already-terminal states are
         // no-ops by design.
+        final threadKey = switch (_currentState) {
+          CompletedState(:final threadKey) => threadKey,
+          FailedState(:final threadKey) => threadKey,
+          CancelledState(:final threadKey) => threadKey,
+          _ => null,
+        };
         _logger.warning(
-          'cancelRun ignored: no cancellable run '
-          '(state=${_currentState.runtimeType})',
+          'cancelRun ignored: no cancellable run',
+          attributes: {
+            'state': _currentState.runtimeType.toString(),
+            if (threadKey != null) 'threadKey': threadKey.toString(),
+          },
         );
         return;
     }
@@ -310,7 +319,7 @@ class RunOrchestrator {
     _toolDepth++;
     if (_toolDepth > _maxToolDepth) {
       _setState(
-        FailedState(
+        FailedState.duringRun(
           threadKey: yielding.threadKey,
           runId: yielding.runId,
           reason: FailureReason.toolExecutionFailed,
@@ -507,7 +516,7 @@ class RunOrchestrator {
     ThreadKey key,
     ToolYieldingState state,
   ) {
-    final cancelled = CancelledState(
+    final cancelled = CancelledState.duringRun(
       threadKey: key,
       runId: state.runId,
       conversation: state.conversation,
@@ -528,7 +537,7 @@ class RunOrchestrator {
       error: error,
       stackTrace: stackTrace,
     );
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
@@ -550,7 +559,7 @@ class RunOrchestrator {
     StackTrace stackTrace,
   ) {
     _logger.error('Resume run failed', error: error, stackTrace: stackTrace);
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: classifyError(error),
@@ -563,7 +572,7 @@ class RunOrchestrator {
 
   /// Returns a [FailedState] when the tool depth limit is exceeded.
   RunState _failDepthExceeded(ThreadKey key, ToolYieldingState state) {
-    final failed = FailedState(
+    final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
       reason: FailureReason.toolExecutionFailed,
@@ -595,7 +604,7 @@ class RunOrchestrator {
       ToolYieldingState(:final threadKey) => threadKey,
       _ => const (serverId: '', roomId: '', threadId: ''),
     };
-    _terminalCompleter!.complete(CancelledState(threadKey: key));
+    _terminalCompleter!.complete(CancelledState.preRun(threadKey: key));
   }
 
   void _guardRunToCompletion() {
@@ -792,7 +801,7 @@ class RunOrchestrator {
       final withCitations =
           _extractCitations(result.conversation, previous.runId);
       _setState(
-        FailedState(
+        FailedState.duringRun(
           threadKey: previous.threadKey,
           runId: previous.runId,
           reason: FailureReason.serverError,
@@ -887,7 +896,7 @@ class RunOrchestrator {
     final withCitations =
         _extractCitations(running.conversation, running.runId);
     _setState(
-      FailedState(
+      FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
         reason: FailureReason.networkLost,
@@ -906,7 +915,7 @@ class RunOrchestrator {
         _extractCitations(running.conversation, running.runId);
     if (error is CancelledException || error is CancellationError) {
       _setState(
-        CancelledState(
+        CancelledState.duringRun(
           threadKey: running.threadKey,
           runId: running.runId,
           conversation: withCitations,
@@ -917,7 +926,7 @@ class RunOrchestrator {
     final reason = classifyError(error);
     _logger.error('Run failed', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(
+      FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
         reason: reason,
@@ -936,13 +945,17 @@ class RunOrchestrator {
       // not a `FailedState(reason: internalError)`. Accepts both
       // `CancelledException` (from our `CancelToken`) and
       // `CancellationError` (Dart core / ag_ui interop).
-      _setState(CancelledState(threadKey: key));
+      _setState(CancelledState.preRun(threadKey: key));
       return;
     }
     final reason = classifyError(error);
     _logger.error('Failed to start run', error: error, stackTrace: stackTrace);
     _setState(
-      FailedState(threadKey: key, reason: reason, error: _messageOf(error)),
+      FailedState.preRun(
+        threadKey: key,
+        reason: reason,
+        error: _messageOf(error),
+      ),
     );
   }
 

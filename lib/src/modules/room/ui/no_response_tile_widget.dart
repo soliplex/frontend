@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../execution_tracker.dart';
-import '../room_providers.dart';
-import 'copy_button.dart';
 import 'execution/activity_indicator.dart';
 import 'execution/execution_timeline.dart';
+import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
 
 class NoResponseTileWidget extends StatelessWidget {
@@ -46,7 +44,7 @@ class NoResponseTileWidget extends StatelessWidget {
             tracker: executionTracker!,
           )
         else if (message.hasThinkingText)
-          _NoResponseThinkingBlock(
+          StaticThinkingBlock(
             roomId: roomId,
             messageId: message.id,
             text: message.thinkingText,
@@ -113,58 +111,6 @@ class _TerminalReasonBubble extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _NoResponseThinkingBlock extends ConsumerWidget {
-  const _NoResponseThinkingBlock({
-    required this.roomId,
-    required this.messageId,
-    required this.text,
-  });
-
-  final String roomId;
-  final String messageId;
-  final String text;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final expansion =
-        ref.read(messageExpansionsProvider).forMessage(roomId, messageId);
-    return ExpansionTile(
-      initiallyExpanded: expansion.thinkingExpanded,
-      onExpansionChanged: (v) => expansion.thinkingExpanded = v,
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Thinking...',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          CopyButton(
-            text: text,
-            tooltip: 'Copy thinking',
-            iconSize: 16,
-          ),
-        ],
-      ),
-      dense: true,
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(bottom: 4),
-      children: [
-        Text(
-          text,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontStyle: FontStyle.italic,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

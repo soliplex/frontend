@@ -3,6 +3,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/tracker_registry.dart';
 
+import '../../helpers/test_logger.dart';
+
 const _threadId = 'thread-1';
 const _key = (serverId: 'server-1', roomId: 'room-1', threadId: _threadId);
 const _runId = 'run-1';
@@ -39,7 +41,7 @@ void main() {
 
   setUp(() async {
     session = _FakeSession();
-    ext = ExecutionTrackerExtension();
+    ext = ExecutionTrackerExtension(logger: testLogger());
     await ext.onAttach(session);
   });
 

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../helpers/test_logger.dart';
+
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -64,7 +66,8 @@ void main() {
         'renders ExecutionTimeline and ThinkingBlock when tracker provided',
         (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker = ExecutionTracker(executionEvents: events);
+      final tracker =
+          ExecutionTracker(executionEvents: events, logger: testLogger());
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'reasoning...');
@@ -129,7 +132,8 @@ void main() {
     testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
         (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker = ExecutionTracker(executionEvents: events);
+      final tracker =
+          ExecutionTracker(executionEvents: events, logger: testLogger());
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'live thinking');
@@ -170,7 +174,8 @@ void main() {
 
     testWidgets('renders execution widgets with tracker', (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker = ExecutionTracker(executionEvents: events);
+      final tracker =
+          ExecutionTracker(executionEvents: events, logger: testLogger());
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'working...');
