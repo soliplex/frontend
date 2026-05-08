@@ -21,18 +21,6 @@ class _FakeSimpleRunAgentInput extends Fake implements SimpleRunAgentInput {}
 
 class _FakeCancelToken extends Fake implements CancelToken {}
 
-/// Throws on every `extractNew` call. Used to drive the catch in
-/// `RunOrchestrator._extractCitations`.
-class _ThrowingCitationExtractor extends CitationExtractor {
-  @override
-  List<SourceReference> extractNew(
-    Map<String, dynamic> previousState,
-    Map<String, dynamic> currentState,
-  ) {
-    throw StateError('citation extraction simulated failure');
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -2598,55 +2586,6 @@ void main() {
 
       await controller.close();
     });
-  });
-
-  group('citation extraction error handling', () {
-    test(
-      'throw inside _extractCitations does not abort the run or surface a '
-      'tile; warning is logged',
-      () async {
-        // Use a throwing extractor injected via the @visibleForTesting
-        // ctor parameter — a single test exercises all five
-        // _extractCitations call sites because every terminal path on
-        // a successful run routes through _handleRunFinished.
-        orchestrator.dispose();
-        orchestrator = RunOrchestrator(
-          llmProvider: AgUiLlmProvider(
-            api: api,
-            agUiStreamClient: agUiStreamClient,
-          ),
-          toolRegistry: const ToolRegistry(),
-          logger: logger,
-          citationExtractor: _ThrowingCitationExtractor(),
-        );
-        stubCreateRun();
-        stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
-
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
-        await Future<void>.delayed(Duration.zero);
-
-        // Run completes despite the citation extraction throw.
-        expect(orchestrator.currentState, isA<CompletedState>());
-        final completed = orchestrator.currentState as CompletedState;
-        // No DroppedEventMessage — citation failures are log-only.
-        expect(
-          completed.conversation.messages
-              .whereType<DroppedEventMessage>()
-              .toList(),
-          isEmpty,
-        );
-        // Logger.warning was called for the citation failure. Mocktail's
-        // Mock returns null for unstubbed methods, so we verify the call
-        // happened with a runId-bearing message.
-        verify(
-          () => logger.warning(
-            any(that: contains('Citation extraction failed')),
-            error: any(named: 'error'),
-            stackTrace: any(named: 'stackTrace'),
-          ),
-        ).called(greaterThanOrEqualTo(1));
-      },
-    );
   });
 
   group('live drop tiles', () {

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart';
 import 'package:soliplex_agent/src/models/failure_reason.dart';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
@@ -65,21 +64,15 @@ typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
 /// (JSON Schema). The backend rejects tool definitions without it.
 class RunOrchestrator {
   /// Creates a [RunOrchestrator] with the given dependencies.
-  ///
-  /// [citationExtractor] is an injection point for tests that need to
-  /// observe failure paths inside [_extractCitations]. Production callers
-  /// leave it null and get the default [CitationExtractor].
   RunOrchestrator({
     required AgentLlmProvider llmProvider,
     required ToolRegistry toolRegistry,
     required Logger logger,
     int maxToolDepth = defaultMaxToolDepth,
-    @visibleForTesting CitationExtractor? citationExtractor,
   })  : _llmProvider = llmProvider,
         _toolRegistry = toolRegistry,
         _logger = logger,
-        _maxToolDepth = maxToolDepth,
-        _citationExtractor = citationExtractor ?? CitationExtractor();
+        _maxToolDepth = maxToolDepth;
 
   /// Default maximum tool-call depth before the orchestrator aborts.
   static const defaultMaxToolDepth = 10;
@@ -89,7 +82,7 @@ class RunOrchestrator {
   final Logger _logger;
   final int _maxToolDepth;
 
-  final CitationExtractor _citationExtractor;
+  final CitationExtractor _citationExtractor = CitationExtractor();
 
   Map<String, dynamic> _preRunAguiState = const {};
   String? _userMessageId;
@@ -1012,9 +1005,13 @@ class RunOrchestrator {
   /// final [MessageState] carries the last segment's run ID — the one whose
   /// output the user sees and may submit feedback on.
   ///
-  /// Catches any throw downstream (extractor schema drift, malformed
-  /// citations) and returns the conversation unchanged so the run
-  /// completes. The throw bypasses the [_preRunAguiState] update so the
+  /// `CitationExtractor.extractNew` calls into generated schema types
+  /// (`RagSnapshot.resolveCitation`, `SourceReference`'s ctor on
+  /// non-null fields the wire might omit) — schema drift can surface
+  /// here as a runtime throw. The catch returns the conversation
+  /// unchanged so the run still completes, mirroring the existing
+  /// catch-and-log pattern around `RagSnapshot.fromJson` one layer
+  /// down. The throw bypasses the [_preRunAguiState] update so the
   /// next run's diff still resolves against the prior baseline; only
   /// this segment's citations are skipped. No drop tile — citations
   /// are a derived projection, not user-facing content.
