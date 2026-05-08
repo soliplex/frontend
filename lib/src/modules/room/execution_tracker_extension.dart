@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
@@ -16,10 +17,12 @@ import 'tracker_registry.dart';
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
   ExecutionTrackerExtension({required Logger logger})
-      : _registry = TrackerRegistry(logger: logger) {
+      : _logger = logger,
+        _registry = TrackerRegistry(logger: logger) {
     setInitialState(const <String, ExecutionTracker>{});
   }
 
+  final Logger _logger;
   final TrackerRegistry _registry;
   void Function()? _runStateUnsub;
   AgentSession? _session;
@@ -53,8 +56,25 @@ class ExecutionTrackerExtension extends SessionExtension
     super.onDispose();
   }
 
+  /// Test entrypoint for [_onRunState]. Production code routes through
+  /// the signal subscription; tests use this to drive the post-dispose
+  /// path that production can't reach without racing the signals teardown.
+  @visibleForTesting
+  void debugPushRunState(RunState runState) => _onRunState(runState);
+
   void _onRunState(RunState runState) {
-    final session = _session!;
+    final session = _session;
+    if (session == null) {
+      // Proving safety today relies on signals' subscription teardown
+      // happening synchronously before _session is cleared in onDispose;
+      // that invariant is fragile across signals upgrades. Defensive
+      // early return costs two lines.
+      _logger.warning(
+        '_onRunState fired after dispose; ignoring',
+        attributes: {'runState': runState.runtimeType.toString()},
+      );
+      return;
+    }
     switch (runState) {
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);
