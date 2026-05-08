@@ -546,6 +546,55 @@ void main() {
 
       await controller.close();
     });
+
+    test(
+        'cancelRun mid-text-stream commits the partial reply as a finalized '
+        'TextMessage (mirrors RunFinished/RunError behavior)', () async {
+      // Without the partial-text commit, a user reading half-streamed
+      // text watches it vanish on Stop. The previous implementation
+      // relied on synthesis, which declines on TextStreaming, so the
+      // partial reply was silently lost.
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      stubRunAgent(stream: controller.stream);
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      controller
+        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(const TextMessageStartEvent(messageId: 'reply-1'))
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'reply-1',
+            delta: 'half-rendered ',
+          ),
+        )
+        ..add(
+          const TextMessageContentEvent(
+            messageId: 'reply-1',
+            delta: 'reply',
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<RunningState>());
+
+      orchestrator.cancelRun();
+
+      final cancelled = orchestrator.currentState as CancelledState;
+      final committed = cancelled.conversation!.messages
+          .whereType<TextMessage>()
+          .singleWhere((m) => m.id == 'reply-1');
+      expect(committed.text, equals('half-rendered reply'));
+      expect(committed.user, equals(ChatUser.assistant));
+      // No NoResponseTile — partial-commit is the user-visible signal,
+      // and synthesis declines on TextStreaming by design.
+      expect(
+        cancelled.conversation!.messages.whereType<NoResponseTile>(),
+        isEmpty,
+      );
+
+      await controller.close();
+    });
   });
 
   group('guard', () {
@@ -730,6 +779,78 @@ void main() {
         messages[2],
         isA<TextMessage>().having((m) => m.text, 'text', 'Turn 2'),
       );
+    });
+
+    test(
+        'continuation run excludes synthesized NoResponseTile, ErrorMessage, '
+        'LoadingMessage, and DroppedEventMessage from prior cachedHistory '
+        '(wire-leak regression for the convertToAgui skip set)', () async {
+      // The wire-leak fix in `agui_message_mapper.convertToAgui` is the
+      // last line of defense, but the only way to verify it through the
+      // orchestrator is to inspect what `_buildInput` actually sends. A
+      // future change that imports cachedHistory unfiltered (or routes
+      // around `convertToAgui`) would silently re-introduce the leak.
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: [
+          TextMessage.create(
+            id: 'prior-user',
+            user: ChatUser.user,
+            text: 'q',
+          ),
+          NoResponseTile.cancelled(
+            id: noResponseMessageId('prior-run'),
+            thinkingText: 'thinking',
+          ),
+          ErrorMessage.create(id: 'run-error-prior', message: 'boom'),
+          LoadingMessage.create(id: 'loading-prior'),
+          DroppedEventMessage.create(
+            id: 'dropped-prior',
+            source: DropSource.decode,
+            reason: 'malformed',
+          ),
+          TextMessage.create(
+            id: 'prior-assistant',
+            user: ChatUser.assistant,
+            text: 'a',
+          ),
+        ],
+      );
+
+      await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'follow-up',
+        toolExecutor: (_) async => [],
+        cachedHistory: history,
+      );
+
+      final captured = verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured;
+
+      final input = captured.single as SimpleRunAgentInput;
+      final wireMessages = input.messages ?? const [];
+      final wireIds = wireMessages.map((m) => m.id).toList();
+      // Real conversation messages survive.
+      expect(wireIds, contains('prior-user'));
+      expect(wireIds, contains('prior-assistant'));
+      // Frontend-synthesized tiles are filtered out.
+      expect(
+        wireIds,
+        isNot(contains(noResponseMessageId('prior-run'))),
+        reason: 'NoResponseTile is frontend-only; must not reach the backend',
+      );
+      expect(wireIds, isNot(contains('run-error-prior')));
+      expect(wireIds, isNot(contains('loading-prior')));
+      expect(wireIds, isNot(contains('dropped-prior')));
     });
   });
 

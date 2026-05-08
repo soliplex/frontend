@@ -222,11 +222,20 @@ class RunOrchestrator {
         ):
         _cancelToken?.cancel();
         _cleanup();
-        // If the run had buffered thinking but never produced an
-        // assistant text reply, synthesize a "no response" tile so the
-        // model's reasoning isn't lost on cancel.
-        final synthesisResult = synthesizeNoResponseIfNeeded(
+        // Mirror `_processRunFinished`/`_processRunError`: commit any
+        // mid-stream reply text as a finalized `TextMessage` so the user
+        // keeps what was already on screen, then synthesize a
+        // "no response" tile if buffered thinking exists. When the user
+        // hits Stop before any text or thinking buffered (early cancel),
+        // neither fires — by design; the user knows they pressed Stop.
+        final withPartial = commitPartialTextOnTerminal(
           conversation: conversation,
+          streaming: streaming,
+          runId: runId,
+          terminalEvent: 'cancelRun',
+        );
+        final synthesisResult = synthesizeNoResponseIfNeeded(
+          conversation: withPartial,
           streaming: streaming,
           runId: runId,
           reason: TerminalReason.cancelled,
@@ -275,19 +284,15 @@ class RunOrchestrator {
           attributes: {'state': _currentState.runtimeType.toString()},
         );
         return;
-      case CompletedState() || FailedState() || CancelledState():
+      case CompletedState(:final threadKey) ||
+            FailedState(:final threadKey) ||
+            CancelledState(:final threadKey):
         // Already-terminal states are no-ops by design.
-        final threadKey = switch (_currentState) {
-          CompletedState(:final threadKey) => threadKey,
-          FailedState(:final threadKey) => threadKey,
-          CancelledState(:final threadKey) => threadKey,
-          _ => null,
-        };
         _logger.warning(
           'cancelRun ignored: no cancellable run',
           attributes: {
             'state': _currentState.runtimeType.toString(),
-            if (threadKey != null) 'threadKey': threadKey.toString(),
+            'threadKey': threadKey.toString(),
           },
         );
         return;

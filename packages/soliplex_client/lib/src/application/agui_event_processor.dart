@@ -552,56 +552,37 @@ StreamingState _withToolCallActivity(
   };
 }
 
-/// Commits an in-flight `TextStreaming` reply as a finalized `TextMessage`
-/// when a terminal event (`RunFinishedEvent` or `RunErrorEvent`) arrives
-/// mid-stream. Without this, the partial reply the user was already
-/// watching vanishes when streaming is reset to `AwaitingText`. No-op for
-/// `AwaitingText` or when the message id is already in the conversation
-/// (idempotency, mirroring `_processTextEnd`).
-Conversation _commitPartialTextOnTerminal({
-  required Conversation conversation,
-  required StreamingState streaming,
-  required String runId,
-  required String terminalEvent,
-}) {
-  if (streaming is! TextStreaming) return conversation;
-  final messageId = streaming.messageId;
-  if (conversation.messages.any((m) => m.id == messageId)) {
-    return conversation;
-  }
-  _logger.info(
-    'Committing partial reply text before terminal status',
-    attributes: {
-      'runId': runId,
-      'messageId': messageId,
-      'committedTextChars': streaming.text.length,
-      'committedThinkingChars': streaming.thinkingText.length,
-      'terminalEvent': terminalEvent,
-    },
-  );
-  return conversation.withAppendedMessage(
-    TextMessage.create(
-      id: messageId,
-      user: streaming.user,
-      text: streaming.text,
-      thinkingText: streaming.thinkingText,
-    ),
-  );
-}
-
-/// Handles `RunFinishedEvent` for the `Running` status path.
+/// Handles `RunFinishedEvent`.
 ///
-/// When `streaming is TextStreaming` (the backend never sent a
-/// `TextMessageEnd` before finishing), commits the partial reply text as
-/// a finalized `TextMessage` so the user keeps what was already on screen.
-/// Otherwise routes through `synthesizeNoResponseIfNeeded` to surface the
+/// Only processes when status is `Running`; duplicate or out-of-order
+/// terminal events from the backend on a non-`Running` status are ignored
+/// to avoid double-appending a no-response tile (which would collide on
+/// `noResponseMessageId(runId)`) or overwriting a prior terminal status.
+///
+/// On the `Running` path: commits any in-flight `TextStreaming` reply as
+/// a finalized `TextMessage` (so a user reading half-streamed text keeps
+/// it), then routes through `synthesizeNoResponseIfNeeded` to surface the
 /// run's buffered thinking, if any, as a [NoResponseTile].
 EventProcessingResult _processRunFinished(
   Conversation conversation,
   StreamingState streaming,
   String runId,
 ) {
-  final withPartial = _commitPartialTextOnTerminal(
+  if (conversation.status is! Running) {
+    _logger.warning(
+      'RunFinishedEvent on non-Running status; preserving prior status. '
+      'Possible cases: duplicate after terminal, or out-of-order event.',
+      attributes: {
+        'status': conversation.status.runtimeType.toString(),
+        'runId': runId,
+      },
+    );
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    );
+  }
+  final withPartial = commitPartialTextOnTerminal(
     conversation: conversation,
     streaming: streaming,
     runId: runId,
@@ -613,6 +594,26 @@ EventProcessingResult _processRunFinished(
     runId: runId,
     reason: TerminalReason.finished,
   );
+  // Empty-thinking + empty-text RunFinished produces no message in the
+  // list at all — `AgentSession` will return `AgentSuccess(output: '')`.
+  // Surface as info so the corner case shows up in BackendLogSink instead
+  // of being silent.
+  if (!result.synthesized && streaming is! TextStreaming) {
+    _logger.info(
+      'RunFinishedEvent produced no assistant text and no buffered thinking',
+      attributes: {
+        'runId': runId,
+        'unresolvedToolCallCount': conversation.toolCalls
+            .where(
+              (tc) =>
+                  tc.status == ToolCallStatus.pending ||
+                  tc.status == ToolCallStatus.streaming ||
+                  tc.status == ToolCallStatus.executing,
+            )
+            .length,
+      },
+    );
+  }
   return EventProcessingResult(
     conversation: result.conversation.withStatus(const Completed()),
     streaming: const AwaitingText(),
@@ -639,7 +640,7 @@ EventProcessingResult _processRunError(
   String message,
 ) {
   if (conversation.status case Running(:final runId)) {
-    final withPartial = _commitPartialTextOnTerminal(
+    final withPartial = commitPartialTextOnTerminal(
       conversation: conversation,
       streaming: streaming,
       runId: runId,

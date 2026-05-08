@@ -1,10 +1,14 @@
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
-/// Outcome of [synthesizeNoResponseIfNeeded]. The explicit `synthesized`
-/// flag removes the by-reference `identical(...)` check callers used to
-/// need to distinguish "appended a tile" from "declined".
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_client.no_response_synthesis');
+
+/// Outcome of [synthesizeNoResponseIfNeeded]. The `synthesized` flag tells
+/// callers whether a [NoResponseTile] was appended without forcing them to
+/// compare conversations by reference.
 typedef NoResponseSynthesisResult = ({
   Conversation conversation,
   bool synthesized,
@@ -38,6 +42,10 @@ const _runErrorIdPrefix = 'run-error-';
 /// thinking so downstream UI can render the muted "Run
 /// finished/failed/cancelled without a response" tile, optionally with the
 /// backend error message for the `failed` case.
+///
+/// Throws [ArgumentError] if [terminalErrorDetail] doesn't match [reason]:
+/// it must be non-null when [reason] is [TerminalReason.failed] and null
+/// otherwise.
 NoResponseSynthesisResult synthesizeNoResponseIfNeeded({
   required Conversation conversation,
   required StreamingState streaming,
@@ -45,10 +53,13 @@ NoResponseSynthesisResult synthesizeNoResponseIfNeeded({
   required TerminalReason reason,
   String? terminalErrorDetail,
 }) {
-  assert(
-    (reason == TerminalReason.failed) == (terminalErrorDetail != null),
-    'terminalErrorDetail is required iff reason is TerminalReason.failed',
-  );
+  if ((reason == TerminalReason.failed) != (terminalErrorDetail != null)) {
+    final errorDetailState = terminalErrorDetail == null ? 'null' : 'set';
+    throw ArgumentError(
+      'terminalErrorDetail is required iff reason is TerminalReason.failed '
+      '(reason: $reason, errorDetail: $errorDetailState)',
+    );
+  }
   if (streaming is! AwaitingText ||
       streaming.bufferedThinkingText.isEmpty ||
       _hasUnresolvedToolCalls(conversation)) {
@@ -73,6 +84,49 @@ NoResponseSynthesisResult synthesizeNoResponseIfNeeded({
   return (
     conversation: conversation.withAppendedMessage(tile),
     synthesized: true,
+  );
+}
+
+/// Commits an in-flight `TextStreaming` reply as a finalized [TextMessage]
+/// when a terminal event (`RunFinishedEvent`, `RunErrorEvent`, or
+/// `cancelRun`) arrives mid-stream. Without this, the partial reply the
+/// user was already watching vanishes when streaming is reset to
+/// [AwaitingText].
+///
+/// No-op for [AwaitingText] or when the message id is already in the
+/// conversation; the latter guards against a normal `TextMessageEnd`
+/// having already finalized the same message.
+///
+/// [terminalEvent] is included in the log line for diagnostics — the
+/// caller's name (e.g. `'RunFinishedEvent'`, `'cancelRun'`).
+Conversation commitPartialTextOnTerminal({
+  required Conversation conversation,
+  required StreamingState streaming,
+  required String runId,
+  required String terminalEvent,
+}) {
+  if (streaming is! TextStreaming) return conversation;
+  final messageId = streaming.messageId;
+  if (conversation.messages.any((m) => m.id == messageId)) {
+    return conversation;
+  }
+  _logger.info(
+    'Committing partial reply text before terminal status',
+    attributes: {
+      'runId': runId,
+      'messageId': messageId,
+      'committedTextChars': streaming.text.length,
+      'committedThinkingChars': streaming.thinkingText.length,
+      'terminalEvent': terminalEvent,
+    },
+  );
+  return conversation.withAppendedMessage(
+    TextMessage.create(
+      id: messageId,
+      user: streaming.user,
+      text: streaming.text,
+      thinkingText: streaming.thinkingText,
+    ),
   );
 }
 

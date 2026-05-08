@@ -59,6 +59,11 @@ class ExecutionTrackerExtension extends SessionExtension
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);
         _sync();
+      // Order is load-bearing across the three terminal arms: rekey must
+      // run before `onRunTerminated`, because rekey moves the awaiting
+      // tracker to its synthesized id while the entry is still present;
+      // a future change that drops the awaiting entry on terminate would
+      // silently break the rekey if invoked first.
       case CompletedState(:final runId, :final conversation):
         _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
         _registry.onRunTerminated();

@@ -240,6 +240,63 @@ void main() {
       });
 
       test(
+          'duplicate RunFinishedEvent on Completed conversation with buffered '
+          'thinking does NOT re-synthesize a NoResponseTile (status guard '
+          'precedes synthesis decline)', () {
+        // The pre-guard implementation only didn't re-synthesize because
+        // the empty thinking buffer made synthesis decline. With buffered
+        // thinking present, an unguarded path would synthesize a second
+        // NoResponseTile colliding on `noResponseMessageId('run-1')`.
+        final completedConversation = conversation.withStatus(
+          const Completed(),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'leftover thinking from a prior synthesis',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          completedConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(result.conversation.status, isA<Completed>());
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
+          'RunFinishedEvent on Failed conversation preserves the prior '
+          'terminal status and does not synthesize', () {
+        final failedConversation = conversation.withStatus(
+          const Failed(error: 'earlier failure'),
+        );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'thinking',
+        );
+        const event = RunFinishedEvent(threadId: 'thread-1', runId: 'run-1');
+
+        final result = processEvent(
+          failedConversation,
+          streamingWithThinking,
+          event,
+        );
+
+        expect(result.conversation.status, isA<Failed>());
+        expect(
+          (result.conversation.status as Failed).error,
+          equals('earlier failure'),
+        );
+        expect(
+          result.conversation.messages.whereType<NoResponseTile>(),
+          isEmpty,
+        );
+      });
+
+      test(
           'RunFinishedEvent followed by RunErrorEvent preserves the first '
           'terminal status (Completed wins)', () {
         // A late RunErrorEvent arriving after RunFinished must not flip

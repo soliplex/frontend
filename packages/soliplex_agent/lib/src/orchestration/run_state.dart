@@ -193,6 +193,27 @@ class FailedState extends RunState {
   /// Conversation state at time of failure, if available.
   final Conversation? conversation;
 
+  /// Whether a backend run was in flight at the time of failure.
+  ///
+  /// Equivalent to [runId] != null. Prefer this getter at call sites that
+  /// just need the disposition; reach for [runId] when the id itself is
+  /// needed.
+  bool get startedRun => runId != null;
+
+  /// Returns [runId] when a backend run was in flight, otherwise throws
+  /// [StateError]. Use at call sites that have already established (e.g.
+  /// via [startedRun] or by construction) that a runId must exist.
+  String requireRunId() {
+    final id = runId;
+    if (id == null) {
+      throw StateError(
+        'FailedState.requireRunId() called on a pre-run failure '
+        '(reason: $reason).',
+      );
+    }
+    return id;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -317,6 +338,26 @@ class CancelledState extends RunState {
 
   /// Conversation state at time of cancellation, if available.
   final Conversation? conversation;
+
+  /// Whether a backend run was in flight at the time of cancellation.
+  ///
+  /// Equivalent to [runId] != null. Prefer this getter at call sites that
+  /// just need the disposition; reach for [runId] when the id itself is
+  /// needed.
+  bool get startedRun => runId != null;
+
+  /// Returns [runId] when a backend run was in flight, otherwise throws
+  /// [StateError]. Use at call sites that have already established (e.g.
+  /// via [startedRun] or by construction) that a runId must exist.
+  String requireRunId() {
+    final id = runId;
+    if (id == null) {
+      throw StateError(
+        'CancelledState.requireRunId() called on a pre-run cancel.',
+      );
+    }
+    return id;
+  }
 
   @override
   bool operator ==(Object other) =>

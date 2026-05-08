@@ -225,6 +225,65 @@ void main() {
       expect(trackers, isEmpty);
     });
 
+    test(
+        'tool-yield -> no-response -> normal sequence: hoisted pre-tool '
+        'events attach to the no-response tracker, not to the next normal '
+        "bundle's assistant tracker", () {
+      // Without `pending.clear()` in the no-response branch, pre-tool
+      // events from the tool-yield bundle would leak through the
+      // no-response bundle into the next normal bundle's assistant
+      // tracker — silently mis-attributing thinking from one run's
+      // tool-yield to a later run's reply.
+      final runs = [
+        RunEventBundle(
+          runId: 'run-yield',
+          events: const [
+            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            ThinkingTextMessageEndEvent(),
+            ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
+            ToolCallEndEvent(toolCallId: 'tc-1'),
+            ToolCallResultEvent(
+              toolCallId: 'tc-1',
+              content: 'ok',
+              messageId: 'tool-msg-1',
+            ),
+          ],
+        ),
+        RunEventBundle(
+          runId: 'run-no-response',
+          events: const [
+            ThinkingTextMessageStartEvent(),
+            ThinkingTextMessageContentEvent(delta: 'mid'),
+            ThinkingTextMessageEndEvent(),
+            RunFinishedEvent(threadId: 't', runId: 'run-no-response'),
+          ],
+        ),
+        RunEventBundle(
+          runId: 'run-resume',
+          events: const [
+            TextMessageStartEvent(messageId: 'asst-1'),
+            TextMessageEndEvent(messageId: 'asst-1'),
+          ],
+        ),
+      ];
+
+      final trackers = replayToTrackers(runs);
+
+      expect(
+        trackers.keys,
+        containsAll(['no-response-run-no-response', 'asst-1']),
+      );
+      // The no-response tracker absorbs the hoisted pre-tool events plus
+      // its own mid thinking — so the next normal bundle starts clean.
+      expect(
+        trackers['no-response-run-no-response']!.thinkingBlocks.value,
+        ['pre-tool', 'mid'],
+      );
+      expect(trackers['asst-1']!.thinkingBlocks.value, isEmpty);
+      expect(trackers['asst-1']!.steps.value, isEmpty);
+    });
+
     test('multi-run thread yields one tracker per assistant message', () {
       final runs = [
         RunEventBundle(
