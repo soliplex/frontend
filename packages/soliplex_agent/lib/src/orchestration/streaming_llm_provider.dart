@@ -46,13 +46,13 @@ class StreamingLlmProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: runId, events: events);
   }
 
-  Stream<BaseEvent> _run(
+  Stream<DecodeOutcome> _run(
     ThreadKey key,
     SimpleRunAgentInput input,
     String runId,
     CancelToken? cancelToken,
   ) async* {
-    yield RunStartedEvent(threadId: key.threadId, runId: runId);
+    yield _wrap(RunStartedEvent(threadId: key.threadId, runId: runId));
 
     if (cancelToken?.isCancelled ?? false) return;
 
@@ -84,48 +84,52 @@ class StreamingLlmProvider implements AgentLlmProvider {
             if (currentMsgId == null) {
               final msgId = 'msg-${DateTime.now().microsecondsSinceEpoch}';
               currentMsgId = msgId;
-              yield TextMessageStartEvent(messageId: msgId);
+              yield _wrap(TextMessageStartEvent(messageId: msgId));
             }
-            yield TextMessageContentEvent(messageId: currentMsgId, delta: text);
+            yield _wrap(
+              TextMessageContentEvent(messageId: currentMsgId, delta: text),
+            );
 
           case LlmTextDone():
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield _wrap(TextMessageEndEvent(messageId: msgId));
               currentMsgId = null;
             }
 
           case LlmToolCallStart(:final callId, :final name):
             // Close any open text message first.
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield _wrap(TextMessageEndEvent(messageId: msgId));
               currentMsgId = null;
             }
-            yield ToolCallStartEvent(toolCallId: callId, toolCallName: name);
+            yield _wrap(
+              ToolCallStartEvent(toolCallId: callId, toolCallName: name),
+            );
 
           case LlmToolCallArgsDelta(:final callId, :final delta):
-            yield ToolCallArgsEvent(toolCallId: callId, delta: delta);
+            yield _wrap(ToolCallArgsEvent(toolCallId: callId, delta: delta));
 
           case LlmToolCallDone(:final callId):
-            yield ToolCallEndEvent(toolCallId: callId);
+            yield _wrap(ToolCallEndEvent(toolCallId: callId));
 
           case LlmDone():
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield _wrap(TextMessageEndEvent(messageId: msgId));
             }
-            yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+            yield _wrap(RunFinishedEvent(threadId: key.threadId, runId: runId));
             return;
 
           case LlmError(:final message):
-            yield RunErrorEvent(message: message);
+            yield _wrap(RunErrorEvent(message: message));
             return;
         }
       }
 
       // Stream ended without explicit done — synthesize finish.
       if (currentMsgId case final msgId?) {
-        yield TextMessageEndEvent(messageId: msgId);
+        yield _wrap(TextMessageEndEvent(messageId: msgId));
       }
-      yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+      yield _wrap(RunFinishedEvent(threadId: key.threadId, runId: runId));
     } on CancelledException {
       // Surface cancels as a stream error so the orchestrator routes
       // them to `CancelledState` via `_onStreamError`. Yielding a
@@ -134,9 +138,14 @@ class StreamingLlmProvider implements AgentLlmProvider {
       rethrow;
     } on Object catch (e) {
       final msg = e is SoliplexException ? e.message : e.toString();
-      yield RunErrorEvent(message: msg);
+      yield _wrap(RunErrorEvent(message: msg));
     }
   }
+
+  /// `rawJson` is `const {}` because synthesized events have no source
+  /// JSON; if `processEvent` ever throws on one, the resulting drop tile
+  /// will carry an empty payload.
+  static DecodedEvent _wrap(BaseEvent event) => DecodedEvent(event, const {});
 
   List<LlmChatMessage> _convertMessages(SimpleRunAgentInput input) {
     final result = <LlmChatMessage>[];

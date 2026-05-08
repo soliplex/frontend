@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/agui_stream_client.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
@@ -75,6 +76,12 @@ const _fastPolicy = ResumePolicy(
   jitter: 0,
 );
 
+/// Extracts the [BaseEvent]s from a list of [DecodeOutcome]s, dropping
+/// [DecodeFailed] entries. Test helper for assertions that only care about
+/// the structurally-valid events the run produced.
+List<BaseEvent> _decodedOnly(List<DecodeOutcome> outcomes) =>
+    outcomes.whereType<DecodedEvent>().map((d) => d.event).toList();
+
 void main() {
   late MockHttpTransport mockTransport;
   late AgUiStreamClient client;
@@ -137,7 +144,8 @@ void main() {
           ),
         );
 
-        final result = await client.runAgent(endpoint, input).toList();
+        final result =
+            _decodedOnly(await client.runAgent(endpoint, input).toList());
 
         expect(result, hasLength(5));
         expect(result[0], isA<RunStartedEvent>());
@@ -174,7 +182,8 @@ void main() {
           ),
         );
 
-        final result = await client.runAgent(endpoint, input).toList();
+        final result =
+            _decodedOnly(await client.runAgent(endpoint, input).toList());
 
         expect(result, hasLength(2));
         expect(result[0], isA<RunStartedEvent>());
@@ -210,7 +219,8 @@ void main() {
           ),
         );
 
-        final result = await client.runAgent(endpoint, input).toList();
+        final result =
+            _decodedOnly(await client.runAgent(endpoint, input).toList());
 
         expect(result, hasLength(1));
         expect(result[0], isA<RunStartedEvent>());
@@ -258,7 +268,7 @@ void main() {
         );
       });
 
-      test('skips unknown event types and continues streaming', () async {
+      test('yields DecodeFailed for unknown event types', () async {
         final events = [
           {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
           {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
@@ -282,12 +292,16 @@ void main() {
 
         final result = await client.runAgent(endpoint, input).toList();
 
-        expect(result, hasLength(2));
-        expect(result[0], isA<RunStartedEvent>());
-        expect(result[1], isA<RunFinishedEvent>());
+        expect(result, hasLength(3));
+        expect(result[0], isA<DecodedEvent>());
+        expect((result[0] as DecodedEvent).event, isA<RunStartedEvent>());
+        expect(result[1], isA<DecodeFailed>());
+        expect((result[1] as DecodeFailed).rawData, equals(events[1]));
+        expect(result[2], isA<DecodedEvent>());
+        expect((result[2] as DecodedEvent).event, isA<RunFinishedEvent>());
       });
 
-      test('skips malformed JSON and continues streaming', () async {
+      test('yields DecodeFailed for malformed JSON', () async {
         final sseBody = StringBuffer()
           ..writeln('data: not valid json at all')
           ..writeln()
@@ -317,61 +331,20 @@ void main() {
 
         final result = await client.runAgent(endpoint, input).toList();
 
-        expect(result, hasLength(1));
-        expect(result[0], isA<RunStartedEvent>());
-      });
-
-      test('calls onWarning with count when events are skipped', () async {
-        final warnings = <String>[];
-        final clientWithWarning = AgUiStreamClient(
-          httpTransport: mockTransport,
-          urlBuilder: UrlBuilder(baseUrl),
-          onWarning: warnings.add,
-        );
-        addTearDown(clientWithWarning.close);
-
-        final events = [
-          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
-          {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
-          {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
-        ];
-
-        when(
-          () => mockTransport.requestStream(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            cancelToken: any(named: 'cancelToken'),
-          ),
-        ).thenAnswer(
-          (_) async => StreamedHttpResponse(
-            statusCode: 200,
-            body: sseByteStream(events),
-          ),
-        );
-
-        final result =
-            await clientWithWarning.runAgent(endpoint, input).toList();
-
         expect(result, hasLength(2));
-        expect(warnings, hasLength(1));
-        expect(warnings[0], contains('1 malformed event'));
+        expect(result[0], isA<DecodeFailed>());
+        // Top-level JSON parse failure carries the raw String as rawData.
+        expect(
+          (result[0] as DecodeFailed).rawData,
+          equals('not valid json at all'),
+        );
+        expect(result[1], isA<DecodedEvent>());
+        expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
       });
 
       test(
-        'mixed batch with two undecodable items reports skipped=2',
+        'mixed batch yields DecodeFailed per undecodable item',
         () async {
-          // The caller accumulates skips across batches and surfaces
-          // them through a single `onWarning` at clean termination.
-          final warnings = <String>[];
-          final clientWithWarning = AgUiStreamClient(
-            httpTransport: mockTransport,
-            urlBuilder: UrlBuilder(baseUrl),
-            onWarning: warnings.add,
-          );
-          addTearDown(clientWithWarning.close);
-
           final batch = [
             {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
             {'type': 'TOTALLY_UNKNOWN_EVENT', 'a': 1},
@@ -397,12 +370,11 @@ void main() {
             ),
           );
 
-          final result =
-              await clientWithWarning.runAgent(endpoint, input).toList();
+          final result = await client.runAgent(endpoint, input).toList();
 
-          expect(result, hasLength(2));
-          expect(warnings, hasLength(1));
-          expect(warnings.single, contains('Skipped 2 malformed event'));
+          expect(result, hasLength(4));
+          expect(result.whereType<DecodeFailed>(), hasLength(2));
+          expect(result.whereType<DecodedEvent>(), hasLength(2));
         },
       );
 
@@ -473,20 +445,20 @@ void main() {
           ),
         );
 
-        final events = <BaseEvent>[];
+        final outcomes = <DecodeOutcome>[];
         final run = resumeClient.runAgent(
           endpoint,
           input,
           onReconnectStatus: statuses.add,
         );
-        final iterator = StreamIterator<BaseEvent>(run);
+        final iterator = StreamIterator<DecodeOutcome>(run);
 
         // Drain the first two real events. Then re-stub the transport
         // for the resume request before consuming further.
         await iterator.moveNext();
-        events.add(iterator.current);
+        outcomes.add(iterator.current);
         await iterator.moveNext();
-        events.add(iterator.current);
+        outcomes.add(iterator.current);
 
         // Swap the stub to return events 2..3 + RUN_FINISHED.
         when(
@@ -526,8 +498,9 @@ void main() {
         );
 
         while (await iterator.moveNext()) {
-          events.add(iterator.current);
+          outcomes.add(iterator.current);
         }
+        final events = _decodedOnly(outcomes);
 
         // Verify second call included Last-Event-ID.
         final captured = verify(
@@ -628,13 +601,15 @@ void main() {
             );
           });
 
-          final events = await resumeClient
-              .runAgent(
-                endpoint,
-                input,
-                onReconnectStatus: statuses.add,
-              )
-              .toList();
+          final events = _decodedOnly(
+            await resumeClient
+                .runAgent(
+                  endpoint,
+                  input,
+                  onReconnectStatus: statuses.add,
+                )
+                .toList(),
+          );
 
           expect(callCount, 3);
 
@@ -748,16 +723,12 @@ void main() {
       );
 
       test(
-        'retry exhaustion still flushes skipped-event warning and embeds '
-        'count in NetworkException message',
+        'retry exhaustion throws StreamResumeFailed; per-item DecodeFailed '
+        'is yielded inline before the throw',
         () async {
-          // Skipped-event diagnostics survive terminal failure. Both
-          // `_onWarning` AND the thrown message carry the count.
-          final warnings = <String>[];
           final resumeClient = AgUiStreamClient(
             httpTransport: mockTransport,
             urlBuilder: UrlBuilder(baseUrl),
-            onWarning: warnings.add,
             resumePolicy: const ResumePolicy(
               maxAttempts: 1,
               initialBackoff: Duration(milliseconds: 1),
@@ -809,23 +780,27 @@ void main() {
             throw const NetworkException(message: 'drop again');
           });
 
+          // Drain through the iterator so we can collect the
+          // pre-failure outcomes before the resume exhausts.
+          final outcomes = <DecodeOutcome>[];
           await expectLater(
-            resumeClient.runAgent(endpoint, input).toList(),
+            () async {
+              await for (final outcome
+                  in resumeClient.runAgent(endpoint, input)) {
+                outcomes.add(outcome);
+              }
+            }(),
             throwsA(
-              isA<NetworkException>().having(
+              isA<StreamResumeFailedException>().having(
                 (e) => e.message,
                 'message',
-                allOf(
-                  startsWith(streamResumeFailedPrefix),
-                  contains('skipped 2 malformed events'),
-                ),
+                startsWith(streamResumeFailedPrefix),
               ),
             ),
           );
 
-          // _onWarning still fires once with the count.
-          expect(warnings, hasLength(1));
-          expect(warnings.single, contains('Skipped 2 malformed event'));
+          expect(outcomes.whereType<DecodeFailed>(), hasLength(2));
+          expect(outcomes.whereType<DecodedEvent>(), hasLength(1));
         },
       );
 

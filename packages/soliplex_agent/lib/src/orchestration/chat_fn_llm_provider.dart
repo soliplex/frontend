@@ -61,13 +61,13 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: runId, events: events);
   }
 
-  Stream<BaseEvent> _run(
+  Stream<DecodeOutcome> _run(
     ThreadKey key,
     SimpleRunAgentInput input,
     String runId,
     CancelToken? cancelToken,
   ) async* {
-    yield RunStartedEvent(threadId: key.threadId, runId: runId);
+    yield _wrap(RunStartedEvent(threadId: key.threadId, runId: runId));
 
     if (cancelToken?.isCancelled ?? false) return;
 
@@ -86,31 +86,31 @@ class ChatFnLlmProvider implements AgentLlmProvider {
       switch (parsed) {
         case TextResponse(:final text):
           final msgId = 'msg-${DateTime.now().microsecondsSinceEpoch}';
-          yield TextMessageStartEvent(messageId: msgId);
-          yield TextMessageContentEvent(messageId: msgId, delta: text);
-          yield TextMessageEndEvent(messageId: msgId);
+          yield _wrap(TextMessageStartEvent(messageId: msgId));
+          yield _wrap(TextMessageContentEvent(messageId: msgId, delta: text));
+          yield _wrap(TextMessageEndEvent(messageId: msgId));
 
         case ToolCallResponse(:final prefixText, :final name, :final arguments):
           if (prefixText.isNotEmpty) {
             final textMsgId =
                 'msg-text-${DateTime.now().microsecondsSinceEpoch}';
-            yield TextMessageStartEvent(messageId: textMsgId);
-            yield TextMessageContentEvent(
-              messageId: textMsgId,
-              delta: prefixText,
+            yield _wrap(TextMessageStartEvent(messageId: textMsgId));
+            yield _wrap(
+              TextMessageContentEvent(messageId: textMsgId, delta: prefixText),
             );
-            yield TextMessageEndEvent(messageId: textMsgId);
+            yield _wrap(TextMessageEndEvent(messageId: textMsgId));
           }
           final tcId = 'tc-${DateTime.now().microsecondsSinceEpoch}';
-          yield ToolCallStartEvent(toolCallId: tcId, toolCallName: name);
-          yield ToolCallArgsEvent(
-            toolCallId: tcId,
-            delta: jsonEncode(arguments),
+          yield _wrap(
+            ToolCallStartEvent(toolCallId: tcId, toolCallName: name),
           );
-          yield ToolCallEndEvent(toolCallId: tcId);
+          yield _wrap(
+            ToolCallArgsEvent(toolCallId: tcId, delta: jsonEncode(arguments)),
+          );
+          yield _wrap(ToolCallEndEvent(toolCallId: tcId));
       }
 
-      yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+      yield _wrap(RunFinishedEvent(threadId: key.threadId, runId: runId));
     } on CancelledException {
       // Surface cancels as a stream error so the orchestrator routes
       // them to `CancelledState` via `_onStreamError`. Yielding a
@@ -119,9 +119,14 @@ class ChatFnLlmProvider implements AgentLlmProvider {
       rethrow;
     } on Object catch (e) {
       final msg = e is SoliplexException ? e.message : e.toString();
-      yield RunErrorEvent(message: msg);
+      yield _wrap(RunErrorEvent(message: msg));
     }
   }
+
+  /// `rawJson` is `const {}` because synthesized events have no source
+  /// JSON; if `processEvent` ever throws on one, the resulting drop tile
+  /// will carry an empty payload.
+  static DecodedEvent _wrap(BaseEvent event) => DecodedEvent(event, const {});
 
   /// Converts AG-UI messages to simple role/content pairs for the
   /// [ChatFn].

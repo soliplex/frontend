@@ -32,7 +32,10 @@ void main() {
           ),
         );
 
-        final events = await handle.events.toList();
+        final events = (await handle.events.toList())
+            .whereType<DecodedEvent>()
+            .map((d) => d.event)
+            .toList();
 
         expect(events[0], isA<RunStartedEvent>());
         expect(events[1], isA<TextMessageStartEvent>());
@@ -80,7 +83,10 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<ToolCallStartEvent>());
@@ -114,7 +120,10 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       // RunStarted, TextStart, TextContent, TextEnd, ToolStart, ToolArgs,
       // ToolEnd, RunFinished
@@ -145,7 +154,10 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<RunErrorEvent>());
@@ -172,7 +184,10 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<RunErrorEvent>());
@@ -200,7 +215,10 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       // Should synthesize TextEnd and RunFinished
       expect(events.last, isA<RunFinishedEvent>());
@@ -365,7 +383,8 @@ void main() {
         cancelToken: token,
       );
 
-      await for (final event in handle.events) {
+      await for (final outcome in handle.events) {
+        final event = (outcome as DecodedEvent).event;
         if (event is TextMessageContentEvent) {
           deltaCount++;
           if (deltaCount >= 3) {

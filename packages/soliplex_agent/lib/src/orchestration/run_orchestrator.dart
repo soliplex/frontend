@@ -96,9 +96,14 @@ class RunOrchestrator {
   bool _disposed = false;
   bool _disposing = false;
   CancelToken? _cancelToken;
-  StreamSubscription<BaseEvent>? _subscription;
+  StreamSubscription<DecodeOutcome>? _subscription;
   bool _receivedTerminalEvent = false;
   int _toolDepth = 0;
+
+  /// Index for the next event observed on the active subscription. Reset
+  /// in [_subscribeToStream] so each run mints monotonically increasing
+  /// drop-tile ids that pair with that run's id.
+  int _liveEventCounter = 0;
 
   // runToCompletion infrastructure
   Completer<RunState>? _terminalCompleter;
@@ -115,10 +120,14 @@ class RunOrchestrator {
   /// Broadcast stream of state transitions.
   Stream<RunState> get stateChanges => _controller.stream;
 
-  /// Broadcast stream of raw AG-UI events received from the SSE connection.
+  /// Broadcast stream of structurally-valid AG-UI events received on the
+  /// active subscription.
   ///
   /// Used by `AgentSession` to bridge server-side events into the
   /// `ExecutionEvent` signal without duplicating event processing logic.
+  /// Decode failures are surfaced as [DroppedEventMessage] tiles in the
+  /// conversation and never reach this stream — the tracker only sees
+  /// events the decoder accepted.
   Stream<BaseEvent> get baseEvents => _baseEventController.stream;
 
   /// The current cancellation token for the active run.
@@ -445,7 +454,7 @@ class RunOrchestrator {
   /// cancelling releases the underlying socket. `onError` routes through
   /// `Logger.error` so a future bug landing here from a non-cancel path
   /// leaves a Sentry-grade breadcrumb instead of an unhandled future.
-  void _drainUnownedStream(Stream<BaseEvent> events, String errorMessage) {
+  void _drainUnownedStream(Stream<DecodeOutcome> events, String errorMessage) {
     unawaited(
       events
           .listen(
@@ -815,7 +824,7 @@ class RunOrchestrator {
   }
 
   void _subscribeToStream(
-    Stream<BaseEvent> events,
+    Stream<DecodeOutcome> events,
     RunningState initialState,
   ) {
     // Cancel stale subscription from the previous run.
@@ -827,6 +836,7 @@ class RunOrchestrator {
     _subscription = null;
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
+    _liveEventCounter = 0;
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
@@ -841,14 +851,80 @@ class RunOrchestrator {
     );
   }
 
-  void _onEvent(BaseEvent event) {
-    if (!_baseEventController.isClosed) {
-      _baseEventController.add(event);
+  void _onEvent(DecodeOutcome outcome) {
+    final eventIndex = _liveEventCounter++;
+    switch (outcome) {
+      case DecodeFailed(:final error, :final rawData):
+        // Decode failures never reach the tracker — there's no decoded
+        // event to project. Surface as a tile in the conversation and
+        // continue processing the next event in the stream.
+        _appendDropTile(
+          source: DropSource.decode,
+          error: error,
+          rawData: rawData,
+          eventIndex: eventIndex,
+        );
+      case DecodedEvent(:final event, :final rawJson):
+        if (!_baseEventController.isClosed) {
+          _baseEventController.add(event);
+        }
+        final running = _currentState;
+        if (running is! RunningState) return;
+        try {
+          final result =
+              processEvent(running.conversation, running.streaming, event);
+          _mapEventResult(running, result, event);
+        } on Object catch (e, st) {
+          _logger.error(
+            'processEvent threw on ${event.runtimeType}',
+            error: e,
+            stackTrace: st,
+          );
+          _appendDropTile(
+            source: DropSource.eventProcessing,
+            error: e,
+            rawData: rawJson,
+            eventIndex: eventIndex,
+          );
+        }
     }
+  }
+
+  /// Appends a [DroppedEventMessage] to the running conversation. No-op
+  /// when the orchestrator isn't in [RunningState] (e.g., a stray event
+  /// after terminal cleanup) — those drops are logged at warning so the
+  /// gap is observable without hitting the conversation.
+  void _appendDropTile({
+    required DropSource source,
+    required Object error,
+    required Object rawData,
+    required int eventIndex,
+  }) {
     final running = _currentState;
-    if (running is! RunningState) return;
-    final result = processEvent(running.conversation, running.streaming, event);
-    _mapEventResult(running, result, event);
+    if (running is! RunningState) {
+      _logger.warning(
+        'Drop tile not appended: orchestrator not in RunningState',
+        attributes: {
+          'state': running.runtimeType.toString(),
+          'source': source.name,
+          'error': error.toString(),
+        },
+      );
+      return;
+    }
+    final id = 'dropped-${running.runId}-$eventIndex';
+    final tile = DroppedEventMessage.create(
+      id: id,
+      source: source,
+      reason: error.toString(),
+      runId: running.runId,
+      rawPayload: rawData is Map<String, dynamic> ? rawData : null,
+    );
+    _setState(
+      running.copyWith(
+        conversation: running.conversation.withAppendedMessage(tile),
+      ),
+    );
   }
 
   void _mapEventResult(

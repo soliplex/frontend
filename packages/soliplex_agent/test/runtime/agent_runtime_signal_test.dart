@@ -104,7 +104,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('sessions signal', () {

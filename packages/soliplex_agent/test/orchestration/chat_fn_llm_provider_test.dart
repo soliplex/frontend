@@ -21,7 +21,10 @@ void main() {
       );
 
       final handle = await provider.startRun(key: key, input: input0());
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<TextMessageStartEvent>());
@@ -44,7 +47,10 @@ void main() {
       );
 
       final handle = await provider.startRun(key: key, input: input0());
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<ToolCallStartEvent>());
@@ -66,7 +72,10 @@ Let me check.
       );
 
       final handle = await provider.startRun(key: key, input: input0());
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       // Prefix text events.
@@ -90,7 +99,10 @@ Let me check.
       );
 
       final handle = await provider.startRun(key: key, input: input0());
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<TextMessageStartEvent>());
@@ -106,7 +118,10 @@ Let me check.
       );
 
       final handle = await provider.startRun(key: key, input: input0());
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<RunErrorEvent>());
@@ -128,7 +143,10 @@ Let me check.
       );
 
       expect(handle.runId, 'my-run-42');
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
       expect((events[0] as RunStartedEvent).runId, 'my-run-42');
     });
 
@@ -163,7 +181,10 @@ Let me check.
         key: key,
         input: input0(tools: tools),
       );
-      await handle.events.toList();
+      (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(capturedSystemPrompt, contains('You are helpful.'));
       expect(capturedSystemPrompt, contains('## Available Tools'));
@@ -185,7 +206,10 @@ Let me check.
         key: key,
         input: input0(tools: []),
       );
-      await handle.events.toList();
+      (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(capturedSystemPrompt, contains('You are helpful.'));
       expect(capturedSystemPrompt, isNot(contains('## Available Tools')));
@@ -209,7 +233,10 @@ Let me check.
       );
 
       final handle = await provider.startRun(key: key, input: input);
-      await handle.events.toList();
+      (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(capturedMessages, hasLength(3));
       expect(capturedMessages![0].role, 'user');
@@ -240,7 +267,10 @@ Let me check.
       );
 
       final handle = await provider.startRun(key: key, input: input);
-      await handle.events.toList();
+      (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       expect(capturedMessages, hasLength(1));
       expect(capturedMessages![0].role, 'user');
@@ -261,7 +291,10 @@ Let me check.
         input: input0(),
         cancelToken: cancelToken,
       );
-      final events = await handle.events.toList();
+      final events = (await handle.events.toList())
+          .whereType<DecodedEvent>()
+          .map((d) => d.event)
+          .toList();
 
       // Only RunStartedEvent, then stream ends (cancelled before chatFn).
       expect(events[0], isA<RunStartedEvent>());

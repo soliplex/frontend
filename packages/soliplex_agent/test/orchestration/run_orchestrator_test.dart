@@ -69,6 +69,12 @@ ToolRegistry _registryWith({String toolName = 'weather'}) {
   );
 }
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 List<ToolCallInfo> _executedTools() => [
       const ToolCallInfo(
         id: 'tc-1',
@@ -120,7 +126,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('happy path', () {
@@ -1155,6 +1163,8 @@ void main() {
       required Stream<BaseEvent> second,
     }) {
       callCount = 0;
+      Stream<DecodeOutcome> wrap(Stream<BaseEvent> s) =>
+          s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
       when(
         () => agUiStreamClient.runAgent(
           any(),
@@ -1165,7 +1175,7 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        return callCount == 1 ? first : second;
+        return callCount == 1 ? wrap(first) : wrap(second);
       });
     }
 
@@ -1245,9 +1255,9 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         if (callCount <= 2) {
-          return Stream.fromIterable(_toolCallEvents());
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
         }
-        return Stream.fromIterable(_resumeTextEvents());
+        return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       await orchestrator.startRun(key: _key, userMessage: 'Weather?');
@@ -1287,7 +1297,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => Stream.fromIterable(_toolCallEvents()));
+      ).thenAnswer((_) => _wrap(Stream.fromIterable(_toolCallEvents())));
 
       await orchestrator.startRun(key: _key, userMessage: 'Weather?');
       await Future<void>.delayed(Duration.zero);
@@ -1334,10 +1344,12 @@ void main() {
       ).thenAnswer((_) {
         runAgentCallCount++;
         if (runAgentCallCount == 1) {
-          return Stream.fromIterable(_toolCallEvents());
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
         }
-        return Stream<BaseEvent>.error(
-          const NetworkException(message: 'transport drop on resume'),
+        return _wrap(
+          Stream<BaseEvent>.error(
+            const NetworkException(message: 'transport drop on resume'),
+          ),
         );
       });
 
@@ -1429,7 +1441,7 @@ void main() {
         ),
       ).thenAnswer((invocation) {
         capturedToken = invocation.namedArguments[#cancelToken] as CancelToken?;
-        return controller.stream;
+        return _wrap(controller.stream);
       });
       stubCreateRun();
 
@@ -1504,9 +1516,9 @@ void main() {
       ).thenAnswer((_) {
         runAgentCallCount++;
         if (runAgentCallCount == 1) {
-          return Stream.fromIterable(_toolCallEvents());
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
         }
-        return resumeStreamController.stream;
+        return _wrap(resumeStreamController.stream);
       });
 
       // Block the tool executor so the test can re-stub createRun before
@@ -1853,7 +1865,10 @@ void main() {
       final input = captured.first as SimpleRunAgentInput;
       final state = input.state as Map<String, dynamic>;
       expect(state, containsPair('filter', 'docs'));
-      expect(state, containsPair('citations', <String>[]));
+      expect(
+        state,
+        containsPair('citations', <String>[]),
+      );
     });
 
     test(
@@ -1881,25 +1896,27 @@ void main() {
           callCount++;
           if (callCount == 1) {
             // First run: emit state snapshot + tool call.
-            return Stream.fromIterable([
-              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              const StateSnapshotEvent(
-                snapshot: {'rag_context': 'doc-42', 'turn': 1},
-              ),
-              const ToolCallStartEvent(
-                toolCallId: 'tc-1',
-                toolCallName: 'weather',
-              ),
-              const ToolCallArgsEvent(
-                toolCallId: 'tc-1',
-                delta: '{"city":"NYC"}',
-              ),
-              const ToolCallEndEvent(toolCallId: 'tc-1'),
-              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-            ]);
+            return _wrap(
+              Stream<BaseEvent>.fromIterable([
+                const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+                const StateSnapshotEvent(
+                  snapshot: {'rag_context': 'doc-42', 'turn': 1},
+                ),
+                const ToolCallStartEvent(
+                  toolCallId: 'tc-1',
+                  toolCallName: 'weather',
+                ),
+                const ToolCallArgsEvent(
+                  toolCallId: 'tc-1',
+                  delta: '{"city":"NYC"}',
+                ),
+                const ToolCallEndEvent(toolCallId: 'tc-1'),
+                const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+              ]),
+            );
           }
           // Second run: just complete.
-          return Stream.fromIterable(_resumeTextEvents());
+          return _wrap(Stream.fromIterable(_resumeTextEvents()));
         });
 
         await orchestrator.startRun(key: _key, userMessage: 'Weather?');
@@ -1952,42 +1969,51 @@ void main() {
         callCount++;
         if (callCount == 1) {
           // Run 1: set initial state + yield tool.
-          return Stream.fromIterable([
-            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-            const StateSnapshotEvent(snapshot: {'turn': 1, 'docs': <String>[]}),
-            const ToolCallStartEvent(
-              toolCallId: 'tc-1',
-              toolCallName: 'weather',
-            ),
-            const ToolCallArgsEvent(
-              toolCallId: 'tc-1',
-              delta: '{"city":"NYC"}',
-            ),
-            const ToolCallEndEvent(toolCallId: 'tc-1'),
-            const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-          ]);
+          return _wrap(
+            Stream<BaseEvent>.fromIterable([
+              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const StateSnapshotEvent(
+                snapshot: {'turn': 1, 'docs': <String>[]},
+              ),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-1',
+                toolCallName: 'weather',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-1',
+                delta: '{"city":"NYC"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-1'),
+              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            ]),
+          );
         }
         if (callCount == 2) {
           // Run 2: update state via new snapshot + yield tool again.
-          return Stream.fromIterable([
-            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-            const StateSnapshotEvent(
-              snapshot: {
-                'turn': 2,
-                'docs': ['doc-a'],
-              },
-            ),
-            const ToolCallStartEvent(
-              toolCallId: 'tc-2',
-              toolCallName: 'weather',
-            ),
-            const ToolCallArgsEvent(toolCallId: 'tc-2', delta: '{"city":"LA"}'),
-            const ToolCallEndEvent(toolCallId: 'tc-2'),
-            const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-          ]);
+          return _wrap(
+            Stream<BaseEvent>.fromIterable([
+              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const StateSnapshotEvent(
+                snapshot: {
+                  'turn': 2,
+                  'docs': ['doc-a'],
+                },
+              ),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-2',
+                toolCallName: 'weather',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-2',
+                delta: '{"city":"LA"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-2'),
+              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            ]),
+          );
         }
         // Run 3: complete.
-        return Stream.fromIterable(_resumeTextEvents());
+        return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final result = await orchestrator.runToCompletion(
@@ -2034,7 +2060,10 @@ void main() {
       final input3 = captured[2] as SimpleRunAgentInput;
       final state3 = input3.state as Map<String, dynamic>;
       expect(state3, containsPair('turn', 2));
-      expect(state3['docs'], equals(['doc-a']));
+      expect(
+        state3['docs'],
+        equals(['doc-a']),
+      );
     });
 
     test('empty state sent when no cachedHistory or snapshots', () async {
@@ -2252,8 +2281,42 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         if (callCount == 1) {
-          return Stream.fromIterable([
+          return _wrap(
+            Stream<BaseEvent>.fromIterable([
+              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const StateSnapshotEvent(
+                snapshot: {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1': {
+                        'chunk_id': 'chunk-1',
+                        'content': 'First citation',
+                        'document_id': 'doc-1',
+                        'document_uri': 'https://example.com/doc1.pdf',
+                      },
+                    },
+                    'citations': ['chunk-1'],
+                  },
+                },
+              ),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-1',
+                toolCallName: 'weather',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-1',
+                delta: '{"city":"NYC"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-1'),
+              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            ]),
+          );
+        }
+        return _wrap(
+          Stream<BaseEvent>.fromIterable([
             const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const TextMessageStartEvent(messageId: 'msg-2'),
+            const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
             const StateSnapshotEvent(
               snapshot: {
                 'rag': {
@@ -2264,51 +2327,21 @@ void main() {
                       'document_id': 'doc-1',
                       'document_uri': 'https://example.com/doc1.pdf',
                     },
+                    'chunk-2': {
+                      'chunk_id': 'chunk-2',
+                      'content': 'Second citation',
+                      'document_id': 'doc-2',
+                      'document_uri': 'https://example.com/doc2.pdf',
+                    },
                   },
-                  'citations': ['chunk-1'],
+                  'citations': ['chunk-1', 'chunk-2'],
                 },
               },
             ),
-            const ToolCallStartEvent(
-              toolCallId: 'tc-1',
-              toolCallName: 'weather',
-            ),
-            const ToolCallArgsEvent(
-              toolCallId: 'tc-1',
-              delta: '{"city":"NYC"}',
-            ),
-            const ToolCallEndEvent(toolCallId: 'tc-1'),
+            const TextMessageEndEvent(messageId: 'msg-2'),
             const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-          ]);
-        }
-        return Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const TextMessageStartEvent(messageId: 'msg-2'),
-          const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
-          const StateSnapshotEvent(
-            snapshot: {
-              'rag': {
-                'citation_index': {
-                  'chunk-1': {
-                    'chunk_id': 'chunk-1',
-                    'content': 'First citation',
-                    'document_id': 'doc-1',
-                    'document_uri': 'https://example.com/doc1.pdf',
-                  },
-                  'chunk-2': {
-                    'chunk_id': 'chunk-2',
-                    'content': 'Second citation',
-                    'document_id': 'doc-2',
-                    'document_uri': 'https://example.com/doc2.pdf',
-                  },
-                },
-                'citations': ['chunk-1', 'chunk-2'],
-              },
-            },
-          ),
-          const TextMessageEndEvent(messageId: 'msg-2'),
-          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-        ]);
+          ]),
+        );
       });
 
       final result = await orchestrator.runToCompletion(
@@ -2360,8 +2393,52 @@ void main() {
         callCount++;
         if (callCount == 1) {
           // Segment 1: ask() returns chunk-1 and chunk-2.
-          return Stream.fromIterable([
+          return _wrap(
+            Stream<BaseEvent>.fromIterable([
+              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const StateSnapshotEvent(
+                snapshot: {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1': {
+                        'chunk_id': 'chunk-1',
+                        'content': 'First',
+                        'document_id': 'doc-1',
+                        'document_uri': 'file:///doc1.pdf',
+                      },
+                      'chunk-2': {
+                        'chunk_id': 'chunk-2',
+                        'content': 'Second',
+                        'document_id': 'doc-1',
+                        'document_uri': 'file:///doc1.pdf',
+                      },
+                    },
+                    'citations': ['chunk-1', 'chunk-2'],
+                  },
+                },
+              ),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-1',
+                toolCallName: 'weather',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-1',
+                delta: '{"city":"NYC"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-1'),
+              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            ]),
+          );
+        }
+        // Segment 2: ask() returns chunk-2 (duplicate) and chunk-3 (new).
+        return _wrap(
+          Stream<BaseEvent>.fromIterable([
             const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const TextMessageStartEvent(messageId: 'msg-2'),
+            const TextMessageContentEvent(
+              messageId: 'msg-2',
+              delta: 'Done',
+            ),
             const StateSnapshotEvent(
               snapshot: {
                 'rag': {
@@ -2378,61 +2455,21 @@ void main() {
                       'document_id': 'doc-1',
                       'document_uri': 'file:///doc1.pdf',
                     },
+                    'chunk-3': {
+                      'chunk_id': 'chunk-3',
+                      'content': 'Third',
+                      'document_id': 'doc-2',
+                      'document_uri': 'file:///doc2.pdf',
+                    },
                   },
-                  'citations': ['chunk-1', 'chunk-2'],
+                  'citations': ['chunk-1', 'chunk-2', 'chunk-3'],
                 },
               },
             ),
-            const ToolCallStartEvent(
-              toolCallId: 'tc-1',
-              toolCallName: 'weather',
-            ),
-            const ToolCallArgsEvent(
-              toolCallId: 'tc-1',
-              delta: '{"city":"NYC"}',
-            ),
-            const ToolCallEndEvent(toolCallId: 'tc-1'),
+            const TextMessageEndEvent(messageId: 'msg-2'),
             const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-          ]);
-        }
-        // Segment 2: ask() returns chunk-2 (duplicate) and chunk-3 (new).
-        return Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const TextMessageStartEvent(messageId: 'msg-2'),
-          const TextMessageContentEvent(
-            messageId: 'msg-2',
-            delta: 'Done',
-          ),
-          const StateSnapshotEvent(
-            snapshot: {
-              'rag': {
-                'citation_index': {
-                  'chunk-1': {
-                    'chunk_id': 'chunk-1',
-                    'content': 'First',
-                    'document_id': 'doc-1',
-                    'document_uri': 'file:///doc1.pdf',
-                  },
-                  'chunk-2': {
-                    'chunk_id': 'chunk-2',
-                    'content': 'Second',
-                    'document_id': 'doc-1',
-                    'document_uri': 'file:///doc1.pdf',
-                  },
-                  'chunk-3': {
-                    'chunk_id': 'chunk-3',
-                    'content': 'Third',
-                    'document_id': 'doc-2',
-                    'document_uri': 'file:///doc2.pdf',
-                  },
-                },
-                'citations': ['chunk-1', 'chunk-2', 'chunk-3'],
-              },
-            },
-          ),
-          const TextMessageEndEvent(messageId: 'msg-2'),
-          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-        ]);
+          ]),
+        );
       });
 
       final result = await orchestrator.runToCompletion(

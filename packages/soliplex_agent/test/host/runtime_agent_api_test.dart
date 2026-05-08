@@ -10,6 +10,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -93,7 +99,7 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => Stream.fromIterable(_happyPathEvents(text)));
+    ).thenAnswer((_) => _wrap(Stream.fromIterable(_happyPathEvents(text))));
   }
 
   group('RuntimeAgentApi', () {
@@ -146,7 +152,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => controller.stream);
+      ).thenAnswer((_) => _wrap(controller.stream));
 
       final handle = await agentApi.spawnAgent(_roomId, 'test');
       controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
@@ -197,7 +203,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => controller.stream);
+      ).thenAnswer((_) => _wrap(controller.stream));
 
       final handle = await agentApi.spawnAgent(_roomId, 'test');
       controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));

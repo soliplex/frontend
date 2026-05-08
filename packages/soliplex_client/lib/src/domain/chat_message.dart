@@ -335,30 +335,27 @@ class LoadingMessage extends ChatMessage {
 
 /// Where a dropped event was caught.
 enum DropSource {
-  /// `decodeEventSafely` produced `DecodeFailed` — either malformed JSON or
+  /// `decodeMapSafely` produced `DecodeFailed` — either malformed JSON or
   /// a `type` field the decoder doesn't recognize.
   decode,
 
-  /// The per-event-loop wrapper caught a throw from `processEvent` itself
-  /// or one of its downstream side effects (e.g., citation extraction).
+  /// The per-event-loop wrapper caught a throw from `processEvent` itself.
+  /// Citation extraction, historical replay bridging, and tracker projection
+  /// failures stay log-only (Tier-1) and do not synthesize a tile.
   eventProcessing,
-
-  /// Historical replay bridging or `ExecutionTracker._onEvent` threw on a
-  /// per-event basis.
-  activityProcessing,
-
-  /// Catch-all for future drop sites.
-  other,
 }
 
 /// An event the client received but couldn't decode or process, surfaced as
 /// a tile in the timeline so the user sees something happened and devs can
 /// inspect the raw payload.
 ///
-/// Synthesized by the data-layer wrappers in Phase 3
-/// (`decodeEventSafely`, the per-event-loop wrapper, and the
-/// `historical_replay` / `ExecutionTracker` boundaries). Never sent over
-/// the wire.
+/// Synthesized at the two content-bearing boundaries: the decode boundary
+/// (`decodeMapSafely` returns `DecodeFailed`) and the per-event-loop body
+/// in `RunOrchestrator._onEvent` / `SoliplexApi._replayEventsToHistory`
+/// (`processEvent` threw). Tier-1 boundaries (citation extraction,
+/// historical replay bridging, tracker projection) log only without
+/// minting a tile — failures there don't lose user-facing content. Never
+/// sent over the wire (filtered in `agui_message_mapper.dart`).
 @immutable
 class DroppedEventMessage extends ChatMessage {
   /// Creates a dropped-event message with all properties.

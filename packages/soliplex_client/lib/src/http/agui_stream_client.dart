@@ -6,6 +6,7 @@ import 'package:ag_ui/ag_ui.dart' hide CancelToken;
 // ignore: implementation_imports
 import 'package:ag_ui/src/sse/sse_parser.dart';
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
@@ -40,33 +41,32 @@ class AgUiStreamClient {
   AgUiStreamClient({
     required HttpTransport httpTransport,
     required UrlBuilder urlBuilder,
-    void Function(String message)? onWarning,
     ResumePolicy resumePolicy = const ResumePolicy(),
   })  : _httpTransport = httpTransport,
         _urlBuilder = urlBuilder,
-        _onWarning = onWarning,
         _resumePolicy = resumePolicy;
 
   final HttpTransport _httpTransport;
   final UrlBuilder _urlBuilder;
-  final void Function(String message)? _onWarning;
   final ResumePolicy _resumePolicy;
 
   static const _logName = 'soliplex_client.agui_stream';
 
-  /// Streams AG-UI events for a run.
+  /// Streams AG-UI decode outcomes for a run.
   ///
-  /// Posts [input] to [endpoint] and parses the SSE response into typed
-  /// [BaseEvent]s. The endpoint is relative to the base URL (e.g.
-  /// `'rooms/my-room/agui/thread-1/run-1'`).
+  /// Posts [input] to [endpoint] and parses each SSE `data:` line into a
+  /// sequence of [DecodeOutcome]s — [DecodedEvent] for items the decoder
+  /// accepts and [DecodeFailed] for malformed JSON, unknown event types,
+  /// or non-object scalars. The endpoint is relative to the base URL
+  /// (e.g. `'rooms/my-room/agui/thread-1/run-1'`).
   ///
   /// Reconnect lifecycle is reported through [onReconnectStatus] (a
   /// [Reconnecting] before each retry, [Reconnected] on the first
-  /// decoded event after a successful retry, [ReconnectFailed] when the
-  /// retry budget is exhausted). On terminal transport failure the
-  /// stream throws [NetworkException] whose message starts with
-  /// [streamResumeFailedPrefix].
-  Stream<BaseEvent> runAgent(
+  /// outcome of any kind after a successful retry, [ReconnectFailed]
+  /// when the retry budget is exhausted). On terminal transport failure
+  /// the stream throws [StreamResumeFailedException] whose message
+  /// starts with [streamResumeFailedPrefix].
+  Stream<DecodeOutcome> runAgent(
     String endpoint,
     SimpleRunAgentInput input, {
     CancelToken? cancelToken,
@@ -78,7 +78,6 @@ class AgUiStreamClient {
     final body = input.toJson();
     String? lastEventId;
     var attempt = 0;
-    var skippedEventCount = 0;
 
     while (true) {
       final isResumeRequest = lastEventId != null;
@@ -93,9 +92,9 @@ class AgUiStreamClient {
           onReconnectStatus?.call(
             ReconnectFailed(attempt: attempt, error: e),
           );
-          _flushSkippedWarning(skippedEventCount);
           throw StreamResumeFailedException(
-            message: _resumeFailureMessage(e, skippedEventCount),
+            message: '$streamResumeFailedPrefix '
+                '${e is SoliplexException ? e.message : e}',
             originalError: e,
           );
         }
@@ -128,9 +127,8 @@ class AgUiStreamClient {
           }
           if (message.data == null || message.data!.isEmpty) continue;
 
-          final result = _decodeOne(message.data!);
-          skippedEventCount += result.skipped;
-          if (result.events.isEmpty) continue;
+          final outcomes = _decodeOne(message.data!);
+          if (outcomes.isEmpty) continue;
 
           if (!announcedResume) {
             _logSuccess(attempt, lastEventId);
@@ -138,11 +136,14 @@ class AgUiStreamClient {
             announcedResume = true;
             attempt = 0;
           }
-          for (final ev in result.events) {
-            if (ev is RunFinishedEvent || ev is RunErrorEvent) {
-              sawTerminalEvent = true;
+          for (final outcome in outcomes) {
+            if (outcome is DecodedEvent) {
+              final ev = outcome.event;
+              if (ev is RunFinishedEvent || ev is RunErrorEvent) {
+                sawTerminalEvent = true;
+              }
             }
-            yield ev;
+            yield outcome;
           }
           if (sawTerminalEvent) break;
         }
@@ -159,7 +160,6 @@ class AgUiStreamClient {
       }
 
       if (sawTerminalEvent || streamError == null) {
-        _flushSkippedWarning(skippedEventCount);
         return;
       }
 
@@ -167,7 +167,6 @@ class AgUiStreamClient {
         // No id was ever emitted, so no resume is possible. Rethrow the
         // underlying error directly — wrapping with `streamResumeFailedPrefix`
         // would mislead consumers into treating this as a resume failure.
-        _flushSkippedWarning(skippedEventCount);
         Error.throwWithStackTrace(
           streamError,
           streamErrorStack ?? StackTrace.current,
@@ -178,9 +177,11 @@ class AgUiStreamClient {
         onReconnectStatus?.call(
           ReconnectFailed(attempt: attempt, error: streamError),
         );
-        _flushSkippedWarning(skippedEventCount);
+        final inner = streamError is SoliplexException
+            ? streamError.message
+            : streamError.toString();
         throw StreamResumeFailedException(
-          message: _resumeFailureMessage(streamError, skippedEventCount),
+          message: '$streamResumeFailedPrefix $inner',
           originalError: streamError,
         );
       }
@@ -232,74 +233,51 @@ class AgUiStreamClient {
     );
   }
 
-  /// Decodes one SSE `data:` line into 0..N typed [BaseEvent]s. Returns
-  /// the decoded events and the skip count from this single line. The
-  /// caller accumulates skipped counts across the run.
+  /// Decodes one SSE `data:` line into 0..N [DecodeOutcome]s.
   ///
-  ///   - Single-event JSON object → `(events: [decoded], skipped: 0)`.
-  ///   - JSON array batch → `(events: [decoded...], skipped: N)`
-  ///     where N counts items that fail to decode or are not JSON
-  ///     objects.
-  ///   - Malformed JSON or any top-level decode failure
-  ///     → `(events: [], skipped: 1)`.
-  ({List<BaseEvent> events, int skipped}) _decodeOne(String data) {
-    const decoder = EventDecoder();
-    final decoded = <BaseEvent>[];
-    var skipped = 0;
+  ///   - Single-event JSON object → one outcome via [decodeMapSafely].
+  ///   - JSON array batch → one outcome per item; non-Map items become
+  ///     [DecodeFailed] with the raw value as `rawData`.
+  ///   - Top-level JSON parse failure → single [DecodeFailed] carrying
+  ///     the raw `String`.
+  ///   - Top-level scalar (string/number/bool/null) → single
+  ///     [DecodeFailed] carrying the raw value.
+  List<DecodeOutcome> _decodeOne(String data) {
+    final outcomes = <DecodeOutcome>[];
+    final dynamic jsonData;
     try {
-      final jsonData = json.decode(data);
-      if (jsonData is Map<String, dynamic>) {
-        decoded.add(decoder.decodeJson(jsonData));
-      } else if (jsonData is List) {
-        for (final item in jsonData) {
-          if (item is Map<String, dynamic>) {
-            try {
-              decoded.add(decoder.decodeJson(item));
-            } on DecodingError catch (e) {
-              skipped++;
-              developer.log(
-                'Skipped undecodable AG-UI event in batch: $e',
-                name: _logName,
-                level: 900,
-              );
-            }
-          } else {
-            skipped++;
-            developer.log(
-              'Skipped non-object item in AG-UI batch: ${item.runtimeType}',
-              name: _logName,
-              level: 900,
-            );
-          }
-        }
-      } else {
-        // JSON scalar (string/number/bool/null) at the top level —
-        // not a valid AG-UI payload. Counted so the skipped-event
-        // diagnostic surfaces server-side anomalies of this shape.
-        skipped++;
-        developer.log(
-          'Skipped non-object JSON scalar in SSE event: '
-          '${jsonData.runtimeType}',
-          name: _logName,
-          level: 900,
-        );
-      }
+      jsonData = json.decode(data);
     } on FormatException catch (e) {
-      skipped++;
-      developer.log(
-        'Skipped malformed JSON in SSE event: $e',
-        name: _logName,
-        level: 900,
-      );
-    } on DecodingError catch (e) {
-      skipped++;
-      developer.log(
-        'Skipped undecodable AG-UI event: $e',
-        name: _logName,
-        level: 900,
+      return [DecodeFailed(e, data)];
+    }
+    if (jsonData is Map<String, dynamic>) {
+      outcomes.add(decodeMapSafely(jsonData));
+    } else if (jsonData is List) {
+      for (final item in jsonData) {
+        if (item is Map<String, dynamic>) {
+          outcomes.add(decodeMapSafely(item));
+        } else {
+          outcomes.add(
+            DecodeFailed(
+              FormatException(
+                'Non-object item in AG-UI batch: ${item.runtimeType}',
+              ),
+              item as Object,
+            ),
+          );
+        }
+      }
+    } else {
+      outcomes.add(
+        DecodeFailed(
+          FormatException(
+            'Non-object JSON scalar in SSE event: ${jsonData.runtimeType}',
+          ),
+          jsonData as Object,
+        ),
       );
     }
-    return (events: decoded, skipped: skipped);
+    return outcomes;
   }
 
   /// Cancel-aware backoff: races a delay against the cancel token so a
@@ -328,24 +306,6 @@ class AgUiStreamClient {
     await completer.future;
     timer.cancel();
     token.throwIfCancelled();
-  }
-
-  /// Logs and forwards a non-zero skipped-event count via [_onWarning].
-  /// Caller invokes once per terminal exit from `runAgent`.
-  void _flushSkippedWarning(int count) {
-    if (count == 0) return;
-    final noun = count == 1 ? 'event' : 'events';
-    final message = 'Skipped $count malformed $noun during streaming';
-    developer.log(message, name: _logName, level: 900);
-    _onWarning?.call(message);
-  }
-
-  String _resumeFailureMessage(Object error, int skippedEventCount) {
-    final inner = error is SoliplexException ? error.message : error.toString();
-    if (skippedEventCount == 0) return '$streamResumeFailedPrefix $inner';
-    final noun = skippedEventCount == 1 ? 'event' : 'events';
-    return '$streamResumeFailedPrefix $inner '
-        '(skipped $skippedEventCount malformed $noun)';
   }
 
   void _logAttempt(int attempt, String? lastId, Object? err) {
