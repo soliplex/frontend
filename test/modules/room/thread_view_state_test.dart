@@ -924,45 +924,6 @@ void main() {
     );
 
     test(
-      'FailedState with skipped-events suffix preserves the count in '
-      'friendly copy',
-      () async {
-        api.nextThreadHistory = ThreadHistory(messages: const []);
-
-        final state = ThreadViewState(
-          connection: connection,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          registry: registry,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        final session = _FakeAgentSession();
-        state.attachSession(session);
-
-        session.emit(
-          FailedState.preRun(
-            threadKey: (
-              serverId: 'test-server',
-              roomId: 'room-1',
-              threadId: 'thread-1',
-            ),
-            reason: FailureReason.streamResumeFailed,
-            error: '$streamResumeFailedPrefix NetworkException: server gone '
-                '(skipped 3 malformed events)',
-          ),
-        );
-
-        final sendError = state.lastSendError.value;
-        expect(sendError, isNotNull);
-        expect(sendError!.error, contains('Connection lost'));
-        expect(sendError.error, contains('(skipped 3 malformed events)'));
-
-        state.dispose();
-      },
-    );
-
-    test(
       'FailedState without the marker prefix passes the raw error through',
       () async {
         api.nextThreadHistory = ThreadHistory(messages: const []);

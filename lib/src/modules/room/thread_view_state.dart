@@ -328,18 +328,12 @@ class ThreadViewState {
 
   /// Translates orchestrator failure copy into user-facing copy.
   ///
-  /// `streamResumeFailed` failures get a friendly base message. The
-  /// skipped-event count, when present in the underlying error string,
-  /// is preserved as a parenthetical suffix — best-effort: the base
-  /// message still appears if the suffix format ever drifts. Other
+  /// `streamResumeFailed` failures get a friendly base message; other
   /// failures pass through unchanged.
   String _friendlyMessage(FailureReason reason, String error) {
     if (reason != FailureReason.streamResumeFailed) return error;
-    const base = 'Connection lost. The response may be incomplete — '
+    return 'Connection lost. The response may be incomplete — '
         'you can send your message again.';
-    final skipped =
-        RegExp(r'\(skipped \d+ malformed events?\)').firstMatch(error);
-    return skipped == null ? base : '$base ${skipped.group(0)}';
   }
 
   bool _restoreFromRegistry() {

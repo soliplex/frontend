@@ -5,8 +5,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// AG-UI backend adapter implementing [AgentLlmProvider].
 ///
 /// Wraps [SoliplexApi] (run creation) and [AgUiStreamClient] (SSE streaming)
-/// into the unified [AgentLlmProvider] contract. Zero behavior change from
-/// the pre-Phase 3 wiring — this is a mechanical extraction.
+/// into the [AgentLlmProvider] contract.
 class AgUiLlmProvider implements AgentLlmProvider {
   /// Creates an [AgUiLlmProvider] from existing AG-UI clients.
   const AgUiLlmProvider({

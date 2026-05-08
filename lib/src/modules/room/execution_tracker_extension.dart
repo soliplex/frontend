@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'execution_tracker.dart';
@@ -16,10 +17,12 @@ import 'tracker_registry.dart';
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
   ExecutionTrackerExtension({required Logger logger})
-      : _registry = TrackerRegistry(logger: logger) {
+      : _logger = logger,
+        _registry = TrackerRegistry(logger: logger) {
     setInitialState(const <String, ExecutionTracker>{});
   }
 
+  final Logger _logger;
   final TrackerRegistry _registry;
   void Function()? _runStateUnsub;
   AgentSession? _session;
@@ -53,8 +56,27 @@ class ExecutionTrackerExtension extends SessionExtension
     super.onDispose();
   }
 
+  /// Test entrypoint for [_onRunState]. Production code routes through
+  /// the signal subscription; tests use this to drive the post-dispose
+  /// path that production can't reach without racing the signals teardown.
+  @visibleForTesting
+  void debugPushRunState(RunState runState) => _onRunState(runState);
+
   void _onRunState(RunState runState) {
-    final session = _session!;
+    final session = _session;
+    if (session == null) {
+      // signals teardown is assumed synchronous w.r.t. onDispose, but
+      // that's a fragile invariant across signals upgrades. Reaching
+      // here means the invariant broke — `error`-level so Sentry can
+      // page on a regression instead of having the breadcrumb buried
+      // among warnings.
+      _logger.error(
+        '_onRunState fired after dispose; ignoring',
+        stackTrace: StackTrace.current,
+        attributes: {'runState': runState.runtimeType.toString()},
+      );
+      return;
+    }
     switch (runState) {
       case RunningState(:final streaming):
         _registry.onStreaming(streaming, session.lastExecutionEvent);

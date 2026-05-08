@@ -32,7 +32,7 @@ void main() {
           ),
         );
 
-        final events = await handle.events.toList();
+        final events = await _decodedEvents(handle);
 
         expect(events[0], isA<RunStartedEvent>());
         expect(events[1], isA<TextMessageStartEvent>());
@@ -80,7 +80,7 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = await _decodedEvents(handle);
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<ToolCallStartEvent>());
@@ -114,7 +114,7 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = await _decodedEvents(handle);
 
       // RunStarted, TextStart, TextContent, TextEnd, ToolStart, ToolArgs,
       // ToolEnd, RunFinished
@@ -145,7 +145,7 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = await _decodedEvents(handle);
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<RunErrorEvent>());
@@ -172,7 +172,7 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = await _decodedEvents(handle);
 
       expect(events[0], isA<RunStartedEvent>());
       expect(events[1], isA<RunErrorEvent>());
@@ -200,7 +200,7 @@ void main() {
         ),
       );
 
-      final events = await handle.events.toList();
+      final events = await _decodedEvents(handle);
 
       // Should synthesize TextEnd and RunFinished
       expect(events.last, isA<RunFinishedEvent>());
@@ -365,7 +365,8 @@ void main() {
         cancelToken: token,
       );
 
-      await for (final event in handle.events) {
+      await for (final outcome in handle.events) {
+        final event = (outcome as DecodedEvent).event;
         if (event is TextMessageContentEvent) {
           deltaCount++;
           if (deltaCount >= 3) {
@@ -403,3 +404,9 @@ void main() {
     });
   });
 }
+
+Future<List<BaseEvent>> _decodedEvents(LlmRunHandle handle) async =>
+    (await handle.events.toList())
+        .whereType<DecodedEvent>()
+        .map((d) => d.event)
+        .toList();

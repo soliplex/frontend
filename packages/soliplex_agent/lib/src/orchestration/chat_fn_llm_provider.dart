@@ -5,6 +5,10 @@ import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
 import 'package:soliplex_agent/src/orchestration/tool_call_parser.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_agent.chat_fn_llm_provider');
 
 /// Callback type for LLM chat.
 ///
@@ -30,9 +34,9 @@ typedef ChatFn = Future<String> Function(
 ///
 /// Wraps a [ChatFn] callback, converts AG-UI messages to simple
 /// role/content pairs, and synthesizes AG-UI events from the LLM's
-/// text response. Tool calling uses a text-based protocol (Phase 1)
-/// — the system prompt instructs the LLM to emit fenced `tool_call`
-/// blocks that [parseToolCallResponse] extracts.
+/// text response. Tool calling uses a text-based protocol — the
+/// system prompt instructs the LLM to emit fenced `tool_call` blocks
+/// that [parseToolCallResponse] extracts.
 class ChatFnLlmProvider implements AgentLlmProvider {
   /// Creates a [ChatFnLlmProvider].
   ///
@@ -61,13 +65,15 @@ class ChatFnLlmProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: runId, events: events);
   }
 
-  Stream<BaseEvent> _run(
+  Stream<DecodeOutcome> _run(
     ThreadKey key,
     SimpleRunAgentInput input,
     String runId,
     CancelToken? cancelToken,
   ) async* {
-    yield RunStartedEvent(threadId: key.threadId, runId: runId);
+    yield synthesizedDecoded(
+      RunStartedEvent(threadId: key.threadId, runId: runId),
+    );
 
     if (cancelToken?.isCancelled ?? false) return;
 
@@ -86,40 +92,51 @@ class ChatFnLlmProvider implements AgentLlmProvider {
       switch (parsed) {
         case TextResponse(:final text):
           final msgId = 'msg-${DateTime.now().microsecondsSinceEpoch}';
-          yield TextMessageStartEvent(messageId: msgId);
-          yield TextMessageContentEvent(messageId: msgId, delta: text);
-          yield TextMessageEndEvent(messageId: msgId);
+          yield synthesizedDecoded(TextMessageStartEvent(messageId: msgId));
+          yield synthesizedDecoded(
+            TextMessageContentEvent(messageId: msgId, delta: text),
+          );
+          yield synthesizedDecoded(TextMessageEndEvent(messageId: msgId));
 
         case ToolCallResponse(:final prefixText, :final name, :final arguments):
           if (prefixText.isNotEmpty) {
             final textMsgId =
                 'msg-text-${DateTime.now().microsecondsSinceEpoch}';
-            yield TextMessageStartEvent(messageId: textMsgId);
-            yield TextMessageContentEvent(
-              messageId: textMsgId,
-              delta: prefixText,
+            yield synthesizedDecoded(
+              TextMessageStartEvent(messageId: textMsgId),
             );
-            yield TextMessageEndEvent(messageId: textMsgId);
+            yield synthesizedDecoded(
+              TextMessageContentEvent(messageId: textMsgId, delta: prefixText),
+            );
+            yield synthesizedDecoded(TextMessageEndEvent(messageId: textMsgId));
           }
           final tcId = 'tc-${DateTime.now().microsecondsSinceEpoch}';
-          yield ToolCallStartEvent(toolCallId: tcId, toolCallName: name);
-          yield ToolCallArgsEvent(
-            toolCallId: tcId,
-            delta: jsonEncode(arguments),
+          yield synthesizedDecoded(
+            ToolCallStartEvent(toolCallId: tcId, toolCallName: name),
           );
-          yield ToolCallEndEvent(toolCallId: tcId);
+          yield synthesizedDecoded(
+            ToolCallArgsEvent(toolCallId: tcId, delta: jsonEncode(arguments)),
+          );
+          yield synthesizedDecoded(ToolCallEndEvent(toolCallId: tcId));
       }
 
-      yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+      yield synthesizedDecoded(
+        RunFinishedEvent(threadId: key.threadId, runId: runId),
+      );
     } on CancelledException {
       // Surface cancels as a stream error so the orchestrator routes
       // them to `CancelledState` via `_onStreamError`. Yielding a
       // `RunErrorEvent` would land in `FailedState(serverError)` with
       // the runtime-type stringified into the user-facing message.
       rethrow;
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      _logger.error(
+        'ChatFnLlmProvider run failed',
+        error: e,
+        stackTrace: st,
+      );
       final msg = e is SoliplexException ? e.message : e.toString();
-      yield RunErrorEvent(message: msg);
+      yield synthesizedDecoded(RunErrorEvent(message: msg));
     }
   }
 

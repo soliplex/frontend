@@ -96,9 +96,22 @@ class RunOrchestrator {
   bool _disposed = false;
   bool _disposing = false;
   CancelToken? _cancelToken;
-  StreamSubscription<BaseEvent>? _subscription;
+  StreamSubscription<DecodeOutcome>? _subscription;
   bool _receivedTerminalEvent = false;
   int _toolDepth = 0;
+
+  /// Index for the next event observed on the active subscription. Reset
+  /// in [_subscribeToStream] so each run mints monotonically increasing
+  /// drop-tile ids that pair with that run's id.
+  ///
+  /// Cross-path id alignment assumes one [DecodeOutcome] per backend-stored
+  /// `events[i]`. The replay path
+  /// (`SoliplexApi._replayEventsToHistory`) increments its loop index
+  /// once per stored event; this counter increments once per outcome.
+  /// Drop-tile ids only round-trip when those cardinalities match —
+  /// i.e., the AG-UI backend must store one event per outcome the live
+  /// decoder produces.
+  int _liveEventCounter = 0;
 
   // runToCompletion infrastructure
   Completer<RunState>? _terminalCompleter;
@@ -115,10 +128,15 @@ class RunOrchestrator {
   /// Broadcast stream of state transitions.
   Stream<RunState> get stateChanges => _controller.stream;
 
-  /// Broadcast stream of raw AG-UI events received from the SSE connection.
+  /// Broadcast stream of AG-UI events whose application-layer
+  /// processing succeeded on the active subscription.
   ///
   /// Used by `AgentSession` to bridge server-side events into the
   /// `ExecutionEvent` signal without duplicating event processing logic.
+  /// Decode failures and `processEvent` throws surface as
+  /// [DroppedEventMessage] tiles in the conversation and never reach
+  /// this stream, so a tracker observing it stays consistent with the
+  /// conversation state.
   Stream<BaseEvent> get baseEvents => _baseEventController.stream;
 
   /// The current cancellation token for the active run.
@@ -445,7 +463,7 @@ class RunOrchestrator {
   /// cancelling releases the underlying socket. `onError` routes through
   /// `Logger.error` so a future bug landing here from a non-cancel path
   /// leaves a Sentry-grade breadcrumb instead of an unhandled future.
-  void _drainUnownedStream(Stream<BaseEvent> events, String errorMessage) {
+  void _drainUnownedStream(Stream<DecodeOutcome> events, String errorMessage) {
     unawaited(
       events
           .listen(
@@ -815,7 +833,7 @@ class RunOrchestrator {
   }
 
   void _subscribeToStream(
-    Stream<BaseEvent> events,
+    Stream<DecodeOutcome> events,
     RunningState initialState,
   ) {
     // Cancel stale subscription from the previous run.
@@ -827,6 +845,7 @@ class RunOrchestrator {
     _subscription = null;
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
+    _liveEventCounter = 0;
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
@@ -841,14 +860,87 @@ class RunOrchestrator {
     );
   }
 
-  void _onEvent(BaseEvent event) {
-    if (!_baseEventController.isClosed) {
-      _baseEventController.add(event);
+  void _onEvent(DecodeOutcome outcome) {
+    final eventIndex = _liveEventCounter++;
+    switch (outcome) {
+      case DecodeFailed(:final error, :final rawData, :final stackTrace):
+        _appendDropTile(
+          source: DropSource.decode,
+          error: error,
+          stackTrace: stackTrace,
+          rawData: rawData,
+          eventIndex: eventIndex,
+        );
+      case DecodedEvent(:final event, :final rawJson):
+        final running = _currentState;
+        if (running is! RunningState) return;
+        try {
+          final result =
+              processEvent(running.conversation, running.streaming, event);
+          _mapEventResult(running, result, event);
+        } on Object catch (e, st) {
+          _appendDropTile(
+            source: DropSource.eventProcessing,
+            error: e,
+            stackTrace: st,
+            rawData: rawJson,
+            eventIndex: eventIndex,
+            eventTypeForLog: event.runtimeType,
+          );
+          return;
+        }
+        if (!_baseEventController.isClosed) {
+          _baseEventController.add(event);
+        }
     }
+  }
+
+  /// Appends a [DroppedEventMessage] to the running conversation and
+  /// logs at error with [stackTrace] so Sentry / `BackendLogSink` get a
+  /// breadcrumb. When the orchestrator isn't in [RunningState] (a
+  /// stray event after terminal cleanup), the tile can't be appended;
+  /// the original error is already logged at error severity above, so
+  /// the unappended-tile branch logs at warning severity to avoid a
+  /// duplicate page while still leaving an audit breadcrumb.
+  void _appendDropTile({
+    required DropSource source,
+    required Object error,
+    required StackTrace? stackTrace,
+    required Object? rawData,
+    required int eventIndex,
+    Type? eventTypeForLog,
+  }) {
+    final logMessage = eventTypeForLog == null
+        ? 'Dropped event (${source.name})'
+        : 'processEvent threw on $eventTypeForLog';
+    _logger.error(logMessage, error: error, stackTrace: stackTrace);
+
     final running = _currentState;
-    if (running is! RunningState) return;
-    final result = processEvent(running.conversation, running.streaming, event);
-    _mapEventResult(running, result, event);
+    if (running is! RunningState) {
+      _logger.warning(
+        'Drop tile not appended: orchestrator not in RunningState',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {
+          'state': running.runtimeType.toString(),
+          'source': source.name,
+        },
+      );
+      return;
+    }
+    final id = 'dropped-${running.runId}-$eventIndex';
+    final tile = DroppedEventMessage.create(
+      id: id,
+      source: source,
+      reason: error.toString(),
+      runId: running.runId,
+      rawPayload: rawData,
+    );
+    _setState(
+      running.copyWith(
+        conversation: running.conversation.withAppendedMessage(tile),
+      ),
+    );
   }
 
   void _mapEventResult(
@@ -924,34 +1016,59 @@ class RunOrchestrator {
   /// In multi-segment tool loops, [runId] is overwritten each segment so the
   /// final [MessageState] carries the last segment's run ID — the one whose
   /// output the user sees and may submit feedback on.
+  ///
+  /// `CitationExtractor.extractNew` calls into generated schema types
+  /// (`RagSnapshot.resolveCitation`, `SourceReference`'s ctor on
+  /// non-null fields the wire might omit) — schema drift can surface
+  /// here as `FormatException`, `TypeError` (null on non-null), or
+  /// other generated-type throws. Catching `Object` is deliberate:
+  /// citations are a derived projection, so fail-soft (skip
+  /// citations, complete the run) is the right UX for both
+  /// data-drift and programming bugs — propagating instead would
+  /// abort a working run with no user benefit. Logged at `error`
+  /// with stack trace so Sentry / `BackendLogSink` still surface
+  /// real bugs. The throw bypasses the [_preRunAguiState] update at
+  /// the next line so the next run's diff still resolves against the
+  /// prior baseline; only this segment's citations are skipped. No
+  /// drop tile — citations are a derived projection, not user-facing
+  /// content.
   Conversation _extractCitations(Conversation conversation, String runId) {
-    final userMessageId = _userMessageId;
-    if (userMessageId == null) return conversation;
+    try {
+      final userMessageId = _userMessageId;
+      if (userMessageId == null) return conversation;
 
-    final citations = _citationExtractor.extractNew(
-      _preRunAguiState,
-      conversation.aguiState,
-    );
-    _preRunAguiState = conversation.aguiState;
+      final citations = _citationExtractor.extractNew(
+        _preRunAguiState,
+        conversation.aguiState,
+      );
+      _preRunAguiState = conversation.aguiState;
 
-    final existing = conversation.messageStates[userMessageId];
-    final seenChunkIds = <String>{};
-    final mergedCitations = <SourceReference>[];
-    for (final ref in [
-      if (existing != null) ...existing.sourceReferences,
-      ...citations,
-    ]) {
-      if (seenChunkIds.add(ref.chunkId)) {
-        mergedCitations.add(ref);
+      final existing = conversation.messageStates[userMessageId];
+      final seenChunkIds = <String>{};
+      final mergedCitations = <SourceReference>[];
+      for (final ref in [
+        if (existing != null) ...existing.sourceReferences,
+        ...citations,
+      ]) {
+        if (seenChunkIds.add(ref.chunkId)) {
+          mergedCitations.add(ref);
+        }
       }
-    }
 
-    final messageState = MessageState(
-      userMessageId: userMessageId,
-      sourceReferences: mergedCitations,
-      runId: runId,
-    );
-    return conversation.withMessageState(userMessageId, messageState);
+      final messageState = MessageState(
+        userMessageId: userMessageId,
+        sourceReferences: mergedCitations,
+        runId: runId,
+      );
+      return conversation.withMessageState(userMessageId, messageState);
+    } on Object catch (e, st) {
+      _logger.error(
+        'Citation extraction failed for run $runId',
+        error: e,
+        stackTrace: st,
+      );
+      return conversation;
+    }
   }
 
   void _onStreamDone() {

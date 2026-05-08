@@ -762,18 +762,13 @@ EventProcessingResult _processStateSnapshot(
   StreamingState streaming,
   dynamic snapshot,
 ) {
-  if (snapshot is! Map<String, dynamic>) {
-    _logger.warning(
-      'StateSnapshotEvent: skipping non-Map snapshot; state unchanged.',
-      attributes: {'snapshotType': snapshot.runtimeType.toString()},
-    );
-    return EventProcessingResult(
-      conversation: conversation,
-      streaming: streaming,
-    );
-  }
+  // The cast throws on non-Map snapshots. The per-event-loop wrappers
+  // in `RunOrchestrator._onEvent` and `SoliplexApi._replayEventsToHistory`
+  // catch the throw and append a `DroppedEventMessage` at the failure
+  // position; surrounding events still process.
   return EventProcessingResult(
-    conversation: conversation.copyWith(aguiState: snapshot),
+    conversation:
+        conversation.copyWith(aguiState: snapshot as Map<String, dynamic>),
     streaming: streaming,
   );
 }

@@ -11,6 +11,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -176,7 +182,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('spawn', () {
@@ -253,7 +261,7 @@ void main() {
       ).thenAnswer((invocation) {
         capturedInput =
             invocation.positionalArguments[1] as SimpleRunAgentInput;
-        return Stream.fromIterable(_happyPathEvents());
+        return _wrap(Stream.fromIterable(_happyPathEvents()));
       });
 
       final session = await runtime.spawn(
@@ -293,7 +301,7 @@ void main() {
       ).thenAnswer((invocation) {
         capturedInput =
             invocation.positionalArguments[1] as SimpleRunAgentInput;
-        return Stream.fromIterable(_happyPathEvents());
+        return _wrap(Stream.fromIterable(_happyPathEvents()));
       });
 
       final session = await runtime.spawn(
@@ -354,7 +362,7 @@ void main() {
       ).thenAnswer((invocation) {
         capturedInput =
             invocation.positionalArguments[1] as SimpleRunAgentInput;
-        return Stream.fromIterable(_happyPathEvents());
+        return _wrap(Stream.fromIterable(_happyPathEvents()));
       });
 
       final session = await runtime.spawn(
@@ -500,7 +508,9 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        return callCount == 1 ? controllerA.stream : controllerB.stream;
+        return callCount == 1
+            ? _wrap(controllerA.stream)
+            : _wrap(controllerB.stream);
       });
 
       final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
@@ -956,7 +966,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => controller1.stream);
+      ).thenAnswer((_) => _wrap(controller1.stream));
 
       final s1 = await runtime.spawn(
         roomId: _roomId,
@@ -999,16 +1009,18 @@ void main() {
       ).thenAnswer((invocation) {
         capturedInput =
             invocation.positionalArguments[1] as SimpleRunAgentInput;
-        return Stream.fromIterable([
-          const RunStartedEvent(
-            threadId: 'thread-fail',
-            runId: 'run-2',
-          ),
-          const RunFinishedEvent(
-            threadId: 'thread-fail',
-            runId: 'run-2',
-          ),
-        ]);
+        return _wrap(
+          Stream<BaseEvent>.fromIterable([
+            const RunStartedEvent(
+              threadId: 'thread-fail',
+              runId: 'run-2',
+            ),
+            const RunFinishedEvent(
+              threadId: 'thread-fail',
+              runId: 'run-2',
+            ),
+          ]),
+        );
       });
 
       final s2 = await runtime.spawn(
@@ -1116,8 +1128,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = await runtime.spawn(roomId: _roomId, prompt: 'Weather?');
@@ -1171,20 +1183,22 @@ void main() {
         callCount++;
         // First call: tool yield; second call: resume with text
         return callCount == 1
-            ? Stream.fromIterable([
-                const RunStartedEvent(threadId: _threadId, runId: _runId),
-                const ToolCallStartEvent(
-                  toolCallId: 'tc-py',
-                  toolCallName: 'execute_python',
-                ),
-                const ToolCallArgsEvent(
-                  toolCallId: 'tc-py',
-                  delta: '{"code":"print(1)"}',
-                ),
-                const ToolCallEndEvent(toolCallId: 'tc-py'),
-                const RunFinishedEvent(threadId: _threadId, runId: _runId),
-              ])
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(
+                Stream<BaseEvent>.fromIterable([
+                  const RunStartedEvent(threadId: _threadId, runId: _runId),
+                  const ToolCallStartEvent(
+                    toolCallId: 'tc-py',
+                    toolCallName: 'execute_python',
+                  ),
+                  const ToolCallArgsEvent(
+                    toolCallId: 'tc-py',
+                    delta: '{"code":"print(1)"}',
+                  ),
+                  const ToolCallEndEvent(toolCallId: 'tc-py'),
+                  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+                ]),
+              )
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = await runtime.spawn(roomId: _roomId, prompt: 'Run code');

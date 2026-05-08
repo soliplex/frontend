@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_agent.streaming_llm_provider');
 
 /// Callback type for streaming LLM chat with tool support.
 ///
@@ -19,9 +23,9 @@ typedef StreamingChatFn = Stream<LlmEvent> Function({
 /// [AgentLlmProvider] backed by a streaming LLM callback with native
 /// tool calling support.
 ///
-/// Maps [LlmEvent] to AG-UI [BaseEvent] in real-time.
-/// Replaces `ChatFnLlmProvider` for providers that support streaming
-/// and native tool calling (via open_responses).
+/// Maps [LlmEvent] to AG-UI [BaseEvent] in real-time. Use for providers
+/// that support streaming and native tool calling (via open_responses);
+/// non-streaming providers go through `ChatFnLlmProvider` instead.
 class StreamingLlmProvider implements AgentLlmProvider {
   /// Creates a [StreamingLlmProvider].
   StreamingLlmProvider({required StreamingChatFn chatFn, this.systemPrompt})
@@ -46,13 +50,15 @@ class StreamingLlmProvider implements AgentLlmProvider {
     return LlmRunHandle(runId: runId, events: events);
   }
 
-  Stream<BaseEvent> _run(
+  Stream<DecodeOutcome> _run(
     ThreadKey key,
     SimpleRunAgentInput input,
     String runId,
     CancelToken? cancelToken,
   ) async* {
-    yield RunStartedEvent(threadId: key.threadId, runId: runId);
+    yield synthesizedDecoded(
+      RunStartedEvent(threadId: key.threadId, runId: runId),
+    );
 
     if (cancelToken?.isCancelled ?? false) return;
 
@@ -84,57 +90,72 @@ class StreamingLlmProvider implements AgentLlmProvider {
             if (currentMsgId == null) {
               final msgId = 'msg-${DateTime.now().microsecondsSinceEpoch}';
               currentMsgId = msgId;
-              yield TextMessageStartEvent(messageId: msgId);
+              yield synthesizedDecoded(TextMessageStartEvent(messageId: msgId));
             }
-            yield TextMessageContentEvent(messageId: currentMsgId, delta: text);
+            yield synthesizedDecoded(
+              TextMessageContentEvent(messageId: currentMsgId, delta: text),
+            );
 
           case LlmTextDone():
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield synthesizedDecoded(TextMessageEndEvent(messageId: msgId));
               currentMsgId = null;
             }
 
           case LlmToolCallStart(:final callId, :final name):
             // Close any open text message first.
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield synthesizedDecoded(TextMessageEndEvent(messageId: msgId));
               currentMsgId = null;
             }
-            yield ToolCallStartEvent(toolCallId: callId, toolCallName: name);
+            yield synthesizedDecoded(
+              ToolCallStartEvent(toolCallId: callId, toolCallName: name),
+            );
 
           case LlmToolCallArgsDelta(:final callId, :final delta):
-            yield ToolCallArgsEvent(toolCallId: callId, delta: delta);
+            yield synthesizedDecoded(
+              ToolCallArgsEvent(toolCallId: callId, delta: delta),
+            );
 
           case LlmToolCallDone(:final callId):
-            yield ToolCallEndEvent(toolCallId: callId);
+            yield synthesizedDecoded(ToolCallEndEvent(toolCallId: callId));
 
           case LlmDone():
             if (currentMsgId case final msgId?) {
-              yield TextMessageEndEvent(messageId: msgId);
+              yield synthesizedDecoded(TextMessageEndEvent(messageId: msgId));
             }
-            yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+            yield synthesizedDecoded(
+              RunFinishedEvent(threadId: key.threadId, runId: runId),
+            );
             return;
 
           case LlmError(:final message):
-            yield RunErrorEvent(message: message);
+            yield synthesizedDecoded(RunErrorEvent(message: message));
             return;
         }
       }
 
       // Stream ended without explicit done — synthesize finish.
       if (currentMsgId case final msgId?) {
-        yield TextMessageEndEvent(messageId: msgId);
+        yield synthesizedDecoded(TextMessageEndEvent(messageId: msgId));
       }
-      yield RunFinishedEvent(threadId: key.threadId, runId: runId);
+      yield synthesizedDecoded(
+        RunFinishedEvent(threadId: key.threadId, runId: runId),
+      );
     } on CancelledException {
       // Surface cancels as a stream error so the orchestrator routes
       // them to `CancelledState` via `_onStreamError`. Yielding a
       // `RunErrorEvent` would land in `FailedState(serverError)` with
       // the runtime-type stringified into the user-facing message.
       rethrow;
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      _logger.error(
+        'StreamingLlmProvider run failed',
+        error: e,
+        stackTrace: st,
+      );
       final msg = e is SoliplexException ? e.message : e.toString();
-      yield RunErrorEvent(message: msg);
+      yield synthesizedDecoded(RunErrorEvent(message: msg));
     }
   }
 

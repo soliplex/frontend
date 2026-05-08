@@ -335,30 +335,25 @@ class LoadingMessage extends ChatMessage {
 
 /// Where a dropped event was caught.
 enum DropSource {
-  /// `decodeEventSafely` produced `DecodeFailed` — either malformed JSON or
-  /// a `type` field the decoder doesn't recognize.
+  /// The decoder rejected the payload — malformed JSON, a non-object
+  /// scalar, an unknown event type, or a schema mismatch on a known type.
   decode,
 
-  /// The per-event-loop wrapper caught a throw from `processEvent` itself
-  /// or one of its downstream side effects (e.g., citation extraction).
+  /// The per-event-loop wrapper caught a throw from `processEvent` itself.
   eventProcessing,
-
-  /// Historical replay bridging or `ExecutionTracker._onEvent` threw on a
-  /// per-event basis.
-  activityProcessing,
-
-  /// Catch-all for future drop sites.
-  other,
 }
 
 /// An event the client received but couldn't decode or process, surfaced as
 /// a tile in the timeline so the user sees something happened and devs can
 /// inspect the raw payload.
 ///
-/// Synthesized by the data-layer wrappers in Phase 3
-/// (`decodeEventSafely`, the per-event-loop wrapper, and the
-/// `historical_replay` / `ExecutionTracker` boundaries). Never sent over
-/// the wire.
+/// Synthesized at two content-bearing boundaries: the decode boundary
+/// (`decodeMapSafely` returns `DecodeFailed`) and the per-event-loop body
+/// in `RunOrchestrator._onEvent` / `SoliplexApi._replayEventsToHistory`
+/// (`processEvent` threw). Citation extraction, historical replay
+/// bridging, and tracker projection log only without minting a tile —
+/// failures there don't lose user-facing content. Never sent over the
+/// wire (filtered in `agui_message_mapper.dart`).
 @immutable
 class DroppedEventMessage extends ChatMessage {
   /// Creates a dropped-event message with all properties.
@@ -378,7 +373,7 @@ class DroppedEventMessage extends ChatMessage {
     required DropSource source,
     required String reason,
     String? runId,
-    Map<String, dynamic>? rawPayload,
+    Object? rawPayload,
   }) {
     return DroppedEventMessage(
       id: id,
@@ -400,9 +395,12 @@ class DroppedEventMessage extends ChatMessage {
   /// Short human-readable reason. Shown as the collapsed-state subtitle.
   final String reason;
 
-  /// Original payload for inspection. Null when serialization itself
-  /// failed; the tile renders "(payload unavailable)" in that case.
-  final Map<String, dynamic>? rawPayload;
+  /// Original payload for inspection. Shape mirrors `DecodeFailed.rawData`:
+  /// `Map` for per-event decoder failures, `String` for top-level JSON
+  /// parse failures, or any non-Map JSON value (list/scalar). Null when
+  /// the surrounding boundary couldn't carry the payload at all; the
+  /// tile renders "(payload unavailable)" in that case.
+  final Object? rawPayload;
 
   @override
   String toString() =>

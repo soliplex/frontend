@@ -88,6 +88,26 @@ class ExecutionTracker {
   void _onEvent(ExecutionEvent? event) {
     assert(!_isFrozen, 'Cannot process events on a frozen ExecutionTracker');
     if (event == null) return;
+    try {
+      _dispatch(event);
+    } on Object catch (e, st) {
+      // The tracker is a derived projection of the event stream; a throw
+      // here would propagate up through the signals subscription that
+      // pushed the event, destabilising any downstream observers. Log
+      // and skip the mutation instead — surrounding events keep flowing.
+      // The drop is deliberately UI-silent: chat-message boundaries mint
+      // the drop tile; double-minting from this projection would surface
+      // the same backend event as two tiles. Logged at error so Sentry
+      // still sees the schema/code drift.
+      _logger.error(
+        'ExecutionTracker dropped ${event.runtimeType}',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  void _dispatch(ExecutionEvent event) {
     switch (event) {
       case ThinkingStarted():
         _completeActiveStep();

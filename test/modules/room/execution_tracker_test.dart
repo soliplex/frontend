@@ -585,6 +585,41 @@ void main() {
     expect(tracker.isThinkingStreaming.value, isFalse);
     expect(tracker.steps.value.single.status, StepStatus.completed);
   });
+
+  test(
+    'a throw inside a switch arm is caught; subsequent events still process',
+    () {
+      // ActivitySnapshot with an unrecognized activityType makes
+      // `SkillToolCallActivity.fromRecord` return null. The warning that
+      // fires next reads `content.keys.toList().toString()` while
+      // building its attributes — a Map whose `keys` getter throws makes
+      // that argument-evaluation throw, propagating into the switch arm.
+      // The wrap catches it; the tracker keeps responding to events.
+      events.value = ActivitySnapshot(
+        messageId: 'msg-1',
+        activityType: 'unknown_activity',
+        content: _ThrowingMap(),
+        timestamp: 1,
+        replace: false,
+      );
+
+      // The tracker survives and still bridges later events.
+      events.value = const ThinkingStarted();
+      expect(tracker.steps.value, hasLength(1));
+      expect(tracker.steps.value.single.label, 'Thinking');
+      expect(tracker.isThinkingStreaming.value, isTrue);
+    },
+  );
+}
+
+/// A `Map<String, dynamic>` whose `keys` getter throws. Used to drive the
+/// argument-evaluation throw in `_upsertSkillToolCall`'s warning call.
+class _ThrowingMap implements Map<String, dynamic> {
+  @override
+  Iterable<String> get keys => throw StateError('keys access blew up');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 extension on StepStatus {

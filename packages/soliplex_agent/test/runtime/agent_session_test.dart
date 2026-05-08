@@ -11,6 +11,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -196,7 +202,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('happy path', () {
@@ -274,8 +282,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = createSession(
@@ -310,9 +318,9 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         if (callCount <= 2) {
-          return Stream.fromIterable(_toolCallEvents());
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
         }
-        return Stream.fromIterable(_resumeTextEvents());
+        return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = createSession(
@@ -348,8 +356,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = createSession(
@@ -421,7 +429,7 @@ void main() {
     test('stream error → AgentFailure', () async {
       stubCreateRun();
       stubRunAgent(
-        stream: Stream.fromIterable([
+        stream: Stream<BaseEvent>.fromIterable([
           const RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
@@ -643,17 +651,19 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable([
-                const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-                const ToolCallStartEvent(
-                  toolCallId: 'tc-ext',
-                  toolCallName: 'ext_tool',
-                ),
-                const ToolCallArgsEvent(toolCallId: 'tc-ext', delta: '{}'),
-                const ToolCallEndEvent(toolCallId: 'tc-ext'),
-                const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-              ])
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(
+                Stream<BaseEvent>.fromIterable([
+                  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+                  const ToolCallStartEvent(
+                    toolCallId: 'tc-ext',
+                    toolCallName: 'ext_tool',
+                  ),
+                  const ToolCallArgsEvent(toolCallId: 'tc-ext', delta: '{}'),
+                  const ToolCallEndEvent(toolCallId: 'tc-ext'),
+                  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+                ]),
+              )
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       // Build session with extension tool merged into registry.
@@ -801,8 +811,8 @@ void main() {
         ).thenAnswer((_) {
           callCount++;
           return callCount == 1
-              ? Stream.fromIterable(_toolCallEvents())
-              : Stream.fromIterable(_resumeTextEvents());
+              ? _wrap(Stream.fromIterable(_toolCallEvents()))
+              : _wrap(Stream.fromIterable(_resumeTextEvents()));
         });
 
         final session = createSession(
@@ -850,8 +860,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = createSession(
@@ -895,8 +905,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final session = createSession(
@@ -937,7 +947,7 @@ void main() {
     test('ActivitySnapshotEvent bridges to ActivitySnapshot', () async {
       stubCreateRun();
       stubRunAgent(
-        stream: Stream.fromIterable([
+        stream: Stream<BaseEvent>.fromIterable([
           const RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const ActivitySnapshotEvent(
             messageId: 'msg-1',
@@ -976,7 +986,7 @@ void main() {
     test('StepStartedEvent bridges to StepProgress', () async {
       stubCreateRun();
       stubRunAgent(
-        stream: Stream.fromIterable([
+        stream: Stream<BaseEvent>.fromIterable([
           const RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StepStartedEvent(stepName: 'planning'),
           const TextMessageStartEvent(messageId: 'msg-1'),

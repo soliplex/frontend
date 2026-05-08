@@ -1442,9 +1442,11 @@ void main() {
 
         final messages = await api.getThreadHistory('room-123', 'thread-456');
 
-        // Should still return messages from successful run
-        expect(messages.messages.length, equals(1));
-        expect((messages.messages[0] as TextMessage).text, equals('First'));
+        // Successful run renders normally; failed run mints a drop tile
+        // so it's visibly missing rather than silently absent.
+        expect(messages.messages.whereType<TextMessage>().single.text, 'First');
+        final drop = messages.messages.whereType<DroppedEventMessage>().single;
+        expect(drop.runId, 'run-2');
       });
 
       test('returns empty list when no runs', () async {
@@ -1572,6 +1574,38 @@ void main() {
 
         expect(history.messages, isEmpty);
       });
+
+      test(
+        'throws MalformedResponseException when runs envelope is non-Map',
+        () async {
+          // 200 OK response whose `runs` field has the wrong shape — retry
+          // won't help; the UI must surface a non-retryable error rather
+          // than rendering an empty thread (which would be
+          // indistinguishable from a fresh thread).
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': <dynamic>['unexpected', 'list', 'shape'],
+            },
+          );
+
+          await expectLater(
+            api.getThreadHistory('room-123', 'thread-456'),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
 
       test('validates non-empty roomId', () {
         expect(
@@ -2080,14 +2114,8 @@ void main() {
         },
       );
 
-      test('skips undecodable events and warns', () async {
-        final warnings = <String>[];
-        final apiWithWarning = SoliplexApi(
-          transport: mockTransport,
-          urlBuilder: urlBuilder,
-          onWarning: warnings.add,
-        );
-
+      test('yields a DroppedEventMessage for undecodable replay events',
+          () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -2146,26 +2174,102 @@ void main() {
           },
         );
 
-        final history =
-            await apiWithWarning.getThreadHistory('room-123', 'thread-456');
+        final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.messages, hasLength(1));
-        expect(
-          (history.messages[0] as TextMessage).text,
-          equals('Hello'),
+        // A drop tile sits at the unknown event's position; the
+        // surrounding text message still renders.
+        expect(history.messages, hasLength(2));
+        expect(history.messages[0], isA<DroppedEventMessage>());
+        final drop = history.messages[0] as DroppedEventMessage;
+        expect(drop.source, equals(DropSource.decode));
+        expect(drop.runId, equals('run-1'));
+        expect(drop.id, equals('dropped-run-1-0'));
+        expect(drop.rawPayload, containsPair('type', 'TOTALLY_UNKNOWN_EVENT'));
+        expect((history.messages[1] as TextMessage).text, equals('Hello'));
+      });
+
+      test('replay drop tile ids are deterministic across reloads', () async {
+        // Same raw events on two replays produce drop tiles with the
+        // same ids — the live conversation rebuilds deterministically
+        // from backend events on reload.
+        final eventsResponse = {
+          'run_id': 'run-1',
+          'events': [
+            {'type': 'TOTALLY_UNKNOWN_EVENT', 'foo': 'bar'},
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'msg-1',
+              'role': 'assistant',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'msg-1',
+              'delta': 'Hello',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+          ],
+        };
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
         );
-        expect(warnings, hasLength(1));
-        expect(warnings[0], contains('Skipped 1 malformed event'));
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => eventsResponse);
 
-        apiWithWarning.close();
+        final first = await api.getThreadHistory('room-123', 'thread-456');
+        // Build a second SoliplexApi so the run-events cache doesn't
+        // shortcut the second replay.
+        final api2 = SoliplexApi(
+          transport: mockTransport,
+          urlBuilder: urlBuilder,
+        );
+        final second = await api2.getThreadHistory('room-123', 'thread-456');
+        api2.close();
+
+        final firstId =
+            first.messages.whereType<DroppedEventMessage>().single.id;
+        final secondId =
+            second.messages.whereType<DroppedEventMessage>().single.id;
+        expect(firstId, equals(secondId));
       });
 
       test('replay survives a STATE_SNAPSHOT with a non-Map snapshot',
           () async {
-        // Backend shape drift used to throw an unguarded cast inside
-        // processEvent, abort the replay, and reject getThreadHistory —
-        // leaving the user with no messages at all. After Phase 1 the bad
-        // event is a no-op and surrounding messages still appear.
+        // A non-Map snapshot triggers the cast throw inside
+        // processEvent; the per-event wrapper appends a drop tile at
+        // the failure position and replay continues.
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -2240,10 +2344,257 @@ void main() {
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
 
-        expect(history.messages, hasLength(2));
+        // The two text messages bracket a drop tile at the bad
+        // STATE_SNAPSHOT's position.
+        expect(history.messages, hasLength(3));
         expect((history.messages[0] as TextMessage).text, equals('before'));
-        expect((history.messages[1] as TextMessage).text, equals('after'));
+        expect(history.messages[1], isA<DroppedEventMessage>());
+        expect(
+          (history.messages[1] as DroppedEventMessage).source,
+          equals(DropSource.eventProcessing),
+        );
+        expect((history.messages[2] as TextMessage).text, equals('after'));
       });
+
+      test('non-Map item in events list mints a drop tile in place', () async {
+        // Backend shape drift: an item in `events` is a JSON scalar or
+        // null instead of a Map. Pre-fix the lazy `.cast<Map>()` threw
+        // at access time inside the replay loop and aborted the entire
+        // history load; now each non-Map item becomes its own drop tile
+        // and the surrounding events still reconstruct.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': <dynamic>[
+              null,
+              42,
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-1',
+                'delta': 'survived',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        final drops = history.messages.whereType<DroppedEventMessage>();
+        expect(drops, hasLength(2));
+        expect(drops.every((d) => d.source == DropSource.decode), isTrue);
+        expect(drops.map((d) => d.rawPayload), equals([null, 42]));
+        // Surviving valid events still reconstruct as a TextMessage.
+        final texts = history.messages.whereType<TextMessage>();
+        expect(texts, hasLength(1));
+        expect(texts.single.text, equals('survived'));
+      });
+
+      test(
+        'transient run-fetch failure mints a drop tile so the run is '
+        'visibly missing from history',
+        () async {
+          // Pre-fix, a NetworkException on a single run was logged via
+          // onWarning and the run vanished entirely from the timeline,
+          // making the rest of the thread look like it had a hole. The
+          // drop tile now signals "this run failed to load" in-place.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'finished': '2026-01-07T01:01:00.000Z',
+                },
+              },
+            },
+          );
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenThrow(const NetworkException(message: 'Connection failed'));
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          final drop = history.messages.whereType<DroppedEventMessage>().single;
+          expect(drop.runId, 'run-1');
+          expect(drop.reason, contains('Connection failed'));
+        },
+      );
+
+      test(
+        'non-Map run entry in runs envelope mints a drop tile so the run '
+        'is visibly absent from replay',
+        () async {
+          // Pre-fix, a non-Map entry inside the `runs` map was silently
+          // filtered out — the run vanished without trace.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': 'not-a-map',
+              },
+            },
+          );
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          final drop = history.messages.whereType<DroppedEventMessage>().single;
+          expect(drop.runId, 'run-1');
+          expect(drop.reason, contains('shape'));
+        },
+      );
+
+      test(
+        'processEvent-throw drop tile preserves the original wire JSON, '
+        'not a reconstruction from the decoded event',
+        () async {
+          // The drop tile's `rawPayload` must be the JSON the decoder
+          // saw — not a re-serialization of the `BaseEvent`. Marker
+          // field `_wireOnlyField` is on the wire but not on the
+          // `StateSnapshotEvent` shape; if a future refactor "helpfully"
+          // reconstructs `rawJson` from the decoded event, the marker
+          // would disappear and this test would fail.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'finished': '2026-01-07T01:01:00.000Z',
+                },
+              },
+            },
+          );
+
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'run_id': 'run-1',
+              'events': [
+                {
+                  'type': 'STATE_SNAPSHOT',
+                  'snapshot': ['not', 'a', 'map'],
+                  '_wireOnlyField': 'survives-because-rawJson-is-the-wire',
+                },
+              ],
+            },
+          );
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          final drop = history.messages.whereType<DroppedEventMessage>().single;
+          expect(
+            drop.rawPayload,
+            containsPair(
+              '_wireOnlyField',
+              'survives-because-rawJson-is-the-wire',
+            ),
+          );
+        },
+      );
 
       test('calls onWarning callback on partial failure', () async {
         final warnings = <String>[];
@@ -2354,13 +2705,16 @@ void main() {
           ),
         ).thenThrow(const NotFoundException(message: 'Run not found'));
 
-        // Should not throw - returns empty history gracefully
+        // Should not throw - the deleted run becomes a drop tile so the
+        // gap is visible, and onWarning still fires so callers tracking
+        // partial-load signals continue to receive them.
         final history = await apiWithWarning.getThreadHistory(
           'room-123',
           'thread-456',
         );
 
-        expect(history.messages, isEmpty);
+        final drop = history.messages.whereType<DroppedEventMessage>().single;
+        expect(drop.runId, 'run-1');
         expect(warnings, hasLength(1));
         expect(warnings[0], contains('run-1'));
 

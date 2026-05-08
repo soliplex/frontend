@@ -11,6 +11,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -126,7 +132,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('runToCompletion', () {
@@ -210,8 +218,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final result = await orchestrator.runToCompletion(
@@ -246,9 +254,9 @@ void main() {
         callCount++;
         // First 3 calls yield tools, 4th completes with text.
         if (callCount <= 3) {
-          return Stream.fromIterable(_toolCallEvents());
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
         }
-        return Stream.fromIterable(_resumeTextEvents());
+        return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final result = await orchestrator.runToCompletion(
@@ -280,7 +288,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => Stream.fromIterable(_toolCallEvents()));
+      ).thenAnswer((_) => _wrap(Stream.fromIterable(_toolCallEvents())));
 
       final result = await orchestrator.runToCompletion(
         key: _key,
@@ -557,8 +565,8 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        if (callCount == 1) return firstController.stream;
-        return Stream.fromIterable(_resumeTextEvents());
+        if (callCount == 1) return _wrap(firstController.stream);
+        return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final future = orchestrator.runToCompletion(
@@ -616,7 +624,7 @@ void main() {
       );
       stubCreateRun();
       stubRunAgent(
-        stream: Stream.fromIterable([
+        stream: Stream<BaseEvent>.fromIterable([
           const RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
@@ -674,8 +682,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       // Verify the intermediate ToolYieldingState was emitted.

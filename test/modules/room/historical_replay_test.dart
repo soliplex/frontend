@@ -4,6 +4,18 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/historical_replay.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.dart';
 
+/// Returns a bridger that throws on one specific [TextMessageContentEvent]
+/// `messageId`. Used to verify the per-event try/catch in
+/// `replayToTrackers`.
+ExecutionEvent? Function(BaseEvent) _bridgerThrowingOn(String poisonId) {
+  return (event) {
+    if (event is TextMessageContentEvent && event.messageId == poisonId) {
+      throw StateError('bridge simulated failure on $poisonId');
+    }
+    return bridgeBaseEvent(event);
+  };
+}
+
 void main() {
   group('replayToTrackers', () {
     test('returns empty map for empty runs', () {
@@ -310,5 +322,46 @@ void main() {
       expect(trackers['asst-1']!.steps.value, isEmpty);
       expect(trackers['asst-2']!.steps.value, hasLength(1));
     });
+
+    test(
+      'a throw inside the bridger drops only that event; surrounding '
+      'events still bridge',
+      () {
+        final runs = [
+          RunEventBundle(
+            runId: 'run-1',
+            events: const [
+              RunStartedEvent(threadId: 't-1', runId: 'run-1'),
+              ReasoningMessageStartEvent(messageId: 'think-1'),
+              ReasoningMessageContentEvent(
+                messageId: 'think-1',
+                delta: 'reasoning…',
+              ),
+              ReasoningMessageEndEvent(messageId: 'think-1'),
+              TextMessageStartEvent(messageId: 'asst-1'),
+              // The bridger throws on this delta.
+              TextMessageContentEvent(messageId: 'asst-1', delta: 'poison'),
+              // Subsequent events must still bridge.
+              TextMessageContentEvent(messageId: 'asst-1', delta: 'survives'),
+              TextMessageEndEvent(messageId: 'asst-1'),
+              RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
+            ],
+          ),
+        ];
+
+        final trackers = replayToTrackers(
+          runs,
+          bridge: _bridgerThrowingOn('asst-1'),
+        );
+
+        expect(trackers.keys, ['asst-1']);
+        final tracker = trackers['asst-1']!;
+        // The thinking step bridged before the poison event.
+        expect(tracker.steps.value, hasLength(1));
+        expect(tracker.steps.value.first.label, 'Thinking');
+        // The thinking content survived.
+        expect(tracker.thinkingBlocks.value, ['reasoning…']);
+      },
+    );
   });
 }

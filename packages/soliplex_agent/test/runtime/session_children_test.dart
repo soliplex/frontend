@@ -10,6 +10,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -105,7 +111,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   group('parent-child ownership', () {
@@ -253,8 +261,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount == 1
-            ? parentController.stream
-            : Stream.fromIterable(_happyPathEvents());
+            ? _wrap(parentController.stream)
+            : _wrap(Stream.fromIterable(_happyPathEvents()));
       });
 
       final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');

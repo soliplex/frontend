@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../execution_tracker.dart';
+import 'dropped_event_message_tile.dart';
 import 'error_message_tile.dart';
 import 'gen_ui_tile.dart';
 import 'loading_message_tile.dart';
@@ -77,19 +78,7 @@ class MessageTile extends StatelessWidget {
             executionTracker: executionTracker,
             streamingActivity: streamingActivity,
           ),
-        // No production path currently synthesizes DroppedEventMessage.
-        // Render a visible placeholder so a regression that starts
-        // producing them is observable instead of an invisible gap.
-        DroppedEventMessage(:final reason) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Text(
-              '[Dropped event: $reason]',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
-                  ),
-            ),
-          ),
+        final DroppedEventMessage m => DroppedEventMessageTile(message: m),
       },
     );
   }

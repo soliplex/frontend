@@ -1,7 +1,14 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'execution_tracker.dart';
+
+/// Signature for the per-event AG-UI → execution-event bridger. The
+/// production implementation is the top-level [bridgeBaseEvent] from
+/// `soliplex_agent`; tests inject throwing variants to exercise the
+/// per-event catch in [replayToTrackers].
+typedef ExecutionBridge = ExecutionEvent? Function(BaseEvent event);
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.historical_replay');
@@ -21,11 +28,34 @@ final Logger _logger =
 ///   `ToolCallStart`. Bucket events (including any prior pending) under
 ///   [noResponseMessageId] for the run so the synthesized no-response
 ///   tile has a tracker to attach to.
-Map<String, ExecutionTracker> replayToTrackers(List<RunEventBundle> runs) {
+///
+/// A throw from [bridge] is logged at error and the offending event
+/// skipped so surrounding events in the same bundle still bucket
+/// correctly. The drop is deliberately UI-silent: chat-message
+/// boundaries mint the drop tile; double-minting from this tracker
+/// projection would surface the same backend event as two tiles.
+/// [bridge] defaults to [bridgeBaseEvent] and is overridable for tests.
+Map<String, ExecutionTracker> replayToTrackers(
+  List<RunEventBundle> runs, {
+  @visibleForTesting ExecutionBridge bridge = bridgeBaseEvent,
+}) {
   final buckets = <String, List<ExecutionEvent>>{};
   // Hoisted across bundles: tool-yield events accumulate here until the
   // next normal bundle's first assistant message absorbs them.
   final pending = <ExecutionEvent>[];
+
+  ExecutionEvent? bridgeOrLog(BaseEvent raw) {
+    try {
+      return bridge(raw);
+    } on Object catch (e, st) {
+      _logger.error(
+        'bridge threw on ${raw.runtimeType}; event skipped',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
 
   for (final bundle in runs) {
     final hasAssistantStart = bundle.events.any(
@@ -47,7 +77,7 @@ Map<String, ExecutionTracker> replayToTrackers(List<RunEventBundle> runs) {
           }
         }
 
-        final execEvent = bridgeBaseEvent(raw);
+        final execEvent = bridgeOrLog(raw);
         if (execEvent == null) continue;
 
         if (currentMessageId != null) {
@@ -58,7 +88,7 @@ Map<String, ExecutionTracker> replayToTrackers(List<RunEventBundle> runs) {
       }
     } else if (hasToolCall) {
       for (final raw in bundle.events) {
-        final execEvent = bridgeBaseEvent(raw);
+        final execEvent = bridgeOrLog(raw);
         if (execEvent == null) continue;
         pending.add(execEvent);
       }
@@ -70,7 +100,7 @@ Map<String, ExecutionTracker> replayToTrackers(List<RunEventBundle> runs) {
         pending.clear();
       }
       for (final raw in bundle.events) {
-        final execEvent = bridgeBaseEvent(raw);
+        final execEvent = bridgeOrLog(raw);
         if (execEvent == null) continue;
         bucket.add(execEvent);
       }

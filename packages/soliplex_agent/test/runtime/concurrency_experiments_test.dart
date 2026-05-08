@@ -22,6 +22,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class _MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class _MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -218,7 +224,9 @@ void main() {
         resumePolicy: any(named: 'resumePolicy'),
         onReconnectStatus: any(named: 'onReconnectStatus'),
       ),
-    ).thenAnswer((_) => stream);
+    ).thenAnswer(
+      (_) => stream.map<DecodeOutcome>((e) => DecodedEvent(e, const {})),
+    );
   }
 
   // =========================================================================
@@ -246,7 +254,9 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        return callCount == 1 ? controllerA.stream : controllerB.stream;
+        return callCount == 1
+            ? _wrap(controllerA.stream)
+            : _wrap(controllerB.stream);
       });
 
       final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
@@ -290,7 +300,9 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        return callCount == 1 ? controllerA.stream : controllerB.stream;
+        return callCount == 1
+            ? _wrap(controllerA.stream)
+            : _wrap(controllerB.stream);
       });
 
       final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
@@ -392,7 +404,7 @@ void main() {
           resumePolicy: any(named: 'resumePolicy'),
           onReconnectStatus: any(named: 'onReconnectStatus'),
         ),
-      ).thenAnswer((_) => controllers[callIdx++].stream);
+      ).thenAnswer((_) => _wrap(controllers[callIdx++].stream));
 
       // Await first `limit` to ensure they're tracked before queuing.
       final sessions = <AgentSession>[];
@@ -566,11 +578,11 @@ void main() {
         callCount++;
         switch (callCount) {
           case 1:
-            return slowA.stream;
+            return _wrap(slowA.stream);
           case 2:
-            return slowB.stream;
+            return _wrap(slowB.stream);
           default:
-            return Stream.fromIterable(_happyPathEvents());
+            return _wrap(Stream.fromIterable(_happyPathEvents()));
         }
       });
 
@@ -640,8 +652,8 @@ void main() {
         callCount++;
         // Calls 1–2: tool events; calls 3–4: resume events.
         return callCount <= 2
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
@@ -703,8 +715,8 @@ void main() {
         callCount++;
         // Calls 1–2: tool events; calls 3–4: resume events.
         return callCount <= 2
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final sw = Stopwatch()..start();
@@ -761,7 +773,9 @@ void main() {
         ),
       ).thenAnswer((_) {
         callCount++;
-        return callCount == 1 ? controllerA.stream : controllerB.stream;
+        return callCount == 1
+            ? _wrap(controllerA.stream)
+            : _wrap(controllerB.stream);
       });
 
       await runtime.spawn(roomId: _roomId, prompt: 'With bridge');
@@ -812,8 +826,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount.isOdd
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       // Await first spawn to ensure tracking before queuing.
@@ -875,8 +889,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount <= n
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final sw = Stopwatch()..start();
@@ -943,8 +957,8 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         return callCount <= n
-            ? Stream.fromIterable(_toolCallEvents())
-            : Stream.fromIterable(_resumeTextEvents());
+            ? _wrap(Stream.fromIterable(_toolCallEvents()))
+            : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
       final sw = Stopwatch()..start();

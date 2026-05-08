@@ -133,4 +133,23 @@ void main() {
       isFalse,
     );
   });
+
+  test('post-dispose runState arrival logs and returns; does not crash', () {
+    // The teardown order in `onDispose` cancels the subscription before
+    // clearing `_session`, but signals' dispatch ordering across upgrades
+    // isn't a guarantee we want to rely on. Drive the post-dispose path
+    // directly via `debugPushRunState` to confirm the null-check holds.
+    ext.onDispose();
+
+    expect(
+      () => ext.debugPushRunState(
+        CancelledState.duringRun(
+          threadKey: _key,
+          runId: _runId,
+          conversation: _conversationWith(const []),
+        ),
+      ),
+      returnsNormally,
+    );
+  });
 }

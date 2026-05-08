@@ -10,6 +10,12 @@ import 'package:test/test.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
+/// Adapts a test event stream to the orchestrator's `DecodeOutcome`
+/// contract. Hand-written events have no source JSON, so `rawJson` is
+/// `const {}`.
+Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
+    s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
 class MockAgUiStreamClient extends Mock implements AgUiStreamClient {}
@@ -80,7 +86,9 @@ void _stubHappyPath(
       onReconnectStatus: any(named: 'onReconnectStatus'),
     ),
   ).thenAnswer(
-    (_) => stream ?? Stream.fromIterable(_happyPathEvents(threadId)),
+    (_) => stream != null
+        ? _wrap(stream)
+        : _wrap(Stream.fromIterable(_happyPathEvents(threadId))),
   );
 }
 

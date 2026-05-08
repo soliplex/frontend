@@ -170,6 +170,26 @@ class CancelledException extends SoliplexException {
   }
 }
 
+/// Exception thrown when the server returned a 200-level response whose
+/// shape doesn't match the contract (e.g. an envelope field that should
+/// be a Map arrived as a List or scalar).
+///
+/// Distinct from [ApiException] (server reported a real failure status)
+/// and [NetworkException] (transport blip): retry won't help — the
+/// backend is producing well-formed-HTTP responses with malformed
+/// payloads. UI should surface a non-retryable error.
+class MalformedResponseException extends SoliplexException {
+  /// Creates a malformed-response exception.
+  const MalformedResponseException({
+    required super.message,
+    super.originalError,
+    super.stackTrace,
+  });
+
+  @override
+  String toString() => 'MalformedResponseException: $message';
+}
+
 /// Exception thrown when an unexpected, non-Soliplex error must be
 /// surfaced through the client's error channel.
 ///
