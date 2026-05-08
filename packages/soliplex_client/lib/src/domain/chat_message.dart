@@ -335,13 +335,11 @@ class LoadingMessage extends ChatMessage {
 
 /// Where a dropped event was caught.
 enum DropSource {
-  /// `decodeMapSafely` produced `DecodeFailed` — either malformed JSON or
-  /// a `type` field the decoder doesn't recognize.
+  /// The decoder rejected the payload — malformed JSON, a non-object
+  /// scalar, an unknown event type, or a schema mismatch on a known type.
   decode,
 
   /// The per-event-loop wrapper caught a throw from `processEvent` itself.
-  /// Citation extraction, historical replay bridging, and tracker projection
-  /// failures stay log-only and do not synthesize a tile.
   eventProcessing,
 }
 

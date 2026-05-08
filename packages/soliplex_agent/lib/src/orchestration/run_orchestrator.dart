@@ -1014,9 +1014,10 @@ class RunOrchestrator {
   ///
   /// Catches any throw downstream (extractor schema drift, malformed
   /// citations) and returns the conversation unchanged so the run
-  /// completes. Citation index drifts until the next run updates it;
-  /// messages still render. No drop tile — citations are a derived
-  /// projection, not user-facing content.
+  /// completes. The throw bypasses the [_preRunAguiState] update so the
+  /// next run's diff still resolves against the prior baseline; only
+  /// this segment's citations are skipped. No drop tile — citations
+  /// are a derived projection, not user-facing content.
   Conversation _extractCitations(Conversation conversation, String runId) {
     try {
       final userMessageId = _userMessageId;

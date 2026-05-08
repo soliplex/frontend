@@ -22,9 +22,9 @@ const String streamResumeFailedPrefix = 'Stream resume failed:';
 
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
 ///
-/// Replaces [AgUiClient] usage in pure Dart packages. Routes SSE through
-/// [HttpTransport] so status code mapping, auth, observability, cancel
-/// wrapping, and platform clients apply automatically.
+/// Routes SSE through [HttpTransport] so status code mapping, auth,
+/// observability, cancel wrapping, and platform clients apply
+/// automatically.
 ///
 /// Implements transparent resume via the SSE `Last-Event-ID` header:
 /// when the stream drops mid-run, the client reconnects and reports
