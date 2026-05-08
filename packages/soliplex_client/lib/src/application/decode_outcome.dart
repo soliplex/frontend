@@ -32,8 +32,9 @@ class DecodedEvent extends DecodeOutcome {
 /// A failed decode capturing the original payload for diagnostics.
 ///
 /// [rawData] is shape-polymorphic: a `Map` (decoder failure on a single
-/// event), a `String` (top-level JSON parse failure), or a non-Map JSON
-/// value (list/scalar). The downstream drop-tile widget renders all three.
+/// event), a `String` (top-level JSON parse failure), a non-Map JSON
+/// value (list/scalar), or `null` when the payload itself was the JSON
+/// `null` literal. The downstream drop-tile widget renders all four.
 @immutable
 class DecodeFailed extends DecodeOutcome {
   /// Captures the [error] thrown by the decoder, the [rawData] that
@@ -45,7 +46,7 @@ class DecodeFailed extends DecodeOutcome {
   final Object error;
 
   /// The raw payload that failed to decode.
-  final Object rawData;
+  final Object? rawData;
 
   /// Stack trace from the throw site, when available. The drop-tile
   /// minter forwards this to `Logger.error` so Sentry-grade breadcrumbs

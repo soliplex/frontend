@@ -378,6 +378,88 @@ void main() {
         },
       );
 
+      test(
+        'top-level `data: null` yields DecodeFailed(rawData: null), '
+        'no reconnect',
+        () async {
+          // Pre-fix this hit `jsonData as Object` which throws TypeError;
+          // the outer SSE catch routed the throw as a stream error and
+          // triggered a reconnect attempt. The contract is "decode
+          // failure → drop tile carrier", not "decode failure → reconnect".
+          final sseBody = StringBuffer()
+            ..writeln('data: null')
+            ..writeln()
+            ..writeln(
+              'data: ${json.encode({
+                    'type': 'RUN_STARTED',
+                    'threadId': 't-1',
+                    'runId': 'r-1',
+                  })}',
+            )
+            ..writeln();
+
+          when(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer(
+            (_) async => StreamedHttpResponse(
+              statusCode: 200,
+              body: Stream.value(utf8.encode(sseBody.toString())),
+            ),
+          );
+
+          final result = await client.runAgent(endpoint, input).toList();
+
+          expect(result, hasLength(2));
+          expect(result[0], isA<DecodeFailed>());
+          expect((result[0] as DecodeFailed).rawData, isNull);
+          expect(result[1], isA<DecodedEvent>());
+          expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
+        },
+      );
+
+      test('null item inside a batch yields per-item DecodeFailed', () async {
+        // Pre-fix this hit `item as Object` for the null item, which
+        // throws and aborts the surrounding batch via the outer SSE
+        // catch. Each non-Map item must produce its own DecodeFailed
+        // so surrounding valid items still surface.
+        final batch = <dynamic>[
+          null,
+          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
+        ];
+        final sseBody = StringBuffer()
+          ..writeln('data: ${json.encode(batch)}')
+          ..writeln();
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(sseBody.toString())),
+          ),
+        );
+
+        final result = await client.runAgent(endpoint, input).toList();
+
+        expect(result, hasLength(2));
+        expect(result[0], isA<DecodeFailed>());
+        expect((result[0] as DecodeFailed).rawData, isNull);
+        expect(result[1], isA<DecodedEvent>());
+        expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
+      });
+
       test('propagates CancelledException from transport', () async {
         when(
           () => mockTransport.requestStream(

@@ -237,10 +237,10 @@ class AgUiStreamClient {
   ///
   ///   - Single-event JSON object → one outcome via [decodeMapSafely].
   ///   - JSON array batch → one outcome per item; non-Map items become
-  ///     [DecodeFailed] with the raw value as `rawData`.
+  ///     [DecodeFailed] with the raw value (or `null`) as `rawData`.
   ///   - Top-level JSON parse failure → single [DecodeFailed] carrying
   ///     the raw `String`.
-  ///   - Top-level scalar (string/number/bool/null) → single
+  ///   - Top-level scalar (string/number/bool) or JSON `null` → single
   ///     [DecodeFailed] carrying the raw value.
   List<DecodeOutcome> _decodeOne(String data) {
     final outcomes = <DecodeOutcome>[];
@@ -262,7 +262,7 @@ class AgUiStreamClient {
               FormatException(
                 'Non-object item in AG-UI batch: ${item.runtimeType}',
               ),
-              item as Object,
+              item,
               StackTrace.current,
             ),
           );
@@ -274,7 +274,7 @@ class AgUiStreamClient {
           FormatException(
             'Non-object JSON scalar in SSE event: ${jsonData.runtimeType}',
           ),
-          jsonData as Object,
+          jsonData,
           StackTrace.current,
         ),
       );

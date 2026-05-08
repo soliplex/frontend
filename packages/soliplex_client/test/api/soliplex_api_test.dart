@@ -2322,6 +2322,115 @@ void main() {
         expect((history.messages[2] as TextMessage).text, equals('after'));
       });
 
+      test('non-Map item in events list mints a drop tile in place', () async {
+        // Backend shape drift: an item in `events` is a JSON scalar or
+        // null instead of a Map. Pre-fix the lazy `.cast<Map>()` threw
+        // at access time inside the replay loop and aborted the entire
+        // history load; now each non-Map item becomes its own drop tile
+        // and the surrounding events still reconstruct.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'events': <dynamic>[
+              null,
+              42,
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'msg-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'msg-1',
+                'delta': 'survived',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'msg-1'},
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        final drops = history.messages.whereType<DroppedEventMessage>();
+        expect(drops, hasLength(2));
+        expect(drops.every((d) => d.source == DropSource.decode), isTrue);
+        expect(drops.map((d) => d.rawPayload), equals([null, 42]));
+        // Surviving valid events still reconstruct as a TextMessage.
+        final texts = history.messages.whereType<TextMessage>();
+        expect(texts, hasLength(1));
+        expect(texts.single.text, equals('survived'));
+      });
+
+      test('non-Map `runs` field returns empty history without throwing',
+          () async {
+        // Backend shape drift on the envelope: `runs` arrives as a list
+        // instead of a Map. Pre-fix this `as Map<String, dynamic>?`
+        // cast threw and surfaced as MessagesFailed; now it falls
+        // through to an empty history.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': <dynamic>['not-a-map'],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messages, isEmpty);
+        expect(history.runs, isEmpty);
+      });
+
       test(
         'processEvent-throw drop tile preserves the original wire JSON, '
         'not a reconstruction from the decoded event',

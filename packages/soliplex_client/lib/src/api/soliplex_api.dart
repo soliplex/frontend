@@ -76,12 +76,17 @@ class SoliplexApi {
 
   /// LRU cache for run events. Completed runs are immutable, so safe to cache.
   /// Uses insertion order - oldest entries are at the front.
-  final _runEventsCache = <String, List<Map<String, dynamic>>>{};
+  ///
+  /// Cached as `List<dynamic>` so a backend that emits non-Map items
+  /// (shape drift) round-trips through the cache without throwing on
+  /// access; the replay loop in [_replayEventsToHistory] mints a drop
+  /// tile for any non-Map item it encounters.
+  final _runEventsCache = <String, List<dynamic>>{};
 
   String _runCacheKey(String threadId, String runId) => '$threadId:$runId';
 
   /// Adds to cache with LRU eviction.
-  void _cacheRunEvents(String key, List<Map<String, dynamic>> events) {
+  void _cacheRunEvents(String key, List<dynamic> events) {
     // Remove if exists (to update position for LRU)
     _runEventsCache.remove(key);
 
@@ -94,7 +99,7 @@ class SoliplexApi {
   }
 
   /// Gets from cache and updates LRU position.
-  List<Map<String, dynamic>>? _getCachedRunEvents(String key) {
+  List<dynamic>? _getCachedRunEvents(String key) {
     final events = _runEventsCache.remove(key);
     if (events != null) {
       _runEventsCache[key] = events; // Re-add to move to end (most recent)
@@ -601,12 +606,23 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    final runs = response['runs'] as Map<String, dynamic>? ?? {};
+    // Defensive: backend shape drift on the envelope (e.g., `runs`
+    // becoming a list, run entries that aren't Maps, missing run_id)
+    // would otherwise abort the entire history load. Fall through to
+    // empty/skipped instead so the rest of the thread still renders.
+    final rawRuns = response['runs'];
+    final runs =
+        rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
     if (runs.isEmpty) return ThreadHistory(messages: const []);
 
     // 2. Get completed run IDs sorted by creation time
     final completedRunIds = _sortRunsByCreationTime(runs)
-        .where((e) => (e.value as Map<String, dynamic>)['finished'] != null)
+        .where((e) {
+          final value = e.value;
+          return value is Map<String, dynamic> &&
+              value['finished'] != null &&
+              value['run_id'] is String;
+        })
         .map((e) => (e.value as Map<String, dynamic>)['run_id'] as String)
         .toList();
 
@@ -623,7 +639,7 @@ class SoliplexApi {
         (Object e) {
           // Log transient failure but continue with other runs
           _onWarning?.call('Failed to fetch events for run $runId: $e');
-          return (runId: runId, events: <Map<String, dynamic>>[]);
+          return (runId: runId, events: <dynamic>[]);
         },
         // Only catch transient errors - show partial results for batch ops:
         // - NetworkException: network blip, retry might succeed
@@ -637,10 +653,9 @@ class SoliplexApi {
 
     // 4. Collect events in run order (results may arrive out of order)
     final runIdToEvents = {for (final r in results) r.runId: r.events};
-    final eventsPerRun =
-        <({String runId, List<Map<String, dynamic>> events})>[];
+    final eventsPerRun = <({String runId, List<dynamic> events})>[];
     for (final runId in completedRunIds) {
-      final runEvents = runIdToEvents[runId] ?? [];
+      final runEvents = runIdToEvents[runId] ?? const <dynamic>[];
       if (runEvents.isNotEmpty) {
         eventsPerRun.add((runId: runId, events: runEvents));
       }
@@ -655,7 +670,13 @@ class SoliplexApi {
   /// Returns events including synthetic user message events extracted from
   /// run_input.messages. The backend stores user input separately from
   /// streamed events, so we synthesize TEXT_MESSAGE events for them.
-  Future<List<Map<String, dynamic>>> _fetchRunEvents(
+  ///
+  /// Returns `List<dynamic>` rather than `List<Map<String, dynamic>>`:
+  /// shape drift on the wire (a non-Map item slipping into `events`)
+  /// must reach [_replayEventsToHistory] as data, not throw at the cast
+  /// site. The replay loop type-checks each item and mints a drop tile
+  /// for non-Map entries.
+  Future<List<dynamic>> _fetchRunEvents(
     String roomId,
     String threadId,
     String runId, {
@@ -676,11 +697,11 @@ class SoliplexApi {
     // Extract user messages from run_input and create synthetic events
     final userMessageEvents = _extractUserMessageEvents(rawRun);
 
-    final events =
-        (rawRun['events'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final rawEvents = rawRun['events'];
+    final events = rawEvents is List ? rawEvents : const <dynamic>[];
 
     // Combine: user message events first, then actual streamed events
-    final allEvents = [...userMessageEvents, ...events];
+    final allEvents = <dynamic>[...userMessageEvents, ...events];
     _cacheRunEvents(cacheKey, allEvents);
     return allEvents;
   }
@@ -694,26 +715,36 @@ class SoliplexApi {
   List<Map<String, dynamic>> _extractUserMessageEvents(
     Map<String, dynamic> rawRun,
   ) {
-    final runInput = rawRun['run_input'] as Map<String, dynamic>?;
-    if (runInput == null) return [];
+    // Type-checked rather than cast: shape drift on `run_input` or
+    // `messages` should silently degrade to "no synthetic user message"
+    // rather than abort the run-level fetch.
+    final runInput = rawRun['run_input'];
+    if (runInput is! Map<String, dynamic>) return [];
 
-    final messages = runInput['messages'] as List<dynamic>? ?? [];
+    final rawMessages = runInput['messages'];
+    final messages = rawMessages is List ? rawMessages : const <dynamic>[];
 
     // Find the last user message — the one that initiated this run.
     Map<String, dynamic>? lastUserMessage;
     for (var i = messages.length - 1; i >= 0; i--) {
       final raw = messages[i];
       if (raw is! Map<String, dynamic>) continue;
-      if ((raw['role'] as String? ?? 'user') == 'user') {
+      final role = raw['role'];
+      if ((role is String ? role : 'user') == 'user') {
         lastUserMessage = raw;
         break;
       }
     }
     if (lastUserMessage == null) return [];
 
-    final runId = rawRun['run_id'] as String? ?? 'unknown';
-    final id = lastUserMessage['id'] as String? ?? 'user-$runId';
-    final content = lastUserMessage['content'] as String? ?? '';
+    final runId =
+        rawRun['run_id'] is String ? rawRun['run_id'] as String : 'unknown';
+    final id = lastUserMessage['id'] is String
+        ? lastUserMessage['id'] as String
+        : 'user-$runId';
+    final content = lastUserMessage['content'] is String
+        ? lastUserMessage['content'] as String
+        : '';
 
     return [
       {'type': 'TEXT_MESSAGE_START', 'messageId': id, 'role': 'user'},
@@ -732,7 +763,7 @@ class SoliplexApi {
   /// messages. Each run's citations are keyed by the user message ID that
   /// initiated that run.
   ThreadHistory _replayEventsToHistory(
-    List<({String runId, List<Map<String, dynamic>> events})> eventsPerRun,
+    List<({String runId, List<dynamic> events})> eventsPerRun,
     String threadId,
   ) {
     if (eventsPerRun.isEmpty) return ThreadHistory(messages: const []);
@@ -749,16 +780,18 @@ class SoliplexApi {
 
       // Find user message ID from LAST TEXT_MESSAGE_START with role=user.
       // The run_input.messages contains ALL conversation messages, but the
-      // LAST user message is the one that initiated THIS run.
+      // LAST user message is the one that initiated THIS run. Non-Map
+      // items are skipped here; the main loop below mints a drop tile
+      // for each.
       String? userMessageId;
       for (final eventJson in events) {
-        final type = eventJson['type'] as String?;
-        if (type == 'TEXT_MESSAGE_START') {
-          final role = eventJson['role'] as String?;
-          if (role == 'user') {
-            userMessageId = eventJson['messageId'] as String?;
-            // Don't break - keep iterating to find the last one
-          }
+        if (eventJson is! Map<String, dynamic>) continue;
+        if (eventJson['type'] != 'TEXT_MESSAGE_START') continue;
+        if (eventJson['role'] != 'user') continue;
+        final messageId = eventJson['messageId'];
+        if (messageId is String) {
+          userMessageId = messageId;
+          // Don't break - keep iterating to find the last one
         }
       }
 
@@ -771,10 +804,12 @@ class SoliplexApi {
           required Object error,
           required StackTrace stackTrace,
           required String stage,
+          required Object? rawPayload,
+          String? typeForLog,
         }) {
           _logger.error(
             'replay: $stage failed at events[$i] '
-            '(type=${eventJson['type']}) in run $runId of thread $threadId.',
+            '(type=$typeForLog) in run $runId of thread $threadId.',
             error: error,
             stackTrace: stackTrace,
           );
@@ -784,12 +819,29 @@ class SoliplexApi {
               source: source,
               reason: error.toString(),
               runId: runId,
-              rawPayload: eventJson,
+              rawPayload: rawPayload,
             ),
           );
         }
 
+        if (eventJson is! Map<String, dynamic>) {
+          appendDrop(
+            source: DropSource.decode,
+            error: FormatException(
+              'Non-object item in AG-UI events: ${eventJson.runtimeType}',
+            ),
+            stackTrace: StackTrace.current,
+            stage: 'decode',
+            rawPayload: eventJson,
+            typeForLog: '<non-map>',
+          );
+          continue;
+        }
+
         final outcome = decodeMapSafely(eventJson);
+        final type = eventJson['type'] is String
+            ? eventJson['type'] as String
+            : '<missing>';
         switch (outcome) {
           case DecodeFailed(:final error, :final stackTrace):
             appendDrop(
@@ -797,6 +849,8 @@ class SoliplexApi {
               error: error,
               stackTrace: stackTrace ?? StackTrace.current,
               stage: 'decode',
+              rawPayload: eventJson,
+              typeForLog: type,
             );
           case DecodedEvent(:final event):
             decodedEvents.add(event);
@@ -810,6 +864,8 @@ class SoliplexApi {
                 error: error,
                 stackTrace: stackTrace,
                 stage: 'processEvent',
+                rawPayload: eventJson,
+                typeForLog: type,
               );
             }
         }
@@ -838,16 +894,23 @@ class SoliplexApi {
     );
   }
 
-  /// Sorts runs by creation time (oldest first).
+  /// Sorts runs by creation time (oldest first). Non-Map run values
+  /// sort to the end; the caller filters them out before fetching.
   List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
     Map<String, dynamic> runs,
   ) {
     return runs.entries.toList()
       ..sort((a, b) {
-        final aData = a.value as Map<String, dynamic>;
-        final bData = b.value as Map<String, dynamic>;
-        final aCreated = aData['created'] as String?;
-        final bCreated = bData['created'] as String?;
+        final aData = a.value is Map<String, dynamic>
+            ? a.value as Map<String, dynamic>
+            : const <String, dynamic>{};
+        final bData = b.value is Map<String, dynamic>
+            ? b.value as Map<String, dynamic>
+            : const <String, dynamic>{};
+        final aCreated =
+            aData['created'] is String ? aData['created'] as String : null;
+        final bCreated =
+            bData['created'] is String ? bData['created'] as String : null;
 
         if (aCreated == null && bCreated == null) return 0;
         if (aCreated == null) return 1;

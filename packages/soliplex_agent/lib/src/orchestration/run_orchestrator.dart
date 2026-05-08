@@ -906,7 +906,7 @@ class RunOrchestrator {
     required DropSource source,
     required Object error,
     required StackTrace? stackTrace,
-    required Object rawData,
+    required Object? rawData,
     required int eventIndex,
     Type? eventTypeForLog,
   }) {
