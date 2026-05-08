@@ -2648,4 +2648,184 @@ void main() {
       },
     );
   });
+
+  group('live drop tiles', () {
+    test(
+      'DecodeFailed yields a DroppedEventMessage(decode); run still '
+      'finishes and the tracker never sees the failure',
+      () async {
+        stubCreateRun();
+        final controller = StreamController<DecodeOutcome>();
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((_) => controller.stream);
+
+        final trackerEvents = <BaseEvent>[];
+        final trackerSub = orchestrator.baseEvents.listen(trackerEvents.add);
+        addTearDown(trackerSub.cancel);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        // Backend run-started, then an undecodable payload, then a
+        // structurally-valid text turn, then RunFinished.
+        controller
+          ..add(
+            const DecodedEvent(
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              {'type': 'RUN_STARTED'},
+            ),
+          )
+          ..add(
+            const DecodeFailed(
+              FormatException('boom'),
+              <String, dynamic>{'type': 'GIBBERISH', 'foo': 'bar'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageStartEvent(messageId: 'msg-1'),
+              {'type': 'TEXT_MESSAGE_START'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageContentEvent(
+                messageId: 'msg-1',
+                delta: 'Hello',
+              ),
+              {'type': 'TEXT_MESSAGE_CONTENT'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageEndEvent(messageId: 'msg-1'),
+              {'type': 'TEXT_MESSAGE_END'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+              {'type': 'RUN_FINISHED'},
+            ),
+          );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<CompletedState>());
+        final completed = orchestrator.currentState as CompletedState;
+        final messages = completed.conversation.messages;
+        // user message + drop tile + assistant reply.
+        final drops = messages.whereType<DroppedEventMessage>().toList();
+        expect(drops, hasLength(1));
+        expect(drops.single.source, equals(DropSource.decode));
+        expect(drops.single.runId, equals(_runId));
+        expect(drops.single.id, startsWith('dropped-$_runId-'));
+        expect(drops.single.rawPayload, containsPair('type', 'GIBBERISH'));
+        // The reply still landed.
+        expect(
+          messages.whereType<TextMessage>().where((m) => m.text == 'Hello'),
+          hasLength(1),
+        );
+        // Tracker never saw the DecodeFailed payload — only structurally
+        // valid events reach the BaseEvent stream.
+        expect(
+          trackerEvents.map((e) => e.runtimeType).toList(),
+          equals([
+            RunStartedEvent,
+            TextMessageStartEvent,
+            TextMessageContentEvent,
+            TextMessageEndEvent,
+            RunFinishedEvent,
+          ]),
+        );
+
+        await controller.close();
+      },
+    );
+
+    test(
+      'a processEvent throw yields DroppedEventMessage(eventProcessing); '
+      'subsequent events still process',
+      () async {
+        stubCreateRun();
+        final controller = StreamController<DecodeOutcome>();
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((_) => controller.stream);
+
+        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        controller
+          ..add(
+            const DecodedEvent(
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              {'type': 'RUN_STARTED'},
+            ),
+          )
+          // Non-Map snapshot triggers the cast throw inside
+          // _processStateSnapshot — the wrapper catches it.
+          ..add(
+            const DecodedEvent(
+              StateSnapshotEvent(snapshot: ['not', 'a', 'map']),
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': ['not', 'a', 'map'],
+              },
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageStartEvent(messageId: 'msg-1'),
+              {'type': 'TEXT_MESSAGE_START'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageContentEvent(
+                messageId: 'msg-1',
+                delta: 'survived',
+              ),
+              {'type': 'TEXT_MESSAGE_CONTENT'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              TextMessageEndEvent(messageId: 'msg-1'),
+              {'type': 'TEXT_MESSAGE_END'},
+            ),
+          )
+          ..add(
+            const DecodedEvent(
+              RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+              {'type': 'RUN_FINISHED'},
+            ),
+          );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(orchestrator.currentState, isA<CompletedState>());
+        final completed = orchestrator.currentState as CompletedState;
+        final messages = completed.conversation.messages;
+        final drops = messages.whereType<DroppedEventMessage>().toList();
+        expect(drops, hasLength(1));
+        expect(drops.single.source, equals(DropSource.eventProcessing));
+        expect(drops.single.rawPayload, containsPair('type', 'STATE_SNAPSHOT'));
+        // The text turn that arrived after the throw still rendered.
+        expect(
+          messages.whereType<TextMessage>().where((m) => m.text == 'survived'),
+          hasLength(1),
+        );
+
+        await controller.close();
+      },
+    );
+  });
 }
