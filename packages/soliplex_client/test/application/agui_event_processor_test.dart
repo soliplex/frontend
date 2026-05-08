@@ -1584,27 +1584,17 @@ void main() {
         expect(result.streaming, equals(streaming));
       });
 
-      test('StateSnapshotEvent with non-Map snapshot throws', () {
-        // ag_ui's `State = dynamic` lets a backend send any shape. The
-        // cast inside `_processStateSnapshot` throws on non-Map values;
-        // the caller (replay loop / orchestrator) catches the throw and
-        // appends a `DroppedEventMessage` at the failure position.
-        const event = StateSnapshotEvent(snapshot: ['unexpected', 'list']);
-
-        expect(
-          () => processEvent(conversation, streaming, event),
-          throwsA(isA<TypeError>()),
-        );
-      });
-
-      test('StateSnapshotEvent with null snapshot throws', () {
-        const event = StateSnapshotEvent(snapshot: null);
-
-        expect(
-          () => processEvent(conversation, streaming, event),
-          throwsA(isA<TypeError>()),
-        );
-      });
+      // Non-Map and null `StateSnapshotEvent.snapshot` cause the cast
+      // inside `_processStateSnapshot` to throw — by design. The
+      // wrappers in `RunOrchestrator._onEvent` and
+      // `SoliplexApi._replayEventsToHistory` catch the throw and mint
+      // a drop tile at the failure position. Behavioral coverage lives
+      // there:
+      //   - run_orchestrator_test.dart "live drop tiles"
+      //   - soliplex_api_test.dart "replay survives a STATE_SNAPSHOT
+      //     with a non-Map snapshot"
+      // No test on the cast itself — that's a Dart language guarantee,
+      // not a decision this code makes.
 
       test('StateDeltaEvent applies JSON Patch to aguiState', () {
         final conversationWithState = conversation.copyWith(
