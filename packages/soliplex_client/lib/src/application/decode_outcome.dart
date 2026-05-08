@@ -30,29 +30,33 @@ class DecodedEvent extends DecodeOutcome {
 
 /// A failed decode capturing the original payload for diagnostics.
 ///
-/// [rawData] may be a `Map` (decoder failure on a single event), a `String`
-/// (top-level JSON parse failure), or a non-Map JSON value (list/scalar).
+/// [rawData] is shape-polymorphic: a `Map` (decoder failure on a single
+/// event), a `String` (top-level JSON parse failure), or a non-Map JSON
+/// value (list/scalar). The downstream drop-tile widget renders all three.
 @immutable
 class DecodeFailed extends DecodeOutcome {
   /// Creates a decode-failure outcome.
-  const DecodeFailed(this.error, this.rawData);
+  const DecodeFailed(this.error, this.rawData, [this.stackTrace]);
 
   /// The error thrown by the decoder or JSON parser.
   final Object error;
 
   /// The raw payload that failed to decode.
   final Object rawData;
+
+  /// Stack trace from the throw site, when available. The drop-tile
+  /// minter forwards this to `Logger.error` so Sentry-grade breadcrumbs
+  /// pinpoint the originating call.
+  final StackTrace? stackTrace;
 }
 
-/// Decodes a single JSON object into a [DecodeOutcome].
-///
-/// Catches every throw from [EventDecoder.decodeJson] (unknown event types,
-/// missing required fields, type mismatches) and returns a [DecodeFailed]
-/// envelope so callers can render a tile at the failure position.
+/// Decodes a single JSON object into a [DecodeOutcome]. Captures the
+/// stack trace alongside the error so the drop-tile log carries a
+/// breadcrumb back to the throwing decoder arm.
 DecodeOutcome decodeMapSafely(Map<String, dynamic> map) {
   try {
     return DecodedEvent(const EventDecoder().decodeJson(map), map);
-  } on Object catch (e) {
-    return DecodeFailed(e, map);
+  } on Object catch (e, st) {
+    return DecodeFailed(e, map, st);
   }
 }

@@ -247,8 +247,8 @@ class AgUiStreamClient {
     final dynamic jsonData;
     try {
       jsonData = json.decode(data);
-    } on FormatException catch (e) {
-      return [DecodeFailed(e, data)];
+    } on FormatException catch (e, st) {
+      return [DecodeFailed(e, data, st)];
     }
     if (jsonData is Map<String, dynamic>) {
       outcomes.add(decodeMapSafely(jsonData));
@@ -263,6 +263,7 @@ class AgUiStreamClient {
                 'Non-object item in AG-UI batch: ${item.runtimeType}',
               ),
               item as Object,
+              StackTrace.current,
             ),
           );
         }
@@ -274,6 +275,7 @@ class AgUiStreamClient {
             'Non-object JSON scalar in SSE event: ${jsonData.runtimeType}',
           ),
           jsonData as Object,
+          StackTrace.current,
         ),
       );
     }

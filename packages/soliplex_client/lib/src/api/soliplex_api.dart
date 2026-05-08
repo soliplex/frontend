@@ -769,13 +769,14 @@ class SoliplexApi {
         final eventJson = events[i];
         final outcome = decodeMapSafely(eventJson);
         switch (outcome) {
-          case DecodeFailed(:final error):
+          case DecodeFailed(:final error, :final stackTrace):
             developer.log(
               'replay: decode failed at events[$i] '
               '(type=${eventJson['type']}) in run $runId of thread $threadId.',
               name: 'soliplex_client.replay',
               level: 900,
               error: error,
+              stackTrace: stackTrace,
             );
             conversation = conversation.withAppendedMessage(
               DroppedEventMessage.create(

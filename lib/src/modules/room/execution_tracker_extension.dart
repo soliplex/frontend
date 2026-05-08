@@ -65,12 +65,13 @@ class ExecutionTrackerExtension extends SessionExtension
   void _onRunState(RunState runState) {
     final session = _session;
     if (session == null) {
-      // Proving safety today relies on signals' subscription teardown
-      // happening synchronously before _session is cleared in onDispose;
-      // that invariant is fragile across signals upgrades. Defensive
-      // early return costs two lines.
+      // signals teardown is assumed synchronous w.r.t. onDispose, but
+      // that's a fragile invariant — guard explicitly. Capture the
+      // current stack so a future upgrade that breaks the ordering
+      // shows up in Sentry with a breadcrumb to the dispatching site.
       _logger.warning(
         '_onRunState fired after dispose; ignoring',
+        stackTrace: StackTrace.current,
         attributes: {'runState': runState.runtimeType.toString()},
       );
       return;

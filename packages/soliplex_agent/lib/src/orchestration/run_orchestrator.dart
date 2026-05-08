@@ -861,13 +861,11 @@ class RunOrchestrator {
   void _onEvent(DecodeOutcome outcome) {
     final eventIndex = _liveEventCounter++;
     switch (outcome) {
-      case DecodeFailed(:final error, :final rawData):
-        // Decode failures never reach the tracker — there's no decoded
-        // event to project. Surface as a tile in the conversation and
-        // continue processing the next event in the stream.
+      case DecodeFailed(:final error, :final rawData, :final stackTrace):
         _appendDropTile(
           source: DropSource.decode,
           error: error,
+          stackTrace: stackTrace,
           rawData: rawData,
           eventIndex: eventIndex,
         );
@@ -882,39 +880,45 @@ class RunOrchestrator {
               processEvent(running.conversation, running.streaming, event);
           _mapEventResult(running, result, event);
         } on Object catch (e, st) {
-          _logger.error(
-            'processEvent threw on ${event.runtimeType}',
-            error: e,
-            stackTrace: st,
-          );
           _appendDropTile(
             source: DropSource.eventProcessing,
             error: e,
+            stackTrace: st,
             rawData: rawJson,
             eventIndex: eventIndex,
+            eventTypeForLog: event.runtimeType,
           );
         }
     }
   }
 
-  /// Appends a [DroppedEventMessage] to the running conversation. No-op
-  /// when the orchestrator isn't in [RunningState] (e.g., a stray event
-  /// after terminal cleanup) — those drops are logged at warning so the
-  /// gap is observable without hitting the conversation.
+  /// Appends a [DroppedEventMessage] to the running conversation and
+  /// logs at error with [stackTrace] so Sentry / `BackendLogSink` get a
+  /// breadcrumb. No-op when the orchestrator isn't in [RunningState]
+  /// (a stray event after terminal cleanup) — that path also logs with
+  /// the stack so the gap stays observable.
   void _appendDropTile({
     required DropSource source,
     required Object error,
+    required StackTrace? stackTrace,
     required Object rawData,
     required int eventIndex,
+    Type? eventTypeForLog,
   }) {
+    final logMessage = eventTypeForLog == null
+        ? 'Dropped event (${source.name})'
+        : 'processEvent threw on $eventTypeForLog';
+    _logger.error(logMessage, error: error, stackTrace: stackTrace);
+
     final running = _currentState;
     if (running is! RunningState) {
       _logger.warning(
         'Drop tile not appended: orchestrator not in RunningState',
+        error: error,
+        stackTrace: stackTrace,
         attributes: {
           'state': running.runtimeType.toString(),
           'source': source.name,
-          'error': error.toString(),
         },
       );
       return;
