@@ -31,9 +31,9 @@ class LlmRunHandle {
 ///
 /// Two construction paths:
 /// - **AG-UI backend:** `AgUiLlmProvider` wraps `SoliplexApi` +
-///   `AgUiStreamClient` — the existing backend path.
-/// - **Direct SDK:** A future provider wrapping `soliplex_completions`
-///   providers, synthesizing AG-UI events from LLM responses.
+///   `AgUiStreamClient` for SSE-driven runs.
+/// - **Direct SDK:** providers wrapping `soliplex_completions`
+///   synthesize AG-UI events from LLM responses in-process.
 ///
 /// `RunOrchestrator` depends only on this interface, decoupling it from
 /// any specific backend.
@@ -43,7 +43,7 @@ abstract interface class AgentLlmProvider {
   ///
   /// The provider handles run creation internally. The returned
   /// `LlmRunHandle.events` stream yields `DecodeOutcome`s that
-  /// `RunOrchestrator` processes via the existing event pipeline.
+  /// `RunOrchestrator` projects into conversation state.
   ///
   /// [onReconnectStatus] receives SSE reconnect lifecycle updates from
   /// the AG-UI backend (the only provider that can drop and resume

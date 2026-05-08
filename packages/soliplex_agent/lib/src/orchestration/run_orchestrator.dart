@@ -108,13 +108,9 @@ class RunOrchestrator {
   /// `events[i]`. The replay path
   /// (`SoliplexApi._replayEventsToHistory`) increments its loop index
   /// once per stored event; this counter increments once per outcome.
-  /// They produce identical drop-tile ids when those two cardinalities
-  /// match — i.e., the AG-UI backend must store one event per
-  /// outcome the live decoder produces. If a future change makes
-  /// `AgUiStreamClient._decodeOne` emit multiple outcomes per stored
-  /// event (e.g., persisting batched SSE frames verbatim), reload-time
-  /// drop ids will diverge from the live ids and the conversation
-  /// will not round-trip.
+  /// Drop-tile ids only round-trip when those cardinalities match —
+  /// i.e., the AG-UI backend must store one event per outcome the live
+  /// decoder produces.
   int _liveEventCounter = 0;
 
   // runToCompletion infrastructure
@@ -132,14 +128,15 @@ class RunOrchestrator {
   /// Broadcast stream of state transitions.
   Stream<RunState> get stateChanges => _controller.stream;
 
-  /// Broadcast stream of structurally-valid AG-UI events received on the
-  /// active subscription.
+  /// Broadcast stream of AG-UI events whose application-layer
+  /// processing succeeded on the active subscription.
   ///
   /// Used by `AgentSession` to bridge server-side events into the
   /// `ExecutionEvent` signal without duplicating event processing logic.
-  /// Decode failures are surfaced as [DroppedEventMessage] tiles in the
-  /// conversation and never reach this stream — the tracker only sees
-  /// events the decoder accepted.
+  /// Decode failures and `processEvent` throws surface as
+  /// [DroppedEventMessage] tiles in the conversation and never reach
+  /// this stream, so a tracker observing it stays consistent with the
+  /// conversation state.
   Stream<BaseEvent> get baseEvents => _baseEventController.stream;
 
   /// The current cancellation token for the active run.
@@ -875,9 +872,6 @@ class RunOrchestrator {
           eventIndex: eventIndex,
         );
       case DecodedEvent(:final event, :final rawJson):
-        if (!_baseEventController.isClosed) {
-          _baseEventController.add(event);
-        }
         final running = _currentState;
         if (running is! RunningState) return;
         try {
@@ -893,15 +887,21 @@ class RunOrchestrator {
             eventIndex: eventIndex,
             eventTypeForLog: event.runtimeType,
           );
+          return;
+        }
+        if (!_baseEventController.isClosed) {
+          _baseEventController.add(event);
         }
     }
   }
 
   /// Appends a [DroppedEventMessage] to the running conversation and
   /// logs at error with [stackTrace] so Sentry / `BackendLogSink` get a
-  /// breadcrumb. No-op when the orchestrator isn't in [RunningState]
-  /// (a stray event after terminal cleanup) — that path also logs with
-  /// the stack so the gap stays observable.
+  /// breadcrumb. When the orchestrator isn't in [RunningState] (a
+  /// stray event after terminal cleanup), the tile can't be appended;
+  /// the original error is already logged at error severity above, so
+  /// the unappended-tile branch logs at warning severity to avoid a
+  /// duplicate page while still leaving an audit breadcrumb.
   void _appendDropTile({
     required DropSource source,
     required Object error,
@@ -1027,12 +1027,11 @@ class RunOrchestrator {
   /// data-drift and programming bugs — propagating instead would
   /// abort a working run with no user benefit. Logged at `error`
   /// with stack trace so Sentry / `BackendLogSink` still surface
-  /// real bugs. Mirrors the existing catch-and-log pattern around
-  /// `RagSnapshot.fromJson` one layer down. The throw bypasses the
-  /// [_preRunAguiState] update at the next line so the next run's
-  /// diff still resolves against the prior baseline; only this
-  /// segment's citations are skipped. No drop tile — citations are
-  /// a derived projection, not user-facing content.
+  /// real bugs. The throw bypasses the [_preRunAguiState] update at
+  /// the next line so the next run's diff still resolves against the
+  /// prior baseline; only this segment's citations are skipped. No
+  /// drop tile — citations are a derived projection, not user-facing
+  /// content.
   Conversation _extractCitations(Conversation conversation, String runId) {
     try {
       final userMessageId = _userMessageId;

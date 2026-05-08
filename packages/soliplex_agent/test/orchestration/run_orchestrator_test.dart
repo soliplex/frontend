@@ -2653,12 +2653,8 @@ void main() {
         expect(orchestrator.currentState, isA<CompletedState>());
         final completed = orchestrator.currentState as CompletedState;
         final messages = completed.conversation.messages;
-        // Drop tile sits inline between the user input and the
-        // assistant reply — `_appendDropTile` runs on each
-        // `DecodeFailed` rather than buffering and flushing at the
-        // end of the run. A future buffer-then-flush refactor would
-        // silently push the tile to the end of the conversation;
-        // pinning the order here catches that.
+        // Drop tile must sit between the user input and the assistant
+        // reply, not be flushed at run-end.
         expect(
           messages.map((m) => m.runtimeType).toList(),
           equals([TextMessage, DroppedEventMessage, TextMessage]),
@@ -2674,8 +2670,10 @@ void main() {
           messages.whereType<TextMessage>().where((m) => m.text == 'Hello'),
           hasLength(1),
         );
-        // Tracker never saw the DecodeFailed payload — only structurally
-        // valid events reach the BaseEvent stream.
+        // Tracker never saw the DecodeFailed payload — only events
+        // whose application-layer processing succeeded reach
+        // baseEvents, keeping the tracker consistent with the
+        // conversation.
         expect(
           trackerEvents.map((e) => e.runtimeType).toList(),
           equals([
@@ -2706,6 +2704,10 @@ void main() {
             onReconnectStatus: any(named: 'onReconnectStatus'),
           ),
         ).thenAnswer((_) => controller.stream);
+
+        final trackerEvents = <BaseEvent>[];
+        final trackerSub = orchestrator.baseEvents.listen(trackerEvents.add);
+        addTearDown(trackerSub.cancel);
 
         await orchestrator.startRun(key: _key, userMessage: 'Hi');
         controller
@@ -2766,6 +2768,19 @@ void main() {
         expect(
           messages.whereType<TextMessage>().where((m) => m.text == 'survived'),
           hasLength(1),
+        );
+        // The throwing StateSnapshotEvent never reaches baseEvents —
+        // a tracker observing the stream stays consistent with the
+        // conversation, which never reflected the bad snapshot.
+        expect(
+          trackerEvents.map((e) => e.runtimeType).toList(),
+          equals([
+            RunStartedEvent,
+            TextMessageStartEvent,
+            TextMessageContentEvent,
+            TextMessageEndEvent,
+            RunFinishedEvent,
+          ]),
         );
 
         await controller.close();

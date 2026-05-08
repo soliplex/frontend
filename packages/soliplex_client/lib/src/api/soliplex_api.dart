@@ -762,8 +762,7 @@ class SoliplexApi {
         }
       }
 
-      // Decode + process per-event; failures append a drop tile so one
-      // bad event can't abort replay.
+      // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
       for (var i = 0; i < events.length; i++) {
         final eventJson = events[i];

@@ -23,9 +23,9 @@ typedef StreamingChatFn = Stream<LlmEvent> Function({
 /// [AgentLlmProvider] backed by a streaming LLM callback with native
 /// tool calling support.
 ///
-/// Maps [LlmEvent] to AG-UI [BaseEvent] in real-time.
-/// Replaces `ChatFnLlmProvider` for providers that support streaming
-/// and native tool calling (via open_responses).
+/// Maps [LlmEvent] to AG-UI [BaseEvent] in real-time. Use for providers
+/// that support streaming and native tool calling (via open_responses);
+/// non-streaming providers go through `ChatFnLlmProvider` instead.
 class StreamingLlmProvider implements AgentLlmProvider {
   /// Creates a [StreamingLlmProvider].
   StreamingLlmProvider({required StreamingChatFn chatFn, this.systemPrompt})

@@ -7,10 +7,6 @@ import '../../diagnostics/ui/json_tree_view.dart';
 /// Renders a [DroppedEventMessage] as a low-emphasis, collapsed-by-default
 /// card. Schema-drift events in production should show as a quiet hint,
 /// not a wall of warnings.
-///
-/// Collapsed: a single line `"Couldn't process 1 event ($source)"`.
-/// Expanded: source + runId subtitle, plus a [JsonTreeView] for `Map`
-/// payloads (raw text for null/non-Map payloads).
 class DroppedEventMessageTile extends StatefulWidget {
   const DroppedEventMessageTile({super.key, required this.message});
 
