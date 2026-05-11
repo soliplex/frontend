@@ -391,6 +391,28 @@ void main() {
   });
 
   testWidgets(
+      'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => Uint8List(0),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    // bytes.isEmpty short-circuits around _ImageOrFallback entirely —
+    // no decode attempt, no Retry-forever even on a non-errorBuilder
+    // path.
+    expect(find.byType(InteractiveViewer), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Download'), findsOneWidget);
+  });
+
+  testWidgets(
       'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
       (tester) async {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
