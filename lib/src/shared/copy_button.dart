@@ -9,11 +9,13 @@ class CopyButton extends StatefulWidget {
     required this.text,
     this.tooltip = 'Copy',
     this.iconSize = 20,
+    this.icon = Icons.copy,
   });
 
   final String text;
   final String tooltip;
   final double iconSize;
+  final IconData icon;
 
   @override
   State<CopyButton> createState() => _CopyButtonState();
@@ -59,7 +61,7 @@ class _CopyButtonState extends State<CopyButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (icon, color) = switch (_feedback) {
-      _CopyFeedback.idle => (Icons.copy, theme.colorScheme.onSurfaceVariant),
+      _CopyFeedback.idle => (widget.icon, theme.colorScheme.onSurfaceVariant),
       _CopyFeedback.success => (
           Icons.check,
           theme.colorScheme.onSurfaceVariant

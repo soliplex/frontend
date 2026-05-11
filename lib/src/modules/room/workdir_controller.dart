@@ -127,6 +127,47 @@ class WorkdirController {
     }
   }
 
+  /// Fetches the raw bytes for [file] without writing them to disk. Used
+  /// by the in-app preview path; the save dialog is the download path.
+  ///
+  /// [NotFoundException] is logged at debug and rethrown so the preview
+  /// FutureBuilder can render its own error state — we deliberately do
+  /// not collapse 404 to empty bytes the way [fetchFiles] does, because
+  /// "the file is gone" should not look like a successful empty preview.
+  Future<Uint8List> fetchBytes(
+    String threadId,
+    String runId,
+    WorkdirFile file,
+  ) async {
+    _logger.debug(
+      'workdir preview fetch start runId=$runId name=${file.filename}',
+    );
+    try {
+      final bytes = await _api.getRunWorkdirFile(
+        _roomId,
+        threadId,
+        runId,
+        file.filename,
+      );
+      _logger.debug(
+        'workdir preview fetch ok runId=$runId bytes=${bytes.length}',
+      );
+      return bytes;
+    } on NotFoundException {
+      _logger.debug(
+        'workdir preview fetch 404 runId=$runId name=${file.filename}',
+      );
+      rethrow;
+    } catch (e, st) {
+      _logger.warning(
+        'workdir preview fetch failed runId=$runId name=${file.filename}',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
+
   /// Drops every cached fetch result. Call when the user switches away
   /// from a thread so the next thread starts with a clean cache.
   void clearCache() => _cache.clear();

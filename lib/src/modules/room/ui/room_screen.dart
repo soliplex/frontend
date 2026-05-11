@@ -946,6 +946,12 @@ class _RoomScreenState extends State<RoomScreen> {
                             runId,
                             file,
                           ),
+                          onPreviewWorkdirFile: (runId, file) =>
+                              _workdirs.fetchBytes(
+                            threadView.threadId,
+                            runId,
+                            file,
+                          ),
                         ),
               },
             ),

@@ -24,6 +24,7 @@ class TextMessageTile extends StatelessWidget {
     this.onShowChunkVisualization,
     this.onFetchWorkdirFiles,
     this.onDownloadWorkdirFile,
+    this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingActivity,
   });
@@ -37,6 +38,7 @@ class TextMessageTile extends StatelessWidget {
   final void Function(SourceReference)? onShowChunkVisualization;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
   final DownloadWorkdirFile? onDownloadWorkdirFile;
+  final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final ActivityType? streamingActivity;
 
@@ -119,6 +121,7 @@ class TextMessageTile extends StatelessWidget {
             runId: runId!,
             fetchFiles: onFetchWorkdirFiles!,
             onDownload: onDownloadWorkdirFile!,
+            onPreview: onPreviewWorkdirFile,
           ),
       ],
     );

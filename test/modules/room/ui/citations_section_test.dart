@@ -160,4 +160,66 @@ void main() {
 
     expect(tappedRef?.documentId, 'doc-2');
   });
+
+  group('formatCitationForClipboard', () {
+    test('emits title, headings, pages, uri, and content in order', () {
+      final ref = _ref(
+        index: 1,
+        title: 'Doc',
+        headings: ['Chapter 1', 'Section 2'],
+        pageNumbers: [5, 6],
+        content: 'Preview text here',
+      );
+
+      expect(
+        formatCitationForClipboard(ref),
+        'Doc\n'
+        'Chapter 1 > Section 2\n'
+        'p.5-6\n'
+        'file://doc-1.txt\n'
+        '\n'
+        'Preview text here',
+      );
+    });
+
+    test('omits headings, pages, uri, and content when absent', () {
+      final ref = SourceReference(
+        documentId: 'doc-1',
+        documentUri: '',
+        content: '',
+        chunkId: 'chunk-1',
+        documentTitle: 'Doc',
+        headings: const [],
+        pageNumbers: const [],
+        index: 1,
+      );
+
+      expect(formatCitationForClipboard(ref), 'Doc');
+    });
+  });
+
+  group('formatAllCitationsForClipboard', () {
+    test('formats a single ref without trailing separator', () {
+      expect(
+        formatAllCitationsForClipboard([
+          _ref(index: 1, title: 'Alpha', content: 'first'),
+        ]),
+        formatCitationForClipboard(
+          _ref(index: 1, title: 'Alpha', content: 'first'),
+        ),
+      );
+    });
+
+    test('joins multiple refs with a blank-line/rule/blank-line separator', () {
+      final alpha = _ref(index: 1, title: 'Alpha', content: 'first');
+      final beta = _ref(index: 2, title: 'Beta', content: 'second');
+
+      expect(
+        formatAllCitationsForClipboard([alpha, beta]),
+        '${formatCitationForClipboard(alpha)}'
+        '\n\n---\n\n'
+        '${formatCitationForClipboard(beta)}',
+      );
+    });
+  });
 }

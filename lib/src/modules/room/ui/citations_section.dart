@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../shared/copy_button.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 
 class CitationsSection extends StatefulWidget {
@@ -31,38 +32,58 @@ class _CitationsSectionState extends State<CitationsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
-        InkWell(
-          onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Transform.flip(
-                  flipX: true,
-                  child: Icon(
-                    Icons.format_quote,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.flip(
+                      flipX: true,
+                      child: Icon(
+                        Icons.format_quote,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$count source${count == 1 ? '' : 's'}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      _sectionExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  '$count source${count == 1 ? '' : 's'}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  _sectionExpanded ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ],
+              ),
             ),
-          ),
+            if (count > 0)
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                  child: CopyButton(
+                    icon: Icons.copy_all,
+                    iconSize: 16,
+                    tooltip: 'Copy all',
+                    text: formatAllCitationsForClipboard(
+                      widget.sourceReferences,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         if (_sectionExpanded) ...[
           const SizedBox(height: 4),
@@ -112,55 +133,79 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$badgeNumber',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: onToggle,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$badgeNumber',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            sourceReference.displayTitle,
+                            style: theme.textTheme.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (sourceReference.formattedPageNumbers != null) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            sourceReference.formattedPageNumbers!,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      sourceReference.displayTitle,
-                      style: theme.textTheme.bodySmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                  child: CopyButton(
+                    text: formatCitationForClipboard(sourceReference),
+                    tooltip: 'Copy citation $badgeNumber',
+                    iconSize: 16,
                   ),
-                  if (sourceReference.formattedPageNumbers != null) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      sourceReference.formattedPageNumbers!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  Icon(
+                ),
+              ),
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
           if (isExpanded) _buildExpandedContent(context, theme),
         ],
@@ -235,3 +280,28 @@ class _SourceReferenceRow extends StatelessWidget {
     );
   }
 }
+
+@visibleForTesting
+String formatCitationForClipboard(SourceReference ref) {
+  final lines = <String>[ref.displayTitle];
+  if (ref.headings.isNotEmpty) {
+    lines.add(ref.headings.join(' > '));
+  }
+  final pages = ref.formattedPageNumbers;
+  if (pages != null) {
+    lines.add(pages);
+  }
+  if (ref.documentUri.isNotEmpty) {
+    lines.add(ref.documentUri);
+  }
+  if (ref.content.isNotEmpty) {
+    lines
+      ..add('')
+      ..add(ref.content);
+  }
+  return lines.join('\n');
+}
+
+@visibleForTesting
+String formatAllCitationsForClipboard(List<SourceReference> refs) =>
+    refs.map(formatCitationForClipboard).join('\n\n---\n\n');
