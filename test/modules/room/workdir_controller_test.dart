@@ -219,5 +219,18 @@ void main() {
       verify(() => api.getRunWorkdirFile('room-1', 't-1', 'r-1', 'preview.png'))
           .called(1);
     });
+
+    test('rethrows NotFoundException — does NOT swallow like fetchFiles does',
+        () async {
+      when(() => api.getRunWorkdirFile(any(), any(), any(), any())).thenThrow(
+        const NotFoundException(message: 'gone', resource: '/x'),
+      );
+      final controller = build();
+
+      await expectLater(
+        controller.fetchBytes('t', 'r', _file('missing.png')),
+        throwsA(isA<NotFoundException>()),
+      );
+    });
   });
 }

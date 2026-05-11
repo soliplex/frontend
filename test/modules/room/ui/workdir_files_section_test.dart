@@ -78,12 +78,20 @@ final Uint8List _tinyPng = Uint8List.fromList(const [
   0x82,
 ]);
 
+final Uint8List _htmlBytes =
+    Uint8List.fromList('<html><body>not an image</body></html>'.codeUnits);
+
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
+  // Image previews share Flutter's global imageCache; a partially-decoded
+  // entry from one test will resurface as a "Codec failed" error in the
+  // next, masking real failures.
+  setUp(() => PaintingBinding.instance.imageCache.clear());
+
   testWidgets('renders each filename when fetch returns a non-empty list',
       (tester) async {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
@@ -343,7 +351,8 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
-  testWidgets('preview shows error + Retry when fetch fails', (tester) async {
+  testWidgets('preview shows generic error + Retry when fetch fails',
+      (tester) async {
     var fetchCalls = 0;
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
       runId: 'run-1',
@@ -351,7 +360,7 @@ void main() {
       onDownload: (_, __) async => DownloadOutcome.success,
       onPreview: (_, __) async {
         fetchCalls++;
-        if (fetchCalls == 1) throw Exception('boom');
+        if (fetchCalls == 1) throw Exception('boom-internal-leak-do-not-show');
         return _tinyPng;
       },
     )));
@@ -360,14 +369,90 @@ void main() {
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('Failed to load preview'), findsOneWidget);
+    expect(find.text("Couldn't load preview"), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+    // Raw exception text must not leak to the UI.
+    expect(find.textContaining('boom-internal-leak-do-not-show'), findsNothing);
 
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 
     expect(fetchCalls, 2);
     expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('preview shows "no longer exists" without Retry on 404',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => throw const NotFoundException(
+        message: 'gone',
+        resource: '/x',
+      ),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('File no longer exists'), findsOneWidget);
+    // Retry on a permanent 404 just refetches the same 404 — no Retry.
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('.PNG (uppercase) is treated as previewable', (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('PLOT.PNG')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+  });
+
+  testWidgets(
+      'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => Uint8List(0),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    // bytes.isEmpty short-circuits around _ImageOrFallback entirely —
+    // no decode attempt, no Retry-forever even on a non-errorBuilder
+    // path.
+    expect(find.byType(InteractiveViewer), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Download'), findsOneWidget);
+  });
+
+  testWidgets(
+      'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _htmlBytes,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InteractiveViewer), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Download'), findsOneWidget);
   });
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {
