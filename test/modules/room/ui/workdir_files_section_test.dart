@@ -78,12 +78,20 @@ final Uint8List _tinyPng = Uint8List.fromList(const [
   0x82,
 ]);
 
+final Uint8List _htmlBytes =
+    Uint8List.fromList('<html><body>not an image</body></html>'.codeUnits);
+
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
+  // Image previews share Flutter's global imageCache; a partially-decoded
+  // entry from one test will resurface as a "Codec failed" error in the
+  // next, masking real failures.
+  setUp(() => PaintingBinding.instance.imageCache.clear());
+
   testWidgets('renders each filename when fetch returns a non-empty list',
       (tester) async {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
@@ -368,6 +376,37 @@ void main() {
 
     expect(fetchCalls, 2);
     expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('.PNG (uppercase) is treated as previewable', (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('PLOT.PNG')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+  });
+
+  testWidgets(
+      'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _htmlBytes,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InteractiveViewer), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Download'), findsOneWidget);
   });
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {

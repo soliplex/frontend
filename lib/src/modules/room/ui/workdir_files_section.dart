@@ -243,6 +243,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
       context: context,
       filename: widget.file.filename,
       fetchBytes: fetch,
+      cannotPreview: _CannotPreview(onDownload: widget.onTap),
     );
   }
 }
@@ -340,22 +341,32 @@ class WorkdirImagePreviewPage extends StatefulWidget {
     super.key,
     required this.filename,
     required this.fetchBytes,
+    required this.cannotPreview,
     required this.useDialogLayout,
   });
 
   final String filename;
   final Future<Uint8List> Function() fetchBytes;
+
+  /// Rendered when the fetched bytes aren't a decodable image — empty
+  /// body, HTML error page, truncated download, etc. The caller owns the
+  /// affordance (typically a download button); this page just renders it
+  /// as a peer of the viewer.
+  final Widget cannotPreview;
+
   final bool useDialogLayout;
 
   static Future<void> show({
     required BuildContext context,
     required String filename,
     required Future<Uint8List> Function() fetchBytes,
+    required Widget cannotPreview,
   }) {
     final useDialog = MediaQuery.sizeOf(context).width >= 600;
     final child = WorkdirImagePreviewPage(
       filename: filename,
       fetchBytes: fetchBytes,
+      cannotPreview: cannotPreview,
       useDialogLayout: useDialog,
     );
     if (useDialog) {
@@ -402,18 +413,11 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         }
         final bytes = snapshot.data;
         if (bytes == null || bytes.isEmpty) {
-          return _buildError(context, 'Empty file');
+          return widget.cannotPreview;
         }
-        return Center(
-          child: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, _) => _buildError(context, error),
-            ),
-          ),
+        return _ImageOrFallback(
+          bytes: bytes,
+          fallback: widget.cannotPreview,
         );
       },
     );
@@ -504,6 +508,144 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
       body: _buildContent(context),
+    );
+  }
+}
+
+/// Renders [bytes] in an [InteractiveViewer]. If [Image.memory]'s
+/// decoder rejects the bytes, swaps in [fallback] as a peer of (not a
+/// descendant of) the viewer so its controls aren't pannable/zoomable.
+///
+/// Decode-failure state is owned here, not on the parent, so that a
+/// fresh widget instance (different bytes) starts clean.
+class _ImageOrFallback extends StatefulWidget {
+  const _ImageOrFallback({required this.bytes, required this.fallback});
+
+  final Uint8List bytes;
+  final Widget fallback;
+
+  @override
+  State<_ImageOrFallback> createState() => _ImageOrFallbackState();
+}
+
+class _ImageOrFallbackState extends State<_ImageOrFallback> {
+  bool _failed = false;
+
+  @override
+  void didUpdateWidget(_ImageOrFallback old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.bytes, widget.bytes)) {
+      _failed = false;
+    }
+  }
+
+  void _markFailed() {
+    if (_failed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _failed = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) return widget.fallback;
+    return Center(
+      child: InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 4.0,
+        child: Image.memory(
+          widget.bytes,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) {
+            _markFailed();
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Rendered when the bytes can't be displayed as an image — empty
+/// payload or post-fetch decode failure. Sits as a peer of
+/// [InteractiveViewer], not a descendant, so its Download button is not
+/// pannable/zoomable. Mirrors the file-row download feedback pattern
+/// (icon swap, no SnackBar).
+class _CannotPreview extends StatefulWidget {
+  const _CannotPreview({required this.onDownload});
+
+  final Future<DownloadOutcome> Function() onDownload;
+
+  @override
+  State<_CannotPreview> createState() => _CannotPreviewState();
+}
+
+class _CannotPreviewState extends State<_CannotPreview> {
+  _DownloadFeedback _feedback = _DownloadFeedback.idle;
+  bool _inFlight = false;
+  Timer? _revertTimer;
+
+  @override
+  void dispose() {
+    _revertTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleDownload() async {
+    if (_inFlight) return;
+    _inFlight = true;
+    DownloadOutcome outcome;
+    try {
+      outcome = await widget.onDownload();
+    } catch (_) {
+      outcome = DownloadOutcome.failed;
+    } finally {
+      _inFlight = false;
+    }
+    if (!mounted) return;
+    if (outcome == DownloadOutcome.cancelled) return;
+    setState(() {
+      _feedback = outcome == DownloadOutcome.success
+          ? _DownloadFeedback.success
+          : _DownloadFeedback.error;
+    });
+    _revertTimer?.cancel();
+    _revertTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (icon, label) = switch (_feedback) {
+      _DownloadFeedback.idle => (Icons.download_outlined, 'Download'),
+      _DownloadFeedback.success => (Icons.check, 'Saved'),
+      _DownloadFeedback.error => (Icons.error_outline, "Couldn't save"),
+    };
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image_not_supported_outlined,
+            size: 48,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Can't preview this file",
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed:
+                _feedback == _DownloadFeedback.idle ? _handleDownload : null,
+            icon: Icon(icon),
+            label: Text(label),
+          ),
+        ],
+      ),
     );
   }
 }
