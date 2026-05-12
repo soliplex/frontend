@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:signals_core/signals_core.dart';
 import 'package:soliplex_agent/src/models/agent_result.dart';
-import 'package:soliplex_agent/src/models/failure_reason.dart';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/execution_event.dart';
 import 'package:soliplex_agent/src/orchestration/run_orchestrator.dart';
@@ -44,13 +43,14 @@ class AgentSession implements ToolExecutionContext {
     required ToolRegistry toolRegistry,
     required Logger logger,
     required SessionCoordinator coordinator,
-  })  : _runtime = runtime,
-        _orchestrator = orchestrator,
-        _toolRegistry = toolRegistry,
-        _coordinator = coordinator,
-        _logger = logger,
-        id = '${threadKey.threadId}-'
-            '${DateTime.now().microsecondsSinceEpoch}';
+  }) : _runtime = runtime,
+       _orchestrator = orchestrator,
+       _toolRegistry = toolRegistry,
+       _coordinator = coordinator,
+       _logger = logger,
+       id =
+           '${threadKey.threadId}-'
+           '${DateTime.now().microsecondsSinceEpoch}';
 
   /// Unique session identifier.
   final String id;
@@ -76,7 +76,7 @@ class AgentSession implements ToolExecutionContext {
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
   StreamSubscription<RunState>? _subscription;
   StreamSubscription<BaseEvent>? _baseEventSubscription;
-  AgentSessionState _state = AgentSessionState.spawning;
+  AgentSessionState _state = .spawning;
   bool _disposed = false;
   final Signal<RunState> _runStateSignal = signal(const IdleState());
   final Signal<AgentSessionState> _sessionStateSignal = signal(
@@ -206,7 +206,7 @@ class AgentSession implements ToolExecutionContext {
       // isolate with an uncaught synchronous exception.
       return Future<AgentSession>.error(
         StateError('Cannot spawnChild on disposed session $id'),
-        StackTrace.current,
+        .current,
       );
     }
     return _runtime.spawn(
@@ -424,7 +424,7 @@ class AgentSession implements ToolExecutionContext {
     }
     switch (runState) {
       case RunningState():
-        _state = AgentSessionState.running;
+        _state = .running;
         _sessionStateSignal.value = _state;
       case ToolYieldingState():
         break;
@@ -460,17 +460,18 @@ class AgentSession implements ToolExecutionContext {
       ClientToolExecuting(toolName: toolCall.name, toolCallId: toolCall.id),
     );
     try {
-      final result =
-          await _toolRegistry.execute(toolCall, this).timeout(_toolTimeout);
+      final result = await _toolRegistry
+          .execute(toolCall, this)
+          .timeout(_toolTimeout);
       emitEvent(
         ClientToolCompleted(
           toolCallId: toolCall.id,
           result: result,
-          status: ToolCallStatus.completed,
+          status: .completed,
         ),
       );
       return toolCall.copyWith(
-        status: ToolCallStatus.completed,
+        status: .completed,
         result: result,
       );
     } on Object catch (error, stackTrace) {
@@ -495,10 +496,10 @@ class AgentSession implements ToolExecutionContext {
       ClientToolCompleted(
         toolCallId: toolCall.id,
         result: errorStr,
-        status: ToolCallStatus.failed,
+        status: .failed,
       ),
     );
-    return toolCall.copyWith(status: ToolCallStatus.failed, result: errorStr);
+    return toolCall.copyWith(status: .failed, result: errorStr);
   }
 
   // ---------------------------------------------------------------------------
@@ -525,7 +526,7 @@ class AgentSession implements ToolExecutionContext {
   AgentResult _mapCancelled(CancelledState state) {
     return AgentFailure(
       threadKey: threadKey,
-      reason: FailureReason.cancelled,
+      reason: .cancelled,
       error: 'Session cancelled',
     );
   }
@@ -533,7 +534,7 @@ class AgentSession implements ToolExecutionContext {
   String _extractLastAssistantText(Conversation conversation) {
     final assistantMessages = conversation.messages
         .whereType<TextMessage>()
-        .where((m) => m.user == ChatUser.assistant);
+        .where((m) => m.user == .assistant);
     return assistantMessages.lastOrNull?.text ?? '';
   }
 
@@ -558,13 +559,11 @@ class AgentSession implements ToolExecutionContext {
   void _completeWith(AgentResult agentResult) {
     switch (agentResult) {
       case AgentSuccess():
-        _state = AgentSessionState.completed;
+        _state = .completed;
       case AgentFailure(:final reason):
-        _state = reason == FailureReason.cancelled
-            ? AgentSessionState.cancelled
-            : AgentSessionState.failed;
+        _state = reason == .cancelled ? .cancelled : .failed;
       case AgentTimedOut():
-        _state = AgentSessionState.failed;
+        _state = .failed;
     }
     _sessionStateSignal.value = _state;
     if (!_resultCompleter.isCompleted) {
@@ -574,21 +573,19 @@ class AgentSession implements ToolExecutionContext {
 
   void _completeIfPending() {
     if (_resultCompleter.isCompleted) return;
-    _state = AgentSessionState.failed;
+    _state = .failed;
     _sessionStateSignal.value = _state;
     _resultCompleter.complete(
       AgentFailure(
         threadKey: threadKey,
-        reason: FailureReason.internalError,
+        reason: .internalError,
         error: 'Session disposed before completion',
       ),
     );
   }
 
   bool get _isTerminal =>
-      _state == AgentSessionState.completed ||
-      _state == AgentSessionState.failed ||
-      _state == AgentSessionState.cancelled;
+      _state == .completed || _state == .failed || _state == .cancelled;
 }
 
 /// Translates a raw AG-UI [BaseEvent] into the [ExecutionEvent] that
@@ -602,16 +599,13 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
     ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      const ThinkingStarted(),
+    ReasoningMessageStartEvent() => const ThinkingStarted(),
     ThinkingTextMessageContentEvent(:final delta) ||
-    ReasoningMessageContentEvent(:final delta) =>
-      ThinkingContent(delta: delta),
+    ReasoningMessageContentEvent(:final delta) => ThinkingContent(delta: delta),
     ThinkingTextMessageEndEvent() ||
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
-    ReasoningMessageEndEvent() =>
-      const ThinkingEnded(),
+    ReasoningMessageEndEvent() => const ThinkingEnded(),
     ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
       ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
     ToolCallResultEvent(:final toolCallId, :final content) =>
@@ -653,7 +647,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ReasoningStartEvent() ||
     ReasoningMessageChunkEvent() ||
     ReasoningEncryptedValueEvent() ||
-    ActivityDeltaEvent() =>
-      null,
+    ActivityDeltaEvent() => null,
   };
 }

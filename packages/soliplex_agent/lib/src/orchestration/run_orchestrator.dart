@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:soliplex_agent/src/models/failure_reason.dart';
 import 'package:soliplex_agent/src/models/thread_key.dart';
 import 'package:soliplex_agent/src/orchestration/agent_llm_provider.dart';
 import 'package:soliplex_agent/src/orchestration/error_classifier.dart';
@@ -365,7 +364,7 @@ class RunOrchestrator {
         FailedState.duringRun(
           threadKey: yielding.threadKey,
           runId: yielding.runId,
-          reason: FailureReason.toolExecutionFailed,
+          reason: .toolExecutionFailed,
           error: 'Tool depth limit exceeded ($_maxToolDepth)',
           conversation: yielding.conversation,
         ),
@@ -604,7 +603,7 @@ class RunOrchestrator {
     final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
-      reason: FailureReason.toolExecutionFailed,
+      reason: .toolExecutionFailed,
       error: _messageOf(error),
       conversation: state.conversation,
     );
@@ -639,7 +638,7 @@ class RunOrchestrator {
     final failed = FailedState.duringRun(
       threadKey: key,
       runId: state.runId,
-      reason: FailureReason.toolExecutionFailed,
+      reason: .toolExecutionFailed,
       error: 'Tool depth limit exceeded ($_maxToolDepth)',
       conversation: state.conversation,
     );
@@ -754,9 +753,7 @@ class RunOrchestrator {
   List<ToolCallInfo> _extractPendingTools(Conversation conversation) {
     return conversation.toolCalls
         .where(
-          (tc) =>
-              tc.status == ToolCallStatus.pending &&
-              _toolRegistry.contains(tc.name),
+          (tc) => tc.status == .pending && _toolRegistry.contains(tc.name),
         )
         .toList();
   }
@@ -791,7 +788,7 @@ class RunOrchestrator {
     final priorMessages = cachedHistory?.messages ?? <ChatMessage>[];
     final userMsg = TextMessage.create(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
-      user: ChatUser.user,
+      user: .user,
       text: userMessage,
     );
     final baseState = cachedHistory?.aguiState ?? const {};
@@ -876,7 +873,7 @@ class RunOrchestrator {
     switch (outcome) {
       case DecodeFailed(:final error, :final rawData, :final stackTrace):
         _appendDropTile(
-          source: DropSource.decode,
+          source: .decode,
           error: error,
           stackTrace: stackTrace,
           rawData: rawData,
@@ -894,7 +891,7 @@ class RunOrchestrator {
           _mapEventResult(running, result, event);
         } on Object catch (e, st) {
           _appendDropTile(
-            source: DropSource.eventProcessing,
+            source: .eventProcessing,
             error: e,
             stackTrace: st,
             rawData: rawJson,
@@ -977,7 +974,7 @@ class RunOrchestrator {
         FailedState.duringRun(
           threadKey: previous.threadKey,
           runId: previous.runId,
-          reason: FailureReason.serverError,
+          reason: .serverError,
           error: event.message,
           conversation: withCitations,
         ),
@@ -1103,7 +1100,7 @@ class RunOrchestrator {
       FailedState.duringRun(
         threadKey: running.threadKey,
         runId: running.runId,
-        reason: FailureReason.networkLost,
+        reason: .networkLost,
         error: 'Stream ended without terminal event',
         conversation: withCitations,
       ),
