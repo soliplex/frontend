@@ -76,6 +76,10 @@ class QuizSessionController {
     final input = questionState.input;
     _session.value = current.copyWith(questionState: Submitting(input));
 
+    await _submitAndApply(current, input);
+  }
+
+  Future<void> _submitAndApply(QuizInProgress current, QuizInput input) async {
     try {
       final result = await _api.submitQuizAnswer(
         _roomId,
