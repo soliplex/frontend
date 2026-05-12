@@ -20,7 +20,7 @@ Map<String, dynamic> applyJsonPatch(
   Map<String, dynamic> state,
   List<dynamic> operations,
 ) {
-  var result = Map<String, dynamic>.from(state);
+  var result = Map<String, dynamic>.of(state);
 
   for (final op in operations) {
     if (op is! Map<String, dynamic>) {
@@ -62,7 +62,7 @@ Map<String, dynamic> _setAtPath(
   if (segments.isEmpty) {
     // Path "/" means replace root - but we always return a map
     if (value is Map<String, dynamic>) {
-      return Map.from(value);
+      return Map.of(value);
     }
     return state;
   }
