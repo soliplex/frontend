@@ -19,11 +19,16 @@ class ToolCallEntry {
   /// backend executes it.
   final bool isClientSide;
 
-  ToolCallEntry copyWith({ToolCallStatus? status}) => .new(
-    toolCallId: toolCallId,
-    toolName: toolName,
+  ToolCallEntry copyWith({
+    String? toolCallId,
+    String? toolName,
+    ToolCallStatus? status,
+    bool? isClientSide,
+  }) => .new(
+    toolCallId: toolCallId ?? this.toolCallId,
+    toolName: toolName ?? this.toolName,
     status: status ?? this.status,
-    isClientSide: isClientSide,
+    isClientSide: isClientSide ?? this.isClientSide,
   );
 
   @override

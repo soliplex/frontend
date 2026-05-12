@@ -218,11 +218,12 @@ class QuizInProgress extends QuizSession {
   /// Fraction from 0.0 to 1.0.
   double get progress => answeredCount / quiz.questionCount;
   QuizInProgress copyWith({
+    Quiz? quiz,
     int? currentIndex,
     Map<String, QuizAnswerResult>? results,
     QuestionState? questionState,
   }) => .new(
-    quiz: quiz,
+    quiz: quiz ?? this.quiz,
     currentIndex: currentIndex ?? this.currentIndex,
     results: results ?? this.results,
     questionState: questionState ?? this.questionState,

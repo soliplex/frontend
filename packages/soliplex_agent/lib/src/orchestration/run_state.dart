@@ -69,12 +69,14 @@ class RunningState extends RunState {
 
   /// Creates a copy with the given fields replaced.
   RunningState copyWith({
+    ThreadKey? threadKey,
+    String? runId,
     Conversation? conversation,
     StreamingState? streaming,
   }) {
     return RunningState(
-      threadKey: threadKey,
-      runId: runId,
+      threadKey: threadKey ?? this.threadKey,
+      runId: runId ?? this.runId,
       conversation: conversation ?? this.conversation,
       streaming: streaming ?? this.streaming,
     );

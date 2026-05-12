@@ -31,13 +31,14 @@ class HttpEventGroup {
   final HttpStreamEndEvent? streamEnd;
 
   HttpEventGroup copyWith({
+    String? requestId,
     HttpRequestEvent? request,
     HttpResponseEvent? response,
     HttpErrorEvent? error,
     HttpStreamStartEvent? streamStart,
     HttpStreamEndEvent? streamEnd,
   }) => .new(
-    requestId: requestId,
+    requestId: requestId ?? this.requestId,
     request: request ?? this.request,
     response: response ?? this.response,
     error: error ?? this.error,
