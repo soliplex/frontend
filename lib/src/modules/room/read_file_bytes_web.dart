@@ -4,11 +4,13 @@ import 'dart:developer' as dev;
 /// entrypoint is never called at runtime. If it ever is, that's a
 /// coding bug worth flagging loudly; the thrown [UnsupportedError]
 /// propagates to the caller as a typed pick failure.
-Future<List<int>> readFileBytes(String path) async {
+Future<List<int>> readFileBytes(String path) {
   dev.log(
     'readFileBytes called on web; file_picker should have provided bytes',
     name: 'pick_file',
     level: 1000,
   );
-  throw UnsupportedError('readFileBytes is not used on the web platform');
+  return Future.error(
+    UnsupportedError('readFileBytes is not used on the web platform'),
+  );
 }
