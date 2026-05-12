@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 /// [AwaitingText]. It is reused across runs, so it must never be used
 /// as a persistence key — state written under it would leak into the
 /// next response.
-const loadingMessageId = '_loading';
+const kLoadingMessageId = '_loading';
 
 /// Merges streaming state into the message list for unified rendering.
 ///
@@ -19,9 +19,9 @@ List<ChatMessage> computeDisplayMessages(
   if (streaming == null) return messages;
   return switch (streaming) {
     AwaitingText() => [
-        ...messages,
-        LoadingMessage.create(id: loadingMessageId)
-      ],
+      ...messages,
+      LoadingMessage.create(id: kLoadingMessageId),
+    ],
     TextStreaming(
       :final messageId,
       :final user,

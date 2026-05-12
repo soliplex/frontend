@@ -106,7 +106,7 @@ class DialogButton extends StatelessWidget {
   }
 }
 
-const jsonPrettyEncoder = JsonEncoder.withIndent('  ');
+const kJsonPrettyEncoder = JsonEncoder.withIndent('  ');
 
 /// Formats a dynamic value for display, using pretty-printed JSON for
 /// complex values (maps/lists) and plain text for scalars.
@@ -115,7 +115,7 @@ SelectableText formatDynamicValue(Object? value, {TextStyle? style}) {
   String text;
   if (isComplex) {
     try {
-      text = jsonPrettyEncoder.convert(value);
+      text = kJsonPrettyEncoder.convert(value);
     } catch (_) {
       text = value.toString();
     }

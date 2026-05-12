@@ -162,7 +162,7 @@ class _FrameworkRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = 'soliplex_frontend $soliplexVersion';
+    final value = 'soliplex_frontend $kSoliplexVersion';
     return ListTile(
       leading: const Icon(Icons.widgets_outlined),
       title: const Text('Framework'),

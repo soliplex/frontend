@@ -3,7 +3,7 @@ import 'package:soliplex_logging/src/log_level.dart';
 
 /// Sentinel value to distinguish "not provided" from explicit `null` in
 /// [LogRecord.copyWith].
-const Object _sentinel = Object();
+const Object _kSentinel = Object();
 
 /// Immutable log record containing all information about a log event.
 @immutable
@@ -57,10 +57,10 @@ class LogRecord {
     String? message,
     DateTime? timestamp,
     String? loggerName,
-    Object? error = _sentinel,
-    Object? stackTrace = _sentinel,
-    Object? spanId = _sentinel,
-    Object? traceId = _sentinel,
+    Object? error = _kSentinel,
+    Object? stackTrace = _kSentinel,
+    Object? spanId = _kSentinel,
+    Object? traceId = _kSentinel,
     Map<String, Object?>? attributes,
   }) {
     return LogRecord(
@@ -68,11 +68,12 @@ class LogRecord {
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
       loggerName: loggerName ?? this.loggerName,
-      error: error == _sentinel ? this.error : error,
-      stackTrace:
-          stackTrace == _sentinel ? this.stackTrace : stackTrace as StackTrace?,
-      spanId: spanId == _sentinel ? this.spanId : spanId as String?,
-      traceId: traceId == _sentinel ? this.traceId : traceId as String?,
+      error: error == _kSentinel ? this.error : error,
+      stackTrace: stackTrace == _kSentinel
+          ? this.stackTrace
+          : stackTrace as StackTrace?,
+      spanId: spanId == _kSentinel ? this.spanId : spanId as String?,
+      traceId: traceId == _kSentinel ? this.traceId : traceId as String?,
       attributes: attributes ?? this.attributes,
     );
   }

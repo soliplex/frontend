@@ -4,12 +4,12 @@ import 'package:soliplex_frontend/src/design/tokens/colors.dart';
 
 void main() {
   group('SoliplexColors', () {
-    test('lightSoliplexColors has expected primary', () {
-      expect(lightSoliplexColors.primary, const Color(0xFF030213));
+    test('kLightSoliplexColors has expected primary', () {
+      expect(kLightSoliplexColors.primary, const Color(0xFF030213));
     });
 
-    test('darkSoliplexColors has expected primary', () {
-      expect(darkSoliplexColors.primary, const Color(0xFFFAFAFA));
+    test('kDarkSoliplexColors has expected primary', () {
+      expect(kDarkSoliplexColors.primary, const Color(0xFFFAFAFA));
     });
 
     test('all light color roles are non-null via constructor', () {

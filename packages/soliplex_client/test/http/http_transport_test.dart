@@ -463,7 +463,7 @@ void main() {
             any(),
             headers: any(named: 'headers'),
             body: any(named: 'body'),
-            timeout: defaultHttpTimeout,
+            timeout: kDefaultHttpTimeout,
           ),
         ).called(1);
       });
@@ -1405,30 +1405,36 @@ void main() {
         expect(result, equals(payload));
       });
 
-      test('maps non-2xx via _throwForStatusCode (representative: 401)',
-          () async {
-        when(
-          () => mockClient.request(
-            any(),
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer(
-          (_) async => HttpResponse(statusCode: 401, bodyBytes: Uint8List(0)),
-        );
+      test(
+        'maps non-2xx via _throwForStatusCode (representative: 401)',
+        () async {
+          when(
+            () => mockClient.request(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => HttpResponse(statusCode: 401, bodyBytes: Uint8List(0)),
+          );
 
-        await expectLater(
-          transport.requestBytes(
-            'GET',
-            Uri.parse('https://api.example.com/file'),
-          ),
-          throwsA(
-            isA<AuthException>().having((e) => e.statusCode, 'statusCode', 401),
-          ),
-        );
-      });
+          await expectLater(
+            transport.requestBytes(
+              'GET',
+              Uri.parse('https://api.example.com/file'),
+            ),
+            throwsA(
+              isA<AuthException>().having(
+                (e) => e.statusCode,
+                'statusCode',
+                401,
+              ),
+            ),
+          );
+        },
+      );
 
       test(
         'throws CancelledException when token is already cancelled',
@@ -1479,15 +1485,17 @@ void main() {
           headers: {'X-Trace-Id': 'abc123'},
         );
 
-        final captured = verify(
-          () => mockClient.request(
-            'GET',
-            any(),
-            headers: captureAny(named: 'headers'),
-            body: any(named: 'body'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).captured.single as Map<String, String>;
+        final captured =
+            verify(
+                  () => mockClient.request(
+                    'GET',
+                    any(),
+                    headers: captureAny(named: 'headers'),
+                    body: any(named: 'body'),
+                    timeout: any(named: 'timeout'),
+                  ),
+                ).captured.single
+                as Map<String, String>;
 
         expect(captured, containsPair('X-Trace-Id', 'abc123'));
       });

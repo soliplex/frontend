@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
-import '../tracker_registry.dart' show awaitingTrackerKey;
+import '../tracker_registry.dart' show kAwaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
 import 'message_tile.dart';
@@ -201,7 +201,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                   // remount at the AwaitingText → TextStreaming transition.
                   // Children capture their MessageExpansion handle once in
                   // initState; without the remount they would stay bound to
-                  // loadingMessageId (which forMessage rejects) and never
+                  // kLoadingMessageId (which forMessage rejects) and never
                   // acquire a handle under the real messageId.
                   return Padding(
                     key: message is LoadingMessage
@@ -226,7 +226,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                       executionTracker:
                           widget.executionTrackers[message.id] ??
                           (message is LoadingMessage
-                              ? widget.executionTrackers[awaitingTrackerKey]
+                              ? widget.executionTrackers[kAwaitingTrackerKey]
                               : null),
                       streamingActivity: isLastItem ? streamingActivity : null,
                     ),

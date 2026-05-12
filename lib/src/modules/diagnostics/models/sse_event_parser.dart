@@ -14,8 +14,8 @@ class SseParseResult {
   final bool wasTruncated;
 }
 
-const _truncationMarker = '[EARLIER CONTENT DROPPED]';
-const _dataPrefix = 'data: ';
+const _kTruncationMarker = '[EARLIER CONTENT DROPPED]';
+const _kDataPrefix = 'data: ';
 
 /// Returns a brief summary string for an [SseEvent], used in the events list view.
 String sseEventSummary(SseEvent event) {
@@ -45,12 +45,12 @@ SseParseResult parseSseEvents(String body) {
     return const SseParseResult(events: [], wasTruncated: false);
   }
 
-  final wasTruncated = body.startsWith(_truncationMarker);
+  final wasTruncated = body.startsWith(_kTruncationMarker);
   final events = <SseEvent>[];
 
   for (final line in body.split('\n')) {
-    if (!line.startsWith(_dataPrefix)) continue;
-    final jsonStr = line.substring(_dataPrefix.length);
+    if (!line.startsWith(_kDataPrefix)) continue;
+    final jsonStr = line.substring(_kDataPrefix.length);
     try {
       final json = jsonDecode(jsonStr) as Map<String, dynamic>;
       final type = json['type'] as String?;

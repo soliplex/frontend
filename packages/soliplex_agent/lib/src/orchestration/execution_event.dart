@@ -2,7 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
-const _deepEq = DeepCollectionEquality();
+const _kDeepEq = DeepCollectionEquality();
 
 /// Granular execution events for UI observability.
 ///
@@ -201,10 +201,10 @@ class StateUpdated extends ExecutionEvent {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is StateUpdated && _deepEq.equals(aguiState, other.aguiState);
+      other is StateUpdated && _kDeepEq.equals(aguiState, other.aguiState);
 
   @override
-  int get hashCode => _deepEq.hash(aguiState);
+  int get hashCode => _kDeepEq.hash(aguiState);
 }
 
 /// Step progress event for multi-step pipelines.
@@ -292,16 +292,16 @@ class ActivitySnapshot extends ExecutionEvent {
           activityType == other.activityType &&
           timestamp == other.timestamp &&
           replace == other.replace &&
-          _deepEq.equals(content, other.content);
+          _kDeepEq.equals(content, other.content);
 
   @override
   int get hashCode => Object.hash(
-        messageId,
-        activityType,
-        timestamp,
-        replace,
-        _deepEq.hash(content),
-      );
+    messageId,
+    activityType,
+    timestamp,
+    replace,
+    _kDeepEq.hash(content),
+  );
 }
 
 /// Extension point for third-party plugins to emit custom events.
@@ -323,8 +323,8 @@ class CustomExecutionEvent extends ExecutionEvent {
       identical(this, other) ||
       other is CustomExecutionEvent &&
           type == other.type &&
-          _deepEq.equals(payload, other.payload);
+          _kDeepEq.equals(payload, other.payload);
 
   @override
-  int get hashCode => Object.hash(type, _deepEq.hash(payload));
+  int get hashCode => Object.hash(type, _kDeepEq.hash(payload));
 }

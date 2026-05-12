@@ -6,7 +6,7 @@ import '../tokens/spacing.dart';
 import '../tokens/typography.dart';
 import 'theme_extensions.dart';
 
-ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
+ThemeData soliplexLightTheme({SoliplexColors colors = kLightSoliplexColors}) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
     brightness: .light,
@@ -72,20 +72,20 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     buttonTheme: ButtonThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: .circular(soliplexRadii.md),
+          borderRadius: .circular(kSoliplexRadii.md),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: .circular(soliplexRadii.md),
+          borderRadius: .circular(kSoliplexRadii.md),
         ),
       ),
     ),
@@ -93,14 +93,14 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       style: FilledButton.styleFrom(
         shape: RoundedRectangleBorder(
           side: BorderSide(color: colors.border),
-          borderRadius: .circular(soliplexRadii.md),
+          borderRadius: .circular(kSoliplexRadii.md),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: .circular(soliplexRadii.md),
+          borderRadius: .circular(kSoliplexRadii.md),
         ),
         side: BorderSide(color: colors.border),
       ),
@@ -109,49 +109,49 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       filled: true,
       fillColor: colors.inputBackground,
       border: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: .none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: BorderSide(color: colors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: BorderSide(color: colors.border, width: 2),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: .none,
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: BorderSide(color: colors.destructive),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         borderSide: BorderSide(color: colors.destructive, width: 2),
       ),
       hintStyle: TextStyle(color: colors.hintText),
     ),
     listTileTheme: ListTileThemeData(
-      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
+      shape: RoundedRectangleBorder(borderRadius: .circular(kSoliplexRadii.md)),
       selectedColor: colors.primary,
       selectedTileColor: colors.inputBackground,
     ),
     cardTheme: CardThemeData(
       color: colors.inputBackground,
-      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
+      shape: RoundedRectangleBorder(borderRadius: .circular(kSoliplexRadii.md)),
       elevation: 0,
     ),
     expansionTileTheme: ExpansionTileThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
       ),
       collapsedShape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
       ),
       collapsedBackgroundColor: colors.inputBackground,
       backgroundColor: colors.onPrimary,
@@ -161,7 +161,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       selectedColor: colors.primary.withAlpha(25),
       disabledColor: colors.muted,
       shape: RoundedRectangleBorder(
-        borderRadius: .circular(soliplexRadii.md),
+        borderRadius: .circular(kSoliplexRadii.md),
         side: BorderSide(color: colors.border),
       ),
       labelStyle: TextStyle(color: colors.foreground),
@@ -174,17 +174,17 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       brightness: .light,
     ),
     checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.sm)),
+      shape: RoundedRectangleBorder(borderRadius: .circular(kSoliplexRadii.sm)),
     ),
     toggleButtonsTheme: ToggleButtonsThemeData(
-      borderRadius: .circular(soliplexRadii.md),
+      borderRadius: .circular(kSoliplexRadii.md),
     ),
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: textTheme.bodyMedium,
       menuStyle: MenuStyle(
         visualDensity: .compact,
         shape: WidgetStateProperty.all<OutlinedBorder?>(
-          RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
+          RoundedRectangleBorder(borderRadius: .circular(kSoliplexRadii.md)),
         ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
@@ -194,7 +194,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: colors.onPrimary,
-      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
+      shape: RoundedRectangleBorder(borderRadius: .circular(kSoliplexRadii.md)),
       textStyle: textTheme.bodyMedium,
     ),
     scaffoldBackgroundColor: colors.background,
@@ -203,7 +203,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     extensions: [
       SoliplexTheme(
         colors: colors,
-        radii: soliplexRadii,
+        radii: kSoliplexRadii,
         badgeTheme: SoliplexBadgeThemeData(
           background: Color.alphaBlend(
             colors.foreground.withAlpha(15),

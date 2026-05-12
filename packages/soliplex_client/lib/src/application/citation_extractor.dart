@@ -53,7 +53,7 @@ class CitationExtractor {
   /// when the key is absent, not a Map, or fails to parse as either
   /// wire shape.
   RagSnapshot? _snapshot(Map<String, dynamic> state) {
-    final raw = state[ragStateKey];
+    final raw = state[kRagStateKey];
     if (raw == null) return null;
     if (raw is! Map<String, dynamic>) {
       developer.log(

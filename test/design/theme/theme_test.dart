@@ -10,9 +10,9 @@ void main() {
       final theme = soliplexLightTheme();
 
       expect(theme.brightness, Brightness.light);
-      expect(theme.colorScheme.primary, lightSoliplexColors.primary);
-      expect(theme.colorScheme.onPrimary, lightSoliplexColors.onPrimary);
-      expect(theme.scaffoldBackgroundColor, lightSoliplexColors.background);
+      expect(theme.colorScheme.primary, kLightSoliplexColors.primary);
+      expect(theme.colorScheme.onPrimary, kLightSoliplexColors.onPrimary);
+      expect(theme.scaffoldBackgroundColor, kLightSoliplexColors.background);
     });
 
     test('uses custom colors when provided', () {
@@ -69,7 +69,7 @@ void main() {
       final ext = theme.extension<SoliplexTheme>();
 
       expect(ext, isNotNull);
-      expect(ext!.colors, lightSoliplexColors);
+      expect(ext!.colors, kLightSoliplexColors);
     });
 
     test('maps ColorScheme fields from SoliplexColors', () {
@@ -78,46 +78,53 @@ void main() {
 
       expect(cs.brightness, Brightness.light);
       // Primary
-      expect(cs.primary, lightSoliplexColors.primary);
-      expect(cs.onPrimary, lightSoliplexColors.onPrimary);
-      expect(cs.primaryContainer, lightSoliplexColors.primaryContainer);
-      expect(cs.onPrimaryContainer, lightSoliplexColors.onPrimaryContainer);
+      expect(cs.primary, kLightSoliplexColors.primary);
+      expect(cs.onPrimary, kLightSoliplexColors.onPrimary);
+      expect(cs.primaryContainer, kLightSoliplexColors.primaryContainer);
+      expect(cs.onPrimaryContainer, kLightSoliplexColors.onPrimaryContainer);
       // Secondary
-      expect(cs.secondary, lightSoliplexColors.secondary);
-      expect(cs.onSecondary, lightSoliplexColors.onSecondary);
-      expect(cs.secondaryContainer, lightSoliplexColors.muted);
-      expect(cs.onSecondaryContainer, lightSoliplexColors.mutedForeground);
+      expect(cs.secondary, kLightSoliplexColors.secondary);
+      expect(cs.onSecondary, kLightSoliplexColors.onSecondary);
+      expect(cs.secondaryContainer, kLightSoliplexColors.muted);
+      expect(cs.onSecondaryContainer, kLightSoliplexColors.mutedForeground);
       // Tertiary
-      expect(cs.tertiary, lightSoliplexColors.tertiary);
-      expect(cs.onTertiary, lightSoliplexColors.onTertiary);
-      expect(cs.tertiaryContainer, lightSoliplexColors.tertiaryContainer);
-      expect(cs.onTertiaryContainer, lightSoliplexColors.onTertiaryContainer);
+      expect(cs.tertiary, kLightSoliplexColors.tertiary);
+      expect(cs.onTertiary, kLightSoliplexColors.onTertiary);
+      expect(cs.tertiaryContainer, kLightSoliplexColors.tertiaryContainer);
+      expect(cs.onTertiaryContainer, kLightSoliplexColors.onTertiaryContainer);
       // Error
-      expect(cs.error, lightSoliplexColors.destructive);
-      expect(cs.onError, lightSoliplexColors.onDestructive);
-      expect(cs.errorContainer, lightSoliplexColors.errorContainer);
-      expect(cs.onErrorContainer, lightSoliplexColors.onErrorContainer);
+      expect(cs.error, kLightSoliplexColors.destructive);
+      expect(cs.onError, kLightSoliplexColors.onDestructive);
+      expect(cs.errorContainer, kLightSoliplexColors.errorContainer);
+      expect(cs.onErrorContainer, kLightSoliplexColors.onErrorContainer);
       // Surface
-      expect(cs.surface, lightSoliplexColors.background);
-      expect(cs.onSurface, lightSoliplexColors.foreground);
-      expect(cs.onSurfaceVariant, lightSoliplexColors.mutedForeground);
-      expect(cs.surfaceContainerLowest,
-          lightSoliplexColors.surfaceContainerLowest);
-      expect(cs.surfaceContainerLow, lightSoliplexColors.surfaceContainerLow);
-      expect(cs.surfaceContainer, lightSoliplexColors.inputBackground);
-      expect(cs.surfaceContainerHigh, lightSoliplexColors.surfaceContainerHigh);
-      expect(cs.surfaceContainerHighest,
-          lightSoliplexColors.surfaceContainerHighest);
-      expect(cs.surfaceDim, lightSoliplexColors.accent);
-      expect(cs.surfaceBright, lightSoliplexColors.background);
-      expect(cs.surfaceTint, lightSoliplexColors.primary);
+      expect(cs.surface, kLightSoliplexColors.background);
+      expect(cs.onSurface, kLightSoliplexColors.foreground);
+      expect(cs.onSurfaceVariant, kLightSoliplexColors.mutedForeground);
+      expect(
+        cs.surfaceContainerLowest,
+        kLightSoliplexColors.surfaceContainerLowest,
+      );
+      expect(cs.surfaceContainerLow, kLightSoliplexColors.surfaceContainerLow);
+      expect(cs.surfaceContainer, kLightSoliplexColors.inputBackground);
+      expect(
+        cs.surfaceContainerHigh,
+        kLightSoliplexColors.surfaceContainerHigh,
+      );
+      expect(
+        cs.surfaceContainerHighest,
+        kLightSoliplexColors.surfaceContainerHighest,
+      );
+      expect(cs.surfaceDim, kLightSoliplexColors.accent);
+      expect(cs.surfaceBright, kLightSoliplexColors.background);
+      expect(cs.surfaceTint, kLightSoliplexColors.primary);
       // Outline
-      expect(cs.outline, lightSoliplexColors.outline);
-      expect(cs.outlineVariant, lightSoliplexColors.outlineVariant);
+      expect(cs.outline, kLightSoliplexColors.outline);
+      expect(cs.outlineVariant, kLightSoliplexColors.outlineVariant);
       // Inverse
-      expect(cs.inverseSurface, lightSoliplexColors.primary);
-      expect(cs.onInverseSurface, lightSoliplexColors.onPrimary);
-      expect(cs.inversePrimary, lightSoliplexColors.inversePrimary);
+      expect(cs.inverseSurface, kLightSoliplexColors.primary);
+      expect(cs.onInverseSurface, kLightSoliplexColors.onPrimary);
+      expect(cs.inversePrimary, kLightSoliplexColors.inversePrimary);
     });
 
     test('configures component themes', () {

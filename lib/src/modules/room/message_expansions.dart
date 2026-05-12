@@ -1,11 +1,11 @@
-import 'compute_display_messages.dart' show loadingMessageId;
+import 'compute_display_messages.dart' show kLoadingMessageId;
 
 /// Per-message UI expansion state for assistant responses — whether each
 /// message's execution timeline, thinking block, and activity source rows
 /// are open. Owned by `roomModule()`; outlives widget rebuilds, thread
 /// switches, and room navigations within the room module.
 ///
-/// Identity is `(roomId, messageId)`. [loadingMessageId] is rejected,
+/// Identity is `(roomId, messageId)`. [kLoadingMessageId] is rejected,
 /// because it is reused across runs and state written under it would
 /// leak into the next response.
 ///
@@ -27,8 +27,8 @@ class MessageExpansions {
   /// them in the wrong order at every access site is easy to get wrong.
   MessageExpansion forMessage(String roomId, String messageId) {
     assert(
-      messageId != loadingMessageId,
-      'MessageExpansions must not be keyed by loadingMessageId',
+      messageId != kLoadingMessageId,
+      'MessageExpansions must not be keyed by kLoadingMessageId',
     );
     return MessageExpansion._(this, (roomId, messageId));
   }

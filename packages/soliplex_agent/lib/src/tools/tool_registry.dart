@@ -9,13 +9,14 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// session-scoped extensions. Returns a result string. Throwing an
 /// exception marks the tool call as failed; the error message is
 /// forwarded to the model.
-typedef ToolExecutor = Future<String> Function(
-  ToolCallInfo toolCall,
-  ToolExecutionContext context,
-);
+typedef ToolExecutor =
+    Future<String> Function(
+      ToolCallInfo toolCall,
+      ToolExecutionContext context,
+    );
 
 /// Default JSON Schema for tools that take no parameters.
-const Map<String, Object> emptyToolParameters = {
+const Map<String, Object> kEmptyToolParameters = {
   'type': 'object',
   'properties': <String, Object>{},
 };
@@ -34,12 +35,12 @@ class ClientTool {
     required String name,
     required String description,
     required this.executor,
-    dynamic parameters = emptyToolParameters,
+    dynamic parameters = kEmptyToolParameters,
   }) : definition = Tool(
-          name: name,
-          description: description,
-          parameters: parameters,
-        );
+         name: name,
+         description: description,
+         parameters: parameters,
+       );
 
   /// AG-UI [Tool] definition sent to the backend so the model knows this
   /// tool exists.
@@ -59,9 +60,7 @@ class ClientTool {
 @immutable
 class ToolRegistry {
   /// Creates an empty registry.
-  const ToolRegistry()
-      : _tools = const {},
-        _aliases = const {};
+  const ToolRegistry() : _tools = const {}, _aliases = const {};
 
   const ToolRegistry._(this._tools, this._aliases);
 

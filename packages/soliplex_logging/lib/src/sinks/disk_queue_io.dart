@@ -5,13 +5,13 @@ import 'dart:io';
 import 'package:soliplex_logging/src/sinks/disk_queue.dart';
 
 /// Maximum queue file size before compaction (10 MB).
-const int _maxFileBytes = 10 * 1024 * 1024;
+const int _kMaxFileBytes = 10 * 1024 * 1024;
 
 /// Number of confirmed records before triggering compaction.
-const int _compactThreshold = 500;
+const int _kCompactThreshold = 500;
 
 /// Sentinel value meaning `_total` has not been computed yet.
-const int _unknownTotal = -1;
+const int _kUnknownTotal = -1;
 
 /// Native (io) implementation of [DiskQueue] using JSONL files.
 ///
@@ -39,7 +39,7 @@ class PlatformDiskQueue implements DiskQueue {
   int _confirmed = 0;
 
   /// Total number of valid records in the file. -1 means unknown.
-  int _total = _unknownTotal;
+  int _total = _kUnknownTotal;
 
   /// Serializes async writes to prevent file corruption.
   Future<void> _writeLock = Future.value();
@@ -52,7 +52,7 @@ class PlatformDiskQueue implements DiskQueue {
         await _compactIfNeeded();
         final line = '${jsonEncode(json)}\n';
         await _file.writeAsString(line, mode: .append, flush: true);
-        if (_total != _unknownTotal) _total++;
+        if (_total != _kUnknownTotal) _total++;
         completer.complete();
       } on Object catch (e, s) {
         completer.completeError(e, s);
@@ -114,7 +114,7 @@ class PlatformDiskQueue implements DiskQueue {
     _writeLock = _writeLock.catchError((_) {}).then((_) async {
       try {
         _confirmed += count;
-        if (_total != _unknownTotal && _confirmed > _total) {
+        if (_total != _kUnknownTotal && _confirmed > _total) {
           _confirmed = _total;
         }
         _writeMeta();
@@ -195,7 +195,7 @@ class PlatformDiskQueue implements DiskQueue {
 
     // Count valid records added.
     final added = _countValidRecords(content);
-    if (_total != _unknownTotal) _total += added;
+    if (_total != _kUnknownTotal) _total += added;
 
     mergeFile.deleteSync();
   }
@@ -206,11 +206,11 @@ class PlatformDiskQueue implements DiskQueue {
 
   /// Triggers compaction when confirmed count or file size is too large.
   Future<void> _compactIfNeeded() async {
-    if (_confirmed >= _compactThreshold) {
+    if (_confirmed >= _kCompactThreshold) {
       await _compact(_confirmed);
       return;
     }
-    if (_file.existsSync() && _file.statSync().size > _maxFileBytes) {
+    if (_file.existsSync() && _file.statSync().size > _kMaxFileBytes) {
       // Rotation: drop confirmed + half of pending.
       await _ensureTotal();
       final pending = _total - _confirmed;
@@ -294,7 +294,7 @@ class PlatformDiskQueue implements DiskQueue {
 
   /// Ensures `_total` is computed. Clamps `_confirmed` if needed.
   Future<void> _ensureTotal() async {
-    if (_total != _unknownTotal) return;
+    if (_total != _kUnknownTotal) return;
     if (!_file.existsSync()) {
       _total = 0;
       if (_confirmed > 0) {

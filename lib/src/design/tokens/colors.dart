@@ -68,7 +68,7 @@ class SoliplexColors {
   final Color link;
 }
 
-const lightSoliplexColors = SoliplexColors(
+const kLightSoliplexColors = SoliplexColors(
   background: Color(0xffffffff),
   foreground: Color(0xFF0A0A0A),
   primary: Color(0xFF030213),
@@ -102,7 +102,7 @@ const lightSoliplexColors = SoliplexColors(
   link: Color(0xFF2563EB),
 );
 
-const darkSoliplexColors = SoliplexColors(
+const kDarkSoliplexColors = SoliplexColors(
   background: Color(0xFF111111),
   foreground: Color(0xFFFAFAFA),
   primary: Color(0xFFFAFAFA),

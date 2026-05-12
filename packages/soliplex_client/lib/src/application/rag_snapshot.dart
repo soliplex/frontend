@@ -7,9 +7,9 @@ import 'package:soliplex_client/src/schema/agui_features/rag_v040.dart';
 /// The AG-UI state namespace key for RAG state.
 ///
 /// Must match the backend's `STATE_NAMESPACE` in `haiku.rag.skills.rag`.
-const ragStateKey = 'rag';
+const kRagStateKey = 'rag';
 
-const String _ragDocumentFilterKey = 'document_filter';
+const String _kRagDocumentFilterKey = 'document_filter';
 
 /// Builds a partial `aguiState` overlay that sets the rag namespace's
 /// `document_filter`. Other rag fields are left untouched by the
@@ -19,7 +19,7 @@ const String _ragDocumentFilterKey = 'document_filter';
 /// `'document_filter'`) so UI code doesn't hardcode them.
 Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
   return {
-    ragStateKey: <String, dynamic>{_ragDocumentFilterKey: filter},
+    kRagStateKey: <String, dynamic>{_kRagDocumentFilterKey: filter},
   };
 }
 
@@ -231,7 +231,7 @@ class RagV042Snapshot implements RagSnapshot {
 
 /// Projects a [RagSnapshot] from the full agent-state map.
 ///
-/// Reads the [`ragStateKey`] slice and dispatches to the
+/// Reads the [`kRagStateKey`] slice and dispatches to the
 /// version-aware [RagSnapshot.fromJson]. Returns null when the
 /// namespace is absent or malformed (rather than a sentinel empty
 /// snapshot) so consumers can distinguish "no rag activity yet"
@@ -248,7 +248,7 @@ class RagSnapshotProjection extends StateProjection<RagSnapshot?> {
 
   @override
   RagSnapshot? project(Map<String, dynamic> agentState) {
-    final raw = agentState[ragStateKey];
+    final raw = agentState[kRagStateKey];
     if (raw is! Map<String, dynamic>) return null;
     return RagSnapshot.fromJson(raw);
   }

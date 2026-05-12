@@ -18,12 +18,12 @@ typedef NoResponseSynthesisResult = ({
 /// Single source of truth for synthesized no-response message ids;
 /// synthesis, tracker rekeying, and historical replay must derive ids
 /// through this helper so they agree for the same run.
-String noResponseMessageId(String runId) => '$_noResponseIdPrefix$runId';
+String noResponseMessageId(String runId) => '$_kNoResponseIdPrefix$runId';
 
 /// Single source of truth for ids of `ErrorMessage`s synthesized when
 /// `_processRunError` falls back from `NoResponseTile` synthesis (no
 /// buffered thinking or unresolved tool calls).
-String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
+String runErrorMessageId(String runId) => '$_kRunErrorIdPrefix$runId';
 
 /// Id for an `ErrorMessage` synthesized when `RunErrorEvent` arrives on
 /// `Idle` status (no preceding `RunStartedEvent` — backend protocol
@@ -31,11 +31,11 @@ String runErrorMessageId(String runId) => '$_runErrorIdPrefix$runId';
 /// produces a stable id, leaving id-based deduplication possible if a
 /// future caller appends without first checking the conversation status.
 String preRunErrorMessageId(String threadId, String message) =>
-    '$_preRunErrorIdPrefix$threadId-${message.hashCode}';
+    '$_kPreRunErrorIdPrefix$threadId-${message.hashCode}';
 
-const _noResponseIdPrefix = 'no-response-';
-const _runErrorIdPrefix = 'run-error-';
-const _preRunErrorIdPrefix = 'pre-run-error-';
+const _kNoResponseIdPrefix = 'no-response-';
+const _kRunErrorIdPrefix = 'run-error-';
+const _kPreRunErrorIdPrefix = 'pre-run-error-';
 
 /// Appends a synthesized [NoResponseTile.finished] when a run completed
 /// normally with buffered thinking but no assistant text reply.

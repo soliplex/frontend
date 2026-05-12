@@ -90,7 +90,7 @@ abstract class ServerStorage {
   Future<Map<String, PersistedServer>> loadAll();
 }
 
-const _freshInstallKey = 'soliplex_has_launched';
+const _kFreshInstallKey = 'soliplex_has_launched';
 
 /// Clears stored servers on first launch after a fresh install.
 ///
@@ -98,7 +98,7 @@ const _freshInstallKey = 'soliplex_has_launched';
 /// does not, so a missing flag means this is a fresh install.
 Future<void> clearServersIfFreshInstall(ServerStorage storage) async {
   final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool(_freshInstallKey) == true) return;
+  if (prefs.getBool(_kFreshInstallKey) == true) return;
 
   try {
     final all = await storage.loadAll();
@@ -112,5 +112,5 @@ Future<void> clearServersIfFreshInstall(ServerStorage storage) async {
       stackTrace: st,
     );
   }
-  await prefs.setBool(_freshInstallKey, true);
+  await prefs.setBool(_kFreshInstallKey, true);
 }

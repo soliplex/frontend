@@ -30,8 +30,8 @@ import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
 import '../modules/room/ui/markdown/markdown_theme_extension.dart';
 
-const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
-const _logoSize = 64.0;
+const _kDefaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
+const _kLogoSize = 64.0;
 
 ThemeData _defaultTheme() {
   final base = soliplexLightTheme();
@@ -79,7 +79,11 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Widget? logo,
 }) async {
-  logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
+  logo ??= Image.asset(
+    _kDefaultLogoAsset,
+    width: _kLogoSize,
+    height: _kLogoSize,
+  );
   final inspector = NetworkInspector();
   final httpLogger = LogManager.instance.getLogger('http_stack');
 

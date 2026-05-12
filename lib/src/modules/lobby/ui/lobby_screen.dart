@@ -9,8 +9,8 @@ import '../lobby_state.dart';
 import 'room_card.dart';
 import 'server_sidebar.dart';
 
-const double _sidebarWidth = 240;
-const double _wideBreakpoint = 600;
+const double _kSidebarWidth = 240;
+const double _kWideBreakpoint = 600;
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key, required this.serverManager});
@@ -65,7 +65,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final roomsByServer = _state.roomsByServer.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
+        final isWide = constraints.maxWidth >= _kWideBreakpoint;
         return isWide
             ? _WideLayout(
                 servers: servers,
@@ -123,7 +123,7 @@ class _WideLayout extends StatelessWidget {
       body: Row(
         children: [
           SizedBox(
-            width: _sidebarWidth,
+            width: _kSidebarWidth,
             child: ServerSidebar(
               servers: servers,
               profiles: profiles,

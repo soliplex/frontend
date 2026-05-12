@@ -15,7 +15,7 @@ import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
 import 'ui/server_list_screen.dart';
 
-const _publicPaths = {
+const _kPublicPaths = {
   AppRoutes.home,
   AppRoutes.servers,
   AppRoutes.authCallback,
@@ -102,7 +102,7 @@ class AuthAppModule extends AppModule {
     ],
     redirect: (_, state) {
       final isAuthenticated = _serverManager.authState.value is Authenticated;
-      final isPublic = _publicPaths.contains(state.matchedLocation);
+      final isPublic = _kPublicPaths.contains(state.matchedLocation);
       if (!isAuthenticated && !isPublic) return AppRoutes.home;
       return null;
     },

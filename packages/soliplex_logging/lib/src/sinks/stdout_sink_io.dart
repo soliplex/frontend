@@ -4,11 +4,11 @@ import 'package:soliplex_logging/src/log_level.dart';
 import 'package:soliplex_logging/src/log_record.dart';
 
 /// ANSI color codes for terminal output.
-const _reset = '\x1B[0m';
-const _red = '\x1B[31m';
-const _yellow = '\x1B[33m';
-const _cyan = '\x1B[36m';
-const _gray = '\x1B[90m';
+const _kReset = '\x1B[0m';
+const _kRed = '\x1B[31m';
+const _kYellow = '\x1B[33m';
+const _kCyan = '\x1B[36m';
+const _kGray = '\x1B[90m';
 
 /// Writes a log record to stdout via `dart:io`.
 ///
@@ -34,7 +34,7 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
     // parsing the string back for colorization).
     if (useColors) {
       final color = _colorForLevel(record.level);
-      buffer.write('$color[${record.level.label}]$_reset ');
+      buffer.write('$color[${record.level.label}]$_kReset ');
     } else {
       buffer.write('[${record.level.label}] ');
     }
@@ -56,7 +56,7 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
     final error = record.error;
     if (error != null) {
       if (useColors) {
-        buffer.writeln('$_red  Error: $error$_reset');
+        buffer.writeln('$_kRed  Error: $error$_kReset');
       } else {
         buffer.writeln('  Error: $error');
       }
@@ -65,7 +65,7 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
     final stackStr = record.stackTrace?.toString();
     if (stackStr != null && stackStr.isNotEmpty) {
       if (useColors) {
-        buffer.writeln('$_gray  Stack: $stackStr$_reset');
+        buffer.writeln('$_kGray  Stack: $stackStr$_kReset');
       } else {
         buffer.writeln('  Stack: $stackStr');
       }
@@ -82,9 +82,9 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
 /// Returns the ANSI color code for a given log level.
 String _colorForLevel(LogLevel level) {
   return switch (level) {
-    .trace || .debug => _gray,
-    .info => _cyan,
-    .warning => _yellow,
-    .error || .fatal => _red,
+    .trace || .debug => _kGray,
+    .info => _kCyan,
+    .warning => _kYellow,
+    .error || .fatal => _kRed,
   };
 }

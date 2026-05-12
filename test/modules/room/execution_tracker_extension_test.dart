@@ -30,9 +30,9 @@ Conversation _conversationWith(List<ChatMessage> messages) =>
     Conversation.empty(threadId: _threadId).copyWith(messages: messages);
 
 NoResponseTile _synthesized(String runId) => NoResponseTile.cancelled(
-      id: noResponseMessageId(runId),
-      thinkingText: 'reasoning',
-    );
+  id: noResponseMessageId(runId),
+  thinkingText: 'reasoning',
+);
 
 void main() {
   late _FakeSession session;
@@ -46,31 +46,33 @@ void main() {
 
   tearDown(() => ext.onDispose());
 
-  test('rekeys awaiting tracker when terminal state has synthesized message',
-      () {
-    // Seed an awaiting tracker by entering RunningState with AwaitingText.
-    session.emitRunState(
-      const RunningState(
-        threadKey: _key,
-        runId: _runId,
-        conversation: Conversation(threadId: _threadId),
-        streaming: AwaitingText(),
-      ),
-    );
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
+  test(
+    'rekeys awaiting tracker when terminal state has synthesized message',
+    () {
+      // Seed an awaiting tracker by entering RunningState with AwaitingText.
+      session.emitRunState(
+        const RunningState(
+          threadKey: _key,
+          runId: _runId,
+          conversation: Conversation(threadId: _threadId),
+          streaming: AwaitingText(),
+        ),
+      );
+      expect(ext.trackers.containsKey(kAwaitingTrackerKey), isTrue);
 
-    final synthesized = _synthesized(_runId);
-    session.emitRunState(
-      CancelledState.duringRun(
-        threadKey: _key,
-        runId: _runId,
-        conversation: _conversationWith([synthesized]),
-      ),
-    );
+      final synthesized = _synthesized(_runId);
+      session.emitRunState(
+        CancelledState.duringRun(
+          threadKey: _key,
+          runId: _runId,
+          conversation: _conversationWith([synthesized]),
+        ),
+      );
 
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isFalse);
-    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
-  });
+      expect(ext.trackers.containsKey(kAwaitingTrackerKey), isFalse);
+      expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isTrue);
+    },
+  );
 
   test('skips rekey when runId is null (e.g., pre-run failure)', () {
     session.emitRunState(
@@ -81,7 +83,7 @@ void main() {
         streaming: AwaitingText(),
       ),
     );
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
+    expect(ext.trackers.containsKey(kAwaitingTrackerKey), isTrue);
 
     // Pre-run failure: runId is null and no synthesized message exists in
     // the conversation. The rekey is skipped instead of crashing.
@@ -94,11 +96,8 @@ void main() {
     );
 
     // The awaiting tracker is frozen on terminal but not renamed.
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
-    expect(
-      ext.trackers.containsKey(noResponseMessageId(_runId)),
-      isFalse,
-    );
+    expect(ext.trackers.containsKey(kAwaitingTrackerKey), isTrue);
+    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isFalse);
   });
 
   test('skips rekey when synthesized message is not in the conversation', () {
@@ -127,11 +126,8 @@ void main() {
       ),
     );
 
-    expect(ext.trackers.containsKey(awaitingTrackerKey), isTrue);
-    expect(
-      ext.trackers.containsKey(noResponseMessageId(_runId)),
-      isFalse,
-    );
+    expect(ext.trackers.containsKey(kAwaitingTrackerKey), isTrue);
+    expect(ext.trackers.containsKey(noResponseMessageId(_runId)), isFalse);
   });
 
   test('post-dispose runState arrival logs and returns; does not crash', () {

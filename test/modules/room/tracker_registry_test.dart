@@ -28,7 +28,7 @@ void main() {
     );
 
     expect(registry.trackers, hasLength(1));
-    expect(registry.trackers.containsKey(awaitingTrackerKey), isTrue);
+    expect(registry.trackers.containsKey(kAwaitingTrackerKey), isTrue);
   });
 
   test('re-keys awaiting tracker to message ID on TextStreaming', () {
@@ -46,7 +46,7 @@ void main() {
       events,
     );
 
-    expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
+    expect(registry.trackers.containsKey(kAwaitingTrackerKey), isFalse);
     expect(registry.trackers.containsKey('msg-1'), isTrue);
     // Same tracker instance — not a new one
     expect(registry.trackers, hasLength(1));
@@ -167,10 +167,14 @@ void main() {
   group('seedHistorical', () {
     test('adds frozen trackers under their message ids', () {
       final historical = {
-        'asst-1':
-            ExecutionTracker.historical(events: const [], logger: testLogger()),
-        'asst-2':
-            ExecutionTracker.historical(events: const [], logger: testLogger()),
+        'asst-1': ExecutionTracker.historical(
+          events: const [],
+          logger: testLogger(),
+        ),
+        'asst-2': ExecutionTracker.historical(
+          events: const [],
+          logger: testLogger(),
+        ),
       };
 
       registry.seedHistorical(historical);
@@ -191,8 +195,10 @@ void main() {
       final live = registry.trackers['asst-1'];
 
       final historical = {
-        'asst-1':
-            ExecutionTracker.historical(events: const [], logger: testLogger()),
+        'asst-1': ExecutionTracker.historical(
+          events: const [],
+          logger: testLogger(),
+        ),
       };
       registry.seedHistorical(historical);
 
@@ -206,16 +212,16 @@ void main() {
         const AwaitingText(currentActivity: ThinkingActivity()),
         events,
       );
-      final awaitingTracker = registry.trackers[awaitingTrackerKey];
+      final awaitingTracker = registry.trackers[kAwaitingTrackerKey];
 
       registry.renameAwaitingTo('no-response-run-1');
 
-      expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
+      expect(registry.trackers.containsKey(kAwaitingTrackerKey), isFalse);
       expect(registry.trackers['no-response-run-1'], same(awaitingTracker));
     });
 
     test('moved tracker is the one frozen on subsequent onRunTerminated', () {
-      // Verifies _activeId was rewritten from awaitingTrackerKey to the
+      // Verifies _activeId was rewritten from kAwaitingTrackerKey to the
       // synthesized id; otherwise _freezeActive would no-op (the awaiting
       // entry no longer exists under that key).
       registry.onStreaming(
@@ -234,11 +240,11 @@ void main() {
         const AwaitingText(currentActivity: ThinkingActivity()),
         events,
       );
-      final before = registry.trackers[awaitingTrackerKey];
+      final before = registry.trackers[kAwaitingTrackerKey];
 
-      registry.renameAwaitingTo(awaitingTrackerKey);
+      registry.renameAwaitingTo(kAwaitingTrackerKey);
 
-      expect(registry.trackers[awaitingTrackerKey], same(before));
+      expect(registry.trackers[kAwaitingTrackerKey], same(before));
     });
 
     test('safely no-ops when no awaiting tracker exists', () {
@@ -250,8 +256,7 @@ void main() {
       expect(registry.trackers, isEmpty);
     });
 
-    test(
-        'disposes the existing tracker when the target key already holds one '
+    test('disposes the existing tracker when the target key already holds one '
         'so the loser does not leak its subscription', () {
       // seedHistorical declared "live always wins over historical", but
       // an unguarded overwrite at the target key would leak the loser's
@@ -267,7 +272,7 @@ void main() {
         const AwaitingText(currentActivity: ThinkingActivity()),
         events,
       );
-      final awaitingTracker = registry.trackers[awaitingTrackerKey];
+      final awaitingTracker = registry.trackers[kAwaitingTrackerKey];
 
       registry.renameAwaitingTo('no-response-run-1');
 
@@ -279,7 +284,8 @@ void main() {
       expect(
         historicalTracker.isFrozen,
         isTrue,
-        reason: 'the clobbered tracker must be disposed (which freezes it) '
+        reason:
+            'the clobbered tracker must be disposed (which freezes it) '
             'so its subscription is released — without the cleanup the '
             'historical tracker silently retains its event listener',
       );
@@ -304,6 +310,6 @@ void main() {
     // Should not create an awaiting tracker — msg-1 is still active
     expect(registry.trackers, hasLength(1));
     expect(registry.trackers.containsKey('msg-1'), isTrue);
-    expect(registry.trackers.containsKey(awaitingTrackerKey), isFalse);
+    expect(registry.trackers.containsKey(kAwaitingTrackerKey), isFalse);
   });
 }

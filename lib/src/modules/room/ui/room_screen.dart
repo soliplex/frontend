@@ -45,8 +45,8 @@ import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 
-const double _sidebarWidth = 300;
-const double _wideBreakpoint = 600;
+const double _kSidebarWidth = 300;
+const double _kWideBreakpoint = 600;
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -368,7 +368,7 @@ class _RoomScreenState extends State<RoomScreen> {
       autofocus: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= _wideBreakpoint;
+          final isWide = constraints.maxWidth >= _kWideBreakpoint;
           final sidebar = ThreadSidebar(
             threadListStatus: threadListStatus,
             selectedThreadId: selectedThreadId,
@@ -394,7 +394,7 @@ class _RoomScreenState extends State<RoomScreen> {
             return Scaffold(
               body: Row(
                 children: [
-                  SizedBox(width: _sidebarWidth, child: sidebar),
+                  SizedBox(width: _kSidebarWidth, child: sidebar),
                   const VerticalDivider(width: 1),
                   Expanded(child: content),
                 ],

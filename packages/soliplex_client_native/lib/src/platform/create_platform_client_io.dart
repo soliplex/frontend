@@ -11,7 +11,7 @@ import 'package:soliplex_client_native/src/clients/cupertino_http_client.dart';
 /// Note: Falls back to [DartHttpClient] if native bindings are unavailable
 /// (e.g., in Flutter test environment).
 SoliplexHttpClient createPlatformClientImpl({
-  Duration defaultTimeout = defaultHttpTimeout,
+  Duration defaultTimeout = kDefaultHttpTimeout,
 }) {
   if (Platform.isMacOS || Platform.isIOS) {
     try {

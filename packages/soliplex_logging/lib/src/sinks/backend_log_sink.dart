@@ -11,10 +11,10 @@ import 'package:soliplex_logging/src/sinks/disk_queue.dart';
 import 'package:soliplex_logging/src/sinks/memory_sink.dart';
 
 /// Maximum record size in bytes before truncation (64 KB).
-const int _maxRecordBytes = 64 * 1024;
+const int _kMaxRecordBytes = 64 * 1024;
 
 /// Default maximum batch payload size in bytes (900 KB).
-const int _defaultMaxBatchBytes = 900 * 1024;
+const int _kDefaultMaxBatchBytes = 900 * 1024;
 
 /// Callback for error reporting from [BackendLogSink].
 typedef SinkErrorCallback = void Function(String message, Object? error);
@@ -37,7 +37,7 @@ class BackendLogSink implements LogSink {
     this.memorySink,
     this.maxBreadcrumbs = 20,
     Map<String, Object?> resourceAttributes = const {},
-    this.maxBatchBytes = _defaultMaxBatchBytes,
+    this.maxBatchBytes = _kDefaultMaxBatchBytes,
     this.batchSize = 100,
     Duration flushInterval = const Duration(seconds: 30),
     this.networkChecker,
@@ -414,7 +414,7 @@ class BackendLogSink implements LogSink {
   Map<String, Object?> _truncateRecord(Map<String, Object?> json) {
     // Use byte-accurate size check (UTF-8 encoding, not UTF-16 .length).
     final encoded = utf8.encode(jsonEncode(json));
-    if (encoded.length <= _maxRecordBytes) return json;
+    if (encoded.length <= _kMaxRecordBytes) return json;
 
     final result = Map<String, Object?>.of(json);
 
@@ -423,7 +423,7 @@ class BackendLogSink implements LogSink {
       if (value is String && value.length > 1024) {
         result[key] = _utf8SafeTruncate(value, 1024);
       }
-      if (utf8.encode(jsonEncode(result)).length <= _maxRecordBytes) {
+      if (utf8.encode(jsonEncode(result)).length <= _kMaxRecordBytes) {
         return result;
       }
     }
@@ -433,12 +433,12 @@ class BackendLogSink implements LogSink {
     }
 
     // Final safety net: if still oversized, return a minimal placeholder.
-    if (utf8.encode(jsonEncode(result)).length > _maxRecordBytes) {
+    if (utf8.encode(jsonEncode(result)).length > _kMaxRecordBytes) {
       return {
         'timestamp': result['timestamp'],
         'level': result['level'],
         'logger': result['logger'],
-        'message': '[record exceeded ${_maxRecordBytes}B after truncation]',
+        'message': '[record exceeded ${_kMaxRecordBytes}B after truncation]',
         'installId': result['installId'],
         'sessionId': result['sessionId'],
         'userId': result['userId'],
@@ -549,7 +549,7 @@ class BackendLogSink implements LogSink {
 }
 
 /// Logger name prefixes that map to breadcrumb categories.
-const _loggerCategoryPrefixes = {
+const _kLoggerCategoryPrefixes = {
   'Router': 'ui',
   'Navigation': 'ui',
   'UI': 'ui',
@@ -574,7 +574,7 @@ String deriveBreadcrumbCategory(LogRecord record) {
   if (explicit is String) return explicit;
 
   final name = record.loggerName;
-  for (final entry in _loggerCategoryPrefixes.entries) {
+  for (final entry in _kLoggerCategoryPrefixes.entries) {
     if (name == entry.key || name.startsWith('${entry.key}.')) {
       return entry.value;
     }

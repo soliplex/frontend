@@ -3,7 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'execution_tracker.dart';
 
 /// Sentinel key for the execution tracker created before a message ID is known.
-const awaitingTrackerKey = '_awaiting';
+const kAwaitingTrackerKey = '_awaiting';
 
 /// Manages execution trackers keyed by message ID.
 ///
@@ -30,8 +30,8 @@ class TrackerRegistry {
     switch (streaming) {
       case TextStreaming(:final messageId):
         if (_activeId == messageId) return;
-        if (_activeId == awaitingTrackerKey) {
-          final tracker = _trackers.remove(awaitingTrackerKey);
+        if (_activeId == kAwaitingTrackerKey) {
+          final tracker = _trackers.remove(kAwaitingTrackerKey);
           if (tracker != null) {
             _trackers[messageId] = tracker;
           }
@@ -45,8 +45,8 @@ class TrackerRegistry {
         _activeId = messageId;
       case AwaitingText():
         if (_activeId != null) return;
-        _activeId = awaitingTrackerKey;
-        _trackers[awaitingTrackerKey] = ExecutionTracker(
+        _activeId = kAwaitingTrackerKey;
+        _trackers[kAwaitingTrackerKey] = ExecutionTracker(
           executionEvents: events,
           logger: _logger,
         );
@@ -71,8 +71,8 @@ class TrackerRegistry {
   /// still renders its `thinkingText` field, but no execution-step
   /// timeline attaches; the warning makes that divergence observable.
   void renameAwaitingTo(String key) {
-    if (key == awaitingTrackerKey) return;
-    final tracker = _trackers.remove(awaitingTrackerKey);
+    if (key == kAwaitingTrackerKey) return;
+    final tracker = _trackers.remove(kAwaitingTrackerKey);
     if (tracker == null) {
       _logger.warning(
         'No awaiting tracker for renameAwaitingTo; NoResponseTile will '
@@ -94,7 +94,7 @@ class TrackerRegistry {
       );
     }
     _trackers[key] = tracker;
-    if (_activeId == awaitingTrackerKey) {
+    if (_activeId == kAwaitingTrackerKey) {
       _activeId = key;
     }
   }

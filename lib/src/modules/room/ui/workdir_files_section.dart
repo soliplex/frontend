@@ -14,12 +14,12 @@ typedef DownloadWorkdirFile =
 typedef FetchWorkdirFileBytes =
     Future<Uint8List> Function(String runId, WorkdirFile file);
 
-const _imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'};
+const _kImageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'};
 
 bool _isPreviewableImage(String filename) {
   final dot = filename.lastIndexOf('.');
   if (dot <= 0) return false;
-  return _imageExtensions.contains(filename.substring(dot).toLowerCase());
+  return _kImageExtensions.contains(filename.substring(dot).toLowerCase());
 }
 
 class WorkdirFilesSection extends StatefulWidget {
