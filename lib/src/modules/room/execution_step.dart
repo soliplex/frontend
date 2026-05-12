@@ -18,11 +18,10 @@ class ExecutionStep {
   final StepStatus status;
   final Duration timestamp;
 
-  ExecutionStep copyWith({StepStatus? status, Duration? timestamp}) =>
-      ExecutionStep(
-        label: label,
-        type: type,
-        status: status ?? this.status,
-        timestamp: timestamp ?? this.timestamp,
-      );
+  ExecutionStep copyWith({StepStatus? status, Duration? timestamp}) => .new(
+    label: label,
+    type: type,
+    status: status ?? this.status,
+    timestamp: timestamp ?? this.timestamp,
+  );
 }

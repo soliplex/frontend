@@ -564,7 +564,7 @@ QuestionType questionTypeFromJson(Map<String, dynamic> json) {
   final type = json['type'] as String;
   return switch (type) {
     'multiple-choice' || 'multiple_choice' => MultipleChoice(
-      (json['options'] as List<dynamic>).cast<String>(),
+      (json['options'] as List<dynamic>).cast(),
     ),
     'fill-blank' || 'fill_blank' => const FillBlank(),
     'qa' => const FreeForm(),

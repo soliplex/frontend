@@ -36,7 +36,7 @@ class HttpEventGroup {
     HttpErrorEvent? error,
     HttpStreamStartEvent? streamStart,
     HttpStreamEndEvent? streamEnd,
-  }) => HttpEventGroup(
+  }) => .new(
     requestId: requestId,
     request: request ?? this.request,
     response: response ?? this.response,
@@ -165,7 +165,7 @@ class HttpEventGroup {
     if (!hasEvents) return null;
     if (request == null && streamStart == null) return null;
 
-    final parts = <String>['curl'];
+    final parts = ['curl'];
     if (method != 'GET') parts.add('-X $method');
 
     for (final entry in requestHeaders.entries) {

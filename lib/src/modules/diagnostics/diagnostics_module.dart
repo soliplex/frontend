@@ -15,18 +15,16 @@ class DiagnosticsAppModule extends AppModule {
   String get namespace => 'diagnostics';
 
   @override
-  ModuleRoutes build() => ModuleRoutes(
-        overrides: [
-          networkInspectorProvider.overrideWithValue(inspector),
-        ],
-        routes: [
-          GoRoute(
-            path: AppRoutes.networkInspector,
-            builder: (context, state) =>
-                NetworkInspectorScreen(inspector: inspector),
-          ),
-        ],
-      );
+  ModuleRoutes build() => .new(
+    overrides: [networkInspectorProvider.overrideWithValue(inspector)],
+    routes: [
+      GoRoute(
+        path: AppRoutes.networkInspector,
+        builder: (context, state) =>
+            NetworkInspectorScreen(inspector: inspector),
+      ),
+    ],
+  );
 
   @override
   Future<void> onDispose() async => inspector.dispose();

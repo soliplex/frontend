@@ -107,7 +107,7 @@ class AgentRuntime {
 
   /// Currently tracked (non-disposed) sessions.
   List<AgentSession> get activeSessions =>
-      List.unmodifiable(_sessions.values.toList());
+      .unmodifiable(_sessions.values.toList());
 
   /// Emits whenever the active session list changes.
   ///

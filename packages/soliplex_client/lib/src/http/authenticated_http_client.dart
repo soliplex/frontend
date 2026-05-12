@@ -32,7 +32,7 @@ class AuthenticatedHttpClient implements SoliplexHttpClient {
   Map<String, String> _injectAuth(Map<String, String>? headers) {
     final token = _getToken();
     if (token == null) return headers ?? {};
-    return <String, String>{...?headers, 'Authorization': 'Bearer $token'};
+    return {...?headers, 'Authorization': 'Bearer $token'};
   }
 
   @override

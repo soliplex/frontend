@@ -42,8 +42,7 @@ class ThreadState {
   /// Returns a copy with a different [history]. The underlying [bus]
   /// is preserved across mutations because it carries the live
   /// signal subscriptions.
-  ThreadState withHistory(ThreadHistory? next) =>
-      ThreadState(bus: bus, history: next);
+  ThreadState withHistory(ThreadHistory? next) => .new(bus: bus, history: next);
 
   /// Tear down. Disposes the underlying [bus]. Idempotent — the bus's
   /// own [StateBus.dispose] guards against double-dispose internally.

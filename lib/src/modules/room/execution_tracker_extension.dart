@@ -19,7 +19,7 @@ class ExecutionTrackerExtension extends SessionExtension
   ExecutionTrackerExtension({required Logger logger})
     : _logger = logger,
       _registry = TrackerRegistry(logger: logger) {
-    setInitialState(const <String, ExecutionTracker>{});
+    setInitialState(const {});
   }
 
   final Logger _logger;

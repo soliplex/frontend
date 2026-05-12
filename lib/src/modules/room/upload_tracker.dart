@@ -136,10 +136,7 @@ class UploadTracker {
     return _scope(_roomKey(roomId)).signal;
   }
 
-  ReadonlySignal<UploadsStatus> threadUploads(
-    String roomId,
-    String threadId,
-  ) {
+  ReadonlySignal<UploadsStatus> threadUploads(String roomId, String threadId) {
     _requireNotDisposed();
     return _scope(_threadKey(roomId, threadId)).signal;
   }
@@ -173,7 +170,7 @@ class UploadTracker {
     required String key,
     required Future<List<FileUpload>> Function(CancelToken) fetch,
   }) {
-    if (_isDisposed) return Future<void>.value();
+    if (_isDisposed) return Future.value();
     return _fetch(scope: _scope(key), fetch: fetch);
   }
 
@@ -238,11 +235,13 @@ class UploadTracker {
       if (scope.signal.value is UploadsLoaded) {
         return;
       }
-      scope.signal.value = UploadsFailed(UnexpectedException(
-        message: 'Unexpected error while loading uploads',
-        originalError: error,
-        stackTrace: stackTrace,
-      ));
+      scope.signal.value = UploadsFailed(
+        UnexpectedException(
+          message: 'Unexpected error while loading uploads',
+          originalError: error,
+          stackTrace: stackTrace,
+        ),
+      );
     }
   }
 
@@ -386,8 +385,9 @@ class UploadTracker {
     required String message,
   }) {
     if (_isDisposed) return;
-    final key =
-        threadId == null ? _roomKey(roomId) : _threadKey(roomId, threadId);
+    final key = threadId == null
+        ? _roomKey(roomId)
+        : _threadKey(roomId, threadId);
     final scope = _scope(key);
     final id = 'upload-${_nextId++}';
     scope.pending.add(_Failed(id: id, filename: filename, message: message));
@@ -437,13 +437,12 @@ class UploadTracker {
       for (final p in scope.pending)
         switch (p) {
           _Pending() ||
-          _Posted() =>
-            PendingUpload(id: p.id, filename: p.filename),
+          _Posted() => PendingUpload(id: p.id, filename: p.filename),
           _Failed() => FailedUpload(
-              id: p.id,
-              filename: p.filename,
-              message: p.message,
-            ),
+            id: p.id,
+            filename: p.filename,
+            message: p.message,
+          ),
         },
     ];
 

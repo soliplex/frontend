@@ -16,8 +16,8 @@ class VersionsAppModule extends AppModule {
     required this.serverManager,
     AppVersionLoader? versionLoader,
     BackendVersionFetcher? versionFetcher,
-  })  : _versionLoader = versionLoader ?? loadFlavorVersion,
-        _versionFetcher = versionFetcher ?? fetchBackendVersionInfo;
+  }) : _versionLoader = versionLoader ?? loadFlavorVersion,
+       _versionFetcher = versionFetcher ?? fetchBackendVersionInfo;
 
   final String appName;
   final ServerManager serverManager;
@@ -28,44 +28,44 @@ class VersionsAppModule extends AppModule {
   String get namespace => 'versions';
 
   @override
-  ModuleRoutes build() => ModuleRoutes(
-        routes: [
-          GoRoute(
-            path: AppRoutes.versions,
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: VersionsScreen(
-                appName: appName,
-                serverManager: serverManager,
-                versionLoader: _versionLoader,
-                versionFetcher: _versionFetcher,
-              ),
-            ),
+  ModuleRoutes build() => .new(
+    routes: [
+      GoRoute(
+        path: AppRoutes.versions,
+        pageBuilder: (context, state) => NoTransitionPage(
+          child: VersionsScreen(
+            appName: appName,
+            serverManager: serverManager,
+            versionLoader: _versionLoader,
+            versionFetcher: _versionFetcher,
           ),
-          GoRoute(
-            path: '/versions/server/:serverAlias',
-            redirect: (context, state) => requireConnectedServer(
-              serverManager,
-              state.pathParameters['serverAlias'],
+        ),
+      ),
+      GoRoute(
+        path: '/versions/server/:serverAlias',
+        redirect: (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
+        pageBuilder: (context, state) {
+          final alias = state.pathParameters['serverAlias']!;
+          final entry = serverManager.entryByAlias(alias);
+          if (entry == null) {
+            // Redirect runs before the builder; the entry can disappear
+            // in between.
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => GoRouter.of(context).go(AppRoutes.versions),
+            );
+            return const NoTransitionPage(child: SizedBox.shrink());
+          }
+          return NoTransitionPage(
+            child: ServerVersionsScreen(
+              serverEntry: entry,
+              versionFetcher: _versionFetcher,
             ),
-            pageBuilder: (context, state) {
-              final alias = state.pathParameters['serverAlias']!;
-              final entry = serverManager.entryByAlias(alias);
-              if (entry == null) {
-                // Redirect runs before the builder; the entry can disappear
-                // in between.
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => GoRouter.of(context).go(AppRoutes.versions),
-                );
-                return const NoTransitionPage(child: SizedBox.shrink());
-              }
-              return NoTransitionPage(
-                child: ServerVersionsScreen(
-                  serverEntry: entry,
-                  versionFetcher: _versionFetcher,
-                ),
-              );
-            },
-          ),
-        ],
-      );
+          );
+        },
+      ),
+    ],
+  );
 }

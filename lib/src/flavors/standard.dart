@@ -105,7 +105,7 @@ Future<ShellConfig> standard({
   final plainClient = buildClient();
   final refreshService = TokenRefreshService(httpClient: plainClient);
 
-  AuthSession buildAuth() => AuthSession(refreshService: refreshService);
+  AuthSession buildAuth() => .new(refreshService: refreshService);
 
   final serverStorage = SecureServerStorage();
   await clearServersIfFreshInstall(serverStorage);

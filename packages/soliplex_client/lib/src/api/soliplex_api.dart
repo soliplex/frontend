@@ -163,7 +163,7 @@ class SoliplexApi {
   Future<Room> getRoom(String roomId, {CancelToken? cancelToken}) async {
     _requireNonEmpty(roomId, 'roomId');
 
-    return _transport.request<Room>(
+    return _transport.request(
       'GET',
       _urlBuilder.build(pathSegments: ['rooms', roomId]),
       cancelToken: cancelToken,
@@ -312,7 +312,7 @@ class SoliplexApi {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(threadId, 'threadId');
 
-    return _transport.request<ThreadInfo>(
+    return _transport.request(
       'GET',
       _urlBuilder.build(pathSegments: ['rooms', roomId, 'agui', threadId]),
       cancelToken: cancelToken,
@@ -512,7 +512,7 @@ class SoliplexApi {
     _requireNonEmpty(threadId, 'threadId');
     _requireNonEmpty(runId, 'runId');
 
-    return _transport.request<RunInfo>(
+    return _transport.request(
       'GET',
       _urlBuilder.build(
         pathSegments: ['rooms', roomId, 'agui', threadId, runId],
@@ -1037,7 +1037,7 @@ class SoliplexApi {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(quizId, 'quizId');
 
-    return _transport.request<Quiz>(
+    return _transport.request(
       'GET',
       _urlBuilder.build(pathSegments: ['rooms', roomId, 'quiz', quizId]),
       cancelToken: cancelToken,
@@ -1111,7 +1111,7 @@ class SoliplexApi {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(chunkId, 'chunkId');
 
-    return _transport.request<ChunkVisualization>(
+    return _transport.request(
       'GET',
       _urlBuilder.build(pathSegments: ['rooms', roomId, 'chunk', chunkId]),
       cancelToken: cancelToken,

@@ -117,7 +117,7 @@ class HttpTransport {
     _throwForStatusCode(response, uri);
 
     // Decode response
-    return _decodeResponse<T>(response, fromJson);
+    return _decodeResponse(response, fromJson);
   }
 
   /// Performs an HTTP request and returns the raw response bytes.

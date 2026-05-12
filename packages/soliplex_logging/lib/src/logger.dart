@@ -162,5 +162,5 @@ class Logger {
 /// Extension to create loggers via LogManager.
 extension LoggerFactory on LogManager {
   /// Creates or retrieves a cached logger with the given name.
-  Logger getLogger(String name) => Logger._(name, this);
+  Logger getLogger(String name) => ._(name, this);
 }

@@ -19,10 +19,10 @@ final class TimelineStep extends TimelineEntry {
   final List<SkillToolCallActivity> activities;
 
   TimelineStep withStep(ExecutionStep step) =>
-      TimelineStep(step: step, activities: activities);
+      .new(step: step, activities: activities);
 
   TimelineStep withActivities(List<SkillToolCallActivity> activities) =>
-      TimelineStep(step: step, activities: activities);
+      .new(step: step, activities: activities);
 }
 
 @immutable

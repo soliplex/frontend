@@ -201,7 +201,7 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  RoomState _createRoomState() => RoomState(
+  RoomState _createRoomState() => .new(
     serverEntry: widget.serverEntry,
     roomId: widget.roomId,
     runtimeManager: widget.runtimeManager,
@@ -210,10 +210,8 @@ class _RoomScreenState extends State<RoomScreen> {
     onNavigateToThread: (id) => _navigateToThread(id),
   );
 
-  WorkdirController _createWorkdirController() => WorkdirController(
-    api: widget.serverEntry.connection.api,
-    roomId: widget.roomId,
-  );
+  WorkdirController _createWorkdirController() =>
+      .new(api: widget.serverEntry.connection.api, roomId: widget.roomId);
 
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
@@ -482,13 +480,13 @@ class _RoomScreenState extends State<RoomScreen> {
 
     final UploadsStatus roomStatus = attachEnabled
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
-        : const UploadsLoaded(<DisplayUpload>[]);
+        : const UploadsLoaded([]);
     final threadId = threadView?.threadId;
     final UploadsStatus threadStatus = attachEnabled && threadId != null
         ? _state.uploadTracker
               .threadUploads(widget.roomId, threadId)
               .watch(context)
-        : const UploadsLoaded(<DisplayUpload>[]);
+        : const UploadsLoaded([]);
 
     return Column(
       children: [

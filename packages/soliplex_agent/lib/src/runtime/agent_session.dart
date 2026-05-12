@@ -87,7 +87,7 @@ class AgentSession implements ToolExecutionContext {
       signal<ReconnectStatus?>(null);
 
   /// Child sessions spawned by this session.
-  List<AgentSession> get children => List.unmodifiable(_children);
+  List<AgentSession> get children => .unmodifiable(_children);
 
   /// Current session lifecycle state.
   AgentSessionState get state => _state;
@@ -234,7 +234,7 @@ class AgentSession implements ToolExecutionContext {
         'requestApproval denied: session $id already disposed '
         '(tool $toolName, $toolCallId).',
       );
-      return Future<bool>.value(false);
+      return Future.value(false);
     }
     // Short-circuit before the extension call so a cancelled session never
     // surfaces an approval dialog the orchestrator is about to throw away.
@@ -243,7 +243,7 @@ class AgentSession implements ToolExecutionContext {
         'requestApproval denied: session $id already cancelled '
         '(tool $toolName, $toolCallId).',
       );
-      return Future<bool>.value(false);
+      return Future.value(false);
     }
     final ext = _coordinator.getExtension<ToolApprovalExtension>();
     if (ext == null) {
@@ -251,7 +251,7 @@ class AgentSession implements ToolExecutionContext {
         'Tool $toolName ($toolCallId) requested approval on session $id '
         'but no ToolApprovalExtension is registered; denying by default.',
       );
-      return Future<bool>.value(false);
+      return Future.value(false);
     }
     emitEvent(
       AwaitingApproval(
@@ -290,8 +290,7 @@ class AgentSession implements ToolExecutionContext {
   }
 
   @override
-  T? getExtension<T extends SessionExtension>() =>
-      _coordinator.getExtension<T>();
+  T? getExtension<T extends SessionExtension>() => _coordinator.getExtension();
 
   /// See [SessionCoordinator.statefulObservations].
   Iterable<(String, ReadonlySignal<Object?>)> statefulObservations() =>

@@ -13,7 +13,7 @@ class FakeHostApi implements HostApi {
 
   /// Handler for [invoke] calls. If null, [invoke] throws.
   final Future<Object?> Function(String name, Map<String, Object?> args)?
-      invokeHandler;
+  invokeHandler;
 
   final Map<int, Map<String, List<Object?>>> _dataFrames = {};
   final Map<int, Map<String, Object?>> _charts = {};
@@ -21,10 +21,10 @@ class FakeHostApi implements HostApi {
 
   /// All registered DataFrames, keyed by handle.
   Map<int, Map<String, List<Object?>>> get dataFrames =>
-      Map.unmodifiable(_dataFrames);
+      .unmodifiable(_dataFrames);
 
   /// All registered charts, keyed by handle.
-  Map<int, Map<String, Object?>> get charts => Map.unmodifiable(_charts);
+  Map<int, Map<String, Object?>> get charts => .unmodifiable(_charts);
 
   @override
   int registerDataFrame(Map<String, List<Object?>> columns) {

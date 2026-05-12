@@ -340,7 +340,7 @@ class WorkdirImagePreviewPage extends StatefulWidget {
       useDialogLayout: useDialog,
     );
     if (useDialog) {
-      return showDialog<void>(
+      return showDialog(
         context: context,
         barrierDismissible: true,
         builder: (_) => child,

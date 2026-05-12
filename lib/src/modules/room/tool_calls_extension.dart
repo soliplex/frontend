@@ -19,7 +19,7 @@ class ToolCallEntry {
   /// backend executes it.
   final bool isClientSide;
 
-  ToolCallEntry copyWith({ToolCallStatus? status}) => ToolCallEntry(
+  ToolCallEntry copyWith({ToolCallStatus? status}) => .new(
     toolCallId: toolCallId,
     toolName: toolName,
     status: status ?? this.status,

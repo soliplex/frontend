@@ -22,7 +22,7 @@ class StateBus {
   /// Construct a fresh bus. The initial agent state is empty; feed
   /// the first snapshot via [setAgentState] when one arrives.
   StateBus({Map<String, dynamic> initialAgentState = const {}})
-      : _agentState = signal(_freeze(initialAgentState));
+    : _agentState = signal(_freeze(initialAgentState));
 
   final Signal<Map<String, dynamic>> _agentState;
 
@@ -82,5 +82,5 @@ class StateBus {
   /// semantics" — every value seen via [agentState] is a frozen
   /// view of the state at that instant.
   static Map<String, dynamic> _freeze(Map<String, dynamic> map) =>
-      Map<String, dynamic>.unmodifiable(map);
+      Map.unmodifiable(map);
 }

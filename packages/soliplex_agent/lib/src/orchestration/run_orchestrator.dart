@@ -818,8 +818,8 @@ class RunOrchestrator {
       final existing = result[entry.key];
       if (existing is Map && entry.value is Map) {
         result[entry.key] = _mergeState(
-          Map<String, dynamic>.from(existing),
-          Map<String, dynamic>.from(entry.value as Map),
+          Map.from(existing),
+          Map.from(entry.value as Map),
         );
       } else {
         result[entry.key] = entry.value;

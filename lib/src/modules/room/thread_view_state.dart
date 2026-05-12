@@ -201,7 +201,7 @@ class ThreadViewState {
     // Guard against sends while a session is already spawning/running.
     // The spawner's own re-entrancy guard only covers in-flight spawns;
     // this blocks overlapping sends when a prior session is attached.
-    if (_sessionState.value != null) return Future<void>.value();
+    if (_sessionState.value != null) return Future.value();
     return _spawner.spawn(
       spawnFn: () => runtime.spawn(
         roomId: _roomId,

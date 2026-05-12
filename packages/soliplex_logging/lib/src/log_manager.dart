@@ -29,7 +29,7 @@ class LogManager {
   }
 
   /// Returns all registered sinks.
-  List<LogSink> get sinks => List.unmodifiable(_sinks);
+  List<LogSink> get sinks => .unmodifiable(_sinks);
 
   /// Emits a log record to all sinks.
   ///
@@ -55,7 +55,7 @@ class LogManager {
   /// Clears the sink list before awaiting close to prevent new writes
   /// from reaching sinks that are in the process of shutting down.
   Future<void> close() async {
-    final sinksToClose = List<LogSink>.of(_sinks);
+    final sinksToClose = List.of(_sinks);
     _sinks.clear();
     await Future.wait(sinksToClose.map((s) => s.close()));
   }

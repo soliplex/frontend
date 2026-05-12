@@ -62,7 +62,7 @@ Map<String, dynamic> _setAtPath(
   if (segments.isEmpty) {
     // Path "/" means replace root - but we always return a map
     if (value is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(value);
+      return Map.from(value);
     }
     return state;
   }

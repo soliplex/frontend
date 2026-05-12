@@ -36,7 +36,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
   List<RagDocument> get _filtered => filterDocuments(widget.documents, _query);
 
   void _toggle(RagDocument doc) {
-    final next = Set<RagDocument>.of(widget.selected);
+    final next = Set.of(widget.selected);
     if (!next.remove(doc)) next.add(doc);
     widget.onChanged(next);
   }
@@ -146,10 +146,10 @@ Future<Set<RagDocument>?> showDocumentPicker({
   required Future<List<RagDocument>> Function() fetchDocuments,
   required Set<RagDocument> selected,
 }) {
-  var current = Set<RagDocument>.of(selected);
+  var current = Set.of(selected);
   int? filteredCount;
   var documentsFuture = fetchDocuments();
-  return showDialog<Set<RagDocument>>(
+  return showDialog(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => FutureBuilder<List<RagDocument>>(

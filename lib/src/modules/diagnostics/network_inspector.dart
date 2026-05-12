@@ -11,13 +11,13 @@ class NetworkInspector
     with ChangeNotifier
     implements HttpObserver, ConcurrencyObserver {
   NetworkInspector({int maxEvents = 1000})
-      : _maxEvents = maxEvents > 0
-            ? maxEvents
-            : throw ArgumentError.value(
-                maxEvents,
-                'maxEvents',
-                'must be positive',
-              );
+    : _maxEvents = maxEvents > 0
+          ? maxEvents
+          : throw ArgumentError.value(
+              maxEvents,
+              'maxEvents',
+              'must be positive',
+            );
 
   final int _maxEvents;
   final ListQueue<HttpEvent> _events = ListQueue<HttpEvent>();
@@ -25,10 +25,10 @@ class NetworkInspector
       ListQueue<ConcurrencyWaitEvent>();
   bool _disposed = false;
 
-  List<HttpEvent> get events => List.unmodifiable(_events);
+  List<HttpEvent> get events => .unmodifiable(_events);
 
   List<ConcurrencyWaitEvent> get concurrencyEvents =>
-      List.unmodifiable(_concurrencyEvents);
+      .unmodifiable(_concurrencyEvents);
 
   void clear() {
     if (_disposed) return;

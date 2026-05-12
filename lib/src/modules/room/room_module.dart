@@ -18,9 +18,9 @@ class RoomAppModule extends AppModule {
     required this.runtimeManager,
     required this.registry,
     this.enableDocumentFilter = false,
-  })  : _documentSelections = DocumentSelections(),
-        _messageExpansions = MessageExpansions(),
-        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers);
+  }) : _documentSelections = DocumentSelections(),
+       _messageExpansions = MessageExpansions(),
+       _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers);
 
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
@@ -35,34 +35,34 @@ class RoomAppModule extends AppModule {
   String get namespace => 'room';
 
   @override
-  ModuleRoutes build() => ModuleRoutes(
-        overrides: [
-          messageExpansionsProvider.overrideWithValue(_messageExpansions),
-        ],
-        routes: [
-          GoRoute(
-            path: '/room/:serverAlias/:roomId/info',
-            redirect: (context, state) => requireConnectedServer(
-              serverManager,
-              state.pathParameters['serverAlias'],
+  ModuleRoutes build() => .new(
+    overrides: [
+      messageExpansionsProvider.overrideWithValue(_messageExpansions),
+    ],
+    routes: [
+      GoRoute(
+        path: '/room/:serverAlias/:roomId/info',
+        redirect: (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
+        pageBuilder: (context, state) {
+          final alias = state.pathParameters['serverAlias']!;
+          final entry = serverManager.entryByAlias(alias)!;
+          return NoTransitionPage(
+            child: RoomInfoScreen(
+              serverEntry: entry,
+              roomId: state.pathParameters['roomId']!,
+              toolRegistryResolver: runtimeManager.toolRegistryResolver,
+              uploadRegistry: _uploadRegistry,
             ),
-            pageBuilder: (context, state) {
-              final alias = state.pathParameters['serverAlias']!;
-              final entry = serverManager.entryByAlias(alias)!;
-              return NoTransitionPage(
-                child: RoomInfoScreen(
-                  serverEntry: entry,
-                  roomId: state.pathParameters['roomId']!,
-                  toolRegistryResolver: runtimeManager.toolRegistryResolver,
-                  uploadRegistry: _uploadRegistry,
-                ),
-              );
-            },
-          ),
-          _buildRoute('/room/:serverAlias/:roomId'),
-          _buildRoute('/room/:serverAlias/:roomId/thread/:threadId'),
-        ],
-      );
+          );
+        },
+      ),
+      _buildRoute('/room/:serverAlias/:roomId'),
+      _buildRoute('/room/:serverAlias/:roomId/thread/:threadId'),
+    ],
+  );
 
   GoRoute _buildRoute(String path) {
     return GoRoute(

@@ -53,7 +53,7 @@ class ExecutionTracker {
   final Signal<List<String>> _thinkingBlocks = Signal<List<String>>(const []);
   ReadonlySignal<List<String>> get thinkingBlocks => _thinkingBlocks;
 
-  final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
+  final Signal<bool> _isThinkingStreaming = Signal(false);
   ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
 
   /// Decoded `skill_tool_call` activities in arrival order, keyed by

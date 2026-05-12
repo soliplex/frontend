@@ -394,7 +394,7 @@ class _Semaphore {
         'permit conservation violated after acquire: '
         '_available=$_available, maxCount=$maxCount',
       );
-      return Future<_SlotHandle>.value(_SlotHandle._(this, .immediate));
+      return Future.value(_SlotHandle._(this, .immediate));
     }
 
     final completer = Completer<void>();

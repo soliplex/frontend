@@ -15,30 +15,30 @@ class QuizAppModule extends AppModule {
   String get namespace => 'quiz';
 
   @override
-  ModuleRoutes build() => ModuleRoutes(
-        routes: [
-          GoRoute(
-            path: '/room/:serverAlias/:roomId/quiz/:quizId',
-            redirect: (context, state) => requireConnectedServer(
-              serverManager,
-              state.pathParameters['serverAlias'],
+  ModuleRoutes build() => .new(
+    routes: [
+      GoRoute(
+        path: '/room/:serverAlias/:roomId/quiz/:quizId',
+        redirect: (context, state) => requireConnectedServer(
+          serverManager,
+          state.pathParameters['serverAlias'],
+        ),
+        pageBuilder: (context, state) {
+          final alias = state.pathParameters['serverAlias']!;
+          final entry = serverManager.entryByAlias(alias);
+          if (entry == null || !entry.isConnected) {
+            return const NoTransitionPage(child: SizedBox.shrink());
+          }
+          return NoTransitionPage(
+            child: QuizScreen(
+              serverEntry: entry,
+              roomId: state.pathParameters['roomId']!,
+              quizId: state.pathParameters['quizId']!,
+              returnRoute: state.uri.queryParameters['from'],
             ),
-            pageBuilder: (context, state) {
-              final alias = state.pathParameters['serverAlias']!;
-              final entry = serverManager.entryByAlias(alias);
-              if (entry == null || !entry.isConnected) {
-                return const NoTransitionPage(child: SizedBox.shrink());
-              }
-              return NoTransitionPage(
-                child: QuizScreen(
-                  serverEntry: entry,
-                  roomId: state.pathParameters['roomId']!,
-                  quizId: state.pathParameters['quizId']!,
-                  returnRoute: state.uri.queryParameters['from'],
-                ),
-              );
-            },
-          ),
-        ],
-      );
+          );
+        },
+      ),
+    ],
+  );
 }

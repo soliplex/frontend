@@ -70,5 +70,4 @@ DecodeOutcome decodeMapSafely(Map<String, dynamic> map) {
 /// Their events have no source JSON, so `rawJson` is `const {}`; if
 /// `processEvent` ever throws on one, the resulting drop tile carries
 /// an empty payload.
-DecodedEvent synthesizedDecoded(BaseEvent event) =>
-    DecodedEvent(event, const {});
+DecodedEvent synthesizedDecoded(BaseEvent event) => .new(event, const {});

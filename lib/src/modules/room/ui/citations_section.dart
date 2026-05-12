@@ -283,7 +283,7 @@ class _SourceReferenceRow extends StatelessWidget {
 
 @visibleForTesting
 String formatCitationForClipboard(SourceReference ref) {
-  final lines = <String>[ref.displayTitle];
+  final lines = [ref.displayTitle];
   if (ref.headings.isNotEmpty) {
     lines.add(ref.headings.join(' > '));
   }

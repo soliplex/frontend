@@ -21,10 +21,15 @@ final probeClientProvider = Provider<SoliplexHttpClient>(
   (_) => throw UnimplementedError('must be overridden by authModule'),
 );
 
-final discoverProvidersProvider = Provider<DiscoverProviders>(
-  (_) => (serverUrl, httpClient) =>
-      discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient),
-);
+/// Default [DiscoverProviders] adapter. Bridges the positional-param
+/// typedef shape used by callers to the named-param signature exposed by
+/// `discoverAuthProviders`.
+Future<List<AuthProviderConfig>> _defaultDiscoverProviders(
+  Uri serverUrl,
+  SoliplexHttpClient httpClient,
+) => discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient);
+
+final discoverProvidersProvider = Provider((_) => _defaultDiscoverProviders);
 
 // Optional — have sensible defaults.
 
@@ -32,6 +37,4 @@ final callbackParamsProvider = Provider<CallbackParams>(
   (_) => const NoCallbackParams(),
 );
 
-final consentNoticeProvider = Provider<ConsentNotice?>(
-  (_) => null,
-);
+final consentNoticeProvider = Provider<ConsentNotice?>((_) => null);

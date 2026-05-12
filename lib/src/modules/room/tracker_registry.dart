@@ -17,7 +17,7 @@ class TrackerRegistry {
   String? _activeId;
   final Logger _logger;
 
-  Map<String, ExecutionTracker> get trackers => Map.unmodifiable(_trackers);
+  Map<String, ExecutionTracker> get trackers => .unmodifiable(_trackers);
 
   /// Update tracker state based on the current streaming state.
   ///
@@ -37,8 +37,10 @@ class TrackerRegistry {
           }
         } else {
           _freezeActive();
-          _trackers[messageId] =
-              ExecutionTracker(executionEvents: events, logger: _logger);
+          _trackers[messageId] = ExecutionTracker(
+            executionEvents: events,
+            logger: _logger,
+          );
         }
         _activeId = messageId;
       case AwaitingText():
