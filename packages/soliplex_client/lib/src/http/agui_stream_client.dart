@@ -38,7 +38,7 @@ class AgUiStreamClient {
   /// [resumePolicy] configures the SSE reconnect behavior; pass
   /// [ResumePolicy.noRetry] to opt out entirely. Per-call overrides are
   /// accepted on [runAgent].
-  AgUiStreamClient({
+  const AgUiStreamClient({
     required HttpTransport httpTransport,
     required UrlBuilder urlBuilder,
     ResumePolicy resumePolicy = const ResumePolicy(),

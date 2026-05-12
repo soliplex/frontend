@@ -18,6 +18,9 @@ import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 /// only in how ids and Citations are laid out — both expose the same
 /// two operations via [RagSnapshot].
 class CitationExtractor {
+  /// Creates a [CitationExtractor]. Stateless; safe to share.
+  const CitationExtractor();
+
   /// Extracts source references added since [previousState].
   ///
   /// Returns an empty list if:

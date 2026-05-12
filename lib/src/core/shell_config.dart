@@ -26,7 +26,7 @@ class ShellConfig {
   final List<Override> _overrides;
   final List<GoRouterRedirect> _redirects;
 
-  ShellConfig._internal({
+  const ShellConfig._internal({
     required this.appName,
     this.logo,
     required this.theme,
@@ -36,18 +36,16 @@ class ShellConfig {
     required List<GoRouterRedirect> redirects,
     this.refreshListenable,
     this.dispose,
-  })  : _routes = routes,
-        _overrides = overrides,
-        _redirects = redirects;
+  }) : _routes = routes,
+       _overrides = overrides,
+       _redirects = redirects;
 
   List<RouteBase> get routes => _routes;
   List<Override> get overrides => _overrides;
   List<GoRouterRedirect> get redirects => _redirects;
 
-  List<String> validate() => validateRoutes(
-        routes: routes,
-        initialRoute: initialRoute,
-      );
+  List<String> validate() =>
+      validateRoutes(routes: routes, initialRoute: initialRoute);
 
   /// Creates a [ShellConfig] from a list of [AppModule] instances.
   ///

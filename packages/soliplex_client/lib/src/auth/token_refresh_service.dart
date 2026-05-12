@@ -84,7 +84,7 @@ class TokenRefreshService {
   /// Use a non-authenticated client to avoid circular dependencies.
   ///
   /// [onDiagnostic] receives debug messages. Defaults to no-op.
-  TokenRefreshService({
+  const TokenRefreshService({
     required SoliplexHttpClient httpClient,
     void Function(String) onDiagnostic = _noOp,
   }) : _httpClient = httpClient,

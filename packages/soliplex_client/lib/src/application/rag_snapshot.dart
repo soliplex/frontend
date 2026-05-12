@@ -19,9 +19,7 @@ const String _ragDocumentFilterKey = 'document_filter';
 /// `'document_filter'`) so UI code doesn't hardcode them.
 Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
   return {
-    ragStateKey: <String, dynamic>{
-      _ragDocumentFilterKey: filter,
-    },
+    ragStateKey: <String, dynamic>{_ragDocumentFilterKey: filter},
   };
 }
 
@@ -98,7 +96,7 @@ bool _isV040(Map<String, dynamic> json) {
 /// inline [Citation] objects). Other 0.40 fields are accessible via
 /// `RagV040.fromJson` in `rag_v040.dart`.
 class RagV040Snapshot implements RagSnapshot {
-  RagV040Snapshot._(this._byId);
+  const RagV040Snapshot._(this._byId);
 
   /// Parses inline Citations from 0.40-shaped JSON. Malformed entries
   /// (non-Map or invalid Citation payloads) are logged and skipped so
@@ -156,7 +154,7 @@ class RagV040Snapshot implements RagSnapshot {
 /// so a resilient per-entry parse is correct here. Other 0.42 fields
 /// are still reachable via [Rag.fromJson] in `rag.dart`.
 class RagV042Snapshot implements RagSnapshot {
-  RagV042Snapshot._(this._citationIds, this._index);
+  const RagV042Snapshot._(this._citationIds, this._index);
 
   /// Parses a 0.42-shaped payload with per-entry resilience: malformed
   /// entries in `citations` / `citation_index` are logged and skipped.

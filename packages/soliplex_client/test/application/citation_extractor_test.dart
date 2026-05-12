@@ -6,7 +6,7 @@ void main() {
     late CitationExtractor extractor;
 
     setUp(() {
-      extractor = CitationExtractor();
+      extractor = const CitationExtractor();
     });
 
     group('v042 wire shape', () {
@@ -40,10 +40,7 @@ void main() {
         List<String> citations = const [],
       }) {
         return {
-          'rag': {
-            'citation_index': citationIndex,
-            'citations': citations,
-          },
+          'rag': {'citation_index': citationIndex, 'citations': citations},
         };
       }
 
@@ -240,9 +237,7 @@ void main() {
         List<Map<String, dynamic>> citations = const [],
       }) {
         return {
-          'rag': {
-            'citations': citations,
-          },
+          'rag': {'citations': citations},
         };
       }
 
@@ -334,11 +329,7 @@ void main() {
           final previous = createState();
           final current = <String, dynamic>{
             'rag': {
-              'citations': <dynamic>[
-                createCitation(chunkId: 'c1'),
-                42,
-                null,
-              ],
+              'citations': <dynamic>[createCitation(chunkId: 'c1'), 42, null],
             },
           };
 
@@ -490,23 +481,20 @@ void main() {
         expect(refs, isEmpty);
       });
 
-      test(
-        'tolerates non-string entries in the v042 citations list',
-        () {
-          // In v042 citations is supposed to be List<String>. Any other
-          // shape (ints, nulls, nested lists) must not crash the extractor.
-          final previous = <String, dynamic>{};
-          final current = <String, dynamic>{
-            'rag': {
-              'citation_index': <String, dynamic>{},
-              'citations': <dynamic>[123, null, <String>[]],
-            },
-          };
+      test('tolerates non-string entries in the v042 citations list', () {
+        // In v042 citations is supposed to be List<String>. Any other
+        // shape (ints, nulls, nested lists) must not crash the extractor.
+        final previous = <String, dynamic>{};
+        final current = <String, dynamic>{
+          'rag': {
+            'citation_index': <String, dynamic>{},
+            'citations': <dynamic>[123, null, <String>[]],
+          },
+        };
 
-          final refs = extractor.extractNew(previous, current);
-          expect(refs, isEmpty);
-        },
-      );
+        final refs = extractor.extractNew(previous, current);
+        expect(refs, isEmpty);
+      });
     });
   });
 }

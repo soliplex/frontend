@@ -834,7 +834,7 @@ class SoliplexApi {
 
     var conversation = Conversation.empty(threadId: threadId);
     var streaming = const AwaitingText() as StreamingState;
-    final extractor = CitationExtractor();
+    const extractor = CitationExtractor();
     final messageStates = <String, MessageState>{};
     final runs = <RunEventBundle>[];
 

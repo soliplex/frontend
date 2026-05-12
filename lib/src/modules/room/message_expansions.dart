@@ -49,7 +49,7 @@ class _Expansion {
 /// A view of [MessageExpansions] bound to a single `(roomId, messageId)`.
 /// Obtain via [MessageExpansions.forMessage].
 class MessageExpansion {
-  MessageExpansion._(this._owner, this._key);
+  const MessageExpansion._(this._owner, this._key);
 
   final MessageExpansions _owner;
   final (String, String) _key;

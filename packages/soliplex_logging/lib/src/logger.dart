@@ -5,7 +5,7 @@ import 'package:soliplex_logging/src/log_record.dart';
 /// Logger facade for emitting log records.
 class Logger {
   /// Creates a logger with the given name.
-  Logger._(this.name, this._manager);
+  const Logger._(this.name, this._manager);
 
   /// The name of this logger.
   final String name;

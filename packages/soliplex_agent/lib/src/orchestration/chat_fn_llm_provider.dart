@@ -7,8 +7,9 @@ import 'package:soliplex_agent/src/orchestration/tool_call_parser.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex_agent.chat_fn_llm_provider');
+final Logger _logger = LogManager.instance.getLogger(
+  'soliplex_agent.chat_fn_llm_provider',
+);
 
 /// Callback type for LLM chat.
 ///
@@ -24,11 +25,12 @@ final Logger _logger =
 ///       ollama.chat(msgs, systemPrompt: systemPrompt, maxTokens: maxTokens),
 /// );
 /// ```
-typedef ChatFn = Future<String> Function(
-  List<({String role, String content})> messages, {
-  String? systemPrompt,
-  int? maxTokens,
-});
+typedef ChatFn =
+    Future<String> Function(
+      List<({String role, String content})> messages, {
+      String? systemPrompt,
+      int? maxTokens,
+    });
 
 /// [AgentLlmProvider] backed by a [ChatFn] callback.
 ///
@@ -43,8 +45,8 @@ class ChatFnLlmProvider implements AgentLlmProvider {
   /// [chatFn] is the LLM chat callback.
   /// [systemPrompt] is an optional base system prompt prepended to
   /// the tool instructions.
-  ChatFnLlmProvider({required ChatFn chatFn, this.systemPrompt})
-      : _chatFn = chatFn;
+  const ChatFnLlmProvider({required ChatFn chatFn, this.systemPrompt})
+    : _chatFn = chatFn;
 
   final ChatFn _chatFn;
 
@@ -159,7 +161,8 @@ class ChatFnLlmProvider implements AgentLlmProvider {
             result.add(
               (
                 role: 'assistant',
-                content: "[Called tool '${tc.function.name}' with arguments: "
+                content:
+                    "[Called tool '${tc.function.name}' with arguments: "
                     '${tc.function.arguments}]',
               ),
             );

@@ -82,7 +82,7 @@ class RunOrchestrator {
   final Logger _logger;
   final int _maxToolDepth;
 
-  final CitationExtractor _citationExtractor = CitationExtractor();
+  final CitationExtractor _citationExtractor = const CitationExtractor();
 
   Map<String, dynamic> _preRunAguiState = const {};
   String? _userMessageId;

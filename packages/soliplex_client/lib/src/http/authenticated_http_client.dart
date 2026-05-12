@@ -24,7 +24,7 @@ class AuthenticatedHttpClient implements SoliplexHttpClient {
   ///
   /// The `inner` client is delegated to for all requests.
   /// The `getToken` callback is invoked per request to get the current token.
-  AuthenticatedHttpClient(this._inner, this._getToken);
+  const AuthenticatedHttpClient(this._inner, this._getToken);
 
   final SoliplexHttpClient _inner;
   final String? Function() _getToken;

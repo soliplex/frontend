@@ -45,7 +45,7 @@ class HttpTransport {
   /// Parameters:
   /// - [client]: The underlying HTTP client to use for requests
   /// - [defaultTimeout]: Default timeout for requests
-  HttpTransport({
+  const HttpTransport({
     required SoliplexHttpClient client,
     this.defaultTimeout = defaultHttpTimeout,
   }) : _client = client;

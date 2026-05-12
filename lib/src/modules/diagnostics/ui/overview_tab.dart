@@ -136,6 +136,7 @@ class _StreamSection extends StatelessWidget {
 }
 
 class _TruncationBanner extends StatelessWidget {
+  const _TruncationBanner();
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

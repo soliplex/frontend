@@ -9,7 +9,7 @@ import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 /// Contains endpoint URLs extracted from an OpenID Provider Configuration
 /// Document, with origin validation applied to prevent redirect attacks.
 class OidcDiscoveryDocument {
-  OidcDiscoveryDocument._({
+  const OidcDiscoveryDocument._({
     required this.tokenEndpoint,
     this.endSessionEndpoint,
   });

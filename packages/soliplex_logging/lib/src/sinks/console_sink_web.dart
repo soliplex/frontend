@@ -12,7 +12,7 @@ external JSConsole get _console;
 ///
 /// Uses [JSAny?] to preserve object references for browser inspection.
 /// The browser console can display these as expandable objects.
-extension type JSConsole(JSObject _) implements JSObject {
+extension type const JSConsole(JSObject _) implements JSObject {
   /// Logs a debug message (often hidden by default in browsers).
   external void debug(JSAny? message, [JSAny? arg1, JSAny? arg2]);
 

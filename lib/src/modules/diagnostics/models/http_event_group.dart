@@ -14,7 +14,7 @@ enum HttpEventStatus {
 }
 
 class HttpEventGroup {
-  HttpEventGroup({
+  const HttpEventGroup({
     required this.requestId,
     this.request,
     this.response,

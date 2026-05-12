@@ -8,7 +8,7 @@ import 'dart:convert';
 ///
 /// Redaction is always enabled and cannot be bypassed.
 class HttpRedactor {
-  HttpRedactor._();
+  const HttpRedactor._();
 
   /// Placeholder text for redacted values.
   static const _redacted = '[REDACTED]';
