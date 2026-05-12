@@ -893,7 +893,8 @@ class SoliplexApi {
         }) {
           _logger.error(
             'replay: $stage failed at events[$i] '
-            '(type=$typeForLog) in run $runId of thread $threadId.',
+            '(type=${typeForLog ?? '<unknown>'}) '
+            'in run $runId of thread $threadId.',
             error: error,
             stackTrace: stackTrace,
           );

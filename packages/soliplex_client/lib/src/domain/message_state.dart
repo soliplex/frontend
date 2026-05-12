@@ -41,14 +41,15 @@ class MessageState {
 
   @override
   int get hashCode => Object.hash(
-        userMessageId,
-        const ListEquality<SourceReference>().hash(sourceReferences),
-        runId,
-      );
+    userMessageId,
+    const ListEquality<SourceReference>().hash(sourceReferences),
+    runId,
+  );
 
   @override
-  String toString() => 'MessageState('
+  String toString() =>
+      'MessageState('
       'userMessageId: $userMessageId, '
       'sourceReferences: ${sourceReferences.length}, '
-      'runId: $runId)';
+      'runId: ${runId ?? '<pre-run>'})';
 }

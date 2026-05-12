@@ -199,7 +199,7 @@ class AgentSession implements ToolExecutionContext {
     if (_disposed) {
       _logger.debug(
         'spawnChild denied: session $id already disposed '
-        '(prompt="$prompt", roomId=$roomId).',
+        '(prompt="$prompt", roomId=${roomId ?? '<unset>'}).',
       );
       // Future.error rather than sync-throw so a fire-and-forget caller or
       // a chained .catchError sees the failure instead of crashing the

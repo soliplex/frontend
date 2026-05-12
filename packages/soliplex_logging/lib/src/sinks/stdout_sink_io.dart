@@ -53,11 +53,12 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
     buffer.writeln();
 
     // Add error and stack trace on separate lines.
-    if (record.error != null) {
+    final error = record.error;
+    if (error != null) {
       if (useColors) {
-        buffer.writeln('$_red  Error: ${record.error}$_reset');
+        buffer.writeln('$_red  Error: $error$_reset');
       } else {
-        buffer.writeln('  Error: ${record.error}');
+        buffer.writeln('  Error: $error');
       }
     }
     // Only show stack trace if it's non-null and non-empty.

@@ -301,7 +301,7 @@ class AgUiStreamClient {
 
   void _logAttempt(int attempt, String? lastId, Object? err) {
     developer.log(
-      'Resuming SSE with Last-Event-ID=$lastId (attempt $attempt)'
+      'Resuming SSE with Last-Event-ID=${lastId ?? '<none>'} (attempt $attempt)'
       '${err != null ? ': $err' : ''}',
       name: _logName,
       level: 800,
@@ -310,7 +310,8 @@ class AgUiStreamClient {
 
   void _logSuccess(int attempt, String? lastId) {
     developer.log(
-      'Resume succeeded after $attempt attempt(s), last id=$lastId',
+      'Resume succeeded after $attempt attempt(s), '
+      'last id=${lastId ?? '<none>'}',
       name: _logName,
       level: 800,
     );

@@ -442,10 +442,11 @@ class AgentRuntime {
   }
 
   void _scheduleRootTimeout(AgentSession session, AgentSession? parent) {
-    if (parent != null || rootTimeout == null) return;
-    _rootTimeoutTimers[session.id] = Timer(rootTimeout!, () {
+    final timeout = rootTimeout;
+    if (parent != null || timeout == null) return;
+    _rootTimeoutTimers[session.id] = Timer(timeout, () {
       _logger.warning(
-        'Root session ${session.id} timed out after $rootTimeout',
+        'Root session ${session.id} timed out after $timeout',
       );
       session.cancel();
     });

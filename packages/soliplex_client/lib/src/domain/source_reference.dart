@@ -61,21 +61,22 @@ class SourceReference {
 
   @override
   int get hashCode => Object.hash(
-        documentId,
-        documentUri,
-        content,
-        chunkId,
-        documentTitle,
-        const ListEquality<String>().hash(headings),
-        const ListEquality<int>().hash(pageNumbers),
-        index,
-      );
+    documentId,
+    documentUri,
+    content,
+    chunkId,
+    documentTitle,
+    const ListEquality<String>().hash(headings),
+    const ListEquality<int>().hash(pageNumbers),
+    index,
+  );
 
   @override
-  String toString() => 'SourceReference('
+  String toString() =>
+      'SourceReference('
       'documentId: $documentId, '
       'chunkId: $chunkId, '
-      'index: $index)';
+      'index: ${index ?? '<none>'})';
 }
 
 /// Formatting utilities for [SourceReference] display.

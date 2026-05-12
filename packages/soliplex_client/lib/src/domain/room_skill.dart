@@ -44,5 +44,5 @@ class RoomSkill {
   final Map<String, dynamic>? stateTypeSchema;
 
   @override
-  String toString() => 'RoomSkill(name: $name, source: $source)';
+  String toString() => 'RoomSkill(name: $name, source: ${source ?? '<none>'})';
 }

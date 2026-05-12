@@ -74,12 +74,13 @@ class _TerminalReasonBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final detail = errorDetail;
     final (icon, label) = switch (reason) {
       .finished => (Icons.info_outline, 'Run finished without a response'),
       .failed => (
         Icons.error_outline,
-        (errorDetail != null && errorDetail!.isNotEmpty)
-            ? 'Run failed: $errorDetail'
+        (detail != null && detail.isNotEmpty)
+            ? 'Run failed: $detail'
             : 'Run failed without a response',
       ),
       .cancelled => (Icons.cancel_outlined, 'Run cancelled without a response'),

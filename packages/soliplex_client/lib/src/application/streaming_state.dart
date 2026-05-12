@@ -53,8 +53,8 @@ class ToolCallActivity extends ActivityType {
     required String toolName,
     this.latestToolCallId,
     this.timestamp,
-  })  : toolNames = const {},
-        _singleToolName = toolName;
+  }) : toolNames = const {},
+       _singleToolName = toolName;
 
   /// Creates a tool call activity with multiple tool names.
   const ToolCallActivity.multiple({
@@ -102,15 +102,17 @@ class ToolCallActivity extends ActivityType {
 
   @override
   int get hashCode => Object.hash(
-        runtimeType,
-        Object.hashAll(allToolNames.toList()..sort()),
-        latestToolCallId,
-        timestamp,
-      );
+    runtimeType,
+    Object.hashAll(allToolNames.toList()..sort()),
+    latestToolCallId,
+    timestamp,
+  );
 
   @override
-  String toString() => 'ToolCallActivity(toolNames: $allToolNames, '
-      'latestToolCallId: $latestToolCallId, timestamp: $timestamp)';
+  String toString() =>
+      'ToolCallActivity(toolNames: $allToolNames, '
+      'latestToolCallId: ${latestToolCallId ?? '<none>'}, '
+      'timestamp: ${timestamp ?? '<none>'})';
 
   static bool _setEquals(Set<String> a, Set<String> b) {
     if (a.length != b.length) return false;
@@ -207,14 +209,15 @@ class AwaitingText extends StreamingState {
 
   @override
   int get hashCode => Object.hash(
-        runtimeType,
-        bufferedThinkingText,
-        isThinkingStreaming,
-        currentActivity,
-      );
+    runtimeType,
+    bufferedThinkingText,
+    isThinkingStreaming,
+    currentActivity,
+  );
 
   @override
-  String toString() => 'AwaitingText('
+  String toString() =>
+      'AwaitingText('
       'thinkingText: ${bufferedThinkingText.length} chars, '
       'isThinkingStreaming: $isThinkingStreaming, '
       'activity: $currentActivity)';
@@ -309,17 +312,18 @@ class TextStreaming extends StreamingState {
 
   @override
   int get hashCode => Object.hash(
-        runtimeType,
-        messageId,
-        user,
-        text,
-        thinkingText,
-        isThinkingStreaming,
-        currentActivity,
-      );
+    runtimeType,
+    messageId,
+    user,
+    text,
+    thinkingText,
+    isThinkingStreaming,
+    currentActivity,
+  );
 
   @override
-  String toString() => 'TextStreaming('
+  String toString() =>
+      'TextStreaming('
       'messageId: $messageId, user: $user, '
       'text: ${text.length} chars, thinkingText: ${thinkingText.length} chars, '
       'activity: $currentActivity)';

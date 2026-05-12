@@ -120,7 +120,7 @@ SelectableText formatDynamicValue(Object? value, {TextStyle? style}) {
       text = value.toString();
     }
   } else {
-    text = '$value';
+    text = '${value ?? 'null'}';
   }
   return SelectableText(
     text,

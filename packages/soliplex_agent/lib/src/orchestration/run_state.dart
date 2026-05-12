@@ -146,11 +146,11 @@ class FailedState extends RunState {
     required String error,
     Conversation? conversation,
   }) : this._(
-          threadKey: threadKey,
-          reason: reason,
-          error: error,
-          conversation: conversation,
-        );
+         threadKey: threadKey,
+         reason: reason,
+         error: error,
+         conversation: conversation,
+       );
 
   /// Constructs a [FailedState] for a failure that happened during a run.
   /// [runId] is required.
@@ -161,12 +161,12 @@ class FailedState extends RunState {
     required String error,
     Conversation? conversation,
   }) : this._(
-          threadKey: threadKey,
-          runId: runId,
-          reason: reason,
-          error: error,
-          conversation: conversation,
-        );
+         threadKey: threadKey,
+         runId: runId,
+         reason: reason,
+         error: error,
+         conversation: conversation,
+       );
 
   const FailedState._({
     required this.threadKey,
@@ -224,8 +224,9 @@ class FailedState extends RunState {
       Object.hash(threadKey, runId, reason, error, conversation);
 
   @override
-  String toString() => 'FailedState(reason: $reason, error: $error, '
-      'runId: $runId, threadKey: $threadKey)';
+  String toString() =>
+      'FailedState(reason: $reason, error: $error, '
+      'runId: ${runId ?? '<pre-run>'}, threadKey: $threadKey)';
 }
 
 /// Run yielded pending tool calls for client-side execution.
@@ -281,7 +282,8 @@ class ToolYieldingState extends RunState {
   int get hashCode => Object.hash(threadKey, runId, conversation, toolDepth);
 
   @override
-  String toString() => 'ToolYieldingState(runId: $runId, '
+  String toString() =>
+      'ToolYieldingState(runId: $runId, '
       'pending: ${pendingToolCalls.length}, depth: $toolDepth)';
 }
 
@@ -361,5 +363,6 @@ class CancelledState extends RunState {
   int get hashCode => Object.hash(threadKey, runId, conversation);
 
   @override
-  String toString() => 'CancelledState(runId: $runId, threadKey: $threadKey)';
+  String toString() =>
+      'CancelledState(runId: ${runId ?? '<pre-run>'}, threadKey: $threadKey)';
 }

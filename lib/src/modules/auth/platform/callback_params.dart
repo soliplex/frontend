@@ -16,17 +16,15 @@ class WebCallbackSuccess extends CallbackParams {
   final int? expiresIn;
 
   @override
-  String toString() => 'WebCallbackSuccess('
+  String toString() =>
+      'WebCallbackSuccess('
       'hasRefreshToken: ${refreshToken != null}, '
-      'expiresIn: $expiresIn)';
+      'expiresIn: ${expiresIn ?? '<unset>'})';
 }
 
 /// Failed web BFF OAuth callback.
 class WebCallbackError extends CallbackParams {
-  const WebCallbackError({
-    required this.error,
-    this.errorDescription,
-  });
+  const WebCallbackError({required this.error, this.errorDescription});
 
   final String error;
   final String? errorDescription;
