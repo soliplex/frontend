@@ -316,7 +316,7 @@ void main() {
       () async {
         // The friendly-error rewrite in
         // `ThreadViewState._friendlyMessage` matches
-        // `error.startsWith(streamResumeFailedPrefix)`. Without
+        // `error.startsWith(kStreamResumeFailedPrefix)`. Without
         // unwrapping, `SoliplexException.toString()` adds a
         // `RuntimeType: ` prefix that defeats the match — the user
         // ends up seeing the raw nested exception text instead of

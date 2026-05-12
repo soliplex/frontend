@@ -1179,7 +1179,7 @@ class RunOrchestrator {
 
   /// Returns a clean message string for [error], unwrapping
   /// [SoliplexException] so prefix-based matching downstream
-  /// (e.g. on [streamResumeFailedPrefix]) sees the raw message rather
+  /// (e.g. on [kStreamResumeFailedPrefix]) sees the raw message rather
   /// than `RuntimeType: …`.
   String _messageOf(Object error) =>
       error is SoliplexException ? error.message : error.toString();

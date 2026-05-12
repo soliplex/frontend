@@ -18,7 +18,7 @@ import 'package:soliplex_client/src/utils/url_builder.dart';
 /// [StreamResumeFailedException.message]. Kept for log/test
 /// readability; consumers should match on [StreamResumeFailedException]
 /// rather than this string.
-const String streamResumeFailedPrefix = 'Stream resume failed:';
+const String kStreamResumeFailedPrefix = 'Stream resume failed:';
 
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
 ///
@@ -31,7 +31,7 @@ const String streamResumeFailedPrefix = 'Stream resume failed:';
 /// progress through an optional [ReconnectStatus] callback. On
 /// exhausted retries — or any retryable failure during a resume that
 /// the policy can no longer cover — `runAgent` throws [NetworkException]
-/// whose message starts with [streamResumeFailedPrefix].
+/// whose message starts with [kStreamResumeFailedPrefix].
 class AgUiStreamClient {
   /// Creates a client that streams AG-UI events via [httpTransport].
   ///
@@ -65,7 +65,7 @@ class AgUiStreamClient {
   /// outcome of any kind after a successful retry, [ReconnectFailed]
   /// when the retry budget is exhausted). On terminal transport failure
   /// the stream throws [StreamResumeFailedException] whose message
-  /// starts with [streamResumeFailedPrefix].
+  /// starts with [kStreamResumeFailedPrefix].
   Stream<DecodeOutcome> runAgent(
     String endpoint,
     SimpleRunAgentInput input, {
@@ -92,7 +92,7 @@ class AgUiStreamClient {
           onReconnectStatus?.call(ReconnectFailed(attempt: attempt, error: e));
           throw StreamResumeFailedException(
             message:
-                '$streamResumeFailedPrefix '
+                '$kStreamResumeFailedPrefix '
                 '${e is SoliplexException ? e.message : e}',
             originalError: e,
           );
@@ -160,7 +160,7 @@ class AgUiStreamClient {
 
       if (lastEventId == null) {
         // No id was ever emitted, so no resume is possible. Rethrow the
-        // underlying error directly — wrapping with `streamResumeFailedPrefix`
+        // underlying error directly — wrapping with `kStreamResumeFailedPrefix`
         // would mislead consumers into treating this as a resume failure.
         Error.throwWithStackTrace(streamError, streamErrorStack ?? .current);
       }
@@ -173,7 +173,7 @@ class AgUiStreamClient {
             ? streamError.message
             : streamError.toString();
         throw StreamResumeFailedException(
-          message: '$streamResumeFailedPrefix $inner',
+          message: '$kStreamResumeFailedPrefix $inner',
           originalError: streamError,
         );
       }

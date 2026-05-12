@@ -69,6 +69,13 @@ Stream<List<int>> sseByteStreamThenError(
   return controller.stream;
 }
 
+/// Canonical RUN_STARTED event used across SSE byte-stream tests.
+const _kRunStartedEvent = {
+  'type': 'RUN_STARTED',
+  'threadId': 't-1',
+  'runId': 'r-1',
+};
+
 /// Fast policy for unit tests — minimal backoff, no jitter.
 const _fastPolicy = ResumePolicy(
   initialBackoff: Duration(milliseconds: 1),
@@ -144,8 +151,9 @@ void main() {
           ),
         );
 
-        final result =
-            _decodedOnly(await client.runAgent(endpoint, input).toList());
+        final result = _decodedOnly(
+          await client.runAgent(endpoint, input).toList(),
+        );
 
         expect(result, hasLength(5));
         expect(result[0], isA<RunStartedEvent>());
@@ -182,8 +190,9 @@ void main() {
           ),
         );
 
-        final result =
-            _decodedOnly(await client.runAgent(endpoint, input).toList());
+        final result = _decodedOnly(
+          await client.runAgent(endpoint, input).toList(),
+        );
 
         expect(result, hasLength(2));
         expect(result[0], isA<RunStartedEvent>());
@@ -195,13 +204,7 @@ void main() {
         final sseBody = StringBuffer()
           ..writeln('data: ')
           ..writeln()
-          ..writeln(
-            'data: ${json.encode({
-                  'type': 'RUN_STARTED',
-                  'threadId': 't-1',
-                  'runId': 'r-1',
-                })}',
-          )
+          ..writeln('data: ${json.encode(_kRunStartedEvent)}')
           ..writeln();
 
         when(
@@ -219,8 +222,9 @@ void main() {
           ),
         );
 
-        final result =
-            _decodedOnly(await client.runAgent(endpoint, input).toList());
+        final result = _decodedOnly(
+          await client.runAgent(endpoint, input).toList(),
+        );
 
         expect(result, hasLength(1));
         expect(result[0], isA<RunStartedEvent>());
@@ -305,13 +309,7 @@ void main() {
         final sseBody = StringBuffer()
           ..writeln('data: not valid json at all')
           ..writeln()
-          ..writeln(
-            'data: ${json.encode({
-                  'type': 'RUN_STARTED',
-                  'threadId': 't-1',
-                  'runId': 'r-1',
-                })}',
-          )
+          ..writeln('data: ${json.encode(_kRunStartedEvent)}')
           ..writeln();
 
         when(
@@ -342,86 +340,74 @@ void main() {
         expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
       });
 
-      test(
-        'mixed batch yields DecodeFailed per undecodable item',
-        () async {
-          final batch = [
-            {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
-            {'type': 'TOTALLY_UNKNOWN_EVENT', 'a': 1},
-            'not even an object',
-            {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
-          ];
-          final sseBody = StringBuffer()
-            ..writeln('data: ${json.encode(batch)}')
-            ..writeln();
+      test('mixed batch yields DecodeFailed per undecodable item', () async {
+        final batch = [
+          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'r-1'},
+          {'type': 'TOTALLY_UNKNOWN_EVENT', 'a': 1},
+          'not even an object',
+          {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'r-1'},
+        ];
+        final sseBody = StringBuffer()
+          ..writeln('data: ${json.encode(batch)}')
+          ..writeln();
 
-          when(
-            () => mockTransport.requestStream(
-              any(),
-              any(),
-              headers: any(named: 'headers'),
-              body: any(named: 'body'),
-              cancelToken: any(named: 'cancelToken'),
-            ),
-          ).thenAnswer(
-            (_) async => StreamedHttpResponse(
-              statusCode: 200,
-              body: Stream.value(utf8.encode(sseBody.toString())),
-            ),
-          );
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(sseBody.toString())),
+          ),
+        );
 
-          final result = await client.runAgent(endpoint, input).toList();
+        final result = await client.runAgent(endpoint, input).toList();
 
-          expect(result, hasLength(4));
-          expect(result.whereType<DecodeFailed>(), hasLength(2));
-          expect(result.whereType<DecodedEvent>(), hasLength(2));
-        },
-      );
+        expect(result, hasLength(4));
+        expect(result.whereType<DecodeFailed>(), hasLength(2));
+        expect(result.whereType<DecodedEvent>(), hasLength(2));
+      });
 
-      test(
-        'top-level `data: null` yields DecodeFailed(rawData: null), '
-        'no reconnect',
-        () async {
-          // Pre-fix this hit `jsonData as Object` which throws TypeError;
-          // the outer SSE catch routed the throw as a stream error and
-          // triggered a reconnect attempt. The contract is "decode
-          // failure → drop tile carrier", not "decode failure → reconnect".
-          final sseBody = StringBuffer()
-            ..writeln('data: null')
-            ..writeln()
-            ..writeln(
-              'data: ${json.encode({
-                    'type': 'RUN_STARTED',
-                    'threadId': 't-1',
-                    'runId': 'r-1',
-                  })}',
-            )
-            ..writeln();
+      test('top-level `data: null` yields DecodeFailed(rawData: null), '
+          'no reconnect', () async {
+        // Pre-fix this hit `jsonData as Object` which throws TypeError;
+        // the outer SSE catch routed the throw as a stream error and
+        // triggered a reconnect attempt. The contract is "decode
+        // failure → drop tile carrier", not "decode failure → reconnect".
+        final sseBody = StringBuffer()
+          ..writeln('data: null')
+          ..writeln()
+          ..writeln('data: ${json.encode(_kRunStartedEvent)}')
+          ..writeln();
 
-          when(
-            () => mockTransport.requestStream(
-              any(),
-              any(),
-              headers: any(named: 'headers'),
-              body: any(named: 'body'),
-              cancelToken: any(named: 'cancelToken'),
-            ),
-          ).thenAnswer(
-            (_) async => StreamedHttpResponse(
-              statusCode: 200,
-              body: Stream.value(utf8.encode(sseBody.toString())),
-            ),
-          );
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(sseBody.toString())),
+          ),
+        );
 
-          final result = await client.runAgent(endpoint, input).toList();
+        final result = await client.runAgent(endpoint, input).toList();
 
-          expect(result, hasLength(2));
-          expect(result[0], isA<DecodeFailed>());
-          expect((result[0] as DecodeFailed).rawData, isNull);
-          expect(result[1], isA<DecodedEvent>());
-          expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
-        },
-      );
+        expect(result, hasLength(2));
+        expect(result[0], isA<DecodeFailed>());
+        expect((result[0] as DecodeFailed).rawData, isNull);
+        expect(result[1], isA<DecodedEvent>());
+        expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
+      });
 
       test('null item inside a batch yields per-item DecodeFailed', () async {
         // Pre-fix this hit `item as Object` for the null item, which
@@ -503,27 +489,20 @@ void main() {
         ).thenAnswer(
           (_) async => StreamedHttpResponse(
             statusCode: 200,
-            body: sseByteStreamThenError(
-              [
-                (
-                  'run-1:0',
-                  {
-                    'type': 'RUN_STARTED',
-                    'threadId': 't-1',
-                    'runId': 'run-1',
-                  },
-                ),
-                (
-                  'run-1:1',
-                  {
-                    'type': 'TEXT_MESSAGE_START',
-                    'messageId': 'm-1',
-                    'role': 'assistant',
-                  },
-                ),
-              ],
-              const NetworkException(message: 'connection reset'),
-            ),
+            body: sseByteStreamThenError([
+              (
+                'run-1:0',
+                {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'run-1'},
+              ),
+              (
+                'run-1:1',
+                {
+                  'type': 'TEXT_MESSAGE_START',
+                  'messageId': 'm-1',
+                  'role': 'assistant',
+                },
+              ),
+            ], const NetworkException(message: 'connection reset')),
           ),
         );
 
@@ -563,17 +542,10 @@ void main() {
                   'delta': 'hi',
                 },
               ),
-              (
-                'run-1:3',
-                {'type': 'TEXT_MESSAGE_END', 'messageId': 'm-1'},
-              ),
+              ('run-1:3', {'type': 'TEXT_MESSAGE_END', 'messageId': 'm-1'}),
               (
                 'run-1:4',
-                {
-                  'type': 'RUN_FINISHED',
-                  'threadId': 't-1',
-                  'runId': 'run-1',
-                },
+                {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'run-1'},
               ),
             ]),
           ),
@@ -647,19 +619,16 @@ void main() {
               // Initial: yield :0 with id, then drop.
               return StreamedHttpResponse(
                 statusCode: 200,
-                body: sseByteStreamThenError(
-                  [
-                    (
-                      'run-1:0',
-                      {
-                        'type': 'RUN_STARTED',
-                        'threadId': 't-1',
-                        'runId': 'run-1',
-                      },
-                    ),
-                  ],
-                  const NetworkException(message: 'drop 1'),
-                ),
+                body: sseByteStreamThenError([
+                  (
+                    'run-1:0',
+                    {
+                      'type': 'RUN_STARTED',
+                      'threadId': 't-1',
+                      'runId': 'run-1',
+                    },
+                  ),
+                ], const NetworkException(message: 'drop 1')),
               );
             }
             if (callCount == 2) {
@@ -673,11 +642,7 @@ void main() {
               body: sseByteStreamWithIds([
                 (
                   'run-1:1',
-                  {
-                    'type': 'RUN_FINISHED',
-                    'threadId': 't-1',
-                    'runId': 'run-1',
-                  },
+                  {'type': 'RUN_FINISHED', 'threadId': 't-1', 'runId': 'run-1'},
                 ),
               ]),
             );
@@ -685,11 +650,7 @@ void main() {
 
           final events = _decodedOnly(
             await resumeClient
-                .runAgent(
-                  endpoint,
-                  input,
-                  onReconnectStatus: statuses.add,
-                )
+                .runAgent(endpoint, input, onReconnectStatus: statuses.add)
                 .toList(),
           );
 
@@ -731,7 +692,7 @@ void main() {
       test(
         'retry-budget exhausted: throws NetworkException with marker prefix',
         () async {
-          // `streamResumeFailedPrefix` must be the exact prefix of the
+          // `kStreamResumeFailedPrefix` must be the exact prefix of the
           // thrown `NetworkException` message on retry exhaustion.
           final statuses = <ReconnectStatus>[];
           final resumeClient = AgUiStreamClient(
@@ -760,19 +721,16 @@ void main() {
             if (callCount == 1) {
               return StreamedHttpResponse(
                 statusCode: 200,
-                body: sseByteStreamThenError(
-                  [
-                    (
-                      'run-2:0',
-                      {
-                        'type': 'RUN_STARTED',
-                        'threadId': 't-1',
-                        'runId': 'run-2',
-                      },
-                    ),
-                  ],
-                  const NetworkException(message: 'drop 1'),
-                ),
+                body: sseByteStreamThenError([
+                  (
+                    'run-2:0',
+                    {
+                      'type': 'RUN_STARTED',
+                      'threadId': 't-1',
+                      'runId': 'run-2',
+                    },
+                  ),
+                ], const NetworkException(message: 'drop 1')),
               );
             }
             throw NetworkException(message: 'drop $callCount');
@@ -780,17 +738,13 @@ void main() {
 
           await expectLater(
             resumeClient
-                .runAgent(
-                  endpoint,
-                  input,
-                  onReconnectStatus: statuses.add,
-                )
+                .runAgent(endpoint, input, onReconnectStatus: statuses.add)
                 .toList(),
             throwsA(
               isA<NetworkException>().having(
                 (e) => e.message,
                 'message',
-                startsWith(streamResumeFailedPrefix),
+                startsWith(kStreamResumeFailedPrefix),
               ),
             ),
           );
@@ -804,87 +758,86 @@ void main() {
         },
       );
 
-      test(
-        'retry exhaustion throws StreamResumeFailed; per-item DecodeFailed '
-        'is yielded inline before the throw',
-        () async {
-          final resumeClient = AgUiStreamClient(
-            httpTransport: mockTransport,
-            urlBuilder: UrlBuilder(baseUrl),
-            resumePolicy: const ResumePolicy(
-              maxAttempts: 1,
-              initialBackoff: Duration(milliseconds: 1),
-              maxBackoff: Duration(milliseconds: 1),
-              jitter: 0,
-            ),
-          );
-          addTearDown(resumeClient.close);
+      test('retry exhaustion throws StreamResumeFailed; per-item DecodeFailed '
+          'is yielded inline before the throw', () async {
+        final resumeClient = AgUiStreamClient(
+          httpTransport: mockTransport,
+          urlBuilder: UrlBuilder(baseUrl),
+          resumePolicy: const ResumePolicy(
+            maxAttempts: 1,
+            initialBackoff: Duration(milliseconds: 1),
+            maxBackoff: Duration(milliseconds: 1),
+            jitter: 0,
+          ),
+        );
+        addTearDown(resumeClient.close);
 
-          // Initial: yield a batch with 2 undecodable items + one good
-          // event with id, then drop.
-          final batch = [
-            {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'run-3'},
-            {'type': 'TOTALLY_UNKNOWN_EVENT', 'a': 1},
-            'plain string in batch',
-          ];
-          final initialBytes = StreamController<List<int>>();
-          unawaited(
-            Future<void>(() async {
-              final buf = StringBuffer()
-                ..writeln('id: run-3:0')
-                ..writeln('data: ${json.encode(batch)}')
-                ..writeln();
-              initialBytes.add(utf8.encode(buf.toString()));
-              await Future<void>.delayed(Duration.zero);
-              initialBytes.addError(const NetworkException(message: 'drop'));
-              await initialBytes.close();
-            }),
-          );
+        // Initial: yield a batch with 2 undecodable items + one good
+        // event with id, then drop.
+        final batch = [
+          {'type': 'RUN_STARTED', 'threadId': 't-1', 'runId': 'run-3'},
+          {'type': 'TOTALLY_UNKNOWN_EVENT', 'a': 1},
+          'plain string in batch',
+        ];
+        final initialBytes = StreamController<List<int>>();
+        unawaited(
+          Future<void>(() async {
+            final buf = StringBuffer()
+              ..writeln('id: run-3:0')
+              ..writeln('data: ${json.encode(batch)}')
+              ..writeln();
+            initialBytes.add(utf8.encode(buf.toString()));
+            await Future<void>.delayed(Duration.zero);
+            initialBytes.addError(const NetworkException(message: 'drop'));
+            await initialBytes.close();
+          }),
+        );
 
-          var callCount = 0;
-          when(
-            () => mockTransport.requestStream(
-              any(),
-              any(),
-              headers: any(named: 'headers'),
-              body: any(named: 'body'),
-              cancelToken: any(named: 'cancelToken'),
-            ),
-          ).thenAnswer((_) async {
-            callCount++;
-            if (callCount == 1) {
-              return StreamedHttpResponse(
-                statusCode: 200,
-                body: initialBytes.stream,
-              );
+        var callCount = 0;
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async {
+          callCount++;
+          if (callCount == 1) {
+            return StreamedHttpResponse(
+              statusCode: 200,
+              body: initialBytes.stream,
+            );
+          }
+          // Resume attempt fails terminally.
+          throw const NetworkException(message: 'drop again');
+        });
+
+        // Drain through the iterator so we can collect the
+        // pre-failure outcomes before the resume exhausts.
+        final outcomes = <DecodeOutcome>[];
+        await expectLater(
+          () async {
+            await for (final outcome in resumeClient.runAgent(
+              endpoint,
+              input,
+            )) {
+              outcomes.add(outcome);
             }
-            // Resume attempt fails terminally.
-            throw const NetworkException(message: 'drop again');
-          });
-
-          // Drain through the iterator so we can collect the
-          // pre-failure outcomes before the resume exhausts.
-          final outcomes = <DecodeOutcome>[];
-          await expectLater(
-            () async {
-              await for (final outcome
-                  in resumeClient.runAgent(endpoint, input)) {
-                outcomes.add(outcome);
-              }
-            }(),
-            throwsA(
-              isA<StreamResumeFailedException>().having(
-                (e) => e.message,
-                'message',
-                startsWith(streamResumeFailedPrefix),
-              ),
+          }(),
+          throwsA(
+            isA<StreamResumeFailedException>().having(
+              (e) => e.message,
+              'message',
+              startsWith(kStreamResumeFailedPrefix),
             ),
-          );
+          ),
+        );
 
-          expect(outcomes.whereType<DecodeFailed>(), hasLength(2));
-          expect(outcomes.whereType<DecodedEvent>(), hasLength(1));
-        },
-      );
+        expect(outcomes.whereType<DecodeFailed>(), hasLength(2));
+        expect(outcomes.whereType<DecodedEvent>(), hasLength(1));
+      });
 
       test(
         'no-cursor mid-flight drop rethrows raw error without marker',
@@ -906,13 +859,7 @@ void main() {
           unawaited(
             Future<void>(() async {
               final buf = StringBuffer()
-                ..writeln(
-                  'data: ${json.encode({
-                        'type': 'RUN_STARTED',
-                        'threadId': 't-1',
-                        'runId': 'r-1',
-                      })}',
-                )
+                ..writeln('data: ${json.encode(_kRunStartedEvent)}')
                 ..writeln();
               controller.add(utf8.encode(buf.toString()));
               await Future<void>.delayed(Duration.zero);
@@ -930,10 +877,8 @@ void main() {
               cancelToken: any(named: 'cancelToken'),
             ),
           ).thenAnswer(
-            (_) async => StreamedHttpResponse(
-              statusCode: 200,
-              body: controller.stream,
-            ),
+            (_) async =>
+                StreamedHttpResponse(statusCode: 200, body: controller.stream),
           );
 
           await expectLater(
@@ -944,7 +889,7 @@ void main() {
                 'message',
                 allOf(
                   equals('mid drop'),
-                  isNot(startsWith(streamResumeFailedPrefix)),
+                  isNot(startsWith(kStreamResumeFailedPrefix)),
                 ),
               ),
             ),
@@ -991,7 +936,7 @@ void main() {
               isA<NetworkException>().having(
                 (e) => e.message,
                 'message',
-                isNot(startsWith(streamResumeFailedPrefix)),
+                isNot(startsWith(kStreamResumeFailedPrefix)),
               ),
             ),
           );
@@ -1032,19 +977,16 @@ void main() {
             if (callCount == 1) {
               return StreamedHttpResponse(
                 statusCode: 200,
-                body: sseByteStreamThenError(
-                  [
-                    (
-                      'run-3:0',
-                      {
-                        'type': 'RUN_STARTED',
-                        'threadId': 't-1',
-                        'runId': 'run-3',
-                      },
-                    ),
-                  ],
-                  const NetworkException(message: 'drop'),
-                ),
+                body: sseByteStreamThenError([
+                  (
+                    'run-3:0',
+                    {
+                      'type': 'RUN_STARTED',
+                      'threadId': 't-1',
+                      'runId': 'run-3',
+                    },
+                  ),
+                ], const NetworkException(message: 'drop')),
               );
             }
             throw const AuthException(message: 'Unauthorized', statusCode: 401);
@@ -1052,17 +994,13 @@ void main() {
 
           await expectLater(
             resumeClient
-                .runAgent(
-                  endpoint,
-                  input,
-                  onReconnectStatus: statuses.add,
-                )
+                .runAgent(endpoint, input, onReconnectStatus: statuses.add)
                 .toList(),
             throwsA(
               isA<NetworkException>().having(
                 (e) => e.message,
                 'message',
-                startsWith(streamResumeFailedPrefix),
+                startsWith(kStreamResumeFailedPrefix),
               ),
             ),
           );
@@ -1079,8 +1017,10 @@ void main() {
           final token = CancelToken();
           var completed = false;
           unawaited(
-            AgUiStreamClient.raceBackoff(const Duration(seconds: 1), token)
-                .then((_) => completed = true),
+            AgUiStreamClient.raceBackoff(
+              const Duration(seconds: 1),
+              token,
+            ).then((_) => completed = true),
           );
 
           async.elapse(const Duration(milliseconds: 999));
@@ -1090,32 +1030,36 @@ void main() {
         });
       });
 
-      test('throws CancelledException promptly when cancelled mid-delay',
-          () async {
-        final token = CancelToken();
-        final stopwatch = Stopwatch()..start();
-        // Cancel after 10ms while a 5-second backoff is in progress.
-        Future<void>.delayed(
-          const Duration(milliseconds: 10),
-          () => token.cancel('user cancel'),
-        );
+      test(
+        'throws CancelledException promptly when cancelled mid-delay',
+        () async {
+          final token = CancelToken();
+          final stopwatch = Stopwatch()..start();
+          // Cancel after 10ms while a 5-second backoff is in progress.
+          Future<void>.delayed(
+            const Duration(milliseconds: 10),
+            () => token.cancel('user cancel'),
+          );
 
-        await expectLater(
-          AgUiStreamClient.raceBackoff(const Duration(seconds: 5), token),
-          throwsA(isA<CancelledException>()),
-        );
-        // The cancel-aware race must resolve well before the full
-        // backoff. Generous 1-second cap protects against CI jitter
-        // while still proving we didn't sit on the 5-second delay.
-        expect(stopwatch.elapsedMilliseconds, lessThan(1000));
-      });
+          await expectLater(
+            AgUiStreamClient.raceBackoff(const Duration(seconds: 5), token),
+            throwsA(isA<CancelledException>()),
+          );
+          // The cancel-aware race must resolve well before the full
+          // backoff. Generous 1-second cap protects against CI jitter
+          // while still proving we didn't sit on the 5-second delay.
+          expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+        },
+      );
 
       test('without a token, just delays', () {
         fakeAsync((async) {
           var completed = false;
           unawaited(
-            AgUiStreamClient.raceBackoff(const Duration(seconds: 1), null)
-                .then((_) => completed = true),
+            AgUiStreamClient.raceBackoff(
+              const Duration(seconds: 1),
+              null,
+            ).then((_) => completed = true),
           );
           async.elapse(const Duration(milliseconds: 1001));
           expect(completed, isTrue);
@@ -1136,15 +1080,9 @@ void main() {
         // attempt 5: raw = 10 * 2^4 = 160 ms → cap to 100 ms.
         // jitterFactor ≈ 1.499 applied to the 100 ms cap → re-clamped
         // back to 100 ms by the post-jitter clamp.
-        expect(
-          policy.backoffFor(5),
-          const Duration(milliseconds: 100),
-        );
+        expect(policy.backoffFor(5), const Duration(milliseconds: 100));
         // Higher attempts: ramp keeps growing; cap holds.
-        expect(
-          policy.backoffFor(10),
-          const Duration(milliseconds: 100),
-        );
+        expect(policy.backoffFor(10), const Duration(milliseconds: 100));
       });
 
       test('cancel cancels the underlying delay Timer', () {
@@ -1156,8 +1094,10 @@ void main() {
         fakeAsync((async) {
           final token = CancelToken();
           unawaited(
-            AgUiStreamClient.raceBackoff(const Duration(seconds: 5), token)
-                .catchError((_) {}),
+            AgUiStreamClient.raceBackoff(
+              const Duration(seconds: 5),
+              token,
+            ).catchError((_) {}),
           );
           // Microtasks drain so the Timer is registered.
           async.elapse(Duration.zero);

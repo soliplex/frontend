@@ -16,10 +16,10 @@ class ResumePolicy {
     this.backoffMultiplier = 2.0,
     this.jitter = 0.2,
     Random? random,
-  })  : _random = random,
-        assert(maxAttempts >= 0, 'maxAttempts must be non-negative'),
-        assert(backoffMultiplier >= 1.0, 'backoffMultiplier must be >= 1.0'),
-        assert(jitter >= 0 && jitter <= 1, 'jitter must be in [0, 1]');
+  }) : _random = random,
+       assert(maxAttempts >= 0, 'maxAttempts must be non-negative'),
+       assert(backoffMultiplier >= 1.0, 'backoffMultiplier must be >= 1.0'),
+       assert(jitter >= 0 && jitter <= 1, 'jitter must be in [0, 1]');
 
   /// One attempt, no retries. Useful for tests and consumers that
   /// want to opt out of resume.
@@ -60,8 +60,10 @@ class ResumePolicy {
     final capped = min(raw.toDouble(), maxBackoff.inMilliseconds.toDouble());
     final rnd = _random ?? Random();
     final jitterFactor = 1.0 + (rnd.nextDouble() * 2 - 1) * jitter;
-    final ms =
-        (capped * jitterFactor).round().clamp(0, maxBackoff.inMilliseconds);
+    final ms = (capped * jitterFactor).round().clamp(
+      0,
+      maxBackoff.inMilliseconds,
+    );
     return Duration(milliseconds: ms);
   }
 }
@@ -78,11 +80,8 @@ sealed class ReconnectStatus {
 /// A resume attempt is about to begin.
 class Reconnecting extends ReconnectStatus {
   /// Marks a resume attempt about to start at [attempt].
-  const Reconnecting({
-    required this.attempt,
-    this.lastEventId,
-    this.error,
-  }) : assert(attempt >= 1, 'attempt is 1-based');
+  const Reconnecting({required this.attempt, this.lastEventId, this.error})
+    : assert(attempt >= 1, 'attempt is 1-based');
 
   /// 1-based attempt index (first retry = 1).
   final int attempt;
@@ -98,19 +97,19 @@ class Reconnecting extends ReconnectStatus {
 class Reconnected extends ReconnectStatus {
   /// Marks the first successful event after a resume on [attempt].
   const Reconnected({required this.attempt})
-      : assert(attempt >= 1, 'attempt is 1-based');
+    : assert(attempt >= 1, 'attempt is 1-based');
 
   /// Attempt number that succeeded (1-based).
   final int attempt;
 }
 
 /// Resume budget exhausted. The run fails terminally; the client throws
-/// `NetworkException` (with `streamResumeFailedPrefix`) immediately
+/// `NetworkException` (with `kStreamResumeFailedPrefix`) immediately
 /// after delivering this status.
 class ReconnectFailed extends ReconnectStatus {
   /// Marks the resume budget as exhausted after [attempt] tries.
   const ReconnectFailed({required this.attempt, this.error})
-      : assert(attempt >= 1, 'attempt is 1-based');
+    : assert(attempt >= 1, 'attempt is 1-based');
 
   /// Total number of attempts performed before giving up (1-based).
   final int attempt;
