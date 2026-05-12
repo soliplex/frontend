@@ -32,11 +32,11 @@ class ApprovalRequest {
 
   @override
   int get hashCode => Object.hash(
-        toolCallId,
-        toolName,
-        rationale,
-        _argsEquality.hash(arguments),
-      );
+    toolCallId,
+    toolName,
+    rationale,
+    _argsEquality.hash(arguments),
+  );
 }
 
 /// A [ToolApprovalExtension] that surfaces tool approval requests as reactive
@@ -63,8 +63,9 @@ class HumanApprovalExtension extends ToolApprovalExtension
 
   @override
   Future<void> onAttach(AgentSession session) async {
-    // unawaited: whenCancelled only completes if the session is cancelled;
-    // awaiting it would block attachAll forever.
+    // We deliberately do not await: the cancellation future only
+    // completes if the session is cancelled, so awaiting would block
+    // onAttach forever.
     unawaited(session.cancelToken.whenCancelled.then((_) => _denyPending()));
   }
 
@@ -85,17 +86,15 @@ class HumanApprovalExtension extends ToolApprovalExtension
     // a superseded tool call resolves to false instead of hanging.
     _denyPending();
     final completer = Completer<bool>();
-    _setPending(
-      (
-        req: ApprovalRequest(
-          toolCallId: toolCallId,
-          toolName: toolName,
-          arguments: arguments,
-          rationale: rationale,
-        ),
-        resp: completer,
+    _setPending((
+      req: ApprovalRequest(
+        toolCallId: toolCallId,
+        toolName: toolName,
+        arguments: arguments,
+        rationale: rationale,
       ),
-    );
+      resp: completer,
+    ));
     return completer.future;
   }
 

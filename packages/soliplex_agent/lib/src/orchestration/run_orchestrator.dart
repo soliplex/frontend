@@ -530,8 +530,8 @@ class RunOrchestrator {
     ToolYieldingState yielding,
     List<ToolCallInfo> executedTools,
   ) async {
-    // `_handleRunFinished` cleared the token for the tool-yield window;
-    // mint a fresh one for the resume.
+    // The run-finished handler cleared the token for the tool-yield
+    // window; mint a fresh one for the resume.
     _cancelToken ??= CancelToken();
     final conversation = _buildResumeConversation(yielding, executedTools);
     final input = _buildInput(yielding.threadKey, conversation);

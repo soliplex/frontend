@@ -87,8 +87,8 @@ class _ApprovalHandlerState extends State<ApprovalHandler> {
       rootNavigator: true,
     ).push(route);
     if (identical(_dialogRoute, route)) _dialogRoute = null;
-    // dispose() leaves the pending request live (see dispose comment);
-    // don't synth-deny here.
+    // The dispose method leaves the pending request live (see its
+    // comment); don't synthesize a denial here.
     if (!mounted) return;
     if (!identical(request, _showing)) return;
     widget.onRespond(request, approved ?? false);

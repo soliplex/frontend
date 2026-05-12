@@ -90,9 +90,10 @@ class RunRegistry {
       session.result.then((result) {
         unsubscribe();
         if (_isDisposed) return;
-        // Bail if a newer registration superseded this run. The
-        // superseded run can only resolve as cancelled-by-replacement;
-        // the new session owns the key and produces its own outcome.
+        // Bail if a newer registration superseded this run. A
+        // superseded run can only resolve as a cancellation by
+        // replacement; the new session owns the key and produces its
+        // own outcome.
         if (!identical(_runs[key], run)) return;
         run.outcome = _outcomeFrom(terminalState, result);
         run.session = null;
