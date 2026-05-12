@@ -215,7 +215,7 @@ class AgUiStreamClient {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
-        if (lastEventId != null) 'Last-Event-ID': lastEventId,
+        'Last-Event-ID': ?lastEventId,
       },
       body: body,
       cancelToken: cancelToken,

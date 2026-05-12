@@ -1059,7 +1059,7 @@ class RunOrchestrator {
       final seenChunkIds = <String>{};
       final mergedCitations = <SourceReference>[];
       for (final ref in [
-        if (existing != null) ...existing.sourceReferences,
+        ...?existing?.sourceReferences,
         ...citations,
       ]) {
         if (seenChunkIds.add(ref.chunkId)) {

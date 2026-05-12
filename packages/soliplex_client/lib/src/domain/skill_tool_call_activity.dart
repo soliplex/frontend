@@ -167,7 +167,6 @@ extension ConversationSkillToolCalls on Conversation {
   /// typed view. Malformed records are skipped (see
   /// [SkillToolCallActivity.fromRecord]).
   List<SkillToolCallActivity> get skillToolCalls => [
-    for (final record in activities)
-      if (SkillToolCallActivity.fromRecord(record) case final call?) call,
+    for (final record in activities) ?SkillToolCallActivity.fromRecord(record),
   ];
 }

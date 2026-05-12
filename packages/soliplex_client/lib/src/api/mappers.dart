@@ -166,15 +166,13 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
   return {
     'name': skill.name,
     if (skill.description.isNotEmpty) 'description': skill.description,
-    if (skill.source != null) 'source': skill.source,
-    if (skill.license != null) 'license': skill.license,
-    if (skill.compatibility != null) 'compatibility': skill.compatibility,
-    if (skill.allowedTools != null)
-      'allowed_tools': skill.allowedTools!.join(' '),
-    if (skill.stateNamespace != null) 'state_namespace': skill.stateNamespace,
+    'source': ?skill.source,
+    'license': ?skill.license,
+    'compatibility': ?skill.compatibility,
+    'allowed_tools': ?skill.allowedTools?.join(' '),
+    'state_namespace': ?skill.stateNamespace,
     if (skill.metadata.isNotEmpty) 'metadata': skill.metadata,
-    if (skill.stateTypeSchema != null)
-      'state_type_schema': skill.stateTypeSchema,
+    'state_type_schema': ?skill.stateTypeSchema,
   };
 }
 
@@ -493,10 +491,7 @@ Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
 /// Only includes non-null fields. The backend replaces all metadata on
 /// update — omitted fields are dropped, not preserved.
 Map<String, dynamic> threadMetadataToJson({String? name, String? description}) {
-  return {
-    if (name != null) 'name': name,
-    if (description != null) 'description': description,
-  };
+  return {'name': ?name, 'description': ?description};
 }
 
 // ============================================================
