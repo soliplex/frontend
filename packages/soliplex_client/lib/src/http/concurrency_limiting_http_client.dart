@@ -89,14 +89,11 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     final slot = await _semaphore.acquire();
 
     try {
-      final acquiredAt = _clock();
       _emitConcurrencyWait(
         acquisitionId: acquisitionId,
         uri: uri,
-        timestamp: acquiredAt,
-        waitDuration: slot.outcome == .queued
-            ? _nonNegative(acquiredAt.difference(enqueuedAt))
-            : .zero,
+        enqueuedAt: enqueuedAt,
+        slotOutcome: slot.outcome,
         queueDepthAtEnqueue: depthAtEnqueue,
       );
 
@@ -142,14 +139,11 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     try {
       cancelToken?.throwIfCancelled();
 
-      final acquiredAt = _clock();
       _emitConcurrencyWait(
         acquisitionId: acquisitionId,
         uri: uri,
-        timestamp: acquiredAt,
-        waitDuration: slot.outcome == .queued
-            ? _nonNegative(acquiredAt.difference(enqueuedAt))
-            : .zero,
+        enqueuedAt: enqueuedAt,
+        slotOutcome: slot.outcome,
         queueDepthAtEnqueue: depthAtEnqueue,
       );
 
@@ -280,18 +274,22 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   void _emitConcurrencyWait({
     required String acquisitionId,
     required Uri uri,
-    required DateTime timestamp,
-    required Duration waitDuration,
+    required DateTime enqueuedAt,
+    required _AcquireOutcome slotOutcome,
     required int queueDepthAtEnqueue,
   }) {
     if (_observers.isEmpty) return;
 
+    final acquiredAt = _clock();
+    final waitDuration = slotOutcome == .queued
+        ? _nonNegative(acquiredAt.difference(enqueuedAt))
+        : Duration.zero;
     final redactedUri = HttpRedactor.redactUri(uri);
     final ConcurrencyWaitEvent event;
     try {
       event = ConcurrencyWaitEvent(
         acquisitionId: acquisitionId,
-        timestamp: timestamp,
+        timestamp: acquiredAt,
         uri: redactedUri,
         waitDuration: waitDuration,
         queueDepthAtEnqueue: queueDepthAtEnqueue,
