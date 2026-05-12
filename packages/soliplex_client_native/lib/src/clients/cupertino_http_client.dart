@@ -150,7 +150,7 @@ class CupertinoHttpClient implements SoliplexHttpClient {
         cancelToken?.throwIfCancelled();
       } on CancelledException {
         // Drain the stream to release the underlying TCP socket.
-        unawaited(streamedResponse.stream.listen((_) {}).cancel());
+        unawaited(streamedResponse.stream.listen(null).cancel());
         rethrow;
       }
 
