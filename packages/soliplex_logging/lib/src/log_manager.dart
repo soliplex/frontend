@@ -14,7 +14,7 @@ class LogManager {
   final List<LogSink> _sinks = [];
 
   /// Minimum log level. Logs below this level are filtered out.
-  LogLevel minimumLevel = LogLevel.info;
+  LogLevel minimumLevel = .info;
 
   /// Adds a sink to receive log records.
   void addSink(LogSink sink) {
@@ -63,6 +63,6 @@ class LogManager {
   /// Resets the manager for testing.
   void reset() {
     _sinks.clear();
-    minimumLevel = LogLevel.info;
+    minimumLevel = .info;
   }
 }

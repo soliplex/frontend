@@ -81,11 +81,11 @@ void writeToStdout(LogRecord record, {required bool useColors}) {
 /// Returns the ANSI color code for a given log level.
 String _colorForLevel(LogLevel level) {
   return switch (level) {
-    LogLevel.trace => _gray,
-    LogLevel.debug => _gray,
-    LogLevel.info => _cyan,
-    LogLevel.warning => _yellow,
-    LogLevel.error => _red,
-    LogLevel.fatal => _red,
+    .trace => _gray,
+    .debug => _gray,
+    .info => _cyan,
+    .warning => _yellow,
+    .error => _red,
+    .fatal => _red,
   };
 }

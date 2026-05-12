@@ -22,7 +22,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.trace,
+      .trace,
       message,
       error: error,
       stackTrace: stackTrace,
@@ -42,7 +42,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.debug,
+      .debug,
       message,
       error: error,
       stackTrace: stackTrace,
@@ -62,7 +62,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.info,
+      .info,
       message,
       error: error,
       stackTrace: stackTrace,
@@ -82,7 +82,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.warning,
+      .warning,
       message,
       error: error,
       stackTrace: stackTrace,
@@ -102,7 +102,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.error,
+      .error,
       message,
       error: error,
       stackTrace: stackTrace,
@@ -122,7 +122,7 @@ class Logger {
     Map<String, Object?>? attributes,
   }) {
     _log(
-      LogLevel.fatal,
+      .fatal,
       message,
       error: error,
       stackTrace: stackTrace,

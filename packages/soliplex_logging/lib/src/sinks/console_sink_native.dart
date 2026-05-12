@@ -11,8 +11,9 @@ import 'package:soliplex_logging/src/sinks/log_format.dart';
 void writeToConsole(LogRecord record) {
   // Only pass stackTrace if non-empty to avoid "Stack:" with no content.
   final stackStr = record.stackTrace?.toString();
-  final stackTrace =
-      (stackStr != null && stackStr.isNotEmpty) ? record.stackTrace : null;
+  final stackTrace = (stackStr != null && stackStr.isNotEmpty)
+      ? record.stackTrace
+      : null;
 
   developer.log(
     formatLogMessage(record),
@@ -30,11 +31,11 @@ void writeToConsole(LogRecord record) {
 /// more severe log messages (0-2000 range).
 int _mapLevel(LogLevel level) {
   return switch (level) {
-    LogLevel.trace => 300,
-    LogLevel.debug => 500,
-    LogLevel.info => 800,
-    LogLevel.warning => 900,
-    LogLevel.error => 1000,
-    LogLevel.fatal => 1200,
+    .trace => 300,
+    .debug => 500,
+    .info => 800,
+    .warning => 900,
+    .error => 1000,
+    .fatal => 1200,
   };
 }

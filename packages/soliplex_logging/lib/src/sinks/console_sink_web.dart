@@ -57,15 +57,15 @@ void writeToConsole(LogRecord record) {
   final errorArg = _convertError(record.error);
 
   switch (record.level) {
-    case LogLevel.trace:
-    case LogLevel.debug:
+    case .trace:
+    case .debug:
       _console.debug(message, errorArg);
-    case LogLevel.info:
+    case .info:
       _console.info(message, errorArg);
-    case LogLevel.warning:
+    case .warning:
       _console.warn(message, errorArg);
-    case LogLevel.error:
-    case LogLevel.fatal:
+    case .error:
+    case .fatal:
       _console.error(message, errorArg);
   }
 
@@ -86,12 +86,12 @@ void writeToConsole(LogRecord record) {
 /// more severe log messages (0-2000 range).
 int _mapLevel(LogLevel level) {
   return switch (level) {
-    LogLevel.trace => 300,
-    LogLevel.debug => 500,
-    LogLevel.info => 800,
-    LogLevel.warning => 900,
-    LogLevel.error => 1000,
-    LogLevel.fatal => 1200,
+    .trace => 300,
+    .debug => 500,
+    .info => 800,
+    .warning => 900,
+    .error => 1000,
+    .fatal => 1200,
   };
 }
 

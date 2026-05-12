@@ -21,7 +21,7 @@ const int _unknownTotal = -1;
 class PlatformDiskQueue implements DiskQueue {
   /// Creates a disk queue that stores records in [directoryPath].
   PlatformDiskQueue({required String directoryPath})
-      : _directory = Directory(directoryPath) {
+    : _directory = Directory(directoryPath) {
     _directory.createSync(recursive: true);
     _file = File('${_directory.path}/log_queue.jsonl');
     _fatalFile = File('${_directory.path}/log_queue_fatal.jsonl');
@@ -51,7 +51,7 @@ class PlatformDiskQueue implements DiskQueue {
       try {
         await _compactIfNeeded();
         final line = '${jsonEncode(json)}\n';
-        await _file.writeAsString(line, mode: FileMode.append, flush: true);
+        await _file.writeAsString(line, mode: .append, flush: true);
         if (_total != _unknownTotal) _total++;
         completer.complete();
       } on Object catch (e, s) {
@@ -64,7 +64,7 @@ class PlatformDiskQueue implements DiskQueue {
   @override
   void appendSync(Map<String, Object?> json) {
     final line = '${jsonEncode(json)}\n';
-    _fatalFile.writeAsStringSync(line, mode: FileMode.append, flush: true);
+    _fatalFile.writeAsStringSync(line, mode: .append, flush: true);
   }
 
   @override
@@ -191,7 +191,7 @@ class PlatformDiskQueue implements DiskQueue {
     }
 
     // Direct append — O(fatal_size), not O(file_size).
-    await _file.writeAsString(content, mode: FileMode.append, flush: true);
+    await _file.writeAsString(content, mode: .append, flush: true);
 
     // Count valid records added.
     final added = _countValidRecords(content);
@@ -358,7 +358,7 @@ class PlatformDiskQueue implements DiskQueue {
     if (orphanedMerge.existsSync()) {
       final content = orphanedMerge.readAsStringSync();
       if (content.trim().isNotEmpty) {
-        _file.writeAsStringSync(content, mode: FileMode.append, flush: true);
+        _file.writeAsStringSync(content, mode: .append, flush: true);
       }
       orphanedMerge.deleteSync();
     }
