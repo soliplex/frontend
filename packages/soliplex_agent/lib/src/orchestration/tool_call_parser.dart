@@ -72,7 +72,6 @@ ToolCallParseResult parseToolCallResponse(String response) {
     final argsMap = switch (args) {
       Map<String, dynamic>() => args,
       Map() => Map<String, dynamic>.from(args),
-      null => <String, dynamic>{},
       _ => <String, dynamic>{},
     };
 

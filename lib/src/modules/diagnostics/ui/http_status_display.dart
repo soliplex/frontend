@@ -39,13 +39,10 @@ class HttpStatusDisplay extends StatelessWidget {
   Color _colorForStatus(HttpEventStatus status, ColorScheme colorScheme) {
     return switch (status) {
       .pending => colorScheme.onSurfaceVariant,
-      .success => colorScheme.success,
+      .success || .streamComplete => colorScheme.success,
       .clientError => colorScheme.warning,
-      .serverError => colorScheme.error,
-      .networkError => colorScheme.error,
+      .serverError || .networkError || .streamError => colorScheme.error,
       .streaming => colorScheme.secondary,
-      .streamComplete => colorScheme.success,
-      .streamError => colorScheme.error,
     };
   }
 
@@ -56,10 +53,7 @@ class HttpStatusDisplay extends StatelessWidget {
         '${group.response!.statusCode} OK '
             '(${group.response!.duration.toHttpDurationString()}, '
             '${group.response!.bodySize.toHttpBytesString()})',
-      .clientError =>
-        '${group.response!.statusCode} '
-            '(${group.response!.duration.toHttpDurationString()})',
-      .serverError =>
+      .clientError || .serverError =>
         '${group.response!.statusCode} '
             '(${group.response!.duration.toHttpDurationString()})',
       .networkError =>

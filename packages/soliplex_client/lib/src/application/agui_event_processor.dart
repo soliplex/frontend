@@ -361,8 +361,7 @@ ChatUser _mapRoleToChatUser(TextMessageRole role) {
   return switch (role) {
     .user => .user,
     .assistant => .assistant,
-    .system => .system,
-    .developer => .system,
+    .system || .developer => .system,
   };
 }
 
@@ -535,7 +534,7 @@ StreamingState _withToolCallActivity(
   int? timestamp,
 }) {
   final currentActivity = switch (streaming) {
-    AwaitingText(:final currentActivity) => currentActivity,
+    AwaitingText(:final currentActivity) ||
     TextStreaming(:final currentActivity) => currentActivity,
   };
 

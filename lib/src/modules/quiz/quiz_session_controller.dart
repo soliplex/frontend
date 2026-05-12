@@ -8,16 +8,17 @@ class QuizSessionController {
     required SoliplexApi api,
     required String roomId,
     required Logger logger,
-  })  : _api = api,
-        _roomId = roomId,
-        _logger = logger;
+  }) : _api = api,
+       _roomId = roomId,
+       _logger = logger;
 
   final SoliplexApi _api;
   final String _roomId;
   final Logger _logger;
 
-  final Signal<QuizSession> _session =
-      Signal<QuizSession>(const QuizNotStarted());
+  final Signal<QuizSession> _session = Signal<QuizSession>(
+    const QuizNotStarted(),
+  );
   ReadonlySignal<QuizSession> get session => _session;
 
   final Signal<String?> _submissionError = Signal<String?>(null);
@@ -44,7 +45,7 @@ class QuizSessionController {
     }
     final questionType = current.currentQuestion.type;
     final validInput = switch ((questionType, input)) {
-      (MultipleChoice(), MultipleChoiceInput()) => true,
+      (MultipleChoice(), MultipleChoiceInput()) ||
       (FillBlank() || FreeForm(), TextInput()) => true,
       _ => false,
     };
@@ -102,16 +103,13 @@ class QuizSessionController {
         error: e,
         stackTrace: stackTrace,
       );
-      _recoverFromSubmitError(
-        input,
-        switch (e) {
-          AuthException() => 'Your session has expired. Please sign in again.',
-          NotFoundException() => 'This question is no longer available.',
-          NetworkException() =>
-            'Could not reach the server. Check your connection and try again.',
-          _ => 'Could not submit your answer. Please try again.',
-        },
-      );
+      _recoverFromSubmitError(input, switch (e) {
+        AuthException() => 'Your session has expired. Please sign in again.',
+        NotFoundException() => 'This question is no longer available.',
+        NetworkException() =>
+          'Could not reach the server. Check your connection and try again.',
+        _ => 'Could not submit your answer. Please try again.',
+      });
     } catch (e, stackTrace) {
       _logger.error(
         'Unexpected error submitting answer for question '
@@ -160,8 +158,7 @@ class QuizSessionController {
   void retake() {
     final current = _session.value;
     final quiz = switch (current) {
-      QuizInProgress(:final quiz) => quiz,
-      QuizCompleted(:final quiz) => quiz,
+      QuizInProgress(:final quiz) || QuizCompleted(:final quiz) => quiz,
       QuizNotStarted() => null,
     };
     if (quiz == null) return;

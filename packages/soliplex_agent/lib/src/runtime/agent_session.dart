@@ -426,7 +426,7 @@ class AgentSession implements ToolExecutionContext {
       case RunningState():
         _state = .running;
         _sessionStateSignal.value = _state;
-      case ToolYieldingState():
+      case ToolYieldingState() || IdleState():
         break;
       case CompletedState():
         _completeWith(_mapCompleted(runState));
@@ -434,8 +434,6 @@ class AgentSession implements ToolExecutionContext {
         _completeWith(_mapFailed(runState));
       case CancelledState():
         _completeWith(_mapCancelled(runState));
-      case IdleState():
-        break;
     }
   }
 
@@ -544,10 +542,10 @@ class AgentSession implements ToolExecutionContext {
   static Map<String, dynamic>? _aguiStateOf(RunState state) {
     return switch (state) {
       IdleState() => null,
-      RunningState(:final conversation) => conversation.aguiState,
-      ToolYieldingState(:final conversation) => conversation.aguiState,
+      RunningState(:final conversation) ||
+      ToolYieldingState(:final conversation) ||
       CompletedState(:final conversation) => conversation.aguiState,
-      FailedState(:final conversation) => conversation?.aguiState,
+      FailedState(:final conversation) ||
       CancelledState(:final conversation) => conversation?.aguiState,
     };
   }

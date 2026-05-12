@@ -161,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   context,
                   providers,
                 ),
-                Authenticating() => _buildAuthenticating(context),
+                Authenticating() ||
                 Connected() => _buildAuthenticating(context),
               },
               if (servers.isNotEmpty && _flow.state.value is UrlInput)

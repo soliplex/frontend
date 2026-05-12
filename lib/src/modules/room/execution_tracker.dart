@@ -130,17 +130,12 @@ class ExecutionTracker {
         // tool call, and completing the step now would split a single
         // logical step into two timeline entries.
         _isThinkingStreaming.value = false;
-      case ServerToolCallStarted(:final toolName):
+      case ServerToolCallStarted(:final toolName) ||
+          ClientToolExecuting(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
         _addStep(toolName, .toolCall);
-      case ServerToolCallCompleted():
-        _completeActiveStep();
-      case ClientToolExecuting(:final toolName):
-        _completeActiveStep();
-        _isThinkingStreaming.value = false;
-        _addStep(toolName, .toolCall);
-      case ClientToolCompleted():
+      case ServerToolCallCompleted() || ClientToolCompleted():
         _completeActiveStep();
       case RunCompleted():
         _completeAllSteps(.completed);

@@ -161,11 +161,10 @@ class ThreadViewState {
     final session = _activeSession.value;
     if (session == null) return false;
     return switch (session.runState.value) {
-      RunningState() => true,
-      ToolYieldingState() => true,
-      IdleState() => false,
-      CompletedState() => false,
-      FailedState() => false,
+      RunningState() || ToolYieldingState() => true,
+      IdleState() ||
+      CompletedState() ||
+      FailedState() ||
       CancelledState() => false,
     };
   });

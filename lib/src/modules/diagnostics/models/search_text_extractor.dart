@@ -55,15 +55,13 @@ String extractOverviewText(HttpEventGroup group) {
     final run = accumulateEvents(parsed.events);
     for (final entry in run.entries) {
       switch (entry) {
-        case MessageEntry(:final text):
+        case MessageEntry(:final text) || ThinkingEntry(:final text):
           buf.write(text);
         case ToolCallEntry(:final toolName, :final args):
           buf.write(toolName);
           buf.write(args);
         case ToolResultEntry(:final content):
           buf.write(content);
-        case ThinkingEntry(:final text):
-          buf.write(text);
         case RunStatusEntry(:final message):
           if (message != null) buf.write(message);
         case StateEntry():

@@ -234,7 +234,6 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
           title: SelectableText(url),
           subtitle: switch ((isDone, hasError, info)) {
             (false, _, _) => const Text('Loading…'),
-            (true, true, _) => const Text('Unavailable'),
             (true, false, BackendVersionInfo(:final soliplexVersion)) =>
               SelectableText('Backend version: $soliplexVersion'),
             _ => const Text('Unavailable'),

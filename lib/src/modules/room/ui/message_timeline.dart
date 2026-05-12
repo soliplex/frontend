@@ -180,7 +180,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     final streamingActivity = widget.streamingState != null
         ? switch (widget.streamingState!) {
-            AwaitingText(:final currentActivity) => currentActivity,
+            AwaitingText(:final currentActivity) ||
             TextStreaming(:final currentActivity) => currentActivity,
           }
         : null;

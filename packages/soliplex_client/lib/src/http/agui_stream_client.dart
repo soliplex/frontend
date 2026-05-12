@@ -195,8 +195,6 @@ class AgUiStreamClient {
   void close() => _httpTransport.close();
 
   bool _retryable(Object e) => switch (e) {
-    CancelledException() => false,
-    AuthException() || NotFoundException() => false,
     ApiException(:final statusCode) => statusCode >= 500 && statusCode < 600,
     NetworkException() => true,
     _ => false,

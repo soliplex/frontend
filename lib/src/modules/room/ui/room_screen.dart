@@ -603,9 +603,8 @@ class _RoomScreenState extends State<RoomScreen> {
       s is UploadsLoaded ? s.uploads : null;
 
   bool _scopeRendersContent(UploadsStatus s) => switch (s) {
-    UploadsLoading() => true,
+    UploadsLoading() || UploadsFailed() => true,
     UploadsLoaded(uploads: final u) => u.isNotEmpty,
-    UploadsFailed() => true,
   };
 
   Widget _buildFilePanel(UploadsStatus roomStatus, UploadsStatus threadStatus) {

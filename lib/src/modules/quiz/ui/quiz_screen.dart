@@ -156,14 +156,13 @@ class _QuizScreenState extends State<QuizScreen> {
 
     // State is the source of truth; the controller is a view-layer mirror for TextField.
     final providerText = switch (session) {
-      QuizInProgress(questionState: Composing(input: TextInput(:final text))) =>
-        text,
+      QuizInProgress(questionState: Composing(input: TextInput(:final text))) ||
       QuizInProgress(
         questionState: Submitting(input: TextInput(:final text)),
-      ) =>
-        text,
-      QuizInProgress(questionState: Answered(input: TextInput(:final text))) =>
-        text,
+      ) ||
+      QuizInProgress(
+        questionState: Answered(input: TextInput(:final text)),
+      ) => text,
       _ => '',
     };
     if (_answerController.text != providerText) {

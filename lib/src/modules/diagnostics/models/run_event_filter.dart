@@ -14,8 +14,8 @@ List<HttpEvent> filterEventsByRunId(List<HttpEvent> events, String runId) {
 
 Uri? _uriOf(HttpEvent event) {
   return switch (event) {
-    HttpRequestEvent(:final uri) => uri,
-    HttpErrorEvent(:final uri) => uri,
+    HttpRequestEvent(:final uri) ||
+    HttpErrorEvent(:final uri) ||
     HttpStreamStartEvent(:final uri) => uri,
     _ => null,
   };

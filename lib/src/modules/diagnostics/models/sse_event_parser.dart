@@ -21,16 +21,15 @@ const _dataPrefix = 'data: ';
 String sseEventSummary(SseEvent event) {
   final payload = event.payload;
   return switch (event.type) {
-    'TEXT_MESSAGE_CONTENT' => payload['delta'] as String? ?? '',
+    'TEXT_MESSAGE_CONTENT' ||
+    'TOOL_CALL_ARGS' ||
+    'THINKING_CONTENT' => payload['delta'] as String? ?? '',
     'TEXT_MESSAGE_START' => 'role: ${payload['role'] as String? ?? '?'}',
     'TEXT_MESSAGE_END' => 'messageId: ${payload['messageId'] ?? '?'}',
     'TOOL_CALL_START' => payload['toolCallName'] as String? ?? '?',
-    'TOOL_CALL_ARGS' => payload['delta'] as String? ?? '',
     'TOOL_CALL_END' => 'toolCallId: ${payload['toolCallId'] ?? '?'}',
     'TOOL_CALL_RESULT' => _truncate(payload['content'] as String? ?? '', 50),
-    'THINKING_CONTENT' => payload['delta'] as String? ?? '',
     'STATE_SNAPSHOT' || 'STATE_DELTA' => '(object)',
-    'RUN_STARTED' || 'RUN_FINISHED' => '',
     'RUN_ERROR' => payload['message'] as String? ?? '',
     _ => '',
   };

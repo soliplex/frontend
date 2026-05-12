@@ -81,7 +81,6 @@ class _RequestDetailViewState extends State<RequestDetailView>
     final q = _searchController.text;
     if (q.isEmpty) return 0;
     final tabScope = switch (tabIndex) {
-      0 => SearchScope.request,
       1 => SearchScope.response,
       2 => SearchScope.curl,
       3 => SearchScope.overview,

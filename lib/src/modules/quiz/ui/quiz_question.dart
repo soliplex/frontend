@@ -34,12 +34,11 @@ class QuizQuestionView extends StatelessWidget {
     final theme = Theme.of(context);
 
     final selectedOption = switch (questionState) {
-      Composing(input: MultipleChoiceInput(:final selectedOption)) =>
-        selectedOption,
-      Submitting(input: MultipleChoiceInput(:final selectedOption)) =>
-        selectedOption,
-      Answered(input: MultipleChoiceInput(:final selectedOption)) =>
-        selectedOption,
+      Composing(input: MultipleChoiceInput(:final selectedOption)) ||
+      Submitting(input: MultipleChoiceInput(:final selectedOption)) ||
+      Answered(
+        input: MultipleChoiceInput(:final selectedOption),
+      ) => selectedOption,
       _ => null,
     };
 

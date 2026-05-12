@@ -86,15 +86,12 @@ class ExecutionTrackerExtension extends SessionExtension
       // tracker to its synthesized id while the entry is still present;
       // a future change that drops the awaiting entry on terminate would
       // silently break the rekey if invoked first.
-      case CompletedState(:final runId, :final conversation):
-        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
-        _registry.onRunTerminated();
-        _sync();
-      case FailedState(:final runId, :final conversation):
-        _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
-        _registry.onRunTerminated();
-        _sync();
-      case CancelledState(:final runId, :final conversation):
+      case CompletedState(
+            :final String? runId,
+            :final Conversation? conversation,
+          ) ||
+          FailedState(:final runId, :final conversation) ||
+          CancelledState(:final runId, :final conversation):
         _rekeyAwaitingForNoResponseIfPresent(runId, conversation);
         _registry.onRunTerminated();
         _sync();

@@ -651,12 +651,11 @@ class RunOrchestrator {
   /// Exhaustive switch expression — adding a new [RunState] variant
   /// without updating this method causes a compile error.
   bool _isTerminal(RunState state) => switch (state) {
-    CompletedState() => true,
-    FailedState() => true,
-    CancelledState() => true,
+    CompletedState() ||
+    FailedState() ||
+    CancelledState() ||
     ToolYieldingState() => true,
-    RunningState() => false,
-    IdleState() => false,
+    RunningState() || IdleState() => false,
   };
 
   /// Completes [_terminalCompleter] when [dispose] runs while a backend
