@@ -210,11 +210,13 @@ void main() {
     });
 
     test(
-        'trailing tool-yield bundle with no follow-up drops its hoisted '
-        'events without crashing or attaching them to a synthesized id', () {
-      // A tool-yield bundle with no normal-bundle follow-up has nowhere
-      // to attach its hoisted events. The replay must log the drop and
-      // return without crashing.
+        'trailing tool-yield bundle with no follow-up routes its hoisted '
+        'events under the synthesized no-response id for the same run', () {
+      // A tool-yield bundle with no normal-bundle follow-up still needs
+      // a tracker on reload: the chat-message side synthesizes a
+      // no-response tile under `noResponseMessageId(runId)` for the
+      // same run, and the bubble disappears if no tracker is keyed
+      // under that id.
       final runs = [
         RunEventBundle(
           runId: 'run-yield-only',
@@ -234,7 +236,15 @@ void main() {
 
       final trackers = replayToTrackers(runs);
 
-      expect(trackers, isEmpty);
+      expect(trackers.keys, ['no-response-run-yield-only']);
+      expect(
+        trackers['no-response-run-yield-only']!.steps.value.map((s) => s.label),
+        ['Thinking', 'search'],
+      );
+      expect(
+        trackers['no-response-run-yield-only']!.thinkingBlocks.value,
+        ['pre-tool'],
+      );
     });
 
     test(
