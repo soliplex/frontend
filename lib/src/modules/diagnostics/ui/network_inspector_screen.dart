@@ -75,7 +75,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     final theme = Theme.of(context);
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(
             Icons.http,
@@ -103,7 +103,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
 
   Widget _buildListLayout(BuildContext context, List<HttpEventGroup> groups) {
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const .symmetric(vertical: 8),
       itemCount: groups.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
@@ -138,7 +138,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
               ),
             ),
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const .symmetric(vertical: 8),
               itemCount: groups.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {

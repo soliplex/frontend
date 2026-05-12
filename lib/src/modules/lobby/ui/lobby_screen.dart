@@ -224,7 +224,7 @@ class _RoomContent extends StatelessWidget {
     if (servers.isEmpty) {
       return Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             const Text('No servers connected'),
             const SizedBox(height: 16),
@@ -272,34 +272,31 @@ class _ServerSection extends StatelessWidget {
     final heading = serverUrl != null ? formatServerUrl(serverUrl!) : serverId;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            heading,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          padding: const .fromLTRB(16, 16, 16, 8),
+          child: Text(heading, style: Theme.of(context).textTheme.titleMedium),
         ),
         switch (serverRooms) {
           RoomsLoading() => const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: LinearProgressIndicator(),
-            ),
+            padding: .symmetric(horizontal: 16),
+            child: LinearProgressIndicator(),
+          ),
           RoomsFailed(:final error) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Failed to load rooms: $error'),
-            ),
+            padding: const .symmetric(horizontal: 16),
+            child: Text('Failed to load rooms: $error'),
+          ),
           RoomsLoaded(:final rooms) => Column(
-              children: [
-                for (final room in rooms)
-                  RoomCard(
-                    room: room,
-                    onTap: () => onRoomTap(serverId, room.id),
-                    onInfoTap: () => onInfoTap(serverId, room.id),
-                  ),
-              ],
-            ),
+            children: [
+              for (final room in rooms)
+                RoomCard(
+                  room: room,
+                  onTap: () => onRoomTap(serverId, room.id),
+                  onInfoTap: () => onInfoTap(serverId, room.id),
+                ),
+            ],
+          ),
         },
       ],
     );

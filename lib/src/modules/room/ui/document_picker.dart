@@ -47,10 +47,10 @@ class _DocumentPickerState extends State<DocumentPicker> {
     final filtered = _filtered;
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const .fromLTRB(16, 16, 16, 8),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
@@ -80,9 +80,9 @@ class _DocumentPickerState extends State<DocumentPicker> {
         ),
         if (widget.selected.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const .symmetric(horizontal: 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: .spaceBetween,
               children: [
                 Text(
                   '${widget.selected.length} selected',
@@ -114,7 +114,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
                       secondary: Icon(getFileTypeIcon(documentIconPath(doc))),
                       title: Text(
                         documentDisplayName(doc),
-                        overflow: TextOverflow.ellipsis,
+                        overflow: .ellipsis,
                       ),
                       subtitle: doc.uri.isNotEmpty
                           ? Text(
@@ -168,7 +168,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
 
           final Widget content;
           final bool canConfirm;
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == .waiting) {
             canConfirm = false;
             content = const SizedBox(
               height: 200,
@@ -183,13 +183,13 @@ Future<Set<RagDocument>?> showDocumentPicker({
             );
             content = Center(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: .min,
                 children: [
                   Text(
                     'Failed to load documents.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(
@@ -208,8 +208,8 @@ Future<Set<RagDocument>?> showDocumentPicker({
               child: Text(
                 'No documents in this room.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             );
           } else {
@@ -227,7 +227,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
             title: Text(title),
             content: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 400),
-              child: SizedBox(width: double.maxFinite, child: content),
+              child: SizedBox(width: .maxFinite, child: content),
             ),
             actions: [
               TextButton(
@@ -235,8 +235,9 @@ Future<Set<RagDocument>?> showDocumentPicker({
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed:
-                    canConfirm ? () => Navigator.pop(context, current) : null,
+                onPressed: canConfirm
+                    ? () => Navigator.pop(context, current)
+                    : null,
                 child: const Text('Done'),
               ),
             ],

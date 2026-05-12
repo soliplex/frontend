@@ -25,8 +25,9 @@ class StaticThinkingBlock extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final expansion =
-        ref.read(messageExpansionsProvider).forMessage(roomId, messageId);
+    final expansion = ref
+        .read(messageExpansionsProvider)
+        .forMessage(roomId, messageId);
     // ExpansionTile reads initiallyExpanded once on mount and does not
     // rebuild when the store changes. Safe because StaticThinkingBlock and
     // ExecutionThinkingBlock are mutually exclusive for any given
@@ -49,12 +50,12 @@ class StaticThinkingBlock extends ConsumerWidget {
       ),
       dense: true,
       tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(bottom: 4),
+      childrenPadding: const .only(bottom: 4),
       children: [
         Text(
           text,
           style: theme.textTheme.bodySmall?.copyWith(
-            fontStyle: FontStyle.italic,
+            fontStyle: .italic,
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),

@@ -54,12 +54,14 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
         });
       }
     } catch (e, st) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: e,
-        stack: st,
-        library: 'async_action_dialog',
-        context: ErrorDescription('during ${widget.title}'),
-      ));
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'async_action_dialog',
+          context: ErrorDescription('during ${widget.title}'),
+        ),
+      );
       if (mounted) {
         setState(() {
           _busy = false;
@@ -75,15 +77,13 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
     return AlertDialog(
       title: Text(widget.title),
       content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: .min,
+        crossAxisAlignment: .stretch,
         children: [
-          widget.contentBuilder(
-            widget.canSubmit && !_busy ? _run : null,
-          ),
+          widget.contentBuilder(widget.canSubmit && !_busy ? _run : null),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const .only(top: 8),
               child: Text(
                 _error!,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -100,7 +100,7 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
         ),
         if (_busy)
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: .symmetric(horizontal: 16),
             child: SizedBox(
               width: 16,
               height: 16,
@@ -111,9 +111,7 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
           TextButton(
             onPressed: widget.canSubmit ? _run : null,
             style: widget.isDestructive
-                ? TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                  )
+                ? TextButton.styleFrom(foregroundColor: theme.colorScheme.error)
                 : null,
             child: Text(widget.actionLabel),
           ),

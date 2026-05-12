@@ -141,22 +141,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const .all(24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: .min,
+            crossAxisAlignment: .stretch,
             children: [
               ...switch (_flow.state.value) {
                 UrlInput() => _buildUrlInput(context),
                 Probing() => _buildProbing(context),
-                InsecureWarning(:final probeResult) =>
-                  _buildInsecureWarning(context, probeResult),
+                InsecureWarning(:final probeResult) => _buildInsecureWarning(
+                  context,
+                  probeResult,
+                ),
                 Consent(:final notice, :final probeResult, :final providers) =>
                   _buildConsent(context, notice, probeResult, providers),
-                ProviderSelection(:final providers) =>
-                  _buildProviderSelection(context, providers),
+                ProviderSelection(:final providers) => _buildProviderSelection(
+                  context,
+                  providers,
+                ),
                 Authenticating() => _buildAuthenticating(context),
                 Connected() => _buildAuthenticating(context),
               },
@@ -187,7 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Text(
         widget.appName,
         style: theme.textTheme.headlineMedium,
-        textAlign: TextAlign.center,
+        textAlign: .center,
       ),
       const SizedBox(height: 8),
       Text(
@@ -195,7 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
-        textAlign: TextAlign.center,
+        textAlign: .center,
       ),
       const SizedBox(height: 32),
     ];
@@ -215,7 +219,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           controller: _urlController,
           focusNode: _urlFocusNode,
           autofocus: true,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
+          autovalidateMode: .onUserInteraction,
           validator: _validateUrl,
           decoration: InputDecoration(
             labelText: 'Backend URL',
@@ -229,18 +233,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   )
                 : null,
           ),
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.go,
+          keyboardType: .url,
+          textInputAction: .go,
           onFieldSubmitted: (_) => _connect(),
         ),
       ),
       const SizedBox(height: 16),
       if (error != null) ...[
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const .all(12),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: .circular(8),
           ),
           child: Row(
             children: [
@@ -253,9 +257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Expanded(
                 child: Text(
                   error,
-                  style: TextStyle(
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
+                  style: TextStyle(color: theme.colorScheme.onErrorContainer),
                 ),
               ),
             ],
@@ -292,16 +294,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'This connection to ${formatServerUrl(probeResult.serverUrl)} is not '
         'encrypted. Your data, including credentials, may be visible to '
         'others on the network.',
-        textAlign: TextAlign.center,
+        textAlign: .center,
       ),
       const SizedBox(height: 24),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: .center,
         children: [
-          OutlinedButton(
-            onPressed: _flow.reset,
-            child: const Text('Cancel'),
-          ),
+          OutlinedButton(onPressed: _flow.reset, child: const Text('Cancel')),
           const SizedBox(width: 16),
           FilledButton(
             onPressed: _flow.acceptInsecure,
@@ -325,12 +324,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Text(notice.body),
       const SizedBox(height: 16),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: .center,
         children: [
-          OutlinedButton(
-            onPressed: _flow.reset,
-            child: const Text('Cancel'),
-          ),
+          OutlinedButton(onPressed: _flow.reset, child: const Text('Cancel')),
           const SizedBox(width: 16),
           FilledButton(
             onPressed: _flow.acknowledgeConsent,
@@ -354,17 +350,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: 16),
       for (final provider in providers)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const .only(bottom: 8),
           child: FilledButton(
             onPressed: () => _flow.selectProvider(provider),
             child: Text(provider.name),
           ),
         ),
       const SizedBox(height: 8),
-      TextButton(
-        onPressed: _flow.reset,
-        child: const Text('Change server'),
-      ),
+      TextButton(onPressed: _flow.reset, child: const Text('Change server')),
     ];
   }
 
@@ -395,12 +388,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const Expanded(child: Divider()),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const .symmetric(horizontal: 12),
             child: Text(
               'Your servers',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const Expanded(child: Divider()),
@@ -411,7 +404,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           alignment: Alignment.centerRight,
           child: TextButton.icon(
             onPressed: () => context.go(AppRoutes.lobby),
-            iconAlignment: IconAlignment.end,
+            iconAlignment: .end,
             icon: const Icon(Icons.arrow_forward),
             label: const Text('Go to Lobby'),
           ),

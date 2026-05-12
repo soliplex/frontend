@@ -33,7 +33,7 @@ class MessageTile extends StatelessWidget {
   final String? runId;
   final List<SourceReference>? sourceReferences;
   final void Function(String runId, FeedbackType feedback, String? reason)?
-      onFeedbackSubmit;
+  onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
@@ -45,42 +45,42 @@ class MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const .symmetric(vertical: 2),
       child: switch (message) {
         final TextMessage m => TextMessageTile(
-            roomId: roomId,
-            message: m,
-            runId: runId,
-            sourceReferences: sourceReferences,
-            onFeedbackSubmit: onFeedbackSubmit != null && runId != null
-                ? (feedback, reason) =>
+          roomId: roomId,
+          message: m,
+          runId: runId,
+          sourceReferences: sourceReferences,
+          onFeedbackSubmit: onFeedbackSubmit != null && runId != null
+              ? (feedback, reason) =>
                     onFeedbackSubmit!(runId!, feedback, reason)
-                : null,
-            onInspect: onInspect != null && runId != null
-                ? () => onInspect!(runId!)
-                : null,
-            onShowChunkVisualization: onShowChunkVisualization,
-            onFetchWorkdirFiles: onFetchWorkdirFiles,
-            onDownloadWorkdirFile: onDownloadWorkdirFile,
-            onPreviewWorkdirFile: onPreviewWorkdirFile,
-            executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
-          ),
+              : null,
+          onInspect: onInspect != null && runId != null
+              ? () => onInspect!(runId!)
+              : null,
+          onShowChunkVisualization: onShowChunkVisualization,
+          onFetchWorkdirFiles: onFetchWorkdirFiles,
+          onDownloadWorkdirFile: onDownloadWorkdirFile,
+          onPreviewWorkdirFile: onPreviewWorkdirFile,
+          executionTracker: executionTracker,
+          streamingActivity: streamingActivity,
+        ),
         final NoResponseTile m => NoResponseTileWidget(
-            roomId: roomId,
-            message: m,
-            executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
-          ),
+          roomId: roomId,
+          message: m,
+          executionTracker: executionTracker,
+          streamingActivity: streamingActivity,
+        ),
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),
         final GenUiMessage m => GenUiTile(message: m),
         final LoadingMessage m => LoadingMessageTile(
-            roomId: roomId,
-            messageId: m.id,
-            executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
-          ),
+          roomId: roomId,
+          messageId: m.id,
+          executionTracker: executionTracker,
+          streamingActivity: streamingActivity,
+        ),
         final DroppedEventMessage m => DroppedEventMessageTile(message: m),
       },
     );

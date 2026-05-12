@@ -11,20 +11,20 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const .only(bottom: 12),
       child: Card(
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: .antiAlias,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const .all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Text(
                 title,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
+                  fontWeight: .w700,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 8),
               ...children,
@@ -45,27 +45,23 @@ class InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const .symmetric(vertical: 2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           SizedBox(
             width: 120,
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color:
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                fontWeight: .w600,
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );
@@ -89,11 +85,7 @@ class EmptyMessage extends StatelessWidget {
 }
 
 class DialogButton extends StatelessWidget {
-  const DialogButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-  });
+  const DialogButton({super.key, required this.label, required this.onPressed});
   final String label;
   final VoidCallback onPressed;
 
@@ -105,7 +97,7 @@ class DialogButton extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           textStyle: theme.textTheme.labelSmall,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const .symmetric(horizontal: 16, vertical: 8),
         ),
         onPressed: onPressed,
         child: Text(label),

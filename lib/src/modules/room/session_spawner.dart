@@ -59,7 +59,7 @@ class SessionSpawner {
     if (_pendingSpawn != null) return;
     _cancelled = false;
     errorSignal.value = null;
-    onStateTransition(AgentSessionState.spawning);
+    onStateTransition(.spawning);
     var succeeded = false;
     try {
       final future = spawnFn();
@@ -89,12 +89,14 @@ class SessionSpawner {
     _pendingSpawn = null;
     _cancelled = true;
     unawaited(
-      pending.then((s) {
-        s.cancel();
-        s.dispose();
-      }).catchError((Object e) {
-        debugPrint('SessionSpawner: cancelled spawn cleanup failed: $e');
-      }),
+      pending
+          .then((s) {
+            s.cancel();
+            s.dispose();
+          })
+          .catchError((Object e) {
+            debugPrint('SessionSpawner: cancelled spawn cleanup failed: $e');
+          }),
     );
     return true;
   }

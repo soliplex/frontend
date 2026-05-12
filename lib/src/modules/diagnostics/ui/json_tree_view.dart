@@ -14,10 +14,10 @@ class JsonTreeView extends StatelessWidget {
       return Text(
         '(empty)',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              fontStyle: FontStyle.italic,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          fontFamily: 'monospace',
+          fontStyle: .italic,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
     return _JsonNodeList(nodes: nodes, depth: 0);
@@ -33,7 +33,7 @@ class _JsonNodeList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         for (final node in nodes) _JsonNodeTile(node: node, depth: depth),
       ],
@@ -62,25 +62,25 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     return switch (node) {
       ValueNode() => _buildValueRow(context, node, indent),
       ObjectNode() => _buildExpandable(
-          context,
-          node,
-          indent,
-          label: node.key.isEmpty ? '{…}' : '${node.key}: {…}',
-          expandedLabel: node.key.isEmpty ? '{' : '${node.key}: {',
-          closingLabel: '}',
-          children: node.children,
-        ),
+        context,
+        node,
+        indent,
+        label: node.key.isEmpty ? '{…}' : '${node.key}: {…}',
+        expandedLabel: node.key.isEmpty ? '{' : '${node.key}: {',
+        closingLabel: '}',
+        children: node.children,
+      ),
       ArrayNode() => _buildExpandable(
-          context,
-          node,
-          indent,
-          label: node.key.isEmpty
-              ? '[${node.itemCount}]'
-              : '${node.key}: [${node.itemCount}]',
-          expandedLabel: node.key.isEmpty ? '[' : '${node.key}: [',
-          closingLabel: ']',
-          children: node.children,
-        ),
+        context,
+        node,
+        indent,
+        label: node.key.isEmpty
+            ? '[${node.itemCount}]'
+            : '${node.key}: [${node.itemCount}]',
+        expandedLabel: node.key.isEmpty ? '[' : '${node.key}: [',
+        closingLabel: ']',
+        children: node.children,
+      ),
     };
   }
 
@@ -104,16 +104,14 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     );
 
     return Padding(
-      padding: EdgeInsets.only(left: indent),
+      padding: .only(left: indent),
       child: SelectableText.rich(
         TextSpan(
           children: [
             if (node.key.isNotEmpty)
               TextSpan(
                 text: '${node.key}: ',
-                style: baseStyle?.copyWith(
-                  color: colorScheme.onSurface,
-                ),
+                style: baseStyle?.copyWith(color: colorScheme.onSurface),
               ),
             TextSpan(
               text: node.value,
@@ -141,14 +139,14 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     );
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Padding(
-          padding: EdgeInsets.only(left: indent),
+          padding: .only(left: indent),
           child: InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: [
                 Icon(
                   _expanded ? Icons.expand_more : Icons.chevron_right,
@@ -167,7 +165,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
         if (_expanded) ...[
           _JsonNodeList(nodes: children, depth: widget.depth + 1),
           Padding(
-            padding: EdgeInsets.only(left: indent),
+            padding: .only(left: indent),
             child: SelectableText(closingLabel, style: baseStyle),
           ),
         ],

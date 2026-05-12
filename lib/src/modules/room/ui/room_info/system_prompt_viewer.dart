@@ -21,9 +21,9 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const .only(top: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Row(
             children: [
@@ -48,29 +48,27 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                 fontSize: 14,
               );
               const containerPadding = 16.0;
-              final overflows = !_expanded &&
+              final overflows =
+                  !_expanded &&
                   (TextPainter(
-                    text: TextSpan(
-                      text: widget.prompt,
-                      style: promptStyle,
-                    ),
-                    maxLines: _collapsedMaxLines,
-                    textDirection: TextDirection.ltr,
-                    textScaler: MediaQuery.textScalerOf(context),
-                  )..layout(
-                          maxWidth: constraints.maxWidth - containerPadding,
-                        ))
+                        text: TextSpan(text: widget.prompt, style: promptStyle),
+                        maxLines: _collapsedMaxLines,
+                        textDirection: .ltr,
+                        textScaler: MediaQuery.textScalerOf(context),
+                      )..layout(
+                        maxWidth: constraints.maxWidth - containerPadding,
+                      ))
                       .didExceedMaxLines;
 
               return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: [
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
+                    width: .infinity,
+                    padding: const .all(8),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: .circular(8),
                     ),
                     child: SelectableText(
                       widget.prompt,

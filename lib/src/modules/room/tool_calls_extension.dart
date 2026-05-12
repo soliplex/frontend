@@ -20,11 +20,11 @@ class ToolCallEntry {
   final bool isClientSide;
 
   ToolCallEntry copyWith({ToolCallStatus? status}) => ToolCallEntry(
-        toolCallId: toolCallId,
-        toolName: toolName,
-        status: status ?? this.status,
-        isClientSide: isClientSide,
-      );
+    toolCallId: toolCallId,
+    toolName: toolName,
+    status: status ?? this.status,
+    isClientSide: isClientSide,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -90,28 +90,33 @@ class ToolCallsExtension extends SessionExtension
   static List<ToolCallEntry> _reduce(
     List<ToolCallEntry> entries,
     ExecutionEvent event,
-  ) =>
-      switch (event) {
-        ClientToolExecuting(:final toolCallId, :final toolName) => _upsert(
-            entries,
-            toolCallId,
-            toolName,
-            ToolCallStatus.executing,
-            isClientSide: true,
-          ),
-        ClientToolCompleted(:final toolCallId, :final status) =>
-          _updateStatus(entries, toolCallId, status),
-        ServerToolCallStarted(:final toolCallId, :final toolName) => _upsert(
-            entries,
-            toolCallId,
-            toolName,
-            ToolCallStatus.executing,
-            isClientSide: false,
-          ),
-        ServerToolCallCompleted(:final toolCallId) =>
-          _updateStatus(entries, toolCallId, ToolCallStatus.completed),
-        _ => entries,
-      };
+  ) => switch (event) {
+    ClientToolExecuting(:final toolCallId, :final toolName) => _upsert(
+      entries,
+      toolCallId,
+      toolName,
+      .executing,
+      isClientSide: true,
+    ),
+    ClientToolCompleted(:final toolCallId, :final status) => _updateStatus(
+      entries,
+      toolCallId,
+      status,
+    ),
+    ServerToolCallStarted(:final toolCallId, :final toolName) => _upsert(
+      entries,
+      toolCallId,
+      toolName,
+      .executing,
+      isClientSide: false,
+    ),
+    ServerToolCallCompleted(:final toolCallId) => _updateStatus(
+      entries,
+      toolCallId,
+      .completed,
+    ),
+    _ => entries,
+  };
 
   static List<ToolCallEntry> _upsert(
     List<ToolCallEntry> entries,

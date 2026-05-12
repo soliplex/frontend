@@ -17,7 +17,7 @@ class ErrorRetryPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Text(title, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 4),
@@ -26,14 +26,11 @@ class ErrorRetryPanel extends StatelessWidget {
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
-            textAlign: TextAlign.center,
+            textAlign: .center,
           ),
           const SizedBox(height: 12),
           if (onRetry != null)
-            FilledButton.tonal(
-              onPressed: onRetry,
-              child: const Text('Retry'),
-            ),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -108,7 +107,7 @@ class _ChatInputState extends State<ChatInput> {
   }
 
   bool _isActive(AgentSessionState? state) =>
-      state == AgentSessionState.spawning || state == AgentSessionState.running;
+      state == .spawning || state == .running;
 
   @override
   Widget build(BuildContext context) {
@@ -118,39 +117,38 @@ class _ChatInputState extends State<ChatInput> {
     final cancelEnabled = widget.cancelEnabled?.watch(context) ?? true;
 
     return Padding(
-      padding: const EdgeInsets.all(8),
+      padding: const .all(8),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           if (widget.selectedDocuments.isNotEmpty)
             Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              padding: const EdgeInsets.all(8),
+              margin: const .only(bottom: 4),
+              padding: const .all(8),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: .circular(8),
               ),
-              width: double.infinity,
+              width: .infinity,
               child: _chipsExpanded
                   ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: .min,
+                      crossAxisAlignment: .stretch,
                       children: [
                         GestureDetector(
-                          behavior: HitTestBehavior.opaque,
+                          behavior: .opaque,
                           onTap: () => setState(() => _chipsExpanded = false),
                           child: Row(
                             children: [
                               const Spacer(),
                               Text(
                                 'Hide',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                               ),
                               Icon(
@@ -171,9 +169,7 @@ class _ChatInputState extends State<ChatInput> {
                                 for (final doc in widget.selectedDocuments)
                                   Chip(
                                     avatar: Icon(
-                                      getFileTypeIcon(
-                                        documentIconPath(doc),
-                                      ),
+                                      getFileTypeIcon(documentIconPath(doc)),
                                       size: 16,
                                     ),
                                     label: Text(documentDisplayName(doc)),
@@ -183,14 +179,11 @@ class _ChatInputState extends State<ChatInput> {
                                     ),
                                     onDeleted:
                                         widget.onDocumentRemoved == null ||
-                                                disabled
-                                            ? null
-                                            : () => widget.onDocumentRemoved!(
-                                                  doc,
-                                                ),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
+                                            disabled
+                                        ? null
+                                        : () => widget.onDocumentRemoved!(doc),
+                                    materialTapTargetSize: .shrinkWrap,
+                                    visualDensity: .compact,
                                   ),
                               ],
                             ),
@@ -199,15 +192,13 @@ class _ChatInputState extends State<ChatInput> {
                       ],
                     )
                   : GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                      behavior: .opaque,
                       onTap: () => setState(() => _chipsExpanded = true),
                       child: Row(
                         children: [
                           Text(
                             '${widget.selectedDocuments.length} documents selected',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
@@ -243,15 +234,13 @@ class _ChatInputState extends State<ChatInput> {
                 ),
               Expanded(
                 child: CallbackShortcuts(
-                  bindings: {
-                    const SingleActivator(LogicalKeyboardKey.enter): _send,
-                  },
+                  bindings: {const SingleActivator(.enter): _send},
                   child: TextField(
                     controller: _controller,
                     focusNode: _focusNode,
                     readOnly: disabled,
                     maxLines: null,
-                    textInputAction: TextInputAction.newline,
+                    textInputAction: .newline,
                     decoration: const InputDecoration(
                       hintText: 'Type a message...',
                       border: OutlineInputBorder(),
@@ -270,8 +259,9 @@ class _ChatInputState extends State<ChatInput> {
                   valueListenable: _controller,
                   builder: (context, value, _) => IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed:
-                        value.text.trim().isEmpty || disabled ? null : _send,
+                    onPressed: value.text.trim().isEmpty || disabled
+                        ? null
+                        : _send,
                   ),
                 ),
             ],

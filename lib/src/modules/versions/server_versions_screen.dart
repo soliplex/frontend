@@ -71,7 +71,7 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
       body: FutureBuilder<BackendVersionInfo>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
+          if (snapshot.connectionState != .done) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
@@ -93,7 +93,7 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(SoliplexSpacing.s4),
+          padding: const .all(SoliplexSpacing.s4),
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
@@ -105,9 +105,7 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: SoliplexSpacing.s4,
-          ),
+          padding: const .symmetric(horizontal: SoliplexSpacing.s4),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -136,7 +134,7 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
                     return ListTile(
                       title: SelectableText(name),
                       trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisSize: .min,
                         children: [
                           SelectableText(version),
                           const SizedBox(width: SoliplexSpacing.s2),

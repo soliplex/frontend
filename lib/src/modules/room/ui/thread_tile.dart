@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -32,12 +31,9 @@ class _ThreadTileState extends State<ThreadTile> {
   bool _isMenuOpen = false;
 
   static bool get _isDesktop => switch (defaultTargetPlatform) {
-        TargetPlatform.macOS ||
-        TargetPlatform.windows ||
-        TargetPlatform.linux =>
-          true,
-        _ => false,
-      };
+    .macOS || .windows || .linux => true,
+    _ => false,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +50,7 @@ class _ThreadTileState extends State<ThreadTile> {
         title: Text(
           widget.thread.hasName ? widget.thread.name : 'New Thread',
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          overflow: .ellipsis,
         ),
         subtitle: Text(
           _formatRelativeTime(widget.thread.createdAt),
@@ -103,9 +99,9 @@ class _ThreadTileState extends State<ThreadTile> {
       onSelected: (action) {
         setState(() => _isMenuOpen = false);
         switch (action) {
-          case _ThreadAction.rename:
+          case .rename:
             widget.onRename();
-          case _ThreadAction.delete:
+          case .delete:
             widget.onDelete();
         }
       },
@@ -124,8 +120,11 @@ class _ThreadTileState extends State<ThreadTile> {
           value: _ThreadAction.delete,
           child: Row(
             children: [
-              Icon(Icons.delete_outline,
-                  size: 18, color: theme.colorScheme.error),
+              Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: theme.colorScheme.error,
+              ),
               SizedBox(width: 12),
               Text('Delete', style: TextStyle(color: theme.colorScheme.error)),
             ],

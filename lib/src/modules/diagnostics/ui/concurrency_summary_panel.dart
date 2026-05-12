@@ -24,8 +24,8 @@ class ConcurrencySummaryPanel extends StatelessWidget {
     );
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: .infinity,
+      padding: const .symmetric(horizontal: 12, vertical: 8),
       color: theme.colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
@@ -84,7 +84,7 @@ class _ConcurrencyStats {
       peakSlots = math.max(peakSlots, e.slotsInUseAfterAcquire);
       final waitMs = e.waitDuration.inMilliseconds;
       maxWaitMs = math.max(maxWaitMs, waitMs);
-      if (e.waitDuration > Duration.zero) {
+      if (e.waitDuration > .zero) {
         queuedWaitSumMs += waitMs;
         queuedCount++;
       }

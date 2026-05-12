@@ -9,7 +9,7 @@ import 'theme_extensions.dart';
 ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
-    brightness: Brightness.light,
+    brightness: .light,
     // Primary
     primary: colors.primary,
     onPrimary: colors.onPrimary,
@@ -55,15 +55,13 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
   );
 
   return ThemeData(
-    brightness: Brightness.light,
+    brightness: .light,
     colorScheme: colorScheme,
     appBarTheme: AppBarTheme(
       backgroundColor: colors.onPrimary,
       foregroundColor: colors.primary,
       elevation: 0,
-      actionsPadding: const EdgeInsets.symmetric(
-        horizontal: SoliplexSpacing.s2,
-      ),
+      actionsPadding: const .symmetric(horizontal: SoliplexSpacing.s2),
       shape: Border(bottom: BorderSide(color: colors.border)),
     ),
     dividerTheme: DividerThemeData(
@@ -74,20 +72,20 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     buttonTheme: ButtonThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: .circular(soliplexRadii.md),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: .circular(soliplexRadii.md),
         ),
       ),
     ),
@@ -95,14 +93,14 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       style: FilledButton.styleFrom(
         shape: RoundedRectangleBorder(
           side: BorderSide(color: colors.border),
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: .circular(soliplexRadii.md),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: .circular(soliplexRadii.md),
         ),
         side: BorderSide(color: colors.border),
       ),
@@ -111,53 +109,49 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       filled: true,
       fillColor: colors.inputBackground,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
-        borderSide: BorderSide.none,
+        borderRadius: .circular(soliplexRadii.md),
+        borderSide: .none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
         borderSide: BorderSide(color: colors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
         borderSide: BorderSide(color: colors.border, width: 2),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
-        borderSide: BorderSide.none,
+        borderRadius: .circular(soliplexRadii.md),
+        borderSide: .none,
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
         borderSide: BorderSide(color: colors.destructive),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
         borderSide: BorderSide(color: colors.destructive, width: 2),
       ),
       hintStyle: TextStyle(color: colors.hintText),
     ),
     listTileTheme: ListTileThemeData(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
       selectedColor: colors.primary,
       selectedTileColor: colors.inputBackground,
     ),
     cardTheme: CardThemeData(
       color: colors.inputBackground,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
       elevation: 0,
     ),
     expansionTileTheme: ExpansionTileThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
       ),
       collapsedShape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
       ),
       collapsedBackgroundColor: colors.inputBackground,
       backgroundColor: colors.onPrimary,
@@ -167,34 +161,30 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
       selectedColor: colors.primary.withAlpha(25),
       disabledColor: colors.muted,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: .circular(soliplexRadii.md),
         side: BorderSide(color: colors.border),
       ),
       labelStyle: TextStyle(color: colors.foreground),
       secondaryLabelStyle: TextStyle(color: colors.foreground),
-      padding: const EdgeInsets.symmetric(
+      padding: const .symmetric(
         horizontal: SoliplexSpacing.s2,
         vertical: SoliplexSpacing.s1,
       ),
       secondarySelectedColor: colors.primary.withAlpha(25),
-      brightness: Brightness.light,
+      brightness: .light,
     ),
     checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.sm)),
     ),
     toggleButtonsTheme: ToggleButtonsThemeData(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
+      borderRadius: .circular(soliplexRadii.md),
     ),
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: textTheme.bodyMedium,
       menuStyle: MenuStyle(
-        visualDensity: VisualDensity.compact,
+        visualDensity: .compact,
         shape: WidgetStateProperty.all<OutlinedBorder?>(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
-          ),
+          RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
         ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
@@ -204,9 +194,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: colors.onPrimary,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: .circular(soliplexRadii.md)),
       textStyle: textTheme.bodyMedium,
     ),
     scaffoldBackgroundColor: colors.background,
@@ -222,7 +210,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
             colors.background,
           ),
           textStyle: textTheme.labelMedium!.copyWith(color: colors.foreground),
-          padding: const EdgeInsets.symmetric(
+          padding: const .symmetric(
             horizontal: SoliplexSpacing.s2,
             vertical: SoliplexSpacing.s1,
           ),

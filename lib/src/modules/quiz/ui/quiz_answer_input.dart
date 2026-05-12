@@ -78,21 +78,21 @@ class _OptionTile extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const .only(bottom: 8),
       child: Material(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: .circular(8),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: .circular(8),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const .all(16),
             decoration: BoxDecoration(
-              border: Border.all(
+              border: .all(
                 color: isSelected ? colorScheme.primary : colorScheme.outline,
                 width: isSelected ? 2 : 1,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: .circular(8),
             ),
             child: Row(
               children: [
@@ -103,8 +103,8 @@ class _OptionTile extends StatelessWidget {
                   color: isDisabled
                       ? colorScheme.onSurface.withValues(alpha: 0.38)
                       : isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                 ),
                 Expanded(child: Text(option)),
                 if (isCorrect)
@@ -140,7 +140,7 @@ class QuizTextInput extends StatelessWidget {
     return TextField(
       controller: controller,
       enabled: !isDisabled,
-      textInputAction: TextInputAction.done,
+      textInputAction: .done,
       onSubmitted: isDisabled ? null : (_) => onSubmitted(),
       onChanged: onChanged,
       decoration: const InputDecoration(

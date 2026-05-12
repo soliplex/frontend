@@ -7,8 +7,8 @@ class ExecutionTracker {
   ExecutionTracker({
     required ReadonlySignal<ExecutionEvent?> executionEvents,
     required Logger logger,
-  })  : _logger = logger,
-        _historical = false {
+  }) : _logger = logger,
+       _historical = false {
     _stopwatch.start();
     _unsub = executionEvents.subscribe(_onEvent);
   }
@@ -23,8 +23,8 @@ class ExecutionTracker {
   ExecutionTracker.historical({
     required List<ExecutionEvent> events,
     required Logger logger,
-  })  : _logger = logger,
-        _historical = true {
+  }) : _logger = logger,
+       _historical = true {
     _stopwatch.start();
     for (final event in events) {
       _onEvent(event);
@@ -45,8 +45,9 @@ class ExecutionTracker {
   bool _isFrozen = false;
   bool get isFrozen => _isFrozen;
 
-  final Signal<List<ExecutionStep>> _steps =
-      Signal<List<ExecutionStep>>(const []);
+  final Signal<List<ExecutionStep>> _steps = Signal<List<ExecutionStep>>(
+    const [],
+  );
   ReadonlySignal<List<ExecutionStep>> get steps => _steps;
 
   final Signal<List<String>> _thinkingBlocks = Signal<List<String>>(const []);
@@ -69,8 +70,9 @@ class ExecutionTracker {
   /// Activities that arrive while a step is active are nested under that
   /// step; activities arriving outside any active step are emitted as
   /// [TimelineStandaloneActivity].
-  final Signal<List<TimelineEntry>> _timeline =
-      Signal<List<TimelineEntry>>(const []);
+  final Signal<List<TimelineEntry>> _timeline = Signal<List<TimelineEntry>>(
+    const [],
+  );
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
 
   /// Marks the tracker terminal: clears the spinner, completes any
@@ -78,7 +80,7 @@ class ExecutionTracker {
   void freeze() {
     if (_isFrozen) return;
     _isThinkingStreaming.value = false;
-    _completeAllSteps(StepStatus.completed);
+    _completeAllSteps(.completed);
     _unsub?.call();
     _unsub = null;
     _stopwatch.stop();
@@ -111,7 +113,7 @@ class ExecutionTracker {
     switch (event) {
       case ThinkingStarted():
         _completeActiveStep();
-        _addStep('Thinking', StepType.thinking);
+        _addStep('Thinking', .thinking);
         _thinkingBlocks.value = [..._thinkingBlocks.value, ''];
         _isThinkingStreaming.value = true;
       case ThinkingContent(:final delta):
@@ -131,17 +133,17 @@ class ExecutionTracker {
       case ServerToolCallStarted(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
+        _addStep(toolName, .toolCall);
       case ServerToolCallCompleted():
         _completeActiveStep();
       case ClientToolExecuting(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
+        _addStep(toolName, .toolCall);
       case ClientToolCompleted():
         _completeActiveStep();
       case RunCompleted():
-        _completeAllSteps(StepStatus.completed);
+        _completeAllSteps(.completed);
         _isThinkingStreaming.value = false;
       case RunFailed(:final error):
         // Backend RunErrorEvent surfaces here as `RunFailed`. The
@@ -156,18 +158,18 @@ class ExecutionTracker {
             attributes: {'error': error},
           );
         }
-        _completeAllSteps(StepStatus.failed);
+        _completeAllSteps(.failed);
         _isThinkingStreaming.value = false;
       case RunCancelled():
-        _completeAllSteps(StepStatus.failed);
+        _completeAllSteps(.failed);
         _isThinkingStreaming.value = false;
       case ActivitySnapshot(
-          :final messageId,
-          :final activityType,
-          :final content,
-          :final timestamp,
-          :final replace,
-        ):
+        :final messageId,
+        :final activityType,
+        :final content,
+        :final timestamp,
+        :final replace,
+      ):
         _upsertSkillToolCall(
           messageId: messageId,
           activityType: activityType,
@@ -176,10 +178,10 @@ class ExecutionTracker {
           replace: replace,
         );
       case TextDelta() ||
-            StateUpdated() ||
-            StepProgress() ||
-            AwaitingApproval() ||
-            CustomExecutionEvent():
+          StateUpdated() ||
+          StepProgress() ||
+          AwaitingApproval() ||
+          CustomExecutionEvent():
         break;
     }
   }
@@ -229,7 +231,7 @@ class ExecutionTracker {
     final step = ExecutionStep(
       label: label,
       type: type,
-      status: StepStatus.active,
+      status: .active,
       timestamp: _stopwatch.elapsed,
     );
     _steps.value = [..._steps.value, step];
@@ -240,9 +242,9 @@ class ExecutionTracker {
     final current = _steps.value;
     if (current.isEmpty) return;
     final last = current.last;
-    if (last.status == StepStatus.active) {
+    if (last.status == .active) {
       final updated = last.copyWith(
-        status: StepStatus.completed,
+        status: .completed,
         timestamp: _stopwatch.elapsed,
       );
       _steps.value = [...current.sublist(0, current.length - 1), updated];
@@ -255,13 +257,13 @@ class ExecutionTracker {
     final now = _stopwatch.elapsed;
     _steps.value = [
       for (final step in _steps.value)
-        step.status == StepStatus.active
+        step.status == .active
             ? step.copyWith(status: status, timestamp: now)
             : step,
     ];
     _timeline.value = [
       for (final entry in _timeline.value)
-        if (entry is TimelineStep && entry.step.status == StepStatus.active)
+        if (entry is TimelineStep && entry.step.status == .active)
           entry.withStep(entry.step.copyWith(status: status, timestamp: now))
         else
           entry,
@@ -272,7 +274,7 @@ class ExecutionTracker {
     final current = _timeline.value;
     for (var i = current.length - 1; i >= 0; i--) {
       final entry = current[i];
-      if (entry is TimelineStep && entry.step.status == StepStatus.active) {
+      if (entry is TimelineStep && entry.step.status == .active) {
         _timeline.value = [...current]..[i] = entry.withStep(updated);
         return;
       }
@@ -284,8 +286,9 @@ class ExecutionTracker {
     for (var i = 0; i < current.length; i++) {
       final entry = current[i];
       if (entry is TimelineStep) {
-        final aIdx = entry.activities
-            .indexWhere((a) => a.messageId == decoded.messageId);
+        final aIdx = entry.activities.indexWhere(
+          (a) => a.messageId == decoded.messageId,
+        );
         if (aIdx >= 0) {
           final updated = [...entry.activities]..[aIdx] = decoded;
           _timeline.value = [...current]..[i] = entry.withActivities(updated);
@@ -293,22 +296,25 @@ class ExecutionTracker {
         }
       } else if (entry is TimelineStandaloneActivity &&
           entry.activity.messageId == decoded.messageId) {
-        _timeline.value = [...current]..[i] =
-            TimelineStandaloneActivity(activity: decoded);
+        _timeline.value = [...current]
+          ..[i] = TimelineStandaloneActivity(activity: decoded);
         return;
       }
     }
     if (current.isNotEmpty && current.last is TimelineStep) {
       final lastStep = current.last as TimelineStep;
-      if (lastStep.step.status == StepStatus.active) {
-        _timeline.value = [...current]..[current.length - 1] =
-            lastStep.withActivities([...lastStep.activities, decoded]);
+      if (lastStep.step.status == .active) {
+        _timeline.value = [...current]
+          ..[current.length - 1] = lastStep.withActivities([
+            ...lastStep.activities,
+            decoded,
+          ]);
         return;
       }
     }
     _timeline.value = [
       ...current,
-      TimelineStandaloneActivity(activity: decoded)
+      TimelineStandaloneActivity(activity: decoded),
     ];
   }
 

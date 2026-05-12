@@ -51,10 +51,8 @@ class MessagesFailed extends ThreadViewStatus {
 ///
 /// Provides the thread ID and the full loaded history so callers can
 /// seed the runtime's thread history cache with messages and AG-UI state.
-typedef HistoryLoadedCallback = void Function(
-  String threadId,
-  ThreadHistory history,
-);
+typedef HistoryLoadedCallback =
+    void Function(String threadId, ThreadHistory history);
 
 class ThreadViewState {
   ThreadViewState({
@@ -63,9 +61,9 @@ class ThreadViewState {
     required this.threadId,
     required RunRegistry registry,
     this.onHistoryLoaded,
-  })  : _connection = connection,
-        _roomId = roomId,
-        _registry = registry {
+  }) : _connection = connection,
+       _roomId = roomId,
+       _registry = registry {
     if (!_restoreFromRegistry()) _fetch();
   }
 
@@ -75,11 +73,8 @@ class ThreadViewState {
   final HistoryLoadedCallback? onHistoryLoaded;
   final RunRegistry _registry;
 
-  ThreadKey get threadKey => (
-        serverId: _connection.serverId,
-        roomId: _roomId,
-        threadId: threadId,
-      );
+  ThreadKey get threadKey =>
+      (serverId: _connection.serverId, roomId: _roomId, threadId: threadId);
 
   CancelToken? _cancelToken;
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
@@ -89,8 +84,9 @@ class ThreadViewState {
 
   final SessionSpawner _spawner = SessionSpawner();
 
-  final Signal<ThreadViewStatus> _messages =
-      Signal<ThreadViewStatus>(MessagesLoading());
+  final Signal<ThreadViewStatus> _messages = Signal<ThreadViewStatus>(
+    MessagesLoading(),
+  );
   ReadonlySignal<ThreadViewStatus> get messages => _messages;
 
   final Signal<StreamingState?> _streamingState = Signal<StreamingState?>(null);
@@ -99,8 +95,9 @@ class ThreadViewState {
   /// Tracks the session lifecycle: null → spawning → running → null.
   /// Driven by [_spawner] during spawn (via its state-transition callback)
   /// and updated directly here for attach, running, and detach transitions.
-  final Signal<AgentSessionState?> _sessionState =
-      Signal<AgentSessionState?>(null);
+  final Signal<AgentSessionState?> _sessionState = Signal<AgentSessionState?>(
+    null,
+  );
   ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
 
   final Signal<SendError?> _lastSendError = Signal<SendError?>(null);
@@ -110,8 +107,9 @@ class ThreadViewState {
   /// no reconnect activity. UI surfaces this for [Reconnecting] and
   /// [Reconnected] only — [ReconnectFailed] flows through
   /// [lastSendError] with friendly copy applied.
-  final Signal<ReconnectStatus?> _reconnectStatus =
-      Signal<ReconnectStatus?>(null);
+  final Signal<ReconnectStatus?> _reconnectStatus = Signal<ReconnectStatus?>(
+    null,
+  );
   ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
 
   /// Clears the reconnect banner. The "Reconnected" tile also auto-
@@ -157,8 +155,7 @@ class ThreadViewState {
   /// between session attach and the first SSE event, where [cancelRun]
   /// would be a silent no-op.
   late final ReadonlySignal<bool> isCancellable = computed(() {
-    if (_sessionState.value == AgentSessionState.spawning &&
-        _activeSession.value == null) {
+    if (_sessionState.value == .spawning && _activeSession.value == null) {
       return true;
     }
     final session = _activeSession.value;
@@ -177,9 +174,10 @@ class ThreadViewState {
   /// with [approved]. No-op if no session is attached, the session has no
   /// extension, or [request] is not the currently pending request.
   void respondToApproval(ApprovalRequest request, bool approved) {
-    _activeSession.value
-        ?.getExtension<HumanApprovalExtension>()
-        ?.respond(request, approved);
+    _activeSession.value?.getExtension<HumanApprovalExtension>()?.respond(
+      request,
+      approved,
+    );
   }
 
   void submitFeedback(String runId, FeedbackType feedback, String? reason) {
@@ -187,8 +185,8 @@ class ThreadViewState {
       _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
           .catchError((Object e) {
-        debugPrint('Feedback submission failed: $e');
-      }),
+            debugPrint('Feedback submission failed: $e');
+          }),
     );
   }
 
@@ -251,8 +249,9 @@ class ThreadViewState {
     // restored from the registry. Either way, the mirror is up to date
     // without an explicit reset (which would erase a live status from
     // a restored session).
-    _reconnectStatusUnsub =
-        session.reconnectStatus.subscribe(_onReconnectStatus);
+    _reconnectStatusUnsub = session.reconnectStatus.subscribe(
+      _onReconnectStatus,
+    );
   }
 
   void _onReconnectStatus(ReconnectStatus? status) {
@@ -269,7 +268,7 @@ class ThreadViewState {
           _messages.value = _messagesLoaded(conversation);
         }
         _streamingState.value = streaming;
-        _sessionState.value = AgentSessionState.running;
+        _sessionState.value = .running;
       case CompletedState(:final conversation):
         _detachSession();
         _messages.value = _messagesLoaded(conversation);
@@ -331,7 +330,7 @@ class ThreadViewState {
   /// `streamResumeFailed` failures get a friendly base message; other
   /// failures pass through unchanged.
   String _friendlyMessage(FailureReason reason, String error) {
-    if (reason != FailureReason.streamResumeFailed) return error;
+    if (reason != .streamResumeFailed) return error;
     return 'Connection lost. The response may be incomplete — '
         'you can send your message again.';
   }
@@ -356,8 +355,9 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
       case FailedRun(:final conversation, :final error, :final reason):
         // Apply friendly copy on re-attach, same as the live FailedState arm.
-        _lastSendError.value =
-            SendError(_friendlyMessage(reason, error.toString()));
+        _lastSendError.value = SendError(
+          _friendlyMessage(reason, error.toString()),
+        );
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
         }
@@ -381,26 +381,27 @@ class ThreadViewState {
     _connection.api
         .getThreadHistory(_roomId, threadId, cancelToken: token)
         .then((history) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      // putIfAbsent (not []=) on refresh: server replay must not overwrite a
-      // tracker already absorbed from a live session (`_detachSession`), which
-      // captured the full client-side event stream.
-      for (final entry in replayToTrackers(history.runs).entries) {
-        _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
-      }
-      _messages.value = MessagesLoaded(
-        messages: history.messages,
-        messageStates: history.messageStates,
-      );
-      onHistoryLoaded?.call(threadId, history);
-    }).catchError((Object error) {
-      if (token.isCancelled) return;
-      _cancelToken = null;
-      if (_messages.value is! MessagesLoaded) {
-        _messages.value = MessagesFailed(error);
-      }
-    });
+          if (token.isCancelled) return;
+          _cancelToken = null;
+          // putIfAbsent (not []=) on refresh: server replay must not overwrite a
+          // tracker already absorbed from a live session (`_detachSession`), which
+          // captured the full client-side event stream.
+          for (final entry in replayToTrackers(history.runs).entries) {
+            _historicalTrackers.putIfAbsent(entry.key, () => entry.value);
+          }
+          _messages.value = MessagesLoaded(
+            messages: history.messages,
+            messageStates: history.messageStates,
+          );
+          onHistoryLoaded?.call(threadId, history);
+        })
+        .catchError((Object error) {
+          if (token.isCancelled) return;
+          _cancelToken = null;
+          if (_messages.value is! MessagesLoaded) {
+            _messages.value = MessagesFailed(error);
+          }
+        });
   }
 
   void dispose() {

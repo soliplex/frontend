@@ -45,12 +45,12 @@ class TextMessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isUser = message.user == ChatUser.user;
+    final isUser = message.user == .user;
     final showFeedback = !isUser && onFeedbackSubmit != null;
     final hasTracker = executionTracker != null;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         if (streamingActivity != null)
           ActivityIndicator(activity: streamingActivity!),
@@ -90,7 +90,7 @@ class TextMessageTile extends StatelessWidget {
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
                   onTap: onInspect,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: .circular(4),
                   child: Icon(
                     Icons.bug_report_outlined,
                     size: 20,
@@ -136,15 +136,15 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isUser = message.user == ChatUser.user;
+    final isUser = message.user == .user;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const .symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: isUser
             ? theme.colorScheme.primaryContainer
             : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
       ),
       child: isUser
           ? SelectableText(
@@ -152,8 +152,8 @@ class _MessageBubble extends StatelessWidget {
               style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
             )
           : message.text.isEmpty
-              ? const Text('...')
-              : FlutterMarkdownPlusRenderer(data: message.text),
+          ? const Text('...')
+          : FlutterMarkdownPlusRenderer(data: message.text),
     );
   }
 }

@@ -30,29 +30,23 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+      padding: const .symmetric(vertical: 2, horizontal: 8),
       child: InkWell(
         onTap: () => setState(() => _expanded = !_expanded),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: .circular(6),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: const .symmetric(horizontal: 6, vertical: 4),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber_outlined,
-                    size: 16,
-                    color: muted,
-                  ),
+                  Icon(Icons.warning_amber_outlined, size: 16, color: muted),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       _collapsedLabel(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: muted,
-                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
                     ),
                   ),
                   Icon(
@@ -65,9 +59,9 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
               if (_expanded) ...[
                 const SizedBox(height: 6),
                 Padding(
-                  padding: const EdgeInsets.only(left: 22),
+                  padding: const .only(left: 22),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
                     children: [
                       Text(
                         _subtitle(),
@@ -103,7 +97,7 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
     if (raw == null) {
       return Text(
         '(payload unavailable)',
-        style: mono?.copyWith(fontStyle: FontStyle.italic),
+        style: mono?.copyWith(fontStyle: .italic),
       );
     }
     if (raw is String) {
@@ -116,9 +110,9 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
 
   String _humanizeSource(DropSource source) {
     switch (source) {
-      case DropSource.decode:
+      case .decode:
         return 'decode';
-      case DropSource.eventProcessing:
+      case .eventProcessing:
         return 'processing';
     }
   }

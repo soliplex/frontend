@@ -74,12 +74,10 @@ class _VersionsScreenState extends State<VersionsScreen> {
           _AppRow(appName: widget.appName, versionFuture: _flavorVersion),
           const _FrameworkRow(),
           const Divider(height: 1),
-          _SectionHeader(
-            label: 'Servers (${servers.length})',
-          ),
+          _SectionHeader(label: 'Servers (${servers.length})'),
           if (servers.isEmpty)
             const Padding(
-              padding: EdgeInsets.all(SoliplexSpacing.s4),
+              padding: .all(SoliplexSpacing.s4),
               child: Text(
                 'No servers connected. Connect to a server to see its '
                 'backend version.',
@@ -105,7 +103,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const .fromLTRB(
         SoliplexSpacing.s4,
         SoliplexSpacing.s4,
         SoliplexSpacing.s4,
@@ -114,8 +112,8 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -132,7 +130,7 @@ class _AppRow extends StatelessWidget {
     return FutureBuilder<String>(
       future: versionFuture,
       builder: (context, snapshot) {
-        final isDone = snapshot.connectionState == ConnectionState.done;
+        final isDone = snapshot.connectionState == .done;
         final hasError = snapshot.hasError;
         final resolved = isDone && !hasError ? snapshot.data : null;
         final version = switch ((isDone, hasError, resolved)) {
@@ -150,8 +148,8 @@ class _AppRow extends StatelessWidget {
             onPressed: resolved == null
                 ? null
                 : () => Clipboard.setData(
-                      ClipboardData(text: '$appName $resolved'),
-                    ),
+                    ClipboardData(text: '$appName $resolved'),
+                  ),
           ),
         );
       },
@@ -226,7 +224,7 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
       future: _future,
       builder: (context, snapshot) {
         final state = snapshot.connectionState;
-        final isDone = state == ConnectionState.done;
+        final isDone = state == .done;
         final hasError = snapshot.hasError;
         final info = isDone && !hasError ? snapshot.data : null;
         final url = formatServerUrl(widget.entry.serverUrl);
@@ -242,7 +240,7 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
             _ => const Text('Unavailable'),
           },
           trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               if (isDone && hasError)
                 IconButton(
@@ -255,8 +253,8 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
                   onPressed: info == null
                       ? null
                       : () => context.push(
-                            AppRoutes.versionsForServer(widget.entry.alias),
-                          ),
+                          AppRoutes.versionsForServer(widget.entry.alias),
+                        ),
                   child: const Text('View packages'),
                 ),
               IconButton(
@@ -265,10 +263,8 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
                 onPressed: info == null
                     ? null
                     : () => Clipboard.setData(
-                          ClipboardData(
-                            text: '$url ${info.soliplexVersion}',
-                          ),
-                        ),
+                        ClipboardData(text: '$url ${info.soliplexVersion}'),
+                      ),
               ),
             ],
           ),

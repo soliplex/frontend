@@ -20,7 +20,7 @@ class OverviewTab extends StatefulWidget {
 }
 
 class _OverviewTabState extends State<OverviewTab> {
-  _StreamView _streamView = _StreamView.conversation;
+  _StreamView _streamView = .conversation;
   SseParseResult? _parseResult;
   AccumulatedRun? _accumulatedRun;
 
@@ -51,7 +51,7 @@ class _OverviewTabState extends State<OverviewTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       children: [
         if (hasRequestBody) ...[
           _JsonSection(title: 'Request Body', body: body),
@@ -104,7 +104,7 @@ class _StreamSection extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Row(
           children: [
@@ -116,22 +116,17 @@ class _StreamSection extends StatelessWidget {
                   value: _StreamView.conversation,
                   label: Text('Conversation'),
                 ),
-                ButtonSegment(
-                  value: _StreamView.events,
-                  label: Text('Events'),
-                ),
+                ButtonSegment(value: _StreamView.events, label: Text('Events')),
               ],
               selected: {view},
               onSelectionChanged: (s) => onViewChanged(s.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-              ),
+              style: const ButtonStyle(visualDensity: .compact),
             ),
           ],
         ),
         const SizedBox(height: 8),
         if (parseResult.wasTruncated) _TruncationBanner(),
-        if (view == _StreamView.conversation)
+        if (view == .conversation)
           _ConversationView(run: accumulatedRun)
         else
           _EventsView(events: parseResult.events),
@@ -145,12 +140,12 @@ class _TruncationBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: .infinity,
+      margin: const .only(bottom: 8),
+      padding: const .symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: Row(
         children: [
@@ -185,10 +180,8 @@ class _ConversationView extends StatelessWidget {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final entry in run.entries) _RunEntryCard(entry: entry),
-      ],
+      crossAxisAlignment: .start,
+      children: [for (final entry in run.entries) _RunEntryCard(entry: entry)],
     );
   }
 
@@ -197,8 +190,8 @@ class _ConversationView extends StatelessWidget {
       child: Text(
         message,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -216,62 +209,62 @@ class _RunEntryCard extends StatelessWidget {
 
     final (label, badgeColor, badgeTextColor, content) = switch (entry) {
       MessageEntry(:final role, :final text) => (
-          role.toUpperCase(),
-          role == 'user'
-              ? colorScheme.primaryContainer
-              : colorScheme.secondaryContainer,
-          role == 'user'
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSecondaryContainer,
-          text,
-        ),
+        role.toUpperCase(),
+        role == 'user'
+            ? colorScheme.primaryContainer
+            : colorScheme.secondaryContainer,
+        role == 'user'
+            ? colorScheme.onPrimaryContainer
+            : colorScheme.onSecondaryContainer,
+        text,
+      ),
       ToolCallEntry(:final toolName, :final args) => (
-          'TOOL CALL',
-          colorScheme.tertiaryContainer,
-          colorScheme.onTertiaryContainer,
-          '$toolName\n$args',
-        ),
+        'TOOL CALL',
+        colorScheme.tertiaryContainer,
+        colorScheme.onTertiaryContainer,
+        '$toolName\n$args',
+      ),
       ToolResultEntry(:final content) => (
-          'TOOL RESULT',
-          colorScheme.surfaceContainerHighest,
-          colorScheme.onSurface,
-          content,
-        ),
+        'TOOL RESULT',
+        colorScheme.surfaceContainerHighest,
+        colorScheme.onSurface,
+        content,
+      ),
       ThinkingEntry(:final text) => (
-          'THINKING',
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          text,
-        ),
+        'THINKING',
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        text,
+      ),
       RunStatusEntry(:final type, :final message) => (
-          type,
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          message ?? '',
-        ),
+        type,
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        message ?? '',
+      ),
       StateEntry(:final type, :final data) => (
-          type,
-          colorScheme.surfaceContainerLow,
-          colorScheme.onSurfaceVariant,
-          data?.toString() ?? '',
-        ),
+        type,
+        colorScheme.surfaceContainerLow,
+        colorScheme.onSurfaceVariant,
+        data?.toString() ?? '',
+      ),
     };
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const .only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const .all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             _RoleBadge(
-                label: label, color: badgeColor, textColor: badgeTextColor),
+              label: label,
+              color: badgeColor,
+              textColor: badgeTextColor,
+            ),
             if (content.isNotEmpty) ...[
               const SizedBox(height: 8),
-              SelectableText(
-                content,
-                style: theme.textTheme.bodySmall,
-              ),
+              SelectableText(content, style: theme.textTheme.bodySmall),
             ],
           ],
         ),
@@ -294,18 +287,11 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
-      ),
+      padding: const .symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(color: color, borderRadius: .circular(4)),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
+        style: TextStyle(fontSize: 10, fontWeight: .bold, color: textColor),
       ),
     );
   }
@@ -323,17 +309,15 @@ class _EventsView extends StatelessWidget {
         child: Text(
           'No events',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final event in events) _SseEventCard(event: event),
-      ],
+      crossAxisAlignment: .start,
+      children: [for (final event in events) _SseEventCard(event: event)],
     );
   }
 }
@@ -358,14 +342,14 @@ class _SseEventCardState extends State<_SseEventCard> {
     final nodes = buildJsonTree(widget.event.payload);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const .only(bottom: 6),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const .symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   _EventTypeBadge(type: widget.event.type),
@@ -379,7 +363,7 @@ class _SseEventCardState extends State<_SseEventCard> {
                           fontFamily: 'monospace',
                         ),
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        overflow: .ellipsis,
                       ),
                     ),
                   Icon(
@@ -393,7 +377,7 @@ class _SseEventCardState extends State<_SseEventCard> {
           ),
           if (_expanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const .fromLTRB(12, 0, 12, 12),
               child: JsonTreeView(nodes: nodes),
             ),
         ],
@@ -411,10 +395,10 @@ class _EventTypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const .symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: Text(
         type,
@@ -453,16 +437,16 @@ class _JsonSection extends StatelessWidget {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Text(title, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          width: .infinity,
+          padding: const .all(12),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: .circular(4),
           ),
           child: plainText != null
               ? SelectableText(

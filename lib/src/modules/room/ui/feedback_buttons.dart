@@ -25,7 +25,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  _FeedbackPhase _phase = _FeedbackPhase.idle;
+  _FeedbackPhase _phase = .idle;
   FeedbackType? _direction;
   Timer? _countdownTimer;
 
@@ -40,7 +40,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
 
   @override
   void dispose() {
-    if (_phase == _FeedbackPhase.countdown || _phase == _FeedbackPhase.modal) {
+    if (_phase == .countdown || _phase == .modal) {
       widget.onFeedbackSubmit(_direction!, null);
     }
     _countdownTimer?.cancel();
@@ -50,22 +50,22 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
 
   void _onTap(FeedbackType tapped) {
     switch (_phase) {
-      case _FeedbackPhase.idle:
+      case .idle:
         _startCountdown(tapped);
-      case _FeedbackPhase.countdown:
+      case .countdown:
         if (tapped == _direction) {
           _controller.stop();
           _countdownTimer?.cancel();
           setState(() {
-            _phase = _FeedbackPhase.idle;
+            _phase = .idle;
             _direction = null;
           });
         } else {
           _startCountdown(tapped);
         }
-      case _FeedbackPhase.modal:
+      case .modal:
         break;
-      case _FeedbackPhase.submitted:
+      case .submitted:
         if (tapped != _direction) {
           _startCountdown(tapped);
         }
@@ -75,24 +75,21 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
   void _startCountdown(FeedbackType direction) {
     _countdownTimer?.cancel();
     setState(() {
-      _phase = _FeedbackPhase.countdown;
+      _phase = .countdown;
       _direction = direction;
     });
     _controller.reverse(from: 1);
-    _countdownTimer = Timer(
-      Duration(seconds: widget.countdownSeconds),
-      () {
-        if (mounted && _phase == _FeedbackPhase.countdown) {
-          _submit(null);
-        }
-      },
-    );
+    _countdownTimer = Timer(Duration(seconds: widget.countdownSeconds), () {
+      if (mounted && _phase == .countdown) {
+        _submit(null);
+      }
+    });
   }
 
   Future<void> _onTellUsWhyTap() async {
     _countdownTimer?.cancel();
     _controller.stop();
-    setState(() => _phase = _FeedbackPhase.modal);
+    setState(() => _phase = .modal);
 
     final reason = await showDialog<String>(
       context: context,
@@ -111,20 +108,18 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
 
   void _submit(String? reason) {
     final direction = _direction!;
-    setState(() => _phase = _FeedbackPhase.submitted);
+    setState(() => _phase = .submitted);
     widget.onFeedbackSubmit(direction, reason);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isUpActive =
-        _direction == FeedbackType.thumbsUp && _phase != _FeedbackPhase.idle;
-    final isDownActive =
-        _direction == FeedbackType.thumbsDown && _phase != _FeedbackPhase.idle;
+    final isUpActive = _direction == .thumbsUp && _phase != .idle;
+    final isDownActive = _direction == .thumbsDown && _phase != .idle;
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         _ThumbButton(
           tooltip: 'Thumbs up',
@@ -132,7 +127,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           color: isUpActive
               ? theme.colorScheme.primary
               : theme.colorScheme.onSurfaceVariant,
-          onTap: () => _onTap(FeedbackType.thumbsUp),
+          onTap: () => _onTap(.thumbsUp),
         ),
         const SizedBox(width: 4),
         _ThumbButton(
@@ -141,9 +136,9 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           color: isDownActive
               ? theme.colorScheme.primary
               : theme.colorScheme.onSurfaceVariant,
-          onTap: () => _onTap(FeedbackType.thumbsDown),
+          onTap: () => _onTap(.thumbsDown),
         ),
-        if (_phase == _FeedbackPhase.countdown) ...[
+        if (_phase == .countdown) ...[
           const SizedBox(width: 4),
           _CountdownIndicator(
             controller: _controller,
@@ -152,12 +147,12 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           const SizedBox(width: 4),
           InkWell(
             onTap: _onTellUsWhyTap,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: .circular(4),
             child: Text(
               'Tell us why!',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
-                decoration: TextDecoration.underline,
+                decoration: .underline,
                 decorationColor: theme.colorScheme.primary,
               ),
             ),
@@ -190,7 +185,7 @@ class _ThumbButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: .circular(4),
           child: Icon(icon, size: 20, color: color),
         ),
       ),

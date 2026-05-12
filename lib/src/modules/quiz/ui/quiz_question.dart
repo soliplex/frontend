@@ -51,12 +51,12 @@ class QuizQuestionView extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const .all(16),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: .stretch,
                   children: [
                     Text(
                       'Question ${session.currentIndex + 1} of '
@@ -99,44 +99,42 @@ class QuizQuestionView extends StatelessWidget {
   ) {
     return switch (question.type) {
       MultipleChoice(:final options) => QuizMultipleChoiceInput(
-          options: options,
-          selectedOption: selectedOption,
-          questionState: questionState,
-          onSelected: onSelectOption,
-        ),
+        options: options,
+        selectedOption: selectedOption,
+        questionState: questionState,
+        onSelected: onSelectOption,
+      ),
       FillBlank() || FreeForm() => QuizTextInput(
-          controller: answerController,
-          questionState: questionState,
-          onChanged: onTextChanged,
-          onSubmitted: onSubmit,
-        ),
+        controller: answerController,
+        questionState: questionState,
+        onChanged: onTextChanged,
+        onSubmitted: onSubmit,
+      ),
     };
   }
 
   Widget _buildActionButton(QuestionState questionState) {
     return switch (questionState) {
       AwaitingInput() => const FilledButton(
-          onPressed: null,
-          child: Text('Submit Answer'),
-        ),
+        onPressed: null,
+        child: Text('Submit Answer'),
+      ),
       Composing(:final canSubmit) => FilledButton(
-          onPressed: canSubmit ? onSubmit : null,
-          child: const Text('Submit Answer'),
-        ),
+        onPressed: canSubmit ? onSubmit : null,
+        child: const Text('Submit Answer'),
+      ),
       Submitting() => const FilledButton(
-          onPressed: null,
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+        onPressed: null,
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
+      ),
       Answered() => FilledButton(
-          onPressed: onNext,
-          child: Text(
-            session.isLastQuestion ? 'See Results' : 'Next Question',
-          ),
-        ),
+        onPressed: onNext,
+        child: Text(session.isLastQuestion ? 'See Results' : 'Next Question'),
+      ),
     };
   }
 }

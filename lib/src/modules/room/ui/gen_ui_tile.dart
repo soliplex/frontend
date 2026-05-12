@@ -11,9 +11,9 @@ class GenUiTile extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const .all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Text(
               message.widgetName,
@@ -24,8 +24,9 @@ class GenUiTile extends StatelessWidget {
             const SizedBox(height: 8),
             SelectableText(
               const JsonEncoder.withIndent('  ').convert(message.data),
-              style:
-                  theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+              ),
             ),
           ],
         ),

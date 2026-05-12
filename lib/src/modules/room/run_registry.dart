@@ -86,17 +86,19 @@ class RunRegistry {
       }
     });
 
-    unawaited(session.result.then((result) {
-      unsubscribe();
-      if (_isDisposed) return;
-      // Bail if a newer registration superseded this run. The
-      // superseded run can only resolve as cancelled-by-replacement;
-      // the new session owns the key and produces its own outcome.
-      if (!identical(_runs[key], run)) return;
-      run.outcome = _outcomeFrom(terminalState, result);
-      run.session = null;
-      _activeKeys.value = _activeKeys.value.difference({key});
-    }));
+    unawaited(
+      session.result.then((result) {
+        unsubscribe();
+        if (_isDisposed) return;
+        // Bail if a newer registration superseded this run. The
+        // superseded run can only resolve as cancelled-by-replacement;
+        // the new session owns the key and produces its own outcome.
+        if (!identical(_runs[key], run)) return;
+        run.outcome = _outcomeFrom(terminalState, result);
+        run.session = null;
+        _activeKeys.value = _activeKeys.value.difference({key});
+      }),
+    );
   }
 
   /// Returns the active (non-terminal) session for a thread.
@@ -124,35 +126,41 @@ class RunRegistry {
 
   static RunOutcome _outcomeFrom(RunState? state, AgentResult result) {
     return switch (state) {
-      CompletedState(:final conversation, :final runId) =>
-        CompletedRun(conversation, runId: runId),
+      CompletedState(:final conversation, :final runId) => CompletedRun(
+        conversation,
+        runId: runId,
+      ),
       FailedState(:final conversation, :final error, :final reason) =>
         FailedRun(conversation, error, reason: reason),
       CancelledState(:final conversation) => CancelledRun(conversation),
       // No terminal RunState was captured (external dispose ran before
       // any terminal state arrived) — derive the outcome from result.
       null => switch (result) {
-          AgentFailure(:final reason) when reason == FailureReason.cancelled =>
-            CancelledRun(null),
-          AgentFailure(:final error, :final reason) =>
-            FailedRun(null, error, reason: reason),
-          AgentTimedOut() => FailedRun(
-              null,
-              'Session timed out',
-              reason: FailureReason.internalError,
-            ),
-          AgentSuccess() => FailedRun(
-              null,
-              'Completed without terminal state',
-              reason: FailureReason.internalError,
-            ),
-        },
-      IdleState() || RunningState() || ToolYieldingState() => FailedRun(
+        AgentFailure(:final reason) when reason == .cancelled => CancelledRun(
           null,
-          'Session result arrived in non-terminal state '
-          '${state.runtimeType}: $result',
-          reason: FailureReason.internalError,
         ),
+        AgentFailure(:final error, :final reason) => FailedRun(
+          null,
+          error,
+          reason: reason,
+        ),
+        AgentTimedOut() => FailedRun(
+          null,
+          'Session timed out',
+          reason: .internalError,
+        ),
+        AgentSuccess() => FailedRun(
+          null,
+          'Completed without terminal state',
+          reason: .internalError,
+        ),
+      },
+      IdleState() || RunningState() || ToolYieldingState() => FailedRun(
+        null,
+        'Session result arrived in non-terminal state '
+        '${state.runtimeType}: $result',
+        reason: .internalError,
+      ),
     };
   }
 }

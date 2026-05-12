@@ -14,7 +14,7 @@ Map<String, String?> buildRunIdMap(
   String? currentUserMessageId;
 
   for (final message in messages) {
-    if (message.user == ChatUser.user) {
+    if (message.user == .user) {
       currentUserMessageId = message.id;
     } else {
       final runId = currentUserMessageId != null

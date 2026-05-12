@@ -25,7 +25,7 @@ Map<String, List<SourceReference>> buildSourceReferencesMap(
   }
 
   for (final message in messages) {
-    if (message.user == ChatUser.user) {
+    if (message.user == .user) {
       assignPendingCitations();
       currentUserMessageId = message.id;
       lastAssistantTextMessageId = null;

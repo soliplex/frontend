@@ -45,11 +45,11 @@ class _DocumentsCardState extends State<DocumentsCard> {
         final String title;
         final List<Widget> children;
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == .waiting) {
           title = 'DOCUMENTS';
           children = [
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: .all(16),
               child: Center(child: CircularProgressIndicator()),
             ),
           ];
@@ -97,7 +97,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
             children = [
               if (docs.length > 1)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const .only(bottom: 8),
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
@@ -115,7 +115,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                           : null,
                       isDense: true,
                       border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: const .symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -139,19 +139,12 @@ class _DocumentsCardState extends State<DocumentsCard> {
           }
         }
 
-        return SectionCard(
-          title: title,
-          children: children,
-        );
+        return SectionCard(title: title, children: children);
       },
     );
   }
 
-  Widget _buildDocTile(
-    RagDocument doc,
-    bool expanded,
-    ThemeData theme,
-  ) {
+  Widget _buildDocTile(RagDocument doc, bool expanded, ThemeData theme) {
     return GestureDetector(
       onTap: () => setState(() {
         if (expanded) {
@@ -160,24 +153,21 @@ class _DocumentsCardState extends State<DocumentsCard> {
           _expandedIds.add(doc.id);
         }
       }),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const .symmetric(vertical: 4),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Row(
               children: [
-                Icon(
-                  getFileTypeIcon(documentIconPath(doc)),
-                  size: 22,
-                ),
+                Icon(getFileTypeIcon(documentIconPath(doc)), size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     documentDisplayName(doc),
                     style: theme.textTheme.bodyMedium,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                   ),
                 ),
                 Icon(
@@ -198,7 +188,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: .w600,
       color: colorScheme.onSurfaceVariant,
     );
     final valueStyle = theme.textTheme.bodySmall;
@@ -212,16 +202,16 @@ class _DocumentsCardState extends State<DocumentsCard> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const .only(top: 4),
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(8),
+        width: .infinity,
+        padding: const .all(8),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: .circular(8),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Text('id', style: labelStyle),
             const SizedBox(height: 2),
@@ -249,14 +239,11 @@ class _DocumentsCardState extends State<DocumentsCard> {
                     SizedBox(
                       width: 160,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: [
                           Text(label, style: labelStyle),
                           const SizedBox(height: 2),
-                          SelectableText(
-                            value,
-                            style: valueStyle,
-                          ),
+                          SelectableText(value, style: valueStyle),
                         ],
                       ),
                     ),
@@ -268,10 +255,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                 child: TextButton(
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.labelSmall,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    padding: const .symmetric(horizontal: 16, vertical: 8),
                   ),
                   onPressed: () => showDialog<void>(
                     context: context,
@@ -314,31 +298,27 @@ class MetadataDialog extends StatelessWidget {
     final entries = metadata.entries.toList();
 
     return AlertDialog(
-      title: Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-      ),
+      title: Text(title, overflow: .ellipsis, maxLines: 1),
       content: SizedBox(
-        width: double.maxFinite,
+        width: .maxFinite,
         child: SingleChildScrollView(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               for (final entry in entries) ...[
                 SizedBox(
-                  width: double.infinity,
+                  width: .infinity,
                   child: Card(
                     margin: EdgeInsets.zero,
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const .all(12),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: [
                           Text(
                             entry.key,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: .w600,
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),

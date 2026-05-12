@@ -25,13 +25,13 @@ class HttpEventTile extends StatelessWidget {
     final content = Semantics(
       label: group.semanticLabel,
       child: Padding(
-        padding: EdgeInsets.symmetric(
+        padding: .symmetric(
           horizontal: dense ? 8 : 12,
           vertical: dense ? 6 : 8,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .start,
+          mainAxisSize: .min,
           children: [
             _buildRequestLine(theme),
             SizedBox(height: dense ? 2 : 4),
@@ -52,9 +52,9 @@ class HttpEventTile extends StatelessWidget {
     final methodStyle =
         (dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
             ?.copyWith(
-      fontWeight: FontWeight.bold,
-      color: isSelected ? selectedColor : colorScheme.primary,
-    );
+              fontWeight: .bold,
+              color: isSelected ? selectedColor : colorScheme.primary,
+            );
 
     final pathStyle =
         (dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
@@ -68,7 +68,7 @@ class HttpEventTile extends StatelessWidget {
           child: Text(
             group.pathWithQuery,
             style: pathStyle,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
             maxLines: 1,
           ),
         ),

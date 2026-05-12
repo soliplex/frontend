@@ -27,10 +27,7 @@ class FeaturesCard extends StatelessWidget {
           label: 'Attachments',
           value: room.enableAttachments ? 'Enabled' : 'Disabled',
         ),
-        InfoRow(
-          label: 'Allow MCP',
-          value: room.allowMcp ? 'Yes' : 'No',
-        ),
+        InfoRow(label: 'Allow MCP', value: room.allowMcp ? 'Yes' : 'No'),
         if (room.allowMcp) McpTokenRow(api: api, roomId: roomId),
         if (room.aguiFeatureNames.isNotEmpty)
           InfoRow(
@@ -55,7 +52,7 @@ enum _TokenCopyState { idle, success, error }
 
 class _McpTokenRowState extends State<McpTokenRow> {
   Future<String>? _tokenFuture;
-  _TokenCopyState _copyState = _TokenCopyState.idle;
+  _TokenCopyState _copyState = .idle;
   Timer? _copyResetTimer;
 
   @override
@@ -75,14 +72,14 @@ class _McpTokenRowState extends State<McpTokenRow> {
       await Clipboard.setData(ClipboardData(text: token));
     } on PlatformException catch (e, st) {
       debugPrint('Clipboard.setData PlatformException: $e\n$st');
-      _showCopyFeedback(_TokenCopyState.error);
+      _showCopyFeedback(.error);
       return;
     } on Exception catch (e, st) {
       debugPrint('Clipboard.setData failed: $e\n$st');
-      _showCopyFeedback(_TokenCopyState.error);
+      _showCopyFeedback(.error);
       return;
     }
-    _showCopyFeedback(_TokenCopyState.success);
+    _showCopyFeedback(.success);
   }
 
   void _showCopyFeedback(_TokenCopyState value) {
@@ -90,7 +87,7 @@ class _McpTokenRowState extends State<McpTokenRow> {
     setState(() => _copyState = value);
     _copyResetTimer?.cancel();
     _copyResetTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _copyState = _TokenCopyState.idle);
+      if (mounted) setState(() => _copyState = .idle);
     });
   }
 
@@ -99,9 +96,9 @@ class _McpTokenRowState extends State<McpTokenRow> {
     return FutureBuilder<String>(
       future: _tokenFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == .waiting) {
           return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 2),
+            padding: .symmetric(vertical: 2),
             child: SizedBox(
               height: 20,
               width: 20,
@@ -111,7 +108,7 @@ class _McpTokenRowState extends State<McpTokenRow> {
         }
         if (snapshot.hasError) {
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+            padding: const .symmetric(vertical: 2),
             child: OutlinedButton.icon(
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('Retry token'),
@@ -126,18 +123,16 @@ class _McpTokenRowState extends State<McpTokenRow> {
         }
         final token = snapshot.data!;
         final (icon, label) = switch (_copyState) {
-          _TokenCopyState.idle => (Icons.copy, 'Copy Token'),
-          _TokenCopyState.success => (Icons.check, 'Copied'),
-          _TokenCopyState.error => (Icons.error_outline, 'Copy failed'),
+          .idle => (Icons.copy, 'Copy Token'),
+          .success => (Icons.check, 'Copied'),
+          .error => (Icons.error_outline, 'Copy failed'),
         };
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
+          padding: const .symmetric(vertical: 2),
           child: OutlinedButton.icon(
             icon: Icon(icon, size: 16),
             label: Text(label),
-            onPressed: _copyState == _TokenCopyState.idle
-                ? () => _copyToken(token)
-                : null,
+            onPressed: _copyState == .idle ? () => _copyToken(token) : null,
           ),
         );
       },

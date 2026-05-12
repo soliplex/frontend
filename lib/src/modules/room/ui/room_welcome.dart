@@ -32,17 +32,15 @@ class RoomWelcome extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const .all(32),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             if (currentRoom.name.isNotEmpty)
               Text(
                 currentRoom.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: .w600),
+                textAlign: .center,
               ),
             if (currentRoom.hasWelcomeMessage) ...[
               const SizedBox(height: 8),
@@ -60,7 +58,7 @@ class RoomWelcome extends StatelessWidget {
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  alignment: WrapAlignment.center,
+                  alignment: .center,
                   children: [
                     for (final suggestion in currentRoom.suggestions)
                       _SuggestionChip(
@@ -80,10 +78,13 @@ class RoomWelcome extends StatelessWidget {
                 child: Column(
                   children: [
                     Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: .min,
                       children: [
-                        Icon(Icons.quiz,
-                            size: 20, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.quiz,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           currentRoom.quizzes.length == 1
@@ -97,7 +98,7 @@ class RoomWelcome extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      alignment: WrapAlignment.center,
+                      alignment: .center,
                       children: [
                         for (final entry in currentRoom.quizzes.entries)
                           ActionChip(
@@ -134,12 +135,12 @@ class _SuggestionChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: .circular(8),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const .symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(8),
+              border: .all(color: theme.colorScheme.outlineVariant),
+              borderRadius: .circular(8),
             ),
             child: Text(label, style: theme.textTheme.bodyMedium),
           ),

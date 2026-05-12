@@ -29,9 +29,9 @@ class QuizResultsView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const .all(16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: .center,
             children: [
               Icon(scoreIcon, size: 64, color: scoreColor),
               const SizedBox(height: 16),
@@ -41,7 +41,7 @@ class QuizResultsView extends StatelessWidget {
                 '${session.scorePercent}%',
                 style: theme.textTheme.displayLarge?.copyWith(
                   color: scoreColor,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: .bold,
                 ),
               ),
               const SizedBox(height: 8),
@@ -53,7 +53,7 @@ class QuizResultsView extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Wrap(
-                alignment: WrapAlignment.center,
+                alignment: .center,
                 spacing: 8,
                 runSpacing: 8,
                 children: [

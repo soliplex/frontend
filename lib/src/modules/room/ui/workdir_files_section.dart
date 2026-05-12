@@ -66,18 +66,18 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
         }
         final theme = Theme.of(context);
         return Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const .only(top: 8),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            padding: const .symmetric(vertical: 4, horizontal: 8),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: .circular(12),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 200),
               child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: [
                     for (final file in files)
                       _WorkdirFileRow(
@@ -116,7 +116,7 @@ class _WorkdirFileRow extends StatefulWidget {
 enum _DownloadFeedback { idle, success, error }
 
 class _WorkdirFileRowState extends State<_WorkdirFileRow> {
-  _DownloadFeedback _feedback = _DownloadFeedback.idle;
+  _DownloadFeedback _feedback = .idle;
   bool _isInFlight = false;
   Timer? _revertTimer;
 
@@ -135,24 +135,22 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     } catch (_) {
       // The contract is `Future<DownloadOutcome>`, but defend against an
       // implementation that throws so the row doesn't get stuck in idle.
-      outcome = DownloadOutcome.failed;
+      outcome = .failed;
     } finally {
       _isInFlight = false;
     }
     if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) {
+    if (outcome == .cancelled) {
       // User dismissed the save dialog deliberately — that isn't an error
       // and doesn't warrant feedback. Stay idle.
       return;
     }
     setState(() {
-      _feedback = outcome == DownloadOutcome.success
-          ? _DownloadFeedback.success
-          : _DownloadFeedback.error;
+      _feedback = outcome == .success ? .success : .error;
     });
     _revertTimer?.cancel();
     _revertTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
+      if (mounted) setState(() => _feedback = .idle);
     });
   }
 
@@ -160,29 +158,17 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (icon, color, tooltip) = switch (_feedback) {
-      _DownloadFeedback.idle => (
-        Icons.download_outlined,
-        theme.colorScheme.primary,
-        'Download',
-      ),
-      _DownloadFeedback.success => (
-        Icons.check,
-        theme.colorScheme.onSurfaceVariant,
-        'Saved',
-      ),
-      _DownloadFeedback.error => (
-        Icons.error_outline,
-        theme.colorScheme.error,
-        "Couldn't save",
-      ),
+      .idle => (Icons.download_outlined, theme.colorScheme.primary, 'Download'),
+      .success => (Icons.check, theme.colorScheme.onSurfaceVariant, 'Saved'),
+      .error => (Icons.error_outline, theme.colorScheme.error, "Couldn't save"),
     };
     final canPreview =
         widget.onPreview != null && _isPreviewableImage(widget.file.filename);
     return InkWell(
-      onTap: _feedback == _DownloadFeedback.idle ? _handleTap : null,
-      borderRadius: BorderRadius.circular(6),
+      onTap: _feedback == .idle ? _handleTap : null,
+      borderRadius: .circular(6),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        padding: const .symmetric(vertical: 4, horizontal: 4),
         child: Row(
           children: [
             Icon(
@@ -200,9 +186,9 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
             if (canPreview) ...[
               InkWell(
                 onTap: () => _openPreview(context),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: .circular(6),
                 child: Padding(
-                  padding: const EdgeInsets.all(2),
+                  padding: const .all(2),
                   child: Tooltip(
                     message: 'Preview',
                     child: Icon(
@@ -311,7 +297,7 @@ String _truncateWithEllipsis(
 double _measure(String text, TextStyle? style) {
   final painter = TextPainter(
     text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
+    textDirection: .ltr,
     maxLines: 1,
   )..layout();
   return painter.width;
@@ -389,7 +375,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
     return FutureBuilder<Uint8List>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState != .done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
@@ -413,7 +399,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
     if (error is NotFoundException) {
       return Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             Icon(
               Icons.info_outline,
@@ -428,7 +414,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
     }
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
           const SizedBox(height: 12),
@@ -447,7 +433,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      padding: const .fromLTRB(16, 12, 8, 8),
       child: Row(
         children: [
           Expanded(
@@ -455,7 +441,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
               widget.filename,
               style: theme.textTheme.titleMedium,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
             ),
           ),
           IconButton(
@@ -472,14 +458,14 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
   Widget build(BuildContext context) {
     if (widget.useDialogLayout) {
       return Dialog(
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: const .all(16),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
             maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               _buildTitleBar(context),
               Expanded(child: _buildContent(context)),
@@ -490,11 +476,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.filename,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(widget.filename, maxLines: 1, overflow: .ellipsis),
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
       body: _buildContent(context),
@@ -545,7 +527,7 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
         maxScale: 4.0,
         child: Image.memory(
           widget.bytes,
-          fit: BoxFit.contain,
+          fit: .contain,
           errorBuilder: (_, _, _) {
             _markFailed();
             return const SizedBox.shrink();
@@ -571,7 +553,7 @@ class _CannotPreview extends StatefulWidget {
 }
 
 class _CannotPreviewState extends State<_CannotPreview> {
-  _DownloadFeedback _feedback = _DownloadFeedback.idle;
+  _DownloadFeedback _feedback = .idle;
   bool _inFlight = false;
   Timer? _revertTimer;
 
@@ -588,20 +570,18 @@ class _CannotPreviewState extends State<_CannotPreview> {
     try {
       outcome = await widget.onDownload();
     } catch (_) {
-      outcome = DownloadOutcome.failed;
+      outcome = .failed;
     } finally {
       _inFlight = false;
     }
     if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) return;
+    if (outcome == .cancelled) return;
     setState(() {
-      _feedback = outcome == DownloadOutcome.success
-          ? _DownloadFeedback.success
-          : _DownloadFeedback.error;
+      _feedback = outcome == .success ? .success : .error;
     });
     _revertTimer?.cancel();
     _revertTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
+      if (mounted) setState(() => _feedback = .idle);
     });
   }
 
@@ -609,13 +589,13 @@ class _CannotPreviewState extends State<_CannotPreview> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (icon, label) = switch (_feedback) {
-      _DownloadFeedback.idle => (Icons.download_outlined, 'Download'),
-      _DownloadFeedback.success => (Icons.check, 'Saved'),
-      _DownloadFeedback.error => (Icons.error_outline, "Couldn't save"),
+      .idle => (Icons.download_outlined, 'Download'),
+      .success => (Icons.check, 'Saved'),
+      .error => (Icons.error_outline, "Couldn't save"),
     };
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(
             Icons.image_not_supported_outlined,
@@ -626,9 +606,7 @@ class _CannotPreviewState extends State<_CannotPreview> {
           Text("Can't preview this file", style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _feedback == _DownloadFeedback.idle
-                ? _handleDownload
-                : null,
+            onPressed: _feedback == .idle ? _handleDownload : null,
             icon: Icon(icon),
             label: Text(label),
           ),
@@ -647,7 +625,7 @@ class _WorkdirErrorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      padding: const .symmetric(vertical: 4, horizontal: 4),
       child: Row(
         children: [
           Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
@@ -665,7 +643,7 @@ class _WorkdirErrorRow extends StatelessWidget {
             icon: const Icon(Icons.refresh),
             iconSize: 16,
             tooltip: 'Retry',
-            visualDensity: VisualDensity.compact,
+            visualDensity: .compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             color: theme.colorScheme.onSurfaceVariant,

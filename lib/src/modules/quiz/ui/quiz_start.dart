@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 class QuizStartView extends StatelessWidget {
-  const QuizStartView({
-    super.key,
-    required this.quiz,
-    required this.onStart,
-  });
+  const QuizStartView({super.key, required this.quiz, required this.onStart});
 
   final Quiz quiz;
   final VoidCallback onStart;
@@ -18,16 +14,16 @@ class QuizStartView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const .all(16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: .center,
             children: [
               Icon(Icons.quiz, size: 64, color: theme.colorScheme.primary),
               const SizedBox(height: 16),
               Text(
                 quiz.title,
                 style: theme.textTheme.headlineMedium,
-                textAlign: TextAlign.center,
+                textAlign: .center,
               ),
               const SizedBox(height: 8),
               Text(

@@ -12,12 +12,12 @@ class QuizAnswerFeedback extends StatelessWidget {
     final isCorrect = result.isCorrect;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       decoration: BoxDecoration(
         color: isCorrect
             ? colorScheme.primaryContainer
             : colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: .circular(8),
       ),
       child: Row(
         children: [
@@ -28,7 +28,7 @@ class QuizAnswerFeedback extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: [
                 Text(
                   isCorrect ? 'Correct!' : 'Incorrect',
@@ -71,10 +71,10 @@ class QuizErrorFeedback extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: .circular(8),
       ),
       child: Row(
         children: [

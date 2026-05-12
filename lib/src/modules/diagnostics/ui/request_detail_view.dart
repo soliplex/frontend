@@ -41,7 +41,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _searchController = TextEditingController();
-  SearchScope _scope = SearchScope.everything;
+  SearchScope _scope = .everything;
   int _currentMatchIndex = 0;
 
   static const _tabCount = 4;
@@ -69,11 +69,11 @@ class _RequestDetailViewState extends State<RequestDetailView>
   int _matchesForScope(SearchScope scope) {
     final q = _searchController.text;
     return switch (scope) {
-      SearchScope.request => countMatches(extractRequestText(group), q),
-      SearchScope.response => countMatches(extractResponseText(group), q),
-      SearchScope.curl => countMatches(_curlText(), q),
-      SearchScope.overview => countMatches(extractOverviewText(group), q),
-      SearchScope.everything => 0,
+      .request => countMatches(extractRequestText(group), q),
+      .response => countMatches(extractResponseText(group), q),
+      .curl => countMatches(_curlText(), q),
+      .overview => countMatches(extractOverviewText(group), q),
+      .everything => 0,
     };
   }
 
@@ -87,21 +87,21 @@ class _RequestDetailViewState extends State<RequestDetailView>
       3 => SearchScope.overview,
       _ => SearchScope.request,
     };
-    if (_scope != SearchScope.everything && _scope != tabScope) return 0;
+    if (_scope != .everything && _scope != tabScope) return 0;
     return _matchesForScope(tabScope);
   }
 
   List<int> get _matchCountsPerTab => [
-    _matchesForScope(SearchScope.request),
-    _matchesForScope(SearchScope.response),
-    _matchesForScope(SearchScope.curl),
-    _matchesForScope(SearchScope.overview),
+    _matchesForScope(.request),
+    _matchesForScope(.response),
+    _matchesForScope(.curl),
+    _matchesForScope(.overview),
   ];
 
   int get _totalMatches {
     final q = _searchController.text;
     if (q.isEmpty) return 0;
-    if (_scope == SearchScope.everything) {
+    if (_scope == .everything) {
       return _matchCountsPerTab.fold(0, (a, b) => a + b);
     }
     return _matchesForScope(_scope);
@@ -125,7 +125,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
   }
 
   void _navigateToMatch() {
-    if (_scope != SearchScope.everything) return;
+    if (_scope != .everything) return;
     final counts = _matchCountsPerTab;
     var remaining = _currentMatchIndex;
     for (var i = 0; i < counts.length; i++) {
@@ -144,7 +144,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
     if (count == 0) return Tab(text: label);
     return Tab(
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Text(label),
           const SizedBox(width: 4),
@@ -157,7 +157,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
   Widget _buildSearchBar(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const .symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
@@ -178,10 +178,8 @@ class _RequestDetailViewState extends State<RequestDetailView>
                       )
                     : null,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
+                contentPadding: const .symmetric(vertical: 8),
+                border: OutlineInputBorder(borderRadius: .circular(6)),
               ),
             ),
           ),
@@ -213,7 +211,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
               icon: const Icon(Icons.keyboard_arrow_up, size: 20),
               onPressed: _previousMatch,
               tooltip: 'Previous match',
-              visualDensity: VisualDensity.compact,
+              visualDensity: .compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
@@ -221,7 +219,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
               icon: const Icon(Icons.keyboard_arrow_down, size: 20),
               onPressed: _nextMatch,
               tooltip: 'Next match',
-              visualDensity: VisualDensity.compact,
+              visualDensity: .compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
@@ -236,13 +234,13 @@ class _RequestDetailViewState extends State<RequestDetailView>
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Row(
             children: [
@@ -309,16 +307,16 @@ class _MatchBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const .symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: .circular(8),
       ),
       child: Text(
         '$count',
         style: TextStyle(
           fontSize: 10,
-          fontWeight: FontWeight.bold,
+          fontWeight: .bold,
           color: colorScheme.onPrimaryContainer,
         ),
       ),
@@ -343,18 +341,14 @@ class _MethodBadge extends StatelessWidget {
         : colorScheme.onPrimaryContainer;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const .symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: Text(
         method,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-          color: textColor,
-        ),
+        style: TextStyle(fontWeight: .bold, fontSize: 12, color: textColor),
       ),
     );
   }
@@ -375,7 +369,7 @@ class _RequestTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       children: [
         if (headers.isNotEmpty) ...[
           _SectionHeader(
@@ -448,7 +442,7 @@ class _ResponseTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       children: [
         _MetadataRow(
           label: 'Duration',
@@ -485,7 +479,7 @@ class _ResponseTab extends StatelessWidget {
 
   Widget _buildNormalResponse(HttpResponseEvent resp) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       children: [
         _MetadataRow(label: 'Status', value: '${resp.statusCode}'),
         if (resp.reasonPhrase != null)
@@ -543,9 +537,9 @@ class _CurlTab extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Row(
             children: [
@@ -561,11 +555,11 @@ class _CurlTab extends StatelessWidget {
           const SizedBox(height: 8),
           Expanded(
             child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              width: .infinity,
+              padding: const .all(12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: .circular(8),
               ),
               child: SelectableText(
                 curl,
@@ -591,7 +585,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const .only(bottom: 8),
       child: Row(
         children: [
           Text(title, style: theme.textTheme.titleSmall),
@@ -615,14 +609,14 @@ class _HeadersTable extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(4),
+        border: .all(color: colorScheme.outlineVariant),
+        borderRadius: .circular(4),
       ),
       child: Column(
         children: [
           for (final (index, entry) in headers.entries.indexed)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const .symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: index.isEven
                     ? colorScheme.surfaceContainerLow
@@ -632,14 +626,14 @@ class _HeadersTable extends StatelessWidget {
                     : null,
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: [
                   SizedBox(
                     width: 140,
                     child: SelectableText(
                       entry.key,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: .w600,
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -673,11 +667,11 @@ class _BodyDisplay extends StatelessWidget {
     final formattedBody = HttpEventGroup.formatBody(body);
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      width: .infinity,
+      padding: const .all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: SelectableText(
         formattedBody,
@@ -697,7 +691,7 @@ class _MetadataRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const .symmetric(vertical: 4),
       child: Row(
         children: [
           SizedBox(
@@ -749,9 +743,9 @@ class _ErrorDisplay extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const .all(16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: .center,
         children: [
           Icon(Icons.error_outline, size: 48, color: colorScheme.error),
           const SizedBox(height: 12),
@@ -760,7 +754,7 @@ class _ErrorDisplay extends StatelessWidget {
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.error,
             ),
-            textAlign: TextAlign.center,
+            textAlign: .center,
           ),
           if (details != null) ...[
             const SizedBox(height: 8),
@@ -769,7 +763,7 @@ class _ErrorDisplay extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
-              textAlign: TextAlign.center,
+              textAlign: .center,
             ),
           ],
         ],

@@ -29,19 +29,19 @@ class _CitationsSectionState extends State<CitationsSection> {
     final count = widget.sourceReferences.length;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         const SizedBox(height: 8),
         Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             InkWell(
               onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: .circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                padding: const .symmetric(vertical: 4, horizontal: 4),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: .min,
                   children: [
                     Transform.flip(
                       flipX: true,
@@ -129,18 +129,18 @@ class _SourceReferenceRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const .only(bottom: 4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Row(
             children: [
               Expanded(
                 child: InkWell(
                   onTap: onToggle,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: .circular(8),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const .symmetric(vertical: 4),
                     child: Row(
                       children: [
                         Container(
@@ -148,14 +148,14 @@ class _SourceReferenceRow extends StatelessWidget {
                           height: 24,
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: .circular(6),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             '$badgeNumber',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: theme.colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: .bold,
                             ),
                           ),
                         ),
@@ -165,7 +165,7 @@ class _SourceReferenceRow extends StatelessWidget {
                             sourceReference.displayTitle,
                             style: theme.textTheme.bodySmall,
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            overflow: .ellipsis,
                           ),
                         ),
                         if (sourceReference.formattedPageNumbers != null) ...[
@@ -195,9 +195,9 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
               InkWell(
                 onTap: onToggle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: .circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const .all(8),
                   child: Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
@@ -215,29 +215,29 @@ class _SourceReferenceRow extends StatelessWidget {
 
   Widget _buildExpandedContent(BuildContext context, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(left: 32, bottom: 8),
+      padding: const .only(left: 32, bottom: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           if (sourceReference.headings.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: const .only(bottom: 4),
               child: Text(
                 sourceReference.headings.join(' > '),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                overflow: .ellipsis,
               ),
             ),
           if (sourceReference.content.isNotEmpty)
             Container(
               constraints: const BoxConstraints(maxHeight: 250),
-              padding: const EdgeInsets.all(8),
+              padding: const .all(8),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: .circular(12),
               ),
               child: SingleChildScrollView(
                 child: FlutterMarkdownPlusRenderer(
@@ -251,27 +251,27 @@ class _SourceReferenceRow extends StatelessWidget {
             ),
           if (sourceReference.documentUri.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const .only(top: 4),
               child: Text(
                 sourceReference.documentUri,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow: .ellipsis,
               ),
             ),
           if (sourceReference.isPdf && onShowChunkVisualization != null)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const .only(top: 4),
               child: TextButton.icon(
                 onPressed: () => onShowChunkVisualization!(sourceReference),
                 icon: const Icon(Icons.picture_as_pdf, size: 16),
                 label: const Text('View in PDF'),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const .symmetric(horizontal: 8),
+                  minimumSize: .zero,
+                  tapTargetSize: .shrinkWrap,
                 ),
               ),
             ),

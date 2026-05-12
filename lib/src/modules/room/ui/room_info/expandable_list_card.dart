@@ -28,7 +28,7 @@ class ExpandableTile extends StatelessWidget {
             name,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontFamily: 'monospace',
-              fontWeight: FontWeight.w600,
+              fontWeight: .w600,
             ),
           ),
         ),
@@ -43,22 +43,22 @@ class ExpandableTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: hasContent ? onToggle : null,
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const .symmetric(vertical: 4),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             nameRow,
             if (expanded && hasContent)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const .only(top: 4),
                 child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
+                  width: .infinity,
+                  padding: const .all(8),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: .circular(8),
                   ),
                   child: content,
                 ),

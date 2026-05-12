@@ -8,7 +8,7 @@ class ToolCallTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         for (final toolCall in message.toolCalls)
           _ToolCallCard(toolCall: toolCall),
@@ -25,7 +25,7 @@ class _ToolCallCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const .symmetric(vertical: 2),
       child: ExpansionTile(
         leading: Icon(Icons.bolt, color: theme.colorScheme.primary, size: 18),
         title: Row(
@@ -33,10 +33,9 @@ class _ToolCallCard extends StatelessWidget {
             Flexible(
               child: Text(
                 toolCall.name,
-                overflow: TextOverflow.ellipsis,
+                overflow: .ellipsis,
                 maxLines: 1,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w500),
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: .w500),
               ),
             ),
             const SizedBox(width: 8),
@@ -69,9 +68,9 @@ class _CodeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const .fromLTRB(16, 0, 16, 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Text(
             label,

@@ -47,7 +47,8 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
   @override
   void didUpdateWidget(covariant UploadEventBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final scopeChanged = oldWidget.tracker != widget.tracker ||
+    final scopeChanged =
+        oldWidget.tracker != widget.tracker ||
         oldWidget.roomId != widget.roomId ||
         oldWidget.threadId != widget.threadId;
     if (!scopeChanged) return;
@@ -165,10 +166,10 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SizedBox(
-      width: double.infinity,
+      width: .infinity,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: [
           _AnimatedPill(child: _failurePill(theme)),
           _AnimatedPill(child: _successPill(theme)),
@@ -183,7 +184,7 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     }
     final message = _failures.length == 1
         ? 'Failed to upload ${_failures.first.filename}: '
-            '${_failures.first.message}'
+              '${_failures.first.message}'
         : 'Failed to upload ${_failures.length} files';
     return _Pill(
       key: ValueKey('failure:$message'),
@@ -249,27 +250,23 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 12, bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      margin: const .only(left: 12, bottom: 4),
+      padding: const .symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: background, borderRadius: .circular(20)),
       constraints: const BoxConstraints(maxWidth: 420),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(icon, size: 16, color: foreground),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: foreground),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: foreground),
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
             ),
           ),
           const SizedBox(width: 4),
@@ -279,7 +276,7 @@ class _Pill extends StatelessWidget {
             onPressed: onDismiss,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
+            visualDensity: .compact,
           ),
         ],
       ),

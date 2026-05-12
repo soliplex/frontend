@@ -20,7 +20,7 @@ class RoomCard extends StatelessWidget {
         title: Text(room.name),
         subtitle: room.description.isNotEmpty ? Text(room.description) : null,
         trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             if (room.hasQuizzes)
               Tooltip(

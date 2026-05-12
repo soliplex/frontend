@@ -36,15 +36,14 @@ class HttpEventGroup {
     HttpErrorEvent? error,
     HttpStreamStartEvent? streamStart,
     HttpStreamEndEvent? streamEnd,
-  }) =>
-      HttpEventGroup(
-        requestId: requestId,
-        request: request ?? this.request,
-        response: response ?? this.response,
-        error: error ?? this.error,
-        streamStart: streamStart ?? this.streamStart,
-        streamEnd: streamEnd ?? this.streamEnd,
-      );
+  }) => HttpEventGroup(
+    requestId: requestId,
+    request: request ?? this.request,
+    response: response ?? this.response,
+    error: error ?? this.error,
+    streamStart: streamStart ?? this.streamStart,
+    streamEnd: streamEnd ?? this.streamEnd,
+  );
 
   bool get isStream => streamStart != null;
 
@@ -102,24 +101,23 @@ class HttpEventGroup {
   HttpEventStatus get status {
     if (isStream) {
       return switch (streamEnd) {
-        null => HttpEventStatus.streaming,
-        HttpStreamEndEvent(error: _?) => HttpEventStatus.streamError,
-        HttpStreamEndEvent() => HttpEventStatus.streamComplete,
+        null => .streaming,
+        HttpStreamEndEvent(error: _?) => .streamError,
+        HttpStreamEndEvent() => .streamComplete,
       };
     }
-    if (error != null) return HttpEventStatus.networkError;
+    if (error != null) return .networkError;
     return switch (response) {
-      null => HttpEventStatus.pending,
+      null => .pending,
       HttpResponseEvent(statusCode: final code) when code >= 500 =>
-        HttpEventStatus.serverError,
+        .serverError,
       HttpResponseEvent(statusCode: final code) when code >= 400 =>
-        HttpEventStatus.clientError,
-      HttpResponseEvent() => HttpEventStatus.success,
+        .clientError,
+      HttpResponseEvent() => .success,
     };
   }
 
-  bool get hasSpinner =>
-      status == HttpEventStatus.pending || status == HttpEventStatus.streaming;
+  bool get hasSpinner => status == .pending || status == .streaming;
 
   String get statusDescription {
     return switch ((status, response, error)) {

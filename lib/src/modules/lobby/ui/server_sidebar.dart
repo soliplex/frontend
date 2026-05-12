@@ -24,7 +24,7 @@ class ServerSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         Expanded(
           child: _ServerList(
@@ -63,12 +63,12 @@ class _ServerList extends StatelessWidget {
     return ListView(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const .fromLTRB(16, 16, 16, 8),
           child: Text(
             'Servers (${servers.length})',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         for (final entry in servers.entries)
@@ -78,7 +78,7 @@ class _ServerList extends StatelessWidget {
             onTap: onServerTap,
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const .symmetric(horizontal: 8),
           child: OutlinedButton.icon(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
@@ -136,20 +136,14 @@ class _ActionButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
-        TextButton(
-          onPressed: onAddServer,
-          child: const Text('Home'),
-        ),
+        TextButton(onPressed: onAddServer, child: const Text('Home')),
         TextButton(
           onPressed: onNetworkInspector,
           child: const Text('Network Inspector'),
         ),
-        TextButton(
-          onPressed: onVersions,
-          child: const Text('Versions'),
-        ),
+        TextButton(onPressed: onVersions, child: const Text('Versions')),
       ],
     );
   }

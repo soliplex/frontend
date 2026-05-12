@@ -85,9 +85,9 @@ class ChunkVisualizationPage extends StatefulWidget {
       );
     }
 
-    return Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => child),
-    );
+    return Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => child));
   }
 
   @override
@@ -115,11 +115,13 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   void _loadVisualization() {
     _future = widget.api
         .getChunkVisualization(widget.roomId, widget.chunkId)
-        .then((viz) => viz.imagesBase64.map((b64) {
-              final bytes = base64Decode(b64);
-              final (w, h) = readPngDimensions(bytes);
-              return PageImage(bytes, w, h);
-            }).toList());
+        .then(
+          (viz) => viz.imagesBase64.map((b64) {
+            final bytes = base64Decode(b64);
+            final (w, h) = readPngDimensions(bytes);
+            return PageImage(bytes, w, h);
+          }).toList(),
+        );
   }
 
   void _retry() {
@@ -150,7 +152,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     return FutureBuilder<List<PageImage>>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState != .done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
@@ -165,14 +167,14 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget build(BuildContext context) {
     if (widget.useDialogLayout) {
       return Dialog(
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: const .all(16),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
             maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               _buildTitleBar(context),
               Expanded(child: _buildContent(context)),
@@ -194,7 +196,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      padding: const .fromLTRB(16, 12, 8, 8),
       child: Row(
         children: [
           Expanded(
@@ -202,7 +204,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
               widget.documentTitle,
               style: theme.textTheme.titleMedium,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
             ),
           ),
           IconButton(
@@ -218,7 +220,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     final theme = Theme.of(context);
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
           const SizedBox(height: 12),
@@ -232,7 +234,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            textAlign: TextAlign.center,
+            textAlign: .center,
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -248,16 +250,12 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget _buildPageImage(PageImage page, int rotation) {
     final image = RotatedBox(
       quarterTurns: rotation,
-      child: Image.memory(page.bytes, fit: BoxFit.contain),
+      child: Image.memory(page.bytes, fit: .contain),
     );
 
     if (!page.hasDimensions) {
       return Center(
-        child: InteractiveViewer(
-          minScale: 1.0,
-          maxScale: 4.0,
-          child: image,
-        ),
+        child: InteractiveViewer(minScale: 1.0, maxScale: 4.0, child: image),
       );
     }
 
@@ -318,7 +316,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const .symmetric(vertical: 8),
           child: Column(
             children: [
               Text(
@@ -328,18 +326,16 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
               if (pages.length > 1) ...[
                 const SizedBox(height: 4),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: .center,
                   children: List.generate(pages.length, (index) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const .symmetric(horizontal: 3),
                       child: CircleAvatar(
                         radius: 4,
                         backgroundColor: index == _currentPage
                             ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.3),
+                            : Theme.of(context).colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.3),
                       ),
                     );
                   }),

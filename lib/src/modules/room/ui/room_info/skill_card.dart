@@ -16,32 +16,29 @@ class SkillContentColumn extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: .w600,
       color: colorScheme.onSurfaceVariant,
     );
     final valueStyle = theme.textTheme.bodySmall;
     final noneStyle = theme.textTheme.bodySmall?.copyWith(
-      fontStyle: FontStyle.italic,
+      fontStyle: .italic,
       color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     );
 
     Widget field(String label, String? value) {
       final isNone = value == null || value.isEmpty;
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Text(label, style: labelStyle),
           const SizedBox(height: 2),
-          Text(
-            isNone ? 'None' : value,
-            style: isNone ? noneStyle : valueStyle,
-          ),
+          Text(isNone ? 'None' : value, style: isNone ? noneStyle : valueStyle),
         ],
       );
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         field('description', skill.description),
         const SizedBox(height: 8),
@@ -77,22 +74,22 @@ class SkillDetailDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sectionStyle = theme.textTheme.titleSmall?.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: .w600,
     );
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: .w600,
       color: colorScheme.onSurfaceVariant,
     );
     final valueStyle = theme.textTheme.bodySmall;
     final noneStyle = theme.textTheme.bodySmall?.copyWith(
-      fontStyle: FontStyle.italic,
+      fontStyle: .italic,
       color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     );
 
     Widget mapSection(String title, Map<String, dynamic>? data) {
       final isEmpty = data == null || data.isEmpty;
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Text(title, style: sectionStyle),
           const SizedBox(height: 8),
@@ -101,20 +98,17 @@ class SkillDetailDialog extends StatelessWidget {
           else
             for (final entry in data.entries) ...[
               SizedBox(
-                width: double.infinity,
+                width: .infinity,
                 child: Card(
                   margin: EdgeInsets.zero,
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const .all(12),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: .start,
                       children: [
                         Text(entry.key, style: labelStyle),
                         const SizedBox(height: 2),
-                        formatDynamicValue(
-                          entry.value,
-                          style: valueStyle,
-                        ),
+                        formatDynamicValue(entry.value, style: valueStyle),
                       ],
                     ),
                   ),
@@ -127,17 +121,13 @@ class SkillDetailDialog extends StatelessWidget {
     }
 
     return AlertDialog(
-      title: Text(
-        skill.name,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-      ),
+      title: Text(skill.name, overflow: .ellipsis, maxLines: 1),
       content: SizedBox(
-        width: double.maxFinite,
+        width: .maxFinite,
         child: SingleChildScrollView(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: .min,
+            crossAxisAlignment: .start,
             children: [
               mapSection('Metadata', skill.metadata),
               const SizedBox(height: 16),

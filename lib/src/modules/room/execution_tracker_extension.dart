@@ -17,8 +17,8 @@ import 'tracker_registry.dart';
 class ExecutionTrackerExtension extends SessionExtension
     with StatefulSessionExtension<Map<String, ExecutionTracker>> {
   ExecutionTrackerExtension({required Logger logger})
-      : _logger = logger,
-        _registry = TrackerRegistry(logger: logger) {
+    : _logger = logger,
+      _registry = TrackerRegistry(logger: logger) {
     setInitialState(const <String, ExecutionTracker>{});
   }
 
@@ -72,7 +72,7 @@ class ExecutionTrackerExtension extends SessionExtension
       // among warnings.
       _logger.error(
         '_onRunState fired after dispose; ignoring',
-        stackTrace: StackTrace.current,
+        stackTrace: .current,
         attributes: {'runState': runState.runtimeType.toString()},
       );
       return;

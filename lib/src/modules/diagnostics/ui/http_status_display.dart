@@ -38,37 +38,42 @@ class HttpStatusDisplay extends StatelessWidget {
 
   Color _colorForStatus(HttpEventStatus status, ColorScheme colorScheme) {
     return switch (status) {
-      HttpEventStatus.pending => colorScheme.onSurfaceVariant,
-      HttpEventStatus.success => colorScheme.success,
-      HttpEventStatus.clientError => colorScheme.warning,
-      HttpEventStatus.serverError => colorScheme.error,
-      HttpEventStatus.networkError => colorScheme.error,
-      HttpEventStatus.streaming => colorScheme.secondary,
-      HttpEventStatus.streamComplete => colorScheme.success,
-      HttpEventStatus.streamError => colorScheme.error,
+      .pending => colorScheme.onSurfaceVariant,
+      .success => colorScheme.success,
+      .clientError => colorScheme.warning,
+      .serverError => colorScheme.error,
+      .networkError => colorScheme.error,
+      .streaming => colorScheme.secondary,
+      .streamComplete => colorScheme.success,
+      .streamError => colorScheme.error,
     };
   }
 
   String _buildStatusText() {
     return switch (group.status) {
-      HttpEventStatus.pending => 'pending...',
-      HttpEventStatus.success => '${group.response!.statusCode} OK '
-          '(${group.response!.duration.toHttpDurationString()}, '
-          '${group.response!.bodySize.toHttpBytesString()})',
-      HttpEventStatus.clientError => '${group.response!.statusCode} '
-          '(${group.response!.duration.toHttpDurationString()})',
-      HttpEventStatus.serverError => '${group.response!.statusCode} '
-          '(${group.response!.duration.toHttpDurationString()})',
-      HttpEventStatus.networkError => '${group.error!.exception.runtimeType} '
-          '(${group.error!.duration.toHttpDurationString()})',
-      HttpEventStatus.streaming => group.streamEnd != null
-          ? 'streaming... '
-              '(${group.streamEnd!.bytesReceived.toHttpBytesString()})'
-          : 'streaming...',
-      HttpEventStatus.streamComplete =>
+      .pending => 'pending...',
+      .success =>
+        '${group.response!.statusCode} OK '
+            '(${group.response!.duration.toHttpDurationString()}, '
+            '${group.response!.bodySize.toHttpBytesString()})',
+      .clientError =>
+        '${group.response!.statusCode} '
+            '(${group.response!.duration.toHttpDurationString()})',
+      .serverError =>
+        '${group.response!.statusCode} '
+            '(${group.response!.duration.toHttpDurationString()})',
+      .networkError =>
+        '${group.error!.exception.runtimeType} '
+            '(${group.error!.duration.toHttpDurationString()})',
+      .streaming =>
+        group.streamEnd != null
+            ? 'streaming... '
+                  '(${group.streamEnd!.bytesReceived.toHttpBytesString()})'
+            : 'streaming...',
+      .streamComplete =>
         'complete (${group.streamEnd!.duration.toHttpDurationString()}, '
             '${group.streamEnd!.bytesReceived.toHttpBytesString()})',
-      HttpEventStatus.streamError =>
+      .streamError =>
         'error (${group.streamEnd!.duration.toHttpDurationString()})',
     };
   }
@@ -79,7 +84,7 @@ class HttpStatusDisplay extends StatelessWidget {
 
   Widget _buildSpinnerStatus(String text, Color color, ThemeData theme) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         SizedBox(
           width: _spinnerSize,
@@ -93,7 +98,7 @@ class HttpStatusDisplay extends StatelessWidget {
         Text(
           text,
           style: theme.textTheme.bodySmall?.copyWith(
-            fontStyle: FontStyle.italic,
+            fontStyle: .italic,
             color: color,
           ),
         ),

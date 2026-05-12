@@ -12,19 +12,17 @@ class InlineCodeBuilder extends MarkdownElementBuilder {
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const .symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: Color.alphaBlend(
           colorScheme.onSurface.withAlpha(30),
           colorScheme.surface,
         ),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: Text(
         element.textContent,
-        style: preferredStyle?.copyWith(
-          backgroundColor: Colors.transparent,
-        ),
+        style: preferredStyle?.copyWith(backgroundColor: Colors.transparent),
       ),
     );
   }

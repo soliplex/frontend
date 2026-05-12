@@ -9,7 +9,7 @@ class ActivityIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const .only(bottom: 8),
       child: Row(
         children: [
           const SizedBox(
@@ -30,12 +30,11 @@ class ActivityIndicator extends StatelessWidget {
   }
 
   String get _label => switch (activity) {
-        ThinkingActivity() => 'Thinking...',
-        ToolCallActivity(:final allToolNames) when allToolNames.length > 1 =>
-          'Calling ${allToolNames.length} tools...',
-        ToolCallActivity(:final allToolNames) =>
-          'Calling ${allToolNames.first}...',
-        RespondingActivity() => 'Responding...',
-        ProcessingActivity() => 'Processing...',
-      };
+    ThinkingActivity() => 'Thinking...',
+    ToolCallActivity(:final allToolNames) when allToolNames.length > 1 =>
+      'Calling ${allToolNames.length} tools...',
+    ToolCallActivity(:final allToolNames) => 'Calling ${allToolNames.first}...',
+    RespondingActivity() => 'Responding...',
+    ProcessingActivity() => 'Processing...',
+  };
 }

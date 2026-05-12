@@ -27,7 +27,7 @@ class NoResponseTileWidget extends StatelessWidget {
     final hasTracker = executionTracker != null;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         if (streamingActivity != null)
           ActivityIndicator(activity: streamingActivity!),
@@ -75,26 +75,20 @@ class _TerminalReasonBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (icon, label) = switch (reason) {
-      TerminalReason.finished => (
-          Icons.info_outline,
-          'Run finished without a response',
-        ),
-      TerminalReason.failed => (
-          Icons.error_outline,
-          (errorDetail != null && errorDetail!.isNotEmpty)
-              ? 'Run failed: $errorDetail'
-              : 'Run failed without a response',
-        ),
-      TerminalReason.cancelled => (
-          Icons.cancel_outlined,
-          'Run cancelled without a response',
-        ),
+      .finished => (Icons.info_outline, 'Run finished without a response'),
+      .failed => (
+        Icons.error_outline,
+        (errorDetail != null && errorDetail!.isNotEmpty)
+            ? 'Run failed: $errorDetail'
+            : 'Run failed without a response',
+      ),
+      .cancelled => (Icons.cancel_outlined, 'Run cancelled without a response'),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const .symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
       ),
       child: Row(
         children: [
@@ -105,7 +99,7 @@ class _TerminalReasonBubble extends StatelessWidget {
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onTertiaryContainer,
-                fontStyle: FontStyle.italic,
+                fontStyle: .italic,
               ),
             ),
           ),

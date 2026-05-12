@@ -24,7 +24,7 @@ class LoadingMessageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     if (executionTracker != null) {
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           if (streamingActivity != null)
             ActivityIndicator(activity: streamingActivity!),

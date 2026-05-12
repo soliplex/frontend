@@ -24,10 +24,8 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
         controller: _controller,
         autofocus: true,
         maxLines: 5,
-        decoration: const InputDecoration(
-          hintText: 'Add a reason (optional)',
-        ),
-        textInputAction: TextInputAction.newline,
+        decoration: const InputDecoration(hintText: 'Add a reason (optional)'),
+        textInputAction: .newline,
       ),
       actions: [
         TextButton(

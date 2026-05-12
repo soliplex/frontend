@@ -71,11 +71,11 @@ class _ExecutionThinkingBlockState
     if (thinkingBlocks.isEmpty && !isStreaming) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const .only(bottom: 8),
       child: GestureDetector(
         onTap: _toggle,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const .symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
@@ -85,7 +85,7 @@ class _ExecutionThinkingBlockState
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Row(
                 children: [
@@ -101,7 +101,7 @@ class _ExecutionThinkingBlockState
                         : 'Thinking',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: .w600,
                     ),
                   ),
                   if (isStreaming) ...[
@@ -131,7 +131,7 @@ class _ExecutionThinkingBlockState
                     Text(
                       thinkingBlocks[i],
                       style: theme.textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
+                        fontStyle: .italic,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),

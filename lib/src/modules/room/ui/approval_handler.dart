@@ -82,8 +82,10 @@ class _ApprovalHandlerState extends State<ApprovalHandler> {
       builder: (_) => ApprovalDialog(request: request),
     );
     _dialogRoute = route;
-    final approved =
-        await Navigator.of(context, rootNavigator: true).push(route);
+    final approved = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(route);
     if (identical(_dialogRoute, route)) _dialogRoute = null;
     // dispose() leaves the pending request live (see dispose comment);
     // don't synth-deny here.
@@ -126,13 +128,12 @@ class ApprovalDialog extends StatelessWidget {
         ],
       ),
       content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           Text(
             request.toolName,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: .bold),
           ),
           const SizedBox(height: 8),
           Text(request.rationale, style: theme.textTheme.bodyMedium),

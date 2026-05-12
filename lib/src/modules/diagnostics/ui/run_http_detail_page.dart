@@ -32,7 +32,7 @@ class RunHttpDetailPage extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(
             Icons.http,
@@ -62,7 +62,7 @@ class _MultiGroupView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text('HTTP Traffic (${groups.length})')),
       body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const .symmetric(vertical: 8),
         itemCount: groups.length,
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {

@@ -12,8 +12,7 @@ final _brTag = RegExp(r'<br\s*/?>');
 String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
 
 String monospaceFont(TargetPlatform platform) {
-  final isApple =
-      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+  final isApple = platform == .iOS || platform == .macOS;
   return isApple ? 'SF Mono' : 'Roboto Mono';
 }
 
@@ -36,9 +35,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     return MarkdownBody(
       data: sanitizeMarkdown(data),
       selectable: true,
-      styleSheet: markdownTheme?.toMarkdownStyleSheet(
-        codeFontStyle: monoStyle,
-      ),
+      styleSheet: markdownTheme?.toMarkdownStyleSheet(codeFontStyle: monoStyle),
       blockSyntaxes: [LatexBlockSyntax()],
       inlineSyntaxes: [LatexInlineSyntax()],
       onTapLink: onLinkTap == null

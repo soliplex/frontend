@@ -10,8 +10,9 @@ import 'execution_tracker.dart';
 /// per-event catch in [replayToTrackers].
 typedef ExecutionBridge = ExecutionEvent? Function(BaseEvent event);
 
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex_frontend.historical_replay');
+final Logger _logger = LogManager.instance.getLogger(
+  'soliplex_frontend.historical_replay',
+);
 
 /// Replays stored AG-UI event bundles into one frozen [ExecutionTracker]
 /// per assistant message, keyed by that message's id.
@@ -59,15 +60,14 @@ Map<String, ExecutionTracker> replayToTrackers(
 
   for (final bundle in runs) {
     final hasAssistantStart = bundle.events.any(
-      (e) => e is TextMessageStartEvent && e.role == TextMessageRole.assistant,
+      (e) => e is TextMessageStartEvent && e.role == .assistant,
     );
     final hasToolCall = bundle.events.any((e) => e is ToolCallStartEvent);
 
     if (hasAssistantStart) {
       String? currentMessageId;
       for (final raw in bundle.events) {
-        if (raw is TextMessageStartEvent &&
-            raw.role == TextMessageRole.assistant) {
+        if (raw is TextMessageStartEvent && raw.role == .assistant) {
           final messageId = raw.messageId;
           currentMessageId = messageId;
           final bucket = buckets.putIfAbsent(messageId, () => []);
@@ -120,7 +120,9 @@ Map<String, ExecutionTracker> replayToTrackers(
 
   return {
     for (final entry in buckets.entries)
-      entry.key:
-          ExecutionTracker.historical(events: entry.value, logger: _logger),
+      entry.key: ExecutionTracker.historical(
+        events: entry.value,
+        logger: _logger,
+      ),
   };
 }

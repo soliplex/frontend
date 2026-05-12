@@ -52,20 +52,17 @@ ThemeData _defaultTheme() {
         ),
         link: TextStyle(
           color: colors.link,
-          decoration: TextDecoration.underline,
+          decoration: .underline,
           decorationColor: colors.link,
         ),
         codeBlockDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: .circular(8),
         ),
         blockquoteDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
           border: Border(
-            left: BorderSide(
-              color: colorScheme.outlineVariant,
-              width: 3,
-            ),
+            left: BorderSide(color: colorScheme.outlineVariant, width: 3),
           ),
         ),
       ),
@@ -97,14 +94,13 @@ Future<ShellConfig> standard({
   SoliplexHttpClient buildClient({
     String? Function()? getToken,
     TokenRefresher? tokenRefresher,
-  }) =>
-      createAgentHttpClient(
-        innerClient: createPlatformClient(),
-        observers: [inspector],
-        getToken: getToken,
-        tokenRefresher: tokenRefresher,
-        onDiagnostic: onHttpDiagnostic,
-      );
+  }) => createAgentHttpClient(
+    innerClient: createPlatformClient(),
+    observers: [inspector],
+    getToken: getToken,
+    tokenRefresher: tokenRefresher,
+    onDiagnostic: onHttpDiagnostic,
+  );
 
   final plainClient = buildClient();
   final refreshService = TokenRefreshService(httpClient: plainClient);
@@ -122,11 +118,12 @@ Future<ShellConfig> standard({
   await serverManager.restoreServers();
 
   final savedUrl = await DefaultBackendUrlStorage.load();
-  final resolvedUrl = savedUrl ??
+  final resolvedUrl =
+      savedUrl ??
       platformDefaultBackendUrl(
         configUrl: defaultBackendUrl,
         isWeb: kIsWeb,
-        webOrigin: kIsWeb ? Uri.base : null,
+        webOrigin: kIsWeb ? .base : null,
       );
 
   final authFlow = createAuthFlow(redirectScheme: redirectScheme);
@@ -139,8 +136,9 @@ Future<ShellConfig> standard({
     logger: LogManager.instance.getLogger('room'),
     extensionFactory: () async => [
       ExecutionTrackerExtension(
-        logger: LogManager.instance
-            .getLogger('soliplex_frontend.execution_tracker'),
+        logger: LogManager.instance.getLogger(
+          'soliplex_frontend.execution_tracker',
+        ),
       ),
       ToolCallsExtension(),
       HumanApprovalExtension(),
@@ -167,8 +165,8 @@ Future<ShellConfig> standard({
     initialRoute: callbackParams is! NoCallbackParams
         ? AppRoutes.authCallback
         : (serverManager.authState.value is Authenticated
-            ? AppRoutes.lobby
-            : AppRoutes.home),
+              ? AppRoutes.lobby
+              : AppRoutes.home),
     refreshListenable: authMod.refreshListenable,
     modules: [
       DiagnosticsAppModule(inspector: inspector),
@@ -181,10 +179,7 @@ Future<ShellConfig> standard({
         enableDocumentFilter: true,
       ),
       QuizAppModule(serverManager: serverManager),
-      VersionsAppModule(
-        appName: appName,
-        serverManager: serverManager,
-      ),
+      VersionsAppModule(appName: appName, serverManager: serverManager),
     ],
   );
 }

@@ -34,7 +34,7 @@ class MessageTimeline extends StatefulWidget {
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
-      onFeedbackSubmit;
+  onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
@@ -87,8 +87,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
   void _recomputeMaps() {
     _runIdMap = buildRunIdMap(widget.messages, widget.messageStates);
-    _sourceReferencesMap =
-        buildSourceReferencesMap(widget.messages, widget.messageStates);
+    _sourceReferencesMap = buildSourceReferencesMap(
+      widget.messages,
+      widget.messageStates,
+    );
   }
 
   @override
@@ -102,7 +104,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   TextMessage? _findLastUserMessage(List<ChatMessage> messages) {
     for (var i = messages.length - 1; i >= 0; i--) {
       final m = messages[i];
-      if (m is TextMessage && m.user == ChatUser.user) return m;
+      if (m is TextMessage && m.user == .user) return m;
     }
     return null;
   }
@@ -189,7 +191,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
           controller: _scrollController,
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const .all(16),
               sliver: SliverList.builder(
                 itemCount: displayMessages.length,
                 itemBuilder: (context, index) {
@@ -205,13 +207,13 @@ class _MessageTimelineState extends State<MessageTimeline> {
                     key: message is LoadingMessage
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const .only(bottom: 16),
                     child: MessageTile(
                       roomId: widget.roomId,
                       message: message,
-                      runId: _runIdMap[message.id] ??
-                          (message is TextMessage &&
-                                  message.user == ChatUser.user
+                      runId:
+                          _runIdMap[message.id] ??
+                          (message is TextMessage && message.user == .user
                               ? widget.messageStates[message.id]?.runId
                               : null),
                       sourceReferences: _sourceReferencesMap[message.id],
@@ -221,7 +223,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
                       onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
                       onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
                       onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
-                      executionTracker: widget.executionTrackers[message.id] ??
+                      executionTracker:
+                          widget.executionTrackers[message.id] ??
                           (message is LoadingMessage
                               ? widget.executionTrackers[awaitingTrackerKey]
                               : null),

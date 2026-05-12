@@ -100,19 +100,19 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const .only(bottom: 8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const .symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: .circular(6),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             GestureDetector(
               onTap: _toggleExpanded,
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               child: Row(
                 children: [
                   Icon(
@@ -144,7 +144,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     switch (entry) {
       case TimelineStep(:final step, :final activities):
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             _stepRow(step, theme),
             for (final activity in activities)
@@ -158,7 +158,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   Widget _stepRow(ExecutionStep step, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const .symmetric(vertical: 2),
       child: Row(
         children: [
           _stepIcon(step, theme),
@@ -193,13 +193,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     final isExpanded = _isSourceExpanded(activity.messageId);
 
     return Padding(
-      padding: EdgeInsets.only(left: indent, top: 2, bottom: 2),
+      padding: .only(left: indent, top: 2, bottom: 2),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           GestureDetector(
             onTap: hasSource ? () => _toggleSource(activity.messageId) : null,
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             child: Row(
               children: [
                 SizedBox(
@@ -242,15 +242,15 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   Widget _sourceBlock(String source, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6, left: 24),
+      padding: const .only(top: 4, bottom: 6, left: 24),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const .all(8),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: .circular(4),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: [
             Align(
               alignment: Alignment.centerRight,
@@ -272,7 +272,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   Widget _stepIcon(ExecutionStep step, ThemeData theme) {
     switch (step.status) {
-      case StepStatus.active:
+      case .active:
         return SizedBox(
           width: 12,
           height: 12,
@@ -281,13 +281,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             color: theme.colorScheme.primary,
           ),
         );
-      case StepStatus.failed:
+      case .failed:
         return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
-      case StepStatus.completed:
+      case .completed:
         return Icon(
           Icons.check_circle,
           size: 12,
-          color: step.type == StepType.thinking
+          color: step.type == .thinking
               ? theme.colorScheme.tertiary
               : theme.colorScheme.primary,
         );

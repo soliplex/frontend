@@ -13,12 +13,12 @@ class ClientToolsCard extends StatelessWidget {
     return FutureBuilder<List<Tool>>(
       future: clientToolsFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == .waiting) {
           return const SectionCard(
             title: 'CLIENT TOOLS',
             children: [
               Padding(
-                padding: EdgeInsets.all(16),
+                padding: .all(16),
                 child: Center(child: CircularProgressIndicator()),
               ),
             ],
