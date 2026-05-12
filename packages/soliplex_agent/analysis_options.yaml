@@ -6,3 +6,7 @@ linter:
   rules:
     one_member_abstracts: false
     public_member_api_docs: false
+    # TODO: remove after the SDK 3.10 lint cleanup commits.
+    # Dormant under SDK ^3.6.0, active under ^3.10.0.
+    unnecessary_underscores: false
+    use_null_aware_elements: false
