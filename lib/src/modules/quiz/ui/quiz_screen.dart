@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -85,7 +87,7 @@ class _QuizScreenState extends State<QuizScreen> {
           leading: IconButton(
             icon: Icon(Icons.adaptive.arrow_back),
             tooltip: 'Back to room',
-            onPressed: _handleBack,
+            onPressed: () => unawaited(_handleBack()),
           ),
           title: FutureBuilder<Quiz>(
             future: _quizFuture,
@@ -183,16 +185,16 @@ class _QuizScreenState extends State<QuizScreen> {
         submissionError: error,
         onSelectOption: (o) => _controller.updateInput(MultipleChoiceInput(o)),
         onTextChanged: (t) => _controller.updateInput(TextInput(t)),
-        onSubmit: _controller.submitAnswer,
+        onSubmit: () => unawaited(_controller.submitAnswer()),
         onNext: () {
           _answerController.clear();
           _controller.nextQuestion();
         },
-        onRetry: _controller.submitAnswer,
+        onRetry: () => unawaited(_controller.submitAnswer()),
       ),
       QuizCompleted() => QuizResultsView(
         session: session,
-        onBack: _handleBack,
+        onBack: () => unawaited(_handleBack()),
         onRetake: () {
           _answerController.clear();
           _controller.retake();

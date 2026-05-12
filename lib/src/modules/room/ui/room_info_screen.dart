@@ -438,7 +438,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
-            onPressed: _pickAndUpload,
+            onPressed: () => unawaited(_pickAndUpload()),
             icon: const Icon(Icons.upload_file, size: 18),
             label: const Text('Upload file to room'),
           ),

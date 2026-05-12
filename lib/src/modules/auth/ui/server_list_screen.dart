@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
@@ -101,10 +102,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
             ),
           IconButton(
             icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
-            onPressed: () async {
-              await _logout(entry);
-              widget.serverManager.removeServer(entry.serverId);
-            },
+            onPressed: () => unawaited(_logoutAndRemove(entry)),
           ),
         ],
       ),
@@ -132,6 +130,11 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
       onTap: () =>
           context.go(AppRoutes.homeWithUrl(entry.serverUrl.toString())),
     );
+  }
+
+  Future<void> _logoutAndRemove(ServerEntry entry) async {
+    await _logout(entry);
+    widget.serverManager.removeServer(entry.serverId);
   }
 
   Future<void> _logout(ServerEntry entry) async {

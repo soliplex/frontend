@@ -146,7 +146,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           ),
           const SizedBox(width: 4),
           InkWell(
-            onTap: _onTellUsWhyTap,
+            onTap: () => unawaited(_onTellUsWhyTap()),
             borderRadius: .circular(4),
             child: Text(
               'Tell us why!',

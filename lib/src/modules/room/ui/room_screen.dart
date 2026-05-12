@@ -376,7 +376,7 @@ class _RoomScreenState extends State<RoomScreen> {
             selectedThreadId: selectedThreadId,
             onThreadSelected: _onThreadSelected,
             onBackToLobby: _onBackToLobby,
-            onCreateThread: _state.createThread,
+            onCreateThread: () => unawaited(_state.createThread()),
             onNetworkInspector: _onNetworkInspector,
             onVersions: _onVersions,
             onRoomInfo: _onRoomInfo,
@@ -384,8 +384,10 @@ class _RoomScreenState extends State<RoomScreen> {
             onRetryThreads: () => _state.threadList.refresh(),
             quizzes: room?.quizzes ?? const {},
             onQuizTapped: _onQuizTapped,
-            onRenameThread: _showRenameDialog,
-            onDeleteThread: _showDeleteDialog,
+            onRenameThread: (threadId, currentName) =>
+                unawaited(_showRenameDialog(threadId, currentName)),
+            onDeleteThread: (threadId) =>
+                unawaited(_showDeleteDialog(threadId)),
             runningThreadIds: _state.runningThreadIds,
           );
           final content = _buildContent(room);
@@ -825,13 +827,15 @@ class _RoomScreenState extends State<RoomScreen> {
           controller: _chatController,
           focusNode: _chatFocusNode,
           selectedDocuments: _selectedDocuments,
-          onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+          onFilterTap: _filterEnabled
+              ? () => unawaited(_openDocumentPicker())
+              : null,
           onDocumentRemoved: _filterEnabled
               ? (doc) =>
                     _updateSelection(Set.of(_selectedDocuments)..remove(doc))
               : null,
           onAttachFile: (room?.enableAttachments ?? false)
-              ? _pickAndUploadToNewThread
+              ? () => unawaited(_pickAndUploadToNewThread())
               : null,
         ),
       ],
@@ -956,7 +960,9 @@ class _RoomScreenState extends State<RoomScreen> {
               focusNode: _chatFocusNode,
               enabled: status is MessagesLoaded,
               selectedDocuments: _selectedDocuments,
-              onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+              onFilterTap: _filterEnabled
+                  ? () => unawaited(_openDocumentPicker())
+                  : null,
               onDocumentRemoved: _filterEnabled
                   ? (doc) => _updateSelection(
                       Set.of(_selectedDocuments)..remove(doc),

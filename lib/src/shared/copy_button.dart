@@ -71,7 +71,7 @@ class _CopyButtonState extends State<CopyButton> {
       child: Tooltip(
         message: widget.tooltip,
         child: InkWell(
-          onTap: _feedback == .idle ? _copy : null,
+          onTap: _feedback == .idle ? () => unawaited(_copy()) : null,
           borderRadius: .circular(4),
           child: Icon(icon, size: widget.iconSize, color: color),
         ),

@@ -275,7 +275,7 @@ class HttpTransport {
         subscription = source.listen(
           controller.add,
           onError: controller.addError,
-          onDone: controller.close,
+          onDone: () => unawaited(controller.close()),
         );
       },
       onPause: () => subscription?.pause(),
@@ -297,7 +297,8 @@ class HttpTransport {
       return;
     }
 
-    final message = 'HTTP $statusCode'
+    final message =
+        'HTTP $statusCode'
         '${response.reasonPhrase != null ? ': ${response.reasonPhrase}' : ''}';
 
     if (statusCode == 401 || statusCode == 403) {
@@ -380,7 +381,8 @@ class HttpTransport {
 
     // Check if response is JSON
     final contentType = response.contentType ?? '';
-    final isJson = contentType.contains('application/json') ||
+    final isJson =
+        contentType.contains('application/json') ||
         body.trimLeft().startsWith('{') ||
         body.trimLeft().startsWith('[');
 

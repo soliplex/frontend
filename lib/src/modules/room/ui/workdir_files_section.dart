@@ -165,7 +165,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     final canPreview =
         widget.onPreview != null && _isPreviewableImage(widget.file.filename);
     return InkWell(
-      onTap: _feedback == .idle ? _handleTap : null,
+      onTap: _feedback == .idle ? () => unawaited(_handleTap()) : null,
       borderRadius: .circular(6),
       child: Padding(
         padding: const .symmetric(vertical: 4, horizontal: 4),
@@ -606,7 +606,9 @@ class _CannotPreviewState extends State<_CannotPreview> {
           Text("Can't preview this file", style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _feedback == .idle ? _handleDownload : null,
+            onPressed: _feedback == .idle
+                ? () => unawaited(_handleDownload())
+                : null,
             icon: Icon(icon),
             label: Text(label),
           ),

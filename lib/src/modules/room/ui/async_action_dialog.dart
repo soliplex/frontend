@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
@@ -80,7 +82,9 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
         mainAxisSize: .min,
         crossAxisAlignment: .stretch,
         children: [
-          widget.contentBuilder(widget.canSubmit && !_busy ? _run : null),
+          widget.contentBuilder(
+            widget.canSubmit && !_busy ? () => unawaited(_run()) : null,
+          ),
           if (_error != null)
             Padding(
               padding: const .only(top: 8),
@@ -109,7 +113,7 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
           )
         else
           TextButton(
-            onPressed: widget.canSubmit ? _run : null,
+            onPressed: widget.canSubmit ? () => unawaited(_run()) : null,
             style: widget.isDestructive
                 ? TextButton.styleFrom(foregroundColor: theme.colorScheme.error)
                 : null,
