@@ -669,9 +669,8 @@ class SoliplexApi {
     // 3. Fetch all run events in parallel (cache handles duplicates)
     final eventFutures = completedRunIds.map((runId) {
       return _fetchRunEvents(roomId, threadId, runId, cancelToken: cancelToken)
-          .then(
-            (events) =>
-                (runId: runId, events: events, fetchError: null as Object?),
+          .then<({String runId, List<dynamic> events, Object? fetchError})>(
+            (events) => (runId: runId, events: events, fetchError: null),
           )
           .catchError(
             (Object e) {
@@ -680,11 +679,7 @@ class SoliplexApi {
               // loop, which mints a drop tile so the run is visibly missing
               // rather than silently absent.
               _onWarning?.call('Failed to fetch events for run $runId: $e');
-              return (
-                runId: runId,
-                events: <dynamic>[],
-                fetchError: e as Object?,
-              );
+              return (runId: runId, events: <dynamic>[], fetchError: e);
             },
             // Only catch transient errors - show partial results for batch ops:
             // - NetworkException: network blip, retry might succeed
@@ -833,7 +828,7 @@ class SoliplexApi {
     if (eventsPerRun.isEmpty) return ThreadHistory(messages: const []);
 
     var conversation = Conversation.empty(threadId: threadId);
-    var streaming = const AwaitingText() as StreamingState;
+    StreamingState streaming = const AwaitingText();
     const extractor = CitationExtractor();
     final messageStates = <String, MessageState>{};
     final runs = <RunEventBundle>[];
