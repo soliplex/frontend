@@ -194,8 +194,9 @@ class PlatformDiskQueue implements DiskQueue {
     await _file.writeAsString(content, mode: .append, flush: true);
 
     // Count valid records added.
-    final added = _countValidRecords(content);
-    if (_total != _kUnknownTotal) _total += added;
+    if (_total != _kUnknownTotal) {
+      _total += _countValidRecords(content);
+    }
 
     mergeFile.deleteSync();
   }

@@ -70,9 +70,8 @@ Map<String, ExecutionTracker> replayToTrackers(
         if (raw is TextMessageStartEvent && raw.role == .assistant) {
           final messageId = raw.messageId;
           currentMessageId = messageId;
-          final bucket = buckets.putIfAbsent(messageId, () => []);
           if (pending.isNotEmpty) {
-            bucket.addAll(pending);
+            buckets.putIfAbsent(messageId, () => []).addAll(pending);
             pending.clear();
           }
         }

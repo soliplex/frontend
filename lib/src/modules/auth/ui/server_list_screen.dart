@@ -138,11 +138,11 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
   }
 
   Future<void> _logout(ServerEntry entry) async {
-    final authFlow = ref.read(authFlowProvider);
     final session = entry.auth.session.value;
     entry.auth.logout();
     if (mounted) setState(() {});
     if (session is ActiveSession) {
+      final authFlow = ref.read(authFlowProvider);
       String? endSessionEndpoint;
       try {
         final httpClient = ref.read(probeClientProvider);

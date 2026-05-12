@@ -369,28 +369,28 @@ class _RoomScreenState extends State<RoomScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= _kWideBreakpoint;
-          final sidebar = ThreadSidebar(
-            threadListStatus: threadListStatus,
-            selectedThreadId: selectedThreadId,
-            onThreadSelected: _onThreadSelected,
-            onBackToLobby: _onBackToLobby,
-            onCreateThread: () => unawaited(_state.createThread()),
-            onNetworkInspector: _onNetworkInspector,
-            onVersions: _onVersions,
-            onRoomInfo: _onRoomInfo,
-            roomName: roomName,
-            onRetryThreads: () => _state.threadList.refresh(),
-            quizzes: room?.quizzes ?? const {},
-            onQuizTapped: _onQuizTapped,
-            onRenameThread: (threadId, currentName) =>
-                unawaited(_showRenameDialog(threadId, currentName)),
-            onDeleteThread: (threadId) =>
-                unawaited(_showDeleteDialog(threadId)),
-            runningThreadIds: _state.runningThreadIds,
-          );
           final content = _buildContent(room);
 
           if (isWide) {
+            final sidebar = ThreadSidebar(
+              threadListStatus: threadListStatus,
+              selectedThreadId: selectedThreadId,
+              onThreadSelected: _onThreadSelected,
+              onBackToLobby: _onBackToLobby,
+              onCreateThread: () => unawaited(_state.createThread()),
+              onNetworkInspector: _onNetworkInspector,
+              onVersions: _onVersions,
+              onRoomInfo: _onRoomInfo,
+              roomName: roomName,
+              onRetryThreads: () => _state.threadList.refresh(),
+              quizzes: room?.quizzes ?? const {},
+              onQuizTapped: _onQuizTapped,
+              onRenameThread: (threadId, currentName) =>
+                  unawaited(_showRenameDialog(threadId, currentName)),
+              onDeleteThread: (threadId) =>
+                  unawaited(_showDeleteDialog(threadId)),
+              runningThreadIds: _state.runningThreadIds,
+            );
             return Scaffold(
               body: Row(
                 children: [
