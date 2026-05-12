@@ -33,7 +33,8 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: widget.inspector.events.isEmpty &&
+                onPressed:
+                    widget.inspector.events.isEmpty &&
                         widget.inspector.concurrencyEvents.isEmpty
                     ? null
                     : () {
@@ -104,7 +105,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: groups.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final group = groups[index];
         return HttpEventTile(
@@ -139,7 +140,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: groups.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final group = groups[index];
                 final isSelected = group.requestId == effectiveId;
@@ -147,8 +148,9 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                   onTap: () =>
                       setState(() => _selectedRequestId = group.requestId),
                   child: Container(
-                    color:
-                        isSelected ? theme.colorScheme.primaryContainer : null,
+                    color: isSelected
+                        ? theme.colorScheme.primaryContainer
+                        : null,
                     child: HttpEventTile(group: group, isSelected: isSelected),
                   ),
                 );

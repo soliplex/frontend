@@ -1,12 +1,5 @@
 include: package:flutter_lints/flutter.yaml
 
-# TODO: remove this override after the unnecessary_underscores cleanup.
-# Lint is dormant under SDK ^3.6.0 and activates under ^3.10.0
-# (wildcard patterns).
-linter:
-  rules:
-    unnecessary_underscores: false
-
 dcm:
   extends:
     - recommended

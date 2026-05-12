@@ -57,16 +57,14 @@ void main() {
         theme: ThemeData(),
         initialRoute: '/check',
         modules: [
-          _TestModule(
-            overrides: [greeting.overrideWithValue('hello')],
-          ),
+          _TestModule(overrides: [greeting.overrideWithValue('hello')]),
           _TestModule(
             overrides: [farewell.overrideWithValue('goodbye')],
             routes: [
               GoRoute(
                 path: '/check',
-                builder: (_, __) => Consumer(
-                  builder: (_, ref, __) => Column(
+                builder: (_, _) => Consumer(
+                  builder: (_, ref, _) => Column(
                     children: [
                       Text(ref.watch(greeting)),
                       Text(ref.watch(farewell)),
@@ -104,18 +102,9 @@ void main() {
           ),
           _TestModule(
             routes: [
-              GoRoute(
-                path: '/a',
-                builder: (_, __) => const Text('Page A'),
-              ),
-              GoRoute(
-                path: '/b',
-                builder: (_, __) => const Text('Page B'),
-              ),
-              GoRoute(
-                path: '/c',
-                builder: (_, __) => const Text('Page C'),
-              ),
+              GoRoute(path: '/a', builder: (_, _) => const Text('Page A')),
+              GoRoute(path: '/b', builder: (_, _) => const Text('Page B')),
+              GoRoute(path: '/c', builder: (_, _) => const Text('Page C')),
             ],
           ),
         ],
@@ -150,9 +139,7 @@ void main() {
         theme: ThemeData(),
         modules: [
           _TestModule(
-            routes: [
-              GoRoute(path: '/', builder: (_, __) => const SizedBox()),
-            ],
+            routes: [GoRoute(path: '/', builder: (_, _) => const SizedBox())],
           ),
           _TestModule(),
         ],
@@ -165,45 +152,35 @@ void main() {
       final config = await ShellConfig.fromModules(
         appName: 'Test',
         theme: ThemeData(),
-        modules: [
-          _LifecycleModule('a', log),
-          _LifecycleModule('b', log),
-        ],
+        modules: [_LifecycleModule('a', log), _LifecycleModule('b', log)],
       );
 
       await config.dispose?.call();
       expect(log, ['dispose:b', 'dispose:a']);
     });
 
-    testWidgets(
-      'widget unmount does not trigger module onDispose',
-      (tester) async {
-        final log = <String>[];
+    testWidgets('widget unmount does not trigger module onDispose', (
+      tester,
+    ) async {
+      final log = <String>[];
 
-        final config = await ShellConfig.fromModules(
-          appName: 'Test',
-          theme: ThemeData(),
-          modules: [_LifecycleModule('x', log)],
-        );
+      final config = await ShellConfig.fromModules(
+        appName: 'Test',
+        theme: ThemeData(),
+        modules: [_LifecycleModule('x', log)],
+      );
 
-        await tester.pumpWidget(SoliplexShell(config: config));
-        await tester.pumpWidget(const SizedBox());
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(SoliplexShell(config: config));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
 
-        expect(
-          log,
-          isEmpty,
-          reason: 'widget unmount must not dispose modules',
-        );
+      expect(log, isEmpty, reason: 'widget unmount must not dispose modules');
 
-        await config.dispose?.call();
-        expect(
-          log,
-          ['dispose:x'],
-          reason: 'explicit caller dispose must fire onDispose',
-        );
-      },
-    );
+      await config.dispose?.call();
+      expect(log, [
+        'dispose:x',
+      ], reason: 'explicit caller dispose must fire onDispose');
+    });
   });
 }
 

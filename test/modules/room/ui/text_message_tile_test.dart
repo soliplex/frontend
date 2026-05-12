@@ -10,90 +10,101 @@ import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 
 Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
-      overrides: [
-        messageExpansionsProvider
-            .overrideWithValue(store ?? MessageExpansions()),
-      ],
-      child: MaterialApp(home: Scaffold(body: child)),
-    );
+  overrides: [
+    messageExpansionsProvider.overrideWithValue(store ?? MessageExpansions()),
+  ],
+  child: MaterialApp(home: Scaffold(body: child)),
+);
 
 void main() {
-  testWidgets('user message shows copy button but no feedback buttons',
-      (tester) async {
-    await tester.pumpWidget(_wrap(
-      TextMessageTile(
-        roomId: 'r',
-        message: TextMessage(
-          id: '1',
-          user: ChatUser.user,
-          createdAt: DateTime(2026),
-          text: 'Hello',
+  testWidgets('user message shows copy button but no feedback buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        TextMessageTile(
+          roomId: 'r',
+          message: TextMessage(
+            id: '1',
+            user: ChatUser.user,
+            createdAt: DateTime(2026),
+            text: 'Hello',
+          ),
         ),
       ),
-    ));
+    );
 
     expect(find.byType(CopyButton), findsOneWidget);
     expect(find.byType(FeedbackButtons), findsNothing);
   });
 
-  testWidgets('assistant message shows copy button and feedback buttons',
-      (tester) async {
-    await tester.pumpWidget(_wrap(
-      TextMessageTile(
-        roomId: 'r',
-        message: TextMessage(
-          id: '2',
-          user: ChatUser.assistant,
-          createdAt: DateTime(2026),
-          text: 'Hi there',
+  testWidgets('assistant message shows copy button and feedback buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        TextMessageTile(
+          roomId: 'r',
+          message: TextMessage(
+            id: '2',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026),
+            text: 'Hi there',
+          ),
+          runId: 'run-1',
+          onFeedbackSubmit: (_, _) {},
         ),
-        runId: 'run-1',
-        onFeedbackSubmit: (_, __) {},
       ),
-    ));
+    );
 
     expect(find.byType(CopyButton), findsOneWidget);
     expect(find.byType(FeedbackButtons), findsOneWidget);
   });
 
-  testWidgets('assistant message without feedback callback shows only copy',
-      (tester) async {
-    await tester.pumpWidget(_wrap(
-      TextMessageTile(
-        roomId: 'r',
-        message: TextMessage(
-          id: '3',
-          user: ChatUser.assistant,
-          createdAt: DateTime(2026),
-          text: 'Hi there',
+  testWidgets('assistant message without feedback callback shows only copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        TextMessageTile(
+          roomId: 'r',
+          message: TextMessage(
+            id: '3',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026),
+            text: 'Hi there',
+          ),
         ),
       ),
-    ));
+    );
 
     expect(find.byType(CopyButton), findsOneWidget);
     expect(find.byType(FeedbackButtons), findsNothing);
   });
 
   testWidgets('thinking block shows copy button', (tester) async {
-    await tester.pumpWidget(_wrap(
-      TextMessageTile(
-        roomId: 'r',
-        message: TextMessage(
-          id: '4',
-          user: ChatUser.assistant,
-          createdAt: DateTime(2026),
-          text: 'Response',
-          thinkingText: 'Let me think about this...',
+    await tester.pumpWidget(
+      _wrap(
+        TextMessageTile(
+          roomId: 'r',
+          message: TextMessage(
+            id: '4',
+            user: ChatUser.assistant,
+            createdAt: DateTime(2026),
+            text: 'Response',
+            thinkingText: 'Let me think about this...',
+          ),
         ),
       ),
-    ));
+    );
 
     // One CopyButton for the message, one for the thinking block
     expect(find.byType(CopyButton), findsNWidgets(2));
   });
 
-  testWidgets('fallback thinking block persists expansion across remount',
-      (tester) async {
+  testWidgets('fallback thinking block persists expansion across remount', (
+    tester,
+  ) async {
     // Fallback _ThinkingBlock wires ExpansionTile.initiallyExpanded +
     // onExpansionChanged to the store. A remount (which destroys
     // ExpansionTile's internal State) must re-seed from the store.
@@ -107,12 +118,12 @@ void main() {
     );
 
     Widget tree(Key parentKey) => _wrap(
-          KeyedSubtree(
-            key: parentKey,
-            child: TextMessageTile(roomId: 'r', message: msg),
-          ),
-          store: store,
-        );
+      KeyedSubtree(
+        key: parentKey,
+        child: TextMessageTile(roomId: 'r', message: msg),
+      ),
+      store: store,
+    );
 
     await tester.pumpWidget(tree(const ValueKey('A')));
     expect(find.text('Deep thought'), findsNothing);
@@ -126,8 +137,9 @@ void main() {
     expect(find.text('Deep thought'), findsOneWidget);
   });
 
-  testWidgets('fallback thinking block persists collapse across remount',
-      (tester) async {
+  testWidgets('fallback thinking block persists collapse across remount', (
+    tester,
+  ) async {
     // Mirror of the expand-persists test: collapse (false) must also be
     // written to the store so a remount re-seeds as collapsed.
     final store = MessageExpansions();
@@ -140,12 +152,12 @@ void main() {
     );
 
     Widget tree(Key parentKey) => _wrap(
-          KeyedSubtree(
-            key: parentKey,
-            child: TextMessageTile(roomId: 'r', message: msg),
-          ),
-          store: store,
-        );
+      KeyedSubtree(
+        key: parentKey,
+        child: TextMessageTile(roomId: 'r', message: msg),
+      ),
+      store: store,
+    );
 
     await tester.pumpWidget(tree(const ValueKey('A')));
     await tester.tap(find.text('Thinking...'));

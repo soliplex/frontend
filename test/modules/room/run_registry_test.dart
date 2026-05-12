@@ -9,22 +9,14 @@ import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import '../../helpers/fakes.dart';
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
-      serverId: 'test-server',
-      api: api,
-      agUiStreamClient: FakeAgUiStreamClient(),
-    );
-
-const _key = (
   serverId: 'test-server',
-  roomId: 'room-1',
-  threadId: 'thread-1',
+  api: api,
+  agUiStreamClient: FakeAgUiStreamClient(),
 );
 
-const _key2 = (
-  serverId: 'test-server',
-  roomId: 'room-1',
-  threadId: 'thread-2',
-);
+const _key = (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-1');
+
+const _key2 = (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-2');
 
 void main() {
   late FakeSoliplexApi api;
@@ -50,14 +42,8 @@ void main() {
     await runtimeManager.dispose();
   });
 
-  Future<AgentSession> spawnSession({
-    String threadId = 'thread-1',
-  }) async {
-    return runtime.spawn(
-      roomId: 'room-1',
-      prompt: 'test',
-      threadId: threadId,
-    );
+  Future<AgentSession> spawnSession({String threadId = 'thread-1'}) async {
+    return runtime.spawn(roomId: 'room-1', prompt: 'test', threadId: threadId);
   }
 
   test('activeSession returns registered session', () async {
@@ -170,7 +156,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       },
       zoneSpecification: ZoneSpecification(
-        print: (_, __, ___, line) => captured.add(line),
+        print: (_, _, _, line) => captured.add(line),
       ),
     );
 
@@ -196,76 +182,84 @@ void main() {
     expect(registry.activeSession(_key2), isNull);
   });
 
-  test('activeKeys adds on register and removes on terminal completion',
-      () async {
-    expect(registry.activeKeys.value, isEmpty);
+  test(
+    'activeKeys adds on register and removes on terminal completion',
+    () async {
+      expect(registry.activeKeys.value, isEmpty);
 
-    final session = await spawnSession();
-    registry.register(_key, session);
+      final session = await spawnSession();
+      registry.register(_key, session);
 
-    expect(registry.activeKeys.value, contains(_key));
+      expect(registry.activeKeys.value, contains(_key));
 
-    try {
-      await session.result;
-    } on Object catch (_) {}
-    await Future<void>.delayed(Duration.zero);
+      try {
+        await session.result;
+      } on Object catch (_) {}
+      await Future<void>.delayed(Duration.zero);
 
-    expect(registry.activeKeys.value, isNot(contains(_key)));
-  });
+      expect(registry.activeKeys.value, isNot(contains(_key)));
+    },
+  );
 
-  test('activeKeys keeps key when prior session terminates after replacement',
-      () async {
-    final session1 = ManualAgentSession(_key);
-    final session2 = ManualAgentSession(_key);
+  test(
+    'activeKeys keeps key when prior session terminates after replacement',
+    () async {
+      final session1 = ManualAgentSession(_key);
+      final session2 = ManualAgentSession(_key);
 
-    registry.register(_key, session1);
-    registry.register(_key, session2);
+      registry.register(_key, session1);
+      registry.register(_key, session2);
 
-    // session2 stays active. Trigger session1's terminal callback —
-    // it must NOT remove the key.
-    session1.completeAsCancelled();
-    await Future<void>.delayed(Duration.zero);
+      // session2 stays active. Trigger session1's terminal callback —
+      // it must NOT remove the key.
+      session1.completeAsCancelled();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(registry.activeKeys.value, contains(_key));
-    expect(registry.activeSession(_key), same(session2));
-  });
+      expect(registry.activeKeys.value, contains(_key));
+      expect(registry.activeSession(_key), same(session2));
+    },
+  );
 
-  test('supersession guard works for any superseded run, not only the first',
-      () async {
-    final session1 = ManualAgentSession(_key);
-    final session2 = ManualAgentSession(_key);
-    final session3 = ManualAgentSession(_key);
+  test(
+    'supersession guard works for any superseded run, not only the first',
+    () async {
+      final session1 = ManualAgentSession(_key);
+      final session2 = ManualAgentSession(_key);
+      final session3 = ManualAgentSession(_key);
 
-    registry.register(_key, session1);
-    registry.register(_key, session2);
-    registry.register(_key, session3);
+      registry.register(_key, session1);
+      registry.register(_key, session2);
+      registry.register(_key, session3);
 
-    // Terminate the middle session: it's superseded by session3
-    // and the guard must protect session3's slot.
-    session2.completeAsCancelled();
-    await Future<void>.delayed(Duration.zero);
+      // Terminate the middle session: it's superseded by session3
+      // and the guard must protect session3's slot.
+      session2.completeAsCancelled();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(registry.activeKeys.value, contains(_key));
-    expect(registry.activeSession(_key), same(session3));
-  });
+      expect(registry.activeKeys.value, contains(_key));
+      expect(registry.activeSession(_key), same(session3));
+    },
+  );
 
-  test('outcome is derived from AgentResult when no terminal state captured',
-      () async {
-    // When the session's runState never transitions through a terminal
-    // state (e.g. external dispose mid-run, or the synthetic flow here),
-    // the registry has no live RunState to read — the outcome is
-    // derived from AgentResult alone. AgentFailure(cancelled) becomes
-    // CancelledRun(null) since no conversation snapshot is available.
-    final session = ManualAgentSession(_key);
-    registry.register(_key, session);
+  test(
+    'outcome is derived from AgentResult when no terminal state captured',
+    () async {
+      // When the session's runState never transitions through a terminal
+      // state (e.g. external dispose mid-run, or the synthetic flow here),
+      // the registry has no live RunState to read — the outcome is
+      // derived from AgentResult alone. AgentFailure(cancelled) becomes
+      // CancelledRun(null) since no conversation snapshot is available.
+      final session = ManualAgentSession(_key);
+      registry.register(_key, session);
 
-    session.completeWithoutTransition();
-    await Future<void>.delayed(Duration.zero);
+      session.completeWithoutTransition();
+      await Future<void>.delayed(Duration.zero);
 
-    final outcome = registry.completedOutcome(_key);
-    expect(outcome, isA<CancelledRun>());
-    expect((outcome! as CancelledRun).conversation, isNull);
-  });
+      final outcome = registry.completedOutcome(_key);
+      expect(outcome, isA<CancelledRun>());
+      expect((outcome! as CancelledRun).conversation, isNull);
+    },
+  );
 
   test('dispose is idempotent', () async {
     final session = await spawnSession();
@@ -278,16 +272,18 @@ void main() {
     expect(registry.activeSession(_key), isNull);
   });
 
-  test('register after dispose cancels the session and asserts in debug',
-      () async {
-    registry.dispose();
+  test(
+    'register after dispose cancels the session and asserts in debug',
+    () async {
+      registry.dispose();
 
-    final session = ManualAgentSession(_key);
-    expect(
-      () => registry.register(_key, session),
-      throwsA(isA<AssertionError>()),
-    );
-    expect(session.cancelCalled, isTrue);
-    expect(registry.activeSession(_key), isNull);
-  });
+      final session = ManualAgentSession(_key);
+      expect(
+        () => registry.register(_key, session),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(session.cancelCalled, isTrue);
+      expect(registry.activeSession(_key), isNull);
+    },
+  );
 }

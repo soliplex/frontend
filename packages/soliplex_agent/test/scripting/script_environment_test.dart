@@ -29,7 +29,7 @@ void main() {
           name: 'execute_python',
           description: 'Run Python',
         ),
-        executor: (_, __) async => 'ok',
+        executor: (_, _) async => 'ok',
       );
       final env = _TestScriptEnvironment(toolList: [tool]);
 

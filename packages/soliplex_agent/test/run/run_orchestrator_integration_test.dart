@@ -168,7 +168,7 @@ void main() {
               'properties': <String, dynamic>{},
             },
           ),
-          executor: (_, __) async => '42',
+          executor: (_, _) async => '42',
         ),
       );
     });
@@ -275,7 +275,7 @@ void main() {
               'properties': <String, dynamic>{},
             },
           ),
-          executor: (_, __) async => '42',
+          executor: (_, _) async => '42',
         ),
       );
     });

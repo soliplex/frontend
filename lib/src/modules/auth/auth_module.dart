@@ -32,15 +32,15 @@ class AuthAppModule extends AppModule {
     ConsentNotice? consentNotice,
     Widget? logo,
     String? defaultBackendUrl,
-  })  : _serverManager = serverManager,
-        _probeClient = probeClient,
-        _authFlow = authFlow,
-        _appName = appName,
-        _callbackParams = callbackParams,
-        _consentNotice = consentNotice,
-        _logo = logo,
-        _defaultBackendUrl = defaultBackendUrl,
-        _refreshListenable = SignalListenable(serverManager.authState);
+  }) : _serverManager = serverManager,
+       _probeClient = probeClient,
+       _authFlow = authFlow,
+       _appName = appName,
+       _callbackParams = callbackParams,
+       _consentNotice = consentNotice,
+       _logo = logo,
+       _defaultBackendUrl = defaultBackendUrl,
+       _refreshListenable = SignalListenable(serverManager.authState);
 
   final ServerManager _serverManager;
   final SoliplexHttpClient _probeClient;
@@ -61,53 +61,52 @@ class AuthAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
-        overrides: [
-          serverManagerProvider.overrideWithValue(_serverManager),
-          authFlowProvider.overrideWithValue(_authFlow),
-          probeClientProvider.overrideWithValue(_probeClient),
-          if (_callbackParams != null)
-            callbackParamsProvider.overrideWithValue(_callbackParams),
-          if (_consentNotice != null)
-            consentNoticeProvider.overrideWithValue(_consentNotice),
-        ],
-        routes: [
-          GoRoute(
-            path: AppRoutes.home,
-            pageBuilder: (_, state) {
-              final autoConnectUrl = state.uri.queryParameters['url'];
-              return NoTransitionPage(
-                key: autoConnectUrl != null ? UniqueKey() : state.pageKey,
-                child: HomeScreen(
-                  serverManager: _serverManager,
-                  appName: _appName,
-                  logo: _logo,
-                  defaultBackendUrl: _defaultBackendUrl,
-                  autoConnectUrl: autoConnectUrl,
-                ),
-              );
-            },
-          ),
-          GoRoute(
-            path: AppRoutes.servers,
-            pageBuilder: (_, __) => NoTransitionPage(
-              child: ServerListScreen(serverManager: _serverManager),
+    overrides: [
+      serverManagerProvider.overrideWithValue(_serverManager),
+      authFlowProvider.overrideWithValue(_authFlow),
+      probeClientProvider.overrideWithValue(_probeClient),
+      if (_callbackParams != null)
+        callbackParamsProvider.overrideWithValue(_callbackParams),
+      if (_consentNotice != null)
+        consentNoticeProvider.overrideWithValue(_consentNotice),
+    ],
+    routes: [
+      GoRoute(
+        path: AppRoutes.home,
+        pageBuilder: (_, state) {
+          final autoConnectUrl = state.uri.queryParameters['url'];
+          return NoTransitionPage(
+            key: autoConnectUrl != null ? UniqueKey() : state.pageKey,
+            child: HomeScreen(
+              serverManager: _serverManager,
+              appName: _appName,
+              logo: _logo,
+              defaultBackendUrl: _defaultBackendUrl,
+              autoConnectUrl: autoConnectUrl,
             ),
-          ),
-          GoRoute(
-            path: AppRoutes.authCallback,
-            pageBuilder: (_, __) => NoTransitionPage(
-              child: AuthCallbackScreen(serverManager: _serverManager),
-            ),
-          ),
-        ],
-        redirect: (_, state) {
-          final isAuthenticated =
-              _serverManager.authState.value is Authenticated;
-          final isPublic = _publicPaths.contains(state.matchedLocation);
-          if (!isAuthenticated && !isPublic) return AppRoutes.home;
-          return null;
+          );
         },
-      );
+      ),
+      GoRoute(
+        path: AppRoutes.servers,
+        pageBuilder: (_, _) => NoTransitionPage(
+          child: ServerListScreen(serverManager: _serverManager),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.authCallback,
+        pageBuilder: (_, _) => NoTransitionPage(
+          child: AuthCallbackScreen(serverManager: _serverManager),
+        ),
+      ),
+    ],
+    redirect: (_, state) {
+      final isAuthenticated = _serverManager.authState.value is Authenticated;
+      final isPublic = _publicPaths.contains(state.matchedLocation);
+      if (!isAuthenticated && !isPublic) return AppRoutes.home;
+      return null;
+    },
+  );
 
   @override
   Future<void> onDispose() async {

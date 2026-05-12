@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/core/router.dart';
 
 GoRoute _route(String path, {List<RouteBase> routes = const []}) =>
-    GoRoute(path: path, builder: (_, __) => const SizedBox(), routes: routes);
+    GoRoute(path: path, builder: (_, _) => const SizedBox(), routes: routes);
 
 void main() {
   group('validateRoutes', () {
@@ -37,11 +37,7 @@ void main() {
 
     test('detects duplicate paths after parameterized normalization', () {
       final errors = validateRoutes(
-        routes: [
-          _route('/a'),
-          _route('/users/:id'),
-          _route('/users/:userId'),
-        ],
+        routes: [_route('/a'), _route('/users/:id'), _route('/users/:userId')],
         initialRoute: '/a',
       );
 
@@ -104,7 +100,7 @@ void main() {
       final errors = validateRoutes(
         routes: [
           ShellRoute(
-            builder: (_, __, child) => child,
+            builder: (_, _, child) => child,
             routes: [_route('/a'), _route('/b')],
           ),
         ],
@@ -122,7 +118,7 @@ void main() {
               StatefulShellBranch(routes: [_route('/tab1')]),
               StatefulShellBranch(routes: [_route('/tab2')]),
             ],
-            builder: (_, __, child) => child,
+            builder: (_, _, child) => child,
           ),
         ],
         initialRoute: '/tab1',
@@ -139,7 +135,7 @@ void main() {
               StatefulShellBranch(routes: [_route('/tab')]),
               StatefulShellBranch(routes: [_route('/tab')]),
             ],
-            builder: (_, __, child) => child,
+            builder: (_, _, child) => child,
           ),
         ],
         initialRoute: '/tab',

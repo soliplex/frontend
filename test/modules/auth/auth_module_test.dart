@@ -10,26 +10,26 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import '../../helpers/fakes.dart';
 
 ServerManager _createServerManager() => ServerManager(
-      authFactory: () => AuthSession(
-        refreshService: FakeTokenRefreshService(),
-      ),
-      clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-      storage: InMemoryServerStorage(),
-    );
+  authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
+  clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
+  storage: InMemoryServerStorage(),
+);
 
 AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
-      serverManager: serverManager ?? _createServerManager(),
-      probeClient: FakeHttpClient(),
-      authFlow: FakeAuthFlow(),
-      appName: 'Soliplex',
-    );
+  serverManager: serverManager ?? _createServerManager(),
+  probeClient: FakeHttpClient(),
+  authFlow: FakeAuthFlow(),
+  appName: 'Soliplex',
+);
 
 void main() {
   group('AuthAppModule', () {
     test('contributes routes for /, /servers, /auth/callback', () {
       final contribution = _createModule().build();
-      final paths =
-          contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
+      final paths = contribution.routes
+          .whereType<GoRoute>()
+          .map((r) => r.path)
+          .toList();
       expect(paths, containsAll(['/', '/servers', '/auth/callback']));
     });
 
@@ -57,10 +57,7 @@ void main() {
         initialLocation: '/',
         routes: [
           ...contribution.routes,
-          GoRoute(
-            path: '/chat',
-            builder: (_, __) => const Text('Chat'),
-          ),
+          GoRoute(path: '/chat', builder: (_, _) => const Text('Chat')),
         ],
         redirect: contribution.redirect,
       );

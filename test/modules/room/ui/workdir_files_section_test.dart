@@ -78,8 +78,9 @@ final Uint8List _tinyPng = Uint8List.fromList(const [
   0x82,
 ]);
 
-final Uint8List _htmlBytes =
-    Uint8List.fromList('<html><body>not an image</body></html>'.codeUnits);
+final Uint8List _htmlBytes = Uint8List.fromList(
+  '<html><body>not an image</body></html>'.codeUnits,
+);
 
 WorkdirFile _file(String name) =>
     WorkdirFile(filename: name, url: Uri.parse('https://example.test/$name'));
@@ -92,26 +93,36 @@ void main() {
   // next, masking real failures.
   setUp(() => PaintingBinding.instance.imageCache.clear());
 
-  testWidgets('renders each filename when fetch returns a non-empty list',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf'), _file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
+  testWidgets('renders each filename when fetch returns a non-empty list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf'), _file('plot.png')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+        ),
+      ),
+    );
     await tester.pump();
 
     expect(find.text('report.pdf'), findsOneWidget);
     expect(find.text('plot.png'), findsOneWidget);
   });
 
-  testWidgets('collapses to nothing when fetch returns an empty list',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => const [],
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
+  testWidgets('collapses to nothing when fetch returns an empty list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => const [],
+          onDownload: (_, _) async => DownloadOutcome.success,
+        ),
+      ),
+    );
     await tester.pump();
 
     expect(find.byType(SizedBox), findsWidgets);
@@ -119,30 +130,40 @@ void main() {
     expect(find.byIcon(Icons.refresh), findsNothing);
   });
 
-  testWidgets('shows retry row when fetch throws an unexpected error',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => throw Exception('boom'),
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
+  testWidgets('shows retry row when fetch throws an unexpected error', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => throw Exception('boom'),
+          onDownload: (_, _) async => DownloadOutcome.success,
+        ),
+      ),
+    );
     await tester.pump();
 
     expect(find.byIcon(Icons.refresh), findsOneWidget);
   });
 
-  testWidgets('tapping retry re-invokes fetchFiles and clears the error',
-      (tester) async {
+  testWidgets('tapping retry re-invokes fetchFiles and clears the error', (
+    tester,
+  ) async {
     var calls = 0;
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async {
-        calls++;
-        if (calls == 1) throw Exception('boom');
-        return [_file('report.pdf')];
-      },
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async {
+            calls++;
+            if (calls == 1) throw Exception('boom');
+            return [_file('report.pdf')];
+          },
+          onDownload: (_, _) async => DownloadOutcome.success,
+        ),
+      ),
+    );
     await tester.pump();
     expect(find.byIcon(Icons.refresh), findsOneWidget);
 
@@ -154,21 +175,26 @@ void main() {
     expect(find.byIcon(Icons.refresh), findsNothing);
   });
 
-  testWidgets('tapping a file row invokes onDownload with (runId, file)',
-      (tester) async {
+  testWidgets('tapping a file row invokes onDownload with (runId, file)', (
+    tester,
+  ) async {
     String? gotRunId;
     WorkdirFile? gotFile;
 
     final file = _file('report.pdf');
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-42',
-      fetchFiles: (_) async => [file],
-      onDownload: (runId, f) async {
-        gotRunId = runId;
-        gotFile = f;
-        return DownloadOutcome.success;
-      },
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-42',
+          fetchFiles: (_) async => [file],
+          onDownload: (runId, f) async {
+            gotRunId = runId;
+            gotFile = f;
+            return DownloadOutcome.success;
+          },
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -178,13 +204,18 @@ void main() {
     expect(gotFile, same(file));
   });
 
-  testWidgets('shows check icon briefly on success and reverts after 2s',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
+  testWidgets('shows check icon briefly on success and reverts after 2s', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -199,13 +230,18 @@ void main() {
     expect(find.byIcon(Icons.check), findsNothing);
   });
 
-  testWidgets('shows error icon briefly on failed and reverts after 2s',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) async => DownloadOutcome.failed,
-    )));
+  testWidgets('shows error icon briefly on failed and reverts after 2s', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) async => DownloadOutcome.failed,
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -219,13 +255,18 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsNothing);
   });
 
-  testWidgets('cancellation reverts to idle without any feedback swap',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) async => DownloadOutcome.cancelled,
-    )));
+  testWidgets('cancellation reverts to idle without any feedback swap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) async => DownloadOutcome.cancelled,
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -236,13 +277,18 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsNothing);
   });
 
-  testWidgets('a throwing onDownload still flips to the error icon',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) async => throw Exception('boom'),
-    )));
+  testWidgets('a throwing onDownload still flips to the error icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) async => throw Exception('boom'),
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -251,18 +297,23 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
-  testWidgets('second tap during an in-flight download is a no-op',
-      (tester) async {
+  testWidgets('second tap during an in-flight download is a no-op', (
+    tester,
+  ) async {
     final completer = Completer<DownloadOutcome>();
     var calls = 0;
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) {
-        calls++;
-        return completer.future;
-      },
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) {
+            calls++;
+            return completer.future;
+          },
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));
@@ -278,45 +329,61 @@ void main() {
   });
 
   testWidgets(
-      'preview eye icon shown only for image files when onPreview is wired',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png'), _file('report.pdf')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => _tinyPng,
-    )));
-    await tester.pump();
+    'preview eye icon shown only for image files when onPreview is wired',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          WorkdirFilesSection(
+            runId: 'run-1',
+            fetchFiles: (_) async => [_file('plot.png'), _file('report.pdf')],
+            onDownload: (_, _) async => DownloadOutcome.success,
+            onPreview: (_, _) async => _tinyPng,
+          ),
+        ),
+      );
+      await tester.pump();
 
-    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
-  });
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    },
+  );
 
-  testWidgets('preview eye icon hidden when onPreview is null even for images',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-    )));
-    await tester.pump();
+  testWidgets(
+    'preview eye icon hidden when onPreview is null even for images',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          WorkdirFilesSection(
+            runId: 'run-1',
+            fetchFiles: (_) async => [_file('plot.png')],
+            onDownload: (_, _) async => DownloadOutcome.success,
+          ),
+        ),
+      );
+      await tester.pump();
 
-    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
-  });
+      expect(find.byIcon(Icons.visibility_outlined), findsNothing);
+    },
+  );
 
-  testWidgets('tapping the eye opens the preview page and fetches bytes',
-      (tester) async {
+  testWidgets('tapping the eye opens the preview page and fetches bytes', (
+    tester,
+  ) async {
     var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-7',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (runId, file) async {
-        fetchCalls++;
-        expect(runId, 'run-7');
-        expect(file.filename, 'plot.png');
-        return _tinyPng;
-      },
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-7',
+          fetchFiles: (_) async => [_file('plot.png')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+          onPreview: (runId, file) async {
+            fetchCalls++;
+            expect(runId, 'run-7');
+            expect(file.filename, 'plot.png');
+            return _tinyPng;
+          },
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.visibility_outlined));
@@ -333,12 +400,16 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => _tinyPng,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('plot.png')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+          onPreview: (_, _) async => _tinyPng,
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.visibility_outlined));
@@ -351,19 +422,26 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
-  testWidgets('preview shows generic error + Retry when fetch fails',
-      (tester) async {
+  testWidgets('preview shows generic error + Retry when fetch fails', (
+    tester,
+  ) async {
     var fetchCalls = 0;
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async {
-        fetchCalls++;
-        if (fetchCalls == 1) throw Exception('boom-internal-leak-do-not-show');
-        return _tinyPng;
-      },
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('plot.png')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+          onPreview: (_, _) async {
+            fetchCalls++;
+            if (fetchCalls == 1) {
+              throw Exception('boom-internal-leak-do-not-show');
+            }
+            return _tinyPng;
+          },
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.visibility_outlined));
@@ -381,17 +459,20 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
-  testWidgets('preview shows "no longer exists" without Retry on 404',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => throw const NotFoundException(
-        message: 'gone',
-        resource: '/x',
+  testWidgets('preview shows "no longer exists" without Retry on 404', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('plot.png')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+          onPreview: (_, _) async =>
+              throw const NotFoundException(message: 'gone', resource: '/x'),
+        ),
       ),
-    )));
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.visibility_outlined));
@@ -403,68 +484,86 @@ void main() {
   });
 
   testWidgets('.PNG (uppercase) is treated as previewable', (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('PLOT.PNG')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => _tinyPng,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('PLOT.PNG')],
+          onDownload: (_, _) async => DownloadOutcome.success,
+          onPreview: (_, _) async => _tinyPng,
+        ),
+      ),
+    );
     await tester.pump();
 
     expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
   });
 
   testWidgets(
-      'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => Uint8List(0),
-    )));
-    await tester.pump();
+    'empty bytes short-circuit to Download (not Retry), no InteractiveViewer',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          WorkdirFilesSection(
+            runId: 'run-1',
+            fetchFiles: (_) async => [_file('plot.png')],
+            onDownload: (_, _) async => DownloadOutcome.success,
+            onPreview: (_, _) async => Uint8List(0),
+          ),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
 
-    // bytes.isEmpty short-circuits around _ImageOrFallback entirely —
-    // no decode attempt, no Retry-forever even on a non-errorBuilder
-    // path.
-    expect(find.byType(InteractiveViewer), findsNothing);
-    expect(find.text('Retry'), findsNothing);
-    expect(find.text('Download'), findsOneWidget);
-  });
+      // bytes.isEmpty short-circuits around _ImageOrFallback entirely —
+      // no decode attempt, no Retry-forever even on a non-errorBuilder
+      // path.
+      expect(find.byType(InteractiveViewer), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Download'), findsOneWidget);
+    },
+  );
 
   testWidgets(
-      'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
-      (tester) async {
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('plot.png')],
-      onDownload: (_, __) async => DownloadOutcome.success,
-      onPreview: (_, __) async => _htmlBytes,
-    )));
-    await tester.pump();
+    'non-image bytes show Download (not Retry) as a peer of InteractiveViewer',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          WorkdirFilesSection(
+            runId: 'run-1',
+            fetchFiles: (_) async => [_file('plot.png')],
+            onDownload: (_, _) async => DownloadOutcome.success,
+            onPreview: (_, _) async => _htmlBytes,
+          ),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(InteractiveViewer), findsNothing);
-    expect(find.text('Retry'), findsNothing);
-    expect(find.text('Download'), findsOneWidget);
-  });
+      expect(find.byType(InteractiveViewer), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Download'), findsOneWidget);
+    },
+  );
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {
     var calls = 0;
-    await tester.pumpWidget(_wrap(WorkdirFilesSection(
-      runId: 'run-1',
-      fetchFiles: (_) async => [_file('report.pdf')],
-      onDownload: (_, __) async {
-        calls++;
-        return DownloadOutcome.success;
-      },
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        WorkdirFilesSection(
+          runId: 'run-1',
+          fetchFiles: (_) async => [_file('report.pdf')],
+          onDownload: (_, _) async {
+            calls++;
+            return DownloadOutcome.success;
+          },
+        ),
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.download_outlined));

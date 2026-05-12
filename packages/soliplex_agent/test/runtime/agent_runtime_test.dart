@@ -72,44 +72,44 @@ ThreadInfo _threadInfo() =>
     ThreadInfo(id: _threadId, roomId: _roomId, createdAt: DateTime(2026));
 
 ThreadInfo _threadInfoWithRun() => ThreadInfo(
-      id: _threadId,
-      roomId: _roomId,
-      initialRunId: _runId,
-      createdAt: DateTime(2026),
-    );
+  id: _threadId,
+  roomId: _roomId,
+  initialRunId: _runId,
+  createdAt: DateTime(2026),
+);
 
 RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _toolCallEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
-      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
-      const ToolCallEndEvent(toolCallId: 'tc-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
+  const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
+  const ToolCallEndEvent(toolCallId: 'tc-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-2'),
-      const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
-      const TextMessageEndEvent(messageId: 'msg-2'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-2'),
+  const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
+  const TextMessageEndEvent(messageId: 'msg-2'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 ToolRegistry _weatherRegistry() {
   return const ToolRegistry().register(
     ClientTool(
       definition: const Tool(name: 'weather', description: 'Weather tool'),
-      executor: (_, __) async => '72°F, sunny',
+      executor: (_, _) async => '72°F, sunny',
     ),
   );
 }
@@ -1149,7 +1149,7 @@ void main() {
           name: 'execute_python',
           description: 'Run Python',
         ),
-        executor: (_, __) async => 'python result',
+        executor: (_, _) async => 'python result',
       );
 
       runtime = AgentRuntime(

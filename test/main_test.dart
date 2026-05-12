@@ -10,10 +10,8 @@ class _HomeModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
-        routes: [
-          GoRoute(path: '/', builder: (_, __) => const Text('Soliplex')),
-        ],
-      );
+    routes: [GoRoute(path: '/', builder: (_, _) => const Text('Soliplex'))],
+  );
 }
 
 void main() {

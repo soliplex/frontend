@@ -12,7 +12,7 @@ ClientTool _testTool({
 }) {
   return ClientTool(
     definition: Tool(name: name, description: description),
-    executor: executor ?? (_, __) async => 'test result',
+    executor: executor ?? (_, _) async => 'test result',
   );
 }
 
@@ -52,7 +52,7 @@ void main() {
 
     test('execute runs the tool executor', () async {
       final registry = const ToolRegistry().register(
-        _testTool(executor: (_, __) async => 'hello from tool'),
+        _testTool(executor: (_, _) async => 'hello from tool'),
       );
       const toolCall = ToolCallInfo(id: 'tc-1', name: 'test_tool');
 
@@ -63,7 +63,7 @@ void main() {
 
     test('execute with failing executor propagates exception', () async {
       final registry = const ToolRegistry().register(
-        _testTool(executor: (_, __) async => throw Exception('boom')),
+        _testTool(executor: (_, _) async => throw Exception('boom')),
       );
       const toolCall = ToolCallInfo(id: 'tc-1', name: 'test_tool');
 

@@ -6,6 +6,3 @@ linter:
   rules:
     one_member_abstracts: false
     public_member_api_docs: false
-    # TODO: remove after the unnecessary_underscores cleanup.
-    # Dormant under SDK ^3.6.0, active under ^3.10.0.
-    unnecessary_underscores: false

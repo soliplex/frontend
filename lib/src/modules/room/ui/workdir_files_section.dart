@@ -8,24 +8,13 @@ typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
 
 enum DownloadOutcome { success, cancelled, failed }
 
-typedef DownloadWorkdirFile = Future<DownloadOutcome> Function(
-  String runId,
-  WorkdirFile file,
-);
+typedef DownloadWorkdirFile =
+    Future<DownloadOutcome> Function(String runId, WorkdirFile file);
 
-typedef FetchWorkdirFileBytes = Future<Uint8List> Function(
-  String runId,
-  WorkdirFile file,
-);
+typedef FetchWorkdirFileBytes =
+    Future<Uint8List> Function(String runId, WorkdirFile file);
 
-const _imageExtensions = {
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.bmp',
-};
+const _imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'};
 
 bool _isPreviewableImage(String filename) {
   final dot = filename.lastIndexOf('.');
@@ -172,20 +161,20 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     final theme = Theme.of(context);
     final (icon, color, tooltip) = switch (_feedback) {
       _DownloadFeedback.idle => (
-          Icons.download_outlined,
-          theme.colorScheme.primary,
-          'Download',
-        ),
+        Icons.download_outlined,
+        theme.colorScheme.primary,
+        'Download',
+      ),
       _DownloadFeedback.success => (
-          Icons.check,
-          theme.colorScheme.onSurfaceVariant,
-          'Saved',
-        ),
+        Icons.check,
+        theme.colorScheme.onSurfaceVariant,
+        'Saved',
+      ),
       _DownloadFeedback.error => (
-          Icons.error_outline,
-          theme.colorScheme.error,
-          "Couldn't save",
-        ),
+        Icons.error_outline,
+        theme.colorScheme.error,
+        "Couldn't save",
+      ),
     };
     final canPreview =
         widget.onPreview != null && _isPreviewableImage(widget.file.filename);
@@ -273,12 +262,7 @@ class _FilenameText extends StatelessWidget {
           child: Tooltip(
             message: filename,
             waitDuration: const Duration(milliseconds: 500),
-            child: Text(
-              display,
-              style: style,
-              maxLines: 1,
-              softWrap: false,
-            ),
+            child: Text(display, style: style, maxLines: 1, softWrap: false),
           ),
         );
       },
@@ -376,9 +360,9 @@ class WorkdirImagePreviewPage extends StatefulWidget {
         builder: (_) => child,
       );
     }
-    return Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => child),
-    );
+    return Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => child));
   }
 
   @override
@@ -415,10 +399,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         if (bytes == null || bytes.isEmpty) {
           return widget.cannotPreview;
         }
-        return _ImageOrFallback(
-          bytes: bytes,
-          fallback: widget.cannotPreview,
-        );
+        return _ImageOrFallback(bytes: bytes, fallback: widget.cannotPreview);
       },
     );
   }
@@ -440,10 +421,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 12),
-            Text(
-              'File no longer exists',
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text('File no longer exists', style: theme.textTheme.bodyMedium),
           ],
         ),
       );
@@ -454,10 +432,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
           const SizedBox(height: 12),
-          Text(
-            "Couldn't load preview",
-            style: theme.textTheme.bodyMedium,
-          ),
+          Text("Couldn't load preview", style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _retry,
@@ -571,7 +546,7 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
         child: Image.memory(
           widget.bytes,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) {
+          errorBuilder: (_, _, _) {
             _markFailed();
             return const SizedBox.shrink();
           },
@@ -648,14 +623,12 @@ class _CannotPreviewState extends State<_CannotPreview> {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
-          Text(
-            "Can't preview this file",
-            style: theme.textTheme.bodyMedium,
-          ),
+          Text("Can't preview this file", style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed:
-                _feedback == _DownloadFeedback.idle ? _handleDownload : null,
+            onPressed: _feedback == _DownloadFeedback.idle
+                ? _handleDownload
+                : null,
             icon: Icon(icon),
             label: Text(label),
           ),
@@ -677,11 +650,7 @@ class _WorkdirErrorRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
       child: Row(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 16,
-            color: theme.colorScheme.error,
-          ),
+          Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

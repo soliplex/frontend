@@ -37,34 +37,34 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
-      const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
-      const ToolCallEndEvent(toolCallId: 'tc-1'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
+  const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
+  const ToolCallEndEvent(toolCallId: 'tc-1'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-2'),
-      const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
-      const TextMessageEndEvent(messageId: 'msg-2'),
-      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-    ];
+  const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-2'),
+  const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
+  const TextMessageEndEvent(messageId: 'msg-2'),
+  const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+];
 
 ToolRegistry _registryWith({String toolName = 'weather'}) {
   return const ToolRegistry().register(
     ClientTool(
       definition: Tool(name: toolName, description: 'A test tool'),
-      executor: (_, __) async => 'result',
+      executor: (_, _) async => 'result',
     ),
   );
 }
@@ -76,14 +76,14 @@ Stream<DecodeOutcome> _wrap(Stream<BaseEvent> s) =>
     s.map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
 
 List<ToolCallInfo> _executedTools() => [
-      const ToolCallInfo(
-        id: 'tc-1',
-        name: 'weather',
-        arguments: '{"city":"NYC"}',
-        status: ToolCallStatus.completed,
-        result: '72°F, sunny',
-      ),
-    ];
+  const ToolCallInfo(
+    id: 'tc-1',
+    name: 'weather',
+    arguments: '{"city":"NYC"}',
+    status: ToolCallStatus.completed,
+    result: '72°F, sunny',
+  ),
+];
 
 void main() {
   setUpAll(() {
@@ -342,15 +342,15 @@ void main() {
         expect(
           failed.error,
           equals('Stream resume failed: transient'),
-          reason: 'must surface NetworkException.message — not the '
+          reason:
+              'must surface NetworkException.message — not the '
               'type-prefixed toString — so the friendly-message '
               "contract's startsWith check matches",
         );
       },
     );
 
-    test(
-        'RunErrorEvent with buffered thinking surfaces NoResponseTile in '
+    test('RunErrorEvent with buffered thinking surfaces NoResponseTile in '
         'FailedState.conversation', () async {
       // Locks the cross-layer contract: processEvent appends the
       // synthesized tile, _mapEventResult must thread it through into
@@ -379,8 +379,7 @@ void main() {
       expect(synthesized.thinkingText, equals('partial reasoning'));
     });
 
-    test(
-        'RunErrorEvent with empty thinking surfaces ErrorMessage in '
+    test('RunErrorEvent with empty thinking surfaces ErrorMessage in '
         'FailedState.conversation', () async {
       // Same cross-layer contract test for the empty-thinking fallback
       // branch. Without this, a regression that drops result.conversation
@@ -403,8 +402,7 @@ void main() {
       expect(surfaced.errorText, equals('rate limited'));
     });
 
-    test(
-        'RunErrorEvent mid-text-stream commits the partial reply text and '
+    test('RunErrorEvent mid-text-stream commits the partial reply text and '
         'appends ErrorMessage', () async {
       // Without this commit the half-streamed reply the user was already
       // reading vanishes when streaming resets to AwaitingText.
@@ -428,8 +426,9 @@ void main() {
           messages.firstWhere((m) => m.id == 'msg-1') as TextMessage;
       expect(committed.text, equals('partial'));
       expect(committed.user, equals(ChatUser.assistant));
-      final surfaced = messages.firstWhere((m) => m.id == 'run-error-$_runId')
-          as ErrorMessage;
+      final surfaced =
+          messages.firstWhere((m) => m.id == 'run-error-$_runId')
+              as ErrorMessage;
       expect(surfaced.errorText, equals('connection lost'));
     });
   });
@@ -515,8 +514,7 @@ void main() {
       await controller.close();
     });
 
-    test(
-        'cancelRun on Running with buffered thinking and no reply '
+    test('cancelRun on Running with buffered thinking and no reply '
         'synthesizes a NoResponseTile with reason: cancelled', () async {
       stubCreateRun();
       final controller = StreamController<BaseEvent>();
@@ -549,8 +547,7 @@ void main() {
       await controller.close();
     });
 
-    test(
-        'cancelRun mid-text-stream commits the partial reply as a finalized '
+    test('cancelRun mid-text-stream commits the partial reply as a finalized '
         'TextMessage (mirrors RunFinished/RunError behavior)', () async {
       // Without the partial-text commit, a half-streamed reply vanishes
       // when streaming resets to AwaitingText on Stop. Synthesis declines
@@ -782,8 +779,7 @@ void main() {
       );
     });
 
-    test(
-        'continuation run excludes synthesized NoResponseTile, ErrorMessage, '
+    test('continuation run excludes synthesized NoResponseTile, ErrorMessage, '
         'LoadingMessage, and DroppedEventMessage from prior cachedHistory '
         '(wire-leak regression for the convertToAgui skip set)', () async {
       // The wire-leak fix in `agui_message_mapper.convertToAgui` is the
@@ -875,38 +871,40 @@ void main() {
       expect(rag['document_filter'], "id = 'abc-123'");
     });
 
-    test('runToCompletion merges stateOverlay with cachedHistory aguiState',
-        () async {
-      stubCreateRun();
-      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+    test(
+      'runToCompletion merges stateOverlay with cachedHistory aguiState',
+      () async {
+        stubCreateRun();
+        stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final history = ThreadHistory(
-        messages: const [],
-        aguiState: const {
-          'rag': <String, dynamic>{
-            'citations': <int>[1, 2, 3],
+        final history = ThreadHistory(
+          messages: const [],
+          aguiState: const {
+            'rag': <String, dynamic>{
+              'citations': <int>[1, 2, 3],
+            },
+            'other': 'data',
           },
-          'other': 'data',
-        },
-      );
+        );
 
-      final result = await orchestrator.runToCompletion(
-        key: _key,
-        userMessage: 'test',
-        toolExecutor: (_) async => [],
-        cachedHistory: history,
-        stateOverlay: {
-          'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
-        },
-      );
+        final result = await orchestrator.runToCompletion(
+          key: _key,
+          userMessage: 'test',
+          toolExecutor: (_) async => [],
+          cachedHistory: history,
+          stateOverlay: {
+            'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
+          },
+        );
 
-      expect(result, isA<CompletedState>());
-      final completed = result as CompletedState;
-      final rag = completed.conversation.aguiState['rag'] as Map;
-      expect(rag['document_filter'], "id = 'abc-123'");
-      expect(rag['citations'], [1, 2, 3]);
-      expect(completed.conversation.aguiState['other'], 'data');
-    });
+        expect(result, isA<CompletedState>());
+        final completed = result as CompletedState;
+        final rag = completed.conversation.aguiState['rag'] as Map;
+        expect(rag['document_filter'], "id = 'abc-123'");
+        expect(rag['citations'], [1, 2, 3]);
+        expect(completed.conversation.aguiState['other'], 'data');
+      },
+    );
 
     test('deep-merges nested maps recursively', () async {
       stubCreateRun();
@@ -1360,7 +1358,8 @@ void main() {
       expect(
         failed.reason,
         equals(FailureReason.networkLost),
-        reason: 'transport failure during resume must classify as '
+        reason:
+            'transport failure during resume must classify as '
             'networkLost, not toolExecutionFailed',
       );
     });
@@ -1418,155 +1417,162 @@ void main() {
       );
     });
 
-    test('cancelRun during RunningState cancels the token passed to runAgent',
-        () async {
-      // Pins the orchestrator → SSE-client cancel handshake: the
-      // orchestrator must (a) pass a non-null token to `runAgent`
-      // and (b) cancel it on `cancelRun`, so cancellation propagates
-      // to the in-flight SSE stream.
-      CancelToken? capturedToken;
-      final controller = StreamController<BaseEvent>();
-      addTearDown(controller.close);
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-          resumePolicy: any(named: 'resumePolicy'),
-          onReconnectStatus: any(named: 'onReconnectStatus'),
-        ),
-      ).thenAnswer((invocation) {
-        capturedToken = invocation.namedArguments[#cancelToken] as CancelToken?;
-        return _wrap(controller.stream);
-      });
-      stubCreateRun();
+    test(
+      'cancelRun during RunningState cancels the token passed to runAgent',
+      () async {
+        // Pins the orchestrator → SSE-client cancel handshake: the
+        // orchestrator must (a) pass a non-null token to `runAgent`
+        // and (b) cancel it on `cancelRun`, so cancellation propagates
+        // to the in-flight SSE stream.
+        CancelToken? capturedToken;
+        final controller = StreamController<BaseEvent>();
+        addTearDown(controller.close);
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((invocation) {
+          capturedToken =
+              invocation.namedArguments[#cancelToken] as CancelToken?;
+          return _wrap(controller.stream);
+        });
+        stubCreateRun();
 
-      unawaited(
-        orchestrator.runToCompletion(
+        unawaited(
+          orchestrator.runToCompletion(
+            key: _key,
+            userMessage: 'Hi',
+            toolExecutor: (_) async => [],
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<RunningState>());
+        expect(
+          capturedToken,
+          isNotNull,
+          reason: 'orchestrator must pass a non-null cancel token',
+        );
+        expect(capturedToken!.isCancelled, isFalse);
+
+        orchestrator.cancelRun();
+
+        expect(
+          capturedToken!.isCancelled,
+          isTrue,
+          reason: "cancelRun must propagate to the SSE client's token",
+        );
+        expect(orchestrator.currentState, isA<CancelledState>());
+      },
+    );
+
+    test(
+      'cancelRun during _resumeStream createRun await yields CancelledState',
+      () async {
+        // Pins three coupled contracts that fire when the user presses
+        // Stop during a tool-yield resume:
+        //   - cancelRun's ToolYieldingState arm cancels the live token
+        //     so the in-flight createRun await aborts.
+        //   - _resumeStream does not call _subscribeToStream after the
+        //     await if state has transitioned away from ToolYieldingState
+        //     (otherwise CancelledState would be overwritten with
+        //     RunningState).
+        //   - _driveToolLoop's catch routes a cancel-byproduct exception
+        //     to CancelledState, not FailedState.
+        orchestrator = RunOrchestrator(
+          llmProvider: AgUiLlmProvider(
+            api: api,
+            agUiStreamClient: agUiStreamClient,
+          ),
+          toolRegistry: _registryWith(),
+          logger: logger,
+        );
+        stubCreateRun();
+        // First runAgent call: tool call events drive us to ToolYieldingState.
+        // Second runAgent call: resume; an empty stream is enough. The
+        // post-await `_currentState is! ToolYieldingState` guard in
+        // `_resumeStream` prevents `_subscribeToStream` from running —
+        // if it ran, RunningState would overwrite CancelledState, then
+        // `_onStreamDone` would flip to FailedState via the "Stream
+        // ended without terminal event" path.
+        var runAgentCallCount = 0;
+        var resumeStreamSubscribeCount = 0;
+        final resumeStreamController = StreamController<BaseEvent>(
+          onListen: () => resumeStreamSubscribeCount++,
+        );
+        addTearDown(resumeStreamController.close);
+        when(
+          () => agUiStreamClient.runAgent(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            resumePolicy: any(named: 'resumePolicy'),
+            onReconnectStatus: any(named: 'onReconnectStatus'),
+          ),
+        ).thenAnswer((_) {
+          runAgentCallCount++;
+          if (runAgentCallCount == 1) {
+            return _wrap(Stream.fromIterable(_toolCallEvents()));
+          }
+          return _wrap(resumeStreamController.stream);
+        });
+
+        // Block the tool executor so the test can re-stub createRun before
+        // _resumeStream fires.
+        final toolExecutorTrigger = Completer<void>();
+        final runFuture = orchestrator.runToCompletion(
           key: _key,
-          userMessage: 'Hi',
-          toolExecutor: (_) async => [],
-        ),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(orchestrator.currentState, isA<RunningState>());
-      expect(
-        capturedToken,
-        isNotNull,
-        reason: 'orchestrator must pass a non-null cancel token',
-      );
-      expect(capturedToken!.isCancelled, isFalse);
+          userMessage: 'Weather?',
+          toolExecutor: (_) async {
+            await toolExecutorTrigger.future;
+            return _executedTools();
+          },
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<ToolYieldingState>());
 
-      orchestrator.cancelRun();
+        final resumeCreateRun = Completer<RunInfo>();
+        when(
+          () => api.createRun(any(), any()),
+        ).thenAnswer((_) => resumeCreateRun.future);
 
-      expect(
-        capturedToken!.isCancelled,
-        isTrue,
-        reason: "cancelRun must propagate to the SSE client's token",
-      );
-      expect(orchestrator.currentState, isA<CancelledState>());
-    });
+        toolExecutorTrigger.complete();
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<ToolYieldingState>());
 
-    test('cancelRun during _resumeStream createRun await yields CancelledState',
-        () async {
-      // Pins three coupled contracts that fire when the user presses
-      // Stop during a tool-yield resume:
-      //   - cancelRun's ToolYieldingState arm cancels the live token
-      //     so the in-flight createRun await aborts.
-      //   - _resumeStream does not call _subscribeToStream after the
-      //     await if state has transitioned away from ToolYieldingState
-      //     (otherwise CancelledState would be overwritten with
-      //     RunningState).
-      //   - _driveToolLoop's catch routes a cancel-byproduct exception
-      //     to CancelledState, not FailedState.
-      orchestrator = RunOrchestrator(
-        llmProvider: AgUiLlmProvider(
-          api: api,
-          agUiStreamClient: agUiStreamClient,
-        ),
-        toolRegistry: _registryWith(),
-        logger: logger,
-      );
-      stubCreateRun();
-      // First runAgent call: tool call events drive us to ToolYieldingState.
-      // Second runAgent call: resume; an empty stream is enough. The
-      // post-await `_currentState is! ToolYieldingState` guard in
-      // `_resumeStream` prevents `_subscribeToStream` from running —
-      // if it ran, RunningState would overwrite CancelledState, then
-      // `_onStreamDone` would flip to FailedState via the "Stream
-      // ended without terminal event" path.
-      var runAgentCallCount = 0;
-      var resumeStreamSubscribeCount = 0;
-      final resumeStreamController = StreamController<BaseEvent>(
-        onListen: () => resumeStreamSubscribeCount++,
-      );
-      addTearDown(resumeStreamController.close);
-      when(
-        () => agUiStreamClient.runAgent(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-          resumePolicy: any(named: 'resumePolicy'),
-          onReconnectStatus: any(named: 'onReconnectStatus'),
-        ),
-      ).thenAnswer((_) {
-        runAgentCallCount++;
-        if (runAgentCallCount == 1) {
-          return _wrap(Stream.fromIterable(_toolCallEvents()));
-        }
-        return _wrap(resumeStreamController.stream);
-      });
+        orchestrator.cancelRun();
+        expect(
+          orchestrator.currentState,
+          isA<CancelledState>(),
+          reason: 'cancelRun must transition to CancelledState immediately',
+        );
 
-      // Block the tool executor so the test can re-stub createRun before
-      // _resumeStream fires.
-      final toolExecutorTrigger = Completer<void>();
-      final runFuture = orchestrator.runToCompletion(
-        key: _key,
-        userMessage: 'Weather?',
-        toolExecutor: (_) async {
-          await toolExecutorTrigger.future;
-          return _executedTools();
-        },
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(orchestrator.currentState, isA<ToolYieldingState>());
+        resumeCreateRun.complete(_runInfo());
+        final result = await runFuture;
 
-      final resumeCreateRun = Completer<RunInfo>();
-      when(
-        () => api.createRun(any(), any()),
-      ).thenAnswer((_) => resumeCreateRun.future);
-
-      toolExecutorTrigger.complete();
-      await Future<void>.delayed(Duration.zero);
-      expect(orchestrator.currentState, isA<ToolYieldingState>());
-
-      orchestrator.cancelRun();
-      expect(
-        orchestrator.currentState,
-        isA<CancelledState>(),
-        reason: 'cancelRun must transition to CancelledState immediately',
-      );
-
-      resumeCreateRun.complete(_runInfo());
-      final result = await runFuture;
-
-      expect(
-        result,
-        isA<CancelledState>(),
-        reason: 'state must remain CancelledState; without the post-await '
-            'guard, `_subscribeToStream` would overwrite it with '
-            'RunningState and the empty resume stream would then flip '
-            'to FailedState via `_onStreamDone`',
-      );
-      expect(runAgentCallCount, equals(2));
-      expect(
-        resumeStreamSubscribeCount,
-        equals(1),
-        reason: 'orchestrator must drain the abandoned LlmRunHandle.events '
-            'stream so the underlying SSE socket releases — without the '
-            'subscribe-then-cancel, the HTTP transport would hold it open',
-      );
-    });
+        expect(
+          result,
+          isA<CancelledState>(),
+          reason:
+              'state must remain CancelledState; without the post-await '
+              'guard, `_subscribeToStream` would overwrite it with '
+              'RunningState and the empty resume stream would then flip '
+              'to FailedState via `_onStreamDone`',
+        );
+        expect(runAgentCallCount, equals(2));
+        expect(
+          resumeStreamSubscribeCount,
+          equals(1),
+          reason:
+              'orchestrator must drain the abandoned LlmRunHandle.events '
+              'stream so the underlying SSE socket releases — without the '
+              'subscribe-then-cancel, the HTTP transport would hold it open',
+        );
+      },
+    );
   });
 
   group('cancel during async gap', () {
@@ -1661,8 +1667,9 @@ void main() {
         // Pins that `_handleStartError` routes a cancel during the
         // initial `startRun` await (the IdleState window) to
         // `CancelledState`, not `FailedState`.
-        when(() => api.createRun(any(), any()))
-            .thenThrow(const CancelledException(reason: 'user'));
+        when(
+          () => api.createRun(any(), any()),
+        ).thenThrow(const CancelledException(reason: 'user'));
 
         await orchestrator.startRun(key: _key, userMessage: 'Hi');
 
@@ -1671,56 +1678,59 @@ void main() {
     );
 
     test(
-        'cancelRun during runToCompletion createRun await yields '
-        'CancelledState.preRun (IdleState arm + post-await race close)',
-        () async {
-      // Stop pressed during a slow createRun while in IdleState.
-      // Pins two coupled contracts:
-      //   - cancelRun's IdleState arm cancels `_cancelToken` so the
-      //     in-flight createRun await aborts (without this arm, the
-      //     run continues silently after the response arrives).
-      //   - _initializeStream's post-await race close throws
-      //     CancelledException when the await resolved before the
-      //     token cancellation propagated, so _handleStartError can
-      //     route the user's intent to CancelledState.preRun rather
-      //     than overwriting it with RunningState via _subscribeToStream.
-      final createRunCompleter = Completer<RunInfo>();
-      when(
-        () => api.createRun(any(), any()),
-      ).thenAnswer((_) => createRunCompleter.future);
-      stubRunAgent(stream: const Stream<BaseEvent>.empty());
+      'cancelRun during runToCompletion createRun await yields '
+      'CancelledState.preRun (IdleState arm + post-await race close)',
+      () async {
+        // Stop pressed during a slow createRun while in IdleState.
+        // Pins two coupled contracts:
+        //   - cancelRun's IdleState arm cancels `_cancelToken` so the
+        //     in-flight createRun await aborts (without this arm, the
+        //     run continues silently after the response arrives).
+        //   - _initializeStream's post-await race close throws
+        //     CancelledException when the await resolved before the
+        //     token cancellation propagated, so _handleStartError can
+        //     route the user's intent to CancelledState.preRun rather
+        //     than overwriting it with RunningState via _subscribeToStream.
+        final createRunCompleter = Completer<RunInfo>();
+        when(
+          () => api.createRun(any(), any()),
+        ).thenAnswer((_) => createRunCompleter.future);
+        stubRunAgent(stream: const Stream<BaseEvent>.empty());
 
-      final runFuture = orchestrator.runToCompletion(
-        key: _key,
-        userMessage: 'Hi',
-        toolExecutor: (_) async => [],
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(orchestrator.currentState, isA<IdleState>());
+        final runFuture = orchestrator.runToCompletion(
+          key: _key,
+          userMessage: 'Hi',
+          toolExecutor: (_) async => [],
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(orchestrator.currentState, isA<IdleState>());
 
-      orchestrator.cancelRun();
+        orchestrator.cancelRun();
 
-      // Resolve the await *after* cancelRun has cancelled the token,
-      // simulating the race where startRun's future already had its
-      // value before the cancellation propagated.
-      createRunCompleter.complete(_runInfo());
-      final result = await runFuture;
+        // Resolve the await *after* cancelRun has cancelled the token,
+        // simulating the race where startRun's future already had its
+        // value before the cancellation propagated.
+        createRunCompleter.complete(_runInfo());
+        final result = await runFuture;
 
-      expect(
-        result,
-        isA<CancelledState>(),
-        reason: 'state must be CancelledState; without the IdleState arm '
-            'the cancel is dropped, and without the post-await race '
-            'close _subscribeToStream would overwrite it with RunningState',
-      );
-      final cancelled = result as CancelledState;
-      expect(
-        cancelled.startedRun,
-        isFalse,
-        reason: 'pre-run cancel: no backend run was in flight from the '
-            'orchestrator-state perspective',
-      );
-    });
+        expect(
+          result,
+          isA<CancelledState>(),
+          reason:
+              'state must be CancelledState; without the IdleState arm '
+              'the cancel is dropped, and without the post-await race '
+              'close _subscribeToStream would overwrite it with RunningState',
+        );
+        final cancelled = result as CancelledState;
+        expect(
+          cancelled.startedRun,
+          isFalse,
+          reason:
+              'pre-run cancel: no backend run was in flight from the '
+              'orchestrator-state perspective',
+        );
+      },
+    );
   });
 
   group('graceful SSE close', () {
@@ -1753,7 +1763,8 @@ void main() {
         expect(
           subscriptionCancelled,
           isFalse,
-          reason: 'dispose() after RunFinishedEvent must not cancel '
+          reason:
+              'dispose() after RunFinishedEvent must not cancel '
               'the subscription to avoid poisoning the server '
               'connection pool',
         );
@@ -2145,27 +2156,27 @@ void main() {
 
   group('citation extraction', () {
     List<BaseEvent> citationEvents() => [
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const TextMessageStartEvent(messageId: 'msg-1'),
-          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
-          const StateSnapshotEvent(
-            snapshot: {
-              'rag': {
-                'citation_index': {
-                  'chunk-1': {
-                    'chunk_id': 'chunk-1',
-                    'content': 'Citation text',
-                    'document_id': 'doc-1',
-                    'document_uri': 'https://example.com/doc.pdf',
-                  },
-                },
-                'citations': ['chunk-1'],
+      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      const TextMessageStartEvent(messageId: 'msg-1'),
+      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+      const StateSnapshotEvent(
+        snapshot: {
+          'rag': {
+            'citation_index': {
+              'chunk-1': {
+                'chunk_id': 'chunk-1',
+                'content': 'Citation text',
+                'document_id': 'doc-1',
+                'document_uri': 'https://example.com/doc.pdf',
               },
             },
-          ),
-          const TextMessageEndEvent(messageId: 'msg-1'),
-          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-        ];
+            'citations': ['chunk-1'],
+          },
+        },
+      ),
+      const TextMessageEndEvent(messageId: 'msg-1'),
+      const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+    ];
 
     test('populates messageStates with citations on CompletedState', () async {
       stubCreateRun();

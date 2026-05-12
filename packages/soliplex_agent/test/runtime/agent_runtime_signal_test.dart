@@ -35,12 +35,12 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
-      const TextMessageStartEvent(messageId: 'msg-1'),
-      const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
-      const TextMessageEndEvent(messageId: 'msg-1'),
-      const RunFinishedEvent(threadId: _threadId, runId: _runId),
-    ];
+  const RunStartedEvent(threadId: _threadId, runId: _runId),
+  const TextMessageStartEvent(messageId: 'msg-1'),
+  const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+  const TextMessageEndEvent(messageId: 'msg-1'),
+  const RunFinishedEvent(threadId: _threadId, runId: _runId),
+];
 
 void main() {
   setUpAll(() {
@@ -190,59 +190,66 @@ void main() {
   });
 
   group('session disposal during pending completion', () {
-    test('external dispose does not read session signals after disposal',
-        () async {
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
-      final controller = StreamController<BaseEvent>();
-      stubRunAgent(stream: controller.stream);
+    test(
+      'external dispose does not read session signals after disposal',
+      () async {
+        stubCreateThread();
+        stubCreateRun();
+        stubDeleteThread();
+        final controller = StreamController<BaseEvent>();
+        stubRunAgent(stream: controller.stream);
 
-      final captured = <String>[];
-      await runZoned(
-        () async {
-          final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
-          session.dispose();
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        },
-        zoneSpecification: ZoneSpecification(
-          print: (_, __, ___, line) => captured.add(line),
-        ),
-      );
+        final captured = <String>[];
+        await runZoned(
+          () async {
+            final session = await runtime.spawn(
+              roomId: _roomId,
+              prompt: 'Hello',
+            );
+            session.dispose();
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          },
+          zoneSpecification: ZoneSpecification(
+            print: (_, _, _, line) => captured.add(line),
+          ),
+        );
 
-      expect(
-        captured.where((line) => line.contains('read after disposed')),
-        isEmpty,
-        reason: 'No session signal may be read after session.dispose().',
-      );
-      unawaited(controller.close());
-    });
+        expect(
+          captured.where((line) => line.contains('read after disposed')),
+          isEmpty,
+          reason: 'No session signal may be read after session.dispose().',
+        );
+        unawaited(controller.close());
+      },
+    );
 
-    test('autoDispose session is removed from tracking after external dispose',
-        () async {
-      // The runtime's completion handler must run even when the session was
-      // disposed by its owner — otherwise _rootTimeoutTimers, _sessions,
-      // and the spawn queue all leak the disposed session.
-      stubCreateThread();
-      stubCreateRun();
-      stubDeleteThread();
-      final controller = StreamController<BaseEvent>();
-      stubRunAgent(stream: controller.stream);
+    test(
+      'autoDispose session is removed from tracking after external dispose',
+      () async {
+        // The runtime's completion handler must run even when the session was
+        // disposed by its owner — otherwise _rootTimeoutTimers, _sessions,
+        // and the spawn queue all leak the disposed session.
+        stubCreateThread();
+        stubCreateRun();
+        stubDeleteThread();
+        final controller = StreamController<BaseEvent>();
+        stubRunAgent(stream: controller.stream);
 
-      final session = await runtime.spawn(
-        roomId: _roomId,
-        prompt: 'Hello',
-        autoDispose: true,
-      );
-      expect(runtime.sessions.value, hasLength(1));
+        final session = await runtime.spawn(
+          roomId: _roomId,
+          prompt: 'Hello',
+          autoDispose: true,
+        );
+        expect(runtime.sessions.value, hasLength(1));
 
-      session.dispose();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+        session.dispose();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      expect(runtime.sessions.value, isEmpty);
-      expect(runtime.activeSessions, isEmpty);
+        expect(runtime.sessions.value, isEmpty);
+        expect(runtime.activeSessions, isEmpty);
 
-      unawaited(controller.close());
-    });
+        unawaited(controller.close());
+      },
+    );
   });
 }

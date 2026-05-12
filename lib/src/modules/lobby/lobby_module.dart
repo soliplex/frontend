@@ -15,13 +15,12 @@ class LobbyAppModule extends AppModule {
 
   @override
   ModuleRoutes build() => ModuleRoutes(
-        routes: [
-          GoRoute(
-            path: AppRoutes.lobby,
-            pageBuilder: (_, __) => NoTransitionPage(
-              child: LobbyScreen(serverManager: serverManager),
-            ),
-          ),
-        ],
-      );
+    routes: [
+      GoRoute(
+        path: AppRoutes.lobby,
+        pageBuilder: (_, _) =>
+            NoTransitionPage(child: LobbyScreen(serverManager: serverManager)),
+      ),
+    ],
+  );
 }
