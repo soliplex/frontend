@@ -306,7 +306,6 @@ class RunOrchestrator {
           'cancelRun ignored: idle (no run active)',
           attributes: {'state': _currentState.runtimeType.toString()},
         );
-        return;
       case CompletedState(:final threadKey) ||
           FailedState(:final threadKey) ||
           CancelledState(:final threadKey):
@@ -317,7 +316,6 @@ class RunOrchestrator {
             'threadKey': threadKey.toString(),
           },
         );
-        return;
     }
   }
 

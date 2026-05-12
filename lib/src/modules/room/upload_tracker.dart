@@ -205,7 +205,6 @@ class UploadTracker {
       _emit(scope);
     } on CancelledException {
       // Fetch was superseded or the tracker is tearing down.
-      return;
     } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
