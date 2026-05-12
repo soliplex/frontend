@@ -225,9 +225,9 @@ class _RoomContent extends StatelessWidget {
       return Center(
         child: Column(
           mainAxisSize: .min,
+          spacing: 16,
           children: [
             const Text('No servers connected'),
-            const SizedBox(height: 16),
             FilledButton(
               onPressed: onAddServer,
               child: const Text('Add Server'),

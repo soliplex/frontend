@@ -29,6 +29,7 @@ class _ToolCallCard extends StatelessWidget {
       child: ExpansionTile(
         leading: Icon(Icons.bolt, color: theme.colorScheme.primary, size: 18),
         title: Row(
+          spacing: 8,
           children: [
             Flexible(
               child: Text(
@@ -38,7 +39,6 @@ class _ToolCallCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(fontWeight: .w500),
               ),
             ),
-            const SizedBox(width: 8),
             Text(
               toolCall.status.name,
               style: theme.textTheme.labelSmall?.copyWith(
@@ -71,6 +71,7 @@ class _CodeBlock extends StatelessWidget {
       padding: const .fromLTRB(16, 0, 16, 8),
       child: Column(
         crossAxisAlignment: .start,
+        spacing: 4,
         children: [
           Text(
             label,
@@ -78,7 +79,6 @@ class _CodeBlock extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 4),
           SelectableText(
             text,
             style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),

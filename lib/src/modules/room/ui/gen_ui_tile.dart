@@ -14,6 +14,7 @@ class GenUiTile extends StatelessWidget {
         padding: const .all(12),
         child: Column(
           crossAxisAlignment: .start,
+          spacing: 8,
           children: [
             Text(
               message.widgetName,
@@ -21,7 +22,6 @@ class GenUiTile extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 8),
             SelectableText(
               const JsonEncoder.withIndent('  ').convert(message.data),
               style: theme.textTheme.bodySmall?.copyWith(

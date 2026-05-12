@@ -135,9 +135,9 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
                       title: SelectableText(name),
                       trailing: Row(
                         mainAxisSize: .min,
+                        spacing: SoliplexSpacing.s2,
                         children: [
                           SelectableText(version),
-                          const SizedBox(width: SoliplexSpacing.s2),
                           IconButton(
                             icon: const Icon(Icons.copy),
                             tooltip: 'Copy',

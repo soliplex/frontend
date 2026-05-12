@@ -33,13 +33,13 @@ class RunHttpDetailPage extends StatelessWidget {
     return Center(
       child: Column(
         mainAxisSize: .min,
+        spacing: 12,
         children: [
           Icon(
             Icons.http,
             size: 48,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          const SizedBox(height: 12),
           Text(
             'No HTTP traffic found for this run',
             style: theme.textTheme.bodyMedium?.copyWith(

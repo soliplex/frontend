@@ -61,9 +61,9 @@ class HttpEventTile extends StatelessWidget {
             ?.copyWith(color: isSelected ? selectedColor : null);
 
     return Row(
+      spacing: 6,
       children: [
         Text(group.methodLabel, style: methodStyle),
-        const SizedBox(width: 6),
         Expanded(
           child: Text(
             group.pathWithQuery,

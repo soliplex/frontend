@@ -62,6 +62,7 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
                   padding: const .only(left: 22),
                   child: Column(
                     crossAxisAlignment: .start,
+                    spacing: 6,
                     children: [
                       Text(
                         _subtitle(),
@@ -69,7 +70,6 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
                           color: muted,
                         ),
                       ),
-                      const SizedBox(height: 6),
                       _payload(theme, mono),
                     ],
                   ),

@@ -147,13 +147,13 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
               mainAxisSize: .min,
+              spacing: 2,
               children: [
                 Icon(
                   _expanded ? Icons.expand_more : Icons.chevron_right,
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 2),
                 SelectableText(
                   _expanded ? expandedLabel : label,
                   style: baseStyle,

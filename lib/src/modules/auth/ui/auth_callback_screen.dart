@@ -106,11 +106,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           padding: const .all(16),
           child: Column(
             mainAxisSize: .min,
+            spacing: 16,
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
               Text(_error ?? 'An error occurred'),
-              const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => context.go(AppRoutes.home),
                 child: const Text('Back to home'),

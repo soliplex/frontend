@@ -76,16 +76,17 @@ class RoomWelcome extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Column(
+                  spacing: 8,
                   children: [
                     Row(
                       mainAxisSize: .min,
+                      spacing: 8,
                       children: [
                         Icon(
                           Icons.quiz,
                           size: 20,
                           color: theme.colorScheme.primary,
                         ),
-                        const SizedBox(width: 8),
                         Text(
                           currentRoom.quizzes.length == 1
                               ? 'Quiz Available'
@@ -94,7 +95,6 @@ class RoomWelcome extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,

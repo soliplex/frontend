@@ -130,9 +130,9 @@ class _QuizScreenState extends State<QuizScreen> {
                   padding: const .all(16),
                   child: Column(
                     mainAxisSize: .min,
+                    spacing: 16,
                     children: [
                       Text(message),
-                      const SizedBox(height: 16),
                       FilledButton(onPressed: action, child: Text(label)),
                     ],
                   ),

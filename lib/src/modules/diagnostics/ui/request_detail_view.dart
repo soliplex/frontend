@@ -144,9 +144,9 @@ class _RequestDetailViewState extends State<RequestDetailView>
     return Tab(
       child: Row(
         mainAxisSize: .min,
+        spacing: 4,
         children: [
           Text(label),
-          const SizedBox(width: 4),
           _MatchBadge(count: count),
         ],
       ),
@@ -240,11 +240,12 @@ class _RequestDetailViewState extends State<RequestDetailView>
       ),
       child: Column(
         crossAxisAlignment: .start,
+        spacing: 8,
         children: [
           Row(
+            spacing: 8,
             children: [
               _MethodBadge(method: group.methodLabel, isStream: group.isStream),
-              const SizedBox(width: 8),
               Expanded(child: HttpStatusDisplay(group: group)),
               Text(
                 group.timestamp.toHttpTimeString(),
@@ -254,7 +255,6 @@ class _RequestDetailViewState extends State<RequestDetailView>
               ),
             ],
           ),
-          const SizedBox(height: 8),
           SelectableText(
             group.uri.toString(),
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -539,6 +539,7 @@ class _CurlTab extends StatelessWidget {
       padding: const .all(16),
       child: Column(
         crossAxisAlignment: .start,
+        spacing: 8,
         children: [
           Row(
             children: [
@@ -551,7 +552,6 @@ class _CurlTab extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
           Expanded(
             child: Container(
               width: .infinity,

@@ -92,9 +92,9 @@ class _TerminalReasonBubble extends StatelessWidget {
         borderRadius: .circular(12),
       ),
       child: Row(
+        spacing: 8,
         children: [
           Icon(icon, size: 16, color: theme.colorScheme.onTertiaryContainer),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,

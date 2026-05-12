@@ -114,13 +114,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               onTap: _toggleExpanded,
               behavior: .opaque,
               child: Row(
+                spacing: 4,
                 children: [
                   Icon(
                     _expanded ? Icons.expand_more : Icons.chevron_right,
                     size: 16,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 4),
                   Text(
                     '$total event${total == 1 ? '' : 's'}',
                     style: theme.textTheme.bodySmall?.copyWith(

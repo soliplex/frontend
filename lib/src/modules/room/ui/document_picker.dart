@@ -184,6 +184,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
             content = Center(
               child: Column(
                 mainAxisSize: .min,
+                spacing: 8,
                 children: [
                   Text(
                     'Failed to load documents.',
@@ -191,7 +192,6 @@ Future<Set<RagDocument>?> showDocumentPicker({
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                  const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => setDialogState(() {
                       documentsFuture = fetchDocuments();

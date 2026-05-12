@@ -109,23 +109,20 @@ class _ThreadTileState extends State<ThreadTile> {
         const PopupMenuItem(
           value: _ThreadAction.rename,
           child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18),
-              SizedBox(width: 12),
-              Text('Rename'),
-            ],
+            spacing: 12,
+            children: [Icon(Icons.edit_outlined, size: 18), Text('Rename')],
           ),
         ),
         PopupMenuItem(
           value: _ThreadAction.delete,
           child: Row(
+            spacing: 12,
             children: [
               Icon(
                 Icons.delete_outline,
                 size: 18,
                 color: theme.colorScheme.error,
               ),
-              SizedBox(width: 12),
               Text('Delete', style: TextStyle(color: theme.colorScheme.error)),
             ],
           ),

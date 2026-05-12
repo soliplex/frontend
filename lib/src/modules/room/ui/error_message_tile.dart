@@ -12,6 +12,7 @@ class ErrorMessageTile extends StatelessWidget {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: .start,
+      spacing: 4,
       children: [
         Container(
           padding: const .symmetric(horizontal: 14, vertical: 10),
@@ -26,7 +27,6 @@ class ErrorMessageTile extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 4),
         CopyButton(text: message.errorText),
       ],
     );

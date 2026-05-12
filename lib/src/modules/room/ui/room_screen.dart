@@ -680,9 +680,9 @@ class _RoomScreenState extends State<RoomScreen> {
         ],
       ),
       UploadsFailed(error: final error) => Row(
+        spacing: 8,
         children: [
           _sectionLabel(label, theme),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Failed to load: ${uploadErrorMessage(error)}',
@@ -981,13 +981,13 @@ class _RoomScreenState extends State<RoomScreen> {
     return Center(
       child: Column(
         mainAxisSize: .min,
+        spacing: 12,
         children: [
           Icon(
             Icons.chat_bubble_outline,
             size: 48,
             color: theme.colorScheme.outline.withValues(alpha: 0.3),
           ),
-          const SizedBox(height: 12),
           Text(
             'Type a message to get started',
             style: theme.textTheme.bodyMedium?.copyWith(

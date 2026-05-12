@@ -163,9 +163,9 @@ class _RoomInfoBody extends StatelessWidget {
             padding: const .only(bottom: 16),
             child: Column(
               crossAxisAlignment: .start,
+              spacing: 4,
               children: [
                 Text('Server', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
                 Text(
                   formatServerUrl(serverUrl),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -179,9 +179,9 @@ class _RoomInfoBody extends StatelessWidget {
             padding: const .only(bottom: 16),
             child: Column(
               crossAxisAlignment: .start,
+              spacing: 4,
               children: [
                 Text('Room', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
                 Text(
                   room.name,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -318,6 +318,7 @@ class _AgentCard extends StatelessWidget {
               padding: const .symmetric(vertical: 4),
               child: Column(
                 crossAxisAlignment: .start,
+                spacing: 4,
                 children: [
                   Text(
                     'Extra Config',
@@ -325,7 +326,6 @@ class _AgentCard extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
                   formatDynamicValue(
                     extraConfig,
                     style: Theme.of(context).textTheme.bodySmall,

@@ -400,13 +400,13 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
       return Center(
         child: Column(
           mainAxisSize: .min,
+          spacing: 12,
           children: [
             Icon(
               Icons.info_outline,
               size: 48,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
             Text('File no longer exists', style: theme.textTheme.bodyMedium),
           ],
         ),

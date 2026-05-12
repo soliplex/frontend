@@ -247,13 +247,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             borderRadius: .circular(8),
           ),
           child: Row(
+            spacing: 8,
             children: [
               Icon(
                 Icons.error_outline,
                 color: theme.colorScheme.onErrorContainer,
                 size: 20,
               ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   error,
@@ -299,9 +299,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: 24),
       Row(
         mainAxisAlignment: .center,
+        spacing: 16,
         children: [
           OutlinedButton(onPressed: _flow.reset, child: const Text('Cancel')),
-          const SizedBox(width: 16),
           FilledButton(
             onPressed: _flow.acceptInsecure,
             child: const Text('Connect anyway'),
@@ -325,9 +325,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: 16),
       Row(
         mainAxisAlignment: .center,
+        spacing: 16,
         children: [
           OutlinedButton(onPressed: _flow.reset, child: const Text('Cancel')),
-          const SizedBox(width: 16),
           FilledButton(
             onPressed: _flow.acknowledgeConsent,
             child: Text(notice.acknowledgmentLabel),

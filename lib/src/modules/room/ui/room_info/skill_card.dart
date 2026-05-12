@@ -29,9 +29,9 @@ class SkillContentColumn extends StatelessWidget {
       final isNone = value == null || value.isEmpty;
       return Column(
         crossAxisAlignment: .start,
+        spacing: 2,
         children: [
           Text(label, style: labelStyle),
-          const SizedBox(height: 2),
           Text(isNone ? 'None' : value, style: isNone ? noneStyle : valueStyle),
         ],
       );
@@ -39,17 +39,13 @@ class SkillContentColumn extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: .start,
+      spacing: 8,
       children: [
         field('description', skill.description),
-        const SizedBox(height: 8),
         field('source', skill.source),
-        const SizedBox(height: 8),
         field('license', skill.license),
-        const SizedBox(height: 8),
         field('compatibility', skill.compatibility),
-        const SizedBox(height: 8),
         field('allowed_tools', skill.allowedTools?.join(', ')),
-        const SizedBox(height: 8),
         field('state_namespace', skill.stateNamespace),
         if (skill.metadata.isNotEmpty ||
             (skill.stateTypeSchema?.isNotEmpty ?? false))
@@ -90,13 +86,13 @@ class SkillDetailDialog extends StatelessWidget {
       final isEmpty = data == null || data.isEmpty;
       return Column(
         crossAxisAlignment: .start,
+        spacing: 8,
         children: [
           Text(title, style: sectionStyle),
-          const SizedBox(height: 8),
           if (isEmpty)
             Text('Empty', style: noneStyle)
           else
-            for (final entry in data.entries) ...[
+            for (final entry in data.entries)
               SizedBox(
                 width: .infinity,
                 child: Card(
@@ -105,17 +101,15 @@ class SkillDetailDialog extends StatelessWidget {
                     padding: const .all(12),
                     child: Column(
                       crossAxisAlignment: .start,
+                      spacing: 2,
                       children: [
                         Text(entry.key, style: labelStyle),
-                        const SizedBox(height: 2),
                         formatDynamicValue(entry.value, style: valueStyle),
                       ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-            ],
         ],
       );
     }
@@ -128,9 +122,9 @@ class SkillDetailDialog extends StatelessWidget {
           child: Column(
             mainAxisSize: .min,
             crossAxisAlignment: .start,
+            spacing: 16,
             children: [
               mapSection('Metadata', skill.metadata),
-              const SizedBox(height: 16),
               mapSection('State Schema', skill.stateTypeSchema),
             ],
           ),

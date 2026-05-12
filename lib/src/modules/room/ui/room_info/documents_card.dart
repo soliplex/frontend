@@ -240,9 +240,9 @@ class _DocumentsCardState extends State<DocumentsCard> {
                       width: 160,
                       child: Column(
                         crossAxisAlignment: .start,
+                        spacing: 2,
                         children: [
                           Text(label, style: labelStyle),
-                          const SizedBox(height: 2),
                           SelectableText(value, style: valueStyle),
                         ],
                       ),
@@ -314,6 +314,7 @@ class MetadataDialog extends StatelessWidget {
                       padding: const .all(12),
                       child: Column(
                         crossAxisAlignment: .start,
+                        spacing: 2,
                         children: [
                           Text(
                             entry.key,
@@ -322,7 +323,6 @@ class MetadataDialog extends StatelessWidget {
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 2),
                           formatDynamicValue(
                             entry.value,
                             style: theme.textTheme.bodySmall,

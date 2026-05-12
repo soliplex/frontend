@@ -121,21 +121,21 @@ class ApprovalDialog extends StatelessWidget {
     final theme = Theme.of(context);
     return AlertDialog(
       title: Row(
+        spacing: 8,
         children: [
           Icon(Icons.security, color: theme.colorScheme.primary, size: 20),
-          const SizedBox(width: 8),
           const Text('Tool Approval Required'),
         ],
       ),
       content: Column(
         mainAxisSize: .min,
         crossAxisAlignment: .start,
+        spacing: 8,
         children: [
           Text(
             request.toolName,
             style: theme.textTheme.titleSmall?.copyWith(fontWeight: .bold),
           ),
-          const SizedBox(height: 8),
           Text(request.rationale, style: theme.textTheme.bodyMedium),
         ],
       ),

@@ -28,13 +28,13 @@ class ConcurrencySummaryPanel extends StatelessWidget {
       padding: const .symmetric(horizontal: 12, vertical: 8),
       color: theme.colorScheme.surfaceContainerHighest,
       child: Row(
+        spacing: 8,
         children: [
           Icon(
             Icons.hourglass_empty,
             size: 16,
             color: theme.colorScheme.onSurfaceVariant,
           ),
-          const SizedBox(width: 8),
           Expanded(
             child: Wrap(
               spacing: 12,

@@ -20,12 +20,12 @@ class QuizAnswerFeedback extends StatelessWidget {
         borderRadius: .circular(8),
       ),
       child: Row(
+        spacing: 8,
         children: [
           Icon(
             isCorrect ? Icons.check_circle : Icons.cancel,
             color: isCorrect ? colorScheme.primary : colorScheme.error,
           ),
-          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: .start,

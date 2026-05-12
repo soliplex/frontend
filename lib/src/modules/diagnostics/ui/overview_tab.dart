@@ -149,13 +149,13 @@ class _TruncationBanner extends StatelessWidget {
         borderRadius: .circular(4),
       ),
       child: Row(
+        spacing: 8,
         children: [
           Icon(
             Icons.warning_amber_rounded,
             size: 16,
             color: colorScheme.onTertiaryContainer,
           ),
-          const SizedBox(width: 8),
           Text(
             'Earlier stream content was truncated',
             style: TextStyle(
@@ -439,9 +439,9 @@ class _JsonSection extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: .start,
+      spacing: 8,
       children: [
         Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
         Container(
           width: .infinity,
           padding: const .all(12),
