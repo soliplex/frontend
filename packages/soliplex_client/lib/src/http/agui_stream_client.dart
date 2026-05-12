@@ -86,15 +86,18 @@ class AgUiStreamClient {
         response = await _attempt(uri, body, lastEventId, cancelToken);
       } on CancelledException {
         rethrow;
-      } on Object catch (e) {
+      } on Object catch (e, st) {
         if (!isResumeRequest) rethrow;
         if (!_retryable(e) || !_canRetry(policy, attempt)) {
           onReconnectStatus?.call(ReconnectFailed(attempt: attempt, error: e));
-          throw StreamResumeFailedException(
-            message:
-                '$kStreamResumeFailedPrefix '
-                '${e is SoliplexException ? e.message : e}',
-            originalError: e,
+          Error.throwWithStackTrace(
+            StreamResumeFailedException(
+              message:
+                  '$kStreamResumeFailedPrefix '
+                  '${e is SoliplexException ? e.message : e}',
+              originalError: e,
+            ),
+            st,
           );
         }
         attempt += 1;

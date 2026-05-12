@@ -63,8 +63,11 @@ class NativeAuthFlow implements AuthFlow {
       rethrow;
     } on Exception catch (e, st) {
       dev.log('NativeAuthFlow.authenticate', error: e, stackTrace: st);
-      throw AuthException(
-        'Authentication failed (${e.runtimeType}). Please try again.',
+      Error.throwWithStackTrace(
+        AuthException(
+          'Authentication failed (${e.runtimeType}). Please try again.',
+        ),
+        st,
       );
     }
   }

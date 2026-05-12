@@ -85,10 +85,13 @@ Future<OidcDiscoveryDocument> fetchOidcDiscoveryDocument(
   final HttpResponse response;
   try {
     response = await httpClient.request('GET', discoveryUrl, timeout: timeout);
-  } on Exception catch (e) {
-    throw NetworkException(
-      message: 'Failed to fetch OIDC discovery document',
-      originalError: e,
+  } on Exception catch (e, st) {
+    Error.throwWithStackTrace(
+      NetworkException(
+        message: 'Failed to fetch OIDC discovery document',
+        originalError: e,
+      ),
+      st,
     );
   }
 
@@ -101,8 +104,11 @@ Future<OidcDiscoveryDocument> fetchOidcDiscoveryDocument(
   final Map<String, dynamic> json;
   try {
     json = jsonDecode(response.body) as Map<String, dynamic>;
-  } on FormatException {
-    throw const FormatException('Invalid OIDC discovery document JSON');
+  } on FormatException catch (_, st) {
+    Error.throwWithStackTrace(
+      const FormatException('Invalid OIDC discovery document JSON'),
+      st,
+    );
   }
 
   return OidcDiscoveryDocument.fromJson(json, discoveryUrl);

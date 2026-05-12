@@ -65,8 +65,11 @@ Future<PickedFile?> pickFile() async {
   final FilePickerResult? result;
   try {
     result = await FilePicker.pickFiles(withData: true);
-  } on Object catch (error) {
-    throw PickFilePickerException(cause: error);
+  } on Object catch (error, stackTrace) {
+    Error.throwWithStackTrace(
+      PickFilePickerException(cause: error),
+      stackTrace,
+    );
   }
   if (result == null || result.files.isEmpty) return null;
   final file = result.files.first;
@@ -83,8 +86,11 @@ Future<PickedFile?> pickFile() async {
   } else {
     try {
       bytes = await readFileBytes(file.path!);
-    } on Object catch (error) {
-      throw PickFileReadException(filename: file.name, cause: error);
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        PickFileReadException(filename: file.name, cause: error),
+        stackTrace,
+      );
     }
   }
 

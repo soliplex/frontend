@@ -161,10 +161,13 @@ class TokenRefreshService {
         ).query,
         timeout: const Duration(seconds: 30),
       );
-    } on Exception catch (e) {
-      throw NetworkException(
-        message: 'Token refresh request failed',
-        originalError: e,
+    } on Exception catch (e, st) {
+      Error.throwWithStackTrace(
+        NetworkException(
+          message: 'Token refresh request failed',
+          originalError: e,
+        ),
+        st,
       );
     }
   }
