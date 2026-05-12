@@ -35,16 +35,18 @@ class RoomState {
     required RunRegistry registry,
     required UploadTrackerRegistry uploadRegistry,
     this.onNavigateToThread,
-  })  : _connection = serverEntry.connection,
-        _roomId = roomId,
-        _runtimeManager = runtimeManager,
-        _registry = registry,
-        threadList = ThreadListState(
-          connection: serverEntry.connection,
-          roomId: roomId,
-        ),
-        uploadTracker =
-            uploadRegistry.trackerFor(entry: serverEntry, roomId: roomId) {
+  }) : _connection = serverEntry.connection,
+       _roomId = roomId,
+       _runtimeManager = runtimeManager,
+       _registry = registry,
+       threadList = ThreadListState(
+         connection: serverEntry.connection,
+         roomId: roomId,
+       ),
+       uploadTracker = uploadRegistry.trackerFor(
+         entry: serverEntry,
+         roomId: roomId,
+       ) {
     _fetchRoom();
     // Every room entry forces a refresh so the list reflects server
     // state from other devices and self-heals any pending record that
@@ -73,16 +75,19 @@ class RoomState {
 
   late final ReadonlySignal<Set<String>> runningThreadIds =
       computed<Set<String>>(
-    () => _registry.activeKeys.value
-        .where((k) => k.serverId == _connection.serverId && k.roomId == _roomId)
-        .map((k) => k.threadId)
-        .toSet(),
-  );
+        () => _registry.activeKeys.value
+            .where(
+              (k) => k.serverId == _connection.serverId && k.roomId == _roomId,
+            )
+            .map((k) => k.threadId)
+            .toSet(),
+      );
 
   /// Tracks the spawn lifecycle: null → spawning → null.
   /// Non-null while a new-thread spawn is in progress.
-  final Signal<AgentSessionState?> _sessionState =
-      Signal<AgentSessionState?>(null);
+  final Signal<AgentSessionState?> _sessionState = Signal<AgentSessionState?>(
+    null,
+  );
   ReadonlySignal<AgentSessionState?> get sessionState => _sessionState;
 
   final Signal<SendError?> _lastError = Signal<SendError?>(null);
@@ -93,15 +98,18 @@ class RoomState {
   void _fetchRoom() {
     final token = CancelToken();
     _roomFetchToken = token;
-    _connection.api.getRoom(_roomId, cancelToken: token).then((room) {
-      if (token.isCancelled) return;
-      _roomFetchToken = null;
-      _room.value = RoomLoaded(room);
-    }).catchError((Object error) {
-      if (token.isCancelled) return;
-      _roomFetchToken = null;
-      _room.value = RoomFailed(error);
-    });
+    _connection.api
+        .getRoom(_roomId, cancelToken: token)
+        .then((room) {
+          if (token.isCancelled) return;
+          _roomFetchToken = null;
+          _room.value = RoomLoaded(room);
+        })
+        .catchError((Object error) {
+          if (token.isCancelled) return;
+          _roomFetchToken = null;
+          _room.value = RoomFailed(error);
+        });
   }
 
   ThreadViewState? get activeThreadView => _activeThreadView;
@@ -117,14 +125,11 @@ class RoomState {
       threadId: threadId,
       registry: _registry,
       onHistoryLoaded: (id, history) {
-        runtime.seedThreadHistory(
-          (
-            serverId: _connection.serverId,
-            roomId: _roomId,
-            threadId: id,
-          ),
-          history,
-        );
+        runtime.seedThreadHistory((
+          serverId: _connection.serverId,
+          roomId: _roomId,
+          threadId: id,
+        ), history);
       },
     );
     // Thread switch → force a refresh for the same reasons as room
@@ -141,14 +146,11 @@ class RoomState {
       if (result == null) return null; // disposed
       final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
-      runtime.seedThreadState(
-        (
-          serverId: _connection.serverId,
-          roomId: _roomId,
-          threadId: threadInfo.id,
-        ),
-        aguiState,
-      );
+      runtime.seedThreadState((
+        serverId: _connection.serverId,
+        roomId: _roomId,
+        threadId: threadInfo.id,
+      ), aguiState);
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
@@ -170,14 +172,17 @@ class RoomState {
 
     await threadList.deleteThread(threadId);
 
-    if (_activeThreadView?.threadId == threadId) {
-      _activeThreadView?.cancelRun();
-      _activeThreadView?.dispose();
-      _activeThreadView = null;
+    _disposeActiveAndNavigate(threadId, nextThreadId);
+  }
 
-      if (nextThreadId != null) selectThread(nextThreadId);
-      onNavigateToThread?.call(nextThreadId);
-    }
+  void _disposeActiveAndNavigate(String threadId, String? nextThreadId) {
+    if (_activeThreadView?.threadId != threadId) return;
+    _activeThreadView?.cancelRun();
+    _activeThreadView?.dispose();
+    _activeThreadView = null;
+
+    if (nextThreadId != null) selectThread(nextThreadId);
+    onNavigateToThread?.call(nextThreadId);
   }
 
   String? _pickNextThreadId({required String excluding}) {
@@ -201,41 +206,42 @@ class RoomState {
   Future<void> sendToNewThread(
     String prompt, {
     Map<String, dynamic>? stateOverlay,
-  }) =>
-      _spawner.spawn(
-        spawnFn: () => runtime.spawn(
+  }) => _spawner.spawn(
+    spawnFn: () => runtime.spawn(
+      roomId: _roomId,
+      prompt: prompt,
+      stateOverlay: stateOverlay,
+    ),
+    errorSignal: _lastError,
+    prompt: prompt,
+    isDisposed: () => _isDisposed,
+    onSpawned: (session) {
+      // Clear room-level spawn state — the thread view takes over.
+      _sessionState.value = null;
+      final key = session.threadKey;
+      _registry.register(key, session);
+      if (_isDisposed) return;
+      // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
+      // the sidebar reflects the new thread immediately. The backend
+      // generates the thread's name lazily after the run finishes; the
+      // sidebar picks that up on the next natural refresh (room change,
+      // pull-to-refresh, re-entry).
+      threadList.noteSpawnedThread(
+        ThreadInfo(
+          id: key.threadId,
           roomId: _roomId,
-          prompt: prompt,
-          stateOverlay: stateOverlay,
+          createdAt: DateTime.now(),
         ),
-        errorSignal: _lastError,
-        prompt: prompt,
-        isDisposed: () => _isDisposed,
-        onSpawned: (session) {
-          // Clear room-level spawn state — the thread view takes over.
-          _sessionState.value = null;
-          final key = session.threadKey;
-          _registry.register(key, session);
-          if (_isDisposed) return;
-          // Spawn only exposes a threadKey — no ThreadInfo. Insert a stub so
-          // the sidebar reflects the new thread immediately. The backend
-          // generates the thread's name lazily after the run finishes; the
-          // sidebar picks that up on the next natural refresh (room change,
-          // pull-to-refresh, re-entry).
-          threadList.noteSpawnedThread(ThreadInfo(
-            id: key.threadId,
-            roomId: _roomId,
-            createdAt: DateTime.now(),
-          ));
-          selectThread(key.threadId);
-          _activeThreadView!.attachSession(session);
-          onNavigateToThread?.call(key.threadId);
-        },
-        onStateTransition: (state) {
-          if (_isDisposed) return;
-          _sessionState.value = state;
-        },
       );
+      selectThread(key.threadId);
+      _activeThreadView!.attachSession(session);
+      onNavigateToThread?.call(key.threadId);
+    },
+    onStateTransition: (state) {
+      if (_isDisposed) return;
+      _sessionState.value = state;
+    },
+  );
 
   void dispose() {
     _isDisposed = true;

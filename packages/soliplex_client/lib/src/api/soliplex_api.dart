@@ -952,18 +952,18 @@ class SoliplexApi {
       }
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
 
-      // Extract new citations by comparing state before/after this run
-      if (userMessageId != null) {
-        final sourceReferences = extractor.extractNew(
-          previousAguiState,
-          conversation.aguiState,
-        );
-        messageStates[userMessageId] = MessageState(
-          userMessageId: userMessageId,
-          sourceReferences: sourceReferences,
-          runId: runId,
-        );
-      }
+      if (userMessageId == null) continue;
+
+      // Extract new citations by comparing state before/after this run.
+      final sourceReferences = extractor.extractNew(
+        previousAguiState,
+        conversation.aguiState,
+      );
+      messageStates[userMessageId] = MessageState(
+        userMessageId: userMessageId,
+        sourceReferences: sourceReferences,
+        runId: runId,
+      );
     }
 
     return ThreadHistory(
