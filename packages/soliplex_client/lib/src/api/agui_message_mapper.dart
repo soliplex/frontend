@@ -48,11 +48,11 @@ List<Message> convertToAgui(List<ChatMessage> chatMessages) {
 
 Message _convertTextMessage(TextMessage message) {
   switch (message.user) {
-    case ChatUser.user:
+    case .user:
       return UserMessage(id: message.id, content: message.text);
-    case ChatUser.assistant:
+    case .assistant:
       return AssistantMessage(id: message.id, content: message.text);
-    case ChatUser.system:
+    case .system:
       return SystemMessage(id: message.id, content: message.text);
   }
 }
@@ -77,8 +77,7 @@ List<Message> _convertToolCallMessage(ToolCallMessage message) {
   // Add ToolMessage for each completed or failed tool call.
   // Failed tool calls send their error to the model so it can respond.
   for (final tc in message.toolCalls) {
-    if (tc.status == ToolCallStatus.completed ||
-        tc.status == ToolCallStatus.failed) {
+    if (tc.status == .completed || tc.status == .failed) {
       result.add(
         ToolMessage(
           id: 'tool_result_${tc.id}',

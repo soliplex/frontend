@@ -8,8 +8,9 @@ import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex_client.event_processor');
+final Logger _logger = LogManager.instance.getLogger(
+  'soliplex_client.event_processor',
+);
 
 /// Result of processing an AG-UI event.
 ///
@@ -50,13 +51,19 @@ EventProcessingResult processEvent(
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
-        conversation: conversation.withStatus(Running(runId: runId)),
-        streaming: streaming,
-      ),
-    RunFinishedEvent(:final runId) =>
-      _processRunFinished(conversation, streaming, runId),
-    RunErrorEvent(:final message) =>
-      _processRunError(conversation, streaming, message),
+      conversation: conversation.withStatus(Running(runId: runId)),
+      streaming: streaming,
+    ),
+    RunFinishedEvent(:final runId) => _processRunFinished(
+      conversation,
+      streaming,
+      runId,
+    ),
+    RunErrorEvent(:final message) => _processRunError(
+      conversation,
+      streaming,
+      message,
+    ),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -65,36 +72,33 @@ EventProcessingResult processEvent(
     ThinkingStartEvent() ||
     ReasoningStartEvent() ||
     ThinkingTextMessageStartEvent() ||
-    ReasoningMessageStartEvent() =>
-      _processThinkingStart(
-        conversation,
-        streaming,
-      ),
+    ReasoningMessageStartEvent() => _processThinkingStart(
+      conversation,
+      streaming,
+    ),
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
     ThinkingTextMessageEndEvent() ||
-    ReasoningMessageEndEvent() =>
-      _processThinkingEnd(conversation, streaming),
+    ReasoningMessageEndEvent() => _processThinkingEnd(conversation, streaming),
     ThinkingTextMessageContentEvent(:final delta) ||
     ReasoningMessageContentEvent(
       :final delta,
-    ) =>
-      _processThinkingContent(conversation, streaming, delta),
+    ) => _processThinkingContent(conversation, streaming, delta),
 
     // Text message streaming events
     TextMessageStartEvent(:final messageId, :final role) => _processTextStart(
-        conversation,
-        streaming,
-        messageId,
-        role,
-      ),
+      conversation,
+      streaming,
+      messageId,
+      role,
+    ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
     TextMessageEndEvent(:final messageId) => _processTextEnd(
-        conversation,
-        streaming,
-        messageId,
-      ),
+      conversation,
+      streaming,
+      messageId,
+    ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
     // transition to pending on end (tool stays in conversation.toolCalls).
@@ -105,11 +109,7 @@ EventProcessingResult processEvent(
     ) =>
       EventProcessingResult(
         conversation: conversation.withToolCall(
-          ToolCallInfo(
-            id: toolCallId,
-            name: toolCallName,
-            status: ToolCallStatus.streaming,
-          ),
+          ToolCallInfo(id: toolCallId, name: toolCallName, status: .streaming),
         ),
         streaming: _withToolCallActivity(
           streaming,
@@ -119,27 +119,30 @@ EventProcessingResult processEvent(
         ),
       ),
     ToolCallArgsEvent(:final toolCallId, :final delta) => _processToolCallArgs(
-        conversation,
-        streaming,
-        toolCallId,
-        delta,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+      delta,
+    ),
     ToolCallEndEvent(:final toolCallId) => _processToolCallEnd(
-        conversation,
-        streaming,
-        toolCallId,
-      ),
+      conversation,
+      streaming,
+      toolCallId,
+    ),
     ToolCallResultEvent(:final toolCallId, :final content) =>
       _processToolCallResult(conversation, streaming, toolCallId, content),
 
     // State events - apply to conversation.aguiState
-    StateSnapshotEvent(:final snapshot) =>
-      _processStateSnapshot(conversation, streaming, snapshot),
+    StateSnapshotEvent(:final snapshot) => _processStateSnapshot(
+      conversation,
+      streaming,
+      snapshot,
+    ),
     StateDeltaEvent(:final delta) => _processStateDelta(
-        conversation,
-        streaming,
-        delta,
-      ),
+      conversation,
+      streaming,
+      delta,
+    ),
 
     // Activity snapshot events
     ActivitySnapshotEvent(
@@ -181,11 +184,10 @@ EventProcessingResult processEvent(
     StepFinishedEvent() ||
     RawEvent() ||
     CustomEvent() ||
-    ReasoningMessageChunkEvent() =>
-      EventProcessingResult(
-        conversation: conversation,
-        streaming: streaming,
-      ),
+    ReasoningMessageChunkEvent() => EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    ),
   };
 }
 
@@ -274,8 +276,9 @@ EventProcessingResult _processTextStart(
   TextMessageRole role,
 ) {
   // Transfer any buffered thinking from AwaitingText to TextStreaming
-  final thinkingText =
-      streaming is AwaitingText ? streaming.bufferedThinkingText : '';
+  final thinkingText = streaming is AwaitingText
+      ? streaming.bufferedThinkingText
+      : '';
   final isThinkingStreaming =
       streaming is AwaitingText && streaming.isThinkingStreaming;
 
@@ -312,61 +315,54 @@ EventProcessingResult _processTextContent(
   StreamingState streaming,
   String messageId,
   String delta,
-) =>
-    _onActiveTextStream(
-      conversation,
-      streaming,
-      messageId,
-      (active) => EventProcessingResult(
-        conversation: conversation,
-        streaming: active.appendDelta(delta),
-      ),
-    );
+) => _onActiveTextStream(
+  conversation,
+  streaming,
+  messageId,
+  (active) => EventProcessingResult(
+    conversation: conversation,
+    streaming: active.appendDelta(delta),
+  ),
+);
 
 EventProcessingResult _processTextEnd(
   Conversation conversation,
   StreamingState streaming,
   String messageId,
-) =>
-    _onActiveTextStream(
-      conversation,
-      streaming,
-      messageId,
-      (active) {
-        // Skip if a message with this ID already exists — idempotency guard
-        // against duplicate events (e.g. from history replay).
-        if (conversation.messages.any((m) => m.id == messageId)) {
-          _logger.info(
-            'Skipped duplicate message ID',
-            attributes: {'messageId': messageId},
-          );
-          return EventProcessingResult(
-            conversation: conversation,
-            streaming: const AwaitingText(),
-          );
-        }
-
-        final newMessage = TextMessage.create(
-          id: messageId,
-          user: active.user,
-          text: active.text,
-          thinkingText: active.thinkingText,
-        );
-
-        return EventProcessingResult(
-          conversation: conversation.withAppendedMessage(newMessage),
-          streaming: const AwaitingText(),
-        );
-      },
+) => _onActiveTextStream(conversation, streaming, messageId, (active) {
+  // Skip if a message with this ID already exists — idempotency guard
+  // against duplicate events (e.g. from history replay).
+  if (conversation.messages.any((m) => m.id == messageId)) {
+    _logger.info(
+      'Skipped duplicate message ID',
+      attributes: {'messageId': messageId},
     );
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: const AwaitingText(),
+    );
+  }
+
+  final newMessage = TextMessage.create(
+    id: messageId,
+    user: active.user,
+    text: active.text,
+    thinkingText: active.thinkingText,
+  );
+
+  return EventProcessingResult(
+    conversation: conversation.withAppendedMessage(newMessage),
+    streaming: const AwaitingText(),
+  );
+});
 
 /// Maps AG-UI TextMessageRole to domain ChatUser.
 ChatUser _mapRoleToChatUser(TextMessageRole role) {
   return switch (role) {
-    TextMessageRole.user => ChatUser.user,
-    TextMessageRole.assistant => ChatUser.assistant,
-    TextMessageRole.system => ChatUser.system,
-    TextMessageRole.developer => ChatUser.system,
+    .user => .user,
+    .assistant => .assistant,
+    .system => .system,
+    .developer => .system,
   };
 }
 
@@ -388,7 +384,7 @@ EventProcessingResult _processToolCallArgs(
     );
   }
   final updatedToolCalls = conversation.toolCalls.map((tc) {
-    if (tc.id == toolCallId && tc.status == ToolCallStatus.streaming) {
+    if (tc.id == toolCallId && tc.status == .streaming) {
       return tc.copyWith(arguments: tc.arguments + delta);
     }
     return tc;
@@ -415,8 +411,8 @@ EventProcessingResult _processToolCallEnd(
     );
   }
   final updatedToolCalls = conversation.toolCalls.map((tc) {
-    if (tc.id == toolCallId && tc.status == ToolCallStatus.streaming) {
-      return tc.copyWith(status: ToolCallStatus.pending);
+    if (tc.id == toolCallId && tc.status == .streaming) {
+      return tc.copyWith(status: .pending);
     }
     return tc;
   }).toList();
@@ -435,9 +431,8 @@ EventProcessingResult _processToolCallResult(
 ) {
   final updatedToolCalls = conversation.toolCalls.map((tc) {
     if (tc.id == toolCallId &&
-        (tc.status == ToolCallStatus.pending ||
-            tc.status == ToolCallStatus.streaming)) {
-      return tc.copyWith(status: ToolCallStatus.completed, result: content);
+        (tc.status == .pending || tc.status == .streaming)) {
+      return tc.copyWith(status: .completed, result: content);
     }
     return tc;
   }).toList();
@@ -470,8 +465,8 @@ EventProcessingResult _processActivitySnapshot(
   final List<ActivityRecord> updatedActivities;
   if (existingIndex >= 0) {
     if (replace) {
-      updatedActivities = [...conversation.activities]..[existingIndex] =
-            ActivityRecord(
+      updatedActivities = [...conversation.activities]
+        ..[existingIndex] = ActivityRecord(
           messageId: messageId,
           activityType: activityType,
           content: content,
@@ -493,8 +488,8 @@ EventProcessingResult _processActivitySnapshot(
   }
   final updatedConversation =
       identical(updatedActivities, conversation.activities)
-          ? conversation
-          : conversation.copyWith(activities: updatedActivities);
+      ? conversation
+      : conversation.copyWith(activities: updatedActivities);
 
   if (activityType == 'skill_tool_call') {
     final toolName = content['tool_name'];
@@ -546,15 +541,15 @@ StreamingState _withToolCallActivity(
 
   final newActivity = switch (currentActivity) {
     ToolCallActivity() => currentActivity.withToolName(
-        toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
-      ),
+      toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp,
+    ),
     _ => ToolCallActivity(
-        toolName: toolName,
-        latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
-      ),
+      toolName: toolName,
+      latestToolCallId: latestToolCallId,
+      timestamp: timestamp,
+    ),
   };
 
   return switch (streaming) {
@@ -621,9 +616,9 @@ EventProcessingResult _processRunFinished(
         'unresolvedToolCallCount': conversation.toolCalls
             .where(
               (tc) =>
-                  tc.status == ToolCallStatus.pending ||
-                  tc.status == ToolCallStatus.streaming ||
-                  tc.status == ToolCallStatus.executing,
+                  tc.status == .pending ||
+                  tc.status == .streaming ||
+                  tc.status == .executing,
             )
             .length,
       },
@@ -685,9 +680,9 @@ EventProcessingResult _processRunError(
           'unresolvedToolCallCount': conversation.toolCalls
               .where(
                 (tc) =>
-                    tc.status == ToolCallStatus.pending ||
-                    tc.status == ToolCallStatus.streaming ||
-                    tc.status == ToolCallStatus.executing,
+                    tc.status == .pending ||
+                    tc.status == .streaming ||
+                    tc.status == .executing,
               )
               .length,
         },
@@ -699,18 +694,16 @@ EventProcessingResult _processRunError(
     final surfaced = result.synthesized
         ? result.conversation
         : withPartial.withAppendedMessage(
-            ErrorMessage.create(
-              id: runErrorMessageId(runId),
-              message: message,
-            ),
+            ErrorMessage.create(id: runErrorMessageId(runId), message: message),
           );
     return EventProcessingResult(
       conversation: surfaced.withStatus(Failed(error: message)),
       streaming: const AwaitingText(),
     );
   }
-  final droppedThinkingChars =
-      streaming is AwaitingText ? streaming.bufferedThinkingText.length : 0;
+  final droppedThinkingChars = streaming is AwaitingText
+      ? streaming.bufferedThinkingText.length
+      : 0;
   final logAttributes = {
     'status': conversation.status.runtimeType.toString(),
     'streaming': streaming.runtimeType.toString(),
@@ -745,9 +738,9 @@ EventProcessingResult _processRunError(
   );
   final nextStatus = switch (conversation.status) {
     Completed() || Failed() || Cancelled() => conversation.status,
-    Idle() ||
-    Running() =>
-      throw StateError('Idle/Running unreachable in terminal-preserve branch'),
+    Idle() || Running() => throw StateError(
+      'Idle/Running unreachable in terminal-preserve branch',
+    ),
   };
   return EventProcessingResult(
     conversation: conversation.withStatus(nextStatus),
@@ -767,8 +760,9 @@ EventProcessingResult _processStateSnapshot(
   // catch the throw and append a `DroppedEventMessage` at the failure
   // position; surrounding events still process.
   return EventProcessingResult(
-    conversation:
-        conversation.copyWith(aguiState: snapshot as Map<String, dynamic>),
+    conversation: conversation.copyWith(
+      aguiState: snapshot as Map<String, dynamic>,
+    ),
     streaming: streaming,
   );
 }

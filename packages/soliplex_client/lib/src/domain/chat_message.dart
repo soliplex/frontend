@@ -143,42 +143,39 @@ class NoResponseTile extends ChatMessage {
     required String thinkingText,
     required String errorDetail,
     DateTime? createdAt,
-  }) =>
-      NoResponseTile._(
-        id: id,
-        createdAt: createdAt ?? DateTime.now(),
-        thinkingText: thinkingText,
-        reason: TerminalReason.failed,
-        errorDetail: errorDetail,
-      );
+  }) => NoResponseTile._(
+    id: id,
+    createdAt: createdAt ?? DateTime.now(),
+    thinkingText: thinkingText,
+    reason: .failed,
+    errorDetail: errorDetail,
+  );
 
   /// Run was cancelled (`cancelRun`).
   factory NoResponseTile.cancelled({
     required String id,
     required String thinkingText,
     DateTime? createdAt,
-  }) =>
-      NoResponseTile._(
-        id: id,
-        createdAt: createdAt ?? DateTime.now(),
-        thinkingText: thinkingText,
-        reason: TerminalReason.cancelled,
-        errorDetail: null,
-      );
+  }) => NoResponseTile._(
+    id: id,
+    createdAt: createdAt ?? DateTime.now(),
+    thinkingText: thinkingText,
+    reason: .cancelled,
+    errorDetail: null,
+  );
 
   /// Run completed normally (`RunFinishedEvent`).
   factory NoResponseTile.finished({
     required String id,
     required String thinkingText,
     DateTime? createdAt,
-  }) =>
-      NoResponseTile._(
-        id: id,
-        createdAt: createdAt ?? DateTime.now(),
-        thinkingText: thinkingText,
-        reason: TerminalReason.finished,
-        errorDetail: null,
-      );
+  }) => NoResponseTile._(
+    id: id,
+    createdAt: createdAt ?? DateTime.now(),
+    thinkingText: thinkingText,
+    reason: .finished,
+    errorDetail: null,
+  );
 
   const NoResponseTile._({
     required super.id,
@@ -186,7 +183,7 @@ class NoResponseTile extends ChatMessage {
     required this.thinkingText,
     required this.reason,
     required this.errorDetail,
-  }) : super(user: ChatUser.assistant);
+  }) : super(user: .assistant);
 
   /// Buffered thinking captured before the run terminated. May be empty.
   final String thinkingText;
@@ -213,7 +210,7 @@ class ErrorMessage extends ChatMessage {
     required super.id,
     required super.createdAt,
     required this.errorText,
-  }) : super(user: ChatUser.system);
+  }) : super(user: .system);
 
   /// Creates an error message with the given ID and auto-generated timestamp.
   factory ErrorMessage.create({required String id, required String message}) {
@@ -235,7 +232,7 @@ class ToolCallMessage extends ChatMessage {
     required super.id,
     required super.createdAt,
     required this.toolCalls,
-  }) : super(user: ChatUser.assistant);
+  }) : super(user: .assistant);
 
   /// Creates a tool call message with the given ID and auto-generated
   /// timestamp.
@@ -261,11 +258,7 @@ class ToolCallMessage extends ChatMessage {
     required List<ToolCallInfo> toolCalls,
   }) {
     assert(
-      toolCalls.every(
-        (tc) =>
-            tc.status == ToolCallStatus.completed ||
-            tc.status == ToolCallStatus.failed,
-      ),
+      toolCalls.every((tc) => tc.status == .completed || tc.status == .failed),
       'All tool calls must have terminal status (completed or failed)',
     );
     return ToolCallMessage(
@@ -291,7 +284,7 @@ class GenUiMessage extends ChatMessage {
     required super.createdAt,
     required this.widgetName,
     required this.data,
-  }) : super(user: ChatUser.assistant);
+  }) : super(user: .assistant);
 
   /// Creates a genUI message with the given ID and auto-generated timestamp.
   factory GenUiMessage.create({
@@ -322,7 +315,7 @@ class GenUiMessage extends ChatMessage {
 class LoadingMessage extends ChatMessage {
   /// Creates a loading message with all properties.
   const LoadingMessage({required super.id, required super.createdAt})
-      : super(user: ChatUser.assistant);
+    : super(user: .assistant);
 
   /// Creates a loading message with the given ID and auto-generated timestamp.
   factory LoadingMessage.create({required String id}) {
@@ -364,7 +357,7 @@ class DroppedEventMessage extends ChatMessage {
     required this.reason,
     this.runId,
     this.rawPayload,
-  }) : super(user: ChatUser.system);
+  }) : super(user: .system);
 
   /// Creates a dropped-event message with the given id and auto-generated
   /// timestamp.

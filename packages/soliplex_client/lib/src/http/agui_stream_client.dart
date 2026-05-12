@@ -42,9 +42,9 @@ class AgUiStreamClient {
     required HttpTransport httpTransport,
     required UrlBuilder urlBuilder,
     ResumePolicy resumePolicy = const ResumePolicy(),
-  })  : _httpTransport = httpTransport,
-        _urlBuilder = urlBuilder,
-        _resumePolicy = resumePolicy;
+  }) : _httpTransport = httpTransport,
+       _urlBuilder = urlBuilder,
+       _resumePolicy = resumePolicy;
 
   final HttpTransport _httpTransport;
   final UrlBuilder _urlBuilder;
@@ -89,22 +89,17 @@ class AgUiStreamClient {
       } on Object catch (e) {
         if (!isResumeRequest) rethrow;
         if (!_retryable(e) || !_canRetry(policy, attempt)) {
-          onReconnectStatus?.call(
-            ReconnectFailed(attempt: attempt, error: e),
-          );
+          onReconnectStatus?.call(ReconnectFailed(attempt: attempt, error: e));
           throw StreamResumeFailedException(
-            message: '$streamResumeFailedPrefix '
+            message:
+                '$streamResumeFailedPrefix '
                 '${e is SoliplexException ? e.message : e}',
             originalError: e,
           );
         }
         attempt += 1;
         onReconnectStatus?.call(
-          Reconnecting(
-            attempt: attempt,
-            lastEventId: lastEventId,
-            error: e,
-          ),
+          Reconnecting(attempt: attempt, lastEventId: lastEventId, error: e),
         );
         _logAttempt(attempt, lastEventId, e);
         await raceBackoff(policy.backoffFor(attempt), cancelToken);
@@ -167,10 +162,7 @@ class AgUiStreamClient {
         // No id was ever emitted, so no resume is possible. Rethrow the
         // underlying error directly — wrapping with `streamResumeFailedPrefix`
         // would mislead consumers into treating this as a resume failure.
-        Error.throwWithStackTrace(
-          streamError,
-          streamErrorStack ?? StackTrace.current,
-        );
+        Error.throwWithStackTrace(streamError, streamErrorStack ?? .current);
       }
 
       if (!_canRetry(policy, attempt)) {
@@ -203,13 +195,12 @@ class AgUiStreamClient {
   void close() => _httpTransport.close();
 
   bool _retryable(Object e) => switch (e) {
-        CancelledException() => false,
-        AuthException() || NotFoundException() => false,
-        ApiException(:final statusCode) =>
-          statusCode >= 500 && statusCode < 600,
-        NetworkException() => true,
-        _ => false,
-      };
+    CancelledException() => false,
+    AuthException() || NotFoundException() => false,
+    ApiException(:final statusCode) => statusCode >= 500 && statusCode < 600,
+    NetworkException() => true,
+    _ => false,
+  };
 
   bool _canRetry(ResumePolicy policy, int attemptsSoFar) =>
       policy.enabled && attemptsSoFar < policy.maxAttempts;
@@ -263,7 +254,7 @@ class AgUiStreamClient {
                 'Non-object item in AG-UI batch: ${item.runtimeType}',
               ),
               item,
-              StackTrace.current,
+              .current,
             ),
           );
         }
@@ -275,7 +266,7 @@ class AgUiStreamClient {
             'Non-object JSON scalar in SSE event: ${jsonData.runtimeType}',
           ),
           jsonData,
-          StackTrace.current,
+          .current,
         ),
       );
     }

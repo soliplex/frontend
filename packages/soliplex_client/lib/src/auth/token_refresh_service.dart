@@ -87,8 +87,8 @@ class TokenRefreshService {
   TokenRefreshService({
     required SoliplexHttpClient httpClient,
     void Function(String) onDiagnostic = _noOp,
-  })  : _httpClient = httpClient,
-        _onDiagnostic = onDiagnostic;
+  }) : _httpClient = httpClient,
+       _onDiagnostic = onDiagnostic;
 
   final SoliplexHttpClient _httpClient;
   final void Function(String) _onDiagnostic;
@@ -114,9 +114,7 @@ class TokenRefreshService {
     required String clientId,
   }) async {
     if (refreshToken.isEmpty) {
-      return const TokenRefreshFailure(
-        TokenRefreshFailureReason.noRefreshToken,
-      );
+      return const TokenRefreshFailure(.noRefreshToken);
     }
 
     try {
@@ -134,12 +132,12 @@ class TokenRefreshService {
 
       return _parseTokenResponse(tokenResponse, refreshToken);
     } on NetworkException {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.networkError);
+      return const TokenRefreshFailure(.networkError);
     } on FormatException catch (e) {
       _onDiagnostic('TokenRefreshService: $e');
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(.unknownError);
     } catch (_) {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(.unknownError);
     }
   }
 
@@ -180,24 +178,22 @@ class TokenRefreshService {
     try {
       tokenData = jsonDecode(response.body) as Map<String, dynamic>;
     } on FormatException {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(.unknownError);
     }
 
     // Handle error responses
     if (response.statusCode != 200) {
       final error = tokenData['error'] as String?;
       if (error == 'invalid_grant') {
-        return const TokenRefreshFailure(
-          TokenRefreshFailureReason.invalidGrant,
-        );
+        return const TokenRefreshFailure(.invalidGrant);
       }
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(.unknownError);
     }
 
     // Parse successful response
     final accessToken = tokenData['access_token'] as String?;
     if (accessToken == null) {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(.unknownError);
     }
 
     DateTime expiresAt;

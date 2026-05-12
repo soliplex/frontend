@@ -3,8 +3,9 @@ import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-final Logger _logger =
-    LogManager.instance.getLogger('soliplex_client.no_response_synthesis');
+final Logger _logger = LogManager.instance.getLogger(
+  'soliplex_client.no_response_synthesis',
+);
 
 /// Outcome of the `synthesize…NoResponse` entries. The `synthesized` flag
 /// tells callers whether a [NoResponseTile] was appended without forcing
@@ -42,16 +43,13 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      buildTile: (id, thinking) => NoResponseTile.finished(
-        id: id,
-        thinkingText: thinking,
-      ),
-    );
+}) => _synthesize(
+  conversation: conversation,
+  streaming: streaming,
+  runId: runId,
+  buildTile: (id, thinking) =>
+      NoResponseTile.finished(id: id, thinkingText: thinking),
+);
 
 /// Appends a synthesized [NoResponseTile.failed] when a run failed with
 /// buffered thinking but no assistant text reply. [errorDetail] is the
@@ -62,17 +60,16 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
   required StreamingState streaming,
   required String runId,
   required String errorDetail,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      buildTile: (id, thinking) => NoResponseTile.failed(
-        id: id,
-        thinkingText: thinking,
-        errorDetail: errorDetail,
-      ),
-    );
+}) => _synthesize(
+  conversation: conversation,
+  streaming: streaming,
+  runId: runId,
+  buildTile: (id, thinking) => NoResponseTile.failed(
+    id: id,
+    thinkingText: thinking,
+    errorDetail: errorDetail,
+  ),
+);
 
 /// Appends a synthesized [NoResponseTile.cancelled] when a run was
 /// cancelled with buffered thinking but no assistant text reply.
@@ -80,16 +77,13 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
-}) =>
-    _synthesize(
-      conversation: conversation,
-      streaming: streaming,
-      runId: runId,
-      buildTile: (id, thinking) => NoResponseTile.cancelled(
-        id: id,
-        thinkingText: thinking,
-      ),
-    );
+}) => _synthesize(
+  conversation: conversation,
+  streaming: streaming,
+  runId: runId,
+  buildTile: (id, thinking) =>
+      NoResponseTile.cancelled(id: id, thinkingText: thinking),
+);
 
 /// Shared decline gate for the three terminal entries.
 ///
@@ -173,9 +167,9 @@ Conversation commitPartialTextOnTerminal({
 
 bool _hasUnresolvedToolCalls(Conversation conversation) {
   for (final tc in conversation.toolCalls) {
-    if (tc.status == ToolCallStatus.pending ||
-        tc.status == ToolCallStatus.streaming ||
-        tc.status == ToolCallStatus.executing) {
+    if (tc.status == .pending ||
+        tc.status == .streaming ||
+        tc.status == .executing) {
       return true;
     }
   }

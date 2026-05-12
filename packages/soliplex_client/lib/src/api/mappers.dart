@@ -80,25 +80,25 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   );
 
   // Backend omits kind for default agents; infer from model_name presence
-  final effectiveKind =
-      kind.isEmpty && json.containsKey('model_name') ? 'default' : kind;
+  final effectiveKind = kind.isEmpty && json.containsKey('model_name')
+      ? 'default'
+      : kind;
 
   return switch (effectiveKind) {
     'default' => DefaultRoomAgent(
-        id: id,
-        modelName: _requireString(json, 'model_name', 'default agent'),
-        retries: json['retries'] as int? ?? 0,
-        systemPrompt: json['system_prompt'] as String?,
-        providerType: json['provider_type'] as String? ?? '',
-        aguiFeatureNames: aguiFeatureNames,
-      ),
+      id: id,
+      modelName: _requireString(json, 'model_name', 'default agent'),
+      retries: json['retries'] as int? ?? 0,
+      systemPrompt: json['system_prompt'] as String?,
+      providerType: json['provider_type'] as String? ?? '',
+      aguiFeatureNames: aguiFeatureNames,
+    ),
     'factory' => FactoryRoomAgent(
-        id: id,
-        factoryName: _requireString(json, 'factory_name', 'factory agent'),
-        extraConfig:
-            (json['extra_config'] as Map<String, dynamic>?) ?? const {},
-        aguiFeatureNames: aguiFeatureNames,
-      ),
+      id: id,
+      factoryName: _requireString(json, 'factory_name', 'factory agent'),
+      extraConfig: (json['extra_config'] as Map<String, dynamic>?) ?? const {},
+      aguiFeatureNames: aguiFeatureNames,
+    ),
     _ => OtherRoomAgent(id: id, kind: kind, aguiFeatureNames: aguiFeatureNames),
   };
 }
@@ -459,7 +459,8 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
   // Name/description may be at top level or nested in metadata
   final metadata = (json['metadata'] as Map<String, dynamic>?) ?? const {};
   final name = (json['name'] as String?) ?? (metadata['name'] as String?) ?? '';
-  final description = (json['description'] as String?) ??
+  final description =
+      (json['description'] as String?) ??
       (metadata['description'] as String?) ??
       '';
 
@@ -491,10 +492,7 @@ Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
 ///
 /// Only includes non-null fields. The backend replaces all metadata on
 /// update — omitted fields are dropped, not preserved.
-Map<String, dynamic> threadMetadataToJson({
-  String? name,
-  String? description,
-}) {
+Map<String, dynamic> threadMetadataToJson({String? name, String? description}) {
   return {
     if (name != null) 'name': name,
     if (description != null) 'description': description,
@@ -546,7 +544,7 @@ Map<String, dynamic> runInfoToJson(RunInfo run) {
 /// Returns [RunStatus.pending] if value is null.
 /// Returns [RunStatus.unknown] if value doesn't match any known status.
 RunStatus runStatusFromString(String? value) {
-  if (value == null) return RunStatus.pending;
+  if (value == null) return .pending;
   return RunStatus.values.firstWhere(
     (e) => e.name == value.toLowerCase(),
     orElse: () => RunStatus.unknown,
@@ -566,18 +564,18 @@ QuestionType questionTypeFromJson(Map<String, dynamic> json) {
   final type = json['type'] as String;
   return switch (type) {
     'multiple-choice' || 'multiple_choice' => MultipleChoice(
-        (json['options'] as List<dynamic>).cast<String>(),
-      ),
+      (json['options'] as List<dynamic>).cast<String>(),
+    ),
     'fill-blank' || 'fill_blank' => const FillBlank(),
     'qa' => const FreeForm(),
     _ => () {
-        developer.log(
-          'Unknown question type "$type", falling back to FreeForm',
-          name: 'soliplex_client.quiz',
-          level: 900, // Warning level
-        );
-        return const FreeForm();
-      }(),
+      developer.log(
+        'Unknown question type "$type", falling back to FreeForm',
+        name: 'soliplex_client.quiz',
+        level: 900, // Warning level
+      );
+      return const FreeForm();
+    }(),
   };
 }
 
@@ -623,16 +621,17 @@ QuizAnswerResult quizAnswerResultFromJson(Map<String, dynamic> json) {
   return switch (correct) {
     'true' => const CorrectAnswer(),
     'false' => IncorrectAnswer(
-        expectedAnswer: expectedOutput ??
-            () {
-              developer.log(
-                'Missing expected_output for incorrect answer',
-                name: 'soliplex_client.quiz',
-                level: 900, // Warning level
-              );
-              return '(correct answer not provided)';
-            }(),
-      ),
+      expectedAnswer:
+          expectedOutput ??
+          () {
+            developer.log(
+              'Missing expected_output for incorrect answer',
+              name: 'soliplex_client.quiz',
+              level: 900, // Warning level
+            );
+            return '(correct answer not provided)';
+          }(),
+    ),
     _ => throw FormatException('Invalid correct value: $correct'),
   };
 }

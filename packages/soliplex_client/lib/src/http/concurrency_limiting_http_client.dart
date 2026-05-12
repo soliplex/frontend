@@ -38,21 +38,16 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     String Function()? generateAcquisitionId,
     DateTime Function()? clock,
     HttpDiagnosticHandler? onDiagnostic,
-  })  : _inner = inner,
-        _observers = List.unmodifiable(observers),
-        _overrideGenerateAcquisitionId = generateAcquisitionId,
-        _clock = clock ?? DateTime.now,
-        _onDiagnostic = safeDiagnosticHandler(
-          onDiagnostic ?? defaultHttpDiagnosticHandler,
-        ),
-        _semaphore = maxConcurrent >= 1
-            ? _Semaphore(maxCount: maxConcurrent)
-            : throw RangeError.range(
-                maxConcurrent,
-                1,
-                null,
-                'maxConcurrent',
-              );
+  }) : _inner = inner,
+       _observers = List.unmodifiable(observers),
+       _overrideGenerateAcquisitionId = generateAcquisitionId,
+       _clock = clock ?? DateTime.now,
+       _onDiagnostic = safeDiagnosticHandler(
+         onDiagnostic ?? defaultHttpDiagnosticHandler,
+       ),
+       _semaphore = maxConcurrent >= 1
+           ? _Semaphore(maxCount: maxConcurrent)
+           : throw RangeError.range(maxConcurrent, 1, null, 'maxConcurrent');
 
   final SoliplexHttpClient _inner;
   final List<ConcurrencyObserver> _observers;
@@ -99,9 +94,9 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
         acquisitionId: acquisitionId,
         uri: uri,
         timestamp: acquiredAt,
-        waitDuration: slot.outcome == _AcquireOutcome.queued
+        waitDuration: slot.outcome == .queued
             ? _nonNegative(acquiredAt.difference(enqueuedAt))
-            : Duration.zero,
+            : .zero,
         queueDepthAtEnqueue: depthAtEnqueue,
       );
 
@@ -152,9 +147,9 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
         acquisitionId: acquisitionId,
         uri: uri,
         timestamp: acquiredAt,
-        waitDuration: slot.outcome == _AcquireOutcome.queued
+        waitDuration: slot.outcome == .queued
             ? _nonNegative(acquiredAt.difference(enqueuedAt))
-            : Duration.zero,
+            : .zero,
         queueDepthAtEnqueue: depthAtEnqueue,
       );
 
@@ -206,7 +201,7 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
                 'timeout. Caller must listen within 60 seconds of '
                 'receiving the response.',
               ),
-              StackTrace.current,
+              .current,
             )
             ..close();
           return;
@@ -250,8 +245,9 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
           'Concurrency slot held by unlistened response body for >60s. '
           'Draining upstream and releasing the slot to protect the pool.',
         ),
-        StackTrace.current,
-        message: 'Unlistened body stream leak (URI: '
+        .current,
+        message:
+            'Unlistened body stream leak (URI: '
             '${HttpRedactor.redactUri(uri)})',
       );
       // Drain via listen(null).cancel() — not drain(), which would wait
@@ -332,10 +328,10 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     if (!duration.isNegative) return duration;
     _onDiagnostic(
       StateError('Negative waitDuration from clock skew: $duration'),
-      StackTrace.current,
+      .current,
       message: 'Clock went backward during request; clamping waitDuration',
     );
-    return Duration.zero;
+    return .zero;
   }
 }
 
@@ -398,9 +394,7 @@ class _Semaphore {
         'permit conservation violated after acquire: '
         '_available=$_available, maxCount=$maxCount',
       );
-      return Future<_SlotHandle>.value(
-        _SlotHandle._(this, _AcquireOutcome.immediate),
-      );
+      return Future<_SlotHandle>.value(_SlotHandle._(this, .immediate));
     }
 
     final completer = Completer<void>();
@@ -424,9 +418,9 @@ class _Semaphore {
       });
     }
 
-    return completer.future.whenComplete(() => cancelSub?.cancel()).then(
-          (_) => _SlotHandle._(this, _AcquireOutcome.queued),
-        );
+    return completer.future
+        .whenComplete(() => cancelSub?.cancel())
+        .then((_) => _SlotHandle._(this, .queued));
   }
 
   void _onSlotReleased() {
@@ -454,10 +448,10 @@ class _Semaphore {
     _closed = true;
     while (_waiters.isNotEmpty) {
       _waiters.removeFirst().completeError(
-            const CancelledException(
-              reason: 'HTTP client closed before slot acquired',
-            ),
-          );
+        const CancelledException(
+          reason: 'HTTP client closed before slot acquired',
+        ),
+      );
     }
   }
 }

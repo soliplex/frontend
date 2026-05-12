@@ -63,9 +63,9 @@ class SoliplexApi {
     required HttpTransport transport,
     required UrlBuilder urlBuilder,
     void Function(String message)? onWarning,
-  })  : _transport = transport,
-        _urlBuilder = urlBuilder,
-        _onWarning = onWarning;
+  }) : _transport = transport,
+       _urlBuilder = urlBuilder,
+       _onWarning = onWarning;
 
   final HttpTransport _transport;
   final UrlBuilder _urlBuilder;
@@ -614,12 +614,14 @@ class SoliplexApi {
     final rawRuns = response['runs'];
     if (rawRuns != null && rawRuns is! Map<String, dynamic>) {
       throw MalformedResponseException(
-        message: 'Thread history `runs` field has unexpected shape: '
+        message:
+            'Thread history `runs` field has unexpected shape: '
             '${rawRuns.runtimeType}',
       );
     }
-    final runs =
-        rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
+    final runs = rawRuns is Map<String, dynamic>
+        ? rawRuns
+        : const <String, dynamic>{};
     if (runs.isEmpty) return ThreadHistory(messages: const []);
 
     // 2. Walk runs in creation order, collecting:
@@ -634,29 +636,27 @@ class SoliplexApi {
     for (final entry in _sortRunsByCreationTime(runs)) {
       final value = entry.value;
       if (value is! Map<String, dynamic>) {
-        preFetchDrops.add(
-          (
-            runId: entry.key,
-            error: MalformedResponseException(
-              message: 'Run entry ${entry.key} has unexpected shape: '
-                  '${value.runtimeType}',
-            ),
+        preFetchDrops.add((
+          runId: entry.key,
+          error: MalformedResponseException(
+            message:
+                'Run entry ${entry.key} has unexpected shape: '
+                '${value.runtimeType}',
           ),
-        );
+        ));
         continue;
       }
       if (value['finished'] == null) continue;
       final rawRunId = value['run_id'];
       if (rawRunId is! String) {
-        preFetchDrops.add(
-          (
-            runId: entry.key,
-            error: MalformedResponseException(
-              message: 'Run entry ${entry.key} missing `run_id` (got '
-                  '${rawRunId.runtimeType})',
-            ),
+        preFetchDrops.add((
+          runId: entry.key,
+          error: MalformedResponseException(
+            message:
+                'Run entry ${entry.key} missing `run_id` (got '
+                '${rawRunId.runtimeType})',
           ),
-        );
+        ));
         continue;
       }
       completedRunIds.add(rawRunId);
@@ -668,30 +668,30 @@ class SoliplexApi {
 
     // 3. Fetch all run events in parallel (cache handles duplicates)
     final eventFutures = completedRunIds.map((runId) {
-      return _fetchRunEvents(
-        roomId,
-        threadId,
-        runId,
-        cancelToken: cancelToken,
-      )
+      return _fetchRunEvents(roomId, threadId, runId, cancelToken: cancelToken)
           .then(
-        (events) => (runId: runId, events: events, fetchError: null as Object?),
-      )
+            (events) =>
+                (runId: runId, events: events, fetchError: null as Object?),
+          )
           .catchError(
-        (Object e) {
-          // Log transient failure but continue with other runs. The
-          // fetchError below carries the same exception into the replay
-          // loop, which mints a drop tile so the run is visibly missing
-          // rather than silently absent.
-          _onWarning?.call('Failed to fetch events for run $runId: $e');
-          return (runId: runId, events: <dynamic>[], fetchError: e as Object?);
-        },
-        // Only catch transient errors - show partial results for batch ops:
-        // - NetworkException: network blip, retry might succeed
-        // - NotFoundException: run deleted between list and fetch (race)
-        // Let ApiException propagate - systemic problem (500, 429, 400)
-        test: (e) => e is NetworkException || e is NotFoundException,
-      );
+            (Object e) {
+              // Log transient failure but continue with other runs. The
+              // fetchError below carries the same exception into the replay
+              // loop, which mints a drop tile so the run is visibly missing
+              // rather than silently absent.
+              _onWarning?.call('Failed to fetch events for run $runId: $e');
+              return (
+                runId: runId,
+                events: <dynamic>[],
+                fetchError: e as Object?,
+              );
+            },
+            // Only catch transient errors - show partial results for batch ops:
+            // - NetworkException: network blip, retry might succeed
+            // - NotFoundException: run deleted between list and fetch (race)
+            // Let ApiException propagate - systemic problem (500, 429, 400)
+            test: (e) => e is NetworkException || e is NotFoundException,
+          );
     });
 
     final results = await Future.wait(eventFutures);
@@ -706,13 +706,11 @@ class SoliplexApi {
     for (final entry in _sortRunsByCreationTime(runs)) {
       final preFetchError = preFetchByRunKey[entry.key];
       if (preFetchError != null) {
-        eventsPerRun.add(
-          (
-            runId: entry.key,
-            events: const <dynamic>[],
-            fetchError: preFetchError,
-          ),
-        );
+        eventsPerRun.add((
+          runId: entry.key,
+          events: const <dynamic>[],
+          fetchError: preFetchError,
+        ));
         continue;
       }
       final value = entry.value;
@@ -722,13 +720,11 @@ class SoliplexApi {
       if (rawRunId is! String) continue;
       final fetched = fetchByRunId[rawRunId];
       if (fetched == null) continue;
-      eventsPerRun.add(
-        (
-          runId: rawRunId,
-          events: fetched.events,
-          fetchError: fetched.fetchError,
-        ),
-      );
+      eventsPerRun.add((
+        runId: rawRunId,
+        events: fetched.events,
+        fetchError: fetched.fetchError,
+      ));
     }
 
     // 5. Replay events to reconstruct history (messages + AG-UI state)
@@ -807,8 +803,9 @@ class SoliplexApi {
     }
     if (lastUserMessage == null) return [];
 
-    final runId =
-        rawRun['run_id'] is String ? rawRun['run_id'] as String : 'unknown';
+    final runId = rawRun['run_id'] is String
+        ? rawRun['run_id'] as String
+        : 'unknown';
     final id = lastUserMessage['id'] is String
         ? lastUserMessage['id'] as String
         : 'user-$runId';
@@ -818,11 +815,7 @@ class SoliplexApi {
 
     return [
       {'type': 'TEXT_MESSAGE_START', 'messageId': id, 'role': 'user'},
-      {
-        'type': 'TEXT_MESSAGE_CONTENT',
-        'messageId': id,
-        'delta': content,
-      },
+      {'type': 'TEXT_MESSAGE_CONTENT', 'messageId': id, 'delta': content},
       {'type': 'TEXT_MESSAGE_END', 'messageId': id},
     ];
   }
@@ -834,7 +827,7 @@ class SoliplexApi {
   /// initiated that run.
   ThreadHistory _replayEventsToHistory(
     List<({String runId, List<dynamic> events, Object? fetchError})>
-        eventsPerRun,
+    eventsPerRun,
     String threadId,
   ) {
     if (eventsPerRun.isEmpty) return ThreadHistory(messages: const []);
@@ -859,7 +852,7 @@ class SoliplexApi {
         conversation = conversation.withAppendedMessage(
           DroppedEventMessage.create(
             id: 'dropped-$runId-fetch',
-            source: DropSource.decode,
+            source: .decode,
             reason: fetchError.toString(),
             runId: runId,
           ),
@@ -917,11 +910,11 @@ class SoliplexApi {
 
         if (eventJson is! Map<String, dynamic>) {
           appendDrop(
-            source: DropSource.decode,
+            source: .decode,
             error: FormatException(
               'Non-object item in AG-UI events: ${eventJson.runtimeType}',
             ),
-            stackTrace: StackTrace.current,
+            stackTrace: .current,
             stage: 'decode',
             rawPayload: eventJson,
             typeForLog: '<non-map>',
@@ -936,9 +929,9 @@ class SoliplexApi {
         switch (outcome) {
           case DecodeFailed(:final error, :final stackTrace):
             appendDrop(
-              source: DropSource.decode,
+              source: .decode,
               error: error,
-              stackTrace: stackTrace ?? StackTrace.current,
+              stackTrace: stackTrace ?? .current,
               stage: 'decode',
               rawPayload: eventJson,
               typeForLog: type,
@@ -951,7 +944,7 @@ class SoliplexApi {
               streaming = result.streaming;
             } on Object catch (error, stackTrace) {
               appendDrop(
-                source: DropSource.eventProcessing,
+                source: .eventProcessing,
                 error: error,
                 stackTrace: stackTrace,
                 stage: 'processEvent',
@@ -990,29 +983,30 @@ class SoliplexApi {
   List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
     Map<String, dynamic> runs,
   ) {
-    return runs.entries.toList()
-      ..sort((a, b) {
-        final aData = a.value is Map<String, dynamic>
-            ? a.value as Map<String, dynamic>
-            : const <String, dynamic>{};
-        final bData = b.value is Map<String, dynamic>
-            ? b.value as Map<String, dynamic>
-            : const <String, dynamic>{};
-        final aCreated =
-            aData['created'] is String ? aData['created'] as String : null;
-        final bCreated =
-            bData['created'] is String ? bData['created'] as String : null;
+    return runs.entries.toList()..sort((a, b) {
+      final aData = a.value is Map<String, dynamic>
+          ? a.value as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final bData = b.value is Map<String, dynamic>
+          ? b.value as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final aCreated = aData['created'] is String
+          ? aData['created'] as String
+          : null;
+      final bCreated = bData['created'] is String
+          ? bData['created'] as String
+          : null;
 
-        if (aCreated == null && bCreated == null) return 0;
-        if (aCreated == null) return 1;
-        if (bCreated == null) return -1;
+      if (aCreated == null && bCreated == null) return 0;
+      if (aCreated == null) return 1;
+      if (bCreated == null) return -1;
 
-        // Use tryParse to handle malformed timestamps gracefully
-        final epoch = DateTime.fromMillisecondsSinceEpoch(0);
-        final aTime = DateTime.tryParse(aCreated) ?? epoch;
-        final bTime = DateTime.tryParse(bCreated) ?? epoch;
-        return aTime.compareTo(bTime);
-      });
+      // Use tryParse to handle malformed timestamps gracefully
+      final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+      final aTime = DateTime.tryParse(aCreated) ?? epoch;
+      final bTime = DateTime.tryParse(bCreated) ?? epoch;
+      return aTime.compareTo(bTime);
+    });
   }
 
   // ============================================================
