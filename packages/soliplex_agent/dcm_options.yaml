@@ -1,4 +1,6 @@
 dcm:
+  extends:
+    - recommended
   metrics:
     cyclomatic-complexity:
       threshold: 10
