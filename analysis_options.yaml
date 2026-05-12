@@ -1,12 +1,11 @@
 include: package:flutter_lints/flutter.yaml
 
-# TODO: remove these overrides after the SDK 3.10 lint cleanup commits.
-# Both lints are dormant under SDK ^3.6.0 and activate under ^3.10.0
-# (wildcard patterns and null-aware elements).
+# TODO: remove this override after the unnecessary_underscores cleanup.
+# Lint is dormant under SDK ^3.6.0 and activates under ^3.10.0
+# (wildcard patterns).
 linter:
   rules:
     unnecessary_underscores: false
-    use_null_aware_elements: false
 
 dcm:
   extends:

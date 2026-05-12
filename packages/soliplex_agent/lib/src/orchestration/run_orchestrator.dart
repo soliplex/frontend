@@ -12,9 +12,10 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 /// Callback invoked when the model yields client-side tool calls.
 ///
 /// Returns executed tools with status and result populated.
-typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
-  List<ToolCallInfo> pendingToolCalls,
-);
+typedef ToolExecutorCallback =
+    Future<List<ToolCallInfo>> Function(
+      List<ToolCallInfo> pendingToolCalls,
+    );
 
 /// Orchestrates a single AG-UI run lifecycle.
 ///
@@ -69,10 +70,10 @@ class RunOrchestrator {
     required ToolRegistry toolRegistry,
     required Logger logger,
     int maxToolDepth = defaultMaxToolDepth,
-  })  : _llmProvider = llmProvider,
-        _toolRegistry = toolRegistry,
-        _logger = logger,
-        _maxToolDepth = maxToolDepth;
+  }) : _llmProvider = llmProvider,
+       _toolRegistry = toolRegistry,
+       _logger = logger,
+       _maxToolDepth = maxToolDepth;
 
   /// Default maximum tool-call depth before the orchestrator aborts.
   static const defaultMaxToolDepth = 10;
@@ -206,8 +207,12 @@ class RunOrchestrator {
     _guardNotRunning();
     _toolDepth = 0;
     try {
-      final conversation =
-          _buildConversation(key, userMessage, cachedHistory, null);
+      final conversation = _buildConversation(
+        key,
+        userMessage,
+        cachedHistory,
+        null,
+      );
       final input = _buildInput(key, conversation);
       final handle = await _llmProvider.startRun(
         key: key,
@@ -233,11 +238,11 @@ class RunOrchestrator {
     _guardNotDisposed();
     switch (_currentState) {
       case RunningState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-          :final streaming,
-        ):
+        :final threadKey,
+        :final runId,
+        :final conversation,
+        :final streaming,
+      ):
         _cancelToken?.cancel();
         _cleanup();
         // Mirror `_processRunFinished`/`_processRunError`: commit any
@@ -257,8 +262,10 @@ class RunOrchestrator {
           streaming: streaming,
           runId: runId,
         );
-        final withCitations =
-            _extractCitations(synthesisResult.conversation, runId);
+        final withCitations = _extractCitations(
+          synthesisResult.conversation,
+          runId,
+        );
         _setState(
           CancelledState.duringRun(
             threadKey: threadKey,
@@ -267,10 +274,10 @@ class RunOrchestrator {
           ),
         );
       case ToolYieldingState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-        ):
+        :final threadKey,
+        :final runId,
+        :final conversation,
+      ):
         // A pending `_resumeStream` may be awaiting `_llmProvider.startRun`
         // with the live cancel token. Cancel the token + cleanup so that
         // await aborts before `_subscribeToStream` fires and overwrites
@@ -302,8 +309,8 @@ class RunOrchestrator {
         );
         return;
       case CompletedState(:final threadKey) ||
-            FailedState(:final threadKey) ||
-            CancelledState(:final threadKey):
+          FailedState(:final threadKey) ||
+          CancelledState(:final threadKey):
         _logger.warning(
           'cancelRun ignored: already terminal',
           attributes: {
@@ -423,8 +430,12 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) async {
     _cancelToken ??= CancelToken();
-    final conversation =
-        _buildConversation(key, userMessage, cachedHistory, stateOverlay);
+    final conversation = _buildConversation(
+      key,
+      userMessage,
+      cachedHistory,
+      stateOverlay,
+    );
     final input = _buildInput(key, conversation);
     final handle = await _llmProvider.startRun(
       key: key,
@@ -641,13 +652,13 @@ class RunOrchestrator {
   /// Exhaustive switch expression — adding a new [RunState] variant
   /// without updating this method causes a compile error.
   bool _isTerminal(RunState state) => switch (state) {
-        CompletedState() => true,
-        FailedState() => true,
-        CancelledState() => true,
-        ToolYieldingState() => true,
-        RunningState() => false,
-        IdleState() => false,
-      };
+    CompletedState() => true,
+    FailedState() => true,
+    CancelledState() => true,
+    ToolYieldingState() => true,
+    RunningState() => false,
+    IdleState() => false,
+  };
 
   /// Completes [_terminalCompleter] when [dispose] runs while a backend
   /// run is in flight, so `runToCompletion`'s await of the completer
@@ -669,12 +680,11 @@ class RunOrchestrator {
   /// surface invariant breakage instead of fabricating data.
   void _completeTerminalOnDispose() {
     if (_terminalCompleter?.isCompleted ?? true) return;
-    if (_currentState
-        case RunningState(
-          :final threadKey,
-          :final runId,
-          :final conversation,
-        )) {
+    if (_currentState case RunningState(
+      :final threadKey,
+      :final runId,
+      :final conversation,
+    )) {
       _terminalCompleter!.complete(
         CancelledState.duringRun(
           threadKey: threadKey,
@@ -785,8 +795,9 @@ class RunOrchestrator {
       text: userMessage,
     );
     final baseState = cachedHistory?.aguiState ?? const {};
-    final aguiState =
-        stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
+    final aguiState = stateOverlay == null
+        ? baseState
+        : _mergeState(baseState, stateOverlay);
     _preRunAguiState = aguiState;
     _userMessageId = userMsg.id;
     return Conversation(
@@ -875,8 +886,11 @@ class RunOrchestrator {
         final running = _currentState;
         if (running is! RunningState) return;
         try {
-          final result =
-              processEvent(running.conversation, running.streaming, event);
+          final result = processEvent(
+            running.conversation,
+            running.streaming,
+            event,
+          );
           _mapEventResult(running, result, event);
         } on Object catch (e, st) {
           _appendDropTile(
@@ -955,8 +969,10 @@ class RunOrchestrator {
     if (event is RunErrorEvent) {
       _receivedTerminalEvent = true;
       _cleanup();
-      final withCitations =
-          _extractCitations(result.conversation, previous.runId);
+      final withCitations = _extractCitations(
+        result.conversation,
+        previous.runId,
+      );
       _setState(
         FailedState.duringRun(
           threadKey: previous.threadKey,
@@ -1079,8 +1095,10 @@ class RunOrchestrator {
     if (running is! RunningState) return;
     _cleanup();
     _logger.warning('Stream ended without terminal event');
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
+    final withCitations = _extractCitations(
+      running.conversation,
+      running.runId,
+    );
     _setState(
       FailedState.duringRun(
         threadKey: running.threadKey,
@@ -1097,8 +1115,10 @@ class RunOrchestrator {
     final running = _currentState;
     if (running is! RunningState) return;
     _cleanup();
-    final withCitations =
-        _extractCitations(running.conversation, running.runId);
+    final withCitations = _extractCitations(
+      running.conversation,
+      running.runId,
+    );
     if (error is CancelledException || error is CancellationError) {
       _setState(
         CancelledState.duringRun(
@@ -1176,7 +1196,7 @@ class RunOrchestrator {
           error: error,
           attributes: {
             'attempt': attempt,
-            if (lastEventId != null) 'lastEventId': lastEventId,
+            'lastEventId': ?lastEventId,
           },
         );
       case Reconnected(:final attempt):

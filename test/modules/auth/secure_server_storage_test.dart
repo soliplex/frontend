@@ -14,11 +14,7 @@ void main() {
       String serverUrl = 'https://example.com',
       String? alias,
     }) {
-      return {
-        'serverUrl': serverUrl,
-        if (alias != null) 'alias': alias,
-        'requiresAuth': true,
-      };
+      return {'serverUrl': serverUrl, 'alias': ?alias, 'requiresAuth': true};
     }
 
     Map<String, dynamic> authenticatedServerJson({
@@ -46,19 +42,14 @@ void main() {
     });
 
     test('filters keys not matching prefix', () {
-      final raw = {
-        'other_key': encode(knownServerJson()),
-        'unrelated': 'data',
-      };
+      final raw = {'other_key': encode(knownServerJson()), 'unrelated': 'data'};
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
       expect(result, isEmpty);
     });
 
     test('extracts serverId by stripping prefix', () {
-      final raw = {
-        '${prefix}my-server': encode(knownServerJson()),
-      };
+      final raw = {'${prefix}my-server': encode(knownServerJson())};
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
       expect(result.keys.single, 'my-server');
@@ -66,9 +57,9 @@ void main() {
 
     test('deserializes KnownServer', () {
       final raw = {
-        '${prefix}srv-1': encode(knownServerJson(
-          serverUrl: 'https://api.example.com',
-        )),
+        '${prefix}srv-1': encode(
+          knownServerJson(serverUrl: 'https://api.example.com'),
+        ),
       };
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
@@ -77,9 +68,7 @@ void main() {
     });
 
     test('deserializes AuthenticatedServer', () {
-      final raw = {
-        '${prefix}srv-1': encode(authenticatedServerJson()),
-      };
+      final raw = {'${prefix}srv-1': encode(authenticatedServerJson())};
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
       expect(result['srv-1'], isA<AuthenticatedServer>());
@@ -109,12 +98,12 @@ void main() {
 
     test('processes multiple valid entries', () {
       final raw = {
-        '${prefix}srv-1': encode(knownServerJson(
-          serverUrl: 'https://one.example.com',
-        )),
-        '${prefix}srv-2': encode(knownServerJson(
-          serverUrl: 'https://two.example.com',
-        )),
+        '${prefix}srv-1': encode(
+          knownServerJson(serverUrl: 'https://one.example.com'),
+        ),
+        '${prefix}srv-2': encode(
+          knownServerJson(serverUrl: 'https://two.example.com'),
+        ),
       };
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
