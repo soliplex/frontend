@@ -6,6 +6,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/routes.dart';
 import '../../design/design.dart';
+import '../../shared/theme_toggle_button.dart';
 import '../auth/server_entry.dart';
 import 'backend_version_fetcher.dart';
 
@@ -67,6 +68,7 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
               context.canPop() ? context.pop() : context.go(AppRoutes.versions),
         ),
         title: Text(url),
+        actions: const [ThemeToggleButton()],
       ),
       body: FutureBuilder<BackendVersionInfo>(
         future: _future,

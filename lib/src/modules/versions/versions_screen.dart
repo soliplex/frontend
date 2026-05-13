@@ -8,6 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../version.dart';
 import '../../core/routes.dart';
 import '../../design/design.dart';
+import '../../shared/theme_toggle_button.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import 'app_version_loader.dart';
@@ -67,6 +68,7 @@ class _VersionsScreenState extends State<VersionsScreen> {
               context.canPop() ? context.pop() : context.go(AppRoutes.home),
         ),
         title: const Text('Versions'),
+        actions: const [ThemeToggleButton()],
       ),
       body: ListView(
         children: [
