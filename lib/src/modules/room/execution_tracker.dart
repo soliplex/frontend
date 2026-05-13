@@ -9,10 +9,17 @@ class ExecutionTracker {
     required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
   })  : _logger = logger,
-        _activities = activities,
+        _activities = Signal<List<ActivityRecord>>(activities.value),
         _historical = false {
     _stopwatch.start();
     _unsub = executionEvents.subscribe(_onEvent);
+    // Mirror the session-owned activities into our local signal so the
+    // tracker stays self-contained when ThreadViewState absorbs it on
+    // detach: freeze() drops the subscription, and the captured list
+    // outlives the session's signal teardown.
+    _activitiesUnsub = activities.subscribe((value) {
+      _activities.value = value;
+    });
   }
 
   /// Builds a frozen tracker seeded from a list of already-emitted
@@ -31,7 +38,7 @@ class ExecutionTracker {
     required List<ActivityRecord> activities,
     required Logger logger,
   })  : _logger = logger,
-        _activities = Signal(activities),
+        _activities = Signal<List<ActivityRecord>>(activities),
         _historical = true {
     _stopwatch.start();
     for (final event in events) {
@@ -41,7 +48,7 @@ class ExecutionTracker {
   }
 
   final Logger _logger;
-  final ReadonlySignal<List<ActivityRecord>> _activities;
+  final Signal<List<ActivityRecord>> _activities;
 
   /// True when this tracker is replaying stored events on the reload
   /// path. Live-only side-effects (e.g. warning-level logs that mirror a
@@ -51,6 +58,7 @@ class ExecutionTracker {
 
   final Stopwatch _stopwatch = Stopwatch();
   void Function()? _unsub;
+  void Function()? _activitiesUnsub;
   bool _isFrozen = false;
   bool get isFrozen => _isFrozen;
 
@@ -93,6 +101,8 @@ class ExecutionTracker {
     _completeAllSteps(StepStatus.completed);
     _unsub?.call();
     _unsub = null;
+    _activitiesUnsub?.call();
+    _activitiesUnsub = null;
     _stopwatch.stop();
     _isFrozen = true;
   }
@@ -279,6 +289,8 @@ class ExecutionTracker {
   void dispose() {
     _unsub?.call();
     _unsub = null;
+    _activitiesUnsub?.call();
+    _activitiesUnsub = null;
     _stopwatch.stop();
   }
 }

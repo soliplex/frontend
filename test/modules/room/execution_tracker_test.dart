@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -246,6 +248,74 @@ void main() {
       ];
 
       expect(tracker.skillToolCalls.value, isEmpty);
+    });
+
+    test('freeze decouples the tracker from the source activities signal', () {
+      // ThreadViewState._detachSession absorbs the live tracker into its
+      // historical map and then lets the session — owner of the source
+      // `conversationActivities` — auto-dispose. The absorbed tracker
+      // must capture the activity list at freeze time and stop tracking
+      // the source: later session-side mutations cannot reach the
+      // historical view, and later session disposal cannot pollute reads
+      // with "signal read after disposed" warnings.
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask', 'args': '{"q":"hi"}'},
+          timestamp: 1,
+        ),
+      ];
+      expect(tracker.skillToolCalls.value.single.toolName, 'ask');
+
+      tracker.freeze();
+
+      // Post-absorption, the session is free to mutate or dispose its
+      // signals; the absorbed tracker must stay pinned to what it had at
+      // freeze time.
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask', 'args': '{"q":"hi"}'},
+          timestamp: 1,
+        ),
+        ActivityRecord(
+          messageId: 'rag:call_2',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search', 'args': '{}'},
+          timestamp: 2,
+        ),
+      ];
+      expect(
+        tracker.skillToolCalls.value.map((c) => c.messageId),
+        ['rag:call_1'],
+        reason: 'Frozen tracker must not pick up late mutations from the '
+            'session-owned source signal.',
+      );
+
+      // Disposing the source is the final step of session teardown.
+      // Reading the frozen tracker after disposal must not warn nor throw.
+      final captured = <String>[];
+      runZoned(
+        () {
+          activities.dispose();
+          // Force read; signals_core warns via `print` if a disposed
+          // signal is reached on this code path.
+          expect(
+            tracker.skillToolCalls.value.single.toolName,
+            'ask',
+          );
+        },
+        zoneSpecification: ZoneSpecification(
+          print: (_, __, ___, line) => captured.add(line),
+        ),
+      );
+      expect(
+        captured.where((l) => l.contains('read after disposed')),
+        isEmpty,
+        reason: 'Frozen tracker must not read the disposed source.',
+      );
     });
   });
 
