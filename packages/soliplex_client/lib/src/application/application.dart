@@ -4,5 +4,6 @@ export 'decode_outcome.dart';
 export 'json_patch.dart';
 export 'no_response_synthesis.dart';
 export 'rag_snapshot.dart';
+export 'run_phase.dart';
 export 'state_bus.dart';
 export 'streaming_state.dart';

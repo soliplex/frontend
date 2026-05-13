@@ -30,7 +30,7 @@ void main() {
 
     final result = computeDisplayMessages(
       messages,
-      const AwaitingText(currentActivity: ThinkingActivity()),
+      const AwaitingText(currentPhase: ThinkingPhase()),
     );
 
     expect(result.length, 2);

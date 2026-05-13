@@ -8,7 +8,7 @@ import '../../../helpers/test_logger.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/phase_indicator.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/loading_message_tile.dart';
@@ -95,7 +95,7 @@ void main() {
       tracker.dispose();
     });
 
-    testWidgets('renders ActivityIndicator when streamingActivity provided',
+    testWidgets('renders PhaseIndicator when streamingPhase provided',
         (tester) async {
       final msg = TextMessage(
         id: 'msg-1',
@@ -107,10 +107,10 @@ void main() {
       await tester.pumpWidget(_wrap(TextMessageTile(
         roomId: 'r',
         message: msg,
-        streamingActivity: const RespondingActivity(),
+        streamingPhase: const RespondingPhase(),
       )));
 
-      expect(find.byType(ActivityIndicator), findsOneWidget);
+      expect(find.byType(PhaseIndicator), findsOneWidget);
       expect(find.text('Responding...'), findsOneWidget);
     });
 
@@ -184,10 +184,10 @@ void main() {
         roomId: 'r',
         messageId: '_loading',
         executionTracker: tracker,
-        streamingActivity: const ThinkingActivity(),
+        streamingPhase: const ThinkingPhase(),
       )));
 
-      expect(find.byType(ActivityIndicator), findsOneWidget);
+      expect(find.byType(PhaseIndicator), findsOneWidget);
       expect(find.byType(ExecutionTimeline), findsOneWidget);
       expect(find.byType(ExecutionThinkingBlock), findsOneWidget);
 

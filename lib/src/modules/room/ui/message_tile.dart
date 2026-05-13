@@ -25,7 +25,7 @@ class MessageTile extends StatelessWidget {
     this.onDownloadWorkdirFile,
     this.onPreviewWorkdirFile,
     this.executionTracker,
-    this.streamingActivity,
+    this.streamingPhase,
   });
 
   final String roomId;
@@ -40,7 +40,7 @@ class MessageTile extends StatelessWidget {
   final DownloadWorkdirFile? onDownloadWorkdirFile;
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
-  final ActivityType? streamingActivity;
+  final RunPhase? streamingPhase;
 
   @override
   Widget build(BuildContext context) {
@@ -64,13 +64,13 @@ class MessageTile extends StatelessWidget {
             onDownloadWorkdirFile: onDownloadWorkdirFile,
             onPreviewWorkdirFile: onPreviewWorkdirFile,
             executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
+            streamingPhase: streamingPhase,
           ),
         final NoResponseTile m => NoResponseTileWidget(
             roomId: roomId,
             message: m,
             executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
+            streamingPhase: streamingPhase,
           ),
         final ToolCallMessage m => ToolCallTile(message: m),
         final ErrorMessage m => ErrorMessageTile(message: m),
@@ -79,7 +79,7 @@ class MessageTile extends StatelessWidget {
             roomId: roomId,
             messageId: m.id,
             executionTracker: executionTracker,
-            streamingActivity: streamingActivity,
+            streamingPhase: streamingPhase,
           ),
         final DroppedEventMessage m => DroppedEventMessageTile(message: m),
       },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../execution_tracker.dart';
-import 'execution/activity_indicator.dart';
+import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
@@ -13,13 +13,13 @@ class NoResponseTileWidget extends StatelessWidget {
     required this.roomId,
     required this.message,
     this.executionTracker,
-    this.streamingActivity,
+    this.streamingPhase,
   });
 
   final String roomId;
   final NoResponseTile message;
   final ExecutionTracker? executionTracker;
-  final ActivityType? streamingActivity;
+  final RunPhase? streamingPhase;
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +29,7 @@ class NoResponseTileWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (streamingActivity != null)
-          ActivityIndicator(activity: streamingActivity!),
+        if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
         if (hasTracker)
           ExecutionTimeline(
             roomId: roomId,

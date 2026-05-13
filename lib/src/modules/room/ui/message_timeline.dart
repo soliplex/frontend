@@ -176,10 +176,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
       _scrollToBottom();
     }
 
-    final streamingActivity = widget.streamingState != null
+    final streamingPhase = widget.streamingState != null
         ? switch (widget.streamingState!) {
-            AwaitingText(:final currentActivity) => currentActivity,
-            TextStreaming(:final currentActivity) => currentActivity,
+            AwaitingText(:final currentPhase) => currentPhase,
+            TextStreaming(:final currentPhase) => currentPhase,
           }
         : null;
 
@@ -225,7 +225,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           (message is LoadingMessage
                               ? widget.executionTrackers[awaitingTrackerKey]
                               : null),
-                      streamingActivity: isLastItem ? streamingActivity : null,
+                      streamingPhase: isLastItem ? streamingPhase : null,
                     ),
                   );
                 },

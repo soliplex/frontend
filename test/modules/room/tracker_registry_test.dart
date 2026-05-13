@@ -23,7 +23,7 @@ void main() {
 
   test('creates tracker on AwaitingText when idle', () {
     registry.onStreaming(
-      const AwaitingText(currentActivity: ThinkingActivity()),
+      const AwaitingText(currentPhase: ThinkingPhase()),
       events,
     );
 
@@ -33,7 +33,7 @@ void main() {
 
   test('re-keys awaiting tracker to message ID on TextStreaming', () {
     registry.onStreaming(
-      const AwaitingText(currentActivity: ThinkingActivity()),
+      const AwaitingText(currentPhase: ThinkingPhase()),
       events,
     );
 
@@ -203,7 +203,7 @@ void main() {
   group('renameAwaitingTo', () {
     test('moves the awaiting tracker to the new key', () {
       registry.onStreaming(
-        const AwaitingText(currentActivity: ThinkingActivity()),
+        const AwaitingText(currentPhase: ThinkingPhase()),
         events,
       );
       final awaitingTracker = registry.trackers[awaitingTrackerKey];
@@ -219,7 +219,7 @@ void main() {
       // synthesized id; otherwise _freezeActive would no-op (the awaiting
       // entry no longer exists under that key).
       registry.onStreaming(
-        const AwaitingText(currentActivity: ThinkingActivity()),
+        const AwaitingText(currentPhase: ThinkingPhase()),
         events,
       );
       registry.renameAwaitingTo('no-response-run-1');
@@ -231,7 +231,7 @@ void main() {
 
     test('no-ops when the new key equals the awaiting sentinel', () {
       registry.onStreaming(
-        const AwaitingText(currentActivity: ThinkingActivity()),
+        const AwaitingText(currentPhase: ThinkingPhase()),
         events,
       );
       final before = registry.trackers[awaitingTrackerKey];
@@ -264,7 +264,7 @@ void main() {
       registry.seedHistorical({'no-response-run-1': historicalTracker});
 
       registry.onStreaming(
-        const AwaitingText(currentActivity: ThinkingActivity()),
+        const AwaitingText(currentPhase: ThinkingPhase()),
         events,
       );
       final awaitingTracker = registry.trackers[awaitingTrackerKey];
@@ -297,7 +297,7 @@ void main() {
     );
 
     registry.onStreaming(
-      const AwaitingText(currentActivity: ThinkingActivity()),
+      const AwaitingText(currentPhase: ThinkingPhase()),
       events,
     );
 

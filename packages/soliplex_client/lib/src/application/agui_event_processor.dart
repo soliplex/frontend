@@ -2,6 +2,7 @@ import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/application/no_response_synthesis.dart';
+import 'package:soliplex_client/src/application/run_phase.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -111,7 +112,7 @@ EventProcessingResult processEvent(
             status: ToolCallStatus.streaming,
           ),
         ),
-        streaming: _withToolCallActivity(
+        streaming: _withToolCallPhase(
           streaming,
           toolCallName,
           latestToolCallId: toolCallId,
@@ -207,13 +208,13 @@ EventProcessingResult _processThinkingStart(
   Conversation conversation,
   StreamingState streaming,
 ) {
-  // Mark thinking as streaming and set activity
+  // Mark thinking as streaming and set phase
   if (streaming is AwaitingText) {
     return EventProcessingResult(
       conversation: conversation,
       streaming: streaming.copyWith(
         isThinkingStreaming: true,
-        currentActivity: const ThinkingActivity(),
+        currentPhase: const ThinkingPhase(),
       ),
     );
   }
@@ -222,7 +223,7 @@ EventProcessingResult _processThinkingStart(
       conversation: conversation,
       streaming: streaming.copyWith(
         isThinkingStreaming: true,
-        currentActivity: const ThinkingActivity(),
+        currentPhase: const ThinkingPhase(),
       ),
     );
   }
@@ -419,7 +420,7 @@ EventProcessingResult _processToolCallEnd(
 ) {
   // Only transition streaming → pending. Guard prevents downgrading tools
   // that are already executing/completed/failed (e.g. duplicate ToolCallEnd).
-  // Activity persists until the next activity starts — don't change it here.
+  // Phase persists until the next phase starts — don't change it here.
   if (!conversation.toolCalls.any((tc) => tc.id == toolCallId)) {
     _logger.warning(
       'ToolCallEndEvent for unknown toolCallId; ignored',
@@ -524,7 +525,7 @@ EventProcessingResult _processActivitySnapshot(
     }
     return EventProcessingResult(
       conversation: updatedConversation,
-      streaming: _withToolCallActivity(
+      streaming: _withToolCallPhase(
         streaming,
         toolName,
         timestamp: resolvedTimestamp,
@@ -542,27 +543,27 @@ EventProcessingResult _processActivitySnapshot(
   );
 }
 
-// Tool call activity helper
+// Tool call phase helper
 
-/// Returns [streaming] with [toolName] accumulated on its [ToolCallActivity].
-StreamingState _withToolCallActivity(
+/// Returns [streaming] with [toolName] accumulated on its [ToolCallPhase].
+StreamingState _withToolCallPhase(
   StreamingState streaming,
   String toolName, {
   String? latestToolCallId,
   int? timestamp,
 }) {
-  final currentActivity = switch (streaming) {
-    AwaitingText(:final currentActivity) => currentActivity,
-    TextStreaming(:final currentActivity) => currentActivity,
+  final currentPhase = switch (streaming) {
+    AwaitingText(:final currentPhase) => currentPhase,
+    TextStreaming(:final currentPhase) => currentPhase,
   };
 
-  final newActivity = switch (currentActivity) {
-    ToolCallActivity() => currentActivity.withToolName(
+  final newPhase = switch (currentPhase) {
+    ToolCallPhase() => currentPhase.withToolName(
         toolName,
         latestToolCallId: latestToolCallId,
         timestamp: timestamp,
       ),
-    _ => ToolCallActivity(
+    _ => ToolCallPhase(
         toolName: toolName,
         latestToolCallId: latestToolCallId,
         timestamp: timestamp,
@@ -570,8 +571,8 @@ StreamingState _withToolCallActivity(
   };
 
   return switch (streaming) {
-    AwaitingText() => streaming.copyWith(currentActivity: newActivity),
-    TextStreaming() => streaming.copyWith(currentActivity: newActivity),
+    AwaitingText() => streaming.copyWith(currentPhase: newPhase),
+    TextStreaming() => streaming.copyWith(currentPhase: newPhase),
   };
 }
 

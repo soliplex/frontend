@@ -8,7 +8,7 @@ import '../../../helpers/test_logger.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
-import 'package:soliplex_frontend/src/modules/room/ui/execution/activity_indicator.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/execution/phase_indicator.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/execution_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/execution/thinking_block.dart';
 
@@ -20,10 +20,10 @@ Widget _withStore(Widget child) => ProviderScope(
     );
 
 void main() {
-  testWidgets('ActivityIndicator shows Processing label', (tester) async {
+  testWidgets('PhaseIndicator shows Processing label', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
-        body: ActivityIndicator(activity: ProcessingActivity()),
+        body: PhaseIndicator(phase: ProcessingPhase()),
       ),
     ));
 
@@ -31,11 +31,11 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsWidgets);
   });
 
-  testWidgets('ActivityIndicator shows tool call label', (tester) async {
+  testWidgets('PhaseIndicator shows tool call label', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
-        body: ActivityIndicator(
-          activity: ToolCallActivity(toolName: 'search_docs'),
+        body: PhaseIndicator(
+          phase: ToolCallPhase(toolName: 'search_docs'),
         ),
       ),
     ));
@@ -43,20 +43,20 @@ void main() {
     expect(find.text('Calling search_docs...'), findsOneWidget);
   });
 
-  testWidgets('ActivityIndicator shows Thinking label', (tester) async {
+  testWidgets('PhaseIndicator shows Thinking label', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
-        body: ActivityIndicator(activity: ThinkingActivity()),
+        body: PhaseIndicator(phase: ThinkingPhase()),
       ),
     ));
 
     expect(find.text('Thinking...'), findsOneWidget);
   });
 
-  testWidgets('ActivityIndicator shows Responding label', (tester) async {
+  testWidgets('PhaseIndicator shows Responding label', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
-        body: ActivityIndicator(activity: RespondingActivity()),
+        body: PhaseIndicator(phase: RespondingPhase()),
       ),
     ));
 

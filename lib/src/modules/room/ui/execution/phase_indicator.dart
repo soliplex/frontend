@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-class ActivityIndicator extends StatelessWidget {
-  const ActivityIndicator({super.key, required this.activity});
-  final ActivityType activity;
+class PhaseIndicator extends StatelessWidget {
+  const PhaseIndicator({super.key, required this.phase});
+  final RunPhase phase;
 
   @override
   Widget build(BuildContext context) {
@@ -29,13 +29,13 @@ class ActivityIndicator extends StatelessWidget {
     );
   }
 
-  String get _label => switch (activity) {
-        ThinkingActivity() => 'Thinking...',
-        ToolCallActivity(:final allToolNames) when allToolNames.length > 1 =>
+  String get _label => switch (phase) {
+        ThinkingPhase() => 'Thinking...',
+        ToolCallPhase(:final allToolNames) when allToolNames.length > 1 =>
           'Calling ${allToolNames.length} tools...',
-        ToolCallActivity(:final allToolNames) =>
+        ToolCallPhase(:final allToolNames) =>
           'Calling ${allToolNames.first}...',
-        RespondingActivity() => 'Responding...',
-        ProcessingActivity() => 'Processing...',
+        RespondingPhase() => 'Responding...',
+        ProcessingPhase() => 'Processing...',
       };
 }
