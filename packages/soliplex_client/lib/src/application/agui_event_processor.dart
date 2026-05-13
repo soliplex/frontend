@@ -166,10 +166,22 @@ EventProcessingResult processEvent(
     ReasoningEncryptedValueEvent(:final entityId) =>
       _processReasoningEncryptedValue(conversation, streaming, entityId),
 
-    // JSON Patch against an activity's state; requires a per-message
-    // activity store that does not exist in the domain.
-    ActivityDeltaEvent(:final messageId, :final activityType) =>
-      _processActivityDelta(conversation, streaming, messageId, activityType),
+    // JSON Patch against the prior ActivitySnapshot's content,
+    // mirroring how StateDeltaEvent patches aguiState.
+    ActivityDeltaEvent(
+      :final messageId,
+      :final activityType,
+      :final patch,
+      :final timestamp,
+    ) =>
+      _processActivityDelta(
+        conversation,
+        streaming,
+        messageId,
+        activityType,
+        patch,
+        timestamp,
+      ),
 
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
@@ -809,13 +821,36 @@ EventProcessingResult _processActivityDelta(
   StreamingState streaming,
   String messageId,
   String activityType,
+  List<dynamic> patch,
+  int? timestamp,
 ) {
-  _logger.info(
-    'ActivityDeltaEvent dropped: no per-message activity store in the domain',
-    attributes: {'messageId': messageId, 'activityType': activityType},
-  );
+  final idx =
+      conversation.activities.indexWhere((a) => a.messageId == messageId);
+  if (idx < 0) {
+    _logger.warning(
+      'ActivityDeltaEvent dropped: no prior snapshot for messageId',
+      attributes: {
+        'messageId': messageId,
+        'activityType': activityType,
+        'patchOps': patch.length,
+      },
+    );
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    );
+  }
+
+  final existing = conversation.activities[idx];
+  final patched = applyJsonPatch(existing.content, patch);
+  final updated = [...conversation.activities]..[idx] = ActivityRecord(
+      messageId: messageId,
+      activityType: activityType,
+      content: patched,
+      timestamp: timestamp ?? existing.timestamp,
+    );
   return EventProcessingResult(
-    conversation: conversation,
+    conversation: conversation.copyWith(activities: updated),
     streaming: streaming,
   );
 }

@@ -3,6 +3,7 @@ import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/no_response_synthesis.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart'
     as app_streaming;
+import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:test/test.dart';
@@ -1372,6 +1373,80 @@ void main() {
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_x');
+      });
+    });
+
+    group('activity delta events', () {
+      test('applies JSON Patch to the matching record content', () {
+        final seeded = conversation.copyWith(
+          activities: [
+            const ActivityRecord(
+              messageId: 'rag:call_1',
+              activityType: 'skill_tool_call',
+              content: {
+                'tool_name': 'ask',
+                'args': '{"q":"hi"}',
+                'status': 'in_progress',
+              },
+              timestamp: 100,
+            ),
+          ],
+        );
+        const event = ActivityDeltaEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          patch: [
+            {'op': 'replace', 'path': '/status', 'value': 'done'},
+          ],
+          timestamp: 200,
+        );
+
+        final result = processEvent(seeded, streaming, event);
+
+        expect(result.conversation.activities, hasLength(1));
+        final patched = result.conversation.activities.single;
+        expect(patched.content['status'], 'done');
+        expect(patched.content['tool_name'], 'ask');
+        expect(patched.timestamp, 200);
+      });
+
+      test('with no prior snapshot drops the patch and warns', () {
+        const event = ActivityDeltaEvent(
+          messageId: 'rag:orphan',
+          activityType: 'skill_tool_call',
+          patch: [
+            {'op': 'replace', 'path': '/status', 'value': 'done'},
+          ],
+        );
+
+        final result = processEvent(conversation, streaming, event);
+
+        expect(result.conversation.activities, isEmpty);
+        expect(result.streaming, equals(streaming));
+      });
+
+      test('without timestamp preserves the prior record timestamp', () {
+        final seeded = conversation.copyWith(
+          activities: [
+            const ActivityRecord(
+              messageId: 'rag:call_2',
+              activityType: 'skill_tool_call',
+              content: {'tool_name': 'ask', 'status': 'in_progress'},
+              timestamp: 500,
+            ),
+          ],
+        );
+        const event = ActivityDeltaEvent(
+          messageId: 'rag:call_2',
+          activityType: 'skill_tool_call',
+          patch: [
+            {'op': 'add', 'path': '/progress', 'value': 0.5},
+          ],
+        );
+
+        final result = processEvent(seeded, streaming, event);
+
+        expect(result.conversation.activities.single.timestamp, 500);
       });
     });
 
