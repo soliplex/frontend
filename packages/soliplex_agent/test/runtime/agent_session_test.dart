@@ -1017,4 +1017,77 @@ void main() {
       expect(steps.first.stepName, equals('planning'));
     });
   });
+
+  group('conversationActivitiesOf', () {
+    const activity = ActivityRecord(
+      messageId: 'rag:call_1',
+      activityType: 'skill_tool_call',
+      content: {'tool_name': 'ask'},
+      timestamp: 1,
+    );
+    final conversation = Conversation.empty(threadId: _key.threadId)
+        .copyWith(activities: const [activity]);
+
+    test('returns the conversation activities for states that carry one', () {
+      final states = <RunState>[
+        RunningState(
+          threadKey: _key,
+          runId: _runId,
+          conversation: conversation,
+          streaming: const AwaitingText(),
+        ),
+        ToolYieldingState(
+          threadKey: _key,
+          runId: _runId,
+          conversation: conversation,
+          pendingToolCalls: const [],
+          toolDepth: 0,
+        ),
+        CompletedState(
+          threadKey: _key,
+          runId: _runId,
+          conversation: conversation,
+        ),
+        FailedState.duringRun(
+          threadKey: _key,
+          runId: _runId,
+          reason: FailureReason.serverError,
+          error: 'boom',
+          conversation: conversation,
+        ),
+        CancelledState.duringRun(
+          threadKey: _key,
+          runId: _runId,
+          conversation: conversation,
+        ),
+      ];
+
+      for (final state in states) {
+        expect(
+          conversationActivitiesOf(state),
+          const [activity],
+          reason: '$state',
+        );
+      }
+    });
+
+    test(
+      'returns an empty list for states without a conversation',
+      () {
+        const states = <RunState>[
+          IdleState(),
+          FailedState.preRun(
+            threadKey: _key,
+            reason: FailureReason.networkLost,
+            error: 'offline',
+          ),
+          CancelledState.preRun(threadKey: _key),
+        ];
+
+        for (final state in states) {
+          expect(conversationActivitiesOf(state), isEmpty, reason: '$state');
+        }
+      },
+    );
+  });
 }

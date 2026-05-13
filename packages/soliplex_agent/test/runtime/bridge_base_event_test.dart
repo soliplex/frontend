@@ -43,5 +43,21 @@ void main() {
         expect(bridgeBaseEvent(e), const ThinkingEnded(), reason: '$e');
       }
     });
+
+    test('ActivityDeltaEvent returns null', () {
+      // The bridge intentionally drops ActivityDeltaEvent: the domain
+      // layer applies the patch to Conversation.activities, and the
+      // tracker observes activities reactively. Bridging the delta into
+      // an ExecutionEvent would duplicate that work.
+      const event = ActivityDeltaEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        patch: [
+          {'op': 'replace', 'path': '/status', 'value': 'done'},
+        ],
+      );
+
+      expect(bridgeBaseEvent(event), isNull);
+    });
   });
 }

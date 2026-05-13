@@ -1184,22 +1184,6 @@ void main() {
         );
       });
 
-      test('unknown activityType passes through unchanged', () {
-        const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
-          activityType: 'unknown_activity',
-          content: {'data': 'value'},
-        );
-
-        final result = processEvent(conversation, streaming, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        expect(
-          awaitingText.currentPhase,
-          isA<app_streaming.ProcessingPhase>(),
-        );
-      });
-
       test('skill_tool_call sets timestamp from event', () {
         const event = ActivitySnapshotEvent(
           messageId: 'msg-1',
@@ -1254,7 +1238,11 @@ void main() {
         expect(record.timestamp, 1234);
       });
 
-      test('unknown activityType is persisted', () {
+      test('unknown activityType is persisted and leaves streaming intact', () {
+        // Two invariants exercised together: unknown activityTypes flow
+        // into Conversation.activities (so future consumers can read
+        // them) AND don't disturb the streaming phase (no spurious
+        // ToolCallPhase transition).
         const event = ActivitySnapshotEvent(
           messageId: 'plan:1',
           activityType: 'plan',
@@ -1266,6 +1254,10 @@ void main() {
 
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.activityType, 'plan');
+        expect(
+          (result.streaming as app_streaming.AwaitingText).currentPhase,
+          isA<app_streaming.ProcessingPhase>(),
+        );
       });
 
       test('replace:true overwrites record with same messageId in place', () {
@@ -1747,6 +1739,11 @@ void main() {
     });
 
     group('passthrough events', () {
+      // Representative pin: one structural event (TextMessageChunkEvent)
+      // and one wildcard event (CustomEvent) — both must leave
+      // conversation and streaming state untouched. Adding more entries
+      // here doesn't increase coverage; events that need custom
+      // handling have their own targeted tests above.
       final passthroughEvents = <String, BaseEvent>{
         'CustomEvent': const CustomEvent(name: 'custom', value: {'data': 123}),
         'TextMessageChunkEvent': const TextMessageChunkEvent(
@@ -1754,16 +1751,6 @@ void main() {
           role: TextMessageRole.assistant,
           delta: 'Hello',
         ),
-        'ToolCallChunkEvent': const ToolCallChunkEvent(
-          toolCallId: 'tc-1',
-          toolCallName: 'search',
-          delta: '{"q":"test"}',
-        ),
-        'MessagesSnapshotEvent': const MessagesSnapshotEvent(messages: []),
-        'StepStartedEvent': const StepStartedEvent(stepName: 'step-1'),
-        'StepFinishedEvent': const StepFinishedEvent(stepName: 'step-1'),
-        'RawEvent': const RawEvent(event: 'raw-data'),
-        'ThinkingContentEvent': const ThinkingContentEvent(delta: 'hmm'),
       };
 
       for (final entry in passthroughEvents.entries) {

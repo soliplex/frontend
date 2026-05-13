@@ -130,18 +130,7 @@ class AgentSession implements ToolExecutionContext {
   /// [SkillToolCallActivity] views without maintaining a parallel
   /// content cache.
   late final ReadonlySignal<List<ActivityRecord>> conversationActivities =
-      computed(
-    () => switch (runState.value) {
-      RunningState(:final conversation) ||
-      ToolYieldingState(:final conversation) ||
-      CompletedState(:final conversation) =>
-        conversation.activities,
-      FailedState(:final conversation?) ||
-      CancelledState(:final conversation?) =>
-        conversation.activities,
-      _ => const <ActivityRecord>[],
-    },
-  );
+      computed(() => conversationActivitiesOf(runState.value));
 
   /// Reactive signal tracking the agent's `aguiState` map across the
   /// session lifetime.
@@ -610,6 +599,23 @@ class AgentSession implements ToolExecutionContext {
       _state == AgentSessionState.failed ||
       _state == AgentSessionState.cancelled;
 }
+
+/// Extracts the activity list carried by [runState], or `const []` for
+/// variants that don't carry a [Conversation]. Backs
+/// [AgentSession.conversationActivities] — exposed as a top-level
+/// function so the switch can be exercised directly without
+/// orchestrator scaffolding.
+List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
+    switch (runState) {
+      RunningState(:final conversation) ||
+      ToolYieldingState(:final conversation) ||
+      CompletedState(:final conversation) =>
+        conversation.activities,
+      FailedState(:final conversation?) ||
+      CancelledState(:final conversation?) =>
+        conversation.activities,
+      _ => const <ActivityRecord>[],
+    };
 
 /// Translates a raw AG-UI [BaseEvent] into the [ExecutionEvent] that
 /// consumers of [AgentSession.lastExecutionEvent] should observe, or

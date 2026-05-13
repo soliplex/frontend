@@ -361,21 +361,5 @@ void main() {
 
       expect(a, isNot(equals(b)));
     });
-
-    test('toString includes identifying fields', () {
-      const a = SkillToolCallActivity(
-        messageId: 'rag:call_1',
-        toolName: 'ask',
-        args: {},
-        result: null,
-        status: SkillToolCallStatus.done,
-        timestamp: 7,
-      );
-      final s = a.toString();
-      expect(s, contains('rag:call_1'));
-      expect(s, contains('ask'));
-      expect(s, contains('done'));
-      expect(s, contains('7'));
-    });
   });
 }

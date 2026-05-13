@@ -33,13 +33,6 @@ void main() {
       expect(updated.toolNames, equals({'search'}));
     });
 
-    test('equality works across constructor variants', () {
-      final single = ToolCallPhase.single(toolName: 'search');
-      const multiple = ToolCallPhase(toolNames: {'search'});
-
-      expect(single, equals(multiple));
-    });
-
     test('equality works across constructors with all fields populated', () {
       final single = ToolCallPhase.single(
         toolName: 'search',
