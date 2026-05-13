@@ -778,7 +778,8 @@ EventProcessingResult _processStateSnapshot(
   // The cast throws on non-Map snapshots. The per-event-loop wrappers
   // in `RunOrchestrator._onEvent` and `SoliplexApi._replayEventsToHistory`
   // catch the throw and append a `DroppedEventMessage` at the failure
-  // position; surrounding events still process.
+  // position; surrounding events still process. Future callers of
+  // `processEvent` that don't wrap inherit this contract.
   return EventProcessingResult(
     conversation:
         conversation.copyWith(aguiState: snapshot as Map<String, dynamic>),
@@ -791,7 +792,8 @@ EventProcessingResult _processStateDelta(
   StreamingState streaming,
   List<dynamic> delta,
 ) {
-  final newState = applyJsonPatch(conversation.aguiState, delta);
+  final newState =
+      applyJsonPatch(conversation.aguiState, delta, logger: _logger);
   return EventProcessingResult(
     conversation: conversation.copyWith(aguiState: newState),
     streaming: streaming,
@@ -854,7 +856,26 @@ EventProcessingResult _processActivityDelta(
   }
 
   final existing = conversation.activities[idx];
-  final patched = applyJsonPatch(existing.content, patch);
+  if (existing.activityType != activityType) {
+    // Mismatch is a protocol violation: a delta tagged with one
+    // activityType cannot patch a record of another. Reject rather
+    // than half-applying, since the patch ops were authored against
+    // the wrong content shape and would corrupt the record.
+    _logger.error(
+      'ActivityDeltaEvent dropped: activityType mismatch',
+      attributes: {
+        'messageId': messageId,
+        'expected': existing.activityType,
+        'received': activityType,
+        'patchOps': patch.length,
+      },
+    );
+    return EventProcessingResult(
+      conversation: conversation,
+      streaming: streaming,
+    );
+  }
+  final patched = applyJsonPatch(existing.content, patch, logger: _logger);
   final updated = [...conversation.activities]..[idx] = ActivityRecord(
       messageId: messageId,
       activityType: activityType,

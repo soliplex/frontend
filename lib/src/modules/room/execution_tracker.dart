@@ -101,18 +101,20 @@ class ExecutionTracker {
     try {
       _dispatch(event);
     } on Object catch (e, st) {
-      // The tracker is a derived projection of the event stream; a throw
-      // here would propagate up through the signals subscription that
-      // pushed the event, destabilising any downstream observers. Log
-      // and skip the mutation instead — surrounding events keep flowing.
-      // The drop is deliberately UI-silent: chat-message boundaries mint
-      // the drop tile; double-minting from this projection would surface
-      // the same backend event as two tiles. Logged at error so Sentry
-      // still sees the schema/code drift.
+      // `_dispatch` operates on already-decoded `ExecutionEvent` variants
+      // and mutates local signals — a throw here is a frontend logic bug
+      // (bad cast, signals misuse, missing switch arm), not backend drift.
+      // Swallow in prod so downstream observers stay alive, but fail loud
+      // in dev/test via assert so the bug surfaces immediately.
       _logger.error(
         'ExecutionTracker dropped ${event.runtimeType}',
         error: e,
         stackTrace: st,
+        attributes: {'errorType': e.runtimeType.toString()},
+      );
+      assert(
+        false,
+        'ExecutionTracker._dispatch threw: $e\n$st',
       );
     }
   }

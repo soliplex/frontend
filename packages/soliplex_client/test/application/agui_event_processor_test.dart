@@ -1425,6 +1425,42 @@ void main() {
         expect(result.streaming, equals(streaming));
       });
 
+      test('with mismatched activityType drops the patch and warns', () {
+        final seeded = conversation.copyWith(
+          activities: [
+            const ActivityRecord(
+              messageId: 'rag:call_3',
+              activityType: 'skill_tool_call',
+              content: {'tool_name': 'ask', 'status': 'in_progress'},
+              timestamp: 100,
+            ),
+          ],
+        );
+        const event = ActivityDeltaEvent(
+          messageId: 'rag:call_3',
+          activityType: 'skill_tool_result',
+          patch: [
+            {'op': 'replace', 'path': '/status', 'value': 'done'},
+          ],
+          timestamp: 200,
+        );
+
+        final result = processEvent(seeded, streaming, event);
+
+        // Existing record is preserved unchanged; the mismatched delta
+        // cannot be safely applied because patch ops are authored
+        // against the call-side content shape.
+        expect(
+          result.conversation.activities.single.activityType,
+          'skill_tool_call',
+        );
+        expect(
+          result.conversation.activities.single.content['status'],
+          'in_progress',
+        );
+        expect(result.conversation.activities.single.timestamp, 100);
+      });
+
       test('without timestamp preserves the prior record timestamp', () {
         final seeded = conversation.copyWith(
           activities: [

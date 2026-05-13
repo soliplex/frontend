@@ -1,30 +1,26 @@
-import 'dart:developer' as developer;
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _defaultLogger =
+    LogManager.instance.getLogger('soliplex_client.json_patch');
 
 /// Applies RFC 6902 JSON Patch operations to a state map.
 ///
-/// Returns a new map with the patches applied. Logs and skips invalid
-/// operations rather than failing entirely. Supports add, replace, and remove
-/// operations.
-///
-/// Example:
-/// ```dart
-/// final state = {'count': 0};
-/// final operations = [
-///   {'op': 'replace', 'path': '/count', 'value': 1},
-///   {'op': 'add', 'path': '/name', 'value': 'test'},
-/// ];
-/// final result = applyJsonPatch(state, operations);
-/// // result == {'count': 1, 'name': 'test'}
-/// ```
+/// Returns a new map with the patches applied. Failed operations are
+/// logged via [logger] (defaults to a `LogManager` logger that flows
+/// through configured sinks) and skipped so the rest of the patch can
+/// land. Supports `add`, `replace`, and `remove`; `move`, `copy`, and
+/// `test` are not implemented and produce a warning log.
 Map<String, dynamic> applyJsonPatch(
   Map<String, dynamic> state,
-  List<dynamic> operations,
-) {
+  List<dynamic> operations, {
+  Logger? logger,
+}) {
+  final log = logger ?? _defaultLogger;
   var result = Map<String, dynamic>.from(state);
 
   for (final op in operations) {
     if (op is! Map<String, dynamic>) {
-      _logPatchError('Operation is not a map', op);
+      _logPatchWarning(log, 'Operation is not a map', op);
       continue;
     }
 
@@ -33,19 +29,27 @@ Map<String, dynamic> applyJsonPatch(
     final value = op['value'];
 
     if (operation == null || path == null) {
-      _logPatchError('Missing op or path', op);
+      _logPatchWarning(log, 'Missing op or path', op);
       continue;
     }
 
     try {
       result = switch (operation) {
-        'add' => _setAtPath(result, path, value, insert: true),
-        'replace' => _setAtPath(result, path, value),
+        'add' => _setAtPath(result, path, value, insert: true, logger: log),
+        'replace' => _setAtPath(result, path, value, logger: log),
         'remove' => _removeAtPath(result, path),
-        _ => result, // Skip unsupported operations (move, copy, test)
+        _ => () {
+            _logPatchWarning(log, 'Unsupported operation', op);
+            return result;
+          }(),
       };
-    } catch (e) {
-      _logPatchError('Failed to apply $operation at $path: $e', op);
+    } catch (e, st) {
+      _logPatchWarning(
+        log,
+        'Failed to apply $operation at $path: $e',
+        op,
+        stackTrace: st,
+      );
     }
   }
 
@@ -56,6 +60,7 @@ Map<String, dynamic> _setAtPath(
   Map<String, dynamic> state,
   String path,
   dynamic value, {
+  required Logger logger,
   bool insert = false,
 }) {
   final segments = _parsePath(path);
@@ -106,7 +111,8 @@ Map<String, dynamic> _setAtPath(
         } else if (!insert && index >= 0 && index < current.length) {
           current[index] = value;
         } else {
-          _logPatchError(
+          _logPatchWarning(
+            logger,
             'Array index $index out of bounds '
             '(length=${current.length}) at $path',
             {'op': insert ? 'add' : 'replace', 'path': path, 'value': value},
@@ -182,10 +188,15 @@ List<dynamic> _deepCopyList(List<dynamic> list) {
   }).toList();
 }
 
-void _logPatchError(String message, dynamic operation) {
-  developer.log(
+void _logPatchWarning(
+  Logger logger,
+  String message,
+  dynamic operation, {
+  StackTrace? stackTrace,
+}) {
+  logger.warning(
     '$message: $operation',
-    name: 'JsonPatch',
-    level: 900, // Warning level
+    stackTrace: stackTrace,
+    attributes: {'operation': operation.toString()},
   );
 }
