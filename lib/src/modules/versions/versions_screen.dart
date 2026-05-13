@@ -236,43 +236,51 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
         return ListTile(
           leading: const Icon(Icons.dns_outlined),
           title: SelectableText(url),
-          subtitle: switch ((isDone, hasError, info)) {
-            (false, _, _) => const Text('Loading…'),
-            (true, true, _) => const Text('Unavailable'),
-            (true, false, BackendVersionInfo(:final soliplexVersion)) =>
-              SelectableText('Backend version: $soliplexVersion'),
-            _ => const Text('Unavailable'),
-          },
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (isDone && hasError)
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Retry',
-                  onPressed: _retry,
-                )
-              else
-                TextButton(
-                  onPressed: info == null
-                      ? null
-                      : () => context.push(
-                            AppRoutes.versionsForServer(widget.entry.alias),
-                          ),
-                  child: const Text('View packages'),
-                ),
-              IconButton(
-                icon: const Icon(Icons.copy),
-                tooltip: 'Copy',
-                onPressed: info == null
-                    ? null
-                    : () => Clipboard.setData(
-                          ClipboardData(
-                            text: '$url ${info.soliplexVersion}',
-                          ),
+              switch ((isDone, hasError, info)) {
+                (false, _, _) => const Text('Loading…'),
+                (true, true, _) => const Text('Unavailable'),
+                (true, false, BackendVersionInfo(:final soliplexVersion)) =>
+                  SelectableText('Backend version: $soliplexVersion'),
+                _ => const Text('Unavailable'),
+              },
+              const SizedBox(height: SoliplexSpacing.s2),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: isDone && hasError
+                    ? IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Retry',
+                        onPressed: _retry,
+                      )
+                    : TextButton(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
+                        onPressed: info == null
+                            ? null
+                            : () => context.push(
+                                  AppRoutes.versionsForServer(
+                                    widget.entry.alias,
+                                  ),
+                                ),
+                        child: const Text('View packages'),
+                      ),
               ),
             ],
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.copy),
+            tooltip: 'Copy',
+            onPressed: info == null
+                ? null
+                : () => Clipboard.setData(
+                      ClipboardData(text: '$url ${info.soliplexVersion}'),
+                    ),
           ),
         );
       },
