@@ -9,11 +9,17 @@ import '../../helpers/test_logger.dart';
 
 void main() {
   late Signal<ExecutionEvent?> events;
+  late Signal<List<ActivityRecord>> activities;
   late ExecutionTracker tracker;
 
   setUp(() {
     events = Signal<ExecutionEvent?>(null);
-    tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
+    activities = Signal<List<ActivityRecord>>(const []);
+    tracker = ExecutionTracker(
+      executionEvents: events,
+      activities: activities,
+      logger: testLogger(),
+    );
   });
 
   tearDown(() => tracker.dispose());
@@ -209,142 +215,41 @@ void main() {
       expect(tracker.skillToolCalls.value, isEmpty);
     });
 
-    test('decodes a single skill_tool_call snapshot', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"hi"}',
-          'status': 'in_progress',
-        },
-        timestamp: 100,
-      );
-
-      final calls = tracker.skillToolCalls.value;
-      expect(calls, hasLength(1));
-      expect(calls.single.messageId, 'rag:call_1');
-      expect(calls.single.toolName, 'ask');
-      expect(calls.single.args, {'q': 'hi'});
-      expect(calls.single.status, 'in_progress');
-      expect(calls.single.timestamp, 100);
-    });
-
-    test('replace:true overwrites record with same messageId in place', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"hi"}',
-          'status': 'in_progress',
-        },
-        timestamp: 1,
-      );
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"hi"}',
-          'status': 'done',
-        },
-        timestamp: 2,
-      );
-
-      final calls = tracker.skillToolCalls.value;
-      expect(calls, hasLength(1));
-      expect(calls.single.status, 'done');
-      expect(calls.single.timestamp, 2);
-    });
-
-    test('replace:false on existing messageId is ignored', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"first"}',
-          'status': 'in_progress',
-        },
-        timestamp: 1,
-      );
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'search',
-          'args': '{"q":"second"}',
-          'status': 'done',
-        },
-        replace: false,
-        timestamp: 2,
-      );
-
-      final calls = tracker.skillToolCalls.value;
-      expect(calls, hasLength(1));
-      expect(calls.single.toolName, 'ask');
-      expect(calls.single.args, {'q': 'first'});
-    });
-
-    test('two concurrent messageIds stay independent', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_a',
-        activityType: 'skill_tool_call',
-        content: {'tool_name': 'ask', 'args': '{"q":"a"}'},
-        timestamp: 1,
-      );
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:call_b',
-        activityType: 'skill_tool_call',
-        content: {'tool_name': 'search', 'args': '{"q":"b"}'},
-        timestamp: 2,
-      );
-
-      final calls = tracker.skillToolCalls.value;
-      expect(calls, hasLength(2));
-      final byId = {for (final c in calls) c.messageId: c};
-      expect(byId['rag:call_a']!.toolName, 'ask');
-      expect(byId['rag:call_b']!.toolName, 'search');
-    });
-
-    test('non-skill_tool_call activityType is dropped', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'plan:1',
-        activityType: 'plan',
-        content: {'steps': 3},
-        timestamp: 1,
-      );
-
-      expect(tracker.skillToolCalls.value, isEmpty);
-    });
-
-    test('malformed skill_tool_call is dropped', () {
-      events.value = const ActivitySnapshot(
-        messageId: 'rag:bad',
-        activityType: 'skill_tool_call',
-        content: {'tool_name': 'ask', 'args': 'not json {'},
-        timestamp: 1,
-      );
-
-      expect(tracker.skillToolCalls.value, isEmpty);
-    });
-
-    test(
-      'missing timestamp is filled with wall-clock (non-zero) so the '
-      'decoded activity still appears',
-      () {
-        events.value = const ActivitySnapshot(
-          messageId: 'rag:call_1',
+    test('reflects the source activities signal in order', () {
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'rag:call_a',
           activityType: 'skill_tool_call',
-          content: {'tool_name': 'ask', 'args': '{}'},
-        );
+          content: {'tool_name': 'ask', 'args': '{"q":"a"}'},
+          timestamp: 1,
+        ),
+        ActivityRecord(
+          messageId: 'rag:call_b',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'search', 'args': '{"q":"b"}'},
+          timestamp: 2,
+        ),
+      ];
 
-        final calls = tracker.skillToolCalls.value;
-        expect(calls, hasLength(1));
-        expect(calls.single.timestamp, greaterThan(0));
-      },
-    );
+      final calls = tracker.skillToolCalls.value;
+      expect(calls.map((c) => c.toolName), ['ask', 'search']);
+    });
+
+    test('filters records that fail to decode as a skill_tool_* view', () {
+      // Records that aren't skill_tool_call or skill_tool_result are
+      // skipped — the tracker's `skillToolCalls` is a typed view, not
+      // a passthrough.
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'plan:1',
+          activityType: 'plan',
+          content: {'steps': 3},
+          timestamp: 1,
+        ),
+      ];
+
+      expect(tracker.skillToolCalls.value, isEmpty);
+    });
   });
 
   group('timeline', () {
@@ -360,7 +265,7 @@ void main() {
       expect(entry, isA<TimelineStep>());
       final step = entry as TimelineStep;
       expect(step.step.label, 'Thinking');
-      expect(step.activities, isEmpty);
+      expect(step.activityIds, isEmpty);
     });
 
     test('activity during active step nests under it', () {
@@ -368,6 +273,14 @@ void main() {
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       );
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'bwrap:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'execute_script', 'args': '{}'},
+          timestamp: 100,
+        ),
+      ];
       events.value = const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -377,8 +290,8 @@ void main() {
 
       expect(tracker.timeline.value, hasLength(1));
       final step = tracker.timeline.value.single as TimelineStep;
-      expect(step.activities, hasLength(1));
-      expect(step.activities.single.toolName, 'execute_script');
+      expect(step.activityIds, ['bwrap:call_1']);
+      expect(tracker.skillToolCalls.value.single.toolName, 'execute_script');
     });
 
     test('activity arriving with no active step is standalone', () {
@@ -451,8 +364,11 @@ void main() {
 
       final tl = tracker.timeline.value;
       expect(tl, hasLength(2));
-      expect((tl[0] as TimelineStep).activities, hasLength(1));
-      expect((tl[1] as TimelineStep).activities, hasLength(2));
+      expect((tl[0] as TimelineStep).activityIds, ['bwrap:call_1']);
+      expect(
+        (tl[1] as TimelineStep).activityIds,
+        ['bwrap:call_2', 'bwrap:call_3'],
+      );
     });
 
     test('replace updates nested activity in place', () {
@@ -460,6 +376,18 @@ void main() {
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
       );
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'bwrap:call_1',
+          activityType: 'skill_tool_call',
+          content: {
+            'tool_name': 'execute_script',
+            'args': '{}',
+            'status': 'in_progress',
+          },
+          timestamp: 100,
+        ),
+      ];
       events.value = const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -470,6 +398,18 @@ void main() {
         },
         timestamp: 100,
       );
+      activities.value = const [
+        ActivityRecord(
+          messageId: 'bwrap:call_1',
+          activityType: 'skill_tool_call',
+          content: {
+            'tool_name': 'execute_script',
+            'args': '{}',
+            'status': 'done',
+          },
+          timestamp: 150,
+        ),
+      ];
       events.value = const ActivitySnapshot(
         messageId: 'bwrap:call_1',
         activityType: 'skill_tool_call',
@@ -482,8 +422,8 @@ void main() {
       );
 
       final step = tracker.timeline.value.single as TimelineStep;
-      expect(step.activities, hasLength(1));
-      expect(step.activities.single.status, 'done');
+      expect(step.activityIds, ['bwrap:call_1']);
+      expect(tracker.skillToolCalls.value.single.status, 'done');
     });
 
     test('step completion updates status in timeline entry', () {
@@ -543,8 +483,8 @@ void main() {
       );
 
       final step = tracker.timeline.value.single as TimelineStep;
-      expect(step.activities, hasLength(1));
-      expect(step.activities.single.toolName, 'execute_script');
+      expect(step.activityIds, ['bwrap:call_1']);
+      expect(tracker.skillToolCalls.value.single.toolName, 'execute_script');
       tracker.dispose();
     });
 

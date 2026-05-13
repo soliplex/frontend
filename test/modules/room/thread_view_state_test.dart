@@ -23,11 +23,13 @@ class _FakeAgentSession implements AgentSession {
       : _runState = Signal<RunState>(const IdleState()),
         _lastExecutionEvent = Signal<ExecutionEvent?>(null),
         _reconnectStatus = Signal<ReconnectStatus?>(null),
+        _activities = Signal<List<ActivityRecord>>(const []),
         _extensions = extensions;
 
   final Signal<RunState> _runState;
   final Signal<ExecutionEvent?> _lastExecutionEvent;
   final Signal<ReconnectStatus?> _reconnectStatus;
+  final Signal<List<ActivityRecord>> _activities;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
   final List<SessionExtension> _extensions;
   bool cancelCalled = false;
@@ -40,6 +42,10 @@ class _FakeAgentSession implements AgentSession {
 
   @override
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _lastExecutionEvent;
+
+  @override
+  ReadonlySignal<List<ActivityRecord>> get conversationActivities =>
+      _activities;
 
   @override
   ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;

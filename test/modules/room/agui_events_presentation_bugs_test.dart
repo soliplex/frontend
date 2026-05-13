@@ -85,10 +85,11 @@ void main() {
         ];
 
         final trackers = replayToTrackers(runs);
-        final step = trackers['asst-1']!.timeline.value.single as TimelineStep;
+        final tracker = trackers['asst-1']!;
+        final step = tracker.timeline.value.single as TimelineStep;
 
-        expect(step.activities, hasLength(1));
-        final activity = step.activities.single;
+        expect(step.activityIds, ['rag:call_1']);
+        final activity = tracker.skillToolCalls.value.single;
         expect(
           activity.status,
           'done',
@@ -111,27 +112,41 @@ void main() {
       'on the same messageId advances the activity to done',
       () {
         final events = Signal<ExecutionEvent?>(null);
+        final activities = Signal<List<ActivityRecord>>(const []);
         final tracker = ExecutionTracker(
           executionEvents: events,
+          activities: activities,
           logger: testLogger(),
         );
         addTearDown(tracker.dispose);
 
         // Bridge each AG-UI event through the production bridge, mirroring
-        // what AgentSession does at runtime.
+        // what AgentSession does at runtime. Push the same content into
+        // the activities signal so the tracker's computed skillToolCalls
+        // sees the decoded view, matching what _processActivitySnapshot
+        // does in production.
+        const callContent = {
+          'tool_name': 'ask',
+          'args': '{"q":"hi"}',
+        };
         final ExecutionEvent? callSnapshot = bridgeBaseEvent(
           const ActivitySnapshotEvent(
             messageId: 'rag:call_1',
             activityType: 'skill_tool_call',
-            content: {
-              'tool_name': 'ask',
-              'args': '{"q":"hi"}',
-            },
+            content: callContent,
             replace: false,
             timestamp: 100,
           ),
         );
         expect(callSnapshot, isNotNull);
+        activities.value = const [
+          ActivityRecord(
+            messageId: 'rag:call_1',
+            activityType: 'skill_tool_call',
+            content: callContent,
+            timestamp: 100,
+          ),
+        ];
         events.value = callSnapshot;
 
         final calls = tracker.skillToolCalls.value;
@@ -143,18 +158,27 @@ void main() {
               'must synthesize in_progress so the spinner renders.',
         );
 
+        const resultContent = {
+          'tool_name': 'ask',
+          'result': 'answer text',
+        };
         final ExecutionEvent? resultSnapshot = bridgeBaseEvent(
           const ActivitySnapshotEvent(
             messageId: 'rag:call_1',
             activityType: 'skill_tool_result',
-            content: {
-              'tool_name': 'ask',
-              'result': 'answer text',
-            },
+            content: resultContent,
             timestamp: 150,
           ),
         );
         expect(resultSnapshot, isNotNull);
+        activities.value = const [
+          ActivityRecord(
+            messageId: 'rag:call_1',
+            activityType: 'skill_tool_result',
+            content: resultContent,
+            timestamp: 150,
+          ),
+        ];
         events.value = resultSnapshot;
 
         final updated = tracker.skillToolCalls.value;

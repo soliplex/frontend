@@ -123,6 +123,26 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal tracking the latest [RunState] from the orchestrator.
   ReadonlySignal<RunState> get runState => _runStateSignal.readonly();
 
+  /// Reactive signal exposing `Conversation.activities` for whichever
+  /// run-state variant currently carries a [Conversation]. Empty list
+  /// while idle or in a terminal state that didn't capture a
+  /// conversation. Used by `ExecutionTracker` to source decoded
+  /// [SkillToolCallActivity] views without maintaining a parallel
+  /// content cache.
+  late final ReadonlySignal<List<ActivityRecord>> conversationActivities =
+      computed(
+    () => switch (runState.value) {
+      RunningState(:final conversation) ||
+      ToolYieldingState(:final conversation) ||
+      CompletedState(:final conversation) =>
+        conversation.activities,
+      FailedState(:final conversation?) ||
+      CancelledState(:final conversation?) =>
+        conversation.activities,
+      _ => const <ActivityRecord>[],
+    },
+  );
+
   /// Reactive signal tracking the agent's `aguiState` map across the
   /// session lifetime.
   ///
@@ -632,21 +652,15 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
         timestamp: timestamp,
         replace: replace,
       ),
-    ActivityDeltaEvent(
-      :final messageId,
-      :final activityType,
-      :final patch,
-      :final timestamp,
-    ) =>
-      ActivityDelta(
-        messageId: messageId,
-        activityType: activityType,
-        patch: patch,
-        timestamp: timestamp,
-      ),
     StepStartedEvent(:final stepName) => StepProgress(stepName: stepName),
 
     // Events that don't need ExecutionEvent bridging.
+    //
+    // `ActivityDeltaEvent` is intentionally dropped here: the domain
+    // layer (`agui_event_processor._processActivityDelta`) applies the
+    // patch to `Conversation.activities`, and the tracker observes
+    // activities reactively via the resulting signal. Bridging the
+    // delta into an `ExecutionEvent` would duplicate that work.
     RunStartedEvent() ||
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||
@@ -660,6 +674,7 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     TextMessageChunkEvent() ||
     ToolCallChunkEvent() ||
     MessagesSnapshotEvent() ||
+    ActivityDeltaEvent() ||
     RawEvent() ||
     CustomEvent() ||
     ReasoningStartEvent() ||

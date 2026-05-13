@@ -66,8 +66,11 @@ void main() {
         'renders ExecutionTimeline and ThinkingBlock when tracker provided',
         (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker =
-          ExecutionTracker(executionEvents: events, logger: testLogger());
+      final tracker = ExecutionTracker(
+        executionEvents: events,
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'reasoning...');
@@ -132,8 +135,11 @@ void main() {
     testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
         (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker =
-          ExecutionTracker(executionEvents: events, logger: testLogger());
+      final tracker = ExecutionTracker(
+        executionEvents: events,
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'live thinking');
@@ -174,8 +180,11 @@ void main() {
 
     testWidgets('renders execution widgets with tracker', (tester) async {
       final events = Signal<ExecutionEvent?>(null);
-      final tracker =
-          ExecutionTracker(executionEvents: events, logger: testLogger());
+      final tracker = ExecutionTracker(
+        executionEvents: events,
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
 
       events.value = const ThinkingStarted();
       events.value = const ThinkingContent(delta: 'working...');

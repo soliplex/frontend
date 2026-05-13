@@ -21,11 +21,14 @@ class TrackerRegistry {
 
   /// Update tracker state based on the current streaming state.
   ///
-  /// [events] is the execution event signal to subscribe a new tracker to,
-  /// only used when a tracker needs to be created.
+  /// [events] is the execution event signal to subscribe a new tracker
+  /// to, only used when a tracker needs to be created. [activities] is
+  /// the live `Conversation.activities` signal the new tracker derives
+  /// its `skillToolCalls` from.
   void onStreaming(
     StreamingState streaming,
     ReadonlySignal<ExecutionEvent?> events,
+    ReadonlySignal<List<ActivityRecord>> activities,
   ) {
     switch (streaming) {
       case TextStreaming(:final messageId):
@@ -37,8 +40,11 @@ class TrackerRegistry {
           }
         } else {
           _freezeActive();
-          _trackers[messageId] =
-              ExecutionTracker(executionEvents: events, logger: _logger);
+          _trackers[messageId] = ExecutionTracker(
+            executionEvents: events,
+            activities: activities,
+            logger: _logger,
+          );
         }
         _activeId = messageId;
       case AwaitingText():
@@ -46,6 +52,7 @@ class TrackerRegistry {
         _activeId = awaitingTrackerKey;
         _trackers[awaitingTrackerKey] = ExecutionTracker(
           executionEvents: events,
+          activities: activities,
           logger: _logger,
         );
     }

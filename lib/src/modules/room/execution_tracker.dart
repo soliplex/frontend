@@ -6,8 +6,10 @@ import 'ui/execution/timeline_entry.dart';
 class ExecutionTracker {
   ExecutionTracker({
     required ReadonlySignal<ExecutionEvent?> executionEvents,
+    required ReadonlySignal<List<ActivityRecord>> activities,
     required Logger logger,
   })  : _logger = logger,
+        _activities = activities,
         _historical = false {
     _stopwatch.start();
     _unsub = executionEvents.subscribe(_onEvent);
@@ -19,11 +21,15 @@ class ExecutionTracker {
   ///
   /// The tracker opens no subscription; callers should not pass the
   /// returned instance to any signal. It is immutable from construction
-  /// ([isFrozen] returns `true`).
+  /// ([isFrozen] returns `true`). The activities signal is initialised
+  /// from the snapshot events found in [events] applying the AG-UI
+  /// `replace` semantics, so the historical projection matches what
+  /// `Conversation.activities` would hold after live replay.
   ExecutionTracker.historical({
     required List<ExecutionEvent> events,
     required Logger logger,
   })  : _logger = logger,
+        _activities = Signal(_reconstructActivities(events)),
         _historical = true {
     _stopwatch.start();
     for (final event in events) {
@@ -33,6 +39,7 @@ class ExecutionTracker {
   }
 
   final Logger _logger;
+  final ReadonlySignal<List<ActivityRecord>> _activities;
 
   /// True when this tracker is replaying stored events on the reload
   /// path. Live-only side-effects (e.g. warning-level logs that mirror a
@@ -55,28 +62,23 @@ class ExecutionTracker {
   final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
   ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
 
-  /// Decoded `skill_tool_call` activities in arrival order, keyed by
-  /// `messageId`. Records that fail to decode as a skill_tool_call are
-  /// dropped from this signal (but their raw form is still emitted on
-  /// [executionEvents]). Mirrors the upsert semantics of
-  /// `Conversation.activities` in soliplex_client.
-  final Signal<List<SkillToolCallActivity>> _skillToolCalls =
-      Signal<List<SkillToolCallActivity>>(const []);
-  ReadonlySignal<List<SkillToolCallActivity>> get skillToolCalls =>
-      _skillToolCalls;
+  /// Decoded skill_tool activities, derived reactively from the source
+  /// activities signal. Records that fail to decode as a skill_tool_*
+  /// view are filtered out. The list mirrors the source order in
+  /// `Conversation.activities`.
+  late final ReadonlySignal<List<SkillToolCallActivity>> skillToolCalls =
+      computed(() {
+    return [
+      for (final record in _activities.value)
+        if (SkillToolCallActivity.fromRecord(record) case final view?) view,
+    ];
+  });
 
-  /// Last raw [ActivityRecord] seen for each `messageId`. [ActivityDelta]
-  /// applies a jsonpatch to the cached content here, re-decodes, and
-  /// upserts the result back into [_skillToolCalls] and the timeline.
-  /// The decoded `SkillToolCallActivity` can't be patched directly
-  /// because its constructor lossily transforms `args` from JSON string
-  /// to a map.
-  final Map<String, ActivityRecord> _activityRecords = {};
-
-  /// Timeline of steps with their nested activities, in arrival order.
-  /// Activities that arrive while a step is active are nested under that
-  /// step; activities arriving outside any active step are emitted as
-  /// [TimelineStandaloneActivity].
+  /// Timeline of steps with their nested activity ids, in arrival
+  /// order. Activities that arrive while a step is active are nested
+  /// under that step; activities arriving outside any active step are
+  /// emitted as [TimelineStandaloneActivity]. The renderer resolves
+  /// each id against [skillToolCalls] at paint time.
   final Signal<List<TimelineEntry>> _timeline =
       Signal<List<TimelineEntry>>(const []);
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
@@ -169,32 +171,8 @@ class ExecutionTracker {
       case RunCancelled():
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
-      case ActivitySnapshot(
-          :final messageId,
-          :final activityType,
-          :final content,
-          :final timestamp,
-          :final replace,
-        ):
-        _upsertSkillToolCall(
-          messageId: messageId,
-          activityType: activityType,
-          content: content,
-          timestamp: timestamp,
-          replace: replace,
-        );
-      case ActivityDelta(
-          :final messageId,
-          :final activityType,
-          :final patch,
-          :final timestamp,
-        ):
-        _applyActivityDelta(
-          messageId: messageId,
-          activityType: activityType,
-          patch: patch,
-          timestamp: timestamp,
-        );
+      case ActivitySnapshot(:final messageId):
+        _placeActivityInTimeline(messageId);
       case TextDelta() ||
             StateUpdated() ||
             StepProgress() ||
@@ -204,100 +182,34 @@ class ExecutionTracker {
     }
   }
 
-  void _upsertSkillToolCall({
-    required String messageId,
-    required String activityType,
-    required Map<String, dynamic> content,
-    required int? timestamp,
-    required bool replace,
-  }) {
-    final current = _skillToolCalls.value;
-    final existingIndex = current.indexWhere((a) => a.messageId == messageId);
-
-    if (existingIndex >= 0 && !replace) {
-      return;
+  /// Records the structural position of [activityId] in the timeline.
+  /// Content is sourced from [skillToolCalls]; this only decides which
+  /// step the row nests under (or whether it stands alone). An id
+  /// already present in any entry is a no-op — the activity updates in
+  /// place via the computed signal.
+  void _placeActivityInTimeline(String activityId) {
+    final current = _timeline.value;
+    for (final entry in current) {
+      if (entry is TimelineStep && entry.activityIds.contains(activityId)) {
+        return;
+      }
+      if (entry is TimelineStandaloneActivity &&
+          entry.activityId == activityId) {
+        return;
+      }
     }
-
-    final record = ActivityRecord(
-      messageId: messageId,
-      activityType: activityType,
-      content: content,
-      timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
-    );
-    final decoded = SkillToolCallActivity.fromRecord(record);
-    if (decoded == null) {
-      _logger.warning(
-        'SkillToolCallActivity.fromRecord returned null; activity dropped',
-        attributes: {
-          'messageId': messageId,
-          'activityType': activityType,
-          'contentKeys': content.keys.toList().toString(),
-        },
-      );
-      return;
+    if (current.isNotEmpty && current.last is TimelineStep) {
+      final lastStep = current.last as TimelineStep;
+      if (lastStep.step.status == StepStatus.active) {
+        _timeline.value = [...current]..[current.length - 1] =
+            lastStep.withActivities([...lastStep.activityIds, activityId]);
+        return;
+      }
     }
-
-    _activityRecords[messageId] = record;
-    if (existingIndex >= 0) {
-      _skillToolCalls.value = [...current]..[existingIndex] = decoded;
-    } else {
-      _skillToolCalls.value = [...current, decoded];
-    }
-    _upsertActivityInTimeline(decoded);
-  }
-
-  void _applyActivityDelta({
-    required String messageId,
-    required String activityType,
-    required List<dynamic> patch,
-    required int? timestamp,
-  }) {
-    final existing = _activityRecords[messageId];
-    if (existing == null) {
-      // AG-UI spec: ACTIVITY_DELTA must follow a prior ACTIVITY_SNAPSHOT
-      // for the same messageId. An out-of-order delta has nothing to
-      // patch; log and drop so a backend ordering bug is observable
-      // instead of silently losing state.
-      _logger.warning(
-        'ActivityDelta with no prior snapshot; patch dropped',
-        attributes: {
-          'messageId': messageId,
-          'activityType': activityType,
-          'patchOps': patch.length,
-        },
-      );
-      return;
-    }
-
-    final patched = applyJsonPatch(existing.content, patch);
-    final updated = ActivityRecord(
-      messageId: messageId,
-      activityType: activityType,
-      content: patched,
-      timestamp: timestamp ?? existing.timestamp,
-    );
-    final decoded = SkillToolCallActivity.fromRecord(updated);
-    if (decoded == null) {
-      _logger.warning(
-        'ActivityDelta produced an undecodable record; patch dropped',
-        attributes: {
-          'messageId': messageId,
-          'activityType': activityType,
-          'contentKeys': patched.keys.toList().toString(),
-        },
-      );
-      return;
-    }
-
-    _activityRecords[messageId] = updated;
-    final calls = _skillToolCalls.value;
-    final idx = calls.indexWhere((a) => a.messageId == messageId);
-    if (idx >= 0) {
-      _skillToolCalls.value = [...calls]..[idx] = decoded;
-    } else {
-      _skillToolCalls.value = [...calls, decoded];
-    }
-    _upsertActivityInTimeline(decoded);
+    _timeline.value = [
+      ...current,
+      TimelineStandaloneActivity(activityId: activityId),
+    ];
   }
 
   void _addStep(String label, StepType type) {
@@ -354,37 +266,30 @@ class ExecutionTracker {
     }
   }
 
-  void _upsertActivityInTimeline(SkillToolCallActivity decoded) {
-    final current = _timeline.value;
-    for (var i = 0; i < current.length; i++) {
-      final entry = current[i];
-      if (entry is TimelineStep) {
-        final aIdx = entry.activities
-            .indexWhere((a) => a.messageId == decoded.messageId);
-        if (aIdx >= 0) {
-          final updated = [...entry.activities]..[aIdx] = decoded;
-          _timeline.value = [...current]..[i] = entry.withActivities(updated);
-          return;
-        }
-      } else if (entry is TimelineStandaloneActivity &&
-          entry.activity.messageId == decoded.messageId) {
-        _timeline.value = [...current]..[i] =
-            TimelineStandaloneActivity(activity: decoded);
-        return;
+  /// Replays the [ActivitySnapshot] events in [events] using AG-UI
+  /// `replace` semantics so the historical tracker's activities signal
+  /// holds the same list `Conversation.activities` would hold after a
+  /// live run with the same event stream.
+  static List<ActivityRecord> _reconstructActivities(
+    List<ExecutionEvent> events,
+  ) {
+    final list = <ActivityRecord>[];
+    for (final event in events) {
+      if (event is! ActivitySnapshot) continue;
+      final record = ActivityRecord(
+        messageId: event.messageId,
+        activityType: event.activityType,
+        content: event.content,
+        timestamp: event.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+      );
+      final idx = list.indexWhere((a) => a.messageId == event.messageId);
+      if (idx >= 0) {
+        if (event.replace) list[idx] = record;
+      } else {
+        list.add(record);
       }
     }
-    if (current.isNotEmpty && current.last is TimelineStep) {
-      final lastStep = current.last as TimelineStep;
-      if (lastStep.step.status == StepStatus.active) {
-        _timeline.value = [...current]..[current.length - 1] =
-            lastStep.withActivities([...lastStep.activities, decoded]);
-        return;
-      }
-    }
-    _timeline.value = [
-      ...current,
-      TimelineStandaloneActivity(activity: decoded)
-    ];
+    return list;
   }
 
   void dispose() {

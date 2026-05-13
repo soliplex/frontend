@@ -12,12 +12,18 @@ const _runId = 'run-1';
 class _FakeSession implements AgentSession {
   final Signal<RunState> _runState = Signal<RunState>(const IdleState());
   final Signal<ExecutionEvent?> _events = Signal<ExecutionEvent?>(null);
+  final Signal<List<ActivityRecord>> _activities =
+      Signal<List<ActivityRecord>>(const []);
 
   @override
   ReadonlySignal<RunState> get runState => _runState.readonly();
 
   @override
   ReadonlySignal<ExecutionEvent?> get lastExecutionEvent => _events.readonly();
+
+  @override
+  ReadonlySignal<List<ActivityRecord>> get conversationActivities =>
+      _activities.readonly();
 
   void emitRunState(RunState state) => _runState.value = state;
 

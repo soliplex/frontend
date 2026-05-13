@@ -304,54 +304,6 @@ class ActivitySnapshot extends ExecutionEvent {
       );
 }
 
-/// A jsonpatch update for a sub-agent activity record.
-///
-/// Bridged from AG-UI `ACTIVITY_DELTA`. The [patch] is an RFC 6902
-/// operation list (e.g. `[{'op': 'replace', 'path': '/status', 'value':
-/// 'done'}]`). Trackers apply the patch to the [ActivitySnapshot]
-/// previously received under the same [messageId]; without a matching
-/// snapshot the delta is a no-op (a logged drop).
-class ActivityDelta extends ExecutionEvent {
-  const ActivityDelta({
-    required this.messageId,
-    required this.activityType,
-    required this.patch,
-    this.timestamp,
-  });
-
-  /// Identifier for the target `ActivityMessage`. Must match a prior
-  /// [ActivitySnapshot]'s `messageId` for the patch to apply.
-  final String messageId;
-
-  /// The kind of activity (e.g. `'skill_tool_call'`).
-  final String activityType;
-
-  /// RFC 6902 operation list. Stored as `List<dynamic>` to match the
-  /// underlying AG-UI event shape; trackers re-validate per-op.
-  final List<dynamic> patch;
-
-  /// Event timestamp in ms since epoch, or `null` if the backend did
-  /// not supply one.
-  final int? timestamp;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ActivityDelta &&
-          messageId == other.messageId &&
-          activityType == other.activityType &&
-          timestamp == other.timestamp &&
-          _deepEq.equals(patch, other.patch);
-
-  @override
-  int get hashCode => Object.hash(
-        messageId,
-        activityType,
-        timestamp,
-        _deepEq.hash(patch),
-      );
-}
-
 /// Extension point for third-party plugins to emit custom events.
 ///
 /// Use this when a `SessionExtension` needs to communicate

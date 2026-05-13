@@ -134,8 +134,8 @@ void main() {
       expect(entries, hasLength(1));
       final step = entries.single as TimelineStep;
       expect(step.step.label, 'execute_skill');
-      expect(step.activities, hasLength(1));
-      expect(step.activities.single.toolName, 'execute_script');
+      expect(step.activityIds, hasLength(1));
+      expect(tracker.skillToolCalls.value.single.toolName, 'execute_script');
     });
 
     test(

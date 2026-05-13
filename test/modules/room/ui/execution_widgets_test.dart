@@ -65,8 +65,11 @@ void main() {
 
   testWidgets('ExecutionTimeline shows event count', (tester) async {
     final events = Signal<ExecutionEvent?>(null);
-    final tracker =
-        ExecutionTracker(executionEvents: events, logger: testLogger());
+    final tracker = ExecutionTracker(
+      executionEvents: events,
+      activities: Signal<List<ActivityRecord>>(const []),
+      logger: testLogger(),
+    );
 
     events.value = const ThinkingStarted();
     events.value = const ServerToolCallStarted(
@@ -91,8 +94,11 @@ void main() {
 
   testWidgets('ExecutionThinkingBlock shows thinking label', (tester) async {
     final events = Signal<ExecutionEvent?>(null);
-    final tracker =
-        ExecutionTracker(executionEvents: events, logger: testLogger());
+    final tracker = ExecutionTracker(
+      executionEvents: events,
+      activities: Signal<List<ActivityRecord>>(const []),
+      logger: testLogger(),
+    );
 
     events.value = const ThinkingStarted();
     events.value = const ThinkingContent(delta: 'Let me think about this');

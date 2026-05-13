@@ -92,11 +92,12 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final entries = widget.tracker.timeline.watch(context);
+    final calls = widget.tracker.skillToolCalls.watch(context);
     if (entries.isEmpty) return const SizedBox.shrink();
 
     final total = entries.fold<int>(
       0,
-      (sum, e) => sum + (e is TimelineStep ? 1 + e.activities.length : 1),
+      (sum, e) => sum + (e is TimelineStep ? 1 + e.activityIds.length : 1),
     );
 
     return Padding(
@@ -132,7 +133,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             ),
             if (_expanded) ...[
               const SizedBox(height: 4),
-              for (final entry in entries) _buildEntry(entry, theme),
+              for (final entry in entries) _buildEntry(entry, theme, calls),
             ],
           ],
         ),
@@ -140,20 +141,42 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
   }
 
-  Widget _buildEntry(TimelineEntry entry, ThemeData theme) {
+  Widget _buildEntry(
+    TimelineEntry entry,
+    ThemeData theme,
+    List<SkillToolCallActivity> calls,
+  ) {
     switch (entry) {
-      case TimelineStep(:final step, :final activities):
+      case TimelineStep(:final step, :final activityIds):
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _stepRow(step, theme),
-            for (final activity in activities)
-              _activityRow(activity, theme, indent: 20),
+            for (final id in activityIds)
+              if (_resolveActivity(id, calls) case final activity?)
+                _activityRow(activity, theme, indent: 20),
           ],
         );
-      case TimelineStandaloneActivity(:final activity):
+      case TimelineStandaloneActivity(:final activityId):
+        final activity = _resolveActivity(activityId, calls);
+        if (activity == null) return const SizedBox.shrink();
         return _activityRow(activity, theme, indent: 0);
     }
+  }
+
+  /// Looks up the decoded activity for [id] in the tracker's
+  /// `skillToolCalls`. Returns `null` for a dangling id (e.g. after a
+  /// future `MESSAGES_SNAPSHOT` that drops the record while the
+  /// timeline still references it) so the renderer falls through to
+  /// an empty row instead of throwing.
+  SkillToolCallActivity? _resolveActivity(
+    String id,
+    List<SkillToolCallActivity> calls,
+  ) {
+    for (final call in calls) {
+      if (call.messageId == id) return call;
+    }
+    return null;
   }
 
   Widget _stepRow(ExecutionStep step, ThemeData theme) {

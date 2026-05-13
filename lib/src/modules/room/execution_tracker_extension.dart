@@ -79,7 +79,11 @@ class ExecutionTrackerExtension extends SessionExtension
     }
     switch (runState) {
       case RunningState(:final streaming):
-        _registry.onStreaming(streaming, session.lastExecutionEvent);
+        _registry.onStreaming(
+          streaming,
+          session.lastExecutionEvent,
+          session.conversationActivities,
+        );
         _sync();
       // Order is load-bearing across the three terminal arms: rekey must
       // run before `onRunTerminated`, because rekey moves the awaiting

@@ -23,7 +23,11 @@ void main() {
 
     setUp(() {
       events = Signal<ExecutionEvent?>(null);
-      tracker = ExecutionTracker(executionEvents: events, logger: testLogger());
+      tracker = ExecutionTracker(
+        executionEvents: events,
+        activities: Signal<List<ActivityRecord>>(const []),
+        logger: testLogger(),
+      );
       store = MessageExpansions();
     });
 
