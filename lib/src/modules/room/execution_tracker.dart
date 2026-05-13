@@ -65,6 +65,14 @@ class ExecutionTracker {
   ReadonlySignal<List<SkillToolCallActivity>> get skillToolCalls =>
       _skillToolCalls;
 
+  /// Last raw [ActivityRecord] seen for each `messageId`. [ActivityDelta]
+  /// applies a jsonpatch to the cached content here, re-decodes, and
+  /// upserts the result back into [_skillToolCalls] and the timeline.
+  /// The decoded `SkillToolCallActivity` can't be patched directly
+  /// because its constructor lossily transforms `args` from JSON string
+  /// to a map.
+  final Map<String, ActivityRecord> _activityRecords = {};
+
   /// Timeline of steps with their nested activities, in arrival order.
   /// Activities that arrive while a step is active are nested under that
   /// step; activities arriving outside any active step are emitted as
@@ -175,6 +183,18 @@ class ExecutionTracker {
           timestamp: timestamp,
           replace: replace,
         );
+      case ActivityDelta(
+          :final messageId,
+          :final activityType,
+          :final patch,
+          :final timestamp,
+        ):
+        _applyActivityDelta(
+          messageId: messageId,
+          activityType: activityType,
+          patch: patch,
+          timestamp: timestamp,
+        );
       case TextDelta() ||
             StateUpdated() ||
             StepProgress() ||
@@ -217,10 +237,65 @@ class ExecutionTracker {
       return;
     }
 
+    _activityRecords[messageId] = record;
     if (existingIndex >= 0) {
       _skillToolCalls.value = [...current]..[existingIndex] = decoded;
     } else {
       _skillToolCalls.value = [...current, decoded];
+    }
+    _upsertActivityInTimeline(decoded);
+  }
+
+  void _applyActivityDelta({
+    required String messageId,
+    required String activityType,
+    required List<dynamic> patch,
+    required int? timestamp,
+  }) {
+    final existing = _activityRecords[messageId];
+    if (existing == null) {
+      // AG-UI spec: ACTIVITY_DELTA must follow a prior ACTIVITY_SNAPSHOT
+      // for the same messageId. An out-of-order delta has nothing to
+      // patch; log and drop so a backend ordering bug is observable
+      // instead of silently losing state.
+      _logger.warning(
+        'ActivityDelta with no prior snapshot; patch dropped',
+        attributes: {
+          'messageId': messageId,
+          'activityType': activityType,
+          'patchOps': patch.length,
+        },
+      );
+      return;
+    }
+
+    final patched = applyJsonPatch(existing.content, patch);
+    final updated = ActivityRecord(
+      messageId: messageId,
+      activityType: activityType,
+      content: patched,
+      timestamp: timestamp ?? existing.timestamp,
+    );
+    final decoded = SkillToolCallActivity.fromRecord(updated);
+    if (decoded == null) {
+      _logger.warning(
+        'ActivityDelta produced an undecodable record; patch dropped',
+        attributes: {
+          'messageId': messageId,
+          'activityType': activityType,
+          'contentKeys': patched.keys.toList().toString(),
+        },
+      );
+      return;
+    }
+
+    _activityRecords[messageId] = updated;
+    final calls = _skillToolCalls.value;
+    final idx = calls.indexWhere((a) => a.messageId == messageId);
+    if (idx >= 0) {
+      _skillToolCalls.value = [...calls]..[idx] = decoded;
+    } else {
+      _skillToolCalls.value = [...calls, decoded];
     }
     _upsertActivityInTimeline(decoded);
   }

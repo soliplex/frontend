@@ -29,6 +29,12 @@ final Logger _logger =
 ///   [noResponseMessageId] for the run so the synthesized no-response
 ///   tile has a tracker to attach to.
 ///
+/// When the run sequence ends with hoisted `pending` events (the last
+/// bundle was tool-yield with no follow-up), the events bucket under
+/// `noResponseMessageId(lastToolYieldRunId)` so they attach to the
+/// no-response tile the chat-message side synthesizes for the same
+/// run — the live bubble survives a reload.
+///
 /// A throw from [bridge] is logged at error and the offending event
 /// skipped so surrounding events in the same bundle still bucket
 /// correctly. The drop is deliberately UI-silent: chat-message
@@ -41,8 +47,11 @@ Map<String, ExecutionTracker> replayToTrackers(
 }) {
   final buckets = <String, List<ExecutionEvent>>{};
   // Hoisted across bundles: tool-yield events accumulate here until the
-  // next normal bundle's first assistant message absorbs them.
+  // next normal bundle's first assistant message absorbs them. If no
+  // such bundle exists, the trailing handler below routes them under
+  // `noResponseMessageId(lastToolYieldRunId)`.
   final pending = <ExecutionEvent>[];
+  String? lastToolYieldRunId;
 
   ExecutionEvent? bridgeOrLog(BaseEvent raw) {
     try {
@@ -74,6 +83,7 @@ Map<String, ExecutionTracker> replayToTrackers(
           if (pending.isNotEmpty) {
             bucket.addAll(pending);
             pending.clear();
+            lastToolYieldRunId = null;
           }
         }
 
@@ -87,6 +97,7 @@ Map<String, ExecutionTracker> replayToTrackers(
         }
       }
     } else if (hasToolCall) {
+      lastToolYieldRunId = bundle.runId;
       for (final raw in bundle.events) {
         final execEvent = bridgeOrLog(raw);
         if (execEvent == null) continue;
@@ -98,6 +109,7 @@ Map<String, ExecutionTracker> replayToTrackers(
       if (pending.isNotEmpty) {
         bucket.addAll(pending);
         pending.clear();
+        lastToolYieldRunId = null;
       }
       for (final raw in bundle.events) {
         final execEvent = bridgeOrLog(raw);
@@ -107,13 +119,17 @@ Map<String, ExecutionTracker> replayToTrackers(
     }
   }
 
-  // A trailing tool-yield bundle's hoisted events have no follow-up
-  // assistant message to absorb them; the warning makes the drop
-  // observable instead of silent.
-  if (pending.isNotEmpty) {
+  // Trailing tool-yield: the chat-message side synthesizes a no-response
+  // tile under `noResponseMessageId(runId)` for the same run, so route
+  // the hoisted events there. Without this, the bubble disappears on
+  // reload even though it was visible while the run was live.
+  if (pending.isNotEmpty && lastToolYieldRunId != null) {
+    final synthesizedId = noResponseMessageId(lastToolYieldRunId);
+    buckets.putIfAbsent(synthesizedId, () => []).addAll(pending);
+    pending.clear();
+  } else if (pending.isNotEmpty) {
     _logger.warning(
-      'Dropping unattached events from a trailing tool-yield bundle '
-      '(no follow-up bundle).',
+      'Dropping unattached events with no tool-yield runId to anchor to.',
       attributes: {'pendingCount': pending.length},
     );
   }

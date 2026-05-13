@@ -632,6 +632,18 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
         timestamp: timestamp,
         replace: replace,
       ),
+    ActivityDeltaEvent(
+      :final messageId,
+      :final activityType,
+      :final patch,
+      :final timestamp,
+    ) =>
+      ActivityDelta(
+        messageId: messageId,
+        activityType: activityType,
+        patch: patch,
+        timestamp: timestamp,
+      ),
     StepStartedEvent(:final stepName) => StepProgress(stepName: stepName),
 
     // Events that don't need ExecutionEvent bridging.
@@ -652,8 +664,7 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     CustomEvent() ||
     ReasoningStartEvent() ||
     ReasoningMessageChunkEvent() ||
-    ReasoningEncryptedValueEvent() ||
-    ActivityDeltaEvent() =>
+    ReasoningEncryptedValueEvent() =>
       null,
   };
 }
