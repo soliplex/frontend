@@ -141,6 +141,9 @@ class SkillToolCallActivity {
     final toolName = _readToolName(record);
     if (toolName == null) return null;
 
+    final args = _decodeArgs(record);
+    if (args == null) return null;
+
     final rawResult = record.content['result'];
     final String? result;
     if (rawResult == null || rawResult is String) {
@@ -160,7 +163,7 @@ class SkillToolCallActivity {
     return SkillToolCallActivity(
       messageId: record.messageId,
       toolName: toolName,
-      args: const {},
+      args: args,
       result: result,
       status: _decodeStatus(record, fallback: SkillToolCallStatus.done),
       timestamp: record.timestamp,
@@ -221,9 +224,10 @@ class SkillToolCallActivity {
   /// Tool being invoked (e.g. `"ask"`).
   final String toolName;
 
-  /// Decoded arguments for the tool call. Empty when the record is a
-  /// `skill_tool_result` (the result snapshot does not carry args per
-  /// the AG-UI replace-in-place contract) or when args are absent.
+  /// Decoded arguments for the tool call. The result-phase record
+  /// carries args forward from the call phase so the unified row keeps
+  /// rendering the inputs across AG-UI's replace boundary; empty when
+  /// args were absent on both phases.
   final Map<String, dynamic> args;
 
   /// Decoded result from a `skill_tool_result` record. `null` while the

@@ -42,17 +42,42 @@ List<ActivityRecord> _applySnapshot(
   final resolvedTimestamp =
       event.timestamp ?? DateTime.now().millisecondsSinceEpoch;
   final idx = current.indexWhere((a) => a.messageId == event.messageId);
-  final record = ActivityRecord(
-    messageId: event.messageId,
-    activityType: event.activityType,
-    content: event.content,
-    timestamp: resolvedTimestamp,
-  );
   if (idx >= 0) {
     if (!event.replace) return current;
-    return [...current]..[idx] = record;
+    final content = _mergeContentAcrossReplace(current[idx], event);
+    return [...current]..[idx] = ActivityRecord(
+        messageId: event.messageId,
+        activityType: event.activityType,
+        content: content,
+        timestamp: resolvedTimestamp,
+      );
   }
-  return [...current, record];
+  return [
+    ...current,
+    ActivityRecord(
+      messageId: event.messageId,
+      activityType: event.activityType,
+      content: event.content,
+      timestamp: resolvedTimestamp,
+    ),
+  ];
+}
+
+/// Carries the call phase's `args` onto a `skill_tool_result` snapshot
+/// that replaces it in place. Preserves the unified-row UI contract
+/// across AG-UI's call→result replace boundary: the result phase does
+/// not transmit `args`, but the same logical row continues to display
+/// the inputs that produced the result.
+Map<String, dynamic> _mergeContentAcrossReplace(
+  ActivityRecord prior,
+  ActivitySnapshotEvent event,
+) {
+  if (event.activityType != 'skill_tool_result') return event.content;
+  if (prior.activityType != 'skill_tool_call') return event.content;
+  if (event.content.containsKey('args')) return event.content;
+  final priorArgs = prior.content['args'];
+  if (priorArgs == null) return event.content;
+  return {...event.content, 'args': priorArgs};
 }
 
 List<ActivityRecord> _applyDelta(

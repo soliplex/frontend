@@ -205,6 +205,28 @@ void main() {
       expect(call.timestamp, 1500);
     });
 
+    test('skill_tool_result with args in content decodes them', () {
+      // Counterpart to the merge done in _applySnapshot: once args are
+      // carried onto the result-phase record, the typed view must
+      // surface them so the unified row keeps showing the inputs.
+      const record = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {
+          'tool_name': 'ask',
+          'args': '{"q":"hi","top_k":3}',
+          'result': 'answer',
+        },
+        timestamp: 1500,
+      );
+
+      final call = SkillToolCallActivity.fromRecord(record);
+
+      expect(call, isNotNull);
+      expect(call!.args, {'q': 'hi', 'top_k': 3});
+      expect(call.result, 'answer');
+    });
+
     test('skill_tool_result with unrecognised status decodes as unknown', () {
       const record = ActivityRecord(
         messageId: 'rag:explicit_done',

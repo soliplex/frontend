@@ -99,10 +99,10 @@ void main() {
         expect(activity.result, 'answer text');
         expect(
           activity.args,
-          isEmpty,
-          reason: 'replace=true means the result snapshot overwrites the '
-              "call record; args are not present in the result phase's "
-              'content per AG-UI spec.',
+          {'q': 'hi'},
+          reason: 'The application layer carries args from the call phase '
+              'onto the result-phase record so the unified row keeps '
+              'rendering the inputs across AG-UI replace-in-place.',
         );
       },
     );

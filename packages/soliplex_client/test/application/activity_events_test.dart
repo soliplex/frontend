@@ -43,6 +43,68 @@ void main() {
       expect(result.single.timestamp, 200);
     });
 
+    test('skill_tool_result snapshot merges args from prior call record', () {
+      // Unified-row UI contract: AG-UI replaces the call snapshot with a
+      // result snapshot at the same messageId. The result phase does not
+      // carry args, so storage drops them unless the application layer
+      // bridges across the replace boundary.
+      const call = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {
+          'tool_name': 'ask',
+          'args': '{"q":"hi"}',
+        },
+        timestamp: 100,
+      );
+      const result = ActivitySnapshotEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {
+          'tool_name': 'ask',
+          'result': 'answer',
+        },
+        timestamp: 200,
+      );
+
+      final after = applyActivityEvent([call], result, logger: logger);
+
+      expect(after, hasLength(1));
+      expect(after.single.activityType, 'skill_tool_result');
+      expect(after.single.content['result'], 'answer');
+      expect(after.single.content['args'], '{"q":"hi"}');
+    });
+
+    test(
+        'skill_tool_result snapshot does not overwrite args carried by '
+        'the event', () {
+      // Defensive: if a future backend ships args on the result phase,
+      // its value wins over the call-phase carry-over.
+      const call = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {
+          'tool_name': 'ask',
+          'args': '{"q":"old"}',
+        },
+        timestamp: 100,
+      );
+      const result = ActivitySnapshotEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {
+          'tool_name': 'ask',
+          'args': '{"q":"new"}',
+          'result': 'answer',
+        },
+        timestamp: 200,
+      );
+
+      final after = applyActivityEvent([call], result, logger: logger);
+
+      expect(after.single.content['args'], '{"q":"new"}');
+    });
+
     test('preserves prior record when replace=false and id collides', () {
       // Live and historical paths must agree on AG-UI's replace=false
       // semantic: a duplicate-id snapshot without replace is ignored.
