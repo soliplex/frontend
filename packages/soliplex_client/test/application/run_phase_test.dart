@@ -6,47 +6,47 @@ void main() {
     test(
       'withToolName accumulates tool names from single-tool constructor',
       () {
-        const phase = ToolCallPhase(toolName: 'search');
+        final phase = ToolCallPhase.single(toolName: 'search');
 
         final updated = phase.withToolName('summarize');
 
-        expect(updated.allToolNames, equals({'search', 'summarize'}));
+        expect(updated.toolNames, equals({'search', 'summarize'}));
       },
     );
 
     test(
       'withToolName accumulates tool names from multiple-tool constructor',
       () {
-        const phase = ToolCallPhase.multiple(toolNames: {'a', 'b'});
+        const phase = ToolCallPhase(toolNames: {'a', 'b'});
 
         final updated = phase.withToolName('c');
 
-        expect(updated.allToolNames, equals({'a', 'b', 'c'}));
+        expect(updated.toolNames, equals({'a', 'b', 'c'}));
       },
     );
 
     test('withToolName is idempotent for duplicate names', () {
-      const phase = ToolCallPhase(toolName: 'search');
+      final phase = ToolCallPhase.single(toolName: 'search');
 
       final updated = phase.withToolName('search');
 
-      expect(updated.allToolNames, equals({'search'}));
+      expect(updated.toolNames, equals({'search'}));
     });
 
     test('equality works across constructor variants', () {
-      const single = ToolCallPhase(toolName: 'search');
-      const multiple = ToolCallPhase.multiple(toolNames: {'search'});
+      final single = ToolCallPhase.single(toolName: 'search');
+      const multiple = ToolCallPhase(toolNames: {'search'});
 
       expect(single, equals(multiple));
     });
 
     test('equality works across constructors with all fields populated', () {
-      const single = ToolCallPhase(
+      final single = ToolCallPhase.single(
         toolName: 'search',
         latestToolCallId: 'tc-1',
         timestamp: 100,
       );
-      const multiple = ToolCallPhase.multiple(
+      const multiple = ToolCallPhase(
         toolNames: {'search'},
         latestToolCallId: 'tc-1',
         timestamp: 100,
@@ -57,8 +57,8 @@ void main() {
     });
 
     test('hashCode is order-independent for tool names', () {
-      const ab = ToolCallPhase.multiple(toolNames: {'a', 'b'});
-      const ba = ToolCallPhase.multiple(toolNames: {'b', 'a'});
+      const ab = ToolCallPhase(toolNames: {'a', 'b'});
+      const ba = ToolCallPhase(toolNames: {'b', 'a'});
 
       expect(ab, equals(ba));
       expect(ab.hashCode, equals(ba.hashCode));

@@ -45,7 +45,7 @@ void main() {
         expect(calls.single.messageId, 'rag:call_1');
         expect(calls.single.toolName, 'ask');
         expect(calls.single.args, {'q': 'what is AG-UI?', 'top_k': 3});
-        expect(calls.single.status, 'in_progress');
+        expect(calls.single.status, SkillToolCallStatus.inProgress);
         expect(calls.single.timestamp, 100);
       },
     );
@@ -85,7 +85,7 @@ void main() {
         final calls = afterFinish.conversation.skillToolCalls;
         expect(calls, hasLength(1));
         expect(calls.single.messageId, 'rag:call_1');
-        expect(calls.single.status, 'done');
+        expect(calls.single.status, SkillToolCallStatus.done);
         expect(calls.single.timestamp, 2);
       },
     );
@@ -201,7 +201,7 @@ void main() {
         final calls = afterShadow.conversation.skillToolCalls;
         expect(calls, hasLength(1));
         expect(calls.single.toolName, 'ask');
-        expect(calls.single.status, 'in_progress');
+        expect(calls.single.status, SkillToolCallStatus.inProgress);
         expect(calls.single.args, {'q': 'first'});
       },
     );

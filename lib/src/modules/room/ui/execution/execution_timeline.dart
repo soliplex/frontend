@@ -271,7 +271,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                   ),
                 ),
                 Text(
-                  activity.status,
+                  activity.status.label,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.outline,
                     fontSize: 11,
@@ -340,10 +340,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     }
   }
 
-  Widget _activityStatusIcon(String status, ThemeData theme) {
+  Widget _activityStatusIcon(SkillToolCallStatus status, ThemeData theme) {
     switch (status) {
-      case 'in_progress':
-      case 'running':
+      case SkillToolCallStatus.inProgress:
         return SizedBox(
           width: 12,
           height: 12,
@@ -352,18 +351,15 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             color: theme.colorScheme.primary,
           ),
         );
-      case 'failed':
-      case 'error':
+      case SkillToolCallStatus.error:
         return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
-      case 'done':
-      case 'completed':
-      case 'success':
+      case SkillToolCallStatus.done:
         return Icon(
           Icons.check_circle,
           size: 12,
           color: theme.colorScheme.primary,
         );
-      default:
+      case SkillToolCallStatus.unknown:
         return Icon(
           Icons.circle_outlined,
           size: 12,

@@ -32,10 +32,10 @@ void main() {
   });
 
   testWidgets('PhaseIndicator shows tool call label', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: PhaseIndicator(
-          phase: ToolCallPhase(toolName: 'search_docs'),
+          phase: ToolCallPhase.single(toolName: 'search_docs'),
         ),
       ),
     ));

@@ -246,7 +246,6 @@ class ExecutionTracker {
   }
 
   void _completeAllSteps(StepStatus status) {
-    assert(!_isFrozen, 'Cannot complete steps on a frozen ExecutionTracker');
     final now = _stopwatch.elapsed;
     _steps.value = [
       for (final step in _steps.value)

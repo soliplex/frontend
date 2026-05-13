@@ -47,28 +47,27 @@ class ThinkingPhase extends RunPhase {
 /// One or more tools are being called.
 @immutable
 class ToolCallPhase extends RunPhase {
-  /// Creates a tool call phase with a single tool name.
+  /// Creates a tool call phase covering [toolNames].
   const ToolCallPhase({
-    required String toolName,
-    this.latestToolCallId,
-    this.timestamp,
-  })  : toolNames = const {},
-        _singleToolName = toolName;
-
-  /// Creates a tool call phase with multiple tool names.
-  const ToolCallPhase.multiple({
     required this.toolNames,
     this.latestToolCallId,
     this.timestamp,
-  }) : _singleToolName = null;
+  });
+
+  /// Convenience constructor for a single tool name.
+  factory ToolCallPhase.single({
+    required String toolName,
+    String? latestToolCallId,
+    int? timestamp,
+  }) =>
+      ToolCallPhase(
+        toolNames: {toolName},
+        latestToolCallId: latestToolCallId,
+        timestamp: timestamp,
+      );
 
   /// Names of tools being/have been called in this phase.
   final Set<String> toolNames;
-
-  /// Storage for the single-tool constructor; `null` when constructed
-  /// via [ToolCallPhase.multiple]. Reading the canonical tool-name set
-  /// must go through [allToolNames] to handle both representations.
-  final String? _singleToolName;
 
   /// ID of the most recent tool call that updated this phase.
   final String? latestToolCallId;
@@ -76,18 +75,14 @@ class ToolCallPhase extends RunPhase {
   /// Timestamp of the most recent event that updated this phase.
   final int? timestamp;
 
-  /// All tool names (handles both constructors).
-  Set<String> get allToolNames =>
-      _singleToolName != null ? {_singleToolName} : toolNames;
-
   /// Creates a new phase with an additional tool name.
   ToolCallPhase withToolName(
     String name, {
     String? latestToolCallId,
     int? timestamp,
   }) {
-    return ToolCallPhase.multiple(
-      toolNames: {...allToolNames, name},
+    return ToolCallPhase(
+      toolNames: {...toolNames, name},
       latestToolCallId: latestToolCallId ?? this.latestToolCallId,
       timestamp: timestamp ?? this.timestamp,
     );
@@ -97,20 +92,20 @@ class ToolCallPhase extends RunPhase {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ToolCallPhase &&
-          _setEquals(allToolNames, other.allToolNames) &&
+          _setEquals(toolNames, other.toolNames) &&
           latestToolCallId == other.latestToolCallId &&
           timestamp == other.timestamp;
 
   @override
   int get hashCode => Object.hash(
         runtimeType,
-        Object.hashAll(allToolNames.toList()..sort()),
+        Object.hashAll(toolNames.toList()..sort()),
         latestToolCallId,
         timestamp,
       );
 
   @override
-  String toString() => 'ToolCallPhase(toolNames: $allToolNames, '
+  String toString() => 'ToolCallPhase(toolNames: $toolNames, '
       'latestToolCallId: $latestToolCallId, timestamp: $timestamp)';
 
   static bool _setEquals(Set<String> a, Set<String> b) {

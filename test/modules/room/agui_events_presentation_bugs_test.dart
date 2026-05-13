@@ -92,7 +92,7 @@ void main() {
         final activity = tracker.skillToolCalls.value.single;
         expect(
           activity.status,
-          'done',
+          SkillToolCallStatus.done,
           reason: 'Result snapshot must flip the row to done; otherwise '
               'the nested icon stays at the in-progress spinner.',
         );
@@ -153,9 +153,9 @@ void main() {
         expect(calls, hasLength(1));
         expect(
           calls.single.status,
-          'in_progress',
+          SkillToolCallStatus.inProgress,
           reason: 'The call phase carries no explicit status; the decoder '
-              'must synthesize in_progress so the spinner renders.',
+              'must synthesize inProgress so the spinner renders.',
         );
 
         const resultContent = {
@@ -185,7 +185,7 @@ void main() {
         expect(updated, hasLength(1));
         expect(
           updated.single.status,
-          'done',
+          SkillToolCallStatus.done,
           reason: 'The result snapshot must replace the call record so '
               'the trailing icon flips to the checkmark.',
         );

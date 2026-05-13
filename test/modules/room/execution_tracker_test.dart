@@ -161,9 +161,6 @@ void main() {
   });
 
   test('freeze called twice is a no-op (idempotent)', () {
-    // freeze() mutates state (clears spinner, completes steps) before
-    // flipping _isFrozen = true. _completeAllSteps asserts non-frozen, so
-    // a second call must short-circuit before re-running it.
     events.value = const ThinkingStarted();
     tracker.freeze();
     expect(tracker.isFrozen, isTrue);
@@ -423,7 +420,8 @@ void main() {
 
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.activityIds, ['bwrap:call_1']);
-      expect(tracker.skillToolCalls.value.single.status, 'done');
+      expect(
+          tracker.skillToolCalls.value.single.status, SkillToolCallStatus.done);
     });
 
     test('step completion updates status in timeline entry', () {

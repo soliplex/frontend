@@ -563,7 +563,7 @@ StreamingState _withToolCallPhase(
         latestToolCallId: latestToolCallId,
         timestamp: timestamp,
       ),
-    _ => ToolCallPhase(
+    _ => ToolCallPhase.single(
         toolName: toolName,
         latestToolCallId: latestToolCallId,
         timestamp: timestamp,

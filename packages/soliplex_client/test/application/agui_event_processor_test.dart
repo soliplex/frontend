@@ -570,7 +570,7 @@ void main() {
           final awaitingText = result2.streaming as app_streaming.AwaitingText;
           final phase =
               awaitingText.currentPhase as app_streaming.ToolCallPhase;
-          expect(phase.allToolNames, equals({'search', 'summarize'}));
+          expect(phase.toolNames, equals({'search', 'summarize'}));
         });
       });
 
@@ -762,8 +762,9 @@ void main() {
         });
 
         test('does not change phase', () {
-          const awaitingWithTool = app_streaming.AwaitingText(
-            currentPhase: app_streaming.ToolCallPhase(toolName: 'search'),
+          final awaitingWithTool = app_streaming.AwaitingText(
+            currentPhase:
+                app_streaming.ToolCallPhase.single(toolName: 'search'),
           );
           final conversationWithTool = conversation.withToolCall(
             const ToolCallInfo(
@@ -1053,7 +1054,7 @@ void main() {
           final awaitingText = result.streaming as app_streaming.AwaitingText;
           final phase =
               awaitingText.currentPhase as app_streaming.ToolCallPhase;
-          expect(phase.allToolNames, contains('search'));
+          expect(phase.toolNames, contains('search'));
         });
 
         test('ToolCallStartEvent during TextStreaming sets phase', () {
@@ -1076,7 +1077,7 @@ void main() {
           final textStreaming = result.streaming as app_streaming.TextStreaming;
           final phase =
               textStreaming.currentPhase as app_streaming.ToolCallPhase;
-          expect(phase.allToolNames, contains('search'));
+          expect(phase.toolNames, contains('search'));
           expect(phase.latestToolCallId, equals('tc-1'));
         });
 
@@ -1147,12 +1148,12 @@ void main() {
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         final phase = awaitingText.currentPhase as app_streaming.ToolCallPhase;
-        expect(phase.allToolNames, contains('search'));
+        expect(phase.toolNames, contains('search'));
       });
 
       test('skill_tool_call accumulates on existing ToolCallPhase', () {
-        const firstTool = app_streaming.AwaitingText(
-          currentPhase: app_streaming.ToolCallPhase(toolName: 'ask'),
+        final firstTool = app_streaming.AwaitingText(
+          currentPhase: app_streaming.ToolCallPhase.single(toolName: 'ask'),
         );
         const event = ActivitySnapshotEvent(
           messageId: 'msg-1',
@@ -1164,7 +1165,7 @@ void main() {
 
         final awaitingText = result.streaming as app_streaming.AwaitingText;
         final phase = awaitingText.currentPhase as app_streaming.ToolCallPhase;
-        expect(phase.allToolNames, equals({'ask', 'search'}));
+        expect(phase.toolNames, equals({'ask', 'search'}));
       });
 
       test('skill_tool_call with missing tool_name passes through', () {

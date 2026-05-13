@@ -20,7 +20,7 @@ void main() {
       expect(call, isNotNull);
       expect(call!.messageId, 'rag:call_1');
       expect(call.toolName, 'ask');
-      expect(call.status, 'in_progress');
+      expect(call.status, SkillToolCallStatus.inProgress);
       expect(call.timestamp, 1234);
       expect(call.args, {'q': 'hello', 'top_k': 3});
     });
@@ -37,7 +37,7 @@ void main() {
 
       expect(call, isNotNull);
       expect(call!.args, isEmpty);
-      expect(call.status, 'in_progress');
+      expect(call.status, SkillToolCallStatus.inProgress);
     });
 
     test('empty args string decodes to an empty map', () {
@@ -137,7 +137,7 @@ void main() {
       expect(SkillToolCallActivity.fromRecord(record), isNull);
     });
 
-    test('non-string status falls back to synthesized in_progress', () {
+    test('non-string status falls back to synthesized inProgress', () {
       const record = ActivityRecord(
         messageId: 'rag:call_5',
         activityType: 'skill_tool_call',
@@ -148,10 +148,10 @@ void main() {
       final call = SkillToolCallActivity.fromRecord(record);
 
       expect(call, isNotNull);
-      expect(call!.status, 'in_progress');
+      expect(call!.status, SkillToolCallStatus.inProgress);
     });
 
-    test('skill_tool_call without status synthesizes in_progress', () {
+    test('skill_tool_call without status synthesizes inProgress', () {
       const record = ActivityRecord(
         messageId: 'rag:call_no_status',
         activityType: 'skill_tool_call',
@@ -162,10 +162,10 @@ void main() {
       final call = SkillToolCallActivity.fromRecord(record);
 
       expect(call, isNotNull);
-      expect(call!.status, 'in_progress');
+      expect(call!.status, SkillToolCallStatus.inProgress);
     });
 
-    test('skill_tool_call with explicit status preserves it', () {
+    test('skill_tool_call with explicit status maps to enum', () {
       const record = ActivityRecord(
         messageId: 'rag:custom_status',
         activityType: 'skill_tool_call',
@@ -180,7 +180,7 @@ void main() {
       final call = SkillToolCallActivity.fromRecord(record);
 
       expect(call, isNotNull);
-      expect(call!.status, 'failed');
+      expect(call!.status, SkillToolCallStatus.error);
     });
 
     test('decodes a well-formed skill_tool_result', () {
@@ -199,13 +199,13 @@ void main() {
       expect(call, isNotNull);
       expect(call!.messageId, 'rag:call_1');
       expect(call.toolName, 'ask');
-      expect(call.status, 'done');
+      expect(call.status, SkillToolCallStatus.done);
       expect(call.result, 'answer text');
       expect(call.args, isEmpty);
       expect(call.timestamp, 1500);
     });
 
-    test('skill_tool_result with explicit status preserves it', () {
+    test('skill_tool_result with unrecognised status decodes as unknown', () {
       const record = ActivityRecord(
         messageId: 'rag:explicit_done',
         activityType: 'skill_tool_result',
@@ -220,7 +220,7 @@ void main() {
       final call = SkillToolCallActivity.fromRecord(record);
 
       expect(call, isNotNull);
-      expect(call!.status, 'partial');
+      expect(call!.status, SkillToolCallStatus.unknown);
       expect(call.result, 'answer');
     });
 
@@ -235,7 +235,7 @@ void main() {
       final call = SkillToolCallActivity.fromRecord(record);
 
       expect(call, isNotNull);
-      expect(call!.status, 'done');
+      expect(call!.status, SkillToolCallStatus.done);
       expect(call.result, isNull);
     });
 
@@ -279,7 +279,7 @@ void main() {
           'top_k': 3,
         },
         result: null,
-        status: 'done',
+        status: SkillToolCallStatus.done,
         timestamp: 1,
       );
       const b = SkillToolCallActivity(
@@ -290,7 +290,7 @@ void main() {
           'top_k': 3,
         },
         result: null,
-        status: 'done',
+        status: SkillToolCallStatus.done,
         timestamp: 1,
       );
 
@@ -304,7 +304,7 @@ void main() {
         toolName: 'ask',
         args: {'q': 'hi'},
         result: null,
-        status: 'in_progress',
+        status: SkillToolCallStatus.inProgress,
         timestamp: 1,
       );
       const b = SkillToolCallActivity(
@@ -312,7 +312,7 @@ void main() {
         toolName: 'ask',
         args: {'q': 'bye'},
         result: null,
-        status: 'in_progress',
+        status: SkillToolCallStatus.inProgress,
         timestamp: 1,
       );
 
@@ -325,7 +325,7 @@ void main() {
         toolName: 'ask',
         args: {},
         result: 'first answer',
-        status: 'done',
+        status: SkillToolCallStatus.done,
         timestamp: 1,
       );
       const b = SkillToolCallActivity(
@@ -333,7 +333,7 @@ void main() {
         toolName: 'ask',
         args: {},
         result: 'second answer',
-        status: 'done',
+        status: SkillToolCallStatus.done,
         timestamp: 1,
       );
 
@@ -346,7 +346,7 @@ void main() {
         toolName: 'ask',
         args: {},
         result: null,
-        status: 'done',
+        status: SkillToolCallStatus.done,
         timestamp: 7,
       );
       final s = a.toString();

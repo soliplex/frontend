@@ -10,6 +10,52 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_client.skill_tool_call_activity');
 
+/// Lifecycle status of a [SkillToolCallActivity].
+///
+/// Decoded from `content['status']` when the backend supplies a value;
+/// otherwise synthesized from the activityType
+/// (`skill_tool_call → inProgress`, `skill_tool_result → done`).
+/// [parse] coalesces alternate string spellings the backend may emit.
+enum SkillToolCallStatus {
+  /// Tool invocation in flight; result not yet available.
+  inProgress('in_progress'),
+
+  /// Tool invocation completed successfully.
+  done('done'),
+
+  /// Tool invocation failed.
+  error('error'),
+
+  /// Status was unrecognised — preserved so the renderer can fall back.
+  unknown('unknown');
+
+  const SkillToolCallStatus(this.label);
+
+  /// Canonical lowercase label for telemetry and UI display.
+  final String label;
+
+  /// Coalesces a backend status token onto the canonical set. Returns
+  /// [unknown] when [raw] is `null` or not one of the recognised
+  /// spellings.
+  static SkillToolCallStatus parse(String? raw) {
+    switch (raw) {
+      case 'in_progress':
+      case 'running':
+        return SkillToolCallStatus.inProgress;
+      case 'done':
+      case 'completed':
+      case 'success':
+        return SkillToolCallStatus.done;
+      case 'failed':
+      case 'error':
+        return SkillToolCallStatus.error;
+      case null:
+      default:
+        return SkillToolCallStatus.unknown;
+    }
+  }
+}
+
 /// Typed view of a `skill_tool_call` or `skill_tool_result` activity
 /// record.
 ///
@@ -20,11 +66,10 @@ final Logger _logger =
 /// view decodes either phase so the timeline row can render
 /// continuously across the transition.
 ///
-/// `status` is sourced from `content['status']` when explicitly
+/// [status] is sourced from `content['status']` when explicitly
 /// provided as a `String`; otherwise it is synthesized from the
-/// activityType (`skill_tool_call → 'in_progress'`, `skill_tool_result
-/// → 'done'`) so the renderer's icon table picks the right glyph
-/// without a backend-side status field.
+/// activityType (`skill_tool_call → inProgress`, `skill_tool_result
+/// → done`) so the renderer can switch exhaustively on the enum.
 ///
 /// Construct via [SkillToolCallActivity.fromRecord], which returns
 /// `null` when the record is not a well-formed skill tool activity.
@@ -78,7 +123,7 @@ class SkillToolCallActivity {
       toolName: toolName,
       args: args,
       result: null,
-      status: _readStatus(record) ?? 'in_progress',
+      status: _decodeStatus(record, fallback: SkillToolCallStatus.inProgress),
       timestamp: record.timestamp,
     );
   }
@@ -108,7 +153,7 @@ class SkillToolCallActivity {
       toolName: toolName,
       args: const {},
       result: result,
-      status: _readStatus(record) ?? 'done',
+      status: _decodeStatus(record, fallback: SkillToolCallStatus.done),
       timestamp: record.timestamp,
     );
   }
@@ -152,9 +197,13 @@ class SkillToolCallActivity {
     }
   }
 
-  static String? _readStatus(ActivityRecord record) {
+  static SkillToolCallStatus _decodeStatus(
+    ActivityRecord record, {
+    required SkillToolCallStatus fallback,
+  }) {
     final raw = record.content['status'];
-    return raw is String ? raw : null;
+    if (raw is! String) return fallback;
+    return SkillToolCallStatus.parse(raw);
   }
 
   /// Identifier for the target `ActivityMessage`.
@@ -173,11 +222,10 @@ class SkillToolCallActivity {
   /// did not include a `result` field.
   final String? result;
 
-  /// Status token. Always `'in_progress'` for a `skill_tool_call`
-  /// record and `'done'` for a `skill_tool_result` record unless the
-  /// backend supplies an explicit `content['status']` String, in
-  /// which case that value passes through.
-  final String status;
+  /// Lifecycle status. Synthesized from the activityType when
+  /// `content['status']` is absent or unparseable; otherwise reflects
+  /// the backend's value parsed through [SkillToolCallStatus.parse].
+  final SkillToolCallStatus status;
 
   /// Event timestamp for the underlying snapshot.
   final int timestamp;

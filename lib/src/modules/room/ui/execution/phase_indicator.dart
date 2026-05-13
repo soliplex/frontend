@@ -31,10 +31,9 @@ class PhaseIndicator extends StatelessWidget {
 
   String get _label => switch (phase) {
         ThinkingPhase() => 'Thinking...',
-        ToolCallPhase(:final allToolNames) when allToolNames.length > 1 =>
-          'Calling ${allToolNames.length} tools...',
-        ToolCallPhase(:final allToolNames) =>
-          'Calling ${allToolNames.first}...',
+        ToolCallPhase(:final toolNames) when toolNames.length > 1 =>
+          'Calling ${toolNames.length} tools...',
+        ToolCallPhase(:final toolNames) => 'Calling ${toolNames.first}...',
         RespondingPhase() => 'Responding...',
         ProcessingPhase() => 'Processing...',
       };
