@@ -82,6 +82,15 @@ Map<String, dynamic> _mergeContentAcrossReplace(
   return {...event.content, 'args': priorArgs};
 }
 
+// AG-UI protocol violations on the delta path (missing prior snapshot,
+// activityType mismatch) are dropped silently from the UI's perspective:
+// the existing record stays at its prior state, no drop tile is minted.
+// This is intentionally asymmetric with `_processStateSnapshot`, which
+// throws on bad input and lets the orchestrator append a visible
+// `DroppedEventMessage`. The unified activity row remains usable across
+// a dropped delta (the row simply doesn't advance), so a drop tile
+// would be visual noise. The error-level log is the backend-escalation
+// channel; UI consumers see no change.
 List<ActivityRecord> _applyDelta(
   List<ActivityRecord> current,
   ActivityDeltaEvent event,

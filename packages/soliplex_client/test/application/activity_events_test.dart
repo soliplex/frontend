@@ -2,6 +2,19 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
+class _RecordingSink implements LogSink {
+  final List<LogRecord> records = [];
+
+  @override
+  void write(LogRecord record) => records.add(record);
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
+}
+
 void main() {
   final logger = LogManager.instance.getLogger('test.activity_events');
 
@@ -189,6 +202,60 @@ void main() {
       expect(result.single.activityType, 'skill_tool_call');
       expect(result.single.content['status'], 'in_progress');
       expect(result.single.timestamp, 100);
+    });
+
+    test('logs error with structured attrs when no prior snapshot exists', () {
+      // Backend escalation contract: every delta-drop branch must log at
+      // error level with messageId / activityType / patchOps attributes
+      // so backend triage can reconstruct the dropped patch.
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const event = ActivityDeltaEvent(
+        messageId: 'rag:orphan',
+        activityType: 'skill_tool_call',
+        patch: [
+          {'op': 'replace', 'path': '/status', 'value': 'done'},
+          {'op': 'add', 'path': '/progress', 'value': 0.5},
+        ],
+      );
+
+      applyActivityEvent(const [], event, logger: logger);
+
+      final error = sink.records.singleWhere((r) => r.level == LogLevel.error);
+      expect(error.attributes['messageId'], 'rag:orphan');
+      expect(error.attributes['activityType'], 'skill_tool_call');
+      expect(error.attributes['patchOps'], 2);
+    });
+
+    test('logs error with structured attrs when activityType disagrees', () {
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const initial = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'tool_name': 'ask', 'status': 'in_progress'},
+        timestamp: 100,
+      );
+      const event = ActivityDeltaEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        patch: [
+          {'op': 'replace', 'path': '/status', 'value': 'done'},
+        ],
+        timestamp: 200,
+      );
+
+      applyActivityEvent([initial], event, logger: logger);
+
+      final error = sink.records.singleWhere((r) => r.level == LogLevel.error);
+      expect(error.attributes['messageId'], 'rag:call_1');
+      expect(error.attributes['expected'], 'skill_tool_call');
+      expect(error.attributes['received'], 'skill_tool_result');
+      expect(error.attributes['patchOps'], 1);
     });
 
     test('inherits prior timestamp when event omits one', () {

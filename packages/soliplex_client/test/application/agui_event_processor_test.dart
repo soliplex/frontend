@@ -1040,6 +1040,26 @@ void main() {
               .currentPhase as app_streaming.ToolCallPhase;
           expect(phase.timestamp, equals(1000));
         });
+
+        test('ToolCallStartEvent without timestamp synthesizes wall-clock', () {
+          // Sibling to the skill_tool_call synthesis test: both code paths
+          // construct a fresh ToolCallPhase via `_withToolCallPhase`; both
+          // must guarantee a non-null timestamp so equality and any future
+          // UI consumer can rely on the field.
+          final before = DateTime.now().millisecondsSinceEpoch;
+          const event = ToolCallStartEvent(
+            toolCallId: 'tc-1',
+            toolCallName: 'search',
+          );
+
+          final result = processEvent(conversation, streaming, event);
+          final after = DateTime.now().millisecondsSinceEpoch;
+
+          final phase = (result.streaming as app_streaming.AwaitingText)
+              .currentPhase as app_streaming.ToolCallPhase;
+          expect(phase.timestamp, greaterThanOrEqualTo(before));
+          expect(phase.timestamp, lessThanOrEqualTo(after));
+        });
       });
 
       group('regression — existing behavior preserved', () {

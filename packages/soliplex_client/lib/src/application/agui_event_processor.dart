@@ -510,10 +510,13 @@ StreamingState _withToolCallPhase(
         latestToolCallId: latestToolCallId,
         timestamp: timestamp,
       ),
+    // Synthesize wall-clock when constructing a fresh ToolCallPhase
+    // and the backend omitted a timestamp. Mirrors the same fallback
+    // applied to ActivityRecord timestamps in `applyActivityEvent`.
     _ => ToolCallPhase.single(
         toolName: toolName,
         latestToolCallId: latestToolCallId,
-        timestamp: timestamp,
+        timestamp: timestamp ?? DateTime.now().millisecondsSinceEpoch,
       ),
   };
 
