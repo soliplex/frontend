@@ -3,6 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
 
 import 'code_block_builder.dart';
+import 'data_uri_image.dart';
 import 'inline_code_builder.dart';
 import 'markdown_renderer.dart';
 import 'markdown_theme_extension.dart';
@@ -46,6 +47,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
           : (_, href, title) {
               if (href != null) onLinkTap!(href, title);
             },
+      imageBuilder: _buildImage,
       builders: {
         'code': InlineCodeBuilder(),
         'pre': CodeBlockBuilder(
@@ -55,4 +57,22 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       },
     );
   }
+}
+
+Widget _buildImage(Uri uri, String? title, String? alt) {
+  if (uri.scheme == 'data') {
+    final decoded = tryDecodeImageDataUri(uri.toString());
+    if (decoded == null) return BrokenImagePlaceholder(alt: alt);
+    return Image.memory(
+      decoded.bytes,
+      errorBuilder: (_, __, ___) => BrokenImagePlaceholder(alt: alt),
+    );
+  }
+  if (uri.scheme == 'http' || uri.scheme == 'https') {
+    return Image.network(
+      uri.toString(),
+      errorBuilder: (_, __, ___) => BrokenImagePlaceholder(alt: alt),
+    );
+  }
+  return BrokenImagePlaceholder(alt: alt);
 }

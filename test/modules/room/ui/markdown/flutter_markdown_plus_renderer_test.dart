@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:soliplex_frontend/src/modules/room/ui/markdown/data_uri_image.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 
 void main() {
@@ -77,6 +80,54 @@ void main() {
       await tester.pump();
 
       expect(tappedHref, 'https://example.com');
+    });
+  });
+
+  group('FlutterMarkdownPlusRenderer image handling', () {
+    // 1x1 transparent PNG. Same bytes as data_uri_image_test and
+    // chunk_visualization_page_test.
+    final pngBytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4'
+      '2mP8/58BAwAI/AL+hc2rNAAAAABJRU5ErkJggg==',
+    );
+    final pngBase64 = base64Encode(pngBytes);
+
+    testWidgets(
+        'malformed data URI image renders a placeholder, not a red error widget',
+        (tester) async {
+      // Six base64 chars (mod 4 == 2) is the shape of the truncated payload
+      // observed in production. Without the custom imageBuilder this throws
+      // FormatException out of build() and the whole bubble red-screens.
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![alt](data:image/png;base64,AAAAAA)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(BrokenImagePlaceholder), findsOneWidget);
+    });
+
+    testWidgets('valid PNG data URI renders an Image widget', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![alt](data:image/png;base64,$pngBase64)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(BrokenImagePlaceholder), findsNothing);
     });
   });
 }
