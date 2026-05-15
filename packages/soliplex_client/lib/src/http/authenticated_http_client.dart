@@ -42,6 +42,7 @@ class AuthenticatedHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) {
     return _inner.request(
       method,
@@ -49,6 +50,7 @@ class AuthenticatedHttpClient implements SoliplexHttpClient {
       headers: _injectAuth(headers),
       body: body,
       timeout: timeout,
+      cancelToken: cancelToken,
     );
   }
 

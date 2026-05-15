@@ -74,6 +74,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     final requestId = _generateRequestId();
     final startTime = DateTime.now();
@@ -102,6 +103,7 @@ class ObservableHttpClient implements SoliplexHttpClient {
         headers: headers,
         body: body,
         timeout: timeout,
+        cancelToken: cancelToken,
       );
 
       final endTime = DateTime.now();

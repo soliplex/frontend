@@ -74,11 +74,12 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
 
   /// Performs a one-shot HTTP request, respecting the concurrency cap.
   ///
-  /// [SoliplexHttpClient.request] has no `CancelToken`, so queued
-  /// non-stream requests cannot be cancelled at this layer — they wait
-  /// for their slot, dispatch, and can only be cancelled by a timeout
-  /// on the inner client. Note that the timeout governs only the
-  /// post-acquisition request, not queue-wait time.
+  /// When [cancelToken] is supplied, a fire before slot acquisition
+  /// removes the request from the queue without acquiring a permit.
+  /// After acquisition, cancellation is forwarded to the inner client;
+  /// streamed bodies honor it for mid-request cancellation (see
+  /// platform clients). The timeout governs only the post-acquisition
+  /// request, not queue-wait time.
   @override
   Future<HttpResponse> request(
     String method,
@@ -86,14 +87,19 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
+    cancelToken?.throwIfCancelled();
+
     final acquisitionId = _generateAcquisitionId();
     final enqueuedAt = _clock();
     final depthAtEnqueue = _semaphore.inUseCount + _semaphore.waitingCount;
 
-    final slot = await _semaphore.acquire();
+    final slot = await _semaphore.acquire(cancelToken: cancelToken);
 
     try {
+      cancelToken?.throwIfCancelled();
+
       final acquiredAt = _clock();
       _emitConcurrencyWait(
         acquisitionId: acquisitionId,
@@ -111,6 +117,7 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
         headers: headers,
         body: body,
         timeout: timeout,
+        cancelToken: cancelToken,
       );
     } finally {
       slot.release();

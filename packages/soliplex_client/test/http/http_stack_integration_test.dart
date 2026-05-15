@@ -30,9 +30,11 @@ class FakePlatformClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     requestCount++;
     lastRequestHeaders = headers;
+    cancelToken?.throwIfCancelled();
     if (nextRequestError != null) throw nextRequestError!;
     return nextResponse!;
   }

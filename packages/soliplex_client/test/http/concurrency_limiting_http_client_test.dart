@@ -26,6 +26,7 @@ class _GatedInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     requestCallCount++;
     if (pending.isEmpty) {
@@ -93,6 +94,7 @@ class _StreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async =>
       HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
@@ -124,6 +126,7 @@ class _FreshStreamBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async =>
       HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
@@ -155,6 +158,7 @@ class _SyncThrowingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) {
     if (throwOnNext) {
       throw const NetworkException(message: 'sync boom');
@@ -192,6 +196,7 @@ class _StreamThrowingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async =>
       HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 
@@ -231,6 +236,7 @@ class _SequentialInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) =>
       fallback.request(
         method,
@@ -302,6 +308,7 @@ class _ListenThrowingBodyInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async =>
       HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
 

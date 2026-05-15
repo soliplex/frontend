@@ -55,6 +55,7 @@ class FakeHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     if (_callIndex >= _responses.length) {
       throw StateError(

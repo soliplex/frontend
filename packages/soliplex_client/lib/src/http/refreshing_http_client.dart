@@ -45,6 +45,7 @@ class RefreshingHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     // Proactive refresh if token is expiring soon
     await _refresher.refreshIfExpiringSoon();
@@ -55,6 +56,7 @@ class RefreshingHttpClient implements SoliplexHttpClient {
       headers: headers,
       body: body,
       timeout: timeout,
+      cancelToken: cancelToken,
       retried: false,
     );
   }
@@ -66,6 +68,7 @@ class RefreshingHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     final response = await _inner.request(
       method,
@@ -73,7 +76,16 @@ class RefreshingHttpClient implements SoliplexHttpClient {
       headers: headers,
       body: body,
       timeout: timeout,
+      cancelToken: cancelToken,
     );
+
+    // Streamed bodies cannot be retried — the stream has already been
+    // consumed by the first attempt. Bubble the 401 up so the caller
+    // (typically UploadTracker) can request a fresh stream factory and
+    // retry at its layer.
+    if (body is Stream<List<int>>) {
+      return response;
+    }
 
     // On 401, attempt refresh and retry ONCE (CWE-834 prevention)
     if (response.statusCode == 401 && !retried) {
@@ -85,6 +97,7 @@ class RefreshingHttpClient implements SoliplexHttpClient {
           headers: headers,
           body: body,
           timeout: timeout,
+          cancelToken: cancelToken,
           retried: true,
         );
       }

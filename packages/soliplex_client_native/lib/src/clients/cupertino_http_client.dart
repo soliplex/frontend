@@ -74,8 +74,10 @@ class CupertinoHttpClient implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     _checkNotClosed();
+    cancelToken?.throwIfCancelled();
 
     final effectiveTimeout = timeout ?? defaultTimeout;
     final request = _createRequest(method, uri, headers, body);
@@ -91,6 +93,8 @@ class CupertinoHttpClient implements SoliplexHttpClient {
         },
       );
 
+      cancelToken?.throwIfCancelled();
+
       final bodyBytes = await streamedResponse.stream.toBytes().timeout(
         effectiveTimeout,
         onTimeout: () {
@@ -101,12 +105,16 @@ class CupertinoHttpClient implements SoliplexHttpClient {
         },
       );
 
+      cancelToken?.throwIfCancelled();
+
       return HttpResponse(
         statusCode: streamedResponse.statusCode,
         bodyBytes: Uint8List.fromList(bodyBytes),
         headers: _normalizeHeaders(streamedResponse.headers),
         reasonPhrase: streamedResponse.reasonPhrase,
       );
+    } on CancelledException {
+      rethrow;
     } on TimeoutException catch (e, stackTrace) {
       throw NetworkException(
         message: e.message ?? 'Request timed out',

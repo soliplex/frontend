@@ -38,6 +38,7 @@ class _ConcurrencyTrackingInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     _inFlight++;
     if (_inFlight > maxInFlight) maxInFlight = _inFlight;
@@ -133,6 +134,7 @@ class _OrderedInner implements SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) async {
     executionOrder.add(uri.path);
     if (uri == uri401 && !_saw401) {

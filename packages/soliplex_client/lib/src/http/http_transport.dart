@@ -108,6 +108,7 @@ class HttpTransport {
       headers: requestHeaders,
       body: requestBody,
       timeout: timeout ?? defaultTimeout,
+      cancelToken: cancelToken,
     );
 
     // Check cancellation after request completes
@@ -154,6 +155,7 @@ class HttpTransport {
       uri,
       headers: {...?headers},
       timeout: timeout ?? defaultTimeout,
+      cancelToken: cancelToken,
     );
 
     cancelToken?.throwIfCancelled();

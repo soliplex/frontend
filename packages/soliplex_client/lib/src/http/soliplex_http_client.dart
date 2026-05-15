@@ -37,6 +37,9 @@ abstract class SoliplexHttpClient {
   ///   - `List<int>`: Sent as raw bytes
   ///   - `Map<String, dynamic>`: JSON encoded automatically
   /// - [timeout]: Request timeout. Uses client's default if not specified.
+  /// - [cancelToken]: Optional token for cancelling the request. When the
+  ///   token fires before dispatch, the request is never sent. Mid-request
+  ///   cancellation behavior for streamed bodies is implementation-specific.
   ///
   /// Throws `NetworkException` on connection failures or timeouts.
   /// Throws `CancelledException` if the request was cancelled.
@@ -46,6 +49,7 @@ abstract class SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   });
 
   /// Performs a streaming HTTP request and returns a [StreamedHttpResponse].

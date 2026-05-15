@@ -31,6 +31,7 @@ class FakeHttpClient extends SoliplexHttpClient {
     Map<String, String>? headers,
     Object? body,
     Duration? timeout,
+    CancelToken? cancelToken,
   }) {
     if (onRequest != null) return onRequest!(method, uri);
     throw UnimplementedError('FakeHttpClient.request');
