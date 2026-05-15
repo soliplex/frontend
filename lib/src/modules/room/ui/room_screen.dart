@@ -266,7 +266,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<PickedFile?> _pickWithErrorSurfacing({String? threadId}) async {
     try {
       return await pickFile();
-    } on PickFileException catch (e, st) {
+    } on PickFilePickerException catch (e, st) {
       if (!mounted) return null;
       dev.log(
         'File pick failed',
@@ -275,21 +275,33 @@ class _RoomScreenState extends State<RoomScreen> {
         name: 'RoomScreen',
         level: 1000,
       );
-      final (filename, message) = switch (e) {
-        PickFileReadException(:final filename) => (
-            filename,
-            'Failed to read file',
-          ),
-        PickFilePickerException(:final filename) => (
-            filename ?? '(unknown)',
-            'Could not open file picker',
-          ),
-      };
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
         threadId: threadId,
-        filename: filename,
-        message: message,
+        filename: e.filename ?? '(unknown)',
+        message: 'Could not open file picker',
+      );
+      return null;
+    }
+  }
+
+  // Transitional: drains [PickedFile.openStream] into a buffer so the
+  // current tracker API (which still takes `fileBytes`) keeps working.
+  // Phase 5 of the upload-streaming refactor switches the tracker to
+  // accept the stream factory directly; this method goes away then.
+  Future<List<int>?> _drainForLegacyTracker(PickedFile file) async {
+    try {
+      return await file.openStream().fold<List<int>>(
+        <int>[],
+        (acc, chunk) => acc..addAll(chunk),
+      );
+    } on Object catch (error, stackTrace) {
+      dev.log(
+        'Failed to read picked file bytes',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 1000,
       );
       return null;
     }
@@ -298,11 +310,13 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _pickAndUploadToThread(String threadId) async {
     final file = await _pickWithErrorSurfacing(threadId: threadId);
     if (file == null || !mounted) return;
+    final bytes = await _drainForLegacyTracker(file);
+    if (!mounted || bytes == null) return;
     _state.uploadTracker.uploadToThread(
       roomId: widget.roomId,
       threadId: threadId,
       filename: file.name,
-      fileBytes: file.bytes,
+      fileBytes: bytes,
       mimeType: file.mimeType,
     );
   }
@@ -316,11 +330,14 @@ class _RoomScreenState extends State<RoomScreen> {
     final threadId = await _state.createThread();
     if (threadId == null || !mounted) return;
 
+    final bytes = await _drainForLegacyTracker(file);
+    if (!mounted || bytes == null) return;
+
     _state.uploadTracker.uploadToThread(
       roomId: widget.roomId,
       threadId: threadId,
       filename: file.name,
-      fileBytes: file.bytes,
+      fileBytes: bytes,
       mimeType: file.mimeType,
     );
   }

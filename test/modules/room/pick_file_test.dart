@@ -1,4 +1,5 @@
-import 'dart:typed_data';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 // ignore: implementation_imports
@@ -51,7 +52,7 @@ void main() {
     expect(await pickFile(), isNull);
   });
 
-  test('wraps picker errors in PickFilePickerException', () async {
+  test('wraps picker plugin errors in PickFilePickerException', () async {
     final cause = StateError('plugin not available');
     FilePickerPlatform.instance = _FakeFilePicker.throwing(cause);
 
@@ -65,42 +66,86 @@ void main() {
     );
   });
 
-  test(
-    'throws PickFilePickerException when picker returns neither bytes nor '
-    'path',
-    () async {
-      FilePickerPlatform.instance = _FakeFilePicker.result(
-        FilePickerResult([PlatformFile(name: 'x.pdf', size: 0)]),
-      );
-
-      expect(
-        pickFile(),
-        throwsA(
-          isA<PickFilePickerException>()
-              .having((e) => e.filename, 'filename', 'x.pdf')
-              .having((e) => e.cause, 'cause', isA<StateError>()),
-        ),
-      );
-    },
-  );
-
-  test('returns PickedFile with bytes and derived MIME when bytes present',
+  test('throws PickFilePickerException on native when picker returns no path',
       () async {
+    FilePickerPlatform.instance = _FakeFilePicker.result(
+      FilePickerResult([PlatformFile(name: 'x.pdf', size: 0)]),
+    );
+
+    expect(
+      pickFile(),
+      throwsA(
+        isA<PickFilePickerException>()
+            .having((e) => e.filename, 'filename', 'x.pdf')
+            .having((e) => e.cause, 'cause', isA<StateError>()),
+      ),
+    );
+  });
+
+  test('returns PickedFile with size and MIME for native path-based pick',
+      () async {
+    final tempFile = await File(
+      '${Directory.systemTemp.path}/pick_file_test_${DateTime.now().microsecondsSinceEpoch}.pdf',
+    ).create();
+    addTearDown(() async {
+      if (tempFile.existsSync()) await tempFile.delete();
+    });
+    final fileContents = utf8.encode('hello world');
+    await tempFile.writeAsBytes(fileContents);
+
     FilePickerPlatform.instance = _FakeFilePicker.result(
       FilePickerResult([
         PlatformFile(
           name: 'doc.pdf',
-          size: 3,
-          bytes: Uint8List.fromList(const [1, 2, 3]),
+          size: fileContents.length,
+          path: tempFile.path,
+        ),
+      ]),
+    );
+
+    final picked = await pickFile();
+    expect(picked, isNotNull);
+    expect(picked!.name, 'doc.pdf');
+    expect(picked.size, fileContents.length);
+    expect(picked.mimeType, 'application/pdf');
+
+    // openStream reads bytes lazily and produces the file contents.
+    final emitted = await picked
+        .openStream()
+        .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    expect(emitted, fileContents);
+  });
+
+  test('openStream factory is re-callable for retry', () async {
+    final tempFile = await File(
+      '${Directory.systemTemp.path}/pick_file_retry_${DateTime.now().microsecondsSinceEpoch}.bin',
+    ).create();
+    addTearDown(() async {
+      if (tempFile.existsSync()) await tempFile.delete();
+    });
+    final fileContents = [0x01, 0x02, 0x03, 0x04];
+    await tempFile.writeAsBytes(fileContents);
+
+    FilePickerPlatform.instance = _FakeFilePicker.result(
+      FilePickerResult([
+        PlatformFile(
+          name: 'retry.bin',
+          size: fileContents.length,
+          path: tempFile.path,
         ),
       ]),
     );
 
     final picked = await pickFile();
 
-    expect(picked, isNotNull);
-    expect(picked!.name, 'doc.pdf');
-    expect(picked.bytes, [1, 2, 3]);
-    expect(picked.mimeType, 'application/pdf');
+    final first = await picked!
+        .openStream()
+        .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    final second = await picked
+        .openStream()
+        .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+
+    expect(first, fileContents);
+    expect(second, fileContents);
   });
 }

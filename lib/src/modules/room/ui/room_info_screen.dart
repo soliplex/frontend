@@ -389,7 +389,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     final PickedFile? file;
     try {
       file = await pickFile();
-    } on PickFileException catch (e, st) {
+    } on PickFilePickerException catch (e, st) {
       if (!mounted) return;
       dev.log(
         'File pick failed',
@@ -398,28 +398,40 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         name: 'RoomInfoScreen',
         level: 1000,
       );
-      final (filename, message) = switch (e) {
-        PickFileReadException(:final filename) => (
-            filename,
-            'Failed to read file',
-          ),
-        PickFilePickerException(:final filename) => (
-            filename ?? '(unknown)',
-            'Could not open file picker',
-          ),
-      };
       _tracker.recordClientError(
         roomId: widget.roomId,
-        filename: filename,
-        message: message,
+        filename: e.filename ?? '(unknown)',
+        message: 'Could not open file picker',
       );
       return;
     }
     if (file == null || !mounted) return;
+
+    // Transitional: drain openStream to bytes for the legacy tracker API.
+    // Phase 5 switches the tracker to accept the stream factory directly.
+    final List<int> bytes;
+    try {
+      bytes = await file.openStream().fold<List<int>>(
+        <int>[],
+        (acc, chunk) => acc..addAll(chunk),
+      );
+    } on Object catch (error, stackTrace) {
+      if (!mounted) return;
+      dev.log(
+        'Failed to read picked file bytes',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomInfoScreen',
+        level: 1000,
+      );
+      return;
+    }
+    if (!mounted) return;
+
     _tracker.uploadToRoom(
       roomId: widget.roomId,
       filename: file.name,
-      fileBytes: file.bytes,
+      fileBytes: bytes,
       mimeType: file.mimeType,
     );
   }
