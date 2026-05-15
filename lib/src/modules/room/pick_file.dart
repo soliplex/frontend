@@ -63,6 +63,20 @@ class PickFilePickerException extends PickFileException {
       : 'File picker failed for $filename: $cause';
 }
 
+/// User-facing message for a [PickFilePickerException].
+///
+/// `RangeError` is the canonical signal that the browser ran out of
+/// heap allocating the file's bytes — `withData: true` on web reads the
+/// whole file into a `Uint8List`. DOM-level `QuotaExceededError` crosses
+/// the JS-interop boundary as a generic JS error and still falls
+/// through to the catch-all message; that's an accepted limitation.
+String pickerErrorMessage(PickFilePickerException error) {
+  if (error.cause is RangeError) {
+    return 'Selection is too large to load in the browser.';
+  }
+  return 'Could not open file picker';
+}
+
 /// Opens the platform file picker.
 ///
 /// Returns `null` when the user cancels. Throws [PickFilePickerException]

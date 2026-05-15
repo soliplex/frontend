@@ -116,6 +116,25 @@ void main() {
     expect(emitted, fileContents);
   });
 
+  group('pickerErrorMessage', () {
+    test('RangeError cause surfaces as a browser-heap message', () {
+      final error = PickFilePickerException(
+        cause: RangeError('Maximum allowed length'),
+      );
+      expect(
+        pickerErrorMessage(error),
+        'Selection is too large to load in the browser.',
+      );
+    });
+
+    test('other causes fall through to generic picker message', () {
+      final error = PickFilePickerException(
+        cause: StateError('plugin not available'),
+      );
+      expect(pickerErrorMessage(error), 'Could not open file picker');
+    });
+  });
+
   test('openStream factory is re-callable for retry', () async {
     final tempFile = await File(
       '${Directory.systemTemp.path}/pick_file_retry_${DateTime.now().microsecondsSinceEpoch}.bin',

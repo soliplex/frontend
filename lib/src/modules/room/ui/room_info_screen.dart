@@ -401,7 +401,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       _tracker.recordClientError(
         roomId: widget.roomId,
         filename: e.filename ?? '(unknown)',
-        message: 'Could not open file picker',
+        message: pickerErrorMessage(e),
       );
       return;
     }

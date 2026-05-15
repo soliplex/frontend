@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show FileSystemException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -1049,6 +1050,34 @@ void main() {
         totalBytes: 0,
       );
       expect(upload.progress, isNull);
+    });
+
+    test('413 ApiException surfaces as "File is too large to upload"', () {
+      final message = uploadErrorMessage(
+        const ApiException(
+            statusCode: 413, message: 'Request Entity Too Large'),
+      );
+      expect(message, 'File is too large to upload.');
+    });
+
+    test('FileSystemException surfaces as "Could not read file from disk"', () {
+      final fsError = FileSystemException('No such file', '/tmp/gone.txt');
+      expect(
+        uploadErrorMessage(fsError),
+        'Could not read file from disk.',
+      );
+
+      // Same translation when the FileSystemException is wrapped inside
+      // a NetworkException (typical path when openStream() fails inside
+      // the HTTP transport's sink-add).
+      final wrapped = NetworkException(
+        message: 'Stream error',
+        originalError: fsError,
+      );
+      expect(
+        uploadErrorMessage(wrapped),
+        'Could not read file from disk.',
+      );
     });
 
     test('CancelledException does not produce a Failed row', () async {

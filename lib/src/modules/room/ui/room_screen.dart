@@ -279,7 +279,7 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
         threadId: threadId,
         filename: e.filename ?? '(unknown)',
-        message: 'Could not open file picker',
+        message: pickerErrorMessage(e),
       );
       return null;
     }

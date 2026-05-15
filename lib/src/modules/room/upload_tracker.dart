@@ -1,5 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
+import 'dart:io' show FileSystemException;
 
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -74,12 +75,36 @@ class FailedUpload extends DisplayUpload {
 }
 
 /// Formats an error for user display without leaking raw exception
-/// internals (stack frames, request URLs, auth headers). Extracts the
-/// message from known [SoliplexException] subtypes; falls back to a
-/// fixed, translatable string for anything else.
+/// internals (stack frames, request URLs, auth headers). Maps a few
+/// upload-specific failure modes to friendlier messages before falling
+/// back to the [SoliplexException.message], then to a generic string.
 String uploadErrorMessage(Object error) {
+  // 413 Request Entity Too Large — backend or edge proxy rejected the
+  // upload size. Surfaces the same friendly message regardless of
+  // whether the body said anything useful.
+  if (error is ApiException && error.statusCode == 413) {
+    return 'File is too large to upload.';
+  }
+
+  // The lazy openStream() failed to read the file (typical cause: the
+  // user moved or deleted the file between picking and upload).
+  // Surfaces as the API call's `cause` inside NetworkException — and
+  // also directly when the picker reads bytes server-side. Match both
+  // by inspecting the error and its originalError.
+  if (_isFileSystemRead(error)) {
+    return 'Could not read file from disk.';
+  }
+
   if (error is SoliplexException) return error.message;
   return 'Something went wrong. Please try again.';
+}
+
+bool _isFileSystemRead(Object error) {
+  if (error is FileSystemException) return true;
+  if (error is SoliplexException && error.originalError != null) {
+    return error.originalError is FileSystemException;
+  }
+  return false;
 }
 
 /// Internal record for a local upload row. Sealed and immutable:
