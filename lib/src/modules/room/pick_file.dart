@@ -77,6 +77,50 @@ String pickerErrorMessage(PickFilePickerException error) {
   return 'Could not open file picker';
 }
 
+/// Flattens a folder-relative path into a single safe filename, joining
+/// segments with `__` and prepending the picked folder's basename.
+///
+/// Example: picked folder `myproject` containing `src/main.dart` →
+/// `myproject__src__main.dart`.
+///
+/// Used for folder uploads where the backend stores files in a flat
+/// directory and applies `pathlib.Path(filename).name` — this mangler
+/// produces flat names with no path separators, so the backend's
+/// basename strip is a no-op.
+///
+/// Throws [FormatException] for path-traversal segments (`..`, `.`) or
+/// an empty `rootName`. The picker layer should route these to the
+/// upload tracker's `recordClientError` so the user sees a Failed row.
+///
+/// **Collision caveat:** if a source filename already contains `__`,
+/// two distinct paths can mangle to the same string — e.g.
+/// `a__b/c.txt` and `a/b__c.txt` both yield `a__b__c.txt`. Accepted
+/// edge case; the picker doesn't deduplicate.
+String mangleRelativePath(String rootName, String relativePath) {
+  if (rootName.isEmpty) {
+    throw const FormatException(
+      'mangleRelativePath requires a non-empty rootName',
+    );
+  }
+  final segments =
+      relativePath.split(RegExp(r'[/\\]')).where((s) => s.isNotEmpty).toList();
+  if (segments.isEmpty) {
+    throw FormatException(
+      'mangleRelativePath requires at least one path segment',
+      relativePath,
+    );
+  }
+  for (final seg in segments) {
+    if (seg == '..' || seg == '.') {
+      throw FormatException(
+        'Path traversal segment ("$seg") in folder upload',
+        relativePath,
+      );
+    }
+  }
+  return [rootName, ...segments].join('__');
+}
+
 /// Opens the platform file picker.
 ///
 /// Returns `null` when the user cancels. Throws [PickFilePickerException]

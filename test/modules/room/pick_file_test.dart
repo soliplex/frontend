@@ -116,6 +116,81 @@ void main() {
     expect(emitted, fileContents);
   });
 
+  group('mangleRelativePath', () {
+    test('joins POSIX-separated segments with __ and prepends rootName', () {
+      expect(
+        mangleRelativePath('myproject', 'src/main.dart'),
+        'myproject__src__main.dart',
+      );
+    });
+
+    test('joins Windows-separated segments with __ as well', () {
+      expect(
+        mangleRelativePath('myproject', r'src\nested\main.dart'),
+        'myproject__src__nested__main.dart',
+      );
+    });
+
+    test('handles mixed separators in a single path', () {
+      expect(
+        mangleRelativePath('myproject', r'a/b\c/d.txt'),
+        'myproject__a__b__c__d.txt',
+      );
+    });
+
+    test('flat filename keeps single segment', () {
+      expect(
+        mangleRelativePath('myproject', 'README.md'),
+        'myproject__README.md',
+      );
+    });
+
+    test('rejects ".." segments with FormatException', () {
+      expect(
+        () => mangleRelativePath('myproject', '../etc/passwd'),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => mangleRelativePath('myproject', r'src\..\secret.txt'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects "." segments with FormatException', () {
+      expect(
+        () => mangleRelativePath('myproject', 'src/./file.txt'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects empty rootName', () {
+      expect(
+        () => mangleRelativePath('', 'file.txt'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects all-empty / leading-separator relative path', () {
+      expect(
+        () => mangleRelativePath('myproject', ''),
+        throwsA(isA<FormatException>()),
+      );
+      // Leading separator collapses to empty leading segment, which is
+      // filtered out, but if NOTHING remains it's a format error.
+      expect(
+        () => mangleRelativePath('myproject', '///'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('strips leading/trailing/repeated separators', () {
+      expect(
+        mangleRelativePath('myproject', '/src//main.dart/'),
+        'myproject__src__main.dart',
+      );
+    });
+  });
+
   group('pickerErrorMessage', () {
     test('RangeError cause surfaces as a browser-heap message', () {
       final error = PickFilePickerException(
