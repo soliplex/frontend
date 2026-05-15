@@ -521,10 +521,16 @@ class _UploadEntryRow extends StatelessWidget {
           if (icon != null)
             Icon(icon, size: 16, color: color)
           else
-            const SizedBox(
+            SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: switch (entry) {
+                  PendingUpload(:final progress) => progress,
+                  _ => null,
+                },
+              ),
             ),
           const SizedBox(width: 8),
           Expanded(

@@ -750,7 +750,14 @@ class _RoomScreenState extends State<RoomScreen> {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: color,
+                value: switch (entry) {
+                  PendingUpload(:final progress) => progress,
+                  _ => null,
+                },
+              ),
             ),
           const SizedBox(width: 8),
           Expanded(

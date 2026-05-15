@@ -38,8 +38,29 @@ class PersistedUpload extends DisplayUpload {
 }
 
 class PendingUpload extends DisplayUpload {
-  const PendingUpload({required this.id, required super.filename});
+  const PendingUpload({
+    required this.id,
+    required super.filename,
+    required this.sentBytes,
+    required this.totalBytes,
+  });
   final String id;
+
+  /// Bytes successfully sent for the in-flight POST. After the server
+  /// confirms the upload (but before the persisted list refresh observes
+  /// it), this equals [totalBytes] — the row shows 100% briefly.
+  final int sentBytes;
+
+  /// Declared content length of the upload, used to compute progress.
+  /// Equal to the file size for single-file uploads.
+  final int totalBytes;
+
+  /// Progress in `[0, 1]`, or `null` for indeterminate (empty file or
+  /// unknown length).
+  double? get progress {
+    if (totalBytes <= 0) return null;
+    return (sentBytes / totalBytes).clamp(0.0, 1.0);
+  }
 }
 
 class FailedUpload extends DisplayUpload {
@@ -75,12 +96,23 @@ class _Pending extends _PendingRecord {
     required super.id,
     required super.filename,
     required this.cancelToken,
+    required this.sentBytes,
+    required this.totalBytes,
   });
 
   /// Cancellation handle for the in-flight POST. [UploadTracker.dispose]
   /// cancels every active token so background uploads on detached
   /// trackers don't keep running.
   final CancelToken cancelToken;
+
+  /// Bytes the source stream has yielded so far. Updated as the wrapped
+  /// `openStream` factory observes chunks flowing into the multipart
+  /// encoder.
+  final int sentBytes;
+
+  /// Declared content length of the upload (multipart preamble and
+  /// footer are NOT included — this is the file body length).
+  final int totalBytes;
 }
 
 /// Server-confirmed via POST but not yet observed in the persisted
@@ -88,7 +120,15 @@ class _Pending extends _PendingRecord {
 /// cleaned this record up; the next refresh whose response contains
 /// the filename finally drops it.
 class _Posted extends _PendingRecord {
-  const _Posted({required super.id, required super.filename});
+  const _Posted({
+    required super.id,
+    required super.filename,
+    required this.totalBytes,
+  });
+
+  /// Carried forward from `_Pending` so the row still reports 100%
+  /// while waiting for the refresh that drops it.
+  final int totalBytes;
 }
 
 class _Failed extends _PendingRecord {
@@ -270,10 +310,12 @@ class UploadTracker {
     _startUpload(
       key: key,
       filename: filename,
-      runPost: (token) => _api.uploadFileToRoom(
+      openStream: openStream,
+      contentLength: contentLength,
+      runPost: (wrappedOpenStream, token) => _api.uploadFileToRoom(
         roomId,
         filename: filename,
-        openStream: openStream,
+        openStream: wrappedOpenStream,
         contentLength: contentLength,
         mimeType: mimeType,
         cancelToken: token,
@@ -297,11 +339,13 @@ class UploadTracker {
     _startUpload(
       key: key,
       filename: filename,
-      runPost: (token) => _api.uploadFileToThread(
+      openStream: openStream,
+      contentLength: contentLength,
+      runPost: (wrappedOpenStream, token) => _api.uploadFileToThread(
         roomId,
         threadId,
         filename: filename,
-        openStream: openStream,
+        openStream: wrappedOpenStream,
         contentLength: contentLength,
         mimeType: mimeType,
         cancelToken: token,
@@ -323,10 +367,20 @@ class UploadTracker {
   /// signed out elsewhere) — more attempts wouldn't help.
   static const int _maxAuthRetries = 1;
 
+  /// Progress emissions are coalesced to one signal update per
+  /// 50 ms (≈20 Hz) per upload. Final emission (`sent == total`)
+  /// always fires regardless of throttle.
+  static const Duration _progressEmitInterval = Duration(milliseconds: 50);
+
   void _startUpload({
     required String key,
     required String filename,
-    required Future<void> Function(CancelToken) runPost,
+    required Stream<List<int>> Function() openStream,
+    required int contentLength,
+    required Future<void> Function(
+      Stream<List<int>> Function(),
+      CancelToken,
+    ) runPost,
     required Future<void> Function() refresh,
   }) {
     if (_isDisposed) return;
@@ -334,19 +388,64 @@ class UploadTracker {
     final id = 'upload-${_nextId++}';
     final token = CancelToken();
     scope.pending.add(
-      _Pending(id: id, filename: filename, cancelToken: token),
+      _Pending(
+        id: id,
+        filename: filename,
+        cancelToken: token,
+        sentBytes: 0,
+        totalBytes: contentLength,
+      ),
     );
     _emit(scope);
+
+    // Wrap [openStream] so we can observe chunks as they flow into the
+    // multipart encoder. Local state is captured per-call; on retry,
+    // the wrapper is re-invoked and the counters reset.
+    Stream<List<int>> wrappedOpenStream() async* {
+      var sent = 0;
+      DateTime? lastEmit;
+      await for (final chunk in openStream()) {
+        yield chunk;
+        sent += chunk.length;
+        final isFinal = sent >= contentLength;
+        final now = DateTime.now();
+        final dueByThrottle = lastEmit == null ||
+            now.difference(lastEmit) >= _progressEmitInterval;
+        if (isFinal || dueByThrottle) {
+          lastEmit = now;
+          _updateProgress(scope, id, sent);
+        }
+      }
+    }
 
     unawaited(
       _runUpload(
         scope: scope,
         id: id,
-        runPost: runPost,
+        runPost: (t) => runPost(wrappedOpenStream, t),
         refresh: refresh,
         token: token,
       ),
     );
+  }
+
+  /// Replaces the `_Pending` record at [id] with an updated [sentBytes]
+  /// count, then emits the signal. Silent no-op if the record is gone
+  /// (already Posted/Failed) or the tracker is disposed.
+  void _updateProgress(_ScopeState scope, String id, int sentBytes) {
+    if (_isDisposed) return;
+    final idx = scope.pending.indexWhere((r) => r.id == id);
+    if (idx < 0) return;
+    final record = scope.pending[idx];
+    if (record is! _Pending) return;
+    scope.pending[idx] = _Pending(
+      id: id,
+      filename: record.filename,
+      cancelToken: record.cancelToken,
+      sentBytes: sentBytes,
+      totalBytes: record.totalBytes,
+    );
+    _emit(scope);
   }
 
   Future<void> _runUpload({
@@ -368,7 +467,11 @@ class UploadTracker {
         if (idx < 0) return; // Dismissed during POST.
         final record = scope.pending[idx];
         if (record is _Pending) {
-          scope.pending[idx] = _Posted(id: id, filename: record.filename);
+          scope.pending[idx] = _Posted(
+            id: id,
+            filename: record.filename,
+            totalBytes: record.totalBytes,
+          );
         }
 
         unawaited(refresh());
@@ -499,14 +602,27 @@ class UploadTracker {
           PersistedUpload(filename: f.filename, url: f.url),
       for (final p in scope.pending)
         switch (p) {
-          _Pending() ||
-          _Posted() =>
-            PendingUpload(id: p.id, filename: p.filename),
-          _Failed() => FailedUpload(
-              id: p.id,
-              filename: p.filename,
-              message: p.message,
+          _Pending(
+            :final id,
+            :final filename,
+            :final sentBytes,
+            :final totalBytes,
+          ) =>
+            PendingUpload(
+              id: id,
+              filename: filename,
+              sentBytes: sentBytes,
+              totalBytes: totalBytes,
             ),
+          _Posted(:final id, :final filename, :final totalBytes) =>
+            PendingUpload(
+              id: id,
+              filename: filename,
+              sentBytes: totalBytes,
+              totalBytes: totalBytes,
+            ),
+          _Failed(:final id, :final filename, :final message) =>
+            FailedUpload(id: id, filename: filename, message: message),
         },
     ];
 

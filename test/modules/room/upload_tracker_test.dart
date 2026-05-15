@@ -940,6 +940,117 @@ void main() {
       expect(failed.message, contains('token expired'));
     });
 
+    test(
+      'progress emissions update PendingUpload.sentBytes as chunks flow',
+      () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        // The mock drains the openStream so the wrapper's chunk callbacks
+        // fire. We then inspect the emitted PendingUpload snapshots.
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) async {
+          final openStream = invocation.namedArguments[#openStream]
+              as Stream<List<int>> Function();
+          await openStream().drain<void>();
+        });
+
+        // Three chunks summing to 6 bytes.
+        final chunks = <List<int>>[
+          [1, 2],
+          [3, 4],
+          [5, 6],
+        ];
+
+        // Throttle is 50 ms; insert delays so each chunk gets its own
+        // emission rather than coalescing.
+        Stream<List<int>> openStream() async* {
+          for (final chunk in chunks) {
+            yield chunk;
+            await Future<void>.delayed(const Duration(milliseconds: 60));
+          }
+        }
+
+        final sentByteSnapshots = <int>[];
+        final unsub = tracker.roomUploads('room-1').subscribe((status) {
+          if (status is! UploadsLoaded) return;
+          final pending = status.uploads.whereType<PendingUpload>().firstOrNull;
+          if (pending != null) sentByteSnapshots.add(pending.sentBytes);
+        });
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'progress.bin',
+          openStream: openStream,
+          contentLength: 6,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        unsub();
+
+        // Saw monotonic progress, including the final 6/6.
+        expect(sentByteSnapshots, contains(6));
+        for (var i = 1; i < sentByteSnapshots.length; i++) {
+          expect(sentByteSnapshots[i],
+              greaterThanOrEqualTo(sentByteSnapshots[i - 1]));
+        }
+      },
+    );
+
+    test('Posted state still reports 100% via PendingUpload.progress',
+        () async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final uploadCompleter = Completer<void>();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) => uploadCompleter.future);
+
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'done.bin',
+        openStream: () => Stream<List<int>>.value(const [1, 2, 3]),
+        contentLength: 3,
+      );
+      await _pump();
+
+      // No refresh queued — leave the upload stuck in _Posted.
+      uploadCompleter.complete();
+      await _pump();
+
+      final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
+          .uploads
+          .whereType<PendingUpload>()
+          .single;
+      expect(pending.sentBytes, equals(pending.totalBytes));
+      expect(pending.progress, equals(1.0));
+    });
+
+    test('zero-length file reports indeterminate progress (null)', () {
+      // Synthetic check on the PendingUpload class rather than full
+      // tracker flow, since 0-byte streams are an edge case.
+      const upload = PendingUpload(
+        id: 'x',
+        filename: 'empty.bin',
+        sentBytes: 0,
+        totalBytes: 0,
+      );
+      expect(upload.progress, isNull);
+    });
+
     test('CancelledException does not produce a Failed row', () async {
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
