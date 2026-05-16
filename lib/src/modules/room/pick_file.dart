@@ -141,7 +141,13 @@ Future<PickedFile?> pickFile() async {
   final FilePickerResult? result;
   try {
     if (kIsWeb) {
-      result = await FilePicker.pickFiles();
+      // The static `FilePicker.pickFiles` defaults `withData` to false —
+      // despite the file_picker docs claiming it defaults to `true` on
+      // web (that's the web impl's signature default, which gets
+      // overridden when the static caller passes an explicit value).
+      // On web we have no path, so we MUST pass `withData: true` to get
+      // bytes back; otherwise `file.bytes` is always null.
+      result = await FilePicker.pickFiles(withData: true);
     } else {
       result = await FilePicker.pickFiles(
         withData: false,
@@ -159,9 +165,16 @@ Future<PickedFile?> pickFile() async {
   if (kIsWeb) {
     final bytes = file.bytes;
     if (bytes == null) {
+      // file_picker's web path uses FileReader.readAsArrayBuffer, which
+      // silently yields null on browser heap exhaustion. Surface this
+      // as a RangeError so [pickerErrorMessage] maps it to the
+      // size-limit message instead of the generic picker-plugin one.
       throw PickFilePickerException(
         filename: file.name,
-        cause: StateError('picker returned no bytes for ${file.name} on web'),
+        cause: RangeError(
+          'FileReader returned no bytes for ${file.name} on web '
+          '(likely too large for browser heap)',
+        ),
       );
     }
     return PickedFile(
