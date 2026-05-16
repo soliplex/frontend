@@ -362,5 +362,69 @@ void main() {
       await tester.tap(find.byIcon(Icons.attach_file));
       expect(attachCalled, isTrue);
     });
+
+    testWidgets(
+      'opens a popup menu with Files and Folder items when both callbacks '
+      'are provided',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ChatInput(
+                onSend: (_) {},
+                onCancel: () {},
+                onAttachFile: () {},
+                onAttachFolder: () {},
+              ),
+            ),
+          ),
+        );
+
+        // Menu items aren't in the tree until the trigger is tapped.
+        expect(find.text('Files…'), findsNothing);
+        expect(find.text('Folder…'), findsNothing);
+
+        await tester.tap(find.byIcon(Icons.attach_file));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Files…'), findsOneWidget);
+        expect(find.text('Folder…'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'popup menu items invoke the matching callback',
+      (tester) async {
+        var fileTaps = 0;
+        var folderTaps = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ChatInput(
+                onSend: (_) {},
+                onCancel: () {},
+                onAttachFile: () => fileTaps++,
+                onAttachFolder: () => folderTaps++,
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byIcon(Icons.attach_file));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Files…'));
+        await tester.pumpAndSettle();
+        expect(fileTaps, 1);
+        expect(folderTaps, 0);
+
+        await tester.tap(find.byIcon(Icons.attach_file));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Folder…'));
+        await tester.pumpAndSettle();
+        expect(fileTaps, 1);
+        expect(folderTaps, 1);
+      },
+    );
   });
 }

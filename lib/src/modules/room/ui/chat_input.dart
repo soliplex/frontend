@@ -19,6 +19,7 @@ class ChatInput extends StatefulWidget {
     this.onFilterTap,
     this.onDocumentRemoved,
     this.onAttachFile,
+    this.onAttachFolder,
   });
 
   final void Function(String text) onSend;
@@ -37,9 +38,19 @@ class ChatInput extends StatefulWidget {
   final void Function(RagDocument doc)? onDocumentRemoved;
   final VoidCallback? onAttachFile;
 
+  /// Optional folder-pick callback. When both [onAttachFile] and
+  /// [onAttachFolder] are non-null, the attach control becomes a popup
+  /// menu with "Files…" and "Folder…" choices. When only [onAttachFile]
+  /// is provided, the attach control stays a single-action icon. Web
+  /// callers leave this `null` because the file_picker plugin can't
+  /// pick folders on web.
+  final VoidCallback? onAttachFolder;
+
   @override
   State<ChatInput> createState() => _ChatInputState();
 }
+
+enum _AttachChoice { files, folder }
 
 class _ChatInputState extends State<ChatInput> {
   late TextEditingController _controller;
@@ -235,7 +246,27 @@ class _ChatInputState extends State<ChatInput> {
                   tooltip: 'Filter documents',
                   onPressed: disabled ? null : widget.onFilterTap,
                 ),
-              if (widget.onAttachFile != null)
+              if (widget.onAttachFile != null && widget.onAttachFolder != null)
+                PopupMenuButton<_AttachChoice>(
+                  icon: const Icon(Icons.attach_file),
+                  tooltip: 'Upload to thread',
+                  enabled: !disabled,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: _AttachChoice.files,
+                      child: Text('Files…'),
+                    ),
+                    PopupMenuItem(
+                      value: _AttachChoice.folder,
+                      child: Text('Folder…'),
+                    ),
+                  ],
+                  onSelected: (choice) => switch (choice) {
+                    _AttachChoice.files => widget.onAttachFile!(),
+                    _AttachChoice.folder => widget.onAttachFolder!(),
+                  },
+                )
+              else if (widget.onAttachFile != null)
                 IconButton(
                   icon: const Icon(Icons.attach_file),
                   tooltip: 'Upload file to thread',

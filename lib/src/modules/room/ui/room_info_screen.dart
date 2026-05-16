@@ -1,6 +1,7 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -385,14 +386,16 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
 
   // Not disposed here — the registry owns the tracker's lifecycle.
 
-  Future<void> _pickAndUpload() async {
+  Future<void> _pickAndUpload(
+    Future<PickFilesResult?> Function() pick,
+  ) async {
     final PickFilesResult? result;
     try {
-      result = await pickFiles();
+      result = await pick();
     } on PickFilePickerException catch (e, st) {
       if (!mounted) return;
       dev.log(
-        'File pick failed',
+        'Pick failed',
         error: e.cause,
         stackTrace: st,
         name: 'RoomInfoScreen',
@@ -408,7 +411,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     if (result == null || !mounted) return;
     for (final itemError in result.errors) {
       dev.log(
-        'File pick failed for ${itemError.filename}',
+        'Pick failed for ${itemError.filename}',
         error: itemError.cause,
         name: 'RoomInfoScreen',
         level: 1000,
@@ -447,10 +450,22 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            onPressed: _pickAndUpload,
-            icon: const Icon(Icons.upload_file, size: 18),
-            label: const Text('Upload file to room'),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: () => _pickAndUpload(pickFiles),
+                icon: const Icon(Icons.upload_file, size: 18),
+                label: const Text('Upload files to room'),
+              ),
+              if (!kIsWeb)
+                FilledButton.icon(
+                  onPressed: () => _pickAndUpload(pickFolder),
+                  icon: const Icon(Icons.drive_folder_upload, size: 18),
+                  label: const Text('Upload folder to room'),
+                ),
+            ],
           ),
         ),
       ],

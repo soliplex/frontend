@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -263,16 +264,17 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Future<List<PickedFile>> _pickFilesWithErrorSurfacing({
+  Future<List<PickedFile>> _pickWithErrorSurfacing(
+    Future<PickFilesResult?> Function() pick, {
     String? threadId,
   }) async {
     final PickFilesResult? result;
     try {
-      result = await pickFiles();
+      result = await pick();
     } on PickFilePickerException catch (e, st) {
       if (!mounted) return const [];
       dev.log(
-        'File pick failed',
+        'Pick failed',
         error: e.cause,
         stackTrace: st,
         name: 'RoomScreen',
@@ -289,7 +291,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (result == null || !mounted) return const [];
     for (final itemError in result.errors) {
       dev.log(
-        'File pick failed for ${itemError.filename}',
+        'Pick failed for ${itemError.filename}',
         error: itemError.cause,
         name: 'RoomScreen',
         level: 1000,
@@ -304,9 +306,7 @@ class _RoomScreenState extends State<RoomScreen> {
     return result.files;
   }
 
-  Future<void> _pickAndUploadToThread(String threadId) async {
-    final files = await _pickFilesWithErrorSurfacing(threadId: threadId);
-    if (!mounted) return;
+  void _enqueueUploadsToThread(String threadId, List<PickedFile> files) {
     for (final file in files) {
       _state.uploadTracker.uploadToThread(
         roomId: widget.roomId,
@@ -319,25 +319,27 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  Future<void> _pickAndUploadToNewThread() async {
+  Future<void> _pickAndUploadToThread(
+    String threadId,
+    Future<PickFilesResult?> Function() pick,
+  ) async {
+    final files = await _pickWithErrorSurfacing(pick, threadId: threadId);
+    if (!mounted) return;
+    _enqueueUploadsToThread(threadId, files);
+  }
+
+  Future<void> _pickAndUploadToNewThread(
+    Future<PickFilesResult?> Function() pick,
+  ) async {
     // Read errors before thread creation attach to the room scope
     // since there's no thread yet to route them to.
-    final files = await _pickFilesWithErrorSurfacing();
+    final files = await _pickWithErrorSurfacing(pick);
     if (files.isEmpty || !mounted) return;
 
     final threadId = await _state.createThread();
     if (threadId == null || !mounted) return;
 
-    for (final file in files) {
-      _state.uploadTracker.uploadToThread(
-        roomId: widget.roomId,
-        threadId: threadId,
-        filename: file.name,
-        openStream: file.openStream,
-        contentLength: file.size,
-        mimeType: file.mimeType,
-      );
-    }
+    _enqueueUploadsToThread(threadId, files);
   }
 
   void _onThreadSelected(String threadId) {
@@ -869,7 +871,10 @@ class _RoomScreenState extends State<RoomScreen> {
                   )
               : null,
           onAttachFile: (room?.enableAttachments ?? false)
-              ? _pickAndUploadToNewThread
+              ? () => _pickAndUploadToNewThread(pickFiles)
+              : null,
+          onAttachFolder: (room?.enableAttachments ?? false) && !kIsWeb
+              ? () => _pickAndUploadToNewThread(pickFolder)
               : null,
         ),
       ],
@@ -1008,7 +1013,16 @@ class _RoomScreenState extends State<RoomScreen> {
                       )
                   : null,
               onAttachFile: attachEnabled
-                  ? () => _pickAndUploadToThread(threadView.threadId)
+                  ? () => _pickAndUploadToThread(
+                        threadView.threadId,
+                        pickFiles,
+                      )
+                  : null,
+              onAttachFolder: attachEnabled && !kIsWeb
+                  ? () => _pickAndUploadToThread(
+                        threadView.threadId,
+                        pickFolder,
+                      )
                   : null,
             ),
           ],
