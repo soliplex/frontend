@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 
+import 'markdown/data_uri_image.dart' show BrokenImagePlaceholder;
+
 @visibleForTesting
 class PageImage {
   const PageImage(this.bytes, this.width, this.height);
@@ -115,11 +117,21 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   void _loadVisualization() {
     _future = widget.api
         .getChunkVisualization(widget.roomId, widget.chunkId)
-        .then((viz) => viz.imagesBase64.map((b64) {
-              final bytes = base64Decode(b64);
-              final (w, h) = readPngDimensions(bytes);
-              return PageImage(bytes, w, h);
-            }).toList());
+        .then((viz) => viz.imagesBase64.map(_decodePageImage).toList());
+  }
+
+  /// Decodes one entry from `imagesBase64`. On a FormatException returns a
+  /// sentinel [PageImage] with empty bytes so a single corrupt image doesn't
+  /// collapse the entire visualization; [_buildPageImage] then renders a
+  /// [BrokenImagePlaceholder] for that slot.
+  static PageImage _decodePageImage(String b64) {
+    try {
+      final bytes = base64Decode(b64);
+      final (w, h) = readPngDimensions(bytes);
+      return PageImage(bytes, w, h);
+    } on FormatException {
+      return PageImage(Uint8List(0), 0, 0);
+    }
   }
 
   void _retry() {
@@ -246,9 +258,19 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Widget _buildPageImage(PageImage page, int rotation) {
+    if (page.bytes.isEmpty) {
+      return const Center(
+        child: BrokenImagePlaceholder(alt: 'Page image failed to decode'),
+      );
+    }
     final image = RotatedBox(
       quarterTurns: rotation,
-      child: Image.memory(page.bytes, fit: BoxFit.contain),
+      child: Image.memory(
+        page.bytes,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            const BrokenImagePlaceholder(alt: 'Page image failed to render'),
+      ),
     );
 
     if (!page.hasDimensions) {

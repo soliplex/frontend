@@ -88,6 +88,36 @@ void main() {
     expect(find.byType(CircleAvatar), findsNWidgets(2));
   });
 
+  testWidgets(
+      'a single corrupt base64 entry does not collapse the visualization',
+      (tester) async {
+    // Mixed valid/invalid payload. Without the per-image try/catch the
+    // base64Decode FormatException propagates out of the .map() and fails
+    // the entire future, taking down the whole visualization.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'doc.pdf',
+        imagesBase64: [_pngBase64, '@@@not-base64@@@', _pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'Test Doc',
+        pageNumbers: const [1, 2, 3],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to load visualization'), findsNothing);
+    // All three page slots are still present (one is a placeholder).
+    expect(find.byType(CircleAvatar), findsNWidgets(3));
+  });
+
   testWidgets('shows error with retry on failure', (tester) async {
     final api = _ChunkVizApi()..nextVizError = Exception('Network error');
 
