@@ -1,13 +1,4 @@
-import 'dart:io' show Directory, File;
-
-import 'package:file_picker/file_picker.dart';
-// ignore: implementation_imports
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:mime/mime.dart';
-
-import 'open_file_stream.dart'
-    if (dart.library.html) 'open_file_stream_web.dart';
+import 'pick_file_impl.dart' if (dart.library.html) 'pick_file_impl_web.dart';
 
 /// A file selected by the user, with metadata and a re-callable stream
 /// factory over its contents.
@@ -15,7 +6,7 @@ import 'open_file_stream.dart'
 /// [openStream] returns a fresh `Stream<List<int>>` on every call so the
 /// upload pipeline can re-stream on a retry without re-prompting the
 /// user. On native platforms the stream reads chunks lazily from disk;
-/// on web the stream re-iterates a held `Uint8List`.
+/// on web it adapts a fresh `ReadableStream` from `Blob.stream()`.
 class PickedFile {
   const PickedFile({
     required this.name,
@@ -67,8 +58,8 @@ sealed class PickFileException implements Exception {
 /// Thrown when the platform file picker itself fails — plugin not
 /// wired for the current platform or OS-level picker error.
 ///
-/// Per-file failures (e.g., one file in a multi-pick has null bytes on
-/// web) do NOT throw; they appear in [PickFilesResult.errors].
+/// Per-file failures (e.g., one file in a multi-pick has unreadable
+/// bytes) do NOT throw; they appear in [PickFilesResult.errors].
 class PickFilePickerException extends PickFileException {
   const PickFilePickerException({required super.cause});
 
@@ -79,10 +70,10 @@ class PickFilePickerException extends PickFileException {
 /// User-facing message for a pick-related failure cause.
 ///
 /// `RangeError` is the canonical signal that the browser ran out of
-/// heap allocating a file's bytes — `withData: true` on web reads the
-/// whole file into a `Uint8List`. DOM-level `QuotaExceededError` crosses
-/// the JS-interop boundary as a generic JS error and still falls
-/// through to the catch-all message; that's an accepted limitation.
+/// heap allocating a file's bytes — historically surfaced by the
+/// buffered web picker. DOM-level `QuotaExceededError` crosses the
+/// JS-interop boundary as a generic JS error and still falls through
+/// to the catch-all message; that's an accepted limitation.
 String pickerErrorMessage(Object cause) {
   if (cause is RangeError) {
     return 'Selection is too large to load in the browser.';
@@ -136,98 +127,11 @@ String mangleRelativePath(String rootName, String relativePath) {
 
 /// Opens the platform file picker with multi-select enabled.
 ///
-/// Returns `null` when the user cancels (picker returned no result or an
-/// empty file list). Throws [PickFilePickerException] when the picker
-/// plugin itself fails. Per-file failures (e.g., one of N picked files
-/// has unreadable bytes on web) do NOT abort the batch — they appear in
-/// [PickFilesResult.errors] so the caller can route each one to the
-/// upload tracker's `recordClientError`.
-///
-/// Platform-conditional flags:
-/// - **Web**: `withData: true` (the file_picker default on web — passed
-///   explicitly because the static caller's default is `false`). The
-///   stream factory wraps each eagerly-loaded `Uint8List`.
-/// - **macOS**: neither flag is supported per file_picker docs; the
-///   picker returns paths which we stream from via `dart:io`.
-/// - **Other native** (iOS / Android / Windows / Linux): both flags
-///   `false` — file_picker still copies to app cache on mobile and
-///   populates `path` without setting up unused platform-channel
-///   stream infrastructure.
-Future<PickFilesResult?> pickFiles() async {
-  final FilePickerResult? result;
-  try {
-    if (kIsWeb) {
-      result = await FilePicker.pickFiles(
-        allowMultiple: true,
-        withData: true,
-      );
-    } else {
-      result = await FilePicker.pickFiles(
-        allowMultiple: true,
-        withData: false,
-        withReadStream: false,
-      );
-    }
-  } on Object catch (error) {
-    throw PickFilePickerException(cause: error);
-  }
-  if (result == null || result.files.isEmpty) return null;
-
-  final files = <PickedFile>[];
-  final errors = <PickFileItemError>[];
-  for (final file in result.files) {
-    final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
-
-    if (kIsWeb) {
-      final bytes = file.bytes;
-      if (bytes == null) {
-        // file_picker's web path uses FileReader.readAsArrayBuffer, which
-        // silently yields null on browser heap exhaustion. Map to a
-        // RangeError cause so [pickerErrorMessage] surfaces the
-        // size-limit message instead of the generic picker-plugin one.
-        errors.add(
-          PickFileItemError(
-            filename: file.name,
-            cause: RangeError(
-              'FileReader returned no bytes for ${file.name} on web '
-              '(likely too large for browser heap)',
-            ),
-          ),
-        );
-        continue;
-      }
-      files.add(
-        PickedFile(
-          name: file.name,
-          mimeType: mimeType,
-          size: bytes.length,
-          openStream: () => Stream<List<int>>.value(bytes),
-        ),
-      );
-      continue;
-    }
-
-    final path = file.path;
-    if (path == null) {
-      errors.add(
-        PickFileItemError(
-          filename: file.name,
-          cause: StateError('picker returned no path for ${file.name}'),
-        ),
-      );
-      continue;
-    }
-    files.add(
-      PickedFile(
-        name: file.name,
-        mimeType: mimeType,
-        size: file.size,
-        openStream: () => openFileStream(path),
-      ),
-    );
-  }
-  return (files: files, errors: errors);
-}
+/// Returns `null` when the user cancels. Throws [PickFilePickerException]
+/// when the picker plugin itself fails. Per-file failures do NOT abort
+/// the batch — they appear in [PickFilesResult.errors] so the caller
+/// can route each one to the upload tracker's `recordClientError`.
+Future<PickFilesResult?> pickFiles() => pickFilesImpl();
 
 /// Opens the platform directory picker and walks the chosen folder for
 /// uploadable files.
@@ -241,58 +145,4 @@ Future<PickFilesResult?> pickFiles() async {
 /// [mangleRelativePath] using the picked folder's basename as the root,
 /// so the backend's flat storage and `pathlib.Path(filename).name`
 /// stripping leave the names intact.
-///
-/// Throws [UnsupportedError] on web — folder pick is not available
-/// through the file_picker plugin on that platform. Throws
-/// [PickFilePickerException] when the directory picker plugin itself
-/// fails or the walk hits a fatal I/O error (e.g., permission denied
-/// on a parent directory).
-Future<PickFilesResult?> pickFolder() async {
-  if (kIsWeb) {
-    throw UnsupportedError(
-      'Folder pick is not supported on web. Gate the UI before calling.',
-    );
-  }
-  final String? picked;
-  try {
-    picked = await FilePickerPlatform.instance.getDirectoryPath();
-  } on Object catch (error) {
-    throw PickFilePickerException(cause: error);
-  }
-  if (picked == null) return null;
-
-  final base = picked.replaceAll(RegExp(r'[/\\]+$'), '');
-  final rootName = base.split(RegExp(r'[/\\]')).last;
-
-  final files = <PickedFile>[];
-  final errors = <PickFileItemError>[];
-  try {
-    await for (final entity
-        in Directory(base).list(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      final relative = entity.path.substring(base.length + 1);
-      final segments = relative.split(RegExp(r'[/\\]'));
-      if (segments.any((s) => s.startsWith('.'))) continue;
-      try {
-        final mangledName = mangleRelativePath(rootName, relative);
-        final mimeType =
-            lookupMimeType(mangledName) ?? 'application/octet-stream';
-        files.add(
-          PickedFile(
-            name: mangledName,
-            mimeType: mimeType,
-            size: entity.lengthSync(),
-            openStream: () => openFileStream(entity.path),
-          ),
-        );
-      } on FormatException catch (e) {
-        errors.add(PickFileItemError(filename: relative, cause: e));
-      }
-    }
-  } on Object catch (error) {
-    throw PickFilePickerException(cause: error);
-  }
-
-  if (files.isEmpty && errors.isEmpty) return null;
-  return (files: files, errors: errors);
-}
+Future<PickFilesResult?> pickFolder() => pickFolderImpl();

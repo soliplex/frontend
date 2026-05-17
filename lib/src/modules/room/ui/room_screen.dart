@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -885,7 +884,7 @@ class _RoomScreenState extends State<RoomScreen> {
           onAttachFile: (room?.enableAttachments ?? false)
               ? () => _pickAndUploadToNewThread(pickFiles)
               : null,
-          onAttachFolder: (room?.enableAttachments ?? false) && !kIsWeb
+          onAttachFolder: (room?.enableAttachments ?? false)
               ? () => _pickAndUploadToNewThread(pickFolder)
               : null,
         ),
@@ -1030,7 +1029,7 @@ class _RoomScreenState extends State<RoomScreen> {
                         pickFiles,
                       )
                   : null,
-              onAttachFolder: attachEnabled && !kIsWeb
+              onAttachFolder: attachEnabled
                   ? () => _pickAndUploadToThread(
                         threadView.threadId,
                         pickFolder,

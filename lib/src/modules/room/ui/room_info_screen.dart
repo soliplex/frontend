@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -459,12 +458,11 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
                 icon: const Icon(Icons.upload_file, size: 18),
                 label: const Text('Upload files to room'),
               ),
-              if (!kIsWeb)
-                FilledButton.icon(
-                  onPressed: () => _pickAndUpload(pickFolder),
-                  icon: const Icon(Icons.drive_folder_upload, size: 18),
-                  label: const Text('Upload folder to room'),
-                ),
+              FilledButton.icon(
+                onPressed: () => _pickAndUpload(pickFolder),
+                icon: const Icon(Icons.drive_folder_upload, size: 18),
+                label: const Text('Upload folder to room'),
+              ),
             ],
           ),
         ),
