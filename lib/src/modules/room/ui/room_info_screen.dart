@@ -551,7 +551,7 @@ class _UploadEntryRow extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: isFailed
           ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
-          : null,
+          : const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
