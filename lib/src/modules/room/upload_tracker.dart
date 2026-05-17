@@ -686,8 +686,39 @@ class UploadTracker {
   }
 
   // --------------------------------------------------------
-  // Dismissal
+  // User-initiated cancel / dismissal
   // --------------------------------------------------------
+
+  /// User-initiated cancel of an in-flight or queued Pending upload.
+  ///
+  /// Flips the matching `_Pending` row to a `_Failed` row carrying
+  /// `'Upload cancelled.'`, then cancels its token. Order matters: by
+  /// the time the in-flight POST aborts with `CancelledException`,
+  /// `_runUpload`'s existing silent-exit-on-cancel path observes the
+  /// record is no longer `_Pending` and won't overwrite the Failed
+  /// row. Queued-but-not-started jobs are skipped naturally by the
+  /// drainer's `if (job.token.isCancelled) continue;` check, and the
+  /// Failed row is already in place.
+  ///
+  /// No-op when called with an unknown id, on a non-Pending record
+  /// (Posted or Failed), or after [dispose].
+  void cancelUpload(String entryId) {
+    if (_isDisposed) return;
+    for (final scope in _scopes.values) {
+      final idx = scope.pending.indexWhere((r) => r.id == entryId);
+      if (idx < 0) continue;
+      final record = scope.pending[idx];
+      if (record is! _Pending) return;
+      scope.pending[idx] = _Failed(
+        id: entryId,
+        filename: record.filename,
+        message: 'Upload cancelled.',
+      );
+      _emit(scope);
+      record.cancelToken.cancel('user');
+      return;
+    }
+  }
 
   /// Removes a Failed entry by its id.
   ///

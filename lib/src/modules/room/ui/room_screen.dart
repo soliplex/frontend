@@ -661,7 +661,11 @@ class _RoomScreenState extends State<RoomScreen> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.4,
           ),
+          // Right padding reserves space for the overlay scrollbar so
+          // it doesn't sit on top of trailing close buttons (cancel /
+          // dismiss) on file rows.
           child: SingleChildScrollView(
+            padding: const EdgeInsets.only(right: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -750,23 +754,34 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildFileRow(DisplayUpload entry) {
     final theme = Theme.of(context);
     final isFailed = entry is FailedUpload;
-    final (icon, color, errorMessage, dismissible) = switch (entry) {
+    final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
           theme.colorScheme.primary,
           null,
-          false,
         ),
-      PendingUpload() => (null, theme.colorScheme.primary, null, false),
+      PendingUpload() => (null, theme.colorScheme.primary, null),
       FailedUpload(message: final m) => (
           Icons.error_outline,
           theme.colorScheme.onErrorContainer,
           m,
-          true,
         ),
     };
 
-    final dismissId = entry is FailedUpload ? entry.id : null;
+    final (closeTooltip, closeAction) = switch (entry) {
+      PendingUpload(:final id) => (
+          'Cancel upload',
+          () => _state.uploadTracker.cancelUpload(id)
+        ),
+      FailedUpload(:final id) => (
+          'Dismiss',
+          () => _state.uploadTracker.dismissFailed(id)
+        ),
+      _ => (null, null),
+    };
+    final closeColor = isFailed
+        ? theme.colorScheme.onErrorContainer
+        : theme.colorScheme.outline;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
@@ -821,11 +836,12 @@ class _RoomScreenState extends State<RoomScreen> {
               ],
             ),
           ),
-          if (dismissible && dismissId != null)
+          if (closeAction != null)
             IconButton(
               icon: const Icon(Icons.close, size: 14),
-              color: theme.colorScheme.onErrorContainer,
-              onPressed: () => _state.uploadTracker.dismissFailed(dismissId),
+              color: closeColor,
+              tooltip: closeTooltip,
+              onPressed: closeAction,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               visualDensity: VisualDensity.compact,
