@@ -14,3 +14,4 @@ export 'resume_policy.dart';
 export 'soliplex_http_adapter.dart';
 export 'soliplex_http_client.dart';
 export 'token_refresher.dart';
+export 'web_multipart_file_body.dart';
