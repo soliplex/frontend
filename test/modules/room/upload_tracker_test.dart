@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show FileSystemException;
+import 'dart:io' show FileSystemException, SocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -45,6 +45,8 @@ void main() {
           openStream: any(named: 'openStream'),
           contentLength: any(named: 'contentLength'),
           mimeType: any(named: 'mimeType'),
+          webFileBlob: any(named: 'webFileBlob'),
+          onProgress: any(named: 'onProgress'),
           cancelToken: any(named: 'cancelToken'),
         )).thenAnswer((_) async {});
   }
@@ -57,6 +59,8 @@ void main() {
           openStream: any(named: 'openStream'),
           contentLength: any(named: 'contentLength'),
           mimeType: any(named: 'mimeType'),
+          webFileBlob: any(named: 'webFileBlob'),
+          onProgress: any(named: 'onProgress'),
           cancelToken: any(named: 'cancelToken'),
         )).thenAnswer((_) async {});
   }
@@ -195,6 +199,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => uploadCompleter.future);
 
@@ -238,6 +244,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => uploadCompleter.future);
 
@@ -288,6 +296,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => completers[callIndex++].future);
 
@@ -350,6 +360,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenThrow(const ApiException(statusCode: 500, message: 'nope'));
 
@@ -368,7 +380,10 @@ void main() {
       expect(entries, hasLength(1));
       final failed = entries.single as FailedUpload;
       expect(failed.filename, 'fail.pdf');
-      expect(failed.message, contains('nope'));
+      expect(
+        failed.message,
+        'Server is temporarily unavailable. Try uploading again in a moment.',
+      );
 
       // No extra list fetch was triggered by the failure — the catch
       // path must not call refresh. (Initial fetch is the one call.)
@@ -390,6 +405,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {
         throw StateError('plugin bug');
@@ -503,6 +520,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => posts[postIdx++].future);
 
@@ -605,6 +624,155 @@ void main() {
     });
   });
 
+  group('cancelUpload', () {
+    test(
+      'flips an in-flight Pending row to Failed with a cancelled message '
+      'and cancels its token',
+      () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        CancelToken? capturedToken;
+        final never = Completer<void>();
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) {
+          capturedToken =
+              invocation.namedArguments[#cancelToken] as CancelToken;
+          return never.future;
+        });
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'a.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        await _pump();
+
+        expect(capturedToken, isNotNull);
+        expect(capturedToken!.isCancelled, isFalse);
+
+        final pending = (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<PendingUpload>()
+            .single;
+
+        tracker.cancelUpload(pending.id);
+
+        final failed = (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<FailedUpload>()
+            .single;
+        expect(failed.id, pending.id);
+        expect(failed.filename, 'a.pdf');
+        expect(failed.message, 'Upload cancelled.');
+
+        expect(capturedToken!.isCancelled, isTrue);
+        expect(capturedToken!.reason, 'user');
+      },
+    );
+
+    test('is a no-op for an unknown id', () async {
+      stubGetRoomUploads([_fileUpload('a.pdf')]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      tracker.cancelUpload('upload-9999');
+
+      final uploads =
+          (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+      expect(uploads, hasLength(1));
+      expect(uploads.single, isA<PersistedUpload>());
+    });
+
+    test(
+      'cancelling a queued-but-not-started upload yields a Failed row '
+      'and the API is never called',
+      () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        // Block the first upload's POST forever so the second stays
+        // queued, never reaching the API.
+        final blocked = Completer<void>();
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((_) => blocked.future);
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'first.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'second.pdf',
+          openStream: () => Stream<List<int>>.value(const [2]),
+          contentLength: 1,
+        );
+        await _pump();
+
+        final pendings = (tracker.roomUploads('room-1').value as UploadsLoaded)
+            .uploads
+            .whereType<PendingUpload>()
+            .toList();
+        final second = pendings.firstWhere((p) => p.filename == 'second.pdf');
+
+        // Only the first job's POST was invoked; the second is queued.
+        verify(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).called(1);
+
+        tracker.cancelUpload(second.id);
+        await _pump();
+
+        // Second became a Failed row; first stayed Pending.
+        final uploads =
+            (tracker.roomUploads('room-1').value as UploadsLoaded).uploads;
+        final failed = uploads.whereType<FailedUpload>().single;
+        expect(failed.filename, 'second.pdf');
+        expect(failed.message, 'Upload cancelled.');
+
+        // No new API call for the cancelled queued job.
+        verifyNever(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: 'second.pdf',
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            ));
+      },
+    );
+  });
+
   group('dismissFailed', () {
     test('removes a Failed entry by id', () async {
       stubGetRoomUploads([]);
@@ -617,6 +785,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenThrow(NetworkException(message: 'dns'));
 
@@ -667,6 +837,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => never.future);
 
@@ -785,6 +957,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {});
 
@@ -827,6 +1001,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((invocation) {
         capturedToken = invocation.namedArguments[#cancelToken] as CancelToken;
@@ -865,6 +1041,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {
         callCount++;
@@ -915,6 +1093,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {
         callCount++;
@@ -938,7 +1118,7 @@ void main() {
       final status = tracker.roomUploads('room-1').value as UploadsLoaded;
       final failed = status.uploads.whereType<FailedUpload>().single;
       expect(failed.filename, 'fail.pdf');
-      expect(failed.message, contains('token expired'));
+      expect(failed.message, 'Session expired. Please sign in again.');
     });
 
     test(
@@ -956,6 +1136,8 @@ void main() {
               openStream: any(named: 'openStream'),
               contentLength: any(named: 'contentLength'),
               mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
               cancelToken: any(named: 'cancelToken'),
             )).thenAnswer((invocation) async {
           final openStream = invocation.namedArguments[#openStream]
@@ -1017,6 +1199,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) => uploadCompleter.future);
 
@@ -1080,6 +1264,70 @@ void main() {
       );
     });
 
+    test('415 ApiException surfaces as unsupported file type message', () {
+      final message = uploadErrorMessage(
+        const ApiException(
+          statusCode: 415,
+          message: 'Unsupported Media Type',
+        ),
+      );
+      expect(message, "This file type isn't supported.");
+    });
+
+    test('5xx ApiException surfaces as temporarily-unavailable message', () {
+      for (final statusCode in [500, 502, 503, 504]) {
+        final message = uploadErrorMessage(
+          ApiException(statusCode: statusCode, message: 'boom'),
+        );
+        expect(
+          message,
+          'Server is temporarily unavailable. Try uploading again in a moment.',
+          reason: 'statusCode=$statusCode',
+        );
+      }
+    });
+
+    test('NetworkException(isTimeout: true) surfaces as upload-timeout message',
+        () {
+      final message = uploadErrorMessage(
+        NetworkException(message: 'Read timeout', isTimeout: true),
+      );
+      expect(
+        message,
+        'Upload timed out. Try a smaller file or check your connection.',
+      );
+    });
+
+    test(
+      'NetworkException wrapping a SocketException surfaces as '
+      'connection-lost message',
+      () {
+        final message = uploadErrorMessage(
+          NetworkException(
+            message: 'Stream error',
+            originalError: const SocketException('Connection reset by peer'),
+          ),
+        );
+        expect(message, 'Network connection lost. Try uploading again.');
+      },
+    );
+
+    test('AuthException(statusCode: 401) surfaces as session-expired message',
+        () {
+      final message = uploadErrorMessage(
+        const AuthException(statusCode: 401, message: 'token expired'),
+      );
+      expect(message, 'Session expired. Please sign in again.');
+    });
+
+    test('AuthException(statusCode: 403) surfaces as no-permission message',
+        () {
+      final message = uploadErrorMessage(
+        const AuthException(statusCode: 403, message: 'forbidden'),
+      );
+      expect(message, "You don't have permission to upload here.");
+    });
+
     test('CancelledException does not produce a Failed row', () async {
       stubGetRoomUploads([]);
       unawaited(tracker.refreshRoom('room-1'));
@@ -1091,6 +1339,8 @@ void main() {
             openStream: any(named: 'openStream'),
             contentLength: any(named: 'contentLength'),
             mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
             cancelToken: any(named: 'cancelToken'),
           )).thenAnswer((_) async {
         throw const CancelledException(reason: 'disposed');
@@ -1106,6 +1356,179 @@ void main() {
 
       final status = tracker.roomUploads('room-1').value as UploadsLoaded;
       expect(status.uploads.whereType<FailedUpload>(), isEmpty);
+    });
+  });
+
+  group('global upload queue', () {
+    test(
+      'queues uploads across scopes and drains one at a time in enqueue order',
+      () async {
+        stubGetRoomUploads([]);
+        stubGetThreadUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        unawaited(tracker.refreshThread('room-1', 'thread-1'));
+        await _pump();
+
+        final firstPost = Completer<void>();
+        final secondPost = Completer<void>();
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((_) => firstPost.future);
+        when(() => mockApi.uploadFileToThread(
+              any(),
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((_) => secondPost.future);
+
+        // Enqueue: room upload first (job A), thread upload second (job B).
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'room-file.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        tracker.uploadToThread(
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          filename: 'thread-file.pdf',
+          openStream: () => Stream<List<int>>.value(const [2]),
+          contentLength: 1,
+        );
+
+        // Both Pending rows are visible immediately in their respective
+        // scopes, regardless of which job is currently in flight.
+        expect(
+          (tracker.roomUploads('room-1').value as UploadsLoaded)
+              .uploads
+              .whereType<PendingUpload>(),
+          hasLength(1),
+        );
+        expect(
+          (tracker.threadUploads('room-1', 'thread-1').value as UploadsLoaded)
+              .uploads
+              .whereType<PendingUpload>(),
+          hasLength(1),
+        );
+
+        await _pump();
+
+        // Job A is in flight; job B's API has NOT been called yet.
+        verify(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).called(1);
+        verifyNever(() => mockApi.uploadFileToThread(
+              any(),
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            ));
+
+        // Finish job A → drainer pulls job B.
+        firstPost.complete();
+        await _pump();
+
+        verify(() => mockApi.uploadFileToThread(
+              any(),
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).called(1);
+
+        // Finish job B → queue drains.
+        secondPost.complete();
+        await _pump();
+      },
+    );
+
+    test('dispose cancels queued-but-not-started jobs without invoking the API',
+        () async {
+      stubGetRoomUploads([]);
+      unawaited(tracker.refreshRoom('room-1'));
+      await _pump();
+
+      final blockedFirst = Completer<void>();
+      when(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenAnswer((_) => blockedFirst.future);
+
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'first.pdf',
+        openStream: () => Stream<List<int>>.value(const [1]),
+        contentLength: 1,
+      );
+      tracker.uploadToRoom(
+        roomId: 'room-1',
+        filename: 'second.pdf',
+        openStream: () => Stream<List<int>>.value(const [2]),
+        contentLength: 1,
+      );
+      await _pump();
+
+      // Only the first job's POST was invoked; the second waits in queue.
+      verify(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          )).called(1);
+
+      tracker.dispose();
+      // Let any pending microtasks settle.
+      await _pump();
+
+      // dispose() did not let the queued job start.
+      verifyNever(() => mockApi.uploadFileToRoom(
+            any(),
+            filename: any(named: 'filename'),
+            openStream: any(named: 'openStream'),
+            contentLength: any(named: 'contentLength'),
+            mimeType: any(named: 'mimeType'),
+            webFileBlob: any(named: 'webFileBlob'),
+            onProgress: any(named: 'onProgress'),
+            cancelToken: any(named: 'cancelToken'),
+          ));
     });
   });
 }

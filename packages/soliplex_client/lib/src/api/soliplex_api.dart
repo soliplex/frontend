@@ -24,6 +24,7 @@ import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
 import 'package:soliplex_client/src/http/multipart_encoder.dart';
+import 'package:soliplex_client/src/http/web_multipart_file_body.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 import 'package:soliplex_client/src/utils/url_builder.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -1249,14 +1250,40 @@ class SoliplexApi {
   /// `Stream<List<int>>` of the file's bytes. [contentLength] is the
   /// exact byte length of those contents — used by the transport to set
   /// the request's `Content-Length` header.
+  ///
+  /// When [webFileBlob] is non-null, the request body becomes a
+  /// [WebMultipartFileBody] instead — the web HTTP client hands the
+  /// blob to the browser's native FormData/XHR pipeline so file bytes
+  /// never enter the JS heap. [openStream] is then unused (the browser
+  /// reads from the blob's disk-backed storage). [onProgress] receives
+  /// `(sent, total)` ticks from `xhr.upload.onprogress` in that case.
   Future<void> uploadFileToRoom(
     String roomId, {
     required String filename,
     required Stream<List<int>> Function() openStream,
     required int contentLength,
     String mimeType = 'application/octet-stream',
+    Object? webFileBlob,
+    void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
+    final uri = _urlBuilder.build(pathSegments: ['uploads', roomId]);
+    if (webFileBlob != null) {
+      await _transport.request<void>(
+        'POST',
+        uri,
+        body: WebMultipartFileBody(
+          fieldName: 'upload_file',
+          filename: filename,
+          fileBlob: webFileBlob,
+          mimeType: mimeType,
+          contentLength: contentLength,
+          onProgress: onProgress,
+        ),
+        cancelToken: cancelToken,
+      );
+      return;
+    }
     final encoded = encodeMultipartStream(
       fieldName: 'upload_file',
       filename: filename,
@@ -1266,7 +1293,7 @@ class SoliplexApi {
     );
     await _transport.request<void>(
       'POST',
-      _urlBuilder.build(pathSegments: ['uploads', roomId]),
+      uri,
       body: encoded.bodyStream,
       headers: {
         'content-type': encoded.contentType,
@@ -1292,8 +1319,27 @@ class SoliplexApi {
     required Stream<List<int>> Function() openStream,
     required int contentLength,
     String mimeType = 'application/octet-stream',
+    Object? webFileBlob,
+    void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
+    final uri = _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]);
+    if (webFileBlob != null) {
+      await _transport.request<void>(
+        'POST',
+        uri,
+        body: WebMultipartFileBody(
+          fieldName: 'upload_file',
+          filename: filename,
+          fileBlob: webFileBlob,
+          mimeType: mimeType,
+          contentLength: contentLength,
+          onProgress: onProgress,
+        ),
+        cancelToken: cancelToken,
+      );
+      return;
+    }
     final encoded = encodeMultipartStream(
       fieldName: 'upload_file',
       filename: filename,
@@ -1303,7 +1349,7 @@ class SoliplexApi {
     );
     await _transport.request<void>(
       'POST',
-      _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]),
+      uri,
       body: encoded.bodyStream,
       headers: {
         'content-type': encoded.contentType,

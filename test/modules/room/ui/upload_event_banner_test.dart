@@ -51,6 +51,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenAnswer((_) async {});
@@ -113,6 +115,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenThrow(const NetworkException(message: 'wifi down'));
@@ -179,6 +183,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenThrow(const NetworkException(message: 'wifi down'));
@@ -217,6 +223,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenAnswer((_) async {
@@ -293,6 +301,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenThrow(const NetworkException(message: 'prior'));
@@ -419,6 +429,8 @@ void main() {
         openStream: any(named: 'openStream'),
         contentLength: any(named: 'contentLength'),
         mimeType: any(named: 'mimeType'),
+        webFileBlob: any(named: 'webFileBlob'),
+        onProgress: any(named: 'onProgress'),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenAnswer((_) async {

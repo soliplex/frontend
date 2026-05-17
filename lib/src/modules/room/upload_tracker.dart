@@ -1,6 +1,7 @@
 import 'dart:async' show unawaited;
+import 'dart:collection' show Queue;
 import 'dart:developer' as dev;
-import 'dart:io' show FileSystemException;
+import 'dart:io' show FileSystemException, SocketException;
 
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -79,11 +80,16 @@ class FailedUpload extends DisplayUpload {
 /// upload-specific failure modes to friendlier messages before falling
 /// back to the [SoliplexException.message], then to a generic string.
 String uploadErrorMessage(Object error) {
-  // 413 Request Entity Too Large — backend or edge proxy rejected the
-  // upload size. Surfaces the same friendly message regardless of
-  // whether the body said anything useful.
-  if (error is ApiException && error.statusCode == 413) {
-    return 'File is too large to upload.';
+  if (error is ApiException) {
+    // 413 Request Entity Too Large — backend or edge proxy rejected
+    // the upload size. Surfaces the same friendly message regardless
+    // of whether the body said anything useful.
+    if (error.statusCode == 413) return 'File is too large to upload.';
+    if (error.statusCode == 415) return "This file type isn't supported.";
+    if (error.statusCode >= 500) {
+      return 'Server is temporarily unavailable. '
+          'Try uploading again in a moment.';
+    }
   }
 
   // The lazy openStream() failed to read the file (typical cause: the
@@ -93,6 +99,24 @@ String uploadErrorMessage(Object error) {
   // by inspecting the error and its originalError.
   if (_isFileSystemRead(error)) {
     return 'Could not read file from disk.';
+  }
+
+  if (error is NetworkException) {
+    if (error.isTimeout) {
+      return 'Upload timed out. Try a smaller file or check your connection.';
+    }
+    if (error.originalError is SocketException) {
+      return 'Network connection lost. Try uploading again.';
+    }
+  }
+
+  if (error is AuthException) {
+    if (error.statusCode == 401) {
+      return 'Session expired. Please sign in again.';
+    }
+    if (error.statusCode == 403) {
+      return "You don't have permission to upload here.";
+    }
   }
 
   if (error is SoliplexException) return error.message;
@@ -179,16 +203,45 @@ class _ScopeState {
   }
 }
 
+/// One pending upload job waiting for the global queue's drainer.
+///
+/// The job's `cancelToken` is the same instance stored on the matching
+/// `_Pending` record in `scope.pending`, so `dispose()` cancels both
+/// in-flight jobs (whose POST observes the token error) and
+/// queued-but-not-started jobs (the drainer sees the cancelled token
+/// and skips them).
+class _QueuedJob {
+  _QueuedJob({
+    required this.scope,
+    required this.id,
+    required this.runPost,
+    required this.refresh,
+    required this.token,
+  });
+  final _ScopeState scope;
+  final String id;
+  final Future<void> Function(CancelToken) runPost;
+  final Future<void> Function() refresh;
+  final CancelToken token;
+}
+
 /// Tracks file uploads across rooms and threads, merging a
 /// server-fetched list with an in-flight optimistic view.
 ///
 /// Owned by the registry so uploads started on one screen survive
 /// when the user navigates away before the POST resolves.
+///
+/// All uploads (room and thread) flow through a single global FIFO
+/// queue: one job is in flight at a time. The user sees a Pending row
+/// for every enqueued upload immediately, regardless of where it sits
+/// in the queue.
 class UploadTracker {
   UploadTracker({required SoliplexApi api}) : _api = api;
 
   final SoliplexApi _api;
   final Map<String, _ScopeState> _scopes = {};
+  final Queue<_QueuedJob> _queue = Queue<_QueuedJob>();
+  bool _draining = false;
   bool _isDisposed = false;
   int _nextId = 0;
 
@@ -330,6 +383,7 @@ class UploadTracker {
     required Stream<List<int>> Function() openStream,
     required int contentLength,
     String mimeType = 'application/octet-stream',
+    Object? webFileBlob,
   }) {
     final key = _roomKey(roomId);
     _startUpload(
@@ -337,12 +391,14 @@ class UploadTracker {
       filename: filename,
       openStream: openStream,
       contentLength: contentLength,
-      runPost: (wrappedOpenStream, token) => _api.uploadFileToRoom(
+      runPost: (wrappedOpenStream, onProgress, token) => _api.uploadFileToRoom(
         roomId,
         filename: filename,
         openStream: wrappedOpenStream,
         contentLength: contentLength,
         mimeType: mimeType,
+        webFileBlob: webFileBlob,
+        onProgress: onProgress,
         cancelToken: token,
       ),
       refresh: () => _refresh(
@@ -359,6 +415,7 @@ class UploadTracker {
     required Stream<List<int>> Function() openStream,
     required int contentLength,
     String mimeType = 'application/octet-stream',
+    Object? webFileBlob,
   }) {
     final key = _threadKey(roomId, threadId);
     _startUpload(
@@ -366,13 +423,16 @@ class UploadTracker {
       filename: filename,
       openStream: openStream,
       contentLength: contentLength,
-      runPost: (wrappedOpenStream, token) => _api.uploadFileToThread(
+      runPost: (wrappedOpenStream, onProgress, token) =>
+          _api.uploadFileToThread(
         roomId,
         threadId,
         filename: filename,
         openStream: wrappedOpenStream,
         contentLength: contentLength,
         mimeType: mimeType,
+        webFileBlob: webFileBlob,
+        onProgress: onProgress,
         cancelToken: token,
       ),
       refresh: () => _refresh(
@@ -404,6 +464,7 @@ class UploadTracker {
     required int contentLength,
     required Future<void> Function(
       Stream<List<int>> Function(),
+      void Function(int sent, int total) onProgress,
       CancelToken,
     ) runPost,
     required Future<void> Function() refresh,
@@ -423,35 +484,74 @@ class UploadTracker {
     );
     _emit(scope);
 
-    // Wrap [openStream] so we can observe chunks as they flow into the
-    // multipart encoder. Local state is captured per-call; on retry,
-    // the wrapper is re-invoked and the counters reset.
-    Stream<List<int>> wrappedOpenStream() async* {
-      var sent = 0;
-      DateTime? lastEmit;
-      await for (final chunk in openStream()) {
-        yield chunk;
-        sent += chunk.length;
-        final isFinal = sent >= contentLength;
-        final now = DateTime.now();
-        final dueByThrottle = lastEmit == null ||
-            now.difference(lastEmit) >= _progressEmitInterval;
-        if (isFinal || dueByThrottle) {
-          lastEmit = now;
-          _updateProgress(scope, id, sent);
-        }
+    // Shared throttled progress emitter. The wrapper (native streaming
+    // path) and the web FormData path both feed this. Throttle state
+    // is per upload — captured by closure. On retry, the wrapper is
+    // re-invoked but the throttle continues from where it was; the
+    // worst case is one missed emission per retry, negligible.
+    DateTime? lastEmit;
+    void emitProgress(int sent, int total) {
+      if (_isDisposed) return;
+      final isFinal = sent >= total;
+      final now = DateTime.now();
+      final dueByThrottle = lastEmit == null ||
+          now.difference(lastEmit!) >= _progressEmitInterval;
+      if (isFinal || dueByThrottle) {
+        lastEmit = now;
+        _updateProgress(scope, id, sent);
       }
     }
 
-    unawaited(
-      _runUpload(
+    // Wrap [openStream] so we can observe chunks as they flow into the
+    // multipart encoder. Only invoked on the native streaming path; on
+    // the web FormData path, openStream is never called — progress
+    // comes from xhr.upload.onprogress via the [emitProgress] callback
+    // wired into the WebMultipartFileBody body type.
+    Stream<List<int>> wrappedOpenStream() async* {
+      var sent = 0;
+      await for (final chunk in openStream()) {
+        yield chunk;
+        sent += chunk.length;
+        emitProgress(sent, contentLength);
+      }
+    }
+
+    _enqueue(
+      _QueuedJob(
         scope: scope,
         id: id,
-        runPost: (t) => runPost(wrappedOpenStream, t),
+        runPost: (t) => runPost(wrappedOpenStream, emitProgress, t),
         refresh: refresh,
         token: token,
       ),
     );
+  }
+
+  void _enqueue(_QueuedJob job) {
+    if (_isDisposed) return;
+    _queue.addLast(job);
+    if (!_draining) {
+      _draining = true;
+      unawaited(_drain());
+    }
+  }
+
+  Future<void> _drain() async {
+    try {
+      while (_queue.isNotEmpty && !_isDisposed) {
+        final job = _queue.removeFirst();
+        if (job.token.isCancelled) continue;
+        await _runUpload(
+          scope: job.scope,
+          id: job.id,
+          runPost: job.runPost,
+          refresh: job.refresh,
+          token: job.token,
+        );
+      }
+    } finally {
+      _draining = false;
+    }
   }
 
   /// Replaces the `_Pending` record at [id] with an updated [sentBytes]
@@ -586,8 +686,39 @@ class UploadTracker {
   }
 
   // --------------------------------------------------------
-  // Dismissal
+  // User-initiated cancel / dismissal
   // --------------------------------------------------------
+
+  /// User-initiated cancel of an in-flight or queued Pending upload.
+  ///
+  /// Flips the matching `_Pending` row to a `_Failed` row carrying
+  /// `'Upload cancelled.'`, then cancels its token. Order matters: by
+  /// the time the in-flight POST aborts with `CancelledException`,
+  /// `_runUpload`'s existing silent-exit-on-cancel path observes the
+  /// record is no longer `_Pending` and won't overwrite the Failed
+  /// row. Queued-but-not-started jobs are skipped naturally by the
+  /// drainer's `if (job.token.isCancelled) continue;` check, and the
+  /// Failed row is already in place.
+  ///
+  /// No-op when called with an unknown id, on a non-Pending record
+  /// (Posted or Failed), or after [dispose].
+  void cancelUpload(String entryId) {
+    if (_isDisposed) return;
+    for (final scope in _scopes.values) {
+      final idx = scope.pending.indexWhere((r) => r.id == entryId);
+      if (idx < 0) continue;
+      final record = scope.pending[idx];
+      if (record is! _Pending) return;
+      scope.pending[idx] = _Failed(
+        id: entryId,
+        filename: record.filename,
+        message: 'Upload cancelled.',
+      );
+      _emit(scope);
+      record.cancelToken.cancel('user');
+      return;
+    }
+  }
 
   /// Removes a Failed entry by its id.
   ///
@@ -666,9 +797,11 @@ class UploadTracker {
     if (_isDisposed) return;
     _isDisposed = true;
     for (final scope in _scopes.values) {
-      // Cancel any in-flight uploads. The POST futures see the
-      // injected sink error and abort cleanly; _runUpload catches the
-      // CancelledException and exits without writing a Failed row.
+      // Cancel both in-flight POSTs and queued-but-not-started jobs.
+      // Each queued job's token is the same CancelToken instance stored
+      // on its `_Pending` record, so this loop cancels both paths.
+      // The drain loop sees `_isDisposed` and exits without invoking
+      // any remaining queued jobs.
       for (final record in scope.pending) {
         if (record is _Pending) {
           record.cancelToken.cancel('disposed');
@@ -676,6 +809,7 @@ class UploadTracker {
       }
       scope.dispose();
     }
+    _queue.clear();
     _scopes.clear();
   }
 }

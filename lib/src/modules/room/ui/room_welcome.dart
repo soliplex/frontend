@@ -30,10 +30,11 @@ class RoomWelcome extends StatelessWidget {
       return fallback;
     }
 
-    return Center(
+    return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (currentRoom.name.isNotEmpty)

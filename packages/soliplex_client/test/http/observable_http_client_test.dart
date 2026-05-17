@@ -1337,6 +1337,45 @@ void main() {
         expect(body['password'], equals('[REDACTED]'));
       });
 
+      test(
+        'redacts WebMultipartFileBody as "<file upload: filename, N bytes>"',
+        () async {
+          when(
+            () => mockClient.request(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any<Object?>(named: 'body'),
+              timeout: any(named: 'timeout'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer(
+            (_) async => HttpResponse(statusCode: 204, bodyBytes: Uint8List(0)),
+          );
+
+          const body = WebMultipartFileBody(
+            fieldName: 'file',
+            filename: 'doc.pdf',
+            fileBlob: Object(),
+            mimeType: 'application/pdf',
+            contentLength: 1024,
+          );
+
+          await observableClient.request(
+            'POST',
+            Uri.parse('https://example.com/upload'),
+            body: body,
+            headers: const {'content-type': 'multipart/form-data; boundary=x'},
+          );
+
+          final requestEvent = recorder.eventsOfType<HttpRequestEvent>().first;
+          expect(
+            requestEvent.body,
+            equals('<file upload: doc.pdf, 1024 bytes>'),
+          );
+        },
+      );
+
       test('redacts Stream<List<int>> request body without consuming it',
           () async {
         // Capture the body that ObservableHttpClient passes through to the

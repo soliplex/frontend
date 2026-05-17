@@ -1,11 +1,15 @@
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_client_native/src/clients/web_xhr_http_client.dart';
 
-/// Fallback implementation for non-IO platforms (Web).
+/// Platform-specific client factory for the web target.
 ///
-/// Returns [DartHttpClient] as the default client for web platform.
+/// Returns [WebXhrHttpClient], which delegates to [DartHttpClient] for
+/// all non-upload traffic. For file uploads carrying a
+/// [WebMultipartFileBody] it switches to `XMLHttpRequest + FormData`
+/// so the browser handles multipart encoding natively and streams from
+/// the file's disk-backed Blob — file bytes never enter the JS heap.
 SoliplexHttpClient createPlatformClientImpl({
   Duration defaultTimeout = defaultHttpTimeout,
 }) {
-  // Web platform uses DartHttpClient
-  return DartHttpClient(defaultTimeout: defaultTimeout);
+  return WebXhrHttpClient(defaultTimeout: defaultTimeout);
 }

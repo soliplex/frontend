@@ -7,6 +7,7 @@ import 'package:soliplex_client/src/http/http_observer.dart';
 import 'package:soliplex_client/src/http/http_redactor.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
+import 'package:soliplex_client/src/http/web_multipart_file_body.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
 
 /// HTTP client decorator that notifies observers of all HTTP activity.
@@ -321,6 +322,13 @@ class ObservableHttpClient implements SoliplexHttpClient {
     Uri uri,
   ) {
     if (body == null) return null;
+
+    // File-upload marker: the platform client will hand the blob to
+    // the browser's native multipart encoder. The blob itself must
+    // never be read here.
+    if (body is WebMultipartFileBody) {
+      return '<file upload: ${body.filename}, ${body.contentLength} bytes>';
+    }
 
     // Streamed bodies must never be consumed here — listening to the
     // stream would steal events from the platform client. Return a
