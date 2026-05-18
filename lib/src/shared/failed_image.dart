@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'copy_button.dart';
 
-const double _kIconBoxSize = 96;
-const double _kSourceMaxHeight = 200;
+const double _iconBoxSize = 96;
+const double _sourceMaxHeight = 200;
 
 /// Visible placeholder for an image that could not be loaded or decoded.
 ///
@@ -73,8 +73,8 @@ class _FailedImageState extends State<FailedImage> {
       label: label,
       image: true,
       child: Container(
-        width: _kIconBoxSize,
-        height: _kIconBoxSize,
+        width: _iconBoxSize,
+        height: _iconBoxSize,
         decoration: BoxDecoration(
           border: Border.all(color: theme.colorScheme.outline),
           color: theme.colorScheme.surfaceContainerLow,
@@ -91,7 +91,7 @@ class _FailedImageState extends State<FailedImage> {
 
   Widget _sourceView(ThemeData theme, String source) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: _kSourceMaxHeight),
+      constraints: const BoxConstraints(maxHeight: _sourceMaxHeight),
       child: SingleChildScrollView(
         child: SelectableText(
           source,
@@ -150,6 +150,6 @@ class _FailedImageState extends State<FailedImage> {
   String _displayLabel() {
     final l = widget.label;
     if (l != null && l.isNotEmpty) return l;
-    return widget.source != null ? 'broken image' : 'Image failed to load';
+    return 'Image failed to load';
   }
 }

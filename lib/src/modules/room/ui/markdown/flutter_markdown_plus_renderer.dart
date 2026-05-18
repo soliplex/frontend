@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../shared/failed_image.dart';
 import 'code_block_builder.dart';
@@ -10,6 +11,9 @@ import 'file_image_loader.dart'
 import 'inline_code_builder.dart';
 import 'markdown_renderer.dart';
 import 'markdown_theme_extension.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.markdown_image');
 
 final _brTag = RegExp(r'<br\s*/?>');
 
@@ -62,49 +66,95 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   }
 }
 
-/// Equal-or-better coverage vs `kDefaultImageBuilder` in `flutter_markdown_plus`:
-/// every scheme the default handles is handled here, with all failure paths
-/// routed to a visible [FailedImage] (default uses an invisible `SizedBox`).
-/// `file://` goes through [loadFileImage], which is conditional-imported —
-/// `Image.file` on native, [FailedImage] on web (no filesystem).
+/// Renders the image schemes that `flutter_markdown_plus` markdown can emit:
+/// `data:` (image/* and text/*), `http(s):`, `resource:`, and `file:`. All
+/// decode or load failures route to a visible [FailedImage] with a source
+/// toggle so the failure cause is inspectable. The `file:` branch is
+/// conditional-imported (`Image.file` on native, [FailedImage] stub on web).
 Widget _buildImage(Uri uri, String? title, String? alt) {
   final rawUri = uri.toString();
   return switch (uri.scheme) {
     'data' => _buildDataImage(uri, alt, rawUri),
     'http' || 'https' => Image.network(
         rawUri,
-        errorBuilder: (_, __, ___) => FailedImage(source: rawUri, label: alt),
+        errorBuilder: (_, error, stack) {
+          _logger.warning(
+            'http image failed to load: ${_truncate(rawUri)}',
+            error: error,
+            stackTrace: stack,
+          );
+          return FailedImage(source: rawUri, label: alt);
+        },
       ),
     'resource' => Image.asset(
         uri.path,
-        errorBuilder: (_, __, ___) => FailedImage(source: rawUri, label: alt),
+        errorBuilder: (_, error, stack) {
+          _logger.warning(
+            'resource image failed to load: ${_truncate(rawUri)}',
+            error: error,
+            stackTrace: stack,
+          );
+          return FailedImage(source: rawUri, label: alt);
+        },
       ),
     'file' => loadFileImage(uri, rawUri, alt),
-    _ => FailedImage(source: rawUri, label: alt),
+    _ => _logUnsupportedScheme(uri, rawUri, alt),
   };
 }
 
+Widget _logUnsupportedScheme(Uri uri, String rawUri, String? alt) {
+  _logger.warning('markdown image with unsupported scheme: ${uri.scheme}');
+  return FailedImage(source: rawUri, label: alt);
+}
+
 Widget _buildDataImage(Uri uri, String? alt, String rawUri) {
+  // `uri.data` is structurally non-null for parsed `data:` URIs (Uri.parse
+  // rejects malformed ones), but we keep the null-guard rather than force-
+  // unwrap so the type system carries the non-null promise into the body.
   final data = uri.data;
   if (data == null) return FailedImage(source: rawUri, label: alt);
 
   final mime = data.mimeType;
   if (mime.startsWith('image/')) {
     final decoded = tryDecodeImageDataUri(rawUri);
-    if (decoded == null) return FailedImage(source: rawUri, label: alt);
+    if (decoded == null) {
+      _logger.warning(
+        'data:image/* URI failed to decode: ${_truncate(rawUri)}',
+      );
+      return FailedImage(source: rawUri, label: alt);
+    }
     return Image.memory(
       decoded.bytes,
-      errorBuilder: (_, __, ___) => FailedImage(source: rawUri, label: alt),
+      errorBuilder: (_, error, stack) {
+        _logger.warning(
+          'data:image/* bytes failed to render: ${_truncate(rawUri)}',
+          error: error,
+          stackTrace: stack,
+        );
+        return FailedImage(source: rawUri, label: alt);
+      },
     );
   }
 
   if (mime.startsWith('text/')) {
     try {
       return Text(data.contentAsString());
-    } on FormatException {
+    } on FormatException catch (error, stack) {
+      _logger.warning(
+        'data:text/* URI failed to decode: ${_truncate(rawUri)}',
+        error: error,
+        stackTrace: stack,
+      );
       return FailedImage(source: rawUri, label: alt);
     }
   }
 
+  _logger.warning(
+    'data: URI with unsupported MIME $mime: ${_truncate(rawUri)}',
+  );
   return FailedImage(source: rawUri, label: alt);
 }
+
+/// Truncates long URIs (mainly base64 data URIs) for log readability.
+String _truncate(String s, {int max = 120}) =>
+    s.length <= max ? s : '${s.substring(0, max)}…(${s.length} chars)';

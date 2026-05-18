@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/chunk_visualization_page.dart';
+import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -282,11 +283,33 @@ void main() {
     });
   });
 
-  group('PageImageBroken', () {
-    test('carries a reason string', () {
-      const broken = PageImageBroken(reason: 'base64 decode failed');
-      expect(broken.reason, 'base64 decode failed');
-    });
+  testWidgets(
+      'a corrupt base64 entry surfaces the decode reason in FailedImage label',
+      (tester) async {
+    // Behavioral coverage of the PageImageBroken arm of _buildPageImage: the
+    // decoder produces a PageImageBroken with the FormatException message as
+    // its reason, and the switch renders that reason inside FailedImage.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'doc.pdf',
+        imagesBase64: const ['@@@not-base64@@@'],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'Test Doc',
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FailedImage), findsOneWidget);
+    expect(find.textContaining('Page image failed to decode:'), findsOneWidget);
   });
 
   testWidgets('tapping rotate button rotates the image', (tester) async {

@@ -16,10 +16,9 @@ ImageDataUri? tryDecodeImageDataUri(String src) {
 
   if (!data.mimeType.startsWith('image/')) return null;
 
-  // Validate base64 length explicitly against the raw source string. Dart's
-  // UriData normalizes its contentText (it silently appends `=` padding to
-  // truncated input on the VM, while web throws). Consult the original `src`
-  // so behavior is identical on both platforms.
+  // Validate length on the raw source string. UriData's accessors normalize
+  // the payload (URL-decoding, base64 padding), so `data.contentText.length`
+  // is not a reliable proxy for the raw base64 input.
   if (data.isBase64) {
     final commaIdx = src.indexOf(',');
     if (commaIdx < 0) return null;

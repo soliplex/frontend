@@ -198,11 +198,11 @@ void main() {
       expect(find.byType(FailedImage), findsOneWidget);
     });
 
-    testWidgets('http image with a failing URL surfaces via FailedImage',
-        (tester) async {
-      // Image.network's load will fail (no network in tests). The custom
-      // errorBuilder routes that failure to FailedImage so the user sees a
-      // visible broken-image badge plus a source toggle showing the URL.
+    testWidgets('http image is routed through Image.network', (tester) async {
+      // Parity proof: the http(s) branch constructs Image.network with a
+      // NetworkImage provider rather than falling through to FailedImage.
+      // We assert on the provider type on the first frame, before any
+      // network attempt resolves — this avoids racing real DNS resolution.
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -213,21 +213,17 @@ void main() {
         ),
       );
       await tester.pump();
-      // Let the network request fail.
-      await tester.pump(const Duration(seconds: 1));
 
-      expect(find.byType(FailedImage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<NetworkImage>());
     });
 
-    testWidgets(
-        'file:// URI is routed through Image.file on native (parity with default)',
+    testWidgets('file:// URI is routed through Image.file on native',
         (tester) async {
-      // Tests run on native (host machine), so loadFileImage uses Image.file.
-      // The asynchronous file read does not resolve under the test scheduler,
-      // so we assert that an Image widget was constructed rather than waiting
-      // for errorBuilder. This is the parity claim: file:// no longer falls
-      // through to FailedImage; it goes through Image.file the same way
-      // kDefaultImageBuilder does.
+      // Parity proof. The asynchronous file read does not resolve under the
+      // test scheduler, so we inspect the ImageProvider on the first frame
+      // instead of waiting for errorBuilder.
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -240,17 +236,13 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(Image), findsOneWidget);
-      expect(find.byType(FailedImage), findsNothing);
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<FileImage>());
     });
 
-    testWidgets(
-        'resource: URI is routed through Image.asset (failure -> FailedImage)',
-        (tester) async {
-      // Asset doesn't exist in the test bundle, so the load will fail and
-      // the custom errorBuilder routes to FailedImage. The important thing
-      // is that an Image widget is created (parity with kDefaultImageBuilder)
-      // rather than falling straight through to the unknown-scheme branch.
+    testWidgets('resource: URI is routed through Image.asset', (tester) async {
+      // Parity proof — without an explicit assertion on AssetImage, this
+      // test would also pass via the unknown-scheme fallback to FailedImage.
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -261,10 +253,10 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(FailedImage), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<AssetImage>());
     });
 
     testWidgets('unknown scheme (e.g. ftp://) renders a FailedImage',

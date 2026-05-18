@@ -4,8 +4,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/failed_image.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.chunk_visualization');
 
 @visibleForTesting
 sealed class PageImage {
@@ -152,8 +156,13 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       final bytes = base64Decode(b64);
       final (w, h) = readPngDimensions(bytes);
       return PageImageDecoded(bytes: bytes, width: w, height: h);
-    } on FormatException {
-      return const PageImageBroken(reason: 'base64 decode failed');
+    } on FormatException catch (error, stack) {
+      _logger.warning(
+        'chunk image base64 decode failed',
+        error: error,
+        stackTrace: stack,
+      );
+      return PageImageBroken(reason: error.message);
     }
   }
 
@@ -282,8 +291,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
   Widget _buildPageImage(PageImage page, int rotation) {
     return switch (page) {
-      PageImageBroken() => const Center(
-          child: FailedImage(label: 'Page image failed to decode'),
+      PageImageBroken(:final reason) => Center(
+          child: FailedImage(label: 'Page image failed to decode: $reason'),
         ),
       PageImageDecoded() => _buildDecodedPageImage(page, rotation),
     };
@@ -295,8 +304,14 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       child: Image.memory(
         page.bytes,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
-            const FailedImage(label: 'Page image failed to render'),
+        errorBuilder: (_, error, stack) {
+          _logger.warning(
+            'chunk image bytes failed to render',
+            error: error,
+            stackTrace: stack,
+          );
+          return const FailedImage(label: 'Page image failed to render');
+        },
       ),
     );
 
