@@ -85,7 +85,6 @@ class ScrollToBottomButton extends StatelessWidget {
             ignoring: !controller.visible,
             child: FloatingActionButton.small(
               onPressed: onPressed,
-              elevation: 2,
               backgroundColor:
                   Theme.of(context).colorScheme.surfaceContainerHighest,
               foregroundColor: Theme.of(context).colorScheme.onSurface,

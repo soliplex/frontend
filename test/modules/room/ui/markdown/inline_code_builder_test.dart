@@ -12,6 +12,9 @@ void main() {
       ),
     );
 
-    expect(find.text('myFunction()'), findsOneWidget);
+    expect(
+      find.textContaining('myFunction()', findRichText: true),
+      findsWidgets,
+    );
   });
 }

@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
+import '../../../../soliplex_frontend.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../quiz_session.dart';
@@ -128,7 +129,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(message),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: SoliplexSpacing.s4),
                       FilledButton(
                         onPressed: action,
                         child: Text(label),

@@ -5,7 +5,11 @@ import 'package:soliplex_frontend/flavors.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeTheme();
   final callbackParams = CallbackParamsCapture.captureNow();
   clearCallbackUrl();
-  runSoliplexShell(await standard(callbackParams: callbackParams));
+  runSoliplexShell(await standard(
+    callbackParams: callbackParams,
+    themeConfig: const ThemeConfig(),
+  ));
 }

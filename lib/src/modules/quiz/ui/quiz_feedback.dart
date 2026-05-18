@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../../../../soliplex_frontend.dart';
+
 class QuizAnswerFeedback extends StatelessWidget {
   const QuizAnswerFeedback({super.key, required this.result});
   final QuizAnswerResult result;
@@ -25,7 +27,7 @@ class QuizAnswerFeedback extends StatelessWidget {
             isCorrect ? Icons.check_circle : Icons.cancel,
             color: isCorrect ? colorScheme.primary : colorScheme.error,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,7 +41,7 @@ class QuizAnswerFeedback extends StatelessWidget {
                   ),
                 ),
                 if (result case IncorrectAnswer(:final expectedAnswer)) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: SoliplexSpacing.s1),
                   Text(
                     'Expected: $expectedAnswer',
                     style: textTheme.bodyMedium?.copyWith(
@@ -79,7 +81,7 @@ class QuizErrorFeedback extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.error_outline, color: colorScheme.error),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               message,

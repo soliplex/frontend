@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -9,7 +10,8 @@ final _emptyRunning = Signal(<String>{}).readonly();
 
 void main() {
   testWidgets('shows loading indicator when loading', (tester) async {
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoading(),
@@ -25,7 +27,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
@@ -45,7 +47,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -61,7 +64,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     expect(find.text('First thread'), findsOneWidget);
     expect(find.text('Second thread'), findsOneWidget);
@@ -78,7 +81,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -94,7 +98,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.text('Tappable thread'));
     expect(selectedId, 't-1');
@@ -103,7 +107,8 @@ void main() {
   testWidgets('shows back to lobby button', (tester) async {
     bool backCalled = false;
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
@@ -119,7 +124,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.text('Lobby'));
     expect(backCalled, isTrue);
@@ -129,7 +134,8 @@ void main() {
       (tester) async {
     bool inspectorCalled = false;
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
@@ -145,7 +151,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.text('Network Inspector'));
     expect(inspectorCalled, isTrue);
@@ -154,7 +160,8 @@ void main() {
   testWidgets('shows room name button that fires onRoomInfo', (tester) async {
     bool infoCalled = false;
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
@@ -170,7 +177,7 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.text('My Room'));
     expect(infoCalled, isTrue);
@@ -187,7 +194,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -203,14 +211,15 @@ void main() {
           onRetryThreads: () async {},
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(RefreshIndicator), findsOneWidget);
   });
 
   testWidgets('no RefreshIndicator when onRetryThreads is null',
       (tester) async {
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
@@ -225,7 +234,7 @@ void main() {
           runningThreadIds: _emptyRunning,
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(RefreshIndicator), findsNothing);
   });
@@ -241,7 +250,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -259,7 +269,7 @@ void main() {
           onDeleteThread: (_) {},
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -281,7 +291,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -296,7 +307,7 @@ void main() {
           runningThreadIds: running.readonly(),
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
@@ -327,7 +338,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -342,7 +354,7 @@ void main() {
           runningThreadIds: running.readonly(),
         ),
       ),
-    ));
+    )));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
@@ -368,7 +380,8 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(threads),
@@ -386,7 +399,7 @@ void main() {
           onDeleteThread: (id) => deletedId = id,
         ),
       ),
-    ));
+    )));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();

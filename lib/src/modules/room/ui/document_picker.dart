@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
+import '../../../../soliplex_frontend.dart';
 
 class DocumentPicker extends StatefulWidget {
   const DocumentPicker({
@@ -80,7 +81,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
         ),
         if (widget.selected.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -191,7 +192,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
                           color: Theme.of(context).colorScheme.error,
                         ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: SoliplexSpacing.s2),
                   TextButton.icon(
                     onPressed: () => setDialogState(() {
                       documentsFuture = fetchDocuments();

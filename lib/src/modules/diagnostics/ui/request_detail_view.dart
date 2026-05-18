@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import '../../../../soliplex_frontend.dart';
 import '../../../shared/copy_button.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
@@ -147,7 +148,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
           _MatchBadge(count: count),
         ],
       ),
@@ -157,7 +158,8 @@ class _RequestDetailViewState extends State<RequestDetailView>
   Widget _buildSearchBar(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         border: Border(
@@ -180,14 +182,13 @@ class _RequestDetailViewState extends State<RequestDetailView>
                       )
                     : null,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
+                border: OutlineInputBorder(),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           DropdownButton<SearchScope>(
             value: _scope,
             underline: const SizedBox.shrink(),
@@ -209,7 +210,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
             ],
           ),
           if (_searchController.text.isNotEmpty && _totalMatches > 0) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             Text(
               '${_currentMatchIndex + 1}/$_totalMatches',
               style: Theme.of(context).textTheme.bodySmall,
@@ -220,7 +221,8 @@ class _RequestDetailViewState extends State<RequestDetailView>
               tooltip: 'Previous match',
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              constraints: const BoxConstraints(
+                  minWidth: SoliplexSpacing.s8, minHeight: SoliplexSpacing.s8),
             ),
             IconButton(
               icon: const Icon(Icons.keyboard_arrow_down, size: 20),
@@ -228,7 +230,8 @@ class _RequestDetailViewState extends State<RequestDetailView>
               tooltip: 'Next match',
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              constraints: const BoxConstraints(
+                  minWidth: SoliplexSpacing.s8, minHeight: SoliplexSpacing.s8),
             ),
           ],
         ],
@@ -257,7 +260,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
                 method: group.methodLabel,
                 isStream: group.isStream,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               Expanded(child: HttpStatusDisplay(group: group)),
               Text(
                 group.timestamp.toHttpTimeString(),
@@ -267,12 +270,10 @@ class _RequestDetailViewState extends State<RequestDetailView>
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           SelectableText(
             group.uri.toString(),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFamily: 'monospace',
-            ),
+            style: SoliplexTheme.mergeCode(context, theme.textTheme.bodyMedium),
           ),
         ],
       ),
@@ -319,10 +320,10 @@ class _MatchBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         '$count',
@@ -353,10 +354,10 @@ class _MethodBadge extends StatelessWidget {
         : colorScheme.onPrimaryContainer;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         method,
@@ -398,7 +399,7 @@ class _RequestTab extends StatelessWidget {
             ),
           ),
           _HeadersTable(headers: headers),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
         ],
         if (body != null) ...[
           _SectionHeader(
@@ -467,7 +468,7 @@ class _ResponseTab extends StatelessWidget {
           value: streamEnd.bytesReceived.toHttpBytesString(),
         ),
         if (streamEnd.body != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           _SectionHeader(
             title: 'Stream Content',
             copyButton: CopyButton(
@@ -506,7 +507,7 @@ class _ResponseTab extends StatelessWidget {
           value: resp.bodySize.toHttpBytesString(),
         ),
         if (resp.headers != null && resp.headers!.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           _SectionHeader(
             title: 'Headers',
             copyButton: CopyButton(
@@ -520,7 +521,7 @@ class _ResponseTab extends StatelessWidget {
           _HeadersTable(headers: resp.headers!),
         ],
         if (resp.body != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           _SectionHeader(
             title: 'Body',
             copyButton: CopyButton(
@@ -568,20 +569,18 @@ class _CurlTab extends StatelessWidget {
                   iconSize: 18, text: curl, tooltip: 'Copy to clipboard'),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           Expanded(
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
               ),
               child: SelectableText(
                 curl,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
-                ),
+                style:
+                    SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
               ),
             ),
           ),
@@ -626,15 +625,14 @@ class _HeadersTable extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         children: [
           for (final (index, entry) in headers.entries.indexed)
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
+                horizontal: SoliplexSpacing.s3,
+                vertical: SoliplexSpacing.s2,
               ),
               decoration: BoxDecoration(
                 color: index.isEven
@@ -653,18 +651,19 @@ class _HeadersTable extends StatelessWidget {
                     width: 140,
                     child: SelectableText(
                       entry.key,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'monospace',
-                      ),
+                      style: SoliplexTheme.mergeCode(
+                        context,
+                        theme.textTheme.bodySmall,
+                      ).copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   Expanded(
                     child: SelectableText(
                       entry.value,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
+                      style: SoliplexTheme.mergeCode(
+                        context,
+                        theme.textTheme.bodySmall,
                       ),
                     ),
                   ),
@@ -692,13 +691,10 @@ class _BodyDisplay extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
       ),
       child: SelectableText(
         formattedBody,
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontFamily: 'monospace',
-        ),
+        style: SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
       ),
     );
   }
@@ -714,7 +710,7 @@ class _MetadataRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: Row(
         children: [
           SizedBox(
@@ -774,7 +770,7 @@ class _ErrorDisplay extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             message,
             style: theme.textTheme.bodyLarge?.copyWith(
@@ -783,7 +779,7 @@ class _ErrorDisplay extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           if (details != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: SoliplexSpacing.s2),
             Text(
               details!,
               style: theme.textTheme.bodySmall?.copyWith(

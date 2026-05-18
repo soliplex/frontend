@@ -1,62 +1,140 @@
 import 'package:flutter/material.dart';
 
-import 'colors.dart';
+/// Bundled font family constants for the default Soliplex theme.
+abstract final class FontFamilies {
+  /// Body font — UI text, paragraphs, labels, buttons (bundled asset).
+  static const String body = 'Inter';
 
-TextTheme soliplexTextTheme(SoliplexColors colors) {
+  /// Display font — hero text, AppBar titles, ListTile titles (Google Fonts).
+  static const String display = 'Oswald';
+
+  /// Brand font — reserved for special brand uses (Google Fonts).
+  static const String brand = 'SquadaOne';
+
+  /// Code font — code blocks, inline code, monospaced content.
+  ///
+  /// Platform-adaptive default: SF Mono on Apple, Roboto Mono elsewhere.
+  /// Used as a fallback when [FontConfig.codeFont] is `null`.
+  static const String codeApple = 'SF Mono';
+  static const String codeDefault = 'Roboto Mono';
+}
+
+/// Builds the Soliplex [TextTheme] with optional font overrides.
+///
+/// When [bodyFont] or [displayFont] are `null`, no `fontFamily` is set on
+/// those styles, so Material's default sans-serif font is used.
+TextTheme buildSoliplexTextTheme({String? bodyFont, String? displayFont}) {
   return TextTheme(
-    headlineMedium: TextStyle(
-      fontSize: 28,
-      fontWeight: FontWeight.w400,
-      height: 1.3,
-      color: colors.foreground,
+    // Display styles - large, prominent text
+    displayLarge: TextStyle(
+      fontFamily: displayFont,
+      fontSize: 48,
+      letterSpacing: -0.25,
+      height: 1.2,
     ),
-    titleLarge: TextStyle(
+    displayMedium: TextStyle(
+      fontFamily: displayFont,
+      fontSize: 32,
+      letterSpacing: 0,
+      height: 1.8,
+    ),
+    displaySmall: TextStyle(
+      fontFamily: displayFont,
+      fontSize: 28,
+      letterSpacing: 0,
+      height: 2.15,
+    ),
+
+    // Headline styles - section headers
+    headlineLarge: TextStyle(
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w700,
+      fontSize: 32,
+      letterSpacing: 0,
+      height: 1.455,
+    ),
+    headlineMedium: TextStyle(
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w600,
+      fontSize: 28,
+      letterSpacing: 0,
+      height: 2,
+    ),
+    headlineSmall: TextStyle(
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w600,
       fontSize: 24,
-      fontWeight: FontWeight.w500,
-      height: 1.5,
-      color: colors.foreground,
+      letterSpacing: 0,
+      height: 2,
+    ),
+
+    // Title styles - card titles, list headers
+    titleLarge: TextStyle(
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w600,
+      fontSize: 24,
+      letterSpacing: 0,
+      height: 1.27,
     ),
     titleMedium: TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.w500,
-      height: 1.5,
-      color: colors.foreground,
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w600,
+      fontSize: 18,
+      letterSpacing: 0.15,
+      height: 1.8,
     ),
     titleSmall: TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w500,
-      height: 1.5,
-      color: colors.foreground,
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w600,
+      fontSize: 14,
+      letterSpacing: 0.1,
+      height: 1.43,
     ),
+
+    // Body styles - paragraph text
     bodyLarge: TextStyle(
-      fontSize: 18,
+      fontFamily: bodyFont,
       fontWeight: FontWeight.w400,
-      height: 1.5,
-      color: colors.foreground,
+      fontSize: 18,
+      letterSpacing: 0.5,
+      height: 1.4,
     ),
     bodyMedium: TextStyle(
-      fontSize: 16,
+      fontFamily: bodyFont,
       fontWeight: FontWeight.w400,
-      height: 1.5,
-      color: colors.foreground,
+      fontSize: 16,
+      letterSpacing: 0.25,
+      height: 1.4,
     ),
     bodySmall: TextStyle(
-      fontSize: 13,
+      fontFamily: bodyFont,
       fontWeight: FontWeight.w400,
-      height: 1.5,
-      color: colors.foreground,
+      fontSize: 13,
+      letterSpacing: 0.4,
+      height: 1.6,
+    ),
+
+    // Label styles - buttons, chips, form labels
+    labelLarge: TextStyle(
+      fontFamily: bodyFont,
+      fontWeight: FontWeight.w500,
+      fontSize: 18,
+      letterSpacing: 0.2,
+      height: 1.4,
     ),
     labelMedium: TextStyle(
-      fontSize: 16,
+      fontFamily: bodyFont,
       fontWeight: FontWeight.w500,
-      height: 1.5,
-      color: colors.foreground,
+      fontSize: 15,
+      letterSpacing: 0.2,
+      height: 1.4,
     ),
     labelSmall: TextStyle(
-      fontSize: 12,
+      fontFamily: bodyFont,
       fontWeight: FontWeight.w500,
-      height: 1.5,
-      color: colors.foreground,
+      fontSize: 13,
+      letterSpacing: 0.2,
+      height: 1.4,
     ),
   );
 }

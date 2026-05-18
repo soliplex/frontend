@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../execution_tracker.dart';
 import 'dropped_event_message_tile.dart';
 import 'error_message_tile.dart';
@@ -45,7 +46,7 @@ class MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
       child: switch (message) {
         final TextMessage m => TextMessageTile(
             roomId: roomId,

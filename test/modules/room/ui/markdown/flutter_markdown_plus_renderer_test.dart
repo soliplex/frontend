@@ -22,28 +22,6 @@ void main() {
     });
   });
 
-  group('monospaceFont', () {
-    test('returns SF Mono for iOS', () {
-      expect(monospaceFont(TargetPlatform.iOS), 'SF Mono');
-    });
-
-    test('returns SF Mono for macOS', () {
-      expect(monospaceFont(TargetPlatform.macOS), 'SF Mono');
-    });
-
-    test('returns Roboto Mono for android', () {
-      expect(monospaceFont(TargetPlatform.android), 'Roboto Mono');
-    });
-
-    test('returns Roboto Mono for linux', () {
-      expect(monospaceFont(TargetPlatform.linux), 'Roboto Mono');
-    });
-
-    test('returns Roboto Mono for windows', () {
-      expect(monospaceFont(TargetPlatform.windows), 'Roboto Mono');
-    });
-  });
-
   group('FlutterMarkdownPlusRenderer widget', () {
     testWidgets('renders markdown text content', (tester) async {
       await tester.pumpWidget(

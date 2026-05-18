@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -47,13 +48,15 @@ Widget _buildScreen({
   final uploadRegistry = UploadTrackerRegistry(
     servers: Signal<Map<String, ServerEntry>>({entry.serverId: entry}),
   );
-  return MaterialApp(
-    home: RoomInfoScreen(
-      serverEntry: entry,
-      roomId: 'room-1',
-      toolRegistryResolver:
-          toolRegistryResolver ?? (_) async => const ToolRegistry(),
-      uploadRegistry: uploadRegistry,
+  return ProviderScope(
+    child: MaterialApp(
+      home: RoomInfoScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        toolRegistryResolver:
+            toolRegistryResolver ?? (_) async => const ToolRegistry(),
+        uploadRegistry: uploadRegistry,
+      ),
     ),
   );
 }
@@ -77,13 +80,15 @@ Widget _buildScreen({
     servers: Signal<Map<String, ServerEntry>>({entry.serverId: entry}),
   );
   return (
-    widget: MaterialApp(
-      home: RoomInfoScreen(
-        serverEntry: entry,
-        roomId: 'room-1',
-        toolRegistryResolver:
-            toolRegistryResolver ?? (_) async => const ToolRegistry(),
-        uploadRegistry: registry,
+    widget: ProviderScope(
+      child: MaterialApp(
+        home: RoomInfoScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          toolRegistryResolver:
+              toolRegistryResolver ?? (_) async => const ToolRegistry(),
+          uploadRegistry: registry,
+        ),
       ),
     ),
     entry: entry,

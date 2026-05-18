@@ -10,7 +10,7 @@ void main() {
       body: const TextStyle(fontSize: 16),
       codeBlockDecoration: BoxDecoration(
         color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.zero,
       ),
     );
 

@@ -9,6 +9,8 @@ class ShellConfig {
   final String appName;
   final Widget? logo;
   final ThemeData theme;
+  final ThemeData? darkTheme;
+  final ThemeMode themeMode;
   final String initialRoute;
   final Listenable? refreshListenable;
 
@@ -30,6 +32,8 @@ class ShellConfig {
     required this.appName,
     this.logo,
     required this.theme,
+    this.darkTheme,
+    this.themeMode = ThemeMode.system,
     this.initialRoute = '/',
     required List<RouteBase> routes,
     required List<Override> overrides,
@@ -59,6 +63,8 @@ class ShellConfig {
     required String appName,
     Widget? logo,
     required ThemeData theme,
+    ThemeData? darkTheme,
+    ThemeMode themeMode = ThemeMode.system,
     String initialRoute = '/',
     Listenable? refreshListenable,
   }) async {
@@ -67,6 +73,8 @@ class ShellConfig {
       appName: appName,
       logo: logo,
       theme: theme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       initialRoute: initialRoute,
       routes: coordinator.routes,
       overrides: coordinator.overrides,

@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routes.dart';
+import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
 import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
 import '../server_entry.dart';
-import '../server_manager.dart';
 
 class AuthCallbackScreen extends ConsumerStatefulWidget {
   const AuthCallbackScreen({super.key, required this.serverManager});
@@ -109,10 +109,14 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
+              Icon(
+                Icons.error_outline,
+                size: 48,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: SoliplexSpacing.s4),
               Text(_error ?? 'An error occurred'),
-              const SizedBox(height: 16),
+              const SizedBox(height: SoliplexSpacing.s4),
               FilledButton(
                 onPressed: () => context.go(AppRoutes.home),
                 child: const Text('Back to home'),

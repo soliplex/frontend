@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -12,21 +13,23 @@ void main() {
     Map<String, String> quizzes = const {},
     void Function(String)? onQuizTapped,
   }) {
-    return MaterialApp(
-      home: Scaffold(
-        body: ThreadSidebar(
-          threadListStatus: ThreadsLoaded(const []),
-          selectedThreadId: null,
-          onThreadSelected: (_) {},
-          onBackToLobby: () {},
-          onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
-          runningThreadIds: emptyRunning,
-          quizzes: quizzes,
-          onQuizTapped: onQuizTapped,
+    return ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: ThreadSidebar(
+            threadListStatus: ThreadsLoaded(const []),
+            selectedThreadId: null,
+            onThreadSelected: (_) {},
+            onBackToLobby: () {},
+            onCreateThread: () {},
+            onNetworkInspector: () {},
+            onVersions: () {},
+            onRoomInfo: () {},
+            roomName: 'Test Room',
+            runningThreadIds: emptyRunning,
+            quizzes: quizzes,
+            onQuizTapped: onQuizTapped,
+          ),
         ),
       ),
     );

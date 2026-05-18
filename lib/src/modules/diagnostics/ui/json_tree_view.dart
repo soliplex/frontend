@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.
@@ -13,11 +14,13 @@ class JsonTreeView extends StatelessWidget {
     if (nodes.isEmpty) {
       return Text(
         '(empty)',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              fontStyle: FontStyle.italic,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+        style: SoliplexTheme.mergeCode(
+          context,
+          Theme.of(context).textTheme.bodySmall,
+        ).copyWith(
+          fontStyle: FontStyle.italic,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
     return _JsonNodeList(nodes: nodes, depth: 0);
@@ -99,9 +102,8 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
       if (asDouble != null) valueColor = colorScheme.primary;
     }
 
-    final baseStyle = theme.textTheme.bodySmall?.copyWith(
-      fontFamily: 'monospace',
-    );
+    final baseStyle =
+        SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall);
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
@@ -111,13 +113,13 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
             if (node.key.isNotEmpty)
               TextSpan(
                 text: '${node.key}: ',
-                style: baseStyle?.copyWith(
+                style: baseStyle.copyWith(
                   color: colorScheme.onSurface,
                 ),
               ),
             TextSpan(
               text: node.value,
-              style: baseStyle?.copyWith(color: valueColor),
+              style: baseStyle.copyWith(color: valueColor),
             ),
           ],
         ),
@@ -136,9 +138,8 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final baseStyle = theme.textTheme.bodySmall?.copyWith(
-      fontFamily: 'monospace',
-    );
+    final baseStyle =
+        SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +156,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 SelectableText(
                   _expanded ? expandedLabel : label,
                   style: baseStyle,

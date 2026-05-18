@@ -69,10 +69,10 @@ class SoliplexColors {
 }
 
 const lightSoliplexColors = SoliplexColors(
-  background: Color(0xffffffff),
+  background: Color(0xFFFFFFFF),
   foreground: Color(0xFF0A0A0A),
   primary: Color(0xFF030213),
-  onPrimary: Color(0xffffffff),
+  onPrimary: Color(0xFFFFFFFF),
   primaryContainer: Color(0xFFE0DDDA),
   onPrimaryContainer: Color(0xFF0A0A0A),
   secondary: Color(0xFFF3F3FA),
@@ -86,12 +86,12 @@ const lightSoliplexColors = SoliplexColors(
   muted: Color(0xFFECECF0),
   mutedForeground: Color(0xFF595968),
   destructive: Color(0xFFD4183D),
-  onDestructive: Color(0xffffffff),
+  onDestructive: Color(0XFFFFFFFF),
   errorContainer: Color(0xFFFEE2E2),
   onErrorContainer: Color(0xFF991B1B),
   border: Color(0x1A000000),
-  outline: Color(0xFFC0C0C4),
-  outlineVariant: Color(0xFFE0E0E2),
+  outline: Color(0xFFBDBDBD),
+  outlineVariant: Color(0xFFA1A1A1),
   inputBackground: Color(0xFFF3F3F5),
   hintText: Color(0xFF666666),
   surfaceContainerLowest: Color(0xFFFFFFFF),

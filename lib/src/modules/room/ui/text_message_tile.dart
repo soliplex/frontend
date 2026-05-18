@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../execution_tracker.dart';
 import 'citations_section.dart';
 import 'copy_button.dart';
@@ -73,18 +74,18 @@ class TextMessageTile extends StatelessWidget {
           ),
         Text(
           isUser ? 'You' : 'Assistant',
-          style: theme.textTheme.labelSmall?.copyWith(
+          style: theme.textTheme.labelMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(message: message),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s2),
         Row(
           children: [
             CopyButton(text: message.text),
             if (isUser && onInspect != null) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               Tooltip(
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
@@ -99,7 +100,7 @@ class TextMessageTile extends StatelessWidget {
               ),
             ],
             if (showFeedback) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
             ],
           ],
@@ -138,12 +139,15 @@ class _MessageBubble extends StatelessWidget {
     final isUser = message.user == ChatUser.user;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: isUser
+          ? const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s5, vertical: SoliplexSpacing.s2)
+          : const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s5, vertical: SoliplexSpacing.s1),
       decoration: BoxDecoration(
         color: isUser
-            ? theme.colorScheme.primaryContainer
-            : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
+            : theme.colorScheme.surface,
       ),
       child: isUser
           ? SelectableText(

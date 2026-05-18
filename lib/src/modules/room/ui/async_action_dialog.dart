@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import '../../../../soliplex_frontend.dart';
 
 /// Dialog that runs an async action with loading/error states.
 ///
@@ -83,7 +84,7 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
           ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
               child: Text(
                 _error!,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -100,19 +101,20 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
         ),
         if (_busy)
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
             child: SizedBox(
-              width: 16,
-              height: 16,
+              width: SoliplexSpacing.s4,
+              height: SoliplexSpacing.s4,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           )
         else
-          TextButton(
+          FilledButton(
             onPressed: widget.canSubmit ? _run : null,
             style: widget.isDestructive
-                ? TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
+                ? FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
                   )
                 : null,
             child: Text(widget.actionLabel),
@@ -168,11 +170,14 @@ class _RenameDialogState extends State<RenameDialog> {
       actionLabel: 'Save',
       canSubmit: _canSave,
       onAction: () => widget.onAction(_controller.text.trim()),
-      contentBuilder: (onSubmit) => TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: 'Thread name'),
-        onSubmitted: onSubmit != null ? (_) => onSubmit() : null,
+      contentBuilder: (onSubmit) => SizedBox(
+        width: 360,
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Thread name'),
+          onSubmitted: onSubmit != null ? (_) => onSubmit() : null,
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../models/http_event_group.dart';
 import 'http_event_tile.dart';
 import 'request_detail_view.dart';
@@ -16,14 +17,20 @@ class RunHttpDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (groups.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('HTTP Traffic')),
+        appBar: AppBar(
+          title: const Text('HTTP Traffic'),
+          titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
+        ),
         body: _buildEmptyState(context),
       );
     }
 
     if (groups.length == 1) {
       return Scaffold(
-        appBar: AppBar(title: Text(groups[0].pathWithQuery)),
+        appBar: AppBar(
+          title: Text(groups[0].pathWithQuery),
+          titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
+        ),
         body: RequestDetailView(group: groups[0]),
       );
     }
@@ -42,7 +49,7 @@ class RunHttpDetailPage extends StatelessWidget {
             size: 48,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             'No HTTP traffic found for this run',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -63,11 +70,14 @@ class _MultiGroupView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('HTTP Traffic (${groups.length})')),
+      appBar: AppBar(
+        title: Text('HTTP Traffic (${groups.length})'),
+        titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
+      ),
       body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
         itemCount: groups.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => const Divider(),
         itemBuilder: (context, index) {
           final group = groups[index];
           return HttpEventTile(
@@ -75,7 +85,10 @@ class _MultiGroupView extends StatelessWidget {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (context) => Scaffold(
-                  appBar: AppBar(title: Text(group.pathWithQuery)),
+                  appBar: AppBar(
+                    title: Text(group.pathWithQuery),
+                    titleTextStyle: SoliplexTheme.appBarTitleStyle(context),
+                  ),
                   body: RequestDetailView(group: group),
                 ),
               ),

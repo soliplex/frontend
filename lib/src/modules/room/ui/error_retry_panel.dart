@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../soliplex_frontend.dart';
 
 class ErrorRetryPanel extends StatelessWidget {
   const ErrorRetryPanel({
@@ -20,7 +21,7 @@ class ErrorRetryPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(title, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 4),
+          const SizedBox(height: SoliplexSpacing.s1),
           Text(
             error.toString(),
             style: theme.textTheme.bodySmall?.copyWith(
@@ -28,7 +29,7 @@ class ErrorRetryPanel extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           if (onRetry != null)
             FilledButton.tonal(
               onPressed: onRetry,

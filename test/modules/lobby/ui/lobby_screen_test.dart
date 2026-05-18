@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
@@ -27,7 +28,7 @@ Widget _buildApp(ServerManager manager) {
       ),
     ],
   );
-  return MaterialApp.router(routerConfig: router);
+  return ProviderScope(child: MaterialApp.router(routerConfig: router));
 }
 
 void main() {

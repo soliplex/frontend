@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart' show BackendVersionInfo;
 import 'package:soliplex_frontend/src/modules/versions/versions_screen.dart';
@@ -15,7 +16,8 @@ ServerManager _serverManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-Widget _buildApp(Widget child) => MaterialApp(home: child);
+Widget _buildApp(Widget child) =>
+    ProviderScope(child: MaterialApp(home: child));
 
 void main() {
   group('VersionsScreen', () {

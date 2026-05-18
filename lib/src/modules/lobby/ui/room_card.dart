@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../../../soliplex_frontend.dart';
+
 class RoomCard extends StatelessWidget {
   const RoomCard({
     super.key,
@@ -36,6 +38,10 @@ class RoomCard extends StatelessWidget {
               onPressed: onInfoTap,
             ),
           ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s2,
+          vertical: SoliplexSpacing.s4,
         ),
         onTap: onTap,
       ),

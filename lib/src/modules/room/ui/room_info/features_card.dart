@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
+import '../../../../../soliplex_frontend.dart';
 import 'room_info_widgets.dart';
 
 class FeaturesCard extends StatelessWidget {
@@ -101,17 +102,17 @@ class _McpTokenRowState extends State<McpTokenRow> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 2),
+            padding: EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
             child: SizedBox(
-              height: 20,
-              width: 20,
+              height: SoliplexSpacing.s5,
+              width: SoliplexSpacing.s5,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );
         }
         if (snapshot.hasError) {
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+            padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
             child: OutlinedButton.icon(
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('Retry token'),
@@ -131,7 +132,7 @@ class _McpTokenRowState extends State<McpTokenRow> {
           _TokenCopyState.error => (Icons.error_outline, 'Copy failed'),
         };
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
           child: OutlinedButton.icon(
             icon: Icon(icon, size: 16),
             label: Text(label),

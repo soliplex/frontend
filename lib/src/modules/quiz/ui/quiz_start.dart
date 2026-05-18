@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../../../../soliplex_frontend.dart';
+
 class QuizStartView extends StatelessWidget {
   const QuizStartView({
     super.key,
@@ -23,13 +25,19 @@ class QuizStartView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.quiz, size: 64, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
+              const SizedBox(height: SoliplexSpacing.s1),
               Text(
                 quiz.title,
-                style: theme.textTheme.headlineMedium,
+                style: theme.textTheme.headlineLarge,
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s8),
+              FilledButton.icon(
+                onPressed: onStart,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start Quiz'),
+              ),
+              const SizedBox(height: SoliplexSpacing.s2),
               Text(
                 quiz.questionCount == 1
                     ? '1 question'
@@ -37,12 +45,6 @@ class QuizStartView extends StatelessWidget {
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: onStart,
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Start Quiz'),
               ),
             ],
           ),

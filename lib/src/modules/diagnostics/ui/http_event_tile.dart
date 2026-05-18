@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../soliplex_frontend.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
 import 'http_status_display.dart';
@@ -26,15 +27,15 @@ class HttpEventTile extends StatelessWidget {
       label: group.semanticLabel,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: dense ? 8 : 12,
-          vertical: dense ? 6 : 8,
+          horizontal: dense ? SoliplexSpacing.s2 : SoliplexSpacing.s4,
+          vertical: dense ? SoliplexSpacing.s2 : SoliplexSpacing.s4,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildRequestLine(theme),
-            SizedBox(height: dense ? 2 : 4),
+            SizedBox(height: dense ? 0 : SoliplexSpacing.s1),
             _buildResultLine(theme),
           ],
         ),
@@ -63,7 +64,7 @@ class HttpEventTile extends StatelessWidget {
     return Row(
       children: [
         Text(group.methodLabel, style: methodStyle),
-        const SizedBox(width: 6),
+        const SizedBox(width: SoliplexSpacing.s2),
         Expanded(
           child: Text(
             group.pathWithQuery,
@@ -89,9 +90,9 @@ class HttpEventTile extends StatelessWidget {
       children: [
         if (!dense) ...[
           Text(group.timestamp.toHttpTimeString(), style: metaStyle),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
           Text('→', style: metaStyle),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
         ],
         Expanded(
           child: HttpStatusDisplay(group: group, isSelected: isSelected),

@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../copy_button.dart';
+import '../../../../../soliplex_frontend.dart';
 
 class CodeBlockBuilder extends MarkdownElementBuilder {
   CodeBlockBuilder({required this.preferredStyle});
@@ -90,10 +91,10 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
       child: SvgPicture.string(
         widget.code,
         placeholderBuilder: (_) => const SizedBox.shrink(),
-        errorBuilder: (_, __, ___) => const Icon(
+        errorBuilder: (context, _, __) => Icon(
           Icons.broken_image,
           size: 48,
-          color: Colors.grey,
+          color: Theme.of(context).colorScheme.outline,
         ),
       ),
     );
@@ -117,19 +118,19 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
     return Row(
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 12, top: 4),
+          padding: const EdgeInsets.only(
+              left: SoliplexSpacing.s3, top: SoliplexSpacing.s1),
           child: Text('svg', style: labelStyle),
         ),
         const Spacer(),
         Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
           child: Tooltip(
             message: _showSource ? 'Show preview' : 'Show source',
             child: InkWell(
-              borderRadius: BorderRadius.circular(4),
               onTap: () => setState(() => _showSource = !_showSource),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(SoliplexSpacing.s1),
                 child: Icon(
                   _showSource ? Icons.image : Icons.code,
                   size: 16,
@@ -140,7 +141,8 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(right: 4, top: 4),
+          padding: const EdgeInsets.only(
+              right: SoliplexSpacing.s1, top: SoliplexSpacing.s1),
           child: CopyButton(
             text: widget.code,
             tooltip: 'Copy SVG',
@@ -173,7 +175,8 @@ class _CodeBlock extends StatelessWidget {
           children: [
             if (language != 'plaintext')
               Padding(
-                padding: const EdgeInsets.only(left: 12, top: 4),
+                padding: const EdgeInsets.only(
+                    left: SoliplexSpacing.s3, top: SoliplexSpacing.s1),
                 child: Text(
                   language,
                   style: theme.textTheme.labelSmall?.copyWith(
@@ -183,7 +186,8 @@ class _CodeBlock extends StatelessWidget {
               ),
             const Spacer(),
             Padding(
-              padding: const EdgeInsets.only(right: 4, top: 4),
+              padding: const EdgeInsets.only(
+                  right: SoliplexSpacing.s1, top: SoliplexSpacing.s1),
               child: CopyButton(
                 text: code,
                 tooltip: 'Copy code',

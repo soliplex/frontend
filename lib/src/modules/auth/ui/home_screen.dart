@@ -5,12 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
+import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
-import '../consent_notice.dart';
 import '../connection_probe.dart';
 import '../server_entry.dart';
-import '../server_manager.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({
@@ -183,13 +182,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           size: _logoSize,
           color: theme.colorScheme.primary,
         ),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s1),
       Text(
         widget.appName,
         style: theme.textTheme.headlineMedium,
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: SoliplexSpacing.s1),
       Text(
         subtitle,
         style: theme.textTheme.bodyMedium?.copyWith(
@@ -197,7 +196,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: 32),
+      const SizedBox(height: SoliplexSpacing.s4),
     ];
   }
 
@@ -234,13 +233,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onFieldSubmitted: (_) => _connect(),
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s4),
       if (error != null) ...[
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [
@@ -249,7 +247,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: theme.colorScheme.onErrorContainer,
                 size: 20,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               Expanded(
                 child: Text(
                   error,
@@ -261,7 +259,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SoliplexSpacing.s4),
       ],
       FilledButton.icon(
         onPressed: _connect,
@@ -287,14 +285,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return [
       ..._buildHeader(context, 'Insecure Connection'),
       Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.error),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s4),
       Text(
         'This connection to ${formatServerUrl(probeResult.serverUrl)} is not '
         'encrypted. Your data, including credentials, may be visible to '
         'others on the network.',
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: 24),
+      const SizedBox(height: SoliplexSpacing.s6),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -302,7 +300,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: _flow.reset,
             child: const Text('Cancel'),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: SoliplexSpacing.s4),
           FilledButton(
             onPressed: _flow.acceptInsecure,
             child: const Text('Connect anyway'),
@@ -321,9 +319,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return [
       ..._buildHeader(context, 'Sign in to continue'),
       Text(notice.title, style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s4),
       Text(notice.body),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s4),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -331,7 +329,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: _flow.reset,
             child: const Text('Cancel'),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: SoliplexSpacing.s4),
           FilledButton(
             onPressed: _flow.acknowledgeConsent,
             child: Text(notice.acknowledgmentLabel),
@@ -351,7 +349,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'Choose authentication provider',
         style: Theme.of(context).textTheme.titleMedium,
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: SoliplexSpacing.s4),
       for (final provider in providers)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -360,7 +358,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Text(provider.name),
           ),
         ),
-      const SizedBox(height: 8),
+      const SizedBox(height: SoliplexSpacing.s2),
       TextButton(
         onPressed: _flow.reset,
         child: const Text('Change server'),
@@ -390,12 +388,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final hiddenCount = loggedOut.length - visibleServers.length;
 
     return [
-      const SizedBox(height: 32),
+      const SizedBox(height: SoliplexSpacing.s8),
       Row(
         children: [
           const Expanded(child: Divider()),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
             child: Text(
               'Your servers',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(

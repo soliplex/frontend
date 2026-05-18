@@ -5,7 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'providers/theme_provider.dart';
 import 'router.dart';
 import 'shell_config.dart';
 
@@ -62,11 +64,7 @@ class _SoliplexShellState extends State<SoliplexShell> {
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: widget.config.overrides,
-      child: MaterialApp.router(
-        title: widget.config.appName,
-        theme: widget.config.theme,
-        routerConfig: _router,
-      ),
+      child: _ThemedApp(config: widget.config, router: _router),
     );
   }
 
@@ -74,5 +72,24 @@ class _SoliplexShellState extends State<SoliplexShell> {
   void dispose() {
     _router.dispose();
     super.dispose();
+  }
+}
+
+class _ThemedApp extends ConsumerWidget {
+  const _ThemedApp({required this.config, required this.router});
+
+  final ShellConfig config;
+  final GoRouter router;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    return MaterialApp.router(
+      title: config.appName,
+      theme: config.theme,
+      darkTheme: config.darkTheme,
+      themeMode: themeMode,
+      routerConfig: router,
+    );
   }
 }
