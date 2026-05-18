@@ -10,6 +10,7 @@ import 'no_response_tile_widget.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class MessageTile extends StatelessWidget {
   const MessageTile({
@@ -45,7 +46,7 @@ class MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: switch (message) {
         final TextMessage m => TextMessageTile(
             roomId: roomId,

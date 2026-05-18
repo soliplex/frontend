@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'copy_button.dart';
+import '../../../design/design.dart';
 
 class ErrorMessageTile extends StatelessWidget {
   const ErrorMessageTile({super.key, required this.message});
@@ -14,10 +15,12 @@ class ErrorMessageTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
+          // design-system exception: 14/10 is the documented chat-bubble
+          // padding (see design_handoff/handoff/README.md "the only 14").
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(soliplexRadii.md),
           ),
           child: SelectableText(
             message.errorText,
@@ -26,7 +29,7 @@ class ErrorMessageTile extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s1),
         CopyButton(text: message.errorText),
       ],
     );

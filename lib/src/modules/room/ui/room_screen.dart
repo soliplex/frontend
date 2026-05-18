@@ -44,6 +44,7 @@ import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
+import '../../../design/design.dart';
 
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;
@@ -532,7 +533,8 @@ class _RoomScreenState extends State<RoomScreen> {
     final chip = _buildChipSegment(roomStatus, threadStatus, theme);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -603,17 +605,18 @@ class _RoomScreenState extends State<RoomScreen> {
     return InkWell(
       onTap: () => setState(() => _filesExpanded = !_filesExpanded),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             leading,
-            const SizedBox(width: 6),
+            const SizedBox(width: SoliplexSpacing.s2),
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(color: color),
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: SoliplexSpacing.s1),
             Icon(
               _filesExpanded ? Icons.expand_less : Icons.expand_more,
               size: 16,
@@ -647,10 +650,10 @@ class _RoomScreenState extends State<RoomScreen> {
         threadStatus is UploadsLoaded;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(8),
@@ -667,7 +670,7 @@ class _RoomScreenState extends State<RoomScreen> {
           // it doesn't sit on top of trailing close buttons (cancel /
           // dismiss) on file rows.
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(right: 14),
+            padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -707,7 +710,7 @@ class _RoomScreenState extends State<RoomScreen> {
       UploadsLoading() => Row(
           children: [
             _sectionLabel(label, theme),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             const SizedBox(
               width: 12,
               height: 12,
@@ -727,7 +730,7 @@ class _RoomScreenState extends State<RoomScreen> {
       UploadsFailed(error: final error) => Row(
           children: [
             _sectionLabel(label, theme),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             Expanded(
               child: Text(
                 'Failed to load: ${uploadErrorMessage(error)}',
@@ -786,14 +789,16 @@ class _RoomScreenState extends State<RoomScreen> {
         : theme.colorScheme.outline;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       padding: isFailed
-          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
-          : const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          ? const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1)
+          : const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
             )
           : null,
       child: Row(
@@ -813,7 +818,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 },
               ),
             ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -828,9 +833,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 if (errorMessage != null)
                   Text(
                     errorMessage,
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onErrorContainer,
-                      fontSize: 11,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1063,7 +1067,7 @@ class _RoomScreenState extends State<RoomScreen> {
           Icon(Icons.chat_bubble_outline,
               size: 48,
               color: theme.colorScheme.outline.withValues(alpha: 0.3)),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             'Type a message to get started',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -1087,12 +1091,13 @@ class _SendErrorBanner extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       color: theme.colorScheme.errorContainer,
       child: Row(
         children: [
           Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               error.error.toString(),
@@ -1187,12 +1192,13 @@ class _ReconnectBannerState extends State<_ReconnectBanner> {
     };
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       color: scheme.secondaryContainer,
       child: Row(
         children: [
           icon,
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               label,

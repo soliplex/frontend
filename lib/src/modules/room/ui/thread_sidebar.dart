@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import '../thread_list_state.dart';
 import 'error_retry_panel.dart';
 import 'thread_tile.dart';
+import '../../../design/design.dart';
 
 class ThreadSidebar extends StatelessWidget {
   const ThreadSidebar({
@@ -47,7 +48,8 @@ class ThreadSidebar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
           child: Row(
             children: [
               TextButton.icon(
@@ -55,7 +57,8 @@ class ThreadSidebar extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back, size: 16),
                 label: const Text('Lobby'),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: SoliplexSpacing.s2),
                   visualDensity: VisualDensity.compact,
                 ),
               ),
@@ -65,7 +68,8 @@ class ThreadSidebar extends StatelessWidget {
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New Thread'),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: SoliplexSpacing.s2),
                   visualDensity: VisualDensity.compact,
                 ),
               ),
@@ -87,7 +91,7 @@ class ThreadSidebar extends StatelessWidget {
           icon: const Icon(Icons.info_outline, size: 16),
           label: Text(roomName),
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
             visualDensity: VisualDensity.compact,
           ),
         ),
@@ -96,7 +100,7 @@ class ThreadSidebar extends StatelessWidget {
           icon: const Icon(Icons.http, size: 16),
           label: const Text('Network Inspector'),
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
             visualDensity: VisualDensity.compact,
           ),
         ),
@@ -105,7 +109,7 @@ class ThreadSidebar extends StatelessWidget {
           icon: const Icon(Icons.info_outline, size: 16),
           label: const Text('Versions'),
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
             visualDensity: VisualDensity.compact,
           ),
         ),
@@ -117,7 +121,7 @@ class ThreadSidebar extends StatelessWidget {
     return switch (threadListStatus) {
       ThreadsLoading() => const Center(child: CircularProgressIndicator()),
       ThreadsFailed(:final error) => Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: ErrorRetryPanel(
             title: 'Failed to load threads',
             error: error,
@@ -130,7 +134,7 @@ class ThreadSidebar extends StatelessWidget {
                   children: const [
                     Center(
                         child: Padding(
-                      padding: EdgeInsets.only(top: 32),
+                      padding: EdgeInsets.only(top: SoliplexSpacing.s6),
                       child: Text('No threads'),
                     )),
                   ],

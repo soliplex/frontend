@@ -11,6 +11,7 @@ import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({
@@ -189,7 +190,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
           controller: _scrollController,
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(SoliplexSpacing.s4),
               sliver: SliverList.builder(
                 itemCount: displayMessages.length,
                 itemBuilder: (context, index) {
@@ -205,7 +206,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                     key: message is LoadingMessage
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
                     child: MessageTile(
                       roomId: widget.roomId,
                       message: message,
@@ -234,8 +235,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
           ],
         ),
         Positioned(
-          right: 16,
-          bottom: 16,
+          right: SoliplexSpacing.s4,
+          bottom: SoliplexSpacing.s4,
           child: ScrollToBottomButton(
             controller: _scrollToBottomController,
             onPressed: _onScrollToBottom,

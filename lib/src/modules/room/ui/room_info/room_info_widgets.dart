@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../../../design/design.dart';
 
 class SectionCard extends StatelessWidget {
   const SectionCard({super.key, required this.title, required this.children});
@@ -11,11 +12,11 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -26,7 +27,7 @@ class SectionCard extends StatelessWidget {
                       letterSpacing: 0.5,
                     ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s2),
               ...children,
             ],
           ),
@@ -45,7 +46,7 @@ class InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -105,7 +106,8 @@ class DialogButton extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           textStyle: theme.textTheme.labelSmall,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s2),
         ),
         onPressed: onPressed,
         child: Text(label),
@@ -118,7 +120,11 @@ const jsonPrettyEncoder = JsonEncoder.withIndent('  ');
 
 /// Formats a dynamic value for display, using pretty-printed JSON for
 /// complex values (maps/lists) and plain text for scalars.
-SelectableText formatDynamicValue(Object? value, {TextStyle? style}) {
+SelectableText formatDynamicValue(
+  BuildContext context,
+  Object? value, {
+  TextStyle? style,
+}) {
   final isComplex = value is Map || value is Iterable;
   String text;
   if (isComplex) {
@@ -132,6 +138,6 @@ SelectableText formatDynamicValue(Object? value, {TextStyle? style}) {
   }
   return SelectableText(
     text,
-    style: isComplex ? style?.copyWith(fontFamily: 'monospace') : style,
+    style: isComplex ? context.monospaceOn(style) : style,
   );
 }
