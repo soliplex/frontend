@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 
-import 'markdown/data_uri_image.dart' show BrokenImagePlaceholder;
+import '../../../shared/failed_image.dart';
 
 @visibleForTesting
 class PageImage {
@@ -260,7 +260,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget _buildPageImage(PageImage page, int rotation) {
     if (page.bytes.isEmpty) {
       return const Center(
-        child: BrokenImagePlaceholder(alt: 'Page image failed to decode'),
+        child: FailedImage(label: 'Page image failed to decode'),
       );
     }
     final image = RotatedBox(
@@ -269,7 +269,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         page.bytes,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) =>
-            const BrokenImagePlaceholder(alt: 'Page image failed to render'),
+            const FailedImage(label: 'Page image failed to render'),
       ),
     );
 

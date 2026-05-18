@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
 
+import '../../../../shared/failed_image.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
 import 'inline_code_builder.dart';
@@ -60,23 +61,22 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
 }
 
 Widget _buildImage(Uri uri, String? title, String? alt) {
+  final rawUri = uri.toString();
   if (uri.scheme == 'data') {
-    final rawUri = uri.toString();
     final decoded = tryDecodeImageDataUri(rawUri);
     if (decoded == null) {
-      return BrokenDataUriBlock(rawUri: rawUri, alt: alt);
+      return FailedImage(source: rawUri, label: alt);
     }
     return Image.memory(
       decoded.bytes,
-      errorBuilder: (_, __, ___) =>
-          BrokenDataUriBlock(rawUri: rawUri, alt: alt),
+      errorBuilder: (_, __, ___) => FailedImage(source: rawUri, label: alt),
     );
   }
   if (uri.scheme == 'http' || uri.scheme == 'https') {
     return Image.network(
-      uri.toString(),
-      errorBuilder: (_, __, ___) => BrokenImagePlaceholder(alt: alt),
+      rawUri,
+      errorBuilder: (_, __, ___) => FailedImage(source: rawUri, label: alt),
     );
   }
-  return BrokenImagePlaceholder(alt: alt);
+  return FailedImage(source: rawUri, label: alt);
 }

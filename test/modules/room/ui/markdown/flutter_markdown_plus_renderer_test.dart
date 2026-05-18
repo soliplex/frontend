@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/markdown/data_uri_image.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
+import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 void main() {
   group('sanitizeMarkdown', () {
@@ -93,7 +93,7 @@ void main() {
     final pngBase64 = base64Encode(pngBytes);
 
     testWidgets(
-        'malformed data URI image renders a placeholder, not a red error widget',
+        'malformed data URI image renders a FailedImage, not a red error widget',
         (tester) async {
       // Six base64 chars (mod 4 == 2) is the shape of the truncated payload
       // observed in production. Without the custom imageBuilder this throws
@@ -110,11 +110,11 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(BrokenImagePlaceholder), findsOneWidget);
+      expect(find.byType(FailedImage), findsOneWidget);
     });
 
     testWidgets(
-        'broken data URI image toggles to a source view exposing the raw URI',
+        'broken data URI image toggles to a source view exposing the normalised URI',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -128,15 +128,15 @@ void main() {
       await tester.pump();
 
       // Default mode shows the broken-image preview, no raw URI text.
-      expect(find.byType(BrokenDataUriBlock), findsOneWidget);
-      expect(find.byType(BrokenImagePlaceholder), findsOneWidget);
+      expect(find.byType(FailedImage), findsOneWidget);
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
       expect(find.byType(SelectableText), findsNothing);
 
       // Toggle to source view.
       await tester.tap(find.byIcon(Icons.code));
       await tester.pump();
 
-      expect(find.byType(BrokenImagePlaceholder), findsNothing);
+      expect(find.byIcon(Icons.broken_image), findsNothing);
       // Uri.toString() normalises truncated base64 by adding `=` padding, so
       // we assert against the normalised form rather than the raw markdown
       // source.
@@ -160,7 +160,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(Image), findsOneWidget);
-      expect(find.byType(BrokenImagePlaceholder), findsNothing);
+      expect(find.byType(FailedImage), findsNothing);
     });
   });
 }
