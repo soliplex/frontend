@@ -311,8 +311,8 @@ class _ServerSection extends StatelessWidget {
               child: LinearProgressIndicator(),
             ),
           RoomsFailed(:final error) => Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s9),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: SoliplexSpacing.s9, vertical: SoliplexSpacing.s4),
               child: Text('Failed to load rooms: $error'),
             ),
           RoomsLoaded(:final rooms) => Padding(
