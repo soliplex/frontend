@@ -43,6 +43,24 @@ void main() {
       expect(find.text('Response Body'), findsOneWidget);
     });
 
+    testWidgets(
+        'does not crash when stream is in flight (streamStart set, streamEnd null)',
+        (tester) async {
+      // While an SSE response is still streaming, streamEnd is null. Without
+      // the safe-navigation guard, _getParsed() force-unwraps streamEnd!.body!
+      // and the tab crashes the diagnostics view.
+      final group = HttpEventGroup(
+        requestId: 'req-1',
+        streamStart: createStreamStartEvent(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: OverviewTab(group: group))),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('shows stream section with toggle when SSE stream',
         (tester) async {
       final sseBody = 'data: {"type":"RUN_STARTED"}\n'

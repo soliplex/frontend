@@ -455,6 +455,84 @@ void main() {
     expect(find.text('Download'), findsOneWidget);
   });
 
+  testWidgets(
+      'leading icon is image_outlined for previewable, file icon otherwise',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png'), _file('report.pdf')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.image_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
+  });
+
+  testWidgets(
+      'previewable file uses insert_drive_file icon when onPreview is null',
+      (tester) async {
+    // image_outlined is reserved for rows that can actually preview. Without
+    // onPreview wired, an image file row is no different from any other file.
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.image_outlined), findsNothing);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping a previewable row opens the preview and does not download',
+      (tester) async {
+    var downloads = 0;
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async {
+        downloads++;
+        return DownloadOutcome.success;
+      },
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    // Tap the filename text — that's a non-icon part of the row body, so it
+    // exercises the row InkWell rather than either trailing icon.
+    await tester.tap(find.text('plot.png'));
+    await tester.pumpAndSettle();
+
+    expect(downloads, 0);
+    expect(find.byIcon(Icons.close), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping the trailing download icon on a previewable row downloads',
+      (tester) async {
+    var downloads = 0;
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async {
+        downloads++;
+        return DownloadOutcome.success;
+      },
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pump();
+
+    expect(downloads, 1);
+    // The preview dialog/page should not have opened.
+    expect(find.byIcon(Icons.close), findsNothing);
+  });
+
   testWidgets('second tap during feedback window is a no-op', (tester) async {
     var calls = 0;
     await tester.pumpWidget(_wrap(WorkdirFilesSection(

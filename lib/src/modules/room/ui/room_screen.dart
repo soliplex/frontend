@@ -496,6 +496,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _buildContent(Room? room) {
     final threadView = _state.activeThreadView;
     final attachEnabled = room?.enableAttachments ?? false;
+    final messagesStatus = threadView?.messages.watch(context);
 
     final UploadsStatus roomStatus = attachEnabled
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
@@ -507,15 +508,16 @@ class _RoomScreenState extends State<RoomScreen> {
             .watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
 
+    final body = threadView == null || messagesStatus == null
+        ? _buildNoThreadBody(room)
+        : _buildThreadBody(threadView, room, messagesStatus);
+
     return Column(
       children: [
         _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(
-          child: threadView == null
-              ? _buildNoThreadBody(room)
-              : _buildThreadBody(threadView, room),
-        ),
+        Expanded(child: body),
+        _buildChatInput(threadView, room, messagesStatus),
       ],
     );
   }
@@ -882,35 +884,15 @@ class _RoomScreenState extends State<RoomScreen> {
             roomId: widget.roomId,
             threadId: null,
           ),
-        ChatInput(
-          onSend: (text) => _state.sendToNewThread(
-            text,
-            stateOverlay: _buildStateOverlay(),
-          ),
-          onCancel: _state.cancelSpawn,
-          sessionState: _state.sessionState,
-          controller: _chatController,
-          focusNode: _chatFocusNode,
-          selectedDocuments: _selectedDocuments,
-          onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-          onDocumentRemoved: _filterEnabled
-              ? (doc) => _updateSelection(
-                    Set.of(_selectedDocuments)..remove(doc),
-                  )
-              : null,
-          onAttachFile: (room?.enableAttachments ?? false)
-              ? () => _pickAndUploadToNewThread(pickFiles)
-              : null,
-          onAttachFolder: (room?.enableAttachments ?? false)
-              ? () => _pickAndUploadToNewThread(pickFolder)
-              : null,
-        ),
       ],
     );
   }
 
-  Widget _buildThreadBody(ThreadViewState threadView, Room? room) {
-    final status = threadView.messages.watch(context);
+  Widget _buildThreadBody(
+    ThreadViewState threadView,
+    Room? room,
+    ThreadViewStatus status,
+  ) {
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
@@ -1021,41 +1003,54 @@ class _RoomScreenState extends State<RoomScreen> {
                 roomId: widget.roomId,
                 threadId: threadView.threadId,
               ),
-            ChatInput(
-              onSend: (text) => threadView.sendMessage(
-                text,
-                _state.runtime,
-                stateOverlay: _buildStateOverlay(),
-              ),
-              onCancel: threadView.cancelRun,
-              sessionState: threadView.sessionState,
-              cancelEnabled: threadView.isCancellable,
-              controller: _chatController,
-              focusNode: _chatFocusNode,
-              enabled: status is MessagesLoaded,
-              selectedDocuments: _selectedDocuments,
-              onFilterTap: _filterEnabled ? _openDocumentPicker : null,
-              onDocumentRemoved: _filterEnabled
-                  ? (doc) => _updateSelection(
-                        Set.of(_selectedDocuments)..remove(doc),
-                      )
-                  : null,
-              onAttachFile: attachEnabled
-                  ? () => _pickAndUploadToThread(
-                        threadView.threadId,
-                        pickFiles,
-                      )
-                  : null,
-              onAttachFolder: attachEnabled
-                  ? () => _pickAndUploadToThread(
-                        threadView.threadId,
-                        pickFolder,
-                      )
-                  : null,
-            ),
           ],
         ),
       ],
+    );
+  }
+
+  /// Renders the single ChatInput at the bottom of the room layout. Dispatches
+  /// callbacks based on whether a [threadView] is active. Using one widget for
+  /// both states keeps the [EditableText] element stable across the
+  /// welcome → thread transition; see issue #212.
+  Widget _buildChatInput(
+    ThreadViewState? threadView,
+    Room? room,
+    ThreadViewStatus? status,
+  ) {
+    final attachEnabled = room?.enableAttachments ?? false;
+    VoidCallback? attachCallback(Future<PickFilesResult?> Function() pick) {
+      if (!attachEnabled) return null;
+      return threadView != null
+          ? () => _pickAndUploadToThread(threadView.threadId, pick)
+          : () => _pickAndUploadToNewThread(pick);
+    }
+
+    return ChatInput(
+      onSend: (text) {
+        if (threadView != null) {
+          threadView.sendMessage(
+            text,
+            _state.runtime,
+            stateOverlay: _buildStateOverlay(),
+          );
+        } else {
+          _state.sendToNewThread(text, stateOverlay: _buildStateOverlay());
+        }
+      },
+      onCancel: threadView != null ? threadView.cancelRun : _state.cancelSpawn,
+      sessionState: threadView?.sessionState ?? _state.sessionState,
+      cancelEnabled: threadView?.isCancellable,
+      controller: _chatController,
+      focusNode: _chatFocusNode,
+      enabled: threadView == null || status is MessagesLoaded,
+      selectedDocuments: _selectedDocuments,
+      onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+      onDocumentRemoved: _filterEnabled
+          ? (doc) => _updateSelection(Set.of(_selectedDocuments)..remove(doc))
+          : null,
+      onAttachFile: attachCallback(pickFiles),
+      onAttachFolder: attachCallback(pickFolder),
     );
   }
 

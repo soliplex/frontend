@@ -25,7 +25,7 @@ class _OverviewTabState extends State<OverviewTab> {
   AccumulatedRun? _accumulatedRun;
 
   SseParseResult _getParsed() {
-    return _parseResult ??= parseSseEvents(widget.group.streamEnd!.body!);
+    return _parseResult ??= parseSseEvents(widget.group.streamEnd?.body ?? '');
   }
 
   AccumulatedRun _getAccumulated() {

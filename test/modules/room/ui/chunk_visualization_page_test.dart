@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/chunk_visualization_page.dart';
+import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -86,6 +87,36 @@ void main() {
     expect(find.text('Page 3'), findsOneWidget);
     // Two page indicator dots
     expect(find.byType(CircleAvatar), findsNWidgets(2));
+  });
+
+  testWidgets(
+      'a single corrupt base64 entry does not collapse the visualization',
+      (tester) async {
+    // Mixed valid/invalid payload. Without the per-image try/catch the
+    // base64Decode FormatException propagates out of the .map() and fails
+    // the entire future, taking down the whole visualization.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'doc.pdf',
+        imagesBase64: [_pngBase64, '@@@not-base64@@@', _pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'Test Doc',
+        pageNumbers: const [1, 2, 3],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to load visualization'), findsNothing);
+    // All three page slots are still present (one is a placeholder).
+    expect(find.byType(CircleAvatar), findsNWidgets(3));
   });
 
   testWidgets('shows error with retry on failure', (tester) async {
@@ -226,18 +257,59 @@ void main() {
     });
   });
 
-  group('PageImage.hasDimensions', () {
+  group('PageImageDecoded.hasDimensions', () {
     test('true when both dimensions are positive', () {
-      expect(PageImage(Uint8List(0), 100, 200).hasDimensions, isTrue);
+      expect(
+        PageImageDecoded(bytes: Uint8List(0), width: 100, height: 200)
+            .hasDimensions,
+        isTrue,
+      );
     });
 
     test('false when width is zero', () {
-      expect(PageImage(Uint8List(0), 0, 200).hasDimensions, isFalse);
+      expect(
+        PageImageDecoded(bytes: Uint8List(0), width: 0, height: 200)
+            .hasDimensions,
+        isFalse,
+      );
     });
 
     test('false when both are zero', () {
-      expect(PageImage(Uint8List(0), 0, 0).hasDimensions, isFalse);
+      expect(
+        PageImageDecoded(bytes: Uint8List(0), width: 0, height: 0)
+            .hasDimensions,
+        isFalse,
+      );
     });
+  });
+
+  testWidgets(
+      'a corrupt base64 entry surfaces the decode reason in FailedImage label',
+      (tester) async {
+    // Behavioral coverage of the PageImageBroken arm of _buildPageImage: the
+    // decoder produces a PageImageBroken with the FormatException message as
+    // its reason, and the switch renders that reason inside FailedImage.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'doc.pdf',
+        imagesBase64: const ['@@@not-base64@@@'],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'Test Doc',
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FailedImage), findsOneWidget);
+    expect(find.textContaining('Page image failed to decode:'), findsOneWidget);
   });
 
   testWidgets('tapping rotate button rotates the image', (tester) async {
