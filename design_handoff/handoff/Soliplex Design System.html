@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Soliplex Design System</title>
+<link rel="icon" href="assets/branding/soliplex/favicon_48.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/doc.css" />
+</head>
+<body data-doc="clean">
+
+<!-- TWEAK DEFAULTS -->
+<script>
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "doc_style": "clean",
+  "demo_mode": "light"
+}/*EDITMODE-END*/;
+</script>
+
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <div class="brand">
+      <span class="mark"></span>
+      Soliplex Design System
+    </div>
+    <span class="version">v0.83.1 · Flutter</span>
+    <div class="spacer"></div>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#color">Color</a>
+      <a href="#typography">Typography</a>
+      <a href="#components">Components</a>
+      <a href="https://github.com/soliplex/frontend" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="doc-shell">
+
+  <aside class="doc-sidebar" id="sidebar">
+    <h4>Foundations</h4>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#brand">Brand</a></li>
+      <li><a href="#color">Color</a></li>
+      <li><a href="#typography">Typography</a></li>
+      <li><a href="#spacing">Spacing</a></li>
+      <li><a href="#radii">Radii</a></li>
+      <li><a href="#breakpoints">Breakpoints</a></li>
+    </ul>
+    <h4>Components</h4>
+    <ul>
+      <li><a href="#components">Overview</a></li>
+      <li><a href="#buttons">Buttons</a></li>
+      <li><a href="#inputs">Inputs</a></li>
+      <li><a href="#cards">Cards &amp; List Tiles</a></li>
+      <li><a href="#chips">Chips &amp; Badges</a></li>
+      <li><a href="#chat">Chat &amp; Messages</a></li>
+      <li><a href="#feedback">Feedback</a></li>
+      <li><a href="#status">Status &amp; Symbolic</a></li>
+      <li><a href="#execution">Execution timeline</a></li>
+      <li><a href="#citations">Citations</a></li>
+      <li><a href="#docpicker">Document picker</a></li>
+      <li><a href="#network">Network inspector</a></li>
+      <li><a href="#quiz">Quiz question</a></li>
+    </ul>
+    <h4>Engineering</h4>
+    <ul>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#usage">Using the theme</a></li>
+      <li><a href="#adoption">Adoption checklist</a></li>
+    </ul>
+  </aside>
+
+  <main class="doc-main" id="main"></main>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks-panel" id="tweaks">
+  <h5>Doc aesthetic</h5>
+  <div class="opt-row" data-tweak="doc_style">
+    <button class="opt" data-value="clean">Clean</button>
+    <button class="opt" data-value="editorial">Editorial</button>
+    <button class="opt" data-value="mono">Mono</button>
+  </div>
+  <p class="hint">Switches the document's own look &mdash; not the Soliplex app theme.</p>
+
+  <h5 style="margin-top:14px;">Default demo mode</h5>
+  <div class="opt-row" data-tweak="demo_mode">
+    <button class="opt" data-value="light">Light</button>
+    <button class="opt" data-value="dark">Dark</button>
+  </div>
+  <p class="hint">Initial Light/Dark tab state for component demos.</p>
+</div>
+
+<script src="scripts/content.js"></script>
+<script src="scripts/content2.js"></script>
+<script src="scripts/content3.js"></script>
+<script src="scripts/app2.js"></script>
+</body>
+</html>

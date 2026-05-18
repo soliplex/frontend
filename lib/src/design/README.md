@@ -1,0 +1,64 @@
+# Soliplex design system
+
+This folder is the **single source of truth** for color, type, spacing, radii,
+and breakpoints in the Flutter frontend. Everything under
+`lib/src/modules/` must consume tokens from here — no hex literals, no magic
+padding numbers, no hardcoded font sizes or families.
+
+The canonical reference (with swatches, type specimens, and component demos) is
+[`design_handoff/handoff/`](../../../design_handoff/handoff/). Open
+`design_handoff/handoff/Soliplex Design System.html` in a browser to verify a
+new screen matches.
+
+## Accessor cheat sheet
+
+| What                  | How                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Color                 | `Theme.of(context).colorScheme.<token>` or `SoliplexTheme.of(context).colors.<token>`                |
+| Status color          | `Theme.of(context).colorScheme.{danger,success,warning,info}` (via `SymbolicColors`)                 |
+| Spacing               | `SoliplexSpacing.s1` (4) / `s2` (8) / `s3` (12) / `s4` (16) / `s6` (24)                              |
+| Radius                | `SoliplexTheme.of(context).radii.{sm,md,lg,xl}` — default is `md` (12 px)                            |
+| Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
+| Monospace             | `context.monospace` — picks `SF Mono` on Cupertino, `Roboto Mono` elsewhere                          |
+| Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
+
+Import the whole surface via:
+
+```dart
+import 'package:soliplex_frontend/src/design/design.dart';
+```
+
+## Hard rules
+
+1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue` outside this folder.
+2. No bare `BorderRadius.circular(6|12|16|24)` — use `SoliplexTheme.of(context).radii.*`.
+3. No `TextStyle(fontSize: ...)` — start from a `textTheme` entry and `copyWith` only the delta you need.
+4. No `fontFamily: 'monospace'` / `'Roboto Mono'` / `'SF Mono'` string literals — use `context.monospace`.
+5. No raw `EdgeInsets` numbers — use `SoliplexSpacing`.
+6. No raw breakpoint numbers — use `SoliplexBreakpoints`.
+
+These are enforced by `packages/soliplex_lints` (added later in the migration
+stack); until then they are reviewer-enforced.
+
+## Adoption checklist (run before opening a PR)
+
+Mirror of the checklist in `design_handoff/handoff/README.md`:
+
+- [ ] Colors come from `Theme.of(context).colorScheme`, not hex literals.
+- [ ] Padding values come from `SoliplexSpacing` (`s1..s6`).
+- [ ] Corner radii come from `SoliplexTheme.of(context).radii`.
+- [ ] Text styles come from `Theme.of(context).textTheme`.
+- [ ] Monospace uses `context.monospace`, not a hardcoded font family.
+- [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Screen behaves at all three `SoliplexBreakpoints`.
+- [ ] Both light and dark palettes look correct.
+- [ ] Destructive actions use `colorScheme.error`; never red hex.
+
+## Adding a token
+
+Don't, without explicit user approval. If a missing value is genuinely needed:
+
+1. Stop. Raise the case in the relevant PR.
+2. Add the token to `tokens/colors.dart` (or the matching tokens file) **and**
+   to `design_handoff/handoff/tokens.{dart,css,jsx}` in the same change.
+3. Update `design_handoff/handoff/README.md` so the table stays accurate.
