@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../design/design.dart';
 import '../models/event_accumulator.dart';
 import '../models/http_event_group.dart';
 import '../models/json_tree_model.dart';
@@ -51,11 +52,11 @@ class _OverviewTabState extends State<OverviewTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       children: [
         if (hasRequestBody) ...[
           _JsonSection(title: 'Request Body', body: body),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
         ],
         if (group.isStream)
           _StreamSection(
@@ -129,7 +130,7 @@ class _StreamSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         if (parseResult.wasTruncated) _TruncationBanner(),
         if (view == _StreamView.conversation)
           _ConversationView(run: accumulatedRun)
@@ -143,14 +144,18 @@ class _StreamSection extends StatelessWidget {
 class _TruncationBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: SoliplexSpacing.s3,
+        vertical: SoliplexSpacing.s2,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
       ),
       child: Row(
         children: [
@@ -159,11 +164,10 @@ class _TruncationBanner extends StatelessWidget {
             size: 16,
             color: colorScheme.onTertiaryContainer,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Text(
             'Earlier stream content was truncated',
-            style: TextStyle(
-              fontSize: 12,
+            style: theme.textTheme.labelSmall?.copyWith(
               color: colorScheme.onTertiaryContainer,
             ),
           ),
@@ -258,16 +262,16 @@ class _RunEntryCard extends StatelessWidget {
     };
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(SoliplexSpacing.s3),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _RoleBadge(
                 label: label, color: badgeColor, textColor: badgeTextColor),
             if (content.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s2),
               SelectableText(
                 content,
                 style: theme.textTheme.bodySmall,
@@ -293,16 +297,19 @@ class _RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 10,
+        style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
           color: textColor,
         ),
@@ -358,26 +365,28 @@ class _SseEventCardState extends State<_SseEventCard> {
     final nodes = buildJsonTree(widget.event.payload);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: SoliplexSpacing.s3,
+                vertical: SoliplexSpacing.s2,
+              ),
               child: Row(
                 children: [
                   _EventTypeBadge(type: widget.event.type),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   if (summary.isNotEmpty)
                     Expanded(
                       child: Text(
                         summary,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace',
-                        ),
+                        style: context
+                            .monospaceOn(theme.textTheme.bodySmall)
+                            .copyWith(color: colorScheme.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -393,7 +402,12 @@ class _SseEventCardState extends State<_SseEventCard> {
           ),
           if (_expanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(
+                SoliplexSpacing.s3,
+                0,
+                SoliplexSpacing.s3,
+                SoliplexSpacing.s3,
+              ),
               child: JsonTreeView(nodes: nodes),
             ),
         ],
@@ -409,20 +423,22 @@ class _EventTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
       ),
       child: Text(
         type,
-        style: TextStyle(
-          fontSize: 10,
-          fontFamily: 'monospace',
-          color: colorScheme.onSurfaceVariant,
-        ),
+        style: context
+            .monospaceOn(theme.textTheme.labelSmall)
+            .copyWith(color: colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -456,20 +472,18 @@ class _JsonSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(soliplexRadii.sm),
           ),
           child: plainText != null
               ? SelectableText(
                   plainText,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
-                  ),
+                  style: context.monospaceOn(theme.textTheme.bodySmall),
                 )
               : JsonTreeView(nodes: buildJsonTree(parsed)),
         ),

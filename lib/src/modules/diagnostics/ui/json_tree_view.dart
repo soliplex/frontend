@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../design/design.dart';
 import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.
@@ -11,12 +12,12 @@ class JsonTreeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (nodes.isEmpty) {
+      final theme = Theme.of(context);
       return Text(
         '(empty)',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
+        style: context.monospaceOn(theme.textTheme.bodySmall).copyWith(
               fontStyle: FontStyle.italic,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
       );
     }
@@ -57,7 +58,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    final indent = widget.depth * 16.0;
+    final indent = widget.depth * SoliplexSpacing.s4;
 
     return switch (node) {
       ValueNode() => _buildValueRow(context, node, indent),
@@ -99,9 +100,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
       if (asDouble != null) valueColor = colorScheme.primary;
     }
 
-    final baseStyle = theme.textTheme.bodySmall?.copyWith(
-      fontFamily: 'monospace',
-    );
+    final baseStyle = context.monospaceOn(theme.textTheme.bodySmall);
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
@@ -111,13 +110,13 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
             if (node.key.isNotEmpty)
               TextSpan(
                 text: '${node.key}: ',
-                style: baseStyle?.copyWith(
+                style: baseStyle.copyWith(
                   color: colorScheme.onSurface,
                 ),
               ),
             TextSpan(
               text: node.value,
-              style: baseStyle?.copyWith(color: valueColor),
+              style: baseStyle.copyWith(color: valueColor),
             ),
           ],
         ),
@@ -136,9 +135,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final baseStyle = theme.textTheme.bodySmall?.copyWith(
-      fontFamily: 'monospace',
-    );
+    final baseStyle = context.monospaceOn(theme.textTheme.bodySmall);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +152,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 SelectableText(
                   _expanded ? expandedLabel : label,
                   style: baseStyle,

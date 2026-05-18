@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/color/color_scheme_extensions.dart';
+import '../../../design/design.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
 
@@ -89,7 +89,7 @@ class HttpStatusDisplay extends StatelessWidget {
             color: color,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: SoliplexSpacing.s2),
         Text(
           text,
           style: theme.textTheme.bodySmall?.copyWith(
