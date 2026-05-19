@@ -6,9 +6,9 @@ and breakpoints in the Flutter frontend. Everything under
 padding numbers, no hardcoded font sizes or families.
 
 The canonical reference (with swatches, type specimens, and component demos) is
-[`design_handoff/handoff/`](../../../design_handoff/handoff/). Open
-`design_handoff/handoff/Soliplex Design System.html` in a browser to verify a
-new screen matches.
+[`design_system/`](../../../design_system/). Open
+`design_system/Soliplex Design System.html` in a browser to verify a new screen
+matches.
 
 ## Accessor cheat sheet
 
@@ -37,12 +37,12 @@ import 'package:soliplex_frontend/src/design/design.dart';
 5. No raw `EdgeInsets` numbers — use `SoliplexSpacing`.
 6. No raw breakpoint numbers — use `SoliplexBreakpoints`.
 
-These are enforced by `packages/soliplex_lints` (added later in the migration
-stack); until then they are reviewer-enforced.
+These are reviewer-enforced. See the project root `CLAUDE.md` (`## Design
+system`) for the same rules with examples and rationale.
 
 ## Adoption checklist (run before opening a PR)
 
-Mirror of the checklist in `design_handoff/handoff/README.md`:
+Mirror of the checklist in `design_system/README.md`:
 
 - [ ] Colors come from `Theme.of(context).colorScheme`, not hex literals.
 - [ ] Padding values come from `SoliplexSpacing` (`s1..s6`).
@@ -60,5 +60,5 @@ Don't, without explicit user approval. If a missing value is genuinely needed:
 
 1. Stop. Raise the case in the relevant PR.
 2. Add the token to `tokens/colors.dart` (or the matching tokens file) **and**
-   to `design_handoff/handoff/tokens.{dart,css,jsx}` in the same change.
-3. Update `design_handoff/handoff/README.md` so the table stays accurate.
+   to `design_system/tokens.{dart,css,jsx}` in the same change.
+3. Update `design_system/README.md` so the table stays accurate.

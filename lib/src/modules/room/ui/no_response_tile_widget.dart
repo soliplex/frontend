@@ -92,7 +92,7 @@ class _TerminalReasonBubble extends StatelessWidget {
     };
     return Container(
       // design-system exception: 14/10 is the documented chat-bubble
-      // padding (see design_handoff/handoff/README.md "the only 14").
+      // padding (see design_system/README.md "the only 14").
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.tertiaryContainer,

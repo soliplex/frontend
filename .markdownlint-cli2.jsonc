@@ -4,6 +4,6 @@
     ".fvm/**",
     "linux/**",
     "windows/**",
-    "design_handoff/**"
+    "design_system/**"
   ]
 }

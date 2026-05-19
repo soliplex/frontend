@@ -83,9 +83,10 @@ flavor — no enum or toggle framework.
 
 The design system is the **single source of truth** for color, type, spacing,
 radii, and breakpoints. It lives in `lib/src/design/` (production code) and is
-documented in `lib/src/design/README.md` and the canonical handoff bundle at
-`design_handoff/handoff/`. **Read `lib/src/design/README.md` before writing or
-modifying any widget code** — it has the full accessor cheat sheet.
+documented in `lib/src/design/README.md` and the canonical reference bundle at
+`design_system/` (tokens, swatches, type specimens, component demos). **Read
+`lib/src/design/README.md` before writing or modifying any widget code** — it
+has the full accessor cheat sheet.
 
 ### Hard rules — do not violate without explicit user approval
 
@@ -138,8 +139,8 @@ Don't, without explicit user approval. If a value is genuinely missing:
 
 1. Stop. Raise the case in the relevant PR before writing code.
 2. Add the token to `lib/src/design/tokens/` **and** to
-   `design_handoff/handoff/tokens.{dart,css,jsx}` in the same change.
-3. Update `design_handoff/handoff/README.md` so the table stays accurate.
+   `design_system/tokens.{dart,css,jsx}` in the same change.
+3. Update `design_system/README.md` so the table stays accurate.
 
 ### Adoption checklist (run before opening a PR that touches UI)
 

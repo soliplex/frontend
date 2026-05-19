@@ -208,7 +208,8 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     // exposes a single Colors.green). We need light/dark green shades for
     // the success pill so it reads distinctly from the primary color and
     // doesn't compete with errorContainer on failures. Add the token to
-    // SoliplexColors (and the handoff bundle) when adopted system-wide.
+    // SoliplexColors (and design_system/tokens.{dart,css,jsx}) when adopted
+    // system-wide.
     return _Pill(
       key: ValueKey('success:$message'),
       icon: Icons.check_circle_outline,

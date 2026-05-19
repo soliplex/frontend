@@ -1,4 +1,4 @@
-# Soliplex Design System — Handoff for Claude Code
+# Soliplex Design System — Reference
 
 ## Overview
 This bundle is the **single source of truth** for visual design in the Soliplex Flutter frontend (v0.83.1). It documents tokens (color, type, spacing, radii, breakpoints), components, and adoption rules so an engineer working with Claude Code can pull values directly into the codebase without inventing new ones.
