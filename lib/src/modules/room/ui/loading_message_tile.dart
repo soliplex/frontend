@@ -5,6 +5,7 @@ import '../execution_tracker.dart';
 import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/thinking_block.dart';
+import '../../../design/design.dart';
 
 class LoadingMessageTile extends StatelessWidget {
   const LoadingMessageTile({
@@ -47,7 +48,7 @@ class LoadingMessageTile extends StatelessWidget {
           height: 16,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
-        SizedBox(width: 8),
+        SizedBox(width: SoliplexSpacing.s2),
         Text('Thinking...'),
       ],
     );

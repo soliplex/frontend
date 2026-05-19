@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../room_providers.dart';
 import '../copy_button.dart';
+import '../../../../design/design.dart';
 
 /// A collapsible "Thinking..." block driven by a static text payload.
 ///
@@ -49,7 +50,7 @@ class StaticThinkingBlock extends ConsumerWidget {
       ),
       dense: true,
       tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(bottom: 4),
+      childrenPadding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
       children: [
         Text(
           text,

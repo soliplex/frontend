@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
+import '../../../design/design.dart';
 
 class ChatInput extends StatefulWidget {
   const ChatInput({
@@ -129,15 +130,15 @@ class _ChatInputState extends State<ChatInput> {
     final cancelEnabled = widget.cancelEnabled?.watch(context) ?? true;
 
     return Padding(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(SoliplexSpacing.s2),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.selectedDocuments.isNotEmpty)
             Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+              padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(8),
@@ -290,7 +291,7 @@ class _ChatInputState extends State<ChatInput> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               if (active)
                 IconButton(
                   icon: const Icon(Icons.stop),

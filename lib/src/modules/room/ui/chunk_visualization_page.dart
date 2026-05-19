@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../design/design.dart';
 import '../../../shared/failed_image.dart';
 
 final _logger =
@@ -222,7 +223,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget build(BuildContext context) {
     if (widget.useDialogLayout) {
       return Dialog(
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
@@ -278,12 +279,12 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             'Failed to load visualization',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: SoliplexSpacing.s1),
           Text(
             error.toString(),
             style: theme.textTheme.bodySmall?.copyWith(
@@ -291,7 +292,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(
             onPressed: _retry,
             icon: const Icon(Icons.refresh),
@@ -387,8 +388,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
                 children: [
                   _buildPageImage(page, rotation),
                   Positioned(
-                    right: 8,
-                    top: 8,
+                    right: SoliplexSpacing.s2,
+                    top: SoliplexSpacing.s2,
                     child: IconButton.filledTonal(
                       onPressed: () => _rotate(index),
                       icon: const Icon(Icons.rotate_right),
@@ -401,7 +402,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
           child: Column(
             children: [
               Text(
@@ -409,12 +410,14 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               if (pages.length > 1) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: SoliplexSpacing.s1),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(pages.length, (index) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: SoliplexSpacing.s1,
+                      ),
                       child: CircleAvatar(
                         radius: 4,
                         backgroundColor: index == _currentPage

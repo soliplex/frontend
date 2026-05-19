@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/copy_button.dart';
+import '../../../../design/design.dart';
 
 class SystemPromptViewer extends StatefulWidget {
   const SystemPromptViewer({super.key, required this.prompt});
@@ -21,7 +22,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -43,11 +44,9 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
           ),
           LayoutBuilder(
             builder: (context, constraints) {
-              final promptStyle = theme.textTheme.bodyMedium?.copyWith(
-                fontFamily: 'monospace',
-                fontSize: 14,
-              );
-              const containerPadding = 16.0;
+              final promptStyle =
+                  context.monospaceOn(theme.textTheme.bodySmall);
+              const containerPadding = SoliplexSpacing.s4;
               final overflows = !_expanded &&
                   (TextPainter(
                     text: TextSpan(
@@ -67,7 +66,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(SoliplexSpacing.s2),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),

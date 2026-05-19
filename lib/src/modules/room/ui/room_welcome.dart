@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'markdown/flutter_markdown_plus_renderer.dart';
+import '../../../design/design.dart';
 
 class RoomWelcome extends StatelessWidget {
   const RoomWelcome({
@@ -46,7 +47,7 @@ class RoomWelcome extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             if (currentRoom.hasWelcomeMessage) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: SoliplexSpacing.s2),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: FlutterMarkdownPlusRenderer(
@@ -55,7 +56,7 @@ class RoomWelcome extends StatelessWidget {
               ),
             ],
             if (currentRoom.hasSuggestions) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SoliplexSpacing.s6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Wrap(
@@ -75,7 +76,7 @@ class RoomWelcome extends StatelessWidget {
               ),
             ],
             if (currentRoom.hasQuizzes) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SoliplexSpacing.s6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Column(
@@ -85,7 +86,7 @@ class RoomWelcome extends StatelessWidget {
                       children: [
                         Icon(Icons.quiz,
                             size: 20, color: theme.colorScheme.primary),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: SoliplexSpacing.s2),
                         Text(
                           currentRoom.quizzes.length == 1
                               ? 'Quiz Available'
@@ -94,7 +95,7 @@ class RoomWelcome extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: SoliplexSpacing.s2),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -137,7 +138,8 @@ class _SuggestionChip extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+                horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
             decoration: BoxDecoration(
               border: Border.all(color: theme.colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8),

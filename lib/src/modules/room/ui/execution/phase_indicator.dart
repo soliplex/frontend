@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import '../../../../design/design.dart';
 
 class PhaseIndicator extends StatelessWidget {
   const PhaseIndicator({super.key, required this.phase});
@@ -9,7 +10,7 @@ class PhaseIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Row(
         children: [
           const SizedBox(
@@ -17,7 +18,7 @@ class PhaseIndicator extends StatelessWidget {
             height: 16,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Text(
             _label,
             style: theme.textTheme.bodySmall?.copyWith(

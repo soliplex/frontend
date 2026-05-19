@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+import '../../../design/design.dart';
 
 /// Transient inline notifications that announce upload transitions the
 /// user may have missed while focused on the composer.
@@ -202,9 +203,12 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     final message = _successes.length == 1
         ? 'Uploaded ${_successes.first}'
         : 'Uploaded ${_successes.first} and ${_successes.length - 1} more';
-    // Material doesn't have a "success" color token; use light-green
-    // Material shades so success reads distinctly from the primary
-    // color without competing with the errorContainer on failures.
+    // design-system exception: SoliplexColors has no successContainer /
+    // onSuccessContainer pair (the SymbolicColors.success extension only
+    // exposes a single Colors.green). We need light/dark green shades for
+    // the success pill so it reads distinctly from the primary color and
+    // doesn't compete with errorContainer on failures. Add the token to
+    // SoliplexColors (and the handoff bundle) when adopted system-wide.
     return _Pill(
       key: ValueKey('success:$message'),
       icon: Icons.check_circle_outline,
@@ -249,8 +253,10 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 12, bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(
+          left: SoliplexSpacing.s3, bottom: SoliplexSpacing.s1),
+      padding: const EdgeInsets.symmetric(
+          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(20),
@@ -260,7 +266,7 @@ class _Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Flexible(
             child: Text(
               message,
@@ -272,7 +278,7 @@ class _Pill extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: SoliplexSpacing.s1),
           IconButton(
             icon: const Icon(Icons.close, size: 14),
             color: foreground,

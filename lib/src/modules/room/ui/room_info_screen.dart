@@ -21,6 +21,7 @@ import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
+import '../../../design/design.dart';
 
 class RoomInfoScreen extends StatefulWidget {
   const RoomInfoScreen({
@@ -152,12 +153,12 @@ class _RoomInfoBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -165,7 +166,7 @@ class _RoomInfoBody extends StatelessWidget {
                   'Server',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SoliplexSpacing.s1),
                 Text(
                   formatServerUrl(serverUrl),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -176,7 +177,7 @@ class _RoomInfoBody extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -184,7 +185,7 @@ class _RoomInfoBody extends StatelessWidget {
                   'Room',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SoliplexSpacing.s1),
                 Text(
                   room.name,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -196,7 +197,7 @@ class _RoomInfoBody extends StatelessWidget {
           ),
           if (room.hasDescription)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
               child: Text(
                 room.description,
                 style: Theme.of(context).textTheme.bodyLarge,
@@ -318,7 +319,8 @@ class _AgentCard extends StatelessWidget {
             ],
           FactoryRoomAgent(:final extraConfig) when extraConfig.isNotEmpty => [
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -329,8 +331,9 @@ class _AgentCard extends StatelessWidget {
                                 Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: SoliplexSpacing.s1),
                     formatDynamicValue(
+                      context,
                       extraConfig,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -447,7 +450,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       title: title,
       children: [
         _buildBody(status, theme),
-        const SizedBox(height: 8),
+        const SizedBox(height: SoliplexSpacing.s2),
         Align(
           alignment: Alignment.centerLeft,
           child: Wrap(
@@ -474,7 +477,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
   Widget _buildBody(UploadsStatus status, ThemeData theme) {
     return switch (status) {
       UploadsLoading() => const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
           child: SizedBox(
             width: 16,
             height: 16,
@@ -487,7 +490,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 8),
+            const SizedBox(height: SoliplexSpacing.s2),
             for (final entry in list)
               _UploadEntryRow(
                 entry: entry,
@@ -497,7 +500,7 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
           ],
         ),
       UploadsFailed(error: final error) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
           child: Text(
             'Failed to load uploaded files: ${uploadErrorMessage(error)}',
             style: theme.textTheme.bodySmall?.copyWith(
@@ -548,14 +551,16 @@ class _UploadEntryRow extends StatelessWidget {
         : theme.colorScheme.outline;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       padding: isFailed
-          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
-          : const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          ? const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1)
+          : const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
             )
           : null,
       child: Row(
@@ -574,7 +579,7 @@ class _UploadEntryRow extends StatelessWidget {
                 },
               ),
             ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               entry.filename,
@@ -588,9 +593,8 @@ class _UploadEntryRow extends StatelessWidget {
             Expanded(
               child: Text(
                 errorMessage,
-                style: theme.textTheme.bodySmall?.copyWith(
+                style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onErrorContainer,
-                  fontSize: 11,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

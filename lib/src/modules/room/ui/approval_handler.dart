@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../human_approval_extension.dart';
+import '../../../design/design.dart';
 
 /// Bridges a [ReadonlySignal] of [ApprovalRequest] to imperative
 /// `showDialog` calls. Renders nothing itself; mount anywhere in the tree
@@ -121,7 +122,7 @@ class ApprovalDialog extends StatelessWidget {
       title: Row(
         children: [
           Icon(Icons.security, color: theme.colorScheme.primary, size: 20),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           const Text('Tool Approval Required'),
         ],
       ),
@@ -134,7 +135,7 @@ class ApprovalDialog extends StatelessWidget {
             style: theme.textTheme.titleSmall
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SoliplexSpacing.s2),
           Text(request.rationale, style: theme.textTheme.bodyMedium),
         ],
       ),

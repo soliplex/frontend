@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import '../../../design/design.dart';
 
 typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
 
@@ -77,12 +78,13 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
         }
         final theme = Theme.of(context);
         return Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            padding: const EdgeInsets.symmetric(
+                vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s2),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(soliplexRadii.md),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 200),
@@ -194,9 +196,10 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
       onTap: canPreview
           ? () => _openPreview(context)
           : (downloadEnabled ? _handleTap : null),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(soliplexRadii.sm),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        padding: const EdgeInsets.symmetric(
+            vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
         child: Row(
           children: [
             Icon(
@@ -206,7 +209,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
               size: 16,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             Expanded(
               child: _FilenameText(
                 filename: widget.file.filename,
@@ -216,7 +219,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
             if (canPreview) ...[
               InkWell(
                 onTap: () => _openPreview(context),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(soliplexRadii.sm),
                 child: Padding(
                   padding: const EdgeInsets.all(2),
                   child: Tooltip(
@@ -229,11 +232,11 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
             ],
             InkWell(
               onTap: downloadEnabled ? _handleTap : null,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
               child: Padding(
                 padding: const EdgeInsets.all(2),
                 child: Tooltip(
@@ -451,7 +454,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
               size: 48,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: SoliplexSpacing.s3),
             Text(
               'File no longer exists',
               style: theme.textTheme.bodyMedium,
@@ -465,12 +468,12 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             "Couldn't load preview",
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(
             onPressed: _retry,
             icon: const Icon(Icons.refresh),
@@ -509,7 +512,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
   Widget build(BuildContext context) {
     if (widget.useDialogLayout) {
       return Dialog(
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
@@ -659,12 +662,12 @@ class _CannotPreviewState extends State<_CannotPreview> {
             size: 48,
             color: theme.colorScheme.onSurfaceVariant,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SoliplexSpacing.s3),
           Text(
             "Can't preview this file",
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(
             onPressed:
                 _feedback == _DownloadFeedback.idle ? _handleDownload : null,
@@ -686,7 +689,8 @@ class _WorkdirErrorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      padding: const EdgeInsets.symmetric(
+          vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
       child: Row(
         children: [
           Icon(
@@ -694,7 +698,7 @@ class _WorkdirErrorRow extends StatelessWidget {
             size: 16,
             color: theme.colorScheme.error,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               "Couldn't load files",

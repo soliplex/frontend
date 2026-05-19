@@ -11,6 +11,7 @@ import 'execution/thinking_block.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class TextMessageTile extends StatelessWidget {
   const TextMessageTile({
@@ -77,14 +78,14 @@ class TextMessageTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(message: message),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s1),
         Row(
           children: [
             CopyButton(text: message.text),
             if (isUser && onInspect != null) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               Tooltip(
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
@@ -99,7 +100,7 @@ class TextMessageTile extends StatelessWidget {
               ),
             ],
             if (showFeedback) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: SoliplexSpacing.s2),
               FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
             ],
           ],
@@ -138,12 +139,14 @@ class _MessageBubble extends StatelessWidget {
     final isUser = message.user == ChatUser.user;
 
     return Container(
+      // design-system exception: 14/10 is the documented chat-bubble padding
+      // (see design_handoff/handoff/README.md "the only 14 in the system").
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: isUser
             ? theme.colorScheme.primaryContainer
             : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(soliplexRadii.md),
       ),
       child: isUser
           ? SelectableText(

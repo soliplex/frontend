@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'room_info_widgets.dart';
+import '../../../../design/design.dart';
 
 class ExpandableTile extends StatelessWidget {
   const ExpandableTile({
@@ -26,10 +27,9 @@ class ExpandableTile extends StatelessWidget {
         Expanded(
           child: Text(
             name,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w600,
-            ),
+            style: context
+                .monospaceOn(theme.textTheme.bodyMedium)
+                .copyWith(fontWeight: FontWeight.w600),
           ),
         ),
         if (hasContent)
@@ -45,17 +45,17 @@ class ExpandableTile extends StatelessWidget {
       onTap: hasContent ? onToggle : null,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             nameRow,
             if (expanded && hasContent)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
