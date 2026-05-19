@@ -189,15 +189,20 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     };
     final canPreview =
         widget.onPreview != null && _isPreviewableImage(widget.file.filename);
+    final downloadEnabled = _feedback == _DownloadFeedback.idle;
     return InkWell(
-      onTap: _feedback == _DownloadFeedback.idle ? _handleTap : null,
+      onTap: canPreview
+          ? () => _openPreview(context)
+          : (downloadEnabled ? _handleTap : null),
       borderRadius: BorderRadius.circular(6),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
         child: Row(
           children: [
             Icon(
-              Icons.insert_drive_file_outlined,
+              canPreview
+                  ? Icons.image_outlined
+                  : Icons.insert_drive_file_outlined,
               size: 16,
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -226,9 +231,16 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
               ),
               const SizedBox(width: 8),
             ],
-            Tooltip(
-              message: tooltip,
-              child: Icon(icon, size: 16, color: color),
+            InkWell(
+              onTap: downloadEnabled ? _handleTap : null,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Tooltip(
+                  message: tooltip,
+                  child: Icon(icon, size: 16, color: color),
+                ),
+              ),
             ),
           ],
         ),

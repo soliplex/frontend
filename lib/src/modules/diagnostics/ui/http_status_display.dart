@@ -51,26 +51,30 @@ class HttpStatusDisplay extends StatelessWidget {
   }
 
   String _buildStatusText() {
+    final response = group.response;
+    final error = group.error;
+    final streamEnd = group.streamEnd;
     return switch (group.status) {
       HttpEventStatus.pending => 'pending...',
-      HttpEventStatus.success => '${group.response!.statusCode} OK '
-          '(${group.response!.duration.toHttpDurationString()}, '
-          '${group.response!.bodySize.toHttpBytesString()})',
-      HttpEventStatus.clientError => '${group.response!.statusCode} '
-          '(${group.response!.duration.toHttpDurationString()})',
-      HttpEventStatus.serverError => '${group.response!.statusCode} '
-          '(${group.response!.duration.toHttpDurationString()})',
-      HttpEventStatus.networkError => '${group.error!.exception.runtimeType} '
-          '(${group.error!.duration.toHttpDurationString()})',
-      HttpEventStatus.streaming => group.streamEnd != null
+      HttpEventStatus.success => '${response?.statusCode ?? '—'} OK '
+          '(${response?.duration.toHttpDurationString() ?? '—'}, '
+          '${response?.bodySize.toHttpBytesString() ?? '—'})',
+      HttpEventStatus.clientError => '${response?.statusCode ?? '—'} '
+          '(${response?.duration.toHttpDurationString() ?? '—'})',
+      HttpEventStatus.serverError => '${response?.statusCode ?? '—'} '
+          '(${response?.duration.toHttpDurationString() ?? '—'})',
+      HttpEventStatus.networkError =>
+        '${error?.exception.runtimeType ?? 'NetworkError'} '
+            '(${error?.duration.toHttpDurationString() ?? '—'})',
+      HttpEventStatus.streaming => streamEnd != null
           ? 'streaming... '
-              '(${group.streamEnd!.bytesReceived.toHttpBytesString()})'
+              '(${streamEnd.bytesReceived.toHttpBytesString()})'
           : 'streaming...',
       HttpEventStatus.streamComplete =>
-        'complete (${group.streamEnd!.duration.toHttpDurationString()}, '
-            '${group.streamEnd!.bytesReceived.toHttpBytesString()})',
+        'complete (${streamEnd?.duration.toHttpDurationString() ?? '—'}, '
+            '${streamEnd?.bytesReceived.toHttpBytesString() ?? '—'})',
       HttpEventStatus.streamError =>
-        'error (${group.streamEnd!.duration.toHttpDurationString()})',
+        'error (${streamEnd?.duration.toHttpDurationString() ?? '—'})',
     };
   }
 

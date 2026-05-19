@@ -48,10 +48,11 @@ String extractOverviewText(HttpEventGroup group) {
   final body = group.requestBody;
   if (body != null) buf.write(HttpEventGroup.formatBody(body));
 
-  if (group.isStream && group.streamEnd?.body != null) {
-    final rawBody = group.streamEnd!.body!;
-    buf.write(rawBody);
-    final parsed = parseSseEvents(rawBody);
+  final streamEndBody = group.streamEnd?.body;
+  final responseBody = group.response?.body;
+  if (group.isStream && streamEndBody != null) {
+    buf.write(streamEndBody);
+    final parsed = parseSseEvents(streamEndBody);
     final run = accumulateEvents(parsed.events);
     for (final entry in run.entries) {
       switch (entry) {
@@ -70,8 +71,8 @@ String extractOverviewText(HttpEventGroup group) {
           break;
       }
     }
-  } else if (!group.isStream && group.response?.body != null) {
-    buf.write(HttpEventGroup.formatBody(group.response!.body));
+  } else if (!group.isStream && responseBody != null) {
+    buf.write(HttpEventGroup.formatBody(responseBody));
   }
   return buf.toString();
 }

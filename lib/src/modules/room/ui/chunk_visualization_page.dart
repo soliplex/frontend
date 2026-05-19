@@ -4,17 +4,47 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/theme/theme_extensions.dart';
+import '../../../design/tokens/spacing.dart';
+import '../../../shared/failed_image.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.chunk_visualization');
 
 @visibleForTesting
-class PageImage {
-  const PageImage(this.bytes, this.width, this.height);
+sealed class PageImage {
+  const PageImage();
+}
+
+/// A successfully decoded page image with its raw PNG bytes and dimensions.
+/// [hasDimensions] is false when [readPngDimensions] could not parse an IHDR
+/// chunk — the bytes are still valid base64 but may not be a PNG; rendering
+/// uses [InteractiveViewer] without computed sizing from IHDR.
+@visibleForTesting
+final class PageImageDecoded extends PageImage {
+  const PageImageDecoded({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+
   final Uint8List bytes;
   final int width;
   final int height;
 
   bool get hasDimensions => width > 0 && height > 0;
+}
+
+/// A page whose base64 payload could not be decoded. Codec-time failures
+/// (bytes were valid base64 but not a valid image) are not represented here —
+/// they happen during paint and are caught by [Image.memory]'s `errorBuilder`.
+@visibleForTesting
+final class PageImageBroken extends PageImage {
+  const PageImageBroken({required this.reason});
+
+  final String reason;
 }
 
 /// Reads dimensions from a PNG IHDR chunk (bytes 16–23).
@@ -115,13 +145,40 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   void _loadVisualization() {
-    _future = widget.api
-        .getChunkVisualization(widget.roomId, widget.chunkId)
-        .then((viz) => viz.imagesBase64.map((b64) {
-              final bytes = base64Decode(b64);
-              final (w, h) = readPngDimensions(bytes);
-              return PageImage(bytes, w, h);
-            }).toList());
+    _future = _fetchAndDecode();
+  }
+
+  Future<List<PageImage>> _fetchAndDecode() async {
+    try {
+      final viz =
+          await widget.api.getChunkVisualization(widget.roomId, widget.chunkId);
+      return viz.imagesBase64.map(_decodePageImage).toList();
+    } catch (error, stack) {
+      _logger.warning(
+        'chunk visualization fetch failed',
+        error: error,
+        stackTrace: stack,
+      );
+      rethrow;
+    }
+  }
+
+  /// Decodes one entry from `imagesBase64`. Returns a [PageImageDecoded] on
+  /// success or a [PageImageBroken] on FormatException so a single corrupt
+  /// image doesn't collapse the entire visualization.
+  static PageImage _decodePageImage(String b64) {
+    try {
+      final bytes = base64Decode(b64);
+      final (w, h) = readPngDimensions(bytes);
+      return PageImageDecoded(bytes: bytes, width: w, height: h);
+    } on FormatException catch (error, stack) {
+      _logger.warning(
+        'chunk image base64 decode failed',
+        error: error,
+        stackTrace: stack,
+      );
+      return PageImageBroken(reason: error.message);
+    }
   }
 
   void _retry() {
@@ -248,9 +305,35 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Widget _buildPageImage(PageImage page, int rotation) {
+    return switch (page) {
+      PageImageBroken(:final reason) => Center(
+          // FormatException messages are usually short but uncapped; bound
+          // the displayed reason so a long message doesn't blow out the
+          // placeholder.
+          child: FailedImage(
+            label: 'Page image failed to decode: '
+                '${reason.length <= 80 ? reason : '${reason.substring(0, 80)}…'}',
+          ),
+        ),
+      PageImageDecoded() => _buildDecodedPageImage(page, rotation),
+    };
+  }
+
+  Widget _buildDecodedPageImage(PageImageDecoded page, int rotation) {
     final image = RotatedBox(
       quarterTurns: rotation,
-      child: Image.memory(page.bytes, fit: BoxFit.contain),
+      child: Image.memory(
+        page.bytes,
+        fit: BoxFit.contain,
+        errorBuilder: (_, error, stack) {
+          _logger.warning(
+            'chunk image bytes failed to render',
+            error: error,
+            stackTrace: stack,
+          );
+          return const FailedImage(label: 'Page image failed to render');
+        },
+      ),
     );
 
     if (!page.hasDimensions) {
