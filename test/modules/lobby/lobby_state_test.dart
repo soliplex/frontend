@@ -124,6 +124,50 @@ void main() {
 
         state.dispose();
       });
+
+      test(
+        'AuthException on rooms fetch funnels to markSessionExpired '
+        'and section is removed (not RoomsFailed)',
+        () async {
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          fakeApi.nextError = const AuthException(
+            message: 'Unauthorized',
+            statusCode: 401,
+          );
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+
+          await Future<void>.delayed(Duration.zero);
+
+          // Session should flip to ExpiredSession (tokens preserved).
+          expect(entry.auth.session.value, isA<ExpiredSession>());
+          // Lobby section is removed by _onAuthChanged on the
+          // isConnected→false transition.
+          expect(state.roomsByServer.value.containsKey('auth-server'), isFalse);
+
+          state.dispose();
+        },
+      );
     });
 
     group('server removal', () {

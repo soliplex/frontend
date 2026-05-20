@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_client/soliplex_client.dart'
+    show AuthException, SoliplexApi;
 
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
@@ -146,6 +147,13 @@ class LobbyState {
     }).catchError((Object error) {
       if (token.isCancelled) return;
       _cancelTokens.remove(serverId);
+      if (error is AuthException) {
+        // Funnel to the per-server auth funnel. _onAuthChanged will
+        // drop the section from the lobby on the isConnected→false
+        // transition; no need to set RoomsFailed.
+        entry.auth.markSessionExpired();
+        return;
+      }
       _roomsByServer.value = {
         ..._roomsByServer.value,
         serverId: RoomsFailed(error),
@@ -165,8 +173,12 @@ class LobbyState {
         profile = null;
       }
       _userProfiles.value = {..._userProfiles.value, serverId: profile};
-    }).catchError((Object _) {
+    }).catchError((Object error) {
       if (!_authSubscriptions.containsKey(serverId)) return;
+      if (error is AuthException) {
+        entry.auth.markSessionExpired();
+        return;
+      }
       _userProfiles.value = {..._userProfiles.value, serverId: null};
     });
   }

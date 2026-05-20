@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -59,17 +60,20 @@ typedef HistoryLoadedCallback = void Function(
 class ThreadViewState {
   ThreadViewState({
     required ServerConnection connection,
+    required AuthSession auth,
     required String roomId,
     required this.threadId,
     required RunRegistry registry,
     this.onHistoryLoaded,
   })  : _connection = connection,
+        _auth = auth,
         _roomId = roomId,
         _registry = registry {
     if (!_restoreFromRegistry()) _fetch();
   }
 
   final ServerConnection _connection;
+  final AuthSession _auth;
   final String _roomId;
   final String threadId;
   final HistoryLoadedCallback? onHistoryLoaded;
@@ -275,6 +279,12 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final reason, :final error):
         _detachSession();
+        if (reason == FailureReason.authExpired) {
+          // Funnel to the per-server auth funnel so the route guard
+          // (and any lobby UX) can react. The screen also surfaces a
+          // banner so the user sees what happened before the redirect.
+          _auth.markSessionExpired();
+        }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);

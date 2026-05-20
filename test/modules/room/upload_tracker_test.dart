@@ -4,7 +4,11 @@ import 'dart:io' show FileSystemException, SocketException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+
+import '../../helpers/fakes.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
@@ -27,9 +31,12 @@ void main() {
     registerFallbackValue(CancelToken());
   });
 
+  late AuthSession auth;
+
   setUp(() {
     mockApi = MockSoliplexApi();
-    tracker = UploadTracker(api: mockApi);
+    auth = AuthSession(refreshService: FakeTokenRefreshService());
+    tracker = UploadTracker(api: mockApi, auth: auth);
   });
 
   tearDown(() {
@@ -1086,6 +1093,18 @@ void main() {
       unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
       var callCount = 0;
       when(() => mockApi.uploadFileToRoom(
             any(),
@@ -1119,6 +1138,10 @@ void main() {
       final failed = status.uploads.whereType<FailedUpload>().single;
       expect(failed.filename, 'fail.pdf');
       expect(failed.message, 'Session expired. Please sign in again.');
+
+      // Session funneled through markSessionExpired so route guard
+      // and lobby UX can react. Tokens preserved.
+      expect(auth.session.value, isA<ExpiredSession>());
     });
 
     test(

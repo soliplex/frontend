@@ -6,6 +6,8 @@ import 'dart:io' show FileSystemException, SocketException;
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../auth/auth_session.dart';
+
 /// Sealed status for a single upload scope (a room or a thread).
 ///
 /// A refresh failure from a `Loaded` state is logged but not surfaced
@@ -236,9 +238,12 @@ class _QueuedJob {
 /// for every enqueued upload immediately, regardless of where it sits
 /// in the queue.
 class UploadTracker {
-  UploadTracker({required SoliplexApi api}) : _api = api;
+  UploadTracker({required SoliplexApi api, required AuthSession auth})
+      : _api = api,
+        _auth = auth;
 
   final SoliplexApi _api;
+  final AuthSession _auth;
   final Map<String, _ScopeState> _scopes = {};
   final Queue<_QueuedJob> _queue = Queue<_QueuedJob>();
   bool _draining = false;
@@ -618,7 +623,13 @@ class UploadTracker {
           );
           continue;
         }
+        // Retries exhausted: commit the failed row first so the
+        // tracker state is consistent, then funnel through the auth
+        // funnel. The route guard / lobby UX react asynchronously
+        // (next microtask) and pick up the new auth state — the user
+        // returns to find the failed row already recorded.
         _markFailed(scope, id, error);
+        _auth.markSessionExpired();
         return;
       } on Object catch (error, stackTrace) {
         if (_isDisposed) return;

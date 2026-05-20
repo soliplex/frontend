@@ -58,7 +58,7 @@ class UploadTrackerRegistry {
     final key = (entry.serverId, roomId);
     return _trackers.putIfAbsent(
       key,
-      () => UploadTracker(api: entry.connection.api),
+      () => UploadTracker(api: entry.connection.api, auth: entry.auth),
     );
   }
 

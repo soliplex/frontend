@@ -45,6 +45,7 @@ class _QuizScreenState extends State<QuizScreen> {
     _quizFuture = _fetchQuiz();
     _controller = QuizSessionController(
       api: api,
+      auth: widget.serverEntry.auth,
       roomId: widget.roomId,
       logger: _logger,
     );
