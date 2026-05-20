@@ -90,7 +90,7 @@ class TextMessageTile extends StatelessWidget {
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
                   onTap: onInspect,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
                   child: Icon(
                     Icons.bug_report_outlined,
                     size: 20,

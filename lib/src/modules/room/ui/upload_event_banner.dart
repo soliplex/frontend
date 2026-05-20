@@ -203,18 +203,12 @@ class _UploadEventBannerState extends State<UploadEventBanner> {
     final message = _successes.length == 1
         ? 'Uploaded ${_successes.first}'
         : 'Uploaded ${_successes.first} and ${_successes.length - 1} more';
-    // design-system exception: SoliplexColors has no successContainer /
-    // onSuccessContainer pair (the SymbolicColors.success extension only
-    // exposes a single Colors.green). We need light/dark green shades for
-    // the success pill so it reads distinctly from the primary color and
-    // doesn't compete with errorContainer on failures. Add the token to
-    // SoliplexColors (and design_system/tokens.{dart,css,jsx}) when adopted
-    // system-wide.
+    final colors = SoliplexTheme.of(context).colors;
     return _Pill(
       key: ValueKey('success:$message'),
       icon: Icons.check_circle_outline,
-      background: Colors.green.shade100,
-      foreground: Colors.green.shade900,
+      background: colors.successContainer,
+      foreground: colors.onSuccessContainer,
       message: message,
       onDismiss: _dismissSuccesses,
     );
@@ -260,7 +254,7 @@ class _Pill extends StatelessWidget {
           horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(soliplexRadii.lg),
       ),
       constraints: const BoxConstraints(maxWidth: 420),
       child: Row(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/design/design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
 
@@ -65,6 +66,7 @@ void main() {
 
   Widget frame(String roomId, String? threadId) {
     return MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: UploadEventBanner(
           tracker: tracker,

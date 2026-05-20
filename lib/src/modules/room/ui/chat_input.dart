@@ -141,7 +141,7 @@ class _ChatInputState extends State<ChatInput> {
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(soliplexRadii.md),
               ),
               width: double.infinity,
               child: _chipsExpanded

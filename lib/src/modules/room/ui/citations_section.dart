@@ -38,7 +38,7 @@ class _CitationsSectionState extends State<CitationsSection> {
           children: [
             InkWell(
               onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(soliplexRadii.md),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     vertical: SoliplexSpacing.s1,
@@ -141,7 +141,7 @@ class _SourceReferenceRow extends StatelessWidget {
               Expanded(
                 child: InkWell(
                   onTap: onToggle,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(soliplexRadii.md),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         vertical: SoliplexSpacing.s1),
@@ -200,7 +200,7 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
               InkWell(
                 onTap: onToggle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(soliplexRadii.md),
                 child: Padding(
                   padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   child: Icon(

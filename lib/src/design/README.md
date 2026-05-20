@@ -22,6 +22,11 @@ matches.
 | Monospace             | `context.monospace` — picks `SF Mono` on Cupertino, `Roboto Mono` elsewhere                          |
 | Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
 
+> The `SymbolicColors` entries are single shades. For errors **with** a
+> container surface use `colorScheme.errorContainer` / `onErrorContainer` —
+> not the symbolic `danger`. For success **with** a container surface use
+> `SoliplexTheme.of(context).colors.successContainer` / `onSuccessContainer`.
+
 Import the whole surface via:
 
 ```dart
@@ -30,9 +35,9 @@ import 'package:soliplex_frontend/src/design/design.dart';
 
 ## Hard rules
 
-1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue` outside this folder.
-2. No bare `BorderRadius.circular(6|12|16|24)` — use `SoliplexTheme.of(context).radii.*`.
-3. No `TextStyle(fontSize: ...)` — start from a `textTheme` entry and `copyWith` only the delta you need.
+1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue|yellow` outside this folder.
+2. No bare `BorderRadius.circular(N)` — use `SoliplexTheme.of(context).radii.*`.
+3. No `TextStyle(fontSize: ...)` or bare `fontSize:` in `.copyWith` — start from a `textTheme` entry and `copyWith` only the delta you need.
 4. No `fontFamily: 'monospace'` / `'Roboto Mono'` / `'SF Mono'` string literals — use `context.monospace`.
 5. No raw `EdgeInsets` numbers — use `SoliplexSpacing`.
 6. No raw breakpoint numbers — use `SoliplexBreakpoints`.

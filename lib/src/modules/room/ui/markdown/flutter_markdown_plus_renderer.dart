@@ -62,9 +62,9 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       builders: {
         'code': InlineCodeBuilder(),
         'pre': CodeBlockBuilder(
-          // Exception: 14pt sits between bodySmall (13) and bodyMedium (16);
-          // chosen so block code reads at roughly the size of surrounding
-          // prose without dominating it.
+          // design-system exception (approved): 14pt sits between bodySmall
+          // (13) and bodyMedium (16); chosen so block code reads at roughly
+          // the size of surrounding prose without dominating it.
           preferredStyle: monoStyle.copyWith(fontSize: 14),
         ),
         'latex': LatexElementBuilder(),

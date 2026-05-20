@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../design/design.dart';
 import 'copy_button.dart';
 
 const double _iconBoxSize = 96;
@@ -43,7 +44,7 @@ class _FailedImageState extends State<FailedImage> {
         children: [
           body,
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
             child: Text(
               _displayLabel(),
               style: theme.textTheme.labelSmall?.copyWith(
@@ -60,7 +61,8 @@ class _FailedImageState extends State<FailedImage> {
       children: [
         _toolbar(theme),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s3, 0, SoliplexSpacing.s3, SoliplexSpacing.s3),
           child: body,
         ),
       ],
@@ -78,7 +80,7 @@ class _FailedImageState extends State<FailedImage> {
         decoration: BoxDecoration(
           border: Border.all(color: theme.colorScheme.outline),
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
         ),
         child: Icon(
           Icons.broken_image,
@@ -95,12 +97,9 @@ class _FailedImageState extends State<FailedImage> {
       child: SingleChildScrollView(
         child: SelectableText(
           source,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontFamilyFallback: const ['monospace'],
-            fontSize: 12,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: context.monospaceOn(theme.textTheme.bodySmall).copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
         ),
       ),
     );
@@ -113,19 +112,20 @@ class _FailedImageState extends State<FailedImage> {
     return Row(
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 12, top: 4),
+          padding: const EdgeInsets.only(
+              left: SoliplexSpacing.s3, top: SoliplexSpacing.s1),
           child: Text(_displayLabel(), style: labelStyle),
         ),
         const Spacer(),
         Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
           child: Tooltip(
             message: _showSource ? 'Show preview' : 'Show source',
             child: InkWell(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
               onTap: () => setState(() => _showSource = !_showSource),
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(SoliplexSpacing.s1),
                 child: Icon(
                   _showSource ? Icons.image : Icons.code,
                   size: 16,
@@ -136,7 +136,8 @@ class _FailedImageState extends State<FailedImage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(right: 4, top: 4),
+          padding: const EdgeInsets.only(
+              right: SoliplexSpacing.s1, top: SoliplexSpacing.s1),
           child: CopyButton(
             text: widget.source!,
             tooltip: 'Copy source',

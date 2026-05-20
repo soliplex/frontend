@@ -32,6 +32,8 @@ class SoliplexColors {
     required this.onDestructive,
     required this.errorContainer,
     required this.onErrorContainer,
+    required this.successContainer,
+    required this.onSuccessContainer,
     required this.border,
     required this.outline,
     required this.outlineVariant,
@@ -65,6 +67,8 @@ class SoliplexColors {
   final Color onDestructive;
   final Color errorContainer;
   final Color onErrorContainer;
+  final Color successContainer;
+  final Color onSuccessContainer;
   final Color border;
   final Color outline;
   final Color outlineVariant;
@@ -99,6 +103,8 @@ const lightSoliplexColors = SoliplexColors(
   onDestructive: Color(0xFFFFFFFF),
   errorContainer: Color(0xFFFEE2E2),
   onErrorContainer: Color(0xFF991B1B),
+  successContainer: Color(0xFFDCFCE7),
+  onSuccessContainer: Color(0xFF166534),
   border: Color(0x1A000000), // rgba(0,0,0,0.10)
   outline: Color(0xFFC0C0C4),
   outlineVariant: Color(0xFFE0E0E2),
@@ -133,6 +139,8 @@ const darkSoliplexColors = SoliplexColors(
   onDestructive: Color(0xFFFFFFFF),
   errorContainer: Color(0xFF3D1A1A),
   onErrorContainer: Color(0xFFFCA5A5),
+  successContainer: Color(0xFF1A3D1A),
+  onSuccessContainer: Color(0xFF86EFAC),
   border: Color(0xFF2A2A2A),
   outline: Color(0xFF555555),
   outlineVariant: Color(0xFF3A3A3A),

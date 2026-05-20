@@ -221,7 +221,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
                 onTap: () => _openPreview(context),
                 borderRadius: BorderRadius.circular(soliplexRadii.sm),
                 child: Padding(
-                  padding: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(SoliplexSpacing.s1),
                   child: Tooltip(
                     message: 'Preview',
                     child: Icon(
@@ -238,7 +238,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
               onTap: downloadEnabled ? _handleTap : null,
               borderRadius: BorderRadius.circular(soliplexRadii.sm),
               child: Padding(
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(SoliplexSpacing.s1),
                 child: Tooltip(
                   message: tooltip,
                   child: Icon(icon, size: 16, color: color),
@@ -377,7 +377,8 @@ class WorkdirImagePreviewPage extends StatefulWidget {
     required Future<Uint8List> Function() fetchBytes,
     required Widget cannotPreview,
   }) {
-    final useDialog = MediaQuery.sizeOf(context).width >= 600;
+    final useDialog =
+        MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
     final child = WorkdirImagePreviewPage(
       filename: filename,
       fetchBytes: fetchBytes,
@@ -487,7 +488,12 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s3,
+        SoliplexSpacing.s2,
+        SoliplexSpacing.s2,
+      ),
       child: Row(
         children: [
           Expanded(
