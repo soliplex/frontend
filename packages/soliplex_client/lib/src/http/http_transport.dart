@@ -302,8 +302,15 @@ class HttpTransport {
     final message = 'HTTP $statusCode'
         '${response.reasonPhrase != null ? ': ${response.reasonPhrase}' : ''}';
 
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401) {
       throw AuthException(message: message, statusCode: statusCode);
+    }
+
+    if (statusCode == 403) {
+      throw PermissionDeniedException(
+        message: message,
+        statusCode: statusCode,
+      );
     }
 
     if (statusCode == 404) {
@@ -325,8 +332,16 @@ class HttpTransport {
     final serverMessage = _extractErrorMessage(body);
     final message = serverMessage ?? 'HTTP $statusCode';
 
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401) {
       throw AuthException(
+        message: message,
+        statusCode: statusCode,
+        serverMessage: serverMessage,
+      );
+    }
+
+    if (statusCode == 403) {
+      throw PermissionDeniedException(
         message: message,
         statusCode: statusCode,
         serverMessage: serverMessage,

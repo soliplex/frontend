@@ -10,6 +10,11 @@ void main() {
         expect(classifyError(error), equals(FailureReason.authExpired));
       });
 
+      test('PermissionDeniedException maps to permissionDenied', () {
+        const error = PermissionDeniedException(message: 'Forbidden');
+        expect(classifyError(error), equals(FailureReason.permissionDenied));
+      });
+
       test('NetworkException maps to networkLost', () {
         const error = NetworkException(message: 'No internet');
         expect(classifyError(error), equals(FailureReason.networkLost));
@@ -22,9 +27,9 @@ void main() {
         expect(classifyError(error), equals(FailureReason.authExpired));
       });
 
-      test('403 maps to authExpired', () {
+      test('403 maps to permissionDenied', () {
         const error = TransportError('Forbidden', statusCode: 403);
-        expect(classifyError(error), equals(FailureReason.authExpired));
+        expect(classifyError(error), equals(FailureReason.permissionDenied));
       });
 
       test('429 maps to rateLimited', () {
