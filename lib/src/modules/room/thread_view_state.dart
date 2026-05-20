@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
+import '../auth/return_to_storage.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -71,6 +72,7 @@ class ThreadViewState {
         _roomId = roomId,
         _registry = registry {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
+    _sendErrorUnsub = _lastSendError.subscribe(_onSendError);
     if (!_restoreFromRegistry()) _fetch();
   }
 
@@ -92,6 +94,7 @@ class ThreadViewState {
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
   void Function()? _authUnsub;
+  void Function()? _sendErrorUnsub;
   bool _isDisposed = false;
 
   final SessionSpawner _spawner = SessionSpawner();
@@ -420,6 +423,8 @@ class ThreadViewState {
     _isDisposed = true;
     _authUnsub?.call();
     _authUnsub = null;
+    _sendErrorUnsub?.call();
+    _sendErrorUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
@@ -437,5 +442,27 @@ class ThreadViewState {
     if (state is ActiveSession) return;
     _cancelToken?.cancel('auth expired');
     _activeSession.value?.cancel();
+  }
+
+  /// Persists composer text when a spawn-failure SendError lands with
+  /// the original prompt attached AND the underlying error is an
+  /// auth failure. The auth path is the only one where the user gets
+  /// navigated away (route guard) — for non-auth errors the screen
+  /// stays mounted and the in-memory [SendError.unsentText] +
+  /// `_restoreUnsentText` path handles restoration without touching
+  /// storage.
+  void _onSendError(SendError? err) {
+    if (_isDisposed) return;
+    if (err == null) return;
+    final text = err.unsentText;
+    if (text == null || text.trim().isEmpty) return;
+    if (err.error is! AuthException) return;
+    unawaited(
+      ReturnToStorage.saveComposer(
+        serverId: _connection.serverId,
+        roomId: _roomId,
+        unsentText: text,
+      ),
+    );
   }
 }

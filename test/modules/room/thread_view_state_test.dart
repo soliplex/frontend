@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/human_approval_extension.dart';
@@ -89,6 +91,7 @@ void main() {
   late RunRegistry registry;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     api = FakeSoliplexApi();
     connection = _fakeConnection(api);
     auth = AuthSession(refreshService: FakeTokenRefreshService());
@@ -1025,6 +1028,76 @@ void main() {
         auth.markSessionExpired();
 
         expect(session.cancelCalled, isTrue);
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'AuthException SendError persists composer text via ReturnToStorage',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // Simulate the spawn-failure path: SessionSpawner writes a
+        // SendError with the original prompt and an AuthException.
+        state.lastSendError; // ensure signal is materialized
+        // ignore: invalid_use_of_protected_member
+        (state.lastSendError as Signal<SendError?>).value = const SendError(
+          AuthException(message: 'Unauthorized', statusCode: 401),
+          unsentText: 'half-written question',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        final restored = await ReturnToStorage.loadComposer(
+          serverId: 'test-server',
+          roomId: 'room-1',
+        );
+        expect(restored, 'half-written question');
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'non-auth SendError does not persist composer text',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // ignore: invalid_use_of_protected_member
+        (state.lastSendError as Signal<SendError?>).value = const SendError(
+          NetworkException(message: 'offline'),
+          unsentText: 'half-written question',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        // Only auth errors trigger persistence — for transient
+        // failures, the in-memory SendError.unsentText path handles
+        // restoration without touching storage.
+        final restored = await ReturnToStorage.loadComposer(
+          serverId: 'test-server',
+          roomId: 'room-1',
+        );
+        expect(restored, isNull);
 
         state.dispose();
       },

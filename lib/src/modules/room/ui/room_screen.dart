@@ -18,6 +18,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         SourceReferenceFormatting,
         buildDocumentFilter;
 import '../../../core/routes.dart';
+import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -151,6 +152,29 @@ class _RoomScreenState extends State<RoomScreen> {
     } else {
       _autoSelectFirstThread();
     }
+    unawaited(_restorePersistedComposer());
+  }
+
+  /// Restores a composer draft that was persisted across an
+  /// auth-failure redirect for this `(serverId, roomId)`. No-op if
+  /// the controller already has text (user typed something since
+  /// mount, or another restoration path already populated it).
+  Future<void> _restorePersistedComposer() async {
+    final text = await ReturnToStorage.loadComposer(
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+    );
+    if (!mounted || text == null) return;
+    if (_chatController.text.isNotEmpty) return;
+    _chatController.text = text;
+    _chatController.selection =
+        TextSelection.collapsed(offset: _chatController.text.length);
+    // One-shot: clear once restored so subsequent mounts of the same
+    // room don't re-pre-fill the box with stale content.
+    await ReturnToStorage.clearComposer(
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+    );
   }
 
   @override
