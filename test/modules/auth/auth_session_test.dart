@@ -155,6 +155,17 @@ void main() {
       );
       expect(session.needsRefresh, isTrue);
     });
+
+    test('true when tokens are within the 5-minute refresh window', () {
+      // The 5-minute threshold gives long-running streams (LLM
+      // generations, uploads) headroom to refresh proactively before
+      // their access token expires mid-stream.
+      session.login(
+        provider: _provider,
+        tokens: _tokens(expiresIn: const Duration(minutes: 4)),
+      );
+      expect(session.needsRefresh, isTrue);
+    });
   });
 
   group('tryRefresh', () {
