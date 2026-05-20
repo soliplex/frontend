@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_highlight/flutter_highlight.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
@@ -531,6 +535,156 @@ void main() {
     expect(downloads, 1);
     // The preview dialog/page should not have opened.
     expect(find.byIcon(Icons.close), findsNothing);
+  });
+
+  testWidgets('code file opens preview with a HighlightView code block',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('script.py')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async =>
+          Uint8List.fromList(utf8.encode('print("hi")\n')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    // The code-block builder hands the body to flutter_highlight's
+    // HighlightView — proves dispatch landed on CodePreview, not text.
+    expect(find.byType(HighlightView), findsOneWidget);
+  });
+
+  testWidgets('markdown file opens preview through the markdown renderer',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('NOTES.md')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async =>
+          Uint8List.fromList(utf8.encode('# Heading\n\nbody')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    // TextPreview wraps the content in MarkdownBody. Image/code paths
+    // don't, so finding MarkdownBody proves dispatch landed on text.
+    expect(find.byType(MarkdownBody), findsOneWidget);
+    expect(find.byType(HighlightView), findsNothing);
+  });
+
+  testWidgets('json file is pretty-printed inside a HighlightView',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('data.json')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async =>
+          Uint8List.fromList(utf8.encode('{"a":1,"b":[2,3]}')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    final view = tester.widget<HighlightView>(find.byType(HighlightView));
+    expect(view.language, 'json');
+    // 2-space indent is the pretty-print contract — verifying it via the
+    // raw source the highlighter receives.
+    expect(view.source, contains('"a": 1'));
+  });
+
+  testWidgets('svg file opens preview with SvgPicture in InteractiveViewer',
+      (tester) async {
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('chart.svg')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => Uint8List.fromList(utf8.encode(svg)),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SvgPicture), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+  });
+
+  testWidgets('bytes over the 5 MB cap render the too-large placeholder',
+      (tester) async {
+    final overCap = Uint8List(5 * 1024 * 1024 + 1);
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('huge.log')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => overCap,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('File is too large to preview'), findsOneWidget);
+    expect(find.text('Download'), findsOneWidget);
+    // The actual preview body never gets built — no decoder runs.
+    expect(find.byType(MarkdownBody), findsNothing);
+    expect(find.byType(HighlightView), findsNothing);
+  });
+
+  testWidgets('pdf row is not previewable — no eye icon, generic file icon',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('paper.pdf')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.picture_as_pdf_outlined), findsNothing);
+  });
+
+  testWidgets('unknown extension row is not previewable — no eye icon',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('blob.xyz')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
+  });
+
+  testWidgets('per-kind leading icons appear on previewable rows',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [
+        _file('script.py'),
+        _file('data.json'),
+        _file('table.csv'),
+        _file('notes.md'),
+      ],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.code), findsOneWidget);
+    expect(find.byIcon(Icons.data_object), findsOneWidget);
+    expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.article_outlined), findsOneWidget);
   });
 
   testWidgets('second tap during feedback window is a no-op', (tester) async {

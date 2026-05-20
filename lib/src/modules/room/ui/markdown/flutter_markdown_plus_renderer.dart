@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../shared/failed_image.dart';
@@ -51,6 +52,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
       ),
+      extensionSet: md.ExtensionSet.gitHubFlavored,
       blockSyntaxes: [LatexBlockSyntax()],
       inlineSyntaxes: [LatexInlineSyntax()],
       onTapLink: onLinkTap == null
