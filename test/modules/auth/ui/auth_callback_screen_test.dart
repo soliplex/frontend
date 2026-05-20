@@ -40,6 +40,17 @@ Widget _buildApp({
         ),
       ),
       GoRoute(
+        path: '/room/:serverAlias/:roomId',
+        builder: (_, state) => Scaffold(
+          body: Center(
+            child: Text(
+              'Room ${state.pathParameters['serverAlias']}/'
+              '${state.pathParameters['roomId']}',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/auth/callback',
         builder: (_, __) => AuthCallbackScreen(serverManager: serverManager),
       ),
@@ -128,6 +139,73 @@ void main() {
 
       expect(serverManager.servers.value, isNotEmpty);
       expect(find.text('Lobby Screen'), findsOneWidget);
+    });
+
+    testWidgets('navigates to frontendReturnTo when set', (tester) async {
+      final serverManager = _createServerManager();
+      final state = PreAuthState(
+        serverUrl: Uri.parse('https://api.example.com'),
+        providerId: 'keycloak',
+        discoveryUrl:
+            'https://sso.example.com/.well-known/openid-configuration',
+        clientId: 'soliplex',
+        createdAt: DateTime.timestamp(),
+        frontendReturnTo: '/room/server-a/r1',
+      );
+      await PreAuthStateStorage.save(state);
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Room server-a/r1'), findsOneWidget);
+      expect(find.text('Lobby Screen'), findsNothing);
+    });
+
+    testWidgets('falls back to lobby on absolute frontendReturnTo',
+        (tester) async {
+      // Open-redirect guard: crafted absolute URLs must be rejected
+      // and the user lands on the safe default.
+      for (final crafted in [
+        'https://evil.com/x',
+        'http://evil.com/x',
+        '//evil.com/x',
+      ]) {
+        SharedPreferences.setMockInitialValues({});
+        final serverManager = _createServerManager();
+        final state = PreAuthState(
+          serverUrl: Uri.parse('https://api.example.com'),
+          providerId: 'keycloak',
+          discoveryUrl:
+              'https://sso.example.com/.well-known/openid-configuration',
+          clientId: 'soliplex',
+          createdAt: DateTime.timestamp(),
+          frontendReturnTo: crafted,
+        );
+        await PreAuthStateStorage.save(state);
+
+        await tester.pumpWidget(_buildApp(
+          serverManager: serverManager,
+          callbackParams: const WebCallbackSuccess(
+            accessToken: 'access',
+            refreshToken: 'refresh',
+            expiresIn: 3600,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Lobby Screen'),
+          findsOneWidget,
+          reason: 'crafted=$crafted should be rejected',
+        );
+      }
     });
 
     testWidgets('shows error when pre-auth state is expired', (tester) async {
