@@ -197,6 +197,7 @@ class ServerManager {
     Future<void> persist() async {
       switch (entry.auth.session.value) {
         case ActiveSession(:final provider, :final tokens):
+        case ExpiredSession(:final provider, :final tokens):
           await _storage.save(
             serverId,
             AuthenticatedServer(
