@@ -22,6 +22,7 @@ class PreAuthState {
     required this.discoveryUrl,
     required this.clientId,
     required this.createdAt,
+    this.frontendReturnTo,
   });
 
   factory PreAuthState.fromJson(Map<String, dynamic> json) {
@@ -31,6 +32,7 @@ class PreAuthState {
       discoveryUrl: json['discoveryUrl'] as String,
       clientId: json['clientId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      frontendReturnTo: json['frontendReturnTo'] as String?,
     );
   }
 
@@ -40,7 +42,17 @@ class PreAuthState {
   final String clientId;
   final DateTime createdAt;
 
-  static const maxAge = Duration(minutes: 5);
+  /// In-app route the user should be returned to after a successful
+  /// re-auth (e.g. `/room/<alias>/<roomId>`). Null when there's no
+  /// specific return target; the callback falls back to the lobby.
+  ///
+  /// Must be a relative route — absolute URLs are rejected at the
+  /// callback boundary to prevent open-redirect attacks.
+  final String? frontendReturnTo;
+
+  /// 30-minute window covers typical OIDC roundtrips: password reset,
+  /// MFA prompts, email magic links. Five minutes is too short.
+  static const maxAge = Duration(minutes: 30);
 
   bool isExpired({DateTime? now}) {
     final currentTime = now ?? DateTime.timestamp();
@@ -53,6 +65,7 @@ class PreAuthState {
         'discoveryUrl': discoveryUrl,
         'clientId': clientId,
         'createdAt': createdAt.toUtc().toIso8601String(),
+        if (frontendReturnTo != null) 'frontendReturnTo': frontendReturnTo,
       };
 
   @override
@@ -62,11 +75,18 @@ class PreAuthState {
       other.providerId == providerId &&
       other.discoveryUrl == discoveryUrl &&
       other.clientId == clientId &&
-      other.createdAt == createdAt;
+      other.createdAt == createdAt &&
+      other.frontendReturnTo == frontendReturnTo;
 
   @override
-  int get hashCode =>
-      Object.hash(serverUrl, providerId, discoveryUrl, clientId, createdAt);
+  int get hashCode => Object.hash(
+        serverUrl,
+        providerId,
+        discoveryUrl,
+        clientId,
+        createdAt,
+        frontendReturnTo,
+      );
 
   @override
   String toString() =>

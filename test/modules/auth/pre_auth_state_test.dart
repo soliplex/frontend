@@ -4,12 +4,14 @@ import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 
 final _baseTime = DateTime.utc(2026, 3, 19, 12, 0);
 
-PreAuthState _makeState({DateTime? createdAt}) => PreAuthState(
+PreAuthState _makeState({DateTime? createdAt, String? frontendReturnTo}) =>
+    PreAuthState(
       serverUrl: Uri.parse('https://api.example.com'),
       providerId: 'keycloak',
       discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
       clientId: 'soliplex',
       createdAt: createdAt ?? _baseTime,
+      frontendReturnTo: frontendReturnTo,
     );
 
 void main() {
@@ -35,18 +37,37 @@ void main() {
       expect(restored.createdAt.isUtc, isTrue);
     });
 
-    test('isExpired returns false within maxAge', () {
+    test('isExpired returns false within 30-minute maxAge', () {
+      // 30 minutes covers typical OIDC roundtrips that involve a
+      // password reset, MFA prompt, or email magic link.
       final state = _makeState();
-      final now = _baseTime.add(const Duration(minutes: 4, seconds: 59));
+      final now = _baseTime.add(const Duration(minutes: 29, seconds: 59));
 
       expect(state.isExpired(now: now), isFalse);
     });
 
-    test('isExpired returns true after maxAge', () {
+    test('isExpired returns true after 30-minute maxAge', () {
       final state = _makeState();
-      final now = _baseTime.add(const Duration(minutes: 5, seconds: 1));
+      final now = _baseTime.add(const Duration(minutes: 30, seconds: 1));
 
       expect(state.isExpired(now: now), isTrue);
+    });
+
+    test('frontendReturnTo round-trips through JSON', () {
+      final state = _makeState(frontendReturnTo: '/room/server-a/r1');
+
+      final restored = PreAuthState.fromJson(state.toJson());
+
+      expect(restored.frontendReturnTo, '/room/server-a/r1');
+    });
+
+    test('frontendReturnTo defaults to null and round-trips as null', () {
+      final state = _makeState();
+
+      final restored = PreAuthState.fromJson(state.toJson());
+
+      expect(state.frontendReturnTo, isNull);
+      expect(restored.frontendReturnTo, isNull);
     });
 
     test('equality', () {
@@ -85,7 +106,7 @@ void main() {
       final state = _makeState();
       await PreAuthStateStorage.save(state);
 
-      final expiredNow = _baseTime.add(const Duration(minutes: 6));
+      final expiredNow = _baseTime.add(const Duration(minutes: 31));
       final loaded = await PreAuthStateStorage.load(now: expiredNow);
       expect(loaded, isNull);
 

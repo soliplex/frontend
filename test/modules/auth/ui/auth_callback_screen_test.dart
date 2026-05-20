@@ -138,7 +138,7 @@ void main() {
         discoveryUrl:
             'https://sso.example.com/.well-known/openid-configuration',
         clientId: 'soliplex',
-        createdAt: DateTime.timestamp().subtract(const Duration(minutes: 10)),
+        createdAt: DateTime.timestamp().subtract(const Duration(minutes: 31)),
       );
       await PreAuthStateStorage.save(state);
 
