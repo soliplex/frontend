@@ -8,6 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../design/design.dart';
 import '../../../shared/failed_image.dart';
+import 'pager_dots.dart';
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.chunk_visualization');
@@ -110,15 +111,26 @@ class ChunkVisualizationPage extends StatefulWidget {
     );
 
     if (useDialog) {
-      return showDialog<void>(
+      // Zero-duration transition — the default fade adds a visible
+      // flash when the user is expecting an immediate jump from the
+      // citation to its rendered pages.
+      return showGeneralDialog<void>(
         context: context,
         barrierDismissible: true,
-        builder: (_) => child,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierColor: Colors.black54,
+        transitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
       );
     }
 
     return Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => child),
+      PageRouteBuilder<void>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
+      ),
     );
   }
 
@@ -246,7 +258,10 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         title: Text(widget.documentTitle),
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
-      body: _buildContent(context),
+      // Without SafeArea, the system gesture inset (iOS home indicator,
+      // Android nav bar) sits on top of the dots row at the bottom of
+      // the page strip — making them effectively untappable.
+      body: SafeArea(top: false, child: _buildContent(context)),
     );
   }
 
@@ -417,24 +432,15 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
               ),
               if (pages.length > 1) ...[
                 const SizedBox(height: SoliplexSpacing.s1),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(pages.length, (index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: SoliplexSpacing.s1,
-                      ),
-                      child: CircleAvatar(
-                        radius: 4,
-                        backgroundColor: index == _currentPage
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.3),
-                      ),
-                    );
-                  }),
+                PagerDots(
+                  itemCount: pages.length,
+                  currentIndex: _currentPage,
+                  onGoTo: (index) => _pageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                  ),
+                  labelForIndex: (i) => 'Page ${i + 1}',
                 ),
               ],
             ],

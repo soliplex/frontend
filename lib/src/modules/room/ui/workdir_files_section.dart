@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import '../../../design/design.dart';
+import 'pager_dots.dart';
 import 'workdir_preview/code_extensions.dart';
 import 'workdir_preview/code_preview.dart';
 import 'workdir_preview/json_preview.dart';
@@ -379,10 +380,6 @@ double _measure(String text, TextStyle? style) {
 /// Full-screen preview for workdir artifacts. Fetches the bytes lazily
 /// via [fetchBytes] so the bytes are not pulled until the user actually
 /// opens the preview, then dispatches to a kind-specific body widget.
-/// Above this file count, the dots indicator becomes unreadable —
-/// fall back to "N / M" + arrow buttons + drag only.
-const _maxDotsCount = 12;
-
 class WorkdirPreviewPage extends StatefulWidget {
   const WorkdirPreviewPage({
     super.key,
@@ -636,10 +633,8 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   /// runs — there's nowhere to go.
   Widget _buildNavBar(BuildContext context) {
     if (widget.files.length <= 1) return const SizedBox.shrink();
-    final theme = Theme.of(context);
     final hasPrev = _currentIndex > 0;
     final hasNext = _currentIndex < widget.files.length - 1;
-    final showDots = widget.files.length <= _maxDotsCount;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: Row(
@@ -650,28 +645,15 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             tooltip: 'Previous',
             onPressed: hasPrev ? () => _goTo(_currentIndex - 1) : null,
           ),
-          if (showDots) ...[
-            const SizedBox(width: SoliplexSpacing.s2),
-            for (var index = 0; index < widget.files.length; index++)
-              Tooltip(
-                message: widget.files[index].filename,
-                child: InkResponse(
-                  onTap: () => _goTo(index),
-                  radius: 16,
-                  child: Padding(
-                    padding: const EdgeInsets.all(SoliplexSpacing.s1),
-                    child: CircleAvatar(
-                      radius: 4,
-                      backgroundColor: index == _currentIndex
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant
-                              .withValues(alpha: 0.3),
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(width: SoliplexSpacing.s2),
-          ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
+            child: PagerDots(
+              itemCount: widget.files.length,
+              currentIndex: _currentIndex,
+              onGoTo: _goTo,
+              labelForIndex: (i) => widget.files[i].filename,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
             tooltip: 'Next',
