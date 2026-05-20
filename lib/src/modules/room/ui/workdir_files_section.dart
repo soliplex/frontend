@@ -404,14 +404,25 @@ class WorkdirPreviewPage extends StatefulWidget {
       useDialogLayout: useDialog,
     );
     if (useDialog) {
-      return showDialog<void>(
+      // Zero-duration transition — showDialog's default fade adds a
+      // visible flash when the user is expecting an immediate jump to
+      // the preview.
+      return showGeneralDialog<void>(
         context: context,
         barrierDismissible: true,
-        builder: (_) => child,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierColor: Colors.black54,
+        transitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
       );
     }
     return Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => child),
+      PageRouteBuilder<void>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
+      ),
     );
   }
 
