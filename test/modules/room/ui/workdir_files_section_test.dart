@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -707,5 +707,219 @@ void main() {
     await tester.tap(find.byIcon(Icons.check));
     await tester.pump();
     expect(calls, 1);
+  });
+
+  group('multi-file pager', () {
+    // The section underneath the preview still renders row filenames as
+    // bodySmall Text, so unqualified find.text('x.md') hits two widgets.
+    // Scope finders to the preview page widget tree where it matters.
+    Finder inPreview(Finder f) => find.descendant(
+          of: find.byType(WorkdirPreviewPage),
+          matching: f,
+        );
+
+    IconButton iconButtonWith(WidgetTester tester, IconData icon) {
+      return tester.widget<IconButton>(
+        find.descendant(
+          of: find.byType(WorkdirPreviewPage),
+          matching: find.widgetWithIcon(IconButton, icon),
+        ),
+      );
+    }
+
+    testWidgets('opens at the tapped file when multiple files exist',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [
+          _file('a.png'),
+          _file('b.md'),
+          _file('c.json'),
+        ],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, file) async => Uint8List.fromList(
+          utf8.encode(file.filename == 'b.md' ? '# hi' : 'irrelevant'),
+        ),
+      )));
+      await tester.pump();
+
+      // Tap the eye icon on the markdown row (the middle of three).
+      await tester.tap(find.byIcon(Icons.visibility_outlined).at(1));
+      await tester.pumpAndSettle();
+
+      // The title bar shows the tapped filename and "2 / 3" position.
+      expect(inPreview(find.text('b.md')), findsOneWidget);
+      expect(find.text('2 / 3'), findsOneWidget);
+    });
+
+    testWidgets('next arrow advances; disabled at the last index',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      await tester.tap(find.descendant(
+        of: find.byType(WorkdirPreviewPage),
+        matching: find.widgetWithIcon(IconButton, Icons.chevron_right),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 2'), findsOneWidget);
+
+      // At the last index, Next is disabled.
+      expect(iconButtonWith(tester, Icons.chevron_right).onPressed, isNull);
+    });
+
+    testWidgets('prev arrow is disabled at the first index', (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+
+      expect(iconButtonWith(tester, Icons.chevron_left).onPressed, isNull);
+    });
+
+    testWidgets('keyboard right arrow advances to the next file',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(inPreview(find.text('b.md')), findsOneWidget);
+    });
+
+    testWidgets('dots jump to the tapped index', (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [
+          _file('a.md'),
+          _file('b.md'),
+          _file('c.md'),
+        ],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 3'), findsOneWidget);
+
+      // Tap the third dot — InkResponses inside the preview's dots row
+      // each carry the filename tooltip. The third one is at index 2.
+      await tester.tap(find.descendant(
+        of: find.byType(WorkdirPreviewPage),
+        matching: find.byTooltip('c.md'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('3 / 3'), findsOneWidget);
+    });
+
+    testWidgets('dots are hidden when more than 12 files', (tester) async {
+      final many = List.generate(15, (i) => _file('f$i.md'));
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => many,
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+
+      // N / M still visible.
+      expect(find.text('1 / 15'), findsOneWidget);
+      // No CircleAvatar dots are rendered inside the preview.
+      expect(
+        find.descendant(
+          of: find.byType(WorkdirPreviewPage),
+          matching: find.byType(CircleAvatar),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('non-previewable slot renders Can\'t preview without fetching',
+        (tester) async {
+      var fetchCalls = 0;
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.png'), _file('paper.pdf')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async {
+          fetchCalls++;
+          return _tinyPng;
+        },
+      )));
+      await tester.pump();
+
+      // Open at the image (slot 0); only that slot should fetch.
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      expect(fetchCalls, 1);
+
+      // Move to the PDF slot. PDFs are non-previewable, so the pager
+      // must NOT call fetchBytes — it short-circuits to _CannotPreview.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(fetchCalls, 1);
+      expect(find.text("Can't preview this file"), findsOneWidget);
+    });
+
+    testWidgets('bytes cache prevents refetch on swipe back', (tester) async {
+      final fetchCounts = <String, int>{};
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, file) async {
+          fetchCounts[file.filename] = (fetchCounts[file.filename] ?? 0) + 1;
+          return Uint8List.fromList(utf8.encode('hi'));
+        },
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+      expect(fetchCounts['a.md'], 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(fetchCounts['b.md'], 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+
+      // Returning to a.md must reuse the cached Future, not refetch.
+      expect(fetchCounts['a.md'], 1);
+    });
   });
 }
