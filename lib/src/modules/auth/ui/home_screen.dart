@@ -21,6 +21,7 @@ class HomeScreen extends ConsumerStatefulWidget {
     this.logo,
     this.defaultBackendUrl,
     this.autoConnectUrl,
+    this.autoConnectReturnTo,
   });
 
   final ServerManager serverManager;
@@ -28,6 +29,12 @@ class HomeScreen extends ConsumerStatefulWidget {
   final Widget? logo;
   final String? defaultBackendUrl;
   final String? autoConnectUrl;
+
+  /// In-app route to return the user to after a successful re-auth
+  /// triggered by this auto-connect. Forwarded to
+  /// [ConnectFlow.connect] which stashes it in `PreAuthState` for the
+  /// callback to honor.
+  final String? autoConnectReturnTo;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -475,7 +482,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _connect() {
     if (!_formKey.currentState!.validate()) return;
-    _flow.connect(_urlController.text.trim());
+    _flow.connect(
+      _urlController.text.trim(),
+      returnTo: widget.autoConnectReturnTo,
+    );
   }
 }
 

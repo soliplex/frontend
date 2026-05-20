@@ -75,6 +75,7 @@ class AuthAppModule extends AppModule {
             path: AppRoutes.home,
             pageBuilder: (_, state) {
               final autoConnectUrl = state.uri.queryParameters['url'];
+              final returnTo = state.uri.queryParameters['returnTo'];
               return NoTransitionPage(
                 key: autoConnectUrl != null ? UniqueKey() : state.pageKey,
                 child: HomeScreen(
@@ -83,6 +84,7 @@ class AuthAppModule extends AppModule {
                   logo: _logo,
                   defaultBackendUrl: _defaultBackendUrl,
                   autoConnectUrl: autoConnectUrl,
+                  autoConnectReturnTo: returnTo,
                 ),
               );
             },
@@ -106,12 +108,16 @@ class AuthAppModule extends AppModule {
 
           // Per-server guard: if the route names a specific server and
           // that server isn't connected (signed out or expired),
-          // redirect to its sign-in entry.
+          // redirect to its sign-in entry. Carry the original location
+          // through so the callback can return the user back here.
           final alias = state.pathParameters['serverAlias'];
           if (alias != null) {
             final entry = _serverManager.entryByAlias(alias);
             if (entry != null && !entry.isConnected) {
-              return AppRoutes.homeWithUrl(entry.serverUrl.toString());
+              return AppRoutes.homeWithUrl(
+                entry.serverUrl.toString(),
+                returnTo: state.matchedLocation,
+              );
             }
           }
 

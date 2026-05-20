@@ -222,7 +222,10 @@ void main() {
 
         expect(
           currentLocation(),
-          AppRoutes.homeWithUrl(a.serverUrl.toString()),
+          AppRoutes.homeWithUrl(
+            a.serverUrl.toString(),
+            returnTo: '/room/${a.alias}/r1',
+          ),
         );
       },
     );
@@ -256,7 +259,10 @@ void main() {
 
         expect(
           currentLocation(),
-          AppRoutes.homeWithUrl(a.serverUrl.toString()),
+          AppRoutes.homeWithUrl(
+            a.serverUrl.toString(),
+            returnTo: '/room/${a.alias}/r1',
+          ),
         );
       },
     );
