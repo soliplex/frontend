@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../shared/copy_button.dart';
-import 'markdown/flutter_markdown_plus_renderer.dart';
 import '../../../design/design.dart';
+import '../../../shared/copy_button.dart';
+import '../../../shared/preview_icon_button.dart';
+import 'markdown/flutter_markdown_plus_renderer.dart';
 
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
@@ -187,6 +188,17 @@ class _SourceReferenceRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (sourceReference.isPdf && onShowChunkVisualization != null)
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Center(
+                    child: PreviewIconButton(
+                      onTap: () => onShowChunkVisualization!(sourceReference),
+                      tooltip: 'View source PDF',
+                    ),
+                  ),
+                ),
               SizedBox(
                 width: 32,
                 height: 32,
@@ -265,21 +277,6 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (sourceReference.isPdf && onShowChunkVisualization != null)
-            Padding(
-              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-              child: TextButton.icon(
-                onPressed: () => onShowChunkVisualization!(sourceReference),
-                icon: const Icon(Icons.picture_as_pdf, size: 16),
-                label: const Text('View in PDF'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: SoliplexSpacing.s2),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
               ),
             ),
         ],

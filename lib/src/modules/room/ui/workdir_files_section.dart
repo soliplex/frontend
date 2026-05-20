@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 import '../../../design/design.dart';
+import '../../../shared/preview_icon_button.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_extensions.dart';
 import 'workdir_preview/code_preview.dart';
@@ -257,21 +258,7 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
               ),
             ),
             if (canPreview) ...[
-              InkWell(
-                onTap: widget.onOpenPreview,
-                borderRadius: BorderRadius.circular(soliplexRadii.sm),
-                child: Padding(
-                  padding: const EdgeInsets.all(SoliplexSpacing.s1),
-                  child: Tooltip(
-                    message: 'Preview',
-                    child: Icon(
-                      Icons.visibility_outlined,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
+              PreviewIconButton(onTap: widget.onOpenPreview),
               const SizedBox(width: SoliplexSpacing.s2),
             ],
             InkWell(
