@@ -1145,6 +1145,66 @@ void main() {
     });
 
     test(
+      'auth flip to ExpiredSession cancels pending uploads',
+      () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        // Stage an upload whose POST blocks until we tell it to.
+        final postCompleter = Completer<void>();
+        late CancelToken capturedToken;
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) async {
+          capturedToken = invocation.namedArguments[const Symbol('cancelToken')]
+              as CancelToken;
+          await postCompleter.future;
+          if (capturedToken.isCancelled) throw const CancelledException();
+        });
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'slow.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        await _pump();
+
+        // Sanity: the upload's token is alive while POST is in flight.
+        expect(capturedToken.isCancelled, isFalse);
+
+        // Flip auth on this server (could be triggered from anywhere).
+        auth.markSessionExpired();
+
+        expect(capturedToken.isCancelled, isTrue);
+
+        // Let the staged POST observe the cancel and unblock.
+        postCompleter.complete();
+        await _pump();
+      },
+    );
+
+    test(
       'progress emissions update PendingUpload.sentBytes as chunks flow',
       () async {
         stubGetRoomUploads([]);

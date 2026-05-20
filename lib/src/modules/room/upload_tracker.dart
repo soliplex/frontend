@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import '../auth/auth_session.dart';
+import '../auth/auth_tokens.dart';
 
 /// Sealed status for a single upload scope (a room or a thread).
 ///
@@ -240,10 +241,13 @@ class _QueuedJob {
 class UploadTracker {
   UploadTracker({required SoliplexApi api, required AuthSession auth})
       : _api = api,
-        _auth = auth;
+        _auth = auth {
+    _authUnsub = _auth.session.subscribe(_onAuthChanged);
+  }
 
   final SoliplexApi _api;
   final AuthSession _auth;
+  void Function()? _authUnsub;
   final Map<String, _ScopeState> _scopes = {};
   final Queue<_QueuedJob> _queue = Queue<_QueuedJob>();
   bool _draining = false;
@@ -807,6 +811,8 @@ class UploadTracker {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _authUnsub?.call();
+    _authUnsub = null;
     for (final scope in _scopes.values) {
       // Cancel both in-flight POSTs and queued-but-not-started jobs.
       // Each queued job's token is the same CancelToken instance stored
@@ -822,5 +828,21 @@ class UploadTracker {
     }
     _queue.clear();
     _scopes.clear();
+  }
+
+  /// Cancels all in-flight and queued uploads when the auth session
+  /// leaves [ActiveSession]. The route guard navigates the user away;
+  /// this stops the upload's HTTP work so it doesn't reconnect-loop
+  /// against a dead token.
+  void _onAuthChanged(SessionState state) {
+    if (_isDisposed) return;
+    if (state is ActiveSession) return;
+    for (final scope in _scopes.values) {
+      for (final record in scope.pending) {
+        if (record is _Pending) {
+          record.cancelToken.cancel('auth expired');
+        }
+      }
+    }
   }
 }

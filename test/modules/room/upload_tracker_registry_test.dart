@@ -6,9 +6,9 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
-class _FakeHttpClient extends Fake implements SoliplexHttpClient {}
+import '../../helpers/fakes.dart' show FakeTokenRefreshService;
 
-class _FakeAuthSession extends Fake implements AuthSession {}
+class _FakeHttpClient extends Fake implements SoliplexHttpClient {}
 
 class _FakeServerConnection extends Fake implements ServerConnection {
   _FakeServerConnection(this.api);
@@ -24,7 +24,7 @@ ServerEntry _entry(String serverId, {SoliplexApi? api}) {
     serverId: serverId,
     alias: serverId,
     serverUrl: Uri.parse('https://$serverId.example.com'),
-    auth: _FakeAuthSession(),
+    auth: AuthSession(refreshService: FakeTokenRefreshService()),
     httpClient: _FakeHttpClient(),
     connection: _FakeServerConnection(api ?? _MockSoliplexApi()),
   );

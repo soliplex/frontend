@@ -992,6 +992,44 @@ void main() {
       },
     );
 
+    test(
+      'auth flip to ExpiredSession cancels the active AgentSession',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+        expect(session.cancelCalled, isFalse);
+
+        // A 401 on an unrelated surface flips the session.
+        auth.markSessionExpired();
+
+        expect(session.cancelCalled, isTrue);
+
+        state.dispose();
+      },
+    );
+
     test('FailedState(authExpired) funnels through markSessionExpired',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);

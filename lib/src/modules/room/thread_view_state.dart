@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
+import '../auth/auth_tokens.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -69,6 +70,7 @@ class ThreadViewState {
         _auth = auth,
         _roomId = roomId,
         _registry = registry {
+    _authUnsub = _auth.session.subscribe(_onAuthChanged);
     if (!_restoreFromRegistry()) _fetch();
   }
 
@@ -89,6 +91,7 @@ class ThreadViewState {
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
+  void Function()? _authUnsub;
   bool _isDisposed = false;
 
   final SessionSpawner _spawner = SessionSpawner();
@@ -415,11 +418,24 @@ class ThreadViewState {
 
   void dispose() {
     _isDisposed = true;
+    _authUnsub?.call();
+    _authUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
     _reconnectStatus.dispose();
     isCancellable.dispose();
     pendingApproval.dispose();
+  }
+
+  /// Cancels the active run and pending history fetch when the auth
+  /// session leaves [ActiveSession] (expired or signed out). The
+  /// route guard handles navigation; this just stops in-flight work
+  /// so the SSE client doesn't reconnect-loop with a dead token.
+  void _onAuthChanged(SessionState state) {
+    if (_isDisposed) return;
+    if (state is ActiveSession) return;
+    _cancelToken?.cancel('auth expired');
+    _activeSession.value?.cancel();
   }
 }
