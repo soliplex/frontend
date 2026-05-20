@@ -233,6 +233,57 @@ void main() {
     });
   });
 
+  group('connectionRevision', () {
+    test('fires when any single server flips between active and expired', () {
+      // The aggregate authState stays Authenticated when only one of
+      // several servers' sessions changes, so the route guard cannot
+      // listen to it alone. connectionRevision must fire on every
+      // per-server transition.
+      final manager = _createManager();
+
+      final a = manager.addServer(
+        serverId: 'a',
+        serverUrl: Uri.parse('https://a.example.com'),
+      );
+      final b = manager.addServer(
+        serverId: 'b',
+        serverUrl: Uri.parse('https://b.example.com'),
+      );
+
+      a.auth.login(provider: _provider, tokens: _tokens());
+      b.auth.login(provider: _provider, tokens: _tokens());
+
+      final aggregateBefore = manager.authState.value;
+      final revisionBefore = manager.connectionRevision.value;
+
+      // Flip A only.
+      a.auth.markSessionExpired();
+
+      // authState aggregate stays Authenticated (B is still active).
+      expect(manager.authState.value, equals(aggregateBefore));
+      // But connectionRevision must observe the per-server change.
+      expect(
+        manager.connectionRevision.value,
+        isNot(equals(revisionBefore)),
+      );
+    });
+
+    test('fires when a server is added or removed', () {
+      final manager = _createManager();
+      final before = manager.connectionRevision.value;
+
+      manager.addServer(
+        serverId: 'a',
+        serverUrl: Uri.parse('https://a.example.com'),
+      );
+
+      expect(
+        manager.connectionRevision.value,
+        isNot(equals(before)),
+      );
+    });
+  });
+
   group('requiresAuth', () {
     test('defaults to true', () {
       final manager = _createManager();
