@@ -70,7 +70,108 @@ class SoliplexColors {
   final Color surfaceContainerHighest;
   final Color inversePrimary;
   final Color link;
+
+  SoliplexColors copyWith({
+    Color? background,
+    Color? foreground,
+    Color? primary,
+    Color? onPrimary,
+    Color? primaryContainer,
+    Color? onPrimaryContainer,
+    Color? secondary,
+    Color? onSecondary,
+    Color? tertiary,
+    Color? onTertiary,
+    Color? tertiaryContainer,
+    Color? onTertiaryContainer,
+    Color? accent,
+    Color? onAccent,
+    Color? muted,
+    Color? mutedForeground,
+    Color? destructive,
+    Color? onDestructive,
+    Color? errorContainer,
+    Color? onErrorContainer,
+    Color? successContainer,
+    Color? onSuccessContainer,
+    Color? border,
+    Color? outline,
+    Color? outlineVariant,
+    Color? inputBackground,
+    Color? hintText,
+    Color? surfaceContainerLowest,
+    Color? surfaceContainerLow,
+    Color? surfaceContainerHigh,
+    Color? surfaceContainerHighest,
+    Color? inversePrimary,
+    Color? link,
+  }) {
+    return SoliplexColors(
+      background: background ?? this.background,
+      foreground: foreground ?? this.foreground,
+      primary: primary ?? this.primary,
+      onPrimary: onPrimary ?? this.onPrimary,
+      primaryContainer: primaryContainer ?? this.primaryContainer,
+      onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+      secondary: secondary ?? this.secondary,
+      onSecondary: onSecondary ?? this.onSecondary,
+      tertiary: tertiary ?? this.tertiary,
+      onTertiary: onTertiary ?? this.onTertiary,
+      tertiaryContainer: tertiaryContainer ?? this.tertiaryContainer,
+      onTertiaryContainer: onTertiaryContainer ?? this.onTertiaryContainer,
+      accent: accent ?? this.accent,
+      onAccent: onAccent ?? this.onAccent,
+      muted: muted ?? this.muted,
+      mutedForeground: mutedForeground ?? this.mutedForeground,
+      destructive: destructive ?? this.destructive,
+      onDestructive: onDestructive ?? this.onDestructive,
+      errorContainer: errorContainer ?? this.errorContainer,
+      onErrorContainer: onErrorContainer ?? this.onErrorContainer,
+      successContainer: successContainer ?? this.successContainer,
+      onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+      border: border ?? this.border,
+      outline: outline ?? this.outline,
+      outlineVariant: outlineVariant ?? this.outlineVariant,
+      inputBackground: inputBackground ?? this.inputBackground,
+      hintText: hintText ?? this.hintText,
+      surfaceContainerLowest:
+          surfaceContainerLowest ?? this.surfaceContainerLowest,
+      surfaceContainerLow: surfaceContainerLow ?? this.surfaceContainerLow,
+      surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
+      surfaceContainerHighest:
+          surfaceContainerHighest ?? this.surfaceContainerHighest,
+      inversePrimary: inversePrimary ?? this.inversePrimary,
+      link: link ?? this.link,
+    );
+  }
+
+  /// Derives a palette from a single brand [accent] color.
+  ///
+  /// The accent drives `primary` (and its readable `onPrimary` foreground)
+  /// only — that is, buttons and other interactive elements. Every other
+  /// slot, including all neutral surfaces and the `primaryContainer` tonal
+  /// role used for selected / "this is yours" states, stays from
+  /// [lightSoliplexColors] / [darkSoliplexColors]. Container surfaces are
+  /// deliberately brand-independent: tinting a surface that itself hosts
+  /// colored content distorts how those colors read.
+  factory SoliplexColors.fromAccent(
+    Color accent, {
+    required Brightness brightness,
+  }) {
+    final base = brightness == Brightness.light
+        ? lightSoliplexColors
+        : darkSoliplexColors;
+    return base.copyWith(
+      primary: accent,
+      onPrimary: _contrastingForeground(accent),
+    );
+  }
 }
+
+Color _contrastingForeground(Color background) =>
+    ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+        ? const Color(0xFFFFFFFF)
+        : const Color(0xFF0A0A0A);
 
 const lightSoliplexColors = SoliplexColors(
   background: Color(0xffffffff),
