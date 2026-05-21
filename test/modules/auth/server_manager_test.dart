@@ -363,6 +363,31 @@ void main() {
       expect(stored['test']!.serverUrl, Uri.parse('https://api.example.com'));
     });
 
+    test('markSessionExpired persists tokens as AuthenticatedServer', () async {
+      // Refresh tokens must survive app restart through an expired
+      // session — that's what keeps a silent refresh possible after
+      // relaunching the app. A regression that maps the expired arm
+      // back to KnownServer would silently lose refresh tokens.
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final tokens = _tokens();
+      entry.auth.login(provider: _provider, tokens: tokens);
+      entry.auth.markSessionExpired();
+
+      await Future<void>.delayed(Duration.zero);
+      final stored = await storage.loadAll();
+      expect(stored, hasLength(1));
+      final persisted = stored['test'];
+      expect(persisted, isA<AuthenticatedServer>());
+      expect((persisted! as AuthenticatedServer).tokens.refreshToken,
+          tokens.refreshToken);
+    });
+
     test('logout persists server without tokens', () async {
       final storage = InMemoryServerStorage();
       final manager = _createManager(storage: storage);
