@@ -74,6 +74,7 @@ class WorkdirController {
           'workdir fetch failed runId=$runId',
           error: e,
           stackTrace: st,
+          attributes: {'errorType': e.runtimeType.toString()},
         );
         _cache.remove(key);
         rethrow;
@@ -122,6 +123,10 @@ class WorkdirController {
         'workdir download failed runId=$runId',
         error: e,
         stackTrace: st,
+        attributes: {
+          'errorType': e.runtimeType.toString(),
+          'filename': file.filename,
+        },
       );
       return DownloadOutcome.failed;
     }
@@ -163,6 +168,10 @@ class WorkdirController {
         'workdir preview fetch failed runId=$runId name=${file.filename}',
         error: e,
         stackTrace: st,
+        attributes: {
+          'errorType': e.runtimeType.toString(),
+          'filename': file.filename,
+        },
       );
       rethrow;
     }

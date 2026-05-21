@@ -129,7 +129,8 @@ void main() {
     expect(find.text('p.5-6'), findsOneWidget);
   });
 
-  testWidgets('shows PDF button only for PDF sources', (tester) async {
+  testWidgets('shows PDF preview affordance only for PDF sources',
+      (tester) async {
     SourceReference? tappedRef;
 
     await tester.pumpWidget(_wrap(
@@ -146,16 +147,11 @@ void main() {
     await tester.tap(find.text('2 sources'));
     await tester.pump();
 
-    // Expand both rows
-    await tester.tap(find.text('Text File'));
-    await tester.pump();
-    await tester.tap(find.text('PDF File'));
-    await tester.pump();
+    // Only the PDF source exposes the eye affordance, and it sits in
+    // the source's header row (no need to expand the row to reveal it).
+    expect(find.byTooltip('View source PDF'), findsOneWidget);
 
-    // Only one "View in PDF" button (for the PDF source)
-    expect(find.text('View in PDF'), findsOneWidget);
-
-    await tester.tap(find.text('View in PDF'));
+    await tester.tap(find.byTooltip('View source PDF'));
     await tester.pump();
 
     expect(tappedRef?.documentId, 'doc-2');

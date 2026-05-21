@@ -1,13 +1,29 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart';
+
 import '../../../design/design.dart';
+import '../../../shared/preview_icon_button.dart';
+import 'pager_dots.dart';
+import 'workdir_preview/code_preview.dart';
+import 'workdir_preview/download_feedback_button.dart';
+import 'workdir_preview/download_outcome.dart';
+import 'workdir_preview/json_preview.dart';
+import 'workdir_preview/preview_kind.dart';
+import 'workdir_preview/svg_preview.dart';
+import 'workdir_preview/text_preview.dart';
+import 'workdir_preview/too_large_preview.dart';
+
+export 'workdir_preview/download_outcome.dart' show DownloadOutcome;
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.workdir_files');
 
 typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
-
-enum DownloadOutcome { success, cancelled, failed }
 
 typedef DownloadWorkdirFile = Future<DownloadOutcome> Function(
   String runId,
@@ -19,20 +35,10 @@ typedef FetchWorkdirFileBytes = Future<Uint8List> Function(
   WorkdirFile file,
 );
 
-const _imageExtensions = {
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.bmp',
-};
-
-bool _isPreviewableImage(String filename) {
-  final dot = filename.lastIndexOf('.');
-  if (dot <= 0) return false;
-  return _imageExtensions.contains(filename.substring(dot).toLowerCase());
-}
+/// Bytes fetched above this size route to the too-large fallback
+/// instead of an in-pager renderer — decoding very large payloads in
+/// the chat scroller causes jank and OOMs.
+const previewSizeCapBytes = 5 * 1024 * 1024;
 
 class WorkdirFilesSection extends StatefulWidget {
   const WorkdirFilesSection({
@@ -47,7 +53,7 @@ class WorkdirFilesSection extends StatefulWidget {
   final FetchWorkdirFiles fetchFiles;
   final DownloadWorkdirFile onDownload;
 
-  /// When non-null, image files render an eye icon that opens a
+  /// When non-null, previewable files render an eye icon that opens a
   /// full-screen preview backed by bytes from this callback.
   final FetchWorkdirFileBytes? onPreview;
 
@@ -62,6 +68,22 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
     setState(() {
       _future = widget.fetchFiles(widget.runId);
     });
+  }
+
+  void _openPreview(
+    BuildContext context,
+    List<WorkdirFile> files,
+    int initialIndex,
+  ) {
+    final fetch = widget.onPreview;
+    if (fetch == null) return;
+    WorkdirPreviewPage.show(
+      context: context,
+      files: files,
+      initialIndex: initialIndex,
+      fetchBytes: (file) => fetch(widget.runId, file),
+      onDownload: (file) => widget.onDownload(widget.runId, file),
+    );
   }
 
   @override
@@ -92,13 +114,13 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final file in files)
+                    for (var i = 0; i < files.length; i++)
                       _WorkdirFileRow(
-                        file: file,
-                        onTap: () => widget.onDownload(widget.runId, file),
-                        onPreview: widget.onPreview == null
+                        file: files[i],
+                        onTap: () => widget.onDownload(widget.runId, files[i]),
+                        onOpenPreview: widget.onPreview == null
                             ? null
-                            : () => widget.onPreview!(widget.runId, file),
+                            : () => _openPreview(context, files, i),
                       ),
                   ],
                 ),
@@ -111,154 +133,81 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
   }
 }
 
-class _WorkdirFileRow extends StatefulWidget {
+class _WorkdirFileRow extends StatelessWidget {
   const _WorkdirFileRow({
     required this.file,
     required this.onTap,
-    this.onPreview,
+    this.onOpenPreview,
   });
 
   final WorkdirFile file;
   final Future<DownloadOutcome> Function() onTap;
-  final Future<Uint8List> Function()? onPreview;
 
-  @override
-  State<_WorkdirFileRow> createState() => _WorkdirFileRowState();
-}
-
-enum _DownloadFeedback { idle, success, error }
-
-class _WorkdirFileRowState extends State<_WorkdirFileRow> {
-  _DownloadFeedback _feedback = _DownloadFeedback.idle;
-  bool _isInFlight = false;
-  Timer? _revertTimer;
-
-  @override
-  void dispose() {
-    _revertTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _handleTap() async {
-    if (_isInFlight) return;
-    _isInFlight = true;
-    DownloadOutcome outcome;
-    try {
-      outcome = await widget.onTap();
-    } catch (_) {
-      // The contract is `Future<DownloadOutcome>`, but defend against an
-      // implementation that throws so the row doesn't get stuck in idle.
-      outcome = DownloadOutcome.failed;
-    } finally {
-      _isInFlight = false;
-    }
-    if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) {
-      // User dismissed the save dialog deliberately — that isn't an error
-      // and doesn't warrant feedback. Stay idle.
-      return;
-    }
-    setState(() {
-      _feedback = outcome == DownloadOutcome.success
-          ? _DownloadFeedback.success
-          : _DownloadFeedback.error;
-    });
-    _revertTimer?.cancel();
-    _revertTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
-    });
-  }
+  /// When non-null, the row is previewable: tapping the row or the eye
+  /// icon invokes this callback (the parent opens the multi-file pager
+  /// so all sibling files are reachable via swipe).
+  final VoidCallback? onOpenPreview;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (icon, color, tooltip) = switch (_feedback) {
-      _DownloadFeedback.idle => (
-          Icons.download_outlined,
-          theme.colorScheme.primary,
-          'Download',
-        ),
-      _DownloadFeedback.success => (
-          Icons.check,
-          theme.colorScheme.onSurfaceVariant,
-          'Saved',
-        ),
-      _DownloadFeedback.error => (
-          Icons.error_outline,
-          theme.colorScheme.error,
-          "Couldn't save",
-        ),
-    };
-    final canPreview =
-        widget.onPreview != null && _isPreviewableImage(widget.file.filename);
-    final downloadEnabled = _feedback == _DownloadFeedback.idle;
-    return InkWell(
-      onTap: canPreview
-          ? () => _openPreview(context)
-          : (downloadEnabled ? _handleTap : null),
-      borderRadius: BorderRadius.circular(soliplexRadii.sm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
-        child: Row(
-          children: [
-            Icon(
-              canPreview
-                  ? Icons.image_outlined
-                  : Icons.insert_drive_file_outlined,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: SoliplexSpacing.s2),
-            Expanded(
-              child: _FilenameText(
-                filename: widget.file.filename,
-                style: theme.textTheme.bodySmall,
-              ),
-            ),
-            if (canPreview) ...[
-              InkWell(
-                onTap: () => _openPreview(context),
-                borderRadius: BorderRadius.circular(soliplexRadii.sm),
-                child: Padding(
-                  padding: const EdgeInsets.all(SoliplexSpacing.s1),
-                  child: Tooltip(
-                    message: 'Preview',
-                    child: Icon(
-                      Icons.visibility_outlined,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
+    final kind = PreviewKind.from(file.filename);
+    final canPreview = onOpenPreview != null && kind.canRender;
+    // Download-only rows show the generic file icon so the leading
+    // icon doesn't imply a preview is available.
+    final leadingIcon =
+        canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
+    return DownloadFeedbackButton(
+      filename: file.filename,
+      onDownload: onTap,
+      logTag: 'row download callback threw',
+      builder: (context, state, downloadTap) {
+        final (icon, tooltip) = state.affordance;
+        final color = switch (state) {
+          DownloadFeedbackState.idle => theme.colorScheme.primary,
+          DownloadFeedbackState.success => theme.colorScheme.onSurfaceVariant,
+          DownloadFeedbackState.error => theme.colorScheme.error,
+        };
+        return InkWell(
+          onTap: canPreview ? onOpenPreview : downloadTap,
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
+            child: Row(
+              children: [
+                Icon(
+                  leadingIcon,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: SoliplexSpacing.s2),
+                Expanded(
+                  child: _FilenameText(
+                    filename: file.filename,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                if (canPreview) ...[
+                  PreviewIconButton(onTap: onOpenPreview),
+                  const SizedBox(width: SoliplexSpacing.s2),
+                ],
+                InkWell(
+                  onTap: downloadTap,
+                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                  child: Padding(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s1),
+                    child: Tooltip(
+                      message: tooltip,
+                      child: Icon(icon, size: 16, color: color),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: SoliplexSpacing.s2),
-            ],
-            InkWell(
-              onTap: downloadEnabled ? _handleTap : null,
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
-              child: Padding(
-                padding: const EdgeInsets.all(SoliplexSpacing.s1),
-                child: Tooltip(
-                  message: tooltip,
-                  child: Icon(icon, size: 16, color: color),
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _openPreview(BuildContext context) {
-    final fetch = widget.onPreview;
-    if (fetch == null) return;
-    WorkdirImagePreviewPage.show(
-      context: context,
-      filename: widget.file.filename,
-      fetchBytes: fetch,
-      cannotPreview: _CannotPreview(onDownload: widget.onTap),
+          ),
+        );
+      },
     );
   }
 }
@@ -300,6 +249,10 @@ class _FilenameText extends StatelessWidget {
     );
   }
 }
+
+@visibleForTesting
+String fitFilenameForWidth(String name, TextStyle? style, double maxWidth) =>
+    _fitFilename(name, style, maxWidth);
 
 String _fitFilename(String name, TextStyle? style, double maxWidth) {
   if (_measure(name, style) <= maxWidth) return name;
@@ -345,101 +298,204 @@ double _measure(String text, TextStyle? style) {
     textDirection: TextDirection.ltr,
     maxLines: 1,
   )..layout();
-  return painter.width;
+  final width = painter.width;
+  painter.dispose();
+  return width;
 }
 
-/// Full-screen image preview for workdir artifacts. Fetches the bytes
-/// lazily via [fetchBytes] so the bytes are not pulled until the user
-/// actually opens the preview.
-class WorkdirImagePreviewPage extends StatefulWidget {
-  const WorkdirImagePreviewPage({
+/// Full-screen preview for workdir artifacts. Fetches the bytes lazily
+/// via [fetchBytes] so the bytes are not pulled until the user actually
+/// opens the preview, then dispatches to a kind-specific body widget.
+class WorkdirPreviewPage extends StatefulWidget {
+  WorkdirPreviewPage({
     super.key,
-    required this.filename,
+    required this.files,
+    required this.initialIndex,
     required this.fetchBytes,
-    required this.cannotPreview,
-    required this.useDialogLayout,
-  });
+    required this.onDownload,
+  })  : assert(
+            files.isNotEmpty, 'WorkdirPreviewPage requires at least one file'),
+        assert(initialIndex >= 0 && initialIndex < files.length,
+            'initialIndex out of range');
 
-  final String filename;
-  final Future<Uint8List> Function() fetchBytes;
-
-  /// Rendered when the fetched bytes aren't a decodable image — empty
-  /// body, HTML error page, truncated download, etc. The caller owns the
-  /// affordance (typically a download button); this page just renders it
-  /// as a peer of the viewer.
-  final Widget cannotPreview;
-
-  final bool useDialogLayout;
+  final List<WorkdirFile> files;
+  final int initialIndex;
+  final Future<Uint8List> Function(WorkdirFile file) fetchBytes;
+  final Future<DownloadOutcome> Function(WorkdirFile file) onDownload;
 
   static Future<void> show({
     required BuildContext context,
-    required String filename,
-    required Future<Uint8List> Function() fetchBytes,
-    required Widget cannotPreview,
+    required List<WorkdirFile> files,
+    required int initialIndex,
+    required Future<Uint8List> Function(WorkdirFile file) fetchBytes,
+    required Future<DownloadOutcome> Function(WorkdirFile file) onDownload,
   }) {
+    assert(
+        files.isNotEmpty, 'WorkdirPreviewPage.show requires non-empty files');
+    final clampedIndex = initialIndex.clamp(0, files.length - 1);
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
-    final child = WorkdirImagePreviewPage(
-      filename: filename,
+    final child = WorkdirPreviewPage(
+      files: files,
+      initialIndex: clampedIndex,
       fetchBytes: fetchBytes,
-      cannotPreview: cannotPreview,
-      useDialogLayout: useDialog,
+      onDownload: onDownload,
     );
     if (useDialog) {
-      return showDialog<void>(
+      // Zero-duration transition — showDialog's default fade adds a
+      // visible flash when the user is expecting an immediate jump to
+      // the preview.
+      return showGeneralDialog<void>(
         context: context,
         barrierDismissible: true,
-        builder: (_) => child,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        transitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
       );
     }
     return Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => child),
+      PageRouteBuilder<void>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
+      ),
     );
   }
 
   @override
-  State<WorkdirImagePreviewPage> createState() =>
-      _WorkdirImagePreviewPageState();
+  State<WorkdirPreviewPage> createState() => _WorkdirPreviewPageState();
 }
 
-class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
-  late Future<Uint8List> _future;
+class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
+  late final PageController _controller =
+      PageController(initialPage: widget.initialIndex);
+  late int _currentIndex = widget.initialIndex;
+  final _focusNode = FocusNode();
+
+  /// Per-file Future cache. Keyed by [WorkdirFile] (which implements
+  /// `==` / `hashCode`) so swiping or re-ordering never aliases bytes
+  /// across files. Lives only for this widget's lifetime, so closing
+  /// the preview frees every fetched buffer; no LRU needed.
+  final _bytesCache = <WorkdirFile, Future<Uint8List>>{};
+
+  /// Per-file retry generations so [_retry] can replace the cached
+  /// future when the user hits Retry on a failed slide.
+  final _retryTokens = <WorkdirFile, int>{};
 
   @override
-  void initState() {
-    super.initState();
-    _future = widget.fetchBytes();
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
   }
 
-  void _retry() {
+  Future<Uint8List> _bytesFor(WorkdirFile file) {
+    return _bytesCache.putIfAbsent(file, () => widget.fetchBytes(file));
+  }
+
+  void _retry(WorkdirFile file) {
     setState(() {
-      _future = widget.fetchBytes();
+      _bytesCache.remove(file);
+      _retryTokens[file] = (_retryTokens[file] ?? 0) + 1;
     });
   }
 
-  Widget _buildContent(BuildContext context) {
+  void _goTo(int index) {
+    if (index < 0 || index >= widget.files.length) return;
+    if (index == _currentIndex) return;
+    _controller.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _goTo(_currentIndex - 1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _goTo(_currentIndex + 1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _slideFor(BuildContext context, int index) {
+    final file = widget.files[index];
+    final kind = PreviewKind.from(file.filename);
+    final cannot = _CannotPreview(
+      filename: file.filename,
+      onDownload: () => widget.onDownload(file),
+    );
+    if (!kind.canRender) return cannot;
     return FutureBuilder<Uint8List>(
-      future: _future,
+      // Bumping the retry token re-keys the FutureBuilder so it sees a
+      // brand-new future after [_retry] drops the cache entry.
+      key: ValueKey<int>(_retryTokens[file] ?? 0),
+      future: _bytesFor(file),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _buildError(context, snapshot.error!);
+          return _buildError(
+            context,
+            snapshot.error!,
+            snapshot.stackTrace,
+            file,
+          );
         }
-        final bytes = snapshot.data;
-        if (bytes == null || bytes.isEmpty) {
-          return widget.cannotPreview;
+        final bytes = snapshot.data!;
+        if (bytes.isEmpty) {
+          _logger.debug(
+            'preview bytes empty',
+            attributes: {'filename': file.filename},
+          );
+          return _CannotPreview(
+            filename: file.filename,
+            onDownload: () => widget.onDownload(file),
+            icon: Icons.description_outlined,
+            message: 'File is empty',
+          );
         }
-        return _ImageOrFallback(
+        if (bytes.length > previewSizeCapBytes) {
+          _logger.debug(
+            'preview bytes exceed size cap',
+            attributes: {
+              'filename': file.filename,
+              'byteLength': bytes.length,
+              'capBytes': previewSizeCapBytes,
+            },
+          );
+          return TooLargePreview(
+            filename: file.filename,
+            byteSize: bytes.length,
+            capBytes: previewSizeCapBytes,
+            onDownload: () => widget.onDownload(file),
+          );
+        }
+        return _PreviewBody(
           bytes: bytes,
-          fallback: widget.cannotPreview,
+          kind: kind,
+          filename: file.filename,
+          onDownload: () => widget.onDownload(file),
         );
       },
     );
   }
 
-  Widget _buildError(BuildContext context, Object error) {
+  Widget _buildError(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+    WorkdirFile file,
+  ) {
     final theme = Theme.of(context);
     // 404 is permanent for this session — the file is gone between list
     // and preview. Retrying just refetches the same 404, so we show a
@@ -464,6 +520,15 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
         ),
       );
     }
+    _logger.error(
+      'preview bytes fetch failed',
+      error: error,
+      stackTrace: stackTrace,
+      attributes: {
+        'filename': file.filename,
+        'errorType': error.runtimeType.toString(),
+      },
+    );
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -476,7 +541,7 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
           ),
           const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(
-            onPressed: _retry,
+            onPressed: () => _retry(file),
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
           ),
@@ -487,21 +552,36 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
 
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
+    final file = widget.files[_currentIndex];
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         SoliplexSpacing.s4,
-        SoliplexSpacing.s3,
         SoliplexSpacing.s2,
+        SoliplexSpacing.s1,
         SoliplexSpacing.s2,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              widget.filename,
-              style: theme.textTheme.titleMedium,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  file.filename,
+                  style: theme.textTheme.titleMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (widget.files.length > 1)
+                  Text(
+                    '${_currentIndex + 1} / ${widget.files.length}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
           ),
           IconButton(
@@ -514,37 +594,163 @@ class _WorkdirImagePreviewPageState extends State<WorkdirImagePreviewPage> {
     );
   }
 
+  /// Bottom navigation strip: prev chevron, dot indicators (when the
+  /// file count fits), next chevron. Hidden entirely for single-file
+  /// runs — there's nowhere to go.
+  Widget _buildNavBar(BuildContext context) {
+    if (widget.files.length <= 1) return const SizedBox.shrink();
+    final hasPrev = _currentIndex > 0;
+    final hasNext = _currentIndex < widget.files.length - 1;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            tooltip: 'Previous',
+            onPressed: hasPrev ? () => _goTo(_currentIndex - 1) : null,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
+            child: PagerDots(
+              itemCount: widget.files.length,
+              currentIndex: _currentIndex,
+              onGoTo: _goTo,
+              labelForIndex: (i) => widget.files[i].filename,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            tooltip: 'Next',
+            onPressed: hasNext ? () => _goTo(_currentIndex + 1) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPager(BuildContext context) {
+    return PageView.builder(
+      controller: _controller,
+      itemCount: widget.files.length,
+      onPageChanged: (index) => setState(() => _currentIndex = index),
+      itemBuilder: _slideFor,
+    );
+  }
+
+  Widget _buildShellBody(BuildContext context) {
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTitleBar(context),
+          Expanded(child: _buildPager(context)),
+          _buildNavBar(context),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (widget.useDialogLayout) {
+    final size = MediaQuery.sizeOf(context);
+    if (size.width >= SoliplexBreakpoints.tablet) {
       return Dialog(
         insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
-            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+            maxHeight: size.height * 0.85,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTitleBar(context),
-              Expanded(child: _buildContent(context)),
-            ],
-          ),
+          child: _buildShellBody(context),
         ),
       );
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.filename,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return Scaffold(body: SafeArea(child: _buildShellBody(context)));
+  }
+}
+
+/// Routes [bytes] to the kind-specific renderer. The image branch
+/// hands the raw `Uint8List` to [_ImageOrFallback]; every other
+/// renderable kind is text-shaped, so we decode UTF-8 strictly here and
+/// hand a `String` to the leaf widget. A strict decode failure on a
+/// text-shaped extension almost always means the file is binary under
+/// a misleading name — we route to a dedicated fallback rather than
+/// rendering U+FFFD mojibake.
+class _PreviewBody extends StatelessWidget {
+  _PreviewBody({
+    required this.bytes,
+    required this.kind,
+    required this.filename,
+    required this.onDownload,
+  }) : assert(kind.canRender, 'pdf/unknown must be guarded before this point');
+
+  final Uint8List bytes;
+  final PreviewKind kind;
+  final String filename;
+  final Future<DownloadOutcome> Function() onDownload;
+
+  Widget _fallback({required IconData icon, required String message}) =>
+      _CannotPreview(
+        filename: filename,
+        onDownload: onDownload,
+        icon: icon,
+        message: message,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (kind == PreviewKind.image) {
+      return _ImageOrFallback(
+        bytes: bytes,
+        fallback: _fallback(
+          icon: Icons.broken_image_outlined,
+          message: 'This image looks corrupt',
         ),
-        titleTextStyle: Theme.of(context).textTheme.titleMedium,
-      ),
-      body: _buildContent(context),
-    );
+      );
+    }
+    String content;
+    try {
+      content = utf8.decode(bytes);
+    } on FormatException catch (error, stack) {
+      _logger.warning(
+        'text-shaped file failed strict utf8 decode',
+        error: error,
+        stackTrace: stack,
+        attributes: {
+          'filename': filename,
+          'byteLength': bytes.length,
+          'errorType': error.runtimeType.toString(),
+        },
+      );
+      return _fallback(
+        icon: Icons.data_object_outlined,
+        message: 'This file looks binary',
+      );
+    }
+    return switch (kind) {
+      PreviewKind.svg => SvgPreview(
+          content: content,
+          fallback: _fallback(
+            icon: Icons.broken_image_outlined,
+            message: 'This SVG looks corrupt',
+          ),
+        ),
+      PreviewKind.markdown || PreviewKind.text => TextPreview(content: content),
+      PreviewKind.code || PreviewKind.html || PreviewKind.csv => CodePreview(
+          content: content,
+          language: kind.highlightLanguageFor(filename),
+        ),
+      PreviewKind.json => JsonPreview(content: content),
+      PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => _fallback(
+          icon: Icons.image_not_supported_outlined,
+          message: "Can't preview this file",
+        ),
+    };
   }
 }
 
@@ -575,8 +781,14 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
     }
   }
 
-  void _markFailed() {
+  void _markFailed(Object? error, StackTrace? stackTrace) {
     if (_failed) return;
+    _logger.warning(
+      'image bytes failed to decode',
+      error: error,
+      stackTrace: stackTrace,
+      attributes: {'byteLength': widget.bytes.length},
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _failed = true);
     });
@@ -592,8 +804,8 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
         child: Image.memory(
           widget.bytes,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) {
-            _markFailed();
+          errorBuilder: (_, error, stack) {
+            _markFailed(error, stack);
             return const SizedBox.shrink();
           },
         ),
@@ -602,83 +814,55 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
   }
 }
 
-/// Rendered when the bytes can't be displayed as an image — empty
-/// payload or post-fetch decode failure. Sits as a peer of
-/// [InteractiveViewer], not a descendant, so its Download button is not
-/// pannable/zoomable. Mirrors the file-row download feedback pattern
-/// (icon swap, no SnackBar).
-class _CannotPreview extends StatefulWidget {
-  const _CannotPreview({required this.onDownload});
+/// Rendered when the bytes can't be displayed. [icon] and [message]
+/// distinguish the cause — unsupported kind, corrupt bytes, binary
+/// content under a text extension, or empty payload — so the user
+/// isn't left guessing why the preview pane is showing a fallback. Sits
+/// as a peer of the actual preview body, not a descendant, so its
+/// Download button is not pannable/zoomable.
+class _CannotPreview extends StatelessWidget {
+  const _CannotPreview({
+    required this.filename,
+    required this.onDownload,
+    this.icon = Icons.image_not_supported_outlined,
+    this.message = "Can't preview this file",
+  });
 
+  final String filename;
   final Future<DownloadOutcome> Function() onDownload;
-
-  @override
-  State<_CannotPreview> createState() => _CannotPreviewState();
-}
-
-class _CannotPreviewState extends State<_CannotPreview> {
-  _DownloadFeedback _feedback = _DownloadFeedback.idle;
-  bool _inFlight = false;
-  Timer? _revertTimer;
-
-  @override
-  void dispose() {
-    _revertTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _handleDownload() async {
-    if (_inFlight) return;
-    _inFlight = true;
-    DownloadOutcome outcome;
-    try {
-      outcome = await widget.onDownload();
-    } catch (_) {
-      outcome = DownloadOutcome.failed;
-    } finally {
-      _inFlight = false;
-    }
-    if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) return;
-    setState(() {
-      _feedback = outcome == DownloadOutcome.success
-          ? _DownloadFeedback.success
-          : _DownloadFeedback.error;
-    });
-    _revertTimer?.cancel();
-    _revertTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _feedback = _DownloadFeedback.idle);
-    });
-  }
+  final IconData icon;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (icon, label) = switch (_feedback) {
-      _DownloadFeedback.idle => (Icons.download_outlined, 'Download'),
-      _DownloadFeedback.success => (Icons.check, 'Saved'),
-      _DownloadFeedback.error => (Icons.error_outline, "Couldn't save"),
-    };
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.image_not_supported_outlined,
+            icon,
             size: 48,
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: SoliplexSpacing.s3),
           Text(
-            "Can't preview this file",
+            message,
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          FilledButton.icon(
-            onPressed:
-                _feedback == _DownloadFeedback.idle ? _handleDownload : null,
-            icon: Icon(icon),
-            label: Text(label),
+          DownloadFeedbackButton(
+            filename: filename,
+            onDownload: onDownload,
+            logTag: 'preview-fallback download callback threw',
+            builder: (context, state, onTap) {
+              final (btnIcon, label) = state.affordance;
+              return FilledButton.icon(
+                onPressed: onTap,
+                icon: Icon(btnIcon),
+                label: Text(label),
+              );
+            },
           ),
         ],
       ),

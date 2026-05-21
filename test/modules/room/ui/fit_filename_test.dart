@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_files_section.dart';
+
+void main() {
+  group('fitFilenameForWidth', () {
+    const style = TextStyle(fontSize: 12);
+
+    test('returns the input unchanged when it fits', () {
+      expect(fitFilenameForWidth('short.dart', style, 10000), 'short.dart');
+    });
+
+    test('preserves the extension when truncating a long basename', () {
+      final result = fitFilenameForWidth(
+        'a-very-long-basename-that-needs-truncation.dart',
+        style,
+        80,
+      );
+      expect(result.endsWith('.dart'), isTrue,
+          reason: 'extension must survive truncation: $result');
+      expect(result, contains('…'));
+    });
+
+    test('falls back to whole-name ellipsis for leading-dot files', () {
+      // .bashrc has no useful prefix-extension split — the extension
+      // *is* the whole name. Falls back to plain end-ellipsis.
+      final result = fitFilenameForWidth('.bashrc', style, 20);
+      expect(result.endsWith('.bashrc'), isFalse);
+      expect(result, contains('…'));
+    });
+
+    test('falls back to whole-name ellipsis when extension is too long', () {
+      // The "useful extension" rule caps at 8 chars; 10-char extensions
+      // get the plain end-ellipsis treatment.
+      final result = fitFilenameForWidth(
+        'some-file-name.extensionTen',
+        style,
+        60,
+      );
+      expect(result, contains('…'));
+    });
+
+    test('preserves an 8-char extension but drops a 9-char extension', () {
+      // Pin the <= 8 cap precisely: a regression to < 8 (dropping the
+      // boundary case) would still satisfy the 10-char "extension too
+      // long" test above, and a regression to <= 9 (loosening) would
+      // not be caught either.
+      const baseName = 'a-very-long-basename-that-needs-truncation';
+      final keptEight = fitFilenameForWidth('$baseName.12345678', style, 80);
+      expect(keptEight.endsWith('.12345678'), isTrue,
+          reason: '8-char extension must survive truncation: $keptEight');
+
+      final droppedNine = fitFilenameForWidth('$baseName.123456789', style, 80);
+      expect(droppedNine.endsWith('.123456789'), isFalse,
+          reason: '9-char extension must NOT survive truncation: $droppedNine');
+      expect(droppedNine, contains('…'));
+    });
+  });
+}
