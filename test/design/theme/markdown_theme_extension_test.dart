@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:soliplex_frontend/src/modules/room/ui/markdown/markdown_theme_extension.dart';
+import 'package:soliplex_frontend/src/design/theme/markdown_theme_extension.dart';
 
 void main() {
   test('toMarkdownStyleSheet applies heading and body styles', () {

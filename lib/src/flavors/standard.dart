@@ -28,7 +28,6 @@ import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
-import '../modules/room/ui/markdown/markdown_theme_extension.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;
