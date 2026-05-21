@@ -616,6 +616,28 @@ void main() {
     expect(find.byType(InteractiveViewer), findsOneWidget);
   });
 
+  testWidgets('bytes exactly at the 5 MB cap still preview (not too-large)',
+      (tester) async {
+    // The cap is a strict `>`. A regression to `>=` would silently
+    // tip cap-sized files into the too-large state. Use a .png
+    // filename so the body routes through Image.memory — invalid
+    // bytes hit the fast errorBuilder fallback without exercising a
+    // text/markdown decoder on 5 MB of zeros.
+    final atCap = Uint8List(5 * 1024 * 1024);
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('boundary.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => atCap,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('File is too large to preview'), findsNothing);
+  });
+
   testWidgets('bytes over the 5 MB cap render the too-large placeholder',
       (tester) async {
     final overCap = Uint8List(5 * 1024 * 1024 + 1);
@@ -892,6 +914,41 @@ void main() {
 
       expect(fetchCalls, 1);
       expect(find.text("Can't preview this file"), findsOneWidget);
+    });
+
+    testWidgets('Retry twice on the same slide invalidates each cached future',
+        (tester) async {
+      // The cache + retry-token pair must allow consecutive retries on
+      // the same slide: each Retry tap clears the cache for that file
+      // and re-runs fetch. A regression that reused the failed future
+      // would leave fetchCalls at 1 across all retries.
+      var attempts = 0;
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async {
+          attempts++;
+          if (attempts < 3) throw Exception('boom-$attempts');
+          return _tinyPng;
+        },
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      expect(attempts, 1);
+      expect(find.text("Couldn't load preview"), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(attempts, 2);
+      expect(find.text("Couldn't load preview"), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(attempts, 3);
+      expect(find.byType(Image), findsOneWidget);
     });
 
     testWidgets('bytes cache prevents refetch on swipe back', (tester) async {
