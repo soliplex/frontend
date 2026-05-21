@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
     show AuthException, PermissionDeniedException, SoliplexApi;
 
+import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 
@@ -44,6 +45,11 @@ class RoomsFailed extends ServerRooms {
   RoomsFailed(this.error);
   final Object error;
 }
+
+/// The server's session has expired. Tokens are preserved (for a silent
+/// refresh attempt later), but the user must re-authenticate to see
+/// rooms. The lobby renders an inline "sign in again" affordance.
+class RoomsExpired extends ServerRooms {}
 
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
@@ -114,15 +120,29 @@ class LobbyState {
     if (entry.isConnected) {
       _fetchRooms(serverId, entry);
       _fetchUserProfile(serverId, entry);
-    } else {
-      final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
-        ..remove(serverId);
-      final updatedProfiles =
-          Map<String, UserProfile?>.from(_userProfiles.value)..remove(serverId);
-      _cancelTokens.remove(serverId)?.cancel('disconnected');
-      _roomsByServer.value = updatedRooms;
-      _userProfiles.value = updatedProfiles;
+      return;
     }
+    _cancelTokens.remove(serverId)?.cancel('disconnected');
+    final session = entry.auth.session.value;
+    if (session is ExpiredSession) {
+      // Keep the row visible with an inline "sign in again" affordance.
+      // The previously-known profile is dropped so a re-auth as a
+      // different identity does not briefly show the previous user's
+      // name; one frame of no-name placeholder is honest.
+      _roomsByServer.value = {
+        ..._roomsByServer.value,
+        serverId: RoomsExpired(),
+      };
+      _userProfiles.value = {..._userProfiles.value, serverId: null};
+      return;
+    }
+    // NoSession (logout or never authenticated): prune the row.
+    final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
+      ..remove(serverId);
+    final updatedProfiles = Map<String, UserProfile?>.from(_userProfiles.value)
+      ..remove(serverId);
+    _roomsByServer.value = updatedRooms;
+    _userProfiles.value = updatedProfiles;
   }
 
   void _fetchRooms(String serverId, ServerEntry entry) {
@@ -149,9 +169,9 @@ class LobbyState {
       if (token.isCancelled) return;
       _cancelTokens.remove(serverId);
       if (error is AuthException) {
-        // Funnel to the per-server auth funnel. _onAuthChanged will
-        // drop the section from the lobby on the isConnected→false
-        // transition; no need to set RoomsFailed.
+        // Funnel to the per-server auth funnel. _onAuthChanged observes
+        // the ExpiredSession transition and writes RoomsExpired so the
+        // lobby keeps the row with an inline "sign in again" affordance.
         entry.auth.markSessionExpired();
         return;
       }

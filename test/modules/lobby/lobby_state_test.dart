@@ -180,8 +180,13 @@ void main() {
 
       test(
         'AuthException on rooms fetch funnels to markSessionExpired '
-        'and section is removed (not RoomsFailed)',
+        'and section becomes RoomsExpired (kept visible for sign-in)',
         () async {
+          // The lobby keeps an expired server's row visible with an
+          // inline "sign in again" affordance so the user can recover
+          // without leaving the lobby. The profile is dropped so a
+          // re-auth as a different identity doesn't briefly show the
+          // previous user's name.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -212,11 +217,118 @@ void main() {
 
           await Future<void>.delayed(Duration.zero);
 
-          // Session should flip to ExpiredSession (tokens preserved).
+          // Session flips to ExpiredSession; tokens preserved for a
+          // future silent refresh attempt.
           expect(entry.auth.session.value, isA<ExpiredSession>());
-          // Lobby section is removed by _onAuthChanged on the
-          // isConnected→false transition.
+          // Section is kept visible with the RoomsExpired marker.
+          expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
+          // Profile is cleared (null) — see test rationale above.
+          expect(
+            state.userProfiles.value.containsKey('auth-server'),
+            isTrue,
+          );
+          expect(state.userProfiles.value['auth-server'], isNull);
+
+          state.dispose();
+        },
+      );
+
+      test(
+        'ExpiredSession → ActiveSession refetches rooms and profile',
+        () async {
+          // The user clicks "Sign in" on the expired card, the new
+          // ActiveSession arrives, and the lobby must transition the
+          // section out of RoomsExpired back into RoomsLoaded.
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          const provider = OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          );
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          // First fetch on initial login fails with 401.
+          fakeApi.nextError = const AuthException(
+            message: 'Unauthorized',
+            statusCode: 401,
+          );
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+          await Future<void>.delayed(Duration.zero);
+          expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
+
+          // Re-sign-in: clear the error, queue a successful rooms list,
+          // and flip the session back to ActiveSession.
+          fakeApi.nextError = null;
+          fakeApi.nextRooms = const <Room>[];
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'a2',
+              refreshToken: 'r2',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          expect(state.roomsByServer.value['auth-server'], isA<RoomsLoaded>());
+
+          state.dispose();
+        },
+      );
+
+      test(
+        'NoSession (logout) prunes the section',
+        () async {
+          // A true sign-out should not leave a stale "session expired"
+          // row in the lobby. Pruning the section is the right disposition
+          // because there are no tokens to recover from.
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          fakeApi.nextRooms = const <Room>[];
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+          await Future<void>.delayed(Duration.zero);
+          expect(state.roomsByServer.value['auth-server'], isA<RoomsLoaded>());
+
+          entry.auth.logout();
+          await Future<void>.delayed(Duration.zero);
+
           expect(state.roomsByServer.value.containsKey('auth-server'), isFalse);
+          expect(state.userProfiles.value.containsKey('auth-server'), isFalse);
 
           state.dispose();
         },

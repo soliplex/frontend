@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
@@ -98,5 +99,48 @@ void main() {
       await tester.tap(find.text('Network Inspector'));
       expect(inspectorTapped, isTrue);
     });
+
+    testWidgets(
+      'subtitle reacts to session flipping to ExpiredSession '
+      'without any server-map mutation',
+      (tester) async {
+        // The ServerSidebar receives a `servers` map snapshot from its
+        // parent. The parent only rebuilds when the map mutates (server
+        // added/removed). A pure session-state flip on an existing entry
+        // does not change the map. The subtitle reactivity therefore
+        // must come from the tile itself watching the per-entry session
+        // signal — without that, the subtitle would stale-display the
+        // pre-flip label until something else triggered a rebuild.
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        // Snapshot the map once; we intentionally never refresh it.
+        final servers = manager.servers.value;
+
+        await tester.pumpWidget(_buildSidebar(servers: servers));
+        expect(find.text('Signed in'), findsOneWidget);
+        expect(find.text('Session expired'), findsNothing);
+
+        entry.auth.markSessionExpired();
+        await tester.pump();
+
+        expect(find.text('Session expired'), findsOneWidget);
+        expect(find.text('Signed in'), findsNothing);
+      },
+    );
   });
 }
