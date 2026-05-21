@@ -49,7 +49,7 @@ class RoomState {
         ),
         uploadTracker =
             uploadRegistry.trackerFor(entry: serverEntry, roomId: roomId) {
-    _fetchRoom();
+    unawaited(_fetchRoom());
     // Every room entry forces a refresh so the list reflects server
     // state from other devices and self-heals any pending record that
     // got stuck behind a transient refresh failure.
@@ -95,18 +95,33 @@ class RoomState {
 
   void clearError() => _lastError.value = null;
 
-  void _fetchRoom() {
+  Future<void> _fetchRoom() async {
     final token = CancelToken();
     _roomFetchToken = token;
-    _connection.api.getRoom(_roomId, cancelToken: token).then((room) {
+    try {
+      final room = await _connection.api.getRoom(_roomId, cancelToken: token);
       if (token.isCancelled) return;
       _roomFetchToken = null;
       _room.value = RoomLoaded(room);
-    }).catchError((Object error) {
+    } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
       _room.value = RoomFailed(error);
-    });
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _roomFetchToken = null;
+      dev.log(
+        'getRoom hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+    } on Object catch (error) {
+      if (token.isCancelled) return;
+      _roomFetchToken = null;
+      _room.value = RoomFailed(error);
+    }
   }
 
   ThreadViewState? get activeThreadView => _activeThreadView;

@@ -607,6 +607,82 @@ void main() {
     });
   });
 
+  group('_fetchRoom auth funneling', () {
+    test('AuthException funnels through markSessionExpired', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ExpiredSession>());
+      expect(
+        state.room.value,
+        isA<RoomLoading>(),
+        reason: 'On AuthException we leave RoomLoading so the route guard '
+            'can redirect without a transient RoomFailed banner.',
+      );
+
+      state.dispose();
+    });
+
+    test('PermissionDeniedException surfaces as RoomFailed', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = PermissionDeniedException(
+        statusCode: 403,
+        message: 'Forbidden',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.room.value, isA<RoomFailed>());
+
+      state.dispose();
+    });
+
+    test('generic error still surfaces as RoomFailed (regression)', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = Exception('network down');
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.room.value, isA<RoomFailed>());
+
+      state.dispose();
+    });
+  });
+
   group('createThread auth funneling', () {
     test('AuthException funnels through markSessionExpired', () async {
       _activate(serverEntry.auth);
