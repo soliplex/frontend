@@ -4,33 +4,38 @@ import '../tokens/colors.dart';
 import '../tokens/radii.dart';
 import '../tokens/spacing.dart';
 import '../tokens/typography.dart';
+import 'markdown_theme_extension.dart';
 import 'theme_extensions.dart';
 
-ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
+ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) =>
+    _buildTheme(colors: colors, brightness: Brightness.light);
+
+ThemeData soliplexDarkTheme({SoliplexColors colors = darkSoliplexColors}) =>
+    _buildTheme(colors: colors, brightness: Brightness.dark);
+
+ThemeData _buildTheme({
+  required SoliplexColors colors,
+  required Brightness brightness,
+}) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
-    brightness: Brightness.light,
-    // Primary
+    brightness: brightness,
     primary: colors.primary,
     onPrimary: colors.onPrimary,
     primaryContainer: colors.primaryContainer,
     onPrimaryContainer: colors.onPrimaryContainer,
-    // Secondary
     secondary: colors.secondary,
     onSecondary: colors.onSecondary,
     secondaryContainer: colors.muted,
     onSecondaryContainer: colors.mutedForeground,
-    // Tertiary
     tertiary: colors.tertiary,
     onTertiary: colors.onTertiary,
     tertiaryContainer: colors.tertiaryContainer,
     onTertiaryContainer: colors.onTertiaryContainer,
-    // Error
     error: colors.destructive,
     onError: colors.onDestructive,
     errorContainer: colors.errorContainer,
     onErrorContainer: colors.onErrorContainer,
-    // Surface
     surface: colors.background,
     onSurface: colors.foreground,
     onSurfaceVariant: colors.mutedForeground,
@@ -41,21 +46,18 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
     surfaceContainerHighest: colors.surfaceContainerHighest,
     surfaceDim: colors.accent,
     surfaceBright: colors.background,
-    // Outline
     outline: colors.outline,
     outlineVariant: colors.outlineVariant,
-    // Inverse
     inverseSurface: colors.primary,
     onInverseSurface: colors.onPrimary,
     inversePrimary: colors.inversePrimary,
-    // Utility
     shadow: const Color(0xFF000000),
     scrim: const Color(0xFF000000),
     surfaceTint: colors.primary,
   );
 
   return ThemeData(
-    brightness: Brightness.light,
+    brightness: brightness,
     colorScheme: colorScheme,
     appBarTheme: AppBarTheme(
       backgroundColor: colors.onPrimary,
@@ -177,7 +179,7 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
         vertical: SoliplexSpacing.s1,
       ),
       secondarySelectedColor: colors.primary.withAlpha(25),
-      brightness: Brightness.light,
+      brightness: brightness,
     ),
     checkboxTheme: CheckboxThemeData(
       shape: RoundedRectangleBorder(
@@ -225,6 +227,33 @@ ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) {
           padding: const EdgeInsets.symmetric(
             horizontal: SoliplexSpacing.s2,
             vertical: SoliplexSpacing.s1,
+          ),
+        ),
+      ),
+      MarkdownThemeExtension(
+        h1: textTheme.titleLarge,
+        h2: textTheme.titleMedium,
+        h3: textTheme.titleSmall,
+        body: textTheme.bodyMedium,
+        code: textTheme.bodyMedium?.copyWith(
+          backgroundColor: colorScheme.surfaceContainerHighest,
+        ),
+        link: TextStyle(
+          color: colors.link,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.link,
+        ),
+        codeBlockDecoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
+        ),
+        blockquoteDecoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          border: Border(
+            left: BorderSide(
+              color: colorScheme.outlineVariant,
+              width: 3,
+            ),
           ),
         ),
       ),

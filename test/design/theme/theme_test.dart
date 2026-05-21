@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/design/theme/markdown_theme_extension.dart';
 import 'package:soliplex_frontend/src/design/theme/theme.dart';
 import 'package:soliplex_frontend/src/design/theme/theme_extensions.dart';
 import 'package:soliplex_frontend/src/design/tokens/colors.dart';
@@ -128,6 +129,53 @@ void main() {
       expect(theme.appBarTheme.elevation, 0);
       expect(theme.dividerTheme.thickness, 1);
       expect(theme.cardTheme.elevation, 0);
+    });
+  });
+
+  group('soliplexDarkTheme', () {
+    test('uses default dark colors when no colors provided', () {
+      final theme = soliplexDarkTheme();
+
+      expect(theme.brightness, Brightness.dark);
+      expect(theme.colorScheme.brightness, Brightness.dark);
+      expect(theme.colorScheme.primary, darkSoliplexColors.primary);
+      expect(theme.scaffoldBackgroundColor, darkSoliplexColors.background);
+    });
+
+    test('uses custom colors when provided', () {
+      final theme = soliplexDarkTheme(
+        colors: darkSoliplexColors.copyWith(primary: Colors.cyan),
+      );
+
+      expect(theme.brightness, Brightness.dark);
+      expect(theme.colorScheme.primary, Colors.cyan);
+    });
+
+    test('includes SoliplexTheme extension with dark colors', () {
+      final ext = soliplexDarkTheme().extension<SoliplexTheme>();
+
+      expect(ext, isNotNull);
+      expect(ext!.colors, darkSoliplexColors);
+    });
+
+    test('has Material 3 enabled', () {
+      expect(soliplexDarkTheme().useMaterial3, isTrue);
+    });
+  });
+
+  group('MarkdownThemeExtension wiring', () {
+    test('light theme bakes in a MarkdownThemeExtension', () {
+      expect(
+        soliplexLightTheme().extension<MarkdownThemeExtension>(),
+        isNotNull,
+      );
+    });
+
+    test('dark theme bakes in a MarkdownThemeExtension', () {
+      expect(
+        soliplexDarkTheme().extension<MarkdownThemeExtension>(),
+        isNotNull,
+      );
     });
   });
 }

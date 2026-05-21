@@ -52,5 +52,54 @@ void main() {
       expect(colors.foreground, Colors.black);
       expect(colors.primary, Colors.blue);
     });
+
+    group('fromAccent', () {
+      test('light: drives primary only, leaves every other slot untouched', () {
+        const accent = Color(0xFF6750A4);
+        final derived = SoliplexColors.fromAccent(
+          accent,
+          brightness: Brightness.light,
+        );
+        expect(derived.primary, accent);
+        // onPrimary picks white because the accent is dark.
+        expect(derived.onPrimary, const Color(0xFFFFFFFF));
+        // Container surfaces stay brand-independent.
+        expect(
+          derived.primaryContainer,
+          lightSoliplexColors.primaryContainer,
+        );
+        expect(
+          derived.onPrimaryContainer,
+          lightSoliplexColors.onPrimaryContainer,
+        );
+        // Neutral / status / accent slots are inherited verbatim.
+        expect(derived.background, lightSoliplexColors.background);
+        expect(derived.destructive, lightSoliplexColors.destructive);
+        expect(derived.accent, lightSoliplexColors.accent);
+      });
+
+      test('light: picks a dark onPrimary for a light accent', () {
+        final derived = SoliplexColors.fromAccent(
+          const Color(0xFFFFD54F),
+          brightness: Brightness.light,
+        );
+        expect(derived.onPrimary, const Color(0xFF0A0A0A));
+      });
+
+      test('dark: drives primary only, leaves every other slot untouched', () {
+        const accent = Color(0xFFE91E63);
+        final derived = SoliplexColors.fromAccent(
+          accent,
+          brightness: Brightness.dark,
+        );
+        expect(derived.primary, accent);
+        expect(
+          derived.primaryContainer,
+          darkSoliplexColors.primaryContainer,
+        );
+        expect(derived.background, darkSoliplexColors.background);
+        expect(derived.accent, darkSoliplexColors.accent);
+      });
+    });
   });
 }

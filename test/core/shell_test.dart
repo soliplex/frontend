@@ -39,7 +39,7 @@ void main() {
     test('throws ArgumentError on invalid config', () async {
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        theme: ThemeData(),
+        lightTheme: ThemeData(),
         modules: [],
       );
 
@@ -54,7 +54,7 @@ void main() {
 
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        theme: ThemeData(),
+        lightTheme: ThemeData(),
         initialRoute: '/check',
         modules: [
           _TestModule(
@@ -91,7 +91,7 @@ void main() {
     testWidgets('first non-null redirect wins', (tester) async {
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        theme: ThemeData(),
+        lightTheme: ThemeData(),
         initialRoute: '/a',
         modules: [
           _TestModule(
@@ -133,7 +133,7 @@ void main() {
       expect(
         () => ShellConfig.fromModules(
           appName: 'Test',
-          theme: ThemeData(),
+          lightTheme: ThemeData(),
           modules: [
             _TestModule(namespace: 'same'),
             _TestModule(namespace: 'same'),
@@ -147,7 +147,7 @@ void main() {
       // Should not throw even though both modules have empty namespace.
       await ShellConfig.fromModules(
         appName: 'Test',
-        theme: ThemeData(),
+        lightTheme: ThemeData(),
         modules: [
           _TestModule(
             routes: [
@@ -164,7 +164,7 @@ void main() {
 
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        theme: ThemeData(),
+        lightTheme: ThemeData(),
         modules: [
           _LifecycleModule('a', log),
           _LifecycleModule('b', log),
@@ -182,7 +182,7 @@ void main() {
 
         final config = await ShellConfig.fromModules(
           appName: 'Test',
-          theme: ThemeData(),
+          lightTheme: ThemeData(),
           modules: [_LifecycleModule('x', log)],
         );
 
