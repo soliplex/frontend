@@ -119,7 +119,6 @@ class ChunkVisualizationPage extends StatefulWidget {
         barrierDismissible: true,
         barrierLabel:
             MaterialLocalizations.of(context).modalBarrierDismissLabel,
-        barrierColor: Colors.black54,
         transitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => child,
       );
