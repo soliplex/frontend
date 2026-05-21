@@ -19,7 +19,11 @@ List<HttpEventGroup> groupHttpEvents(List<HttpEvent> events) {
     };
   }
 
-  final sorted = groups.values.toList()
+  // Orphan groups (response or streamEnd whose request/streamStart was
+  // evicted from the inspector's bounded buffer) have no sortable
+  // timestamp and would throw from [HttpEventGroup.timestamp]. They sit
+  // invisibly in the buffer until FIFO eviction removes them too.
+  final sorted = groups.values.where((g) => g.hasTimestamp).toList()
     ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   return sorted;
 }
