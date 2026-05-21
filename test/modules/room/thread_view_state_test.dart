@@ -1413,4 +1413,96 @@ void main() {
       state.dispose();
     });
   });
+
+  group('history fetch auth funneling', () {
+    void activate(AuthSession a) {
+      a.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+    }
+
+    test('AuthException funnels through markSessionExpired', () async {
+      activate(auth);
+      api.nextThreadHistoryError = AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      );
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        auth.session.value,
+        isA<ExpiredSession>(),
+        reason: 'AuthException must flip the session to ExpiredSession so the '
+            'route guard can redirect.',
+      );
+      expect(
+        state.messages.value,
+        isA<MessagesLoading>(),
+        reason: 'On AuthException we leave MessagesLoading rather than '
+            'flashing MessagesFailed before the redirect.',
+      );
+
+      state.dispose();
+    });
+
+    test('PermissionDeniedException surfaces as MessagesFailed', () async {
+      activate(auth);
+      api.nextThreadHistoryError = PermissionDeniedException(
+        statusCode: 403,
+        message: 'Forbidden',
+      );
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(state.messages.value, isA<MessagesFailed>());
+
+      state.dispose();
+    });
+
+    test('generic error still produces MessagesFailed (regression)', () async {
+      activate(auth);
+      api.nextThreadHistoryError = Exception('network down');
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(state.messages.value, isA<MessagesFailed>());
+
+      state.dispose();
+    });
+  });
 }

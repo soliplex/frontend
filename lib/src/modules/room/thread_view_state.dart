@@ -74,7 +74,7 @@ class ThreadViewState {
         _registry = registry {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
     _sendErrorUnsub = _lastSendError.subscribe(_onSendError);
-    if (!_restoreFromRegistry()) _fetch();
+    if (!_restoreFromRegistry()) unawaited(_fetch());
   }
 
   final ServerConnection _connection;
@@ -205,7 +205,7 @@ class ThreadViewState {
 
   void clearSendError() => _lastSendError.value = null;
 
-  void refresh() => _fetch();
+  Future<void> refresh() => _fetch();
 
   Future<void> sendMessage(
     String prompt,
@@ -397,7 +397,7 @@ class ThreadViewState {
     }
   }
 
-  void _fetch() {
+  Future<void> _fetch() async {
     if (_isDisposed) return;
     _cancelToken?.cancel('re-fetch');
     final token = CancelToken();
@@ -407,9 +407,9 @@ class ThreadViewState {
       _messages.value = MessagesLoading();
     }
 
-    _connection.api
-        .getThreadHistory(_roomId, threadId, cancelToken: token)
-        .then((history) {
+    try {
+      final history = await _connection.api
+          .getThreadHistory(_roomId, threadId, cancelToken: token);
       if (token.isCancelled) return;
       _cancelToken = null;
       // putIfAbsent (not []=) on refresh: server replay must not overwrite a
@@ -423,13 +423,29 @@ class ThreadViewState {
         messageStates: history.messageStates,
       );
       onHistoryLoaded?.call(threadId, history);
-    }).catchError((Object error) {
+    } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
       }
-    });
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        'Thread history hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+    } on Object catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      if (_messages.value is! MessagesLoaded) {
+        _messages.value = MessagesFailed(error);
+      }
+    }
   }
 
   void dispose() {
