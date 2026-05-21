@@ -4,15 +4,15 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
-import '../design/design.dart';
+import '../core/branding.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
+import '../design/design.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
-import '../modules/versions/versions_module.dart';
 import '../modules/auth/auth_module.dart';
+import '../modules/auth/consent_notice.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
-import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/auth_flow.dart';
 import '../modules/auth/platform/callback_params.dart';
 import '../modules/auth/secure_server_storage.dart';
@@ -28,60 +28,31 @@ import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
-
-const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
-const _logoSize = 64.0;
-
-ThemeData _defaultTheme() {
-  final base = soliplexLightTheme();
-  final colorScheme = base.colorScheme;
-  final textTheme = base.textTheme;
-  final colors = base.extension<SoliplexTheme>()!.colors;
-
-  return base.copyWith(
-    extensions: [
-      ...base.extensions.values,
-      MarkdownThemeExtension(
-        h1: textTheme.titleLarge,
-        h2: textTheme.titleMedium,
-        h3: textTheme.titleSmall,
-        body: textTheme.bodyMedium,
-        code: textTheme.bodyMedium?.copyWith(
-          backgroundColor: colorScheme.surfaceContainerHighest,
-        ),
-        link: TextStyle(
-          color: colors.link,
-          decoration: TextDecoration.underline,
-          decorationColor: colors.link,
-        ),
-        codeBlockDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
-        ),
-        blockquoteDecoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          border: Border(
-            left: BorderSide(
-              color: colorScheme.outlineVariant,
-              width: 3,
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-}
+import '../modules/versions/versions_module.dart';
 
 Future<ShellConfig> standard({
-  String appName = 'Soliplex',
-  ThemeData? theme,
+  SoliplexBranding? branding,
+  ThemeMode themeMode = ThemeMode.system,
   String redirectScheme = 'ai.soliplex.client',
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
-  Widget? logo,
 }) async {
-  logo ??= Image.asset(_defaultLogoAsset, width: _logoSize, height: _logoSize);
+  final brand = branding ?? SoliplexBranding.soliplex;
+  final lightTheme = soliplexLightTheme(
+    colors: SoliplexColors.fromAccent(
+      brand.accentLight,
+      brightness: Brightness.light,
+    ),
+  );
+  final darkTheme = soliplexDarkTheme(
+    colors: SoliplexColors.fromAccent(
+      brand.accentDark,
+      brightness: Brightness.dark,
+    ),
+  );
+  final brandLogo = BrandLogo(branding: brand);
+
   final inspector = NetworkInspector();
   final httpLogger = LogManager.instance.getLogger('http_stack');
 
@@ -152,17 +123,18 @@ Future<ShellConfig> standard({
     serverManager: serverManager,
     probeClient: plainClient,
     authFlow: authFlow,
-    appName: appName,
+    appName: brand.appName,
     callbackParams: callbackParams is! NoCallbackParams ? callbackParams : null,
     consentNotice: consentNotice,
-    logo: logo,
+    logo: brandLogo,
     defaultBackendUrl: resolvedUrl,
   );
 
   return ShellConfig.fromModules(
-    appName: appName,
-    logo: logo,
-    theme: theme ?? _defaultTheme(),
+    appName: brand.appName,
+    lightTheme: lightTheme,
+    darkTheme: darkTheme,
+    themeMode: themeMode,
     initialRoute: callbackParams is! NoCallbackParams
         ? AppRoutes.authCallback
         : (serverManager.authState.value is Authenticated
@@ -181,7 +153,7 @@ Future<ShellConfig> standard({
       ),
       QuizAppModule(serverManager: serverManager),
       VersionsAppModule(
-        appName: appName,
+        appName: brand.appName,
         serverManager: serverManager,
       ),
     ],

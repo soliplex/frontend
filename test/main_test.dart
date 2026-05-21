@@ -20,7 +20,7 @@ void main() {
   testWidgets('app boots and renders home screen', (tester) async {
     final config = await ShellConfig.fromModules(
       appName: 'Soliplex',
-      theme: ThemeData(),
+      lightTheme: ThemeData(),
       modules: [_HomeModule()],
     );
     runSoliplexShell(config);
