@@ -44,6 +44,7 @@ class RoomState {
         threadList = ThreadListState(
           connection: serverEntry.connection,
           roomId: roomId,
+          auth: serverEntry.auth,
         ),
         uploadTracker =
             uploadRegistry.trackerFor(entry: serverEntry, roomId: roomId) {

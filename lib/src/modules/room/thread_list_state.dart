@@ -3,6 +3,8 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
+
 sealed class ThreadListStatus {}
 
 class ThreadsLoading extends ThreadListStatus {}
@@ -21,13 +23,16 @@ class ThreadListState {
   ThreadListState({
     required ServerConnection connection,
     required String roomId,
+    required AuthSession auth,
   })  : _connection = connection,
-        _roomId = roomId {
+        _roomId = roomId,
+        _auth = auth {
     unawaited(_fetch());
   }
 
   final ServerConnection _connection;
   final String _roomId;
+  final AuthSession _auth;
   CancelToken? _cancelToken;
   bool _isDisposed = false;
 
@@ -170,6 +175,28 @@ class ThreadListState {
       final sorted = threads.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _threads.value = ThreadsLoaded(sorted);
+    } on PermissionDeniedException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      if (_threads.value is ThreadsLoaded) {
+        dev.log(
+          'Thread refresh forbidden, keeping stale list',
+          error: error,
+          name: 'ThreadListState',
+        );
+      } else {
+        _threads.value = ThreadsFailed(error);
+      }
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        'Thread fetch hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'ThreadListState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
     } on Object catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;

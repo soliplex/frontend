@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 
 import '../../helpers/fakes.dart';
@@ -10,6 +12,22 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
     );
+
+AuthSession _authInActiveSession() {
+  final auth = AuthSession(refreshService: FakeTokenRefreshService());
+  auth.login(
+    provider: const OidcProvider(
+      discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      clientId: 'test-client',
+    ),
+    tokens: AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    ),
+  );
+  return auth;
+}
 
 void main() {
   late FakeSoliplexApi api;
@@ -38,6 +56,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
 
     // Should start as loading
@@ -60,6 +79,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -82,6 +102,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -121,6 +142,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -148,6 +170,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -179,6 +202,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -200,6 +224,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -228,6 +253,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -252,6 +278,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -277,6 +304,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -307,6 +335,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -328,6 +357,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -354,6 +384,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
 
@@ -372,6 +403,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -400,6 +432,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -416,6 +449,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -448,6 +482,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
     await Future<void>.delayed(Duration.zero);
     expect(state.threads.value, isA<ThreadsFailed>());
@@ -490,6 +525,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -521,6 +557,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -541,6 +578,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
       expect(state.threads.value, isA<ThreadsFailed>());
@@ -581,6 +619,7 @@ void main() {
       final state = ThreadListState(
         connection: connection,
         roomId: 'room-1',
+        auth: _authInActiveSession(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -597,6 +636,81 @@ void main() {
     });
   });
 
+  test('funnels AuthException through markSessionExpired', () async {
+    api.nextThreadsError = AuthException(
+      statusCode: 401,
+      message: 'JWT validation failed',
+    );
+    final auth = _authInActiveSession();
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      auth.session.value,
+      isA<ExpiredSession>(),
+      reason: 'AuthException must flip the session to ExpiredSession so the '
+          'route guard can redirect on the next refreshListenable tick.',
+    );
+    expect(
+      state.threads.value,
+      isA<ThreadsLoading>(),
+      reason: 'On AuthException we leave the list in Loading rather than '
+          'flashing a ThreadsFailed banner before the redirect.',
+    );
+
+    state.dispose();
+  });
+
+  test('surfaces PermissionDeniedException inline without funneling', () async {
+    api.nextThreadsError = PermissionDeniedException(
+      statusCode: 403,
+      message: 'Forbidden',
+    );
+    final auth = _authInActiveSession();
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      auth.session.value,
+      isA<ActiveSession>(),
+      reason: '403 is an authorization failure, not an auth-expiry; the '
+          'session must remain Active.',
+    );
+    expect(state.threads.value, isA<ThreadsFailed>());
+
+    state.dispose();
+  });
+
+  test('generic error still produces ThreadsFailed (regression)', () async {
+    api.nextThreadsError = Exception('network error');
+    final auth = _authInActiveSession();
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(auth.session.value, isA<ActiveSession>());
+    expect(state.threads.value, isA<ThreadsFailed>());
+
+    state.dispose();
+  });
+
   test('refresh() returns a Future that completes after fetch', () async {
     api.nextThreads = [
       ThreadInfo(
@@ -610,6 +724,7 @@ void main() {
     final state = ThreadListState(
       connection: connection,
       roomId: 'room-1',
+      auth: _authInActiveSession(),
     );
 
     await Future<void>.delayed(Duration.zero);
