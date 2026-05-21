@@ -166,10 +166,11 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           await widget.api.getChunkVisualization(widget.roomId, widget.chunkId);
       return viz.imagesBase64.map(_decodePageImage).toList();
     } catch (error, stack) {
-      _logger.warning(
+      _logger.error(
         'chunk visualization fetch failed',
         error: error,
         stackTrace: stack,
+        attributes: {'errorType': error.runtimeType.toString()},
       );
       rethrow;
     }
@@ -304,14 +305,6 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           Text(
             'Failed to load visualization',
             style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: SoliplexSpacing.s1),
-          Text(
-            error.toString(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
           ),
           const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(

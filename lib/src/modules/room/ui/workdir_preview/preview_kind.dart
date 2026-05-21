@@ -145,6 +145,4 @@ const _languageByCodeExtension = <String, String>{
   'xml': 'xml',
   'gradle': 'groovy',
   'groovy': 'groovy',
-  'makefile': 'makefile',
-  'dockerfile': 'dockerfile',
 };

@@ -1,18 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../design/design.dart';
+import 'download_feedback_button.dart';
 import 'download_outcome.dart';
-
-final _logger =
-    LogManager.instance.getLogger('soliplex_frontend.too_large_preview');
 
 /// Rendered when the fetched bytes exceed the preview size cap. Mirrors
 /// the inline download-feedback pattern used elsewhere (icon swaps, no
 /// SnackBars) so the cap doesn't introduce a one-off UI affordance.
-class TooLargePreview extends StatefulWidget {
+class TooLargePreview extends StatelessWidget {
   const TooLargePreview({
     super.key,
     required this.filename,
@@ -21,73 +16,14 @@ class TooLargePreview extends StatefulWidget {
     required this.onDownload,
   });
 
-  /// Used for diagnostic logging if [onDownload] throws.
   final String filename;
   final int byteSize;
   final int capBytes;
   final Future<DownloadOutcome> Function() onDownload;
 
   @override
-  State<TooLargePreview> createState() => _TooLargePreviewState();
-}
-
-enum _Feedback { idle, success, error }
-
-class _TooLargePreviewState extends State<TooLargePreview> {
-  _Feedback _feedback = _Feedback.idle;
-  bool _inFlight = false;
-  Timer? _revertTimer;
-
-  @override
-  void dispose() {
-    _revertTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _handleDownload() async {
-    if (_inFlight) return;
-    _inFlight = true;
-    DownloadOutcome outcome;
-    try {
-      outcome = await widget.onDownload();
-    } catch (error, stack) {
-      // Contract violation: log at error level (vs warning for routine
-      // IO failure) with runtime type so refactor breakage stands out.
-      _logger.error(
-        'too-large download callback threw',
-        error: error,
-        stackTrace: stack,
-        attributes: {
-          'filename': widget.filename,
-          'byteSize': widget.byteSize,
-          'errorType': error.runtimeType.toString(),
-        },
-      );
-      outcome = DownloadOutcome.failed;
-    } finally {
-      _inFlight = false;
-    }
-    if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) return;
-    setState(() {
-      _feedback = outcome == DownloadOutcome.success
-          ? _Feedback.success
-          : _Feedback.error;
-    });
-    _revertTimer?.cancel();
-    _revertTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _feedback = _Feedback.idle);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (icon, label) = switch (_feedback) {
-      _Feedback.idle => (Icons.download_outlined, 'Download'),
-      _Feedback.success => (Icons.check, 'Saved'),
-      _Feedback.error => (Icons.error_outline, "Couldn't save"),
-    };
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -104,23 +40,38 @@ class _TooLargePreviewState extends State<TooLargePreview> {
           ),
           const SizedBox(height: SoliplexSpacing.s1),
           Text(
-            '${_formatBytes(widget.byteSize)} — cap '
-            '${_formatBytes(widget.capBytes)}',
+            '${_formatBytes(byteSize)} — cap ${_formatBytes(capBytes)}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          FilledButton.icon(
-            onPressed: _feedback == _Feedback.idle ? _handleDownload : null,
-            icon: Icon(icon),
-            label: Text(label),
+          DownloadFeedbackButton(
+            filename: filename,
+            onDownload: onDownload,
+            logTag: 'too-large download callback threw',
+            extraLogAttributes: {'byteSize': byteSize},
+            builder: (context, state, onTap) {
+              final (icon, label) = _affordanceFor(state);
+              return FilledButton.icon(
+                onPressed: onTap,
+                icon: Icon(icon),
+                label: Text(label),
+              );
+            },
           ),
         ],
       ),
     );
   }
 }
+
+(IconData, String) _affordanceFor(DownloadFeedbackState state) =>
+    switch (state) {
+      DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
+      DownloadFeedbackState.success => (Icons.check, 'Saved'),
+      DownloadFeedbackState.error => (Icons.error_outline, "Couldn't save"),
+    };
 
 String _formatBytes(int bytes) {
   const kb = 1024;

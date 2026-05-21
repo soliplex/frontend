@@ -1027,10 +1027,58 @@ void main() {
     });
   });
 
-  group('_CannotPreview state machine (via empty-bytes path)', () {
+  group('decode-failure fallbacks distinguish the cause', () {
+    // Each failure mode should render a distinct message so a corrupt
+    // file isn't conflated with an unsupported one.
+
+    testWidgets('empty bytes show the "File is empty" message', (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('File is empty'), findsOneWidget);
+      // Distinct from the generic unsupported-kind message — a
+      // regression that collapsed both into "Can't preview this file"
+      // would hide a real backend defect (empty artifact) behind the
+      // generic-fallback copy.
+      expect(find.text("Can't preview this file"), findsNothing);
+    });
+
+    testWidgets(
+        'text-shaped file with invalid UTF-8 routes to the binary fallback',
+        (tester) async {
+      // 0xFF/0xFE are never valid UTF-8 lead bytes. A regression that
+      // dropped the strict-decode try would silently render U+FFFD
+      // mojibake — the test would then see the decoded content rather
+      // than the dedicated "binary" message.
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('config.txt')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async =>
+            Uint8List.fromList(const [0xFF, 0xFE, 0xFD, 0xFC]),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This file looks binary'), findsOneWidget);
+      // Download remains available so the user can still grab the
+      // bytes from the fallback body.
+      expect(find.text('Download'), findsOneWidget);
+    });
+  });
+
+  group('DownloadFeedbackButton (via empty-bytes path)', () {
     // Empty bytes on an otherwise-previewable file route to
-    // _CannotPreview, giving us a clean way to drive the widget's
-    // download feedback state machine end-to-end through the preview
+    // _CannotPreview, giving us a clean way to drive the shared
+    // download-feedback state machine end-to-end through the preview
     // page.
 
     testWidgets('successful download flips Download → Saved, reverts after 2s',

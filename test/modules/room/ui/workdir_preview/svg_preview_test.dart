@@ -34,4 +34,26 @@ void main() {
     expect(find.text('FALLBACK'), findsOneWidget);
     expect(find.byType(InteractiveViewer), findsNothing);
   });
+
+  testWidgets('failure state resets when content changes', (tester) async {
+    // Pager swiping to a different SVG file reuses the same SvgPreview
+    // element with new content. A regression that didn't reset
+    // [_failed] on content change would leave the fallback stuck even
+    // after the user navigates to a valid SVG.
+    await tester.pumpWidget(_wrap(const SvgPreview(
+      content: 'not valid <svg garbage',
+      fallback: Text('FALLBACK'),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('FALLBACK'), findsOneWidget);
+
+    await tester.pumpWidget(_wrap(const SvgPreview(
+      content: _validSvg,
+      fallback: Text('FALLBACK'),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('FALLBACK'), findsNothing);
+    expect(find.byType(SvgPicture), findsOneWidget);
+  });
 }

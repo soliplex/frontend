@@ -147,8 +147,8 @@ void main() {
     await tester.tap(find.text('2 sources'));
     await tester.pump();
 
-    // The eye affordance lives in the header row now — no need to
-    // expand a row to reveal it. Only the PDF source row shows it.
+    // Only the PDF source exposes the eye affordance, and it sits in
+    // the source's header row (no need to expand the row to reveal it).
     expect(find.byTooltip('View source PDF'), findsOneWidget);
 
     await tester.tap(find.byTooltip('View source PDF'));
