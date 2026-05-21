@@ -15,11 +15,14 @@ final _logger =
 class TooLargePreview extends StatefulWidget {
   const TooLargePreview({
     super.key,
+    required this.filename,
     required this.byteSize,
     required this.capBytes,
     required this.onDownload,
   });
 
+  /// Used for diagnostic logging if [onDownload] throws.
+  final String filename;
   final int byteSize;
   final int capBytes;
   final Future<DownloadOutcome> Function() onDownload;
@@ -48,10 +51,17 @@ class _TooLargePreviewState extends State<TooLargePreview> {
     try {
       outcome = await widget.onDownload();
     } catch (error, stack) {
-      _logger.warning(
+      // Contract violation: log at error level (vs warning for routine
+      // IO failure) with runtime type so refactor breakage stands out.
+      _logger.error(
         'too-large download callback threw',
         error: error,
         stackTrace: stack,
+        attributes: {
+          'filename': widget.filename,
+          'byteSize': widget.byteSize,
+          'errorType': error.runtimeType.toString(),
+        },
       );
       outcome = DownloadOutcome.failed;
     } finally {

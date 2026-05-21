@@ -978,5 +978,148 @@ void main() {
       // Returning to a.md must reuse the cached Future, not refetch.
       expect(fetchCounts['a.md'], 1);
     });
+
+    testWidgets('arrowLeft at first slide is a no-op (no wrap, no exception)',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+
+      // Still on the first slide; a regression to modular wrap would
+      // jump to '2 / 2'.
+      expect(find.text('1 / 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('arrowRight at last slide is a no-op (no wrap, no exception)',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('a.md'), _file('b.md')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 2'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('_CannotPreview state machine (via empty-bytes path)', () {
+    // Empty bytes on an otherwise-previewable file route to
+    // _CannotPreview, giving us a clean way to drive the widget's
+    // download feedback state machine end-to-end through the preview
+    // page.
+
+    testWidgets('successful download flips Download → Saved, reverts after 2s',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+
+      expect(find.text('Saved'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('Download'), findsOneWidget);
+    });
+
+    testWidgets('failed download flips to Couldn\'t save', (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.failed,
+        onPreview: (_, __) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+
+      expect(find.text("Couldn't save"), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    });
+
+    testWidgets('cancelled stays idle — no feedback swap', (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.cancelled,
+        onPreview: (_, __) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+
+      // Inside the preview, still on the idle Download label.
+      expect(
+        find.descendant(
+          of: find.byType(WorkdirPreviewPage),
+          matching: find.text('Download'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(WorkdirPreviewPage),
+          matching: find.text('Saved'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('throwing onDownload still flips to the error state',
+        (tester) async {
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => throw Exception('boom'),
+        onPreview: (_, __) async => Uint8List(0),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    });
   });
 }

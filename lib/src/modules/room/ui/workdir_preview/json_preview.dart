@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -8,20 +7,17 @@ import 'code_preview.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_preview');
 
-/// Pretty-prints JSON content and feeds it to [CodePreview] with
-/// `language: 'json'` so the existing code-block syntax highlighter
-/// handles it. Malformed JSON falls back to the raw bytes — the user
-/// still sees something useful even when the file is broken.
+/// Pretty-prints JSON before handing it to [CodePreview]. See
+/// [prettyPrintJsonOrRaw] for the fallback behavior on broken files.
 class JsonPreview extends StatelessWidget {
-  const JsonPreview({super.key, required this.bytes});
+  const JsonPreview({super.key, required this.content});
 
-  final Uint8List bytes;
+  final String content;
 
   @override
   Widget build(BuildContext context) {
-    final raw = utf8.decode(bytes, allowMalformed: true);
     return CodePreview(
-      bytes: Uint8List.fromList(utf8.encode(prettyPrintJsonOrRaw(raw))),
+      content: prettyPrintJsonOrRaw(content),
       language: 'json',
     );
   }

@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,11 +10,10 @@ const _validSvg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
 
 void main() {
-  testWidgets('valid SVG bytes render via SvgPicture', (tester) async {
-    final bytes = Uint8List.fromList(utf8.encode(_validSvg));
-    await tester.pumpWidget(_wrap(SvgPreview(
-      bytes: bytes,
-      fallback: const Text('FALLBACK'),
+  testWidgets('valid SVG content renders via SvgPicture', (tester) async {
+    await tester.pumpWidget(_wrap(const SvgPreview(
+      content: _validSvg,
+      fallback: Text('FALLBACK'),
     )));
     await tester.pumpAndSettle();
 
@@ -25,12 +21,11 @@ void main() {
     expect(find.text('FALLBACK'), findsNothing);
   });
 
-  testWidgets('malformed SVG bytes swap in the fallback widget',
+  testWidgets('malformed SVG content swaps in the fallback widget',
       (tester) async {
-    final garbage = Uint8List.fromList(utf8.encode('not valid <svg garbage'));
-    await tester.pumpWidget(_wrap(SvgPreview(
-      bytes: garbage,
-      fallback: const Text('FALLBACK'),
+    await tester.pumpWidget(_wrap(const SvgPreview(
+      content: 'not valid <svg garbage',
+      fallback: Text('FALLBACK'),
     )));
     // First pump renders SvgPicture which then schedules a post-frame
     // callback to flip the failure state. settle drains it.

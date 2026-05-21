@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 /// Detection is extension-based — bytes-sniffing isn't worth the latency
 /// for an in-chat preview, and the workdir filenames come from agent
 /// tools that already carry a meaningful suffix.
-///
-/// Each variant owns its mapping to a row icon and (where applicable)
-/// a highlight language id, so adding a kind is a compile-checked edit
-/// of this file alone.
 enum PreviewKind {
   image,
   svg,
@@ -44,9 +40,12 @@ enum PreviewKind {
   /// this app; unknown — no useful mapping).
   bool get canRender => this != PreviewKind.pdf && this != PreviewKind.unknown;
 
-  /// Material icon for the file-row leading position. The row picks
-  /// [Icons.insert_drive_file_outlined] directly for non-previewable
-  /// rows; this getter is for the previewable case.
+  /// Whether the renderer for this kind expects a decoded `String`
+  /// (true) or raw `Uint8List` bytes (false). All renderable kinds
+  /// except [image] are text-shaped.
+  bool get isText => canRender && this != PreviewKind.image;
+
+  /// Material icon mapping for the file-row leading position.
   IconData get rowIcon => switch (this) {
         PreviewKind.image => Icons.image_outlined,
         PreviewKind.svg => Icons.image_outlined,
@@ -60,10 +59,10 @@ enum PreviewKind {
         PreviewKind.unknown => Icons.insert_drive_file_outlined,
       };
 
-  /// flutter_highlight language id for [CodeBlockBuilder]. For [code],
-  /// looks up [filename]'s extension; for [html] and [csv] the language
-  /// is fixed. Other kinds don't render through the code-block path —
-  /// they get 'plaintext' so the getter is total.
+  /// flutter_highlight language id used by the shared code-block
+  /// renderer. For [code], looks up [filename]'s extension; for [html]
+  /// and [csv] the language is fixed. Other kinds don't render through
+  /// the code-block path — they get 'plaintext' so the getter is total.
   String highlightLanguageFor(String filename) => switch (this) {
         PreviewKind.html => 'xml',
         PreviewKind.csv => 'plaintext',

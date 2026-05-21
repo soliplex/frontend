@@ -1,29 +1,24 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
 import '../../../../design/design.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
-/// Renders [bytes] as a fenced code block in the shared markdown
-/// renderer, so the existing [CodeBlockBuilder] picks it up and
-/// applies syntax highlighting, a copy button, and a language label.
+/// Wraps content in a fenced code block so the shared markdown
+/// renderer's code-block builder applies syntax highlighting.
 class CodePreview extends StatelessWidget {
   const CodePreview({
     super.key,
-    required this.bytes,
+    required this.content,
     required this.language,
   });
 
-  final Uint8List bytes;
+  final String content;
 
   /// `flutter_highlight` language id (e.g. `dart`, `python`, `plaintext`).
   final String language;
 
   @override
   Widget build(BuildContext context) {
-    final content = utf8.decode(bytes, allowMalformed: true);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(SoliplexSpacing.s4),
       child: FlutterMarkdownPlusRenderer(

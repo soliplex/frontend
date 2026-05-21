@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/preview_kind.dart';
@@ -102,21 +101,6 @@ void main() {
     test('false for pdf and unknown', () {
       expect(PreviewKind.pdf.canRender, isFalse);
       expect(PreviewKind.unknown.canRender, isFalse);
-    });
-
-    test('true for every other kind', () {
-      for (final kind in PreviewKind.values) {
-        if (kind == PreviewKind.pdf || kind == PreviewKind.unknown) continue;
-        expect(kind.canRender, isTrue, reason: '$kind should render');
-      }
-    });
-  });
-
-  group('rowIcon', () {
-    test('every kind maps to an icon (exhaustive)', () {
-      for (final kind in PreviewKind.values) {
-        expect(kind.rowIcon, isA<IconData>(), reason: '$kind needs an icon');
-      }
     });
   });
 

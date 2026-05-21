@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -174,14 +175,17 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     try {
       outcome = await widget.onTap();
     } catch (error, stack) {
-      // The contract is `Future<DownloadOutcome>`, but defend against an
-      // implementation that throws so the row doesn't get stuck in idle.
-      // Log so a contract violation in a caller is findable.
-      _logger.warning(
+      // Contract violation: defend against a thrown onTap so the row
+      // doesn't get stuck in idle. Log at error so a refactor that
+      // breaks the contract stands out from routine IO failures.
+      _logger.error(
         'row download callback threw',
         error: error,
         stackTrace: stack,
-        attributes: {'filename': widget.file.filename},
+        attributes: {
+          'filename': widget.file.filename,
+          'errorType': error.runtimeType.toString(),
+        },
       );
       outcome = DownloadOutcome.failed;
     } finally {
@@ -361,7 +365,9 @@ double _measure(String text, TextStyle? style) {
     textDirection: TextDirection.ltr,
     maxLines: 1,
   )..layout();
-  return painter.width;
+  final width = painter.width;
+  painter.dispose();
+  return width;
 }
 
 /// Full-screen preview for workdir artifacts. Fetches the bytes lazily
@@ -491,6 +497,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     final file = widget.files[index];
     final kind = PreviewKind.from(file.filename);
     final cannot = _CannotPreview(
+      filename: file.filename,
       onDownload: () => widget.onDownload(file),
     );
     if (!kind.canRender) return cannot;
@@ -512,6 +519,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
         }
         if (bytes.length > previewSizeCapBytes) {
           return TooLargePreview(
+            filename: file.filename,
             byteSize: bytes.length,
             capBytes: previewSizeCapBytes,
             onDownload: () => widget.onDownload(file),
@@ -701,16 +709,19 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   }
 }
 
-/// Routes [bytes] to the kind-specific renderer. Image and SVG carry
-/// a decode-failure fallback because they can throw at paint time;
+/// Routes [bytes] to the kind-specific renderer. The image branch
+/// hands the raw `Uint8List` to [_ImageOrFallback]; every other
+/// renderable kind is text-shaped, so we decode UTF-8 once here and
+/// pass a `String` to the leaf widget. Image and SVG carry their own
+/// decode-failure fallback because they can throw at paint time;
 /// text-based renderers can't, so they don't.
 class _PreviewBody extends StatelessWidget {
-  const _PreviewBody({
+  _PreviewBody({
     required this.bytes,
     required this.kind,
     required this.filename,
     required this.fallback,
-  });
+  }) : assert(kind.canRender, 'pdf/unknown must be guarded before this point');
 
   final Uint8List bytes;
   final PreviewKind kind;
@@ -719,18 +730,21 @@ class _PreviewBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (kind == PreviewKind.image) {
+      return _ImageOrFallback(bytes: bytes, fallback: fallback);
+    }
+    final content = utf8.decode(bytes, allowMalformed: true);
     return switch (kind) {
-      PreviewKind.image => _ImageOrFallback(bytes: bytes, fallback: fallback),
-      PreviewKind.svg => SvgPreview(bytes: bytes, fallback: fallback),
-      PreviewKind.markdown => TextPreview(bytes: bytes),
-      PreviewKind.text => TextPreview(bytes: bytes),
+      PreviewKind.svg => SvgPreview(content: content, fallback: fallback),
+      PreviewKind.markdown || PreviewKind.text => TextPreview(content: content),
       PreviewKind.code || PreviewKind.html || PreviewKind.csv => CodePreview(
-          bytes: bytes, language: kind.highlightLanguageFor(filename)),
-      PreviewKind.json => JsonPreview(bytes: bytes),
-      // pdf and unknown bypass _openPreview at the row, so the pager
-      // never builds this branch for them — the fallback satisfies
-      // exhaustiveness without claiming reachability.
-      PreviewKind.pdf || PreviewKind.unknown => fallback,
+          content: content,
+          language: kind.highlightLanguageFor(filename),
+        ),
+      PreviewKind.json => JsonPreview(content: content),
+      // image is handled above; pdf and unknown are guarded by the
+      // canRender assert in the constructor.
+      PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => fallback,
     };
   }
 }
@@ -801,8 +815,10 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
 /// button is not pannable/zoomable. Mirrors the file-row download
 /// feedback pattern (icon swap, no SnackBar).
 class _CannotPreview extends StatefulWidget {
-  const _CannotPreview({required this.onDownload});
+  const _CannotPreview({required this.filename, required this.onDownload});
 
+  /// Used for diagnostic logging if [onDownload] throws.
+  final String filename;
   final Future<DownloadOutcome> Function() onDownload;
 
   @override
@@ -827,10 +843,18 @@ class _CannotPreviewState extends State<_CannotPreview> {
     try {
       outcome = await widget.onDownload();
     } catch (error, stack) {
-      _logger.warning(
+      // Contract violation: the typedef is Future<DownloadOutcome>.
+      // Log at error (not warning) so this stands out vs. routine IO
+      // failures, and tag the runtime type so a TypeError from a
+      // refactor is grep-distinguishable from network exceptions.
+      _logger.error(
         'preview-fallback download callback threw',
         error: error,
         stackTrace: stack,
+        attributes: {
+          'filename': widget.filename,
+          'errorType': error.runtimeType.toString(),
+        },
       );
       outcome = DownloadOutcome.failed;
     } finally {

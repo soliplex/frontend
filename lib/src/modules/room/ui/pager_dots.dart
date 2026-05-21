@@ -17,7 +17,12 @@ class PagerDots extends StatelessWidget {
     required this.onGoTo,
     this.maxVisible = 12,
     this.labelForIndex,
-  });
+  })  : assert(itemCount >= 0, 'itemCount must be non-negative'),
+        assert(maxVisible > 0, 'maxVisible must be positive'),
+        assert(
+          itemCount == 0 || (currentIndex >= 0 && currentIndex < itemCount),
+          'currentIndex out of range for itemCount',
+        );
 
   final int itemCount;
   final int currentIndex;

@@ -12,6 +12,7 @@ void main() {
   testWidgets('shows the too-large message and a Download button',
       (tester) async {
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () async => DownloadOutcome.success,
@@ -25,6 +26,7 @@ void main() {
   testWidgets('success download swaps to Saved + check, reverts after 2s',
       (tester) async {
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () async => DownloadOutcome.success,
@@ -45,6 +47,7 @@ void main() {
   testWidgets('failed download shows Couldn\'t save + error icon',
       (tester) async {
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () async => DownloadOutcome.failed,
@@ -59,6 +62,7 @@ void main() {
 
   testWidgets('cancelled stays idle — no feedback swap', (tester) async {
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () async => DownloadOutcome.cancelled,
@@ -76,6 +80,7 @@ void main() {
   testWidgets('throwing onDownload still flips to the error state',
       (tester) async {
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () async => throw Exception('boom'),
@@ -92,6 +97,7 @@ void main() {
     final completer = Completer<DownloadOutcome>();
     var calls = 0;
     await tester.pumpWidget(_wrap(TooLargePreview(
+      filename: 'huge.log',
       byteSize: 6 * 1024 * 1024,
       capBytes: 5 * 1024 * 1024,
       onDownload: () {

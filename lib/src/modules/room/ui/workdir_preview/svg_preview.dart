@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -13,11 +10,11 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.svg_preview');
 class SvgPreview extends StatefulWidget {
   const SvgPreview({
     super.key,
-    required this.bytes,
+    required this.content,
     required this.fallback,
   });
 
-  final Uint8List bytes;
+  final String content;
   final Widget fallback;
 
   @override
@@ -30,7 +27,7 @@ class _SvgPreviewState extends State<SvgPreview> {
   @override
   void didUpdateWidget(SvgPreview old) {
     super.didUpdateWidget(old);
-    if (!identical(old.bytes, widget.bytes)) {
+    if (old.content != widget.content) {
       _failed = false;
     }
   }
@@ -38,10 +35,10 @@ class _SvgPreviewState extends State<SvgPreview> {
   void _markFailed(Object? error, StackTrace? stackTrace) {
     if (_failed) return;
     _logger.warning(
-      'svg bytes failed to parse',
+      'svg content failed to parse',
       error: error,
       stackTrace: stackTrace,
-      attributes: {'byteLength': widget.bytes.length},
+      attributes: {'contentLength': widget.content.length},
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _failed = true);
@@ -51,13 +48,12 @@ class _SvgPreviewState extends State<SvgPreview> {
   @override
   Widget build(BuildContext context) {
     if (_failed) return widget.fallback;
-    final source = utf8.decode(widget.bytes, allowMalformed: true);
     return Center(
       child: InteractiveViewer(
         minScale: 1.0,
         maxScale: 4.0,
         child: SvgPicture.string(
-          source,
+          widget.content,
           fit: BoxFit.contain,
           placeholderBuilder: (_) => const SizedBox.shrink(),
           errorBuilder: (_, error, stack) {
