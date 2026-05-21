@@ -118,7 +118,7 @@ class WorkdirController {
       }
       return DownloadOutcome.success;
     } catch (e, st) {
-      _logger.error(
+      _logger.warning(
         'workdir download failed runId=$runId',
         error: e,
         stackTrace: st,

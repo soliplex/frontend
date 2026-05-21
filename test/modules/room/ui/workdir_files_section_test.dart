@@ -282,6 +282,39 @@ void main() {
   });
 
   testWidgets(
+      'download InkWell is wired with a null onTap while a download is in flight',
+      (tester) async {
+    // A bare _handleTap early-return would also drop a second tap, so
+    // the no-op test above does not prove the disabled state. This
+    // asserts build() actively wires onTap to null mid-flight, which
+    // is what gives the user the disabled InkWell ripple / a11y state.
+    final completer = Completer<DownloadOutcome>();
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('report.pdf')],
+      onDownload: (_, __) => completer.future,
+    )));
+    await tester.pump();
+
+    final downloadIcon = find.byIcon(Icons.download_outlined);
+    final inkWellBeforeTap = tester.widget<InkWell>(
+      find.ancestor(of: downloadIcon, matching: find.byType(InkWell)).first,
+    );
+    expect(inkWellBeforeTap.onTap, isNotNull);
+
+    await tester.tap(downloadIcon);
+    await tester.pump();
+
+    final inkWellDuringFlight = tester.widget<InkWell>(
+      find.ancestor(of: downloadIcon, matching: find.byType(InkWell)).first,
+    );
+    expect(inkWellDuringFlight.onTap, isNull);
+
+    completer.complete(DownloadOutcome.success);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
       'preview eye icon shown only for image files when onPreview is wired',
       (tester) async {
     await tester.pumpWidget(_wrap(WorkdirFilesSection(
@@ -1217,8 +1250,8 @@ void main() {
   testWidgets(
       'WorkdirPreviewPage.show clamps an out-of-range initialIndex to the last file',
       (tester) async {
-    // A stale initialIndex (e.g. the file list mutated between render
-    // and tap) must not assert/crash; show() clamps to a valid slide.
+    // show() must not assert/crash on a caller-supplied out-of-range
+    // index; it clamps to a valid slide.
     final files = [_file('a.png'), _file('b.png'), _file('c.png')];
     late BuildContext capturedContext;
     await tester.pumpWidget(MaterialApp(

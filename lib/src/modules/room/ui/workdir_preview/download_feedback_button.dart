@@ -31,7 +31,12 @@ class DownloadFeedbackButton extends StatefulWidget {
   });
 
   final String filename;
+
+  /// Must convert routine IO failures into [DownloadOutcome.failed]
+  /// rather than throw. A throw is treated as a contract violation and
+  /// logged at error level (see [_handleTap]).
   final Future<DownloadOutcome> Function() onDownload;
+
   final Map<String, Object> extraLogAttributes;
 
   /// Short identifier used as the log message when [onDownload] throws.
@@ -66,11 +71,8 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
     try {
       outcome = await widget.onDownload();
     } catch (error, stack) {
-      // The typedef is Future<DownloadOutcome>; a throw is a contract
-      // violation. Log at error level — routine IO failures resolve to
-      // DownloadOutcome.failed without throwing — and tag the runtime
-      // type so unexpected throws are grep-distinguishable from
-      // network exceptions.
+      // Contract violation per [onDownload]'s doc. Tag the runtime
+      // type so unexpected throws are grep-distinguishable in logs.
       _logger.error(
         widget.logTag,
         error: error,

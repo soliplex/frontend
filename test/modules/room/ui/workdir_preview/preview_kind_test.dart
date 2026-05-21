@@ -97,11 +97,37 @@ void main() {
     });
   });
 
-  group('canRender', () {
-    test('false for pdf and unknown', () {
-      expect(PreviewKind.pdf.canRender, isFalse);
-      expect(PreviewKind.unknown.canRender, isFalse);
+  group('canRender / isText truth table', () {
+    // The whole point of the exhaustive switch is to force a deliberate
+    // canRender + isText decision per variant. If a future contributor
+    // adds an enum case and the analyzer flags the missing arms, this
+    // table is where they record the chosen answer.
+    const expectations = <PreviewKind, ({bool canRender, bool isText})>{
+      PreviewKind.image: (canRender: true, isText: false),
+      PreviewKind.svg: (canRender: true, isText: true),
+      PreviewKind.markdown: (canRender: true, isText: true),
+      PreviewKind.code: (canRender: true, isText: true),
+      PreviewKind.text: (canRender: true, isText: true),
+      PreviewKind.html: (canRender: true, isText: true),
+      PreviewKind.csv: (canRender: true, isText: true),
+      PreviewKind.json: (canRender: true, isText: true),
+      PreviewKind.pdf: (canRender: false, isText: false),
+      PreviewKind.unknown: (canRender: false, isText: false),
+    };
+
+    test('covers every PreviewKind variant', () {
+      expect(expectations.keys.toSet(), PreviewKind.values.toSet());
     });
+
+    for (final entry in expectations.entries) {
+      final kind = entry.key;
+      final expected = entry.value;
+      test('$kind canRender=${expected.canRender} isText=${expected.isText}',
+          () {
+        expect(kind.canRender, expected.canRender);
+        expect(kind.isText, expected.isText);
+      });
+    }
   });
 
   group('highlightLanguageFor', () {
