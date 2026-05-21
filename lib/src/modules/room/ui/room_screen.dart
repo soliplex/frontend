@@ -160,21 +160,30 @@ class _RoomScreenState extends State<RoomScreen> {
   /// the controller already has text (user typed something since
   /// mount, or another restoration path already populated it).
   Future<void> _restorePersistedComposer() async {
-    final text = await ReturnToStorage.loadComposer(
-      serverId: widget.serverEntry.serverId,
-      roomId: widget.roomId,
-    );
-    if (!mounted || text == null) return;
-    if (_chatController.text.isNotEmpty) return;
-    _chatController.text = text;
-    _chatController.selection =
-        TextSelection.collapsed(offset: _chatController.text.length);
-    // One-shot: clear once restored so subsequent mounts of the same
-    // room don't re-pre-fill the box with stale content.
-    await ReturnToStorage.clearComposer(
-      serverId: widget.serverEntry.serverId,
-      roomId: widget.roomId,
-    );
+    try {
+      final text = await ReturnToStorage.loadComposer(
+        serverId: widget.serverEntry.serverId,
+        roomId: widget.roomId,
+      );
+      if (!mounted || text == null) return;
+      if (_chatController.text.isNotEmpty) return;
+      _chatController.text = text;
+      _chatController.selection =
+          TextSelection.collapsed(offset: _chatController.text.length);
+      // One-shot: clear once restored so subsequent mounts of the same
+      // room don't re-pre-fill the box with stale content.
+      await ReturnToStorage.clearComposer(
+        serverId: widget.serverEntry.serverId,
+        roomId: widget.roomId,
+      );
+    } catch (e, st) {
+      dev.log(
+        'Failed to restore persisted composer draft',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+    }
   }
 
   @override

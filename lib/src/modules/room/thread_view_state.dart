@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -462,7 +463,14 @@ class ThreadViewState {
         serverId: _connection.serverId,
         roomId: _roomId,
         unsentText: text,
-      ),
+      ).catchError((Object e, StackTrace st) {
+        dev.log(
+          'Failed to persist composer draft for auth roundtrip',
+          error: e,
+          stackTrace: st,
+          level: 1000,
+        );
+      }),
     );
   }
 }

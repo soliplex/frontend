@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'auth_tokens.dart';
@@ -95,7 +97,13 @@ class AuthSession implements TokenRefresher {
         refreshToken: tokens.refreshToken,
         clientId: provider.clientId,
       );
-    } catch (_) {
+    } catch (e, st) {
+      dev.log(
+        'Token refresh threw before producing a result',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
       return false;
     }
 
@@ -124,7 +132,11 @@ class AuthSession implements TokenRefresher {
         markSessionExpired();
         return false;
 
-      case TokenRefreshFailure():
+      case TokenRefreshFailure(:final reason):
+        dev.log(
+          'Token refresh failed: $reason',
+          level: 1000,
+        );
         return false;
     }
   }
