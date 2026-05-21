@@ -107,6 +107,11 @@ class _QuizScreenState extends State<QuizScreen> {
                     _handleBack,
                     'Back to Room',
                   ),
+                PermissionDeniedException() => (
+                    "You don't have permission to view this quiz.",
+                    _handleBack,
+                    'Back to Room',
+                  ),
                 NotFoundException() => (
                     'This quiz is no longer available.',
                     _handleBack,

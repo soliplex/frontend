@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_client/soliplex_client.dart'
+    show PermissionDeniedException;
 
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
@@ -291,7 +293,11 @@ class _ServerSection extends StatelessWidget {
           RoomsFailed(:final error) => Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-              child: Text('Failed to load rooms: $error'),
+              child: Text(switch (error) {
+                PermissionDeniedException() =>
+                  "You don't have permission to view rooms on this server.",
+                _ => 'Failed to load rooms: $error',
+              }),
             ),
           RoomsLoaded(:final rooms) => Column(
               children: [

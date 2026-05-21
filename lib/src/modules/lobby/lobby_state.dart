@@ -154,6 +154,9 @@ class LobbyState {
         entry.auth.markSessionExpired();
         return;
       }
+      // PermissionDeniedException flows through to RoomsFailed; re-auth
+      // wouldn't help, so the UI renders a permission-specific message
+      // instead of triggering the auth funnel.
       _roomsByServer.value = {
         ..._roomsByServer.value,
         serverId: RoomsFailed(error),
@@ -179,6 +182,9 @@ class LobbyState {
         entry.auth.markSessionExpired();
         return;
       }
+      // Profile is optional sidebar metadata; silent null is the correct
+      // disposition for PermissionDeniedException and other failures —
+      // there is no UI affordance to surface or recover from.
       _userProfiles.value = {..._userProfiles.value, serverId: null};
     });
   }
