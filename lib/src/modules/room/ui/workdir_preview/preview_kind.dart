@@ -18,8 +18,8 @@ enum PreviewKind {
   unknown;
 
   /// The kind for [filename] based on its extension. Case-insensitive.
-  /// `.bashrc` (leading dot, nothing before it) and unrecognized
-  /// extensions yield [PreviewKind.unknown].
+  /// Files without a usable extension (see [extensionOf]) and
+  /// unrecognized extensions both yield [PreviewKind.unknown].
   static PreviewKind from(String filename) {
     final ext = extensionOf(filename);
     if (ext == null) return PreviewKind.unknown;
@@ -80,9 +80,9 @@ enum PreviewKind {
       };
 
   /// flutter_highlight language id used by the shared code-block
-  /// renderer. For [code], looks up [filename]'s extension; for [html]
-  /// and [csv] the language is fixed. Other kinds don't render through
-  /// the code-block path — they get 'plaintext' so the getter is total.
+  /// renderer. Only [code], [html], and [csv] route through this
+  /// method in practice; the other arms return 'plaintext' so the
+  /// switch stays exhaustive.
   String highlightLanguageFor(String filename) => switch (this) {
         PreviewKind.html => 'xml',
         PreviewKind.csv => 'plaintext',

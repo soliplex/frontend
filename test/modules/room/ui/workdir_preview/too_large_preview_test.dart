@@ -92,6 +92,27 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
+  testWidgets('byte-size formatting pins the KB and MB thresholds',
+      (tester) async {
+    // _formatBytes uses >= for both KB and MB. A regression to > on
+    // either boundary would round the boundary case to the smaller
+    // unit (e.g. "1024 B" instead of "1 KB").
+    Future<void> pumpFor(int bytes) => tester.pumpWidget(_wrap(TooLargePreview(
+          filename: 'huge.log',
+          byteSize: bytes,
+          capBytes: 5 * 1024 * 1024,
+          onDownload: () async => DownloadOutcome.success,
+        )));
+
+    await pumpFor(1024);
+    expect(find.textContaining('1 KB'), findsOneWidget,
+        reason: '1024 bytes must round up to the KB unit, not stay as B');
+
+    await pumpFor(1024 * 1024);
+    expect(find.textContaining('1.0 MB'), findsOneWidget,
+        reason: '1 MiB must round up to the MB unit, not stay as KB');
+  });
+
   testWidgets('second tap during an in-flight download is a no-op',
       (tester) async {
     final completer = Completer<DownloadOutcome>();

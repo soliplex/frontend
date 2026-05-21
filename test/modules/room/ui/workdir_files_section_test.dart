@@ -1247,6 +1247,58 @@ void main() {
     });
   });
 
+  testWidgets('sub-tablet width opens the preview as a Scaffold, not a Dialog',
+      (tester) async {
+    // Phone-width opens through Navigator.push, not showGeneralDialog, so
+    // no Dialog widget should be present. A regression flipping the
+    // breakpoint comparison would still pass every dialog-shaped test
+    // because the dialog path is hit on the test view's default size.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WorkdirPreviewPage), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('arrow-key release does not advance the pager a second time',
+      (tester) async {
+    // The pager handles KeyDownEvent/KeyRepeatEvent and ignores KeyUpEvent.
+    // A regression that routes through KeyUpEvent (e.g. swapped branches in
+    // _handleKey) would double-advance on a single physical keypress because
+    // sendKeyEvent fires Down followed by Up. Send Down then Up separately
+    // and pin that only the Down advances.
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('a.md'), _file('b.md'), _file('c.md')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => Uint8List.fromList(utf8.encode('body')),
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined).first);
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsOneWidget);
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsOneWidget);
+  });
+
   testWidgets(
       'WorkdirPreviewPage.show clamps an out-of-range initialIndex to the last file',
       (tester) async {

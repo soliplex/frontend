@@ -13,6 +13,18 @@ final _logger =
 /// it leaves the state at [idle] and never animates.
 enum DownloadFeedbackState { idle, success, error }
 
+/// Shared icon + label for each [DownloadFeedbackState]. Every download
+/// affordance (file row tooltip, fallback button labels) renders the
+/// same words/icons; centralizing the mapping here keeps them from
+/// drifting apart.
+extension DownloadFeedbackAffordance on DownloadFeedbackState {
+  (IconData icon, String label) get affordance => switch (this) {
+        DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
+        DownloadFeedbackState.success => (Icons.check, 'Saved'),
+        DownloadFeedbackState.error => (Icons.error_outline, "Couldn't save"),
+      };
+}
+
 /// Owns the download-feedback state machine so every download affordance
 /// (file row, can't-preview fallback, too-large fallback) gets the same
 /// behavior: tap → in-flight guard → success/error swap → 2 s revert.
@@ -34,7 +46,7 @@ class DownloadFeedbackButton extends StatefulWidget {
 
   /// Must convert routine IO failures into [DownloadOutcome.failed]
   /// rather than throw. A throw is treated as a contract violation and
-  /// logged at error level (see [_handleTap]).
+  /// logged at error level.
   final Future<DownloadOutcome> Function() onDownload;
 
   final Map<String, Object> extraLogAttributes;

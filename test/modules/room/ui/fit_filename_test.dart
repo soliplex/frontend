@@ -40,5 +40,21 @@ void main() {
       );
       expect(result, contains('…'));
     });
+
+    test('preserves an 8-char extension but drops a 9-char extension', () {
+      // Pin the <= 8 cap precisely: a regression to < 8 (dropping the
+      // boundary case) would still satisfy the 10-char "extension too
+      // long" test above, and a regression to <= 9 (loosening) would
+      // not be caught either.
+      const baseName = 'a-very-long-basename-that-needs-truncation';
+      final keptEight = fitFilenameForWidth('$baseName.12345678', style, 80);
+      expect(keptEight.endsWith('.12345678'), isTrue,
+          reason: '8-char extension must survive truncation: $keptEight');
+
+      final droppedNine = fitFilenameForWidth('$baseName.123456789', style, 80);
+      expect(droppedNine.endsWith('.123456789'), isFalse,
+          reason: '9-char extension must NOT survive truncation: $droppedNine');
+      expect(droppedNine, contains('…'));
+    });
   });
 }

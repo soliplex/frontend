@@ -120,7 +120,8 @@ void main() {
   });
 
   testWidgets('shows error with retry on failure', (tester) async {
-    final api = _ChunkVizApi()..nextVizError = Exception('Network error');
+    final api = _ChunkVizApi()
+      ..nextVizError = Exception('network-leak-do-not-show');
 
     await tester.pumpWidget(_wrap(
       ChunkVisualizationPage(
@@ -136,6 +137,9 @@ void main() {
 
     expect(find.text('Failed to load visualization'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+    // Raw exception text must not leak into the UI — re-adding the
+    // dropped `Text(error.toString())` would expose internals.
+    expect(find.textContaining('network-leak-do-not-show'), findsNothing);
 
     // Set success for retry
     api

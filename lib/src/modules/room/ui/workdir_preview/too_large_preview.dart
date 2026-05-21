@@ -52,7 +52,7 @@ class TooLargePreview extends StatelessWidget {
             logTag: 'too-large download callback threw',
             extraLogAttributes: {'byteSize': byteSize},
             builder: (context, state, onTap) {
-              final (icon, label) = _affordanceFor(state);
+              final (icon, label) = state.affordance;
               return FilledButton.icon(
                 onPressed: onTap,
                 icon: Icon(icon),
@@ -65,13 +65,6 @@ class TooLargePreview extends StatelessWidget {
     );
   }
 }
-
-(IconData, String) _affordanceFor(DownloadFeedbackState state) =>
-    switch (state) {
-      DownloadFeedbackState.idle => (Icons.download_outlined, 'Download'),
-      DownloadFeedbackState.success => (Icons.check, 'Saved'),
-      DownloadFeedbackState.error => (Icons.error_outline, "Couldn't save"),
-    };
 
 String _formatBytes(int bytes) {
   const kb = 1024;

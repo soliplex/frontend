@@ -35,8 +35,9 @@ typedef FetchWorkdirFileBytes = Future<Uint8List> Function(
   WorkdirFile file,
 );
 
-/// Files above this size stay as a download — decoding very large
-/// payloads in the chat scroller causes jank and OOMs.
+/// Bytes fetched above this size route to the too-large fallback
+/// instead of an in-pager renderer — decoding very large payloads in
+/// the chat scroller causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
 
 class WorkdirFilesSection extends StatefulWidget {
@@ -161,22 +162,11 @@ class _WorkdirFileRow extends StatelessWidget {
       onDownload: onTap,
       logTag: 'row download callback threw',
       builder: (context, state, downloadTap) {
-        final (icon, color, tooltip) = switch (state) {
-          DownloadFeedbackState.idle => (
-              Icons.download_outlined,
-              theme.colorScheme.primary,
-              'Download',
-            ),
-          DownloadFeedbackState.success => (
-              Icons.check,
-              theme.colorScheme.onSurfaceVariant,
-              'Saved',
-            ),
-          DownloadFeedbackState.error => (
-              Icons.error_outline,
-              theme.colorScheme.error,
-              "Couldn't save",
-            ),
+        final (icon, tooltip) = state.affordance;
+        final color = switch (state) {
+          DownloadFeedbackState.idle => theme.colorScheme.primary,
+          DownloadFeedbackState.success => theme.colorScheme.onSurfaceVariant,
+          DownloadFeedbackState.error => theme.colorScheme.error,
         };
         return InkWell(
           onTap: canPreview ? onOpenPreview : downloadTap,
@@ -323,7 +313,6 @@ class WorkdirPreviewPage extends StatefulWidget {
     required this.initialIndex,
     required this.fetchBytes,
     required this.onDownload,
-    required this.useDialogLayout,
   })  : assert(
             files.isNotEmpty, 'WorkdirPreviewPage requires at least one file'),
         assert(initialIndex >= 0 && initialIndex < files.length,
@@ -333,7 +322,6 @@ class WorkdirPreviewPage extends StatefulWidget {
   final int initialIndex;
   final Future<Uint8List> Function(WorkdirFile file) fetchBytes;
   final Future<DownloadOutcome> Function(WorkdirFile file) onDownload;
-  final bool useDialogLayout;
 
   static Future<void> show({
     required BuildContext context,
@@ -352,7 +340,6 @@ class WorkdirPreviewPage extends StatefulWidget {
       initialIndex: clampedIndex,
       fetchBytes: fetchBytes,
       onDownload: onDownload,
-      useDialogLayout: useDialog,
     );
     if (useDialog) {
       // Zero-duration transition — showDialog's default fade adds a
@@ -363,7 +350,6 @@ class WorkdirPreviewPage extends StatefulWidget {
         barrierDismissible: true,
         barrierLabel:
             MaterialLocalizations.of(context).modalBarrierDismissLabel,
-        barrierColor: Colors.black54,
         transitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => child,
       );
@@ -671,13 +657,14 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.useDialogLayout) {
+    final size = MediaQuery.sizeOf(context);
+    if (size.width >= SoliplexBreakpoints.tablet) {
       return Dialog(
         insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 800,
-            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+            maxHeight: size.height * 0.85,
           ),
           child: _buildShellBody(context),
         ),
@@ -737,6 +724,7 @@ class _PreviewBody extends StatelessWidget {
         attributes: {
           'filename': filename,
           'byteLength': bytes.length,
+          'errorType': error.runtimeType.toString(),
         },
       );
       return _fallback(
@@ -758,8 +746,6 @@ class _PreviewBody extends StatelessWidget {
           language: kind.highlightLanguageFor(filename),
         ),
       PreviewKind.json => JsonPreview(content: content),
-      // image is handled above; pdf and unknown are guarded by the
-      // canRender assert in the constructor.
       PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => _fallback(
           icon: Icons.image_not_supported_outlined,
           message: "Can't preview this file",
@@ -870,17 +856,7 @@ class _CannotPreview extends StatelessWidget {
             onDownload: onDownload,
             logTag: 'preview-fallback download callback threw',
             builder: (context, state, onTap) {
-              final (btnIcon, label) = switch (state) {
-                DownloadFeedbackState.idle => (
-                    Icons.download_outlined,
-                    'Download',
-                  ),
-                DownloadFeedbackState.success => (Icons.check, 'Saved'),
-                DownloadFeedbackState.error => (
-                    Icons.error_outline,
-                    "Couldn't save",
-                  ),
-              };
+              final (btnIcon, label) = state.affordance;
               return FilledButton.icon(
                 onPressed: onTap,
                 icon: Icon(btnIcon),

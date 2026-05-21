@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/code_preview.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/json_preview.dart';
 
 void main() {
@@ -39,14 +40,21 @@ void main() {
     testWidgets(
         'shows the malformed banner above raw contents for invalid JSON',
         (tester) async {
+      // The fallback contract is banner + raw payload, not just banner.
+      // A regression that dropped the Expanded(child: CodePreview) would
+      // leave only the banner and still satisfy the banner-only assertion,
+      // so the raw content must be pinned independently.
+      const raw = '{not valid json';
       await tester.pumpWidget(wrap(
-        const JsonPreview(content: '{not valid json'),
+        const JsonPreview(content: raw),
       ));
 
       expect(
         find.text("This file isn't valid JSON; showing raw contents."),
         findsOneWidget,
       );
+      final codePreview = tester.widget<CodePreview>(find.byType(CodePreview));
+      expect(codePreview.content, raw);
     });
   });
 }
