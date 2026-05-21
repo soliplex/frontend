@@ -159,6 +159,9 @@ class _RoomScreenState extends State<RoomScreen> {
   /// auth-failure redirect for this `(serverId, roomId)`. No-op if
   /// the controller already has text (user typed something since
   /// mount, or another restoration path already populated it).
+  ///
+  /// Storage failures are logged at SEVERE and swallowed; an empty
+  /// composer is the safe fallback.
   Future<void> _restorePersistedComposer() async {
     try {
       final text = await ReturnToStorage.loadComposer(

@@ -133,9 +133,12 @@ class AuthSession implements TokenRefresher {
         return false;
 
       case TokenRefreshFailure(:final reason):
+        // networkError is recoverable on retry; unknownError is the
+        // anomaly worth a SEVERE entry. invalidGrant and noRefreshToken
+        // are filtered earlier and reach markSessionExpired.
         dev.log(
-          'Token refresh failed: $reason',
-          level: 1000,
+          'Token refresh failed: ${reason.name}',
+          level: reason == TokenRefreshFailureReason.networkError ? 900 : 1000,
         );
         return false;
     }

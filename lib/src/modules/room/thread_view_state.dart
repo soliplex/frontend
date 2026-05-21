@@ -452,6 +452,9 @@ class ThreadViewState {
   /// stays mounted and the in-memory [SendError.unsentText] +
   /// `_restoreUnsentText` path handles restoration without touching
   /// storage.
+  ///
+  /// Storage failures are logged at SEVERE and swallowed; the user's
+  /// draft is lost but the redirect still proceeds.
   void _onSendError(SendError? err) {
     if (_isDisposed) return;
     if (err == null) return;

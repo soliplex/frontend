@@ -99,11 +99,17 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
     if (returnTo.startsWith('//') ||
         returnTo.startsWith('http://') ||
-        returnTo.startsWith('https://') ||
-        !returnTo.startsWith('/')) {
+        returnTo.startsWith('https://')) {
       dev.log(
-        'Rejected unsafe returnTo: $returnTo',
+        'Rejected returnTo (open-redirect target): $returnTo',
         level: 900,
+      );
+      return AppRoutes.lobby;
+    }
+    if (!returnTo.startsWith('/')) {
+      dev.log(
+        'Rejected returnTo (not an absolute path): $returnTo',
+        level: 800,
       );
       return AppRoutes.lobby;
     }
