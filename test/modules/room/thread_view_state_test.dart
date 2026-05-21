@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/human_approval_extension.dart';
@@ -16,6 +20,29 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
     );
+
+/// FakeSoliplexApi variant that holds getThreadHistory open until the
+/// test resolves it. Used to assert observable behavior on an in-flight
+/// request (notably cancel-token cancellation on auth flip).
+class _PendingHistoryApi extends FakeSoliplexApi {
+  Completer<ThreadHistory>? _pending;
+  CancelToken? capturedToken;
+
+  @override
+  Future<ThreadHistory> getThreadHistory(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) {
+    capturedToken = cancelToken;
+    _pending ??= Completer<ThreadHistory>();
+    return _pending!.future;
+  }
+
+  void completeWith(ThreadHistory history) {
+    _pending?.complete(history);
+  }
+}
 
 /// Minimal session fake for testing [ThreadViewState] signal behavior.
 class _FakeAgentSession implements AgentSession {
@@ -83,11 +110,14 @@ class _FakeAgentSession implements AgentSession {
 void main() {
   late FakeSoliplexApi api;
   late ServerConnection connection;
+  late AuthSession auth;
   late RunRegistry registry;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     api = FakeSoliplexApi();
     connection = _fakeConnection(api);
+    auth = AuthSession(refreshService: FakeTokenRefreshService());
     registry = RunRegistry();
   });
 
@@ -106,6 +136,7 @@ void main() {
 
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -143,6 +174,7 @@ void main() {
     ThreadHistory? capturedHistory;
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -165,6 +197,7 @@ void main() {
 
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -189,6 +222,7 @@ void main() {
 
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -217,6 +251,7 @@ void main() {
 
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -236,6 +271,7 @@ void main() {
 
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -352,6 +388,7 @@ void main() {
     // Now create a new ThreadViewState (simulates navigating back).
     final state = ThreadViewState(
       connection: connection,
+      auth: auth,
       roomId: 'room-1',
       threadId: 'thread-1',
       registry: registry,
@@ -396,6 +433,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -433,6 +471,7 @@ void main() {
       // to call createThread, which we make fail.
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -468,6 +507,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -504,6 +544,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -538,6 +579,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -559,6 +601,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -583,6 +626,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -612,6 +656,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -640,6 +685,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -656,6 +702,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -709,6 +756,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -761,6 +809,7 @@ void main() {
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -785,6 +834,7 @@ void main() {
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -800,6 +850,7 @@ void main() {
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -825,6 +876,7 @@ void main() {
         api.nextThreadHistory = ThreadHistory(messages: const []);
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -862,6 +914,7 @@ void main() {
         api.nextThreadHistory = ThreadHistory(messages: const []);
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -899,6 +952,7 @@ void main() {
 
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -936,6 +990,7 @@ void main() {
 
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -963,12 +1018,208 @@ void main() {
       },
     );
 
+    test(
+      'auth flip to ExpiredSession cancels an in-flight history fetch',
+      () async {
+        final pendingApi = _PendingHistoryApi();
+        final pendingConnection = _fakeConnection(pendingApi);
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        final state = ThreadViewState(
+          connection: pendingConnection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final inFlightToken = pendingApi.capturedToken;
+        expect(inFlightToken, isNotNull);
+        expect(inFlightToken!.isCancelled, isFalse);
+
+        auth.markSessionExpired();
+
+        expect(inFlightToken.isCancelled, isTrue);
+        expect(inFlightToken.reason, 'auth expired');
+
+        pendingApi.completeWith(ThreadHistory(messages: const []));
+        await Future<void>.delayed(Duration.zero);
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'auth flip to ExpiredSession cancels the active AgentSession',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final session = _FakeAgentSession();
+        state.attachSession(session);
+        expect(session.cancelCalled, isFalse);
+
+        // A 401 on an unrelated surface flips the session.
+        auth.markSessionExpired();
+
+        expect(session.cancelCalled, isTrue);
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'AuthException SendError persists composer text via ReturnToStorage',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // Simulate the spawn-failure path: SessionSpawner writes a
+        // SendError with the original prompt and an AuthException.
+        state.lastSendError; // ensure signal is materialized
+        // ignore: invalid_use_of_protected_member
+        (state.lastSendError as Signal<SendError?>).value = const SendError(
+          AuthException(message: 'Unauthorized', statusCode: 401),
+          unsentText: 'half-written question',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        final restored = await ReturnToStorage.loadComposer(
+          serverId: 'test-server',
+          roomId: 'room-1',
+        );
+        expect(restored, 'half-written question');
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'non-auth SendError does not persist composer text',
+      () async {
+        api.nextThreadHistory = ThreadHistory(messages: const []);
+
+        final state = ThreadViewState(
+          connection: connection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // ignore: invalid_use_of_protected_member
+        (state.lastSendError as Signal<SendError?>).value = const SendError(
+          NetworkException(message: 'offline'),
+          unsentText: 'half-written question',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        // Only auth errors trigger persistence — for transient
+        // failures, the in-memory SendError.unsentText path handles
+        // restoration without touching storage.
+        final restored = await ReturnToStorage.loadComposer(
+          serverId: 'test-server',
+          roomId: 'room-1',
+        );
+        expect(restored, isNull);
+
+        state.dispose();
+      },
+    );
+
+    test('FailedState(authExpired) funnels through markSessionExpired',
+        () async {
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final session = _FakeAgentSession();
+      state.attachSession(session);
+
+      session.emit(
+        FailedState.preRun(
+          threadKey: (
+            serverId: 'test-server',
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          ),
+          reason: FailureReason.authExpired,
+          error: 'Session expired',
+        ),
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(state.lastSendError.value?.error, 'Session expired');
+
+      state.dispose();
+    });
+
     test('mirrors session.reconnectStatus into reconnectStatus signal',
         () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -1000,6 +1251,7 @@ void main() {
 
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -1028,6 +1280,7 @@ void main() {
 
         final state = ThreadViewState(
           connection: connection,
+          auth: auth,
           roomId: 'room-1',
           threadId: 'thread-1',
           registry: registry,
@@ -1070,6 +1323,7 @@ void main() {
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -1092,6 +1346,7 @@ void main() {
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,
@@ -1128,6 +1383,7 @@ void main() {
       api.nextThreadHistory = ThreadHistory(messages: const []);
       final state = ThreadViewState(
         connection: connection,
+        auth: auth,
         roomId: 'room-1',
         threadId: 'thread-1',
         registry: registry,

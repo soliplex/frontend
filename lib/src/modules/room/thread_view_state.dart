@@ -1,8 +1,12 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
+import '../auth/auth_tokens.dart';
+import '../auth/return_to_storage.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -59,17 +63,22 @@ typedef HistoryLoadedCallback = void Function(
 class ThreadViewState {
   ThreadViewState({
     required ServerConnection connection,
+    required AuthSession auth,
     required String roomId,
     required this.threadId,
     required RunRegistry registry,
     this.onHistoryLoaded,
   })  : _connection = connection,
+        _auth = auth,
         _roomId = roomId,
         _registry = registry {
+    _authUnsub = _auth.session.subscribe(_onAuthChanged);
+    _sendErrorUnsub = _lastSendError.subscribe(_onSendError);
     if (!_restoreFromRegistry()) _fetch();
   }
 
   final ServerConnection _connection;
+  final AuthSession _auth;
   final String _roomId;
   final String threadId;
   final HistoryLoadedCallback? onHistoryLoaded;
@@ -85,6 +94,8 @@ class ThreadViewState {
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
+  void Function()? _authUnsub;
+  void Function()? _sendErrorUnsub;
   bool _isDisposed = false;
 
   final SessionSpawner _spawner = SessionSpawner();
@@ -275,6 +286,24 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final reason, :final error):
         _detachSession();
+        if (reason == FailureReason.authExpired) {
+          // Funnel to the per-server auth funnel so the route guard
+          // (and any lobby UX) can react. The screen also surfaces a
+          // banner so the user sees what happened before the redirect.
+          _auth.markSessionExpired();
+        }
+        if (reason == FailureReason.internalError ||
+            reason == FailureReason.serverError) {
+          // Both reasons surface to the user only as a friendly string.
+          // Without this log, the underlying error and stack are
+          // unrecoverable for diagnosis.
+          dev.log(
+            'Thread run failed: ${reason.name}',
+            error: error,
+            name: 'ThreadViewState',
+            level: 1000,
+          );
+        }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
@@ -405,11 +434,58 @@ class ThreadViewState {
 
   void dispose() {
     _isDisposed = true;
+    _authUnsub?.call();
+    _authUnsub = null;
+    _sendErrorUnsub?.call();
+    _sendErrorUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
     _reconnectStatus.dispose();
     isCancellable.dispose();
     pendingApproval.dispose();
+  }
+
+  /// Cancels the active run and pending history fetch when the auth
+  /// session leaves [ActiveSession] (expired or signed out). The
+  /// route guard handles navigation; this just stops in-flight work
+  /// so the SSE client doesn't reconnect-loop with a dead token.
+  void _onAuthChanged(SessionState state) {
+    if (_isDisposed) return;
+    if (state is ActiveSession) return;
+    _cancelToken?.cancel('auth expired');
+    _activeSession.value?.cancel();
+  }
+
+  /// Persists composer text when a spawn-failure SendError lands with
+  /// the original prompt attached AND the underlying error is an
+  /// auth failure. The auth path is the only one where the user gets
+  /// navigated away (route guard) — for non-auth errors the screen
+  /// stays mounted and the in-memory [SendError.unsentText] +
+  /// `_restoreUnsentText` path handles restoration without touching
+  /// storage.
+  ///
+  /// Storage failures are logged at SEVERE and swallowed; the user's
+  /// draft is lost but the redirect still proceeds.
+  void _onSendError(SendError? err) {
+    if (_isDisposed) return;
+    if (err == null) return;
+    final text = err.unsentText;
+    if (text == null || text.trim().isEmpty) return;
+    if (err.error is! AuthException) return;
+    unawaited(
+      ReturnToStorage.saveComposer(
+        serverId: _connection.serverId,
+        roomId: _roomId,
+        unsentText: text,
+      ).catchError((Object e, StackTrace st) {
+        dev.log(
+          'Failed to persist composer draft for auth roundtrip',
+          error: e,
+          stackTrace: st,
+          level: 1000,
+        );
+      }),
+    );
   }
 }

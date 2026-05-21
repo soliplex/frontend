@@ -99,7 +99,12 @@ class TokenRefreshService {
   static const fallbackTokenLifetime = Duration(minutes: 30);
 
   /// How long before expiry to trigger proactive refresh.
-  static const refreshThreshold = Duration(minutes: 1);
+  ///
+  /// Five minutes gives long-running streams (LLM generations, uploads)
+  /// headroom to refresh proactively before their access token expires
+  /// mid-stream. Mid-stream refresh on the SSE client itself would be a
+  /// stricter fix; this threshold is the cheap version.
+  static const refreshThreshold = Duration(minutes: 5);
 
   /// Attempt to refresh tokens.
   ///

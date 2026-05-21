@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/quiz/quiz_session.dart';
 import 'package:soliplex_frontend/src/modules/quiz/quiz_session_controller.dart';
 
@@ -10,12 +12,15 @@ import '../../helpers/fakes.dart';
 
 void main() {
   late FakeSoliplexApi api;
+  late AuthSession auth;
   late QuizSessionController controller;
 
   setUp(() {
     api = FakeSoliplexApi();
+    auth = AuthSession(refreshService: FakeTokenRefreshService());
     controller = QuizSessionController(
       api: api,
+      auth: auth,
       roomId: 'room-1',
       logger: testLogger(),
     );
@@ -291,7 +296,19 @@ void main() {
     );
   });
 
-  test('AuthException shows session-expired message', () async {
+  test('AuthException shows session-expired message and funnels auth',
+      () async {
+    auth.login(
+      provider: const OidcProvider(
+        discoveryUrl: 'https://sso/.well-known/openid-configuration',
+        clientId: 'c',
+      ),
+      tokens: AuthTokens(
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      ),
+    );
     api.nextQuizAnswerError = const AuthException(message: 'session expired');
     controller.start(_quiz());
     controller.updateInput(const TextInput('answer'));
@@ -300,6 +317,33 @@ void main() {
       controller.submissionError.value,
       'Your session has expired. Please sign in again.',
     );
+    expect(auth.session.value, isA<ExpiredSession>());
+  });
+
+  test('PermissionDeniedException shows no-permission message, no funnel',
+      () async {
+    auth.login(
+      provider: const OidcProvider(
+        discoveryUrl: 'https://sso/.well-known/openid-configuration',
+        clientId: 'c',
+      ),
+      tokens: AuthTokens(
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      ),
+    );
+    api.nextQuizAnswerError =
+        const PermissionDeniedException(message: 'forbidden');
+    controller.start(_quiz());
+    controller.updateInput(const TextInput('answer'));
+    await controller.submitAnswer();
+    expect(
+      controller.submissionError.value,
+      "You don't have permission to submit answers in this quiz.",
+    );
+    // Session is not flipped — 403 doesn't mean we should re-auth.
+    expect(auth.session.value, isA<ActiveSession>());
   });
 
   test('non-Exception error preserves input and sets error message', () async {

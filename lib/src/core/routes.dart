@@ -12,7 +12,11 @@ class AppRoutes {
   static const networkInspector = '/diagnostics/network';
   static const authCallback = '/auth/callback';
 
-  static String homeWithUrl(String url) => '/?url=${Uri.encodeComponent(url)}';
+  static String homeWithUrl(String url, {String? returnTo}) {
+    final base = '/?url=${Uri.encodeComponent(url)}';
+    if (returnTo == null) return base;
+    return '$base&returnTo=${Uri.encodeComponent(returnTo)}';
+  }
 
   static String versionsForServer(String serverAlias) =>
       '/versions/server/$serverAlias';

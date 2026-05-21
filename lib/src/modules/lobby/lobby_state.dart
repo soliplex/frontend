@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 
-import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
+import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_client/soliplex_client.dart'
+    show AuthException, PermissionDeniedException, SoliplexApi;
 
+import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 
@@ -42,6 +45,11 @@ class RoomsFailed extends ServerRooms {
   RoomsFailed(this.error);
   final Object error;
 }
+
+/// The server's session has expired. Tokens are preserved (for a silent
+/// refresh attempt later), but the user must re-authenticate to see
+/// rooms. The lobby renders an inline "sign in again" affordance.
+class RoomsExpired extends ServerRooms {}
 
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
@@ -112,14 +120,31 @@ class LobbyState {
     if (entry.isConnected) {
       _fetchRooms(serverId, entry);
       _fetchUserProfile(serverId, entry);
-    } else {
-      final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
-        ..remove(serverId);
-      final updatedProfiles =
-          Map<String, UserProfile?>.from(_userProfiles.value)..remove(serverId);
-      _cancelTokens.remove(serverId)?.cancel('disconnected');
-      _roomsByServer.value = updatedRooms;
-      _userProfiles.value = updatedProfiles;
+      return;
+    }
+    _cancelTokens.remove(serverId)?.cancel('disconnected');
+    switch (entry.auth.session.value) {
+      case ExpiredSession():
+        // Keep the row visible with an inline "sign in again" affordance.
+        // The previously-known profile is dropped so a re-auth as a
+        // different identity does not briefly render the prior user's
+        // name.
+        _roomsByServer.value = {
+          ..._roomsByServer.value,
+          serverId: RoomsExpired(),
+        };
+        _userProfiles.value = {..._userProfiles.value, serverId: null};
+      case NoSession():
+        // Signed out: prune the row.
+        final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
+          ..remove(serverId);
+        final updatedProfiles =
+            Map<String, UserProfile?>.from(_userProfiles.value)
+              ..remove(serverId);
+        _roomsByServer.value = updatedRooms;
+        _userProfiles.value = updatedProfiles;
+      case ActiveSession():
+        assert(false, 'ActiveSession reached the !isConnected branch');
     }
   }
 
@@ -143,9 +168,28 @@ class LobbyState {
         ..._roomsByServer.value,
         serverId: RoomsLoaded(rooms),
       };
-    }).catchError((Object error) {
+    }).catchError((Object error, StackTrace st) {
       if (token.isCancelled) return;
       _cancelTokens.remove(serverId);
+      if (error is AuthException) {
+        // Funnel to the per-server auth funnel. _onAuthChanged observes
+        // the ExpiredSession transition and writes RoomsExpired so the
+        // lobby keeps the row with an inline "sign in again" affordance.
+        entry.auth.markSessionExpired();
+        return;
+      }
+      if (error is! PermissionDeniedException) {
+        // PermissionDeniedException is rendered inline by the lobby
+        // section; everything else (network, 5xx, decode, programmer
+        // errors) would otherwise be stringified into the UI with no
+        // backing log.
+        dev.log(
+          'Failed to fetch rooms for $serverId',
+          error: error,
+          stackTrace: st,
+          level: 1000,
+        );
+      }
       _roomsByServer.value = {
         ..._roomsByServer.value,
         serverId: RoomsFailed(error),
@@ -165,8 +209,24 @@ class LobbyState {
         profile = null;
       }
       _userProfiles.value = {..._userProfiles.value, serverId: profile};
-    }).catchError((Object _) {
+    }).catchError((Object error, StackTrace st) {
       if (!_authSubscriptions.containsKey(serverId)) return;
+      if (error is AuthException) {
+        entry.auth.markSessionExpired();
+        return;
+      }
+      // Profile is optional sidebar metadata; silent null is the correct
+      // UI disposition for PermissionDeniedException and other failures.
+      // Log everything else so 5xx / decode / programmer errors stay
+      // debuggable — there is no surface in the UI for them otherwise.
+      if (error is! PermissionDeniedException) {
+        dev.log(
+          'Failed to fetch user profile for $serverId',
+          error: error,
+          stackTrace: st,
+          level: 900,
+        );
+      }
       _userProfiles.value = {..._userProfiles.value, serverId: null};
     });
   }

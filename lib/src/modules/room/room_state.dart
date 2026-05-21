@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
 import 'run_registry.dart';
@@ -36,6 +37,7 @@ class RoomState {
     required UploadTrackerRegistry uploadRegistry,
     this.onNavigateToThread,
   })  : _connection = serverEntry.connection,
+        _auth = serverEntry.auth,
         _roomId = roomId,
         _runtimeManager = runtimeManager,
         _registry = registry,
@@ -53,6 +55,7 @@ class RoomState {
   }
 
   final ServerConnection _connection;
+  final AuthSession _auth;
   final String _roomId;
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
@@ -113,6 +116,7 @@ class RoomState {
     _activeThreadView?.dispose();
     _activeThreadView = ThreadViewState(
       connection: _connection,
+      auth: _auth,
       roomId: _roomId,
       threadId: threadId,
       registry: _registry,

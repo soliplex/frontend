@@ -7,8 +7,12 @@ enum FailureReason {
   /// Server returned an error event in the AG-UI stream.
   serverError,
 
-  /// Auth token expired or was rejected (401/403).
+  /// Auth token expired or was rejected (401).
   authExpired,
+
+  /// Server returned 403: the user is authenticated but lacks
+  /// permission for this resource. Re-authenticating won't help.
+  permissionDenied,
 
   /// Network lost — SSE stream ended without a terminal event.
   networkLost,

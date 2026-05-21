@@ -45,6 +45,7 @@ class _QuizScreenState extends State<QuizScreen> {
     _quizFuture = _fetchQuiz();
     _controller = QuizSessionController(
       api: api,
+      auth: widget.serverEntry.auth,
       roomId: widget.roomId,
       logger: _logger,
     );
@@ -103,6 +104,11 @@ class _QuizScreenState extends State<QuizScreen> {
               final (message, action, label) = switch (error) {
                 AuthException() => (
                     'Your session has expired. Please sign in again.',
+                    _handleBack,
+                    'Back to Room',
+                  ),
+                PermissionDeniedException() => (
+                    "You don't have permission to view this quiz.",
                     _handleBack,
                     'Back to Room',
                   ),

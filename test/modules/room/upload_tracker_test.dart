@@ -4,7 +4,11 @@ import 'dart:io' show FileSystemException, SocketException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+
+import '../../helpers/fakes.dart';
 
 class MockSoliplexApi extends Mock implements SoliplexApi {}
 
@@ -27,9 +31,12 @@ void main() {
     registerFallbackValue(CancelToken());
   });
 
+  late AuthSession auth;
+
   setUp(() {
     mockApi = MockSoliplexApi();
-    tracker = UploadTracker(api: mockApi);
+    auth = AuthSession(refreshService: FakeTokenRefreshService());
+    tracker = UploadTracker(api: mockApi, auth: auth);
   });
 
   tearDown(() {
@@ -1086,6 +1093,18 @@ void main() {
       unawaited(tracker.refreshRoom('room-1'));
       await _pump();
 
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
       var callCount = 0;
       when(() => mockApi.uploadFileToRoom(
             any(),
@@ -1119,7 +1138,71 @@ void main() {
       final failed = status.uploads.whereType<FailedUpload>().single;
       expect(failed.filename, 'fail.pdf');
       expect(failed.message, 'Session expired. Please sign in again.');
+
+      // Session funneled through markSessionExpired so route guard
+      // and lobby UX can react. Tokens preserved.
+      expect(auth.session.value, isA<ExpiredSession>());
     });
+
+    test(
+      'auth flip to ExpiredSession cancels pending uploads',
+      () async {
+        stubGetRoomUploads([]);
+        unawaited(tracker.refreshRoom('room-1'));
+        await _pump();
+
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        // Stage an upload whose POST blocks until we tell it to.
+        final postCompleter = Completer<void>();
+        late CancelToken capturedToken;
+        when(() => mockApi.uploadFileToRoom(
+              any(),
+              filename: any(named: 'filename'),
+              openStream: any(named: 'openStream'),
+              contentLength: any(named: 'contentLength'),
+              mimeType: any(named: 'mimeType'),
+              webFileBlob: any(named: 'webFileBlob'),
+              onProgress: any(named: 'onProgress'),
+              cancelToken: any(named: 'cancelToken'),
+            )).thenAnswer((invocation) async {
+          capturedToken = invocation.namedArguments[const Symbol('cancelToken')]
+              as CancelToken;
+          await postCompleter.future;
+          if (capturedToken.isCancelled) throw const CancelledException();
+        });
+
+        tracker.uploadToRoom(
+          roomId: 'room-1',
+          filename: 'slow.pdf',
+          openStream: () => Stream<List<int>>.value(const [1]),
+          contentLength: 1,
+        );
+        await _pump();
+
+        // Sanity: the upload's token is alive while POST is in flight.
+        expect(capturedToken.isCancelled, isFalse);
+
+        // Flip auth on this server (could be triggered from anywhere).
+        auth.markSessionExpired();
+
+        expect(capturedToken.isCancelled, isTrue);
+
+        // Let the staged POST observe the cancel and unblock.
+        postCompleter.complete();
+        await _pump();
+      },
+    );
 
     test(
       'progress emissions update PendingUpload.sentBytes as chunks flow',

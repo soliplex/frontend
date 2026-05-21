@@ -3,8 +3,8 @@ import 'package:test/test.dart';
 
 void main() {
   group('FailureReason', () {
-    test('has exactly 8 values', () {
-      expect(FailureReason.values, hasLength(8));
+    test('has exactly 9 values', () {
+      expect(FailureReason.values, hasLength(9));
     });
 
     test('contains all expected values', () {
@@ -13,6 +13,7 @@ void main() {
         containsAll([
           FailureReason.serverError,
           FailureReason.authExpired,
+          FailureReason.permissionDenied,
           FailureReason.networkLost,
           FailureReason.streamResumeFailed,
           FailureReason.rateLimited,

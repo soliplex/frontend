@@ -1,18 +1,22 @@
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../auth/auth_session.dart';
 import 'quiz_session.dart';
 
 class QuizSessionController {
   QuizSessionController({
     required SoliplexApi api,
+    required AuthSession auth,
     required String roomId,
     required Logger logger,
   })  : _api = api,
+        _auth = auth,
         _roomId = roomId,
         _logger = logger;
 
   final SoliplexApi _api;
+  final AuthSession _auth;
   final String _roomId;
   final Logger _logger;
 
@@ -102,10 +106,15 @@ class QuizSessionController {
         error: e,
         stackTrace: stackTrace,
       );
+      if (e is AuthException) {
+        _auth.markSessionExpired();
+      }
       _recoverFromSubmitError(
         input,
         switch (e) {
           AuthException() => 'Your session has expired. Please sign in again.',
+          PermissionDeniedException() =>
+            "You don't have permission to submit answers in this quiz.",
           NotFoundException() => 'This question is no longer available.',
           NetworkException() =>
             'Could not reach the server. Check your connection and try again.',

@@ -80,11 +80,45 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         ),
       );
 
-      if (mounted) context.go(AppRoutes.lobby);
+      if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
-      dev.log('Auth callback failed', error: e, stackTrace: st);
+      dev.log(
+        'Auth callback failed',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
       _fail('Something went wrong. Please try again.');
     }
+  }
+
+  /// Returns [returnTo] if it's a safe relative in-app path, else
+  /// falls back to the lobby.
+  ///
+  /// Defense in depth on top of [PreAuthState]'s constructor
+  /// validation: rejects absolute URLs (`http://`, `https://`) and
+  /// protocol-relative URLs (`//host/...`) so a tampered storage entry
+  /// cannot open-redirect the user even if it bypassed the type
+  /// invariant.
+  String _safeReturnTo(String? returnTo) {
+    if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
+    if (returnTo.startsWith('//') ||
+        returnTo.startsWith('http://') ||
+        returnTo.startsWith('https://')) {
+      dev.log(
+        'Rejected returnTo (open-redirect target): $returnTo',
+        level: 900,
+      );
+      return AppRoutes.lobby;
+    }
+    if (!returnTo.startsWith('/')) {
+      dev.log(
+        'Rejected returnTo (not an absolute path): $returnTo',
+        level: 800,
+      );
+      return AppRoutes.lobby;
+    }
+    return returnTo;
   }
 
   void _fail(String message) {

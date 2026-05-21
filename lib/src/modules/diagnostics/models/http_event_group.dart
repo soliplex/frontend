@@ -83,6 +83,16 @@ class HttpEventGroup {
     return null;
   }
 
+  /// Whether [timestamp] would return a value rather than throw.
+  ///
+  /// False for orphan groups whose only event is a [response] or
+  /// [streamEnd]. Orphans appear when the inspector's bounded FIFO
+  /// buffer evicts a [request] / [streamStart] while its later-arriving
+  /// counterpart remains. Callers that need a sortable timestamp should
+  /// skip these groups.
+  bool get hasTimestamp =>
+      request != null || streamStart != null || error != null;
+
   DateTime get timestamp {
     if (request case HttpRequestEvent(:final timestamp)) return timestamp;
     if (streamStart case HttpStreamStartEvent(:final timestamp)) {

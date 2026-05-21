@@ -11,8 +11,6 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart'
 
 import '../../helpers/fakes.dart';
 
-class _FakeAuthSession extends Fake implements AuthSession {}
-
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
       api: api,
@@ -23,7 +21,7 @@ ServerEntry _fakeServerEntry(ServerConnection connection) => ServerEntry(
       serverId: connection.serverId,
       alias: connection.serverId,
       serverUrl: Uri.parse('https://${connection.serverId}.example.com'),
-      auth: _FakeAuthSession(),
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
       httpClient: FakeHttpClient(),
       connection: connection,
     );

@@ -556,7 +556,7 @@ void main() {
         );
       });
 
-      test('throws AuthException for 403 response', () async {
+      test('throws PermissionDeniedException for 403 response', () async {
         when(
           () => mockClient.request(
             any(),
@@ -572,11 +572,30 @@ void main() {
         await expectLater(
           transport.request<void>('GET', Uri.parse('https://api.example.com')),
           throwsA(
-            isA<AuthException>()
+            isA<PermissionDeniedException>()
                 .having((e) => e.statusCode, 'statusCode', 403)
                 .having((e) => e.message, 'message', 'Forbidden')
                 .having((e) => e.serverMessage, 'serverMessage', 'Forbidden'),
           ),
+        );
+      });
+
+      test('403 is not caught as AuthException', () async {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => jsonResponse(403, body: {'error': 'Forbidden'}),
+        );
+
+        await expectLater(
+          transport.request<void>('GET', Uri.parse('https://api.example.com')),
+          throwsA(isNot(isA<AuthException>())),
         );
       });
 
