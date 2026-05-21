@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -157,6 +158,20 @@ class RoomState {
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
+    } on PermissionDeniedException catch (error) {
+      if (_isDisposed) return null;
+      _lastError.value = SendError(error);
+      return null;
+    } on AuthException catch (error) {
+      if (_isDisposed) return null;
+      dev.log(
+        'createThread hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+      return null;
     } on Object catch (error) {
       if (_isDisposed) return null;
       _lastError.value = SendError(error);
