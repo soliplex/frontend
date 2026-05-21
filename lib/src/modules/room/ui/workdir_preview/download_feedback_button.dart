@@ -61,15 +61,16 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
 
   Future<void> _handleTap() async {
     if (_inFlight) return;
-    _inFlight = true;
+    setState(() => _inFlight = true);
     DownloadOutcome outcome;
     try {
       outcome = await widget.onDownload();
     } catch (error, stack) {
       // The typedef is Future<DownloadOutcome>; a throw is a contract
-      // violation. Log at error level (vs warning for routine IO
-      // failure) and tag the runtime type so a refactor-introduced
-      // TypeError is grep-distinguishable from network exceptions.
+      // violation. Log at error level — routine IO failures resolve to
+      // DownloadOutcome.failed without throwing — and tag the runtime
+      // type so unexpected throws are grep-distinguishable from
+      // network exceptions.
       _logger.error(
         widget.logTag,
         error: error,
@@ -81,12 +82,14 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
         },
       );
       outcome = DownloadOutcome.failed;
-    } finally {
-      _inFlight = false;
     }
     if (!mounted) return;
-    if (outcome == DownloadOutcome.cancelled) return;
+    if (outcome == DownloadOutcome.cancelled) {
+      setState(() => _inFlight = false);
+      return;
+    }
     setState(() {
+      _inFlight = false;
       _state = outcome == DownloadOutcome.success
           ? DownloadFeedbackState.success
           : DownloadFeedbackState.error;
@@ -99,7 +102,9 @@ class _DownloadFeedbackButtonState extends State<DownloadFeedbackButton> {
 
   @override
   Widget build(BuildContext context) {
-    final onTap = _state == DownloadFeedbackState.idle ? _handleTap : null;
+    final onTap = (!_inFlight && _state == DownloadFeedbackState.idle)
+        ? _handleTap
+        : null;
     return widget.builder(context, _state, onTap);
   }
 }

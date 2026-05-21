@@ -91,11 +91,6 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          _logger.warning(
-            'workdir file listing failed',
-            error: snapshot.error,
-            stackTrace: snapshot.stackTrace,
-          );
           return _WorkdirErrorRow(onRetry: _retry);
         }
         final files = snapshot.data;
@@ -470,9 +465,9 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             file,
           );
         }
-        final bytes = snapshot.data;
-        if (bytes == null || bytes.isEmpty) {
-          _logger.warning(
+        final bytes = snapshot.data!;
+        if (bytes.isEmpty) {
+          _logger.debug(
             'preview bytes empty',
             attributes: {'filename': file.filename},
           );
@@ -484,6 +479,14 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
           );
         }
         if (bytes.length > previewSizeCapBytes) {
+          _logger.debug(
+            'preview bytes exceed size cap',
+            attributes: {
+              'filename': file.filename,
+              'byteLength': bytes.length,
+              'capBytes': previewSizeCapBytes,
+            },
+          );
           return TooLargePreview(
             filename: file.filename,
             byteSize: bytes.length,

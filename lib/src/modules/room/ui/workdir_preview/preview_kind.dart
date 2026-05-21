@@ -38,12 +38,32 @@ enum PreviewKind {
   /// Whether the in-app pager can render this kind. False for kinds
   /// that fall through to download (pdf — no client-side renderer in
   /// this app; unknown — no useful mapping).
-  bool get canRender => this != PreviewKind.pdf && this != PreviewKind.unknown;
+  bool get canRender => switch (this) {
+        PreviewKind.image ||
+        PreviewKind.svg ||
+        PreviewKind.markdown ||
+        PreviewKind.code ||
+        PreviewKind.text ||
+        PreviewKind.html ||
+        PreviewKind.csv ||
+        PreviewKind.json =>
+          true,
+        PreviewKind.pdf || PreviewKind.unknown => false,
+      };
 
   /// Whether the renderer for this kind expects a decoded `String`
-  /// (true) or raw `Uint8List` bytes (false). All renderable kinds
-  /// except [image] are text-shaped.
-  bool get isText => canRender && this != PreviewKind.image;
+  /// (true) or raw `Uint8List` bytes (false).
+  bool get isText => switch (this) {
+        PreviewKind.svg ||
+        PreviewKind.markdown ||
+        PreviewKind.code ||
+        PreviewKind.text ||
+        PreviewKind.html ||
+        PreviewKind.csv ||
+        PreviewKind.json =>
+          true,
+        PreviewKind.image || PreviewKind.pdf || PreviewKind.unknown => false,
+      };
 
   /// Material icon mapping for the file-row leading position.
   IconData get rowIcon => switch (this) {

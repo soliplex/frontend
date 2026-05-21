@@ -30,11 +30,22 @@ void main() {
     expect(taps, 1);
   });
 
-  testWidgets('null onTap propagates to the underlying InkWell',
+  testWidgets('null onTap is reported as a disabled button in semantics',
       (tester) async {
+    final handle = tester.ensureSemantics();
+
     await tester.pumpWidget(_wrap(const PreviewIconButton(onTap: null)));
 
-    final inkWell = tester.widget<InkWell>(find.byType(InkWell));
-    expect(inkWell.onTap, isNull);
+    expect(
+      tester.getSemantics(find.byType(PreviewIconButton)),
+      matchesSemantics(
+        label: 'Preview',
+        isButton: true,
+        hasEnabledState: true,
+        // No isEnabled — onTap is null so the button reports disabled.
+      ),
+    );
+
+    handle.dispose();
   });
 }

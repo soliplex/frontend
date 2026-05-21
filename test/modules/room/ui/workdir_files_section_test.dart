@@ -1073,6 +1073,49 @@ void main() {
       // bytes from the fallback body.
       expect(find.text('Download'), findsOneWidget);
     });
+
+    testWidgets('invalid image bytes show the "image looks corrupt" message',
+        (tester) async {
+      // `.png` filename routes to the image branch; Image.memory's
+      // errorBuilder fires for non-PNG bytes and the page swaps to
+      // _ImageOrFallback's fallback. A regression that collapsed image
+      // and generic fallbacks would lose this specific copy.
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('plot.png')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async =>
+            Uint8List.fromList(const [0x00, 0x01, 0x02, 0x03]),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This image looks corrupt'), findsOneWidget);
+      expect(find.text("Can't preview this file"), findsNothing);
+      expect(find.text('This file looks binary'), findsNothing);
+    });
+
+    testWidgets('invalid svg content shows the "SVG looks corrupt" message',
+        (tester) async {
+      // `.svg` routes through the text-decode path, then SvgPreview's
+      // parser rejects the content and swaps in its fallback. Distinct
+      // from the image corrupt-copy and the generic unsupported copy.
+      await tester.pumpWidget(_wrap(WorkdirFilesSection(
+        runId: 'run-1',
+        fetchFiles: (_) async => [_file('chart.svg')],
+        onDownload: (_, __) async => DownloadOutcome.success,
+        onPreview: (_, __) async =>
+            Uint8List.fromList('not actually svg'.codeUnits),
+      )));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This SVG looks corrupt'), findsOneWidget);
+      expect(find.text('This image looks corrupt'), findsNothing);
+      expect(find.text("Can't preview this file"), findsNothing);
+    });
   });
 
   group('DownloadFeedbackButton (via empty-bytes path)', () {
@@ -1169,5 +1212,32 @@ void main() {
 
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
     });
+  });
+
+  testWidgets(
+      'WorkdirPreviewPage.show clamps an out-of-range initialIndex to the last file',
+      (tester) async {
+    // A stale initialIndex (e.g. the file list mutated between render
+    // and tap) must not assert/crash; show() clamps to a valid slide.
+    final files = [_file('a.png'), _file('b.png'), _file('c.png')];
+    late BuildContext capturedContext;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(builder: (context) {
+        capturedContext = context;
+        return const Scaffold(body: SizedBox.shrink());
+      }),
+    ));
+
+    WorkdirPreviewPage.show(
+      context: capturedContext,
+      files: files,
+      initialIndex: 99,
+      fetchBytes: (_) async => _tinyPng,
+      onDownload: (_) async => DownloadOutcome.success,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('c.png'), findsOneWidget);
   });
 }
