@@ -70,7 +70,7 @@ class RoomState {
   CancelToken? _roomFetchToken;
   bool _isDisposed = false;
 
-  final SessionSpawner _spawner = SessionSpawner();
+  late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;

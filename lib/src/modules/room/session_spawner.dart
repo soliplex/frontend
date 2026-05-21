@@ -1,8 +1,10 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
 import 'send_error.dart';
 
 /// Owns the pending-spawn state machine shared by [ThreadViewState] and
@@ -30,6 +32,9 @@ import 'send_error.dart';
 /// already knows a cancel is happening and may want to bundle other
 /// side-effects with the signal clear.
 class SessionSpawner {
+  SessionSpawner({required AuthSession auth}) : _auth = auth;
+
+  final AuthSession _auth;
   Future<AgentSession>? _pendingSpawn;
   bool _cancelled = false;
 
@@ -68,6 +73,18 @@ class SessionSpawner {
       if (_cancelled) return;
       onSpawned(session); // Callback owns the dispose/attach decision.
       succeeded = true;
+    } on PermissionDeniedException catch (error) {
+      if (_cancelled || isDisposed()) return;
+      errorSignal.value = SendError(error, unsentText: prompt);
+    } on AuthException catch (error) {
+      if (_cancelled || isDisposed()) return;
+      dev.log(
+        'Spawn hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'SessionSpawner',
+        level: 900,
+      );
+      _auth.markSessionExpired();
     } on Object catch (error) {
       if (_cancelled || isDisposed()) return;
       errorSignal.value = SendError(error, unsentText: prompt);

@@ -98,7 +98,7 @@ class ThreadViewState {
   void Function()? _sendErrorUnsub;
   bool _isDisposed = false;
 
-  final SessionSpawner _spawner = SessionSpawner();
+  late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<ThreadViewStatus> _messages =
       Signal<ThreadViewStatus>(MessagesLoading());
