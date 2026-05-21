@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show AuthException, SoliplexApi;
+    show AuthException, PermissionDeniedException, SoliplexApi;
 
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
@@ -144,7 +145,7 @@ class LobbyState {
         ..._roomsByServer.value,
         serverId: RoomsLoaded(rooms),
       };
-    }).catchError((Object error) {
+    }).catchError((Object error, StackTrace st) {
       if (token.isCancelled) return;
       _cancelTokens.remove(serverId);
       if (error is AuthException) {
@@ -154,9 +155,18 @@ class LobbyState {
         entry.auth.markSessionExpired();
         return;
       }
-      // PermissionDeniedException flows through to RoomsFailed; re-auth
-      // wouldn't help, so the UI renders a permission-specific message
-      // instead of triggering the auth funnel.
+      if (error is! PermissionDeniedException) {
+        // PermissionDeniedException is rendered inline by the lobby
+        // section; everything else (network, 5xx, decode, programmer
+        // errors) would otherwise be stringified into the UI with no
+        // backing log.
+        dev.log(
+          'Failed to fetch rooms for $serverId',
+          error: error,
+          stackTrace: st,
+          level: 1000,
+        );
+      }
       _roomsByServer.value = {
         ..._roomsByServer.value,
         serverId: RoomsFailed(error),
@@ -176,15 +186,24 @@ class LobbyState {
         profile = null;
       }
       _userProfiles.value = {..._userProfiles.value, serverId: profile};
-    }).catchError((Object error) {
+    }).catchError((Object error, StackTrace st) {
       if (!_authSubscriptions.containsKey(serverId)) return;
       if (error is AuthException) {
         entry.auth.markSessionExpired();
         return;
       }
       // Profile is optional sidebar metadata; silent null is the correct
-      // disposition for PermissionDeniedException and other failures —
-      // there is no UI affordance to surface or recover from.
+      // UI disposition for PermissionDeniedException and other failures.
+      // Log everything else so 5xx / decode / programmer errors stay
+      // debuggable — there is no surface in the UI for them otherwise.
+      if (error is! PermissionDeniedException) {
+        dev.log(
+          'Failed to fetch user profile for $serverId',
+          error: error,
+          stackTrace: st,
+          level: 900,
+        );
+      }
       _userProfiles.value = {..._userProfiles.value, serverId: null};
     });
   }
