@@ -1,8 +1,14 @@
+import 'package:flutter/material.dart';
+
 /// What kind of in-app preview a workdir file should render.
 ///
 /// Detection is extension-based — bytes-sniffing isn't worth the latency
 /// for an in-chat preview, and the workdir filenames come from agent
 /// tools that already carry a meaningful suffix.
+///
+/// Each variant owns its mapping to a row icon and (where applicable)
+/// a highlight language id, so adding a kind is a compile-checked edit
+/// of this file alone.
 enum PreviewKind {
   image,
   svg,
@@ -13,7 +19,67 @@ enum PreviewKind {
   csv,
   json,
   pdf,
-  unknown,
+  unknown;
+
+  /// The kind for [filename] based on its extension. Case-insensitive.
+  /// `.bashrc` (leading dot, nothing before it) and unrecognized
+  /// extensions yield [PreviewKind.unknown].
+  static PreviewKind from(String filename) {
+    final ext = extensionOf(filename);
+    if (ext == null) return PreviewKind.unknown;
+    if (_imageExtensions.contains(ext)) return PreviewKind.image;
+    if (ext == 'svg') return PreviewKind.svg;
+    if (_markdownExtensions.contains(ext)) return PreviewKind.markdown;
+    if (_htmlExtensions.contains(ext)) return PreviewKind.html;
+    if (ext == 'json') return PreviewKind.json;
+    if (_csvExtensions.contains(ext)) return PreviewKind.csv;
+    if (ext == 'pdf') return PreviewKind.pdf;
+    if (_languageByCodeExtension.containsKey(ext)) return PreviewKind.code;
+    if (_textExtensions.contains(ext)) return PreviewKind.text;
+    return PreviewKind.unknown;
+  }
+
+  /// Whether the in-app pager can render this kind. False for kinds
+  /// that fall through to download (pdf — no client-side renderer in
+  /// this app; unknown — no useful mapping).
+  bool get canRender => this != PreviewKind.pdf && this != PreviewKind.unknown;
+
+  /// Material icon for the file-row leading position. The row picks
+  /// [Icons.insert_drive_file_outlined] directly for non-previewable
+  /// rows; this getter is for the previewable case.
+  IconData get rowIcon => switch (this) {
+        PreviewKind.image => Icons.image_outlined,
+        PreviewKind.svg => Icons.image_outlined,
+        PreviewKind.markdown => Icons.article_outlined,
+        PreviewKind.code => Icons.code,
+        PreviewKind.text => Icons.description_outlined,
+        PreviewKind.html => Icons.code,
+        PreviewKind.csv => Icons.table_chart_outlined,
+        PreviewKind.json => Icons.data_object,
+        PreviewKind.pdf => Icons.picture_as_pdf_outlined,
+        PreviewKind.unknown => Icons.insert_drive_file_outlined,
+      };
+
+  /// flutter_highlight language id for [CodeBlockBuilder]. For [code],
+  /// looks up [filename]'s extension; for [html] and [csv] the language
+  /// is fixed. Other kinds don't render through the code-block path —
+  /// they get 'plaintext' so the getter is total.
+  String highlightLanguageFor(String filename) => switch (this) {
+        PreviewKind.html => 'xml',
+        PreviewKind.csv => 'plaintext',
+        PreviewKind.code =>
+          _languageByCodeExtension[extensionOf(filename) ?? ''] ?? 'plaintext',
+        _ => 'plaintext',
+      };
+}
+
+/// Lower-cased extension without the leading dot, or `null` when the
+/// filename has no usable extension. `.bashrc` (leading dot, nothing
+/// before it) yields `null`.
+String? extensionOf(String filename) {
+  final dot = filename.lastIndexOf('.');
+  if (dot <= 0) return null;
+  return filename.substring(dot + 1).toLowerCase();
 }
 
 const _imageExtensions = <String>{
@@ -39,81 +105,47 @@ const _textExtensions = <String>{
   'conf',
 };
 
-/// Code extensions the syntax highlighter understands. Kept as a flat set;
-/// the ext → highlight language id lookup lives in [codeExtensions] so the
-/// two stay in sync via that single map.
-const _codeExtensions = <String>{
-  'dart',
-  'py',
-  'js',
-  'mjs',
-  'cjs',
-  'ts',
-  'tsx',
-  'jsx',
-  'go',
-  'rs',
-  'java',
-  'kt',
-  'kts',
-  'swift',
-  'c',
-  'cc',
-  'cpp',
-  'cxx',
-  'h',
-  'hh',
-  'hpp',
-  'cs',
-  'rb',
-  'php',
-  'sh',
-  'bash',
-  'zsh',
-  'fish',
-  'ps1',
-  'r',
-  'scala',
-  'lua',
-  'pl',
-  'sql',
-  'yaml',
-  'yml',
-  'toml',
-  'xml',
-  'gradle',
-  'groovy',
-  'makefile',
-  'dockerfile',
+const _languageByCodeExtension = <String, String>{
+  'dart': 'dart',
+  'py': 'python',
+  'js': 'javascript',
+  'mjs': 'javascript',
+  'cjs': 'javascript',
+  'ts': 'typescript',
+  'tsx': 'typescript',
+  'jsx': 'javascript',
+  'go': 'go',
+  'rs': 'rust',
+  'java': 'java',
+  'kt': 'kotlin',
+  'kts': 'kotlin',
+  'swift': 'swift',
+  'c': 'c',
+  'cc': 'cpp',
+  'cpp': 'cpp',
+  'cxx': 'cpp',
+  'h': 'c',
+  'hh': 'cpp',
+  'hpp': 'cpp',
+  'cs': 'csharp',
+  'rb': 'ruby',
+  'php': 'php',
+  'sh': 'bash',
+  'bash': 'bash',
+  'zsh': 'bash',
+  'fish': 'bash',
+  'ps1': 'powershell',
+  'r': 'r',
+  'scala': 'scala',
+  'lua': 'lua',
+  'pl': 'perl',
+  'sql': 'sql',
+  'yaml': 'yaml',
+  'yml': 'yaml',
+  'toml': 'ini',
+  'xml': 'xml',
+  'gradle': 'groovy',
+  'groovy': 'groovy',
+  'makefile': 'makefile',
+  'dockerfile': 'dockerfile',
 };
-
-/// Returns the [PreviewKind] for [filename] based on its extension.
-///
-/// Case-insensitive. Files with no extension (or only a leading dot,
-/// like `.bashrc`) are [PreviewKind.unknown] — the preview row falls
-/// back to download-only for those.
-PreviewKind detectPreviewKind(String filename) {
-  final ext = _extensionOf(filename);
-  if (ext == null) return PreviewKind.unknown;
-
-  if (_imageExtensions.contains(ext)) return PreviewKind.image;
-  if (ext == 'svg') return PreviewKind.svg;
-  if (_markdownExtensions.contains(ext)) return PreviewKind.markdown;
-  if (_htmlExtensions.contains(ext)) return PreviewKind.html;
-  if (ext == 'json') return PreviewKind.json;
-  if (_csvExtensions.contains(ext)) return PreviewKind.csv;
-  if (ext == 'pdf') return PreviewKind.pdf;
-  if (_codeExtensions.contains(ext)) return PreviewKind.code;
-  if (_textExtensions.contains(ext)) return PreviewKind.text;
-
-  return PreviewKind.unknown;
-}
-
-/// Lower-cased extension without the leading dot, or `null` when the
-/// filename has no usable extension. `.bashrc` (leading dot, nothing
-/// before it) yields `null` so it falls through to [PreviewKind.unknown].
-String? _extensionOf(String filename) {
-  final dot = filename.lastIndexOf('.');
-  if (dot <= 0) return null;
-  return filename.substring(dot + 1).toLowerCase();
-}

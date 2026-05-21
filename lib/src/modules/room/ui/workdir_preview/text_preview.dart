@@ -7,9 +7,9 @@ import '../../../../design/design.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
 /// Renders the UTF-8 string in [bytes] through the shared markdown
-/// renderer. Used for both `.md` files and plain-text files —
-/// per Jaemin's call, plain text goes through the markdown path so
-/// any embedded markdown syntax renders.
+/// renderer. Used for both `.md` files and plain-text files — plain
+/// text routes through markdown so any embedded markdown syntax in the
+/// file renders alongside the prose.
 class TextPreview extends StatelessWidget {
   const TextPreview({super.key, required this.bytes});
 

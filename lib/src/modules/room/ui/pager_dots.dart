@@ -7,8 +7,8 @@ import '../../../design/design.dart';
 ///
 /// Hidden entirely for single-item lists and for lists above
 /// [maxVisible] — past that threshold the dots stop being a useful
-/// affordance (50 tiny circles is unreadable) and the consumer should
-/// rely on other navigation (chevrons, "N / M" text, swipe).
+/// affordance and the consumer should rely on other navigation
+/// (chevrons, "N / M" text, swipe).
 class PagerDots extends StatelessWidget {
   const PagerDots({
     super.key,

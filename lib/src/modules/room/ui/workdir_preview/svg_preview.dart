@@ -3,6 +3,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final _logger = LogManager.instance.getLogger('soliplex_frontend.svg_preview');
 
 /// Renders an SVG payload inside an [InteractiveViewer]. Falls back to
 /// [fallback] if the bytes don't parse — sized as a peer of the viewer
@@ -32,8 +35,14 @@ class _SvgPreviewState extends State<SvgPreview> {
     }
   }
 
-  void _markFailed() {
+  void _markFailed(Object? error, StackTrace? stackTrace) {
     if (_failed) return;
+    _logger.warning(
+      'svg bytes failed to parse',
+      error: error,
+      stackTrace: stackTrace,
+      attributes: {'byteLength': widget.bytes.length},
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _failed = true);
     });
@@ -51,8 +60,8 @@ class _SvgPreviewState extends State<SvgPreview> {
           source,
           fit: BoxFit.contain,
           placeholderBuilder: (_) => const SizedBox.shrink(),
-          errorBuilder: (_, __, ___) {
-            _markFailed();
+          errorBuilder: (_, error, stack) {
+            _markFailed(error, stack);
             return const SizedBox.shrink();
           },
         ),

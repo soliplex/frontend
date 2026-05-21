@@ -30,12 +30,11 @@ void main() {
     expect(taps, 1);
   });
 
-  testWidgets('disabled when onTap is null', (tester) async {
+  testWidgets('null onTap propagates to the underlying InkWell',
+      (tester) async {
     await tester.pumpWidget(_wrap(const PreviewIconButton(onTap: null)));
 
-    // Tapping a null-callback InkWell is a no-op; the button just exists.
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    // No assertion needed beyond not throwing — the test confirms the
-    // disabled state renders without error.
+    final inkWell = tester.widget<InkWell>(find.byType(InkWell));
+    expect(inkWell.onTap, isNull);
   });
 }

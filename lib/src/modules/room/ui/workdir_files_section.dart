@@ -3,20 +3,25 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart';
+
 import '../../../design/design.dart';
 import '../../../shared/preview_icon_button.dart';
 import 'pager_dots.dart';
-import 'workdir_preview/code_extensions.dart';
 import 'workdir_preview/code_preview.dart';
+import 'workdir_preview/download_outcome.dart';
 import 'workdir_preview/json_preview.dart';
 import 'workdir_preview/preview_kind.dart';
 import 'workdir_preview/svg_preview.dart';
 import 'workdir_preview/text_preview.dart';
 import 'workdir_preview/too_large_preview.dart';
 
-typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
+export 'workdir_preview/download_outcome.dart' show DownloadOutcome;
 
-enum DownloadOutcome { success, cancelled, failed }
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.workdir_files');
+
+typedef FetchWorkdirFiles = Future<List<WorkdirFile>> Function(String runId);
 
 typedef DownloadWorkdirFile = Future<DownloadOutcome> Function(
   String runId,
@@ -28,29 +33,9 @@ typedef FetchWorkdirFileBytes = Future<Uint8List> Function(
   WorkdirFile file,
 );
 
-/// Files larger than this stay as a download — decoding a 50 MB log or
-/// a 25 MB PDF in the chat scroller is a guaranteed jank/OOM source.
+/// Files above this size stay as a download — decoding very large
+/// payloads in the chat scroller causes jank and OOMs.
 const previewSizeCapBytes = 5 * 1024 * 1024;
-
-bool _canPreview(String filename) {
-  final kind = detectPreviewKind(filename);
-  // PDFs need a renderer this app deliberately doesn't pull in — fall
-  // through to download. Unknown extensions have nowhere useful to go.
-  return kind != PreviewKind.unknown && kind != PreviewKind.pdf;
-}
-
-IconData _leadingIconFor(PreviewKind kind) => switch (kind) {
-      PreviewKind.image => Icons.image_outlined,
-      PreviewKind.svg => Icons.image_outlined,
-      PreviewKind.markdown => Icons.article_outlined,
-      PreviewKind.code => Icons.code,
-      PreviewKind.text => Icons.description_outlined,
-      PreviewKind.html => Icons.code,
-      PreviewKind.csv => Icons.table_chart_outlined,
-      PreviewKind.json => Icons.data_object,
-      PreviewKind.pdf => Icons.picture_as_pdf_outlined,
-      PreviewKind.unknown => Icons.insert_drive_file_outlined,
-    };
 
 class WorkdirFilesSection extends StatefulWidget {
   const WorkdirFilesSection({
@@ -104,6 +89,11 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          _logger.warning(
+            'workdir file listing failed',
+            error: snapshot.error,
+            stackTrace: snapshot.stackTrace,
+          );
           return _WorkdirErrorRow(onRetry: _retry);
         }
         final files = snapshot.data;
@@ -183,9 +173,16 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
     DownloadOutcome outcome;
     try {
       outcome = await widget.onTap();
-    } catch (_) {
+    } catch (error, stack) {
       // The contract is `Future<DownloadOutcome>`, but defend against an
       // implementation that throws so the row doesn't get stuck in idle.
+      // Log so a contract violation in a caller is findable.
+      _logger.warning(
+        'row download callback threw',
+        error: error,
+        stackTrace: stack,
+        attributes: {'filename': widget.file.filename},
+      );
       outcome = DownloadOutcome.failed;
     } finally {
       _isInFlight = false;
@@ -227,13 +224,12 @@ class _WorkdirFileRowState extends State<_WorkdirFileRow> {
           "Couldn't save",
         ),
     };
-    final kind = detectPreviewKind(widget.file.filename);
-    final canPreview =
-        widget.onOpenPreview != null && _canPreview(widget.file.filename);
-    // Row icon shows the kind only when the row can actually preview —
-    // a kind-specific icon on a row that downloads would over-promise.
+    final kind = PreviewKind.from(widget.file.filename);
+    final canPreview = widget.onOpenPreview != null && kind.canRender;
+    // Download-only rows show the generic file icon so the leading
+    // icon doesn't imply a preview is available.
     final leadingIcon =
-        canPreview ? _leadingIconFor(kind) : Icons.insert_drive_file_outlined;
+        canPreview ? kind.rowIcon : Icons.insert_drive_file_outlined;
     final downloadEnabled = _feedback == _DownloadFeedback.idle;
     return InkWell(
       onTap: canPreview
@@ -317,6 +313,10 @@ class _FilenameText extends StatelessWidget {
   }
 }
 
+@visibleForTesting
+String fitFilenameForWidth(String name, TextStyle? style, double maxWidth) =>
+    _fitFilename(name, style, maxWidth);
+
 String _fitFilename(String name, TextStyle? style, double maxWidth) {
   if (_measure(name, style) <= maxWidth) return name;
 
@@ -390,11 +390,13 @@ class WorkdirPreviewPage extends StatefulWidget {
     required Future<Uint8List> Function(WorkdirFile file) fetchBytes,
     required Future<DownloadOutcome> Function(WorkdirFile file) onDownload,
   }) {
+    assert(files.isNotEmpty, 'WorkdirPreviewPage requires at least one file');
+    final clampedIndex = initialIndex.clamp(0, files.length - 1);
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
     final child = WorkdirPreviewPage(
       files: files,
-      initialIndex: initialIndex,
+      initialIndex: clampedIndex,
       fetchBytes: fetchBytes,
       onDownload: onDownload,
       useDialogLayout: useDialog,
@@ -432,13 +434,15 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   late int _currentIndex = widget.initialIndex;
   final _focusNode = FocusNode();
 
-  /// Per-index Future cache. Lives only for this widget's lifetime, so
-  /// closing the preview frees every fetched buffer; no LRU needed.
-  final _bytesCache = <int, Future<Uint8List>>{};
+  /// Per-file Future cache. Keyed by [WorkdirFile] (which implements
+  /// `==` / `hashCode`) so swiping or re-ordering never aliases bytes
+  /// across files. Lives only for this widget's lifetime, so closing
+  /// the preview frees every fetched buffer; no LRU needed.
+  final _bytesCache = <WorkdirFile, Future<Uint8List>>{};
 
-  /// Tracks per-index retry generations so [_retry] can replace the
-  /// cached future when the user hits Retry on a failed slide.
-  final _retryTokens = <int, int>{};
+  /// Per-file retry generations so [_retry] can replace the cached
+  /// future when the user hits Retry on a failed slide.
+  final _retryTokens = <WorkdirFile, int>{};
 
   @override
   void dispose() {
@@ -447,17 +451,14 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     super.dispose();
   }
 
-  Future<Uint8List> _bytesFor(int index) {
-    return _bytesCache.putIfAbsent(
-      index,
-      () => widget.fetchBytes(widget.files[index]),
-    );
+  Future<Uint8List> _bytesFor(WorkdirFile file) {
+    return _bytesCache.putIfAbsent(file, () => widget.fetchBytes(file));
   }
 
-  void _retry(int index) {
+  void _retry(WorkdirFile file) {
     setState(() {
-      _bytesCache.remove(index);
-      _retryTokens[index] = (_retryTokens[index] ?? 0) + 1;
+      _bytesCache.remove(file);
+      _retryTokens[file] = (_retryTokens[file] ?? 0) + 1;
     });
   }
 
@@ -488,26 +489,22 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
 
   Widget _slideFor(BuildContext context, int index) {
     final file = widget.files[index];
-    final kind = detectPreviewKind(file.filename);
+    final kind = PreviewKind.from(file.filename);
     final cannot = _CannotPreview(
       onDownload: () => widget.onDownload(file),
     );
-    // Non-previewable files (PDF, unknown) skip the fetch entirely —
-    // there's nothing useful to render even if we had the bytes.
-    if (kind == PreviewKind.pdf || kind == PreviewKind.unknown) {
-      return cannot;
-    }
+    if (!kind.canRender) return cannot;
     return FutureBuilder<Uint8List>(
       // Bumping the retry token re-keys the FutureBuilder so it sees a
       // brand-new future after [_retry] drops the cache entry.
-      key: ValueKey<int>(_retryTokens[index] ?? 0),
-      future: _bytesFor(index),
+      key: ValueKey<int>(_retryTokens[file] ?? 0),
+      future: _bytesFor(file),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _buildError(context, snapshot.error!, index);
+          return _buildError(context, snapshot.error!, file);
         }
         final bytes = snapshot.data;
         if (bytes == null || bytes.isEmpty) {
@@ -530,7 +527,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     );
   }
 
-  Widget _buildError(BuildContext context, Object error, int index) {
+  Widget _buildError(BuildContext context, Object error, WorkdirFile file) {
     final theme = Theme.of(context);
     // 404 is permanent for this session — the file is gone between list
     // and preview. Retrying just refetches the same 404, so we show a
@@ -555,6 +552,11 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
         ),
       );
     }
+    _logger.warning(
+      'preview bytes fetch failed',
+      error: error,
+      attributes: {'filename': file.filename},
+    );
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -567,7 +569,7 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
           ),
           const SizedBox(height: SoliplexSpacing.s4),
           FilledButton.icon(
-            onPressed: () => _retry(index),
+            onPressed: () => _retry(file),
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
           ),
@@ -580,7 +582,12 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     final theme = Theme.of(context);
     final file = widget.files[_currentIndex];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s2,
+        SoliplexSpacing.s1,
+        SoliplexSpacing.s2,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -694,10 +701,9 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   }
 }
 
-/// Routes [bytes] to the kind-specific renderer. The image renderer
-/// keeps its decode-failure fallback (the only kind that needs one in
-/// practice — bad image bytes are common, bad code/text/json bytes
-/// just render as garbled characters).
+/// Routes [bytes] to the kind-specific renderer. Image and SVG carry
+/// a decode-failure fallback because they can throw at paint time;
+/// text-based renderers can't, so they don't.
 class _PreviewBody extends StatelessWidget {
   const _PreviewBody({
     required this.bytes,
@@ -718,24 +724,15 @@ class _PreviewBody extends StatelessWidget {
       PreviewKind.svg => SvgPreview(bytes: bytes, fallback: fallback),
       PreviewKind.markdown => TextPreview(bytes: bytes),
       PreviewKind.text => TextPreview(bytes: bytes),
-      PreviewKind.code => CodePreview(
-          bytes: bytes,
-          language: languageForExtension(_extensionOf(filename) ?? ''),
-        ),
-      PreviewKind.html => CodePreview(bytes: bytes, language: 'xml'),
-      PreviewKind.csv => CodePreview(bytes: bytes, language: 'plaintext'),
+      PreviewKind.code || PreviewKind.html || PreviewKind.csv => CodePreview(
+          bytes: bytes, language: kind.highlightLanguageFor(filename)),
       PreviewKind.json => JsonPreview(bytes: bytes),
-      // Unreachable: pdf and unknown rows can't be opened — they
-      // bypass _openPreview entirely.
+      // pdf and unknown bypass _openPreview at the row, so the pager
+      // never builds this branch for them — the fallback satisfies
+      // exhaustiveness without claiming reachability.
       PreviewKind.pdf || PreviewKind.unknown => fallback,
     };
   }
-}
-
-String? _extensionOf(String filename) {
-  final dot = filename.lastIndexOf('.');
-  if (dot <= 0) return null;
-  return filename.substring(dot + 1);
 }
 
 /// Renders [bytes] in an [InteractiveViewer]. If [Image.memory]'s
@@ -765,8 +762,14 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
     }
   }
 
-  void _markFailed() {
+  void _markFailed(Object? error, StackTrace? stackTrace) {
     if (_failed) return;
+    _logger.warning(
+      'image bytes failed to decode',
+      error: error,
+      stackTrace: stackTrace,
+      attributes: {'byteLength': widget.bytes.length},
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _failed = true);
     });
@@ -782,8 +785,8 @@ class _ImageOrFallbackState extends State<_ImageOrFallback> {
         child: Image.memory(
           widget.bytes,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) {
-            _markFailed();
+          errorBuilder: (_, error, stack) {
+            _markFailed(error, stack);
             return const SizedBox.shrink();
           },
         ),
@@ -823,7 +826,12 @@ class _CannotPreviewState extends State<_CannotPreview> {
     DownloadOutcome outcome;
     try {
       outcome = await widget.onDownload();
-    } catch (_) {
+    } catch (error, stack) {
+      _logger.warning(
+        'preview-fallback download callback threw',
+        error: error,
+        stackTrace: stack,
+      );
       outcome = DownloadOutcome.failed;
     } finally {
       _inFlight = false;

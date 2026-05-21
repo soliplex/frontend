@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../design/design.dart';
-import '../workdir_files_section.dart' show DownloadOutcome;
+import 'download_outcome.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.too_large_preview');
 
 /// Rendered when the fetched bytes exceed the preview size cap. Mirrors
 /// the inline download-feedback pattern used elsewhere (icon swaps, no
@@ -43,7 +47,12 @@ class _TooLargePreviewState extends State<TooLargePreview> {
     DownloadOutcome outcome;
     try {
       outcome = await widget.onDownload();
-    } catch (_) {
+    } catch (error, stack) {
+      _logger.warning(
+        'too-large download callback threw',
+        error: error,
+        stackTrace: stack,
+      );
       outcome = DownloadOutcome.failed;
     } finally {
       _inFlight = false;
