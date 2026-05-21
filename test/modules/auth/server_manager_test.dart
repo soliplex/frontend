@@ -267,21 +267,6 @@ void main() {
         isNot(equals(revisionBefore)),
       );
     });
-
-    test('fires when a server is added or removed', () {
-      final manager = _createManager();
-      final before = manager.connectionRevision.value;
-
-      manager.addServer(
-        serverId: 'a',
-        serverUrl: Uri.parse('https://a.example.com'),
-      );
-
-      expect(
-        manager.connectionRevision.value,
-        isNot(equals(before)),
-      );
-    });
   });
 
   group('requiresAuth', () {

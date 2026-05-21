@@ -28,13 +28,6 @@ class AuthSession implements TokenRefresher {
         NoSession() => null,
       };
 
-  /// Refresh token available for both active and expired sessions.
-  String? get refreshToken => switch (_session.value) {
-        ActiveSession(:final tokens) => tokens.refreshToken,
-        ExpiredSession(:final tokens) => tokens.refreshToken,
-        NoSession() => null,
-      };
-
   bool get isAuthenticated => _session.value is ActiveSession;
 
   void login({required OidcProvider provider, required AuthTokens tokens}) {
@@ -45,10 +38,9 @@ class AuthSession implements TokenRefresher {
     _session.value = const NoSession();
   }
 
-  /// Flip an active or expired session to [ExpiredSession], preserving
-  /// the tokens so a later refresh attempt can revive the session
-  /// silently. No-op if the session is already expired or has been
-  /// signed out.
+  /// Flip an active session to [ExpiredSession], preserving the tokens
+  /// so a later refresh attempt can revive the session silently. No-op
+  /// when the session is already expired or has been signed out.
   void markSessionExpired() {
     switch (_session.value) {
       case ActiveSession(:final provider, :final tokens):
@@ -126,18 +118,32 @@ class AuthSession implements TokenRefresher {
         return true;
 
       case TokenRefreshFailure(reason: TokenRefreshFailureReason.invalidGrant):
+        dev.log(
+          'Token refresh rejected (invalid_grant) for ${provider.discoveryUrl}',
+          level: 900,
+        );
+        markSessionExpired();
+        return false;
+
       case TokenRefreshFailure(
           reason: TokenRefreshFailureReason.noRefreshToken
         ):
+        // A refresh attempt without a refresh token is a frontend
+        // invariant violation: the session should never have been
+        // marked refreshable in the first place.
+        dev.log(
+          'Token refresh requested without a refresh token '
+          'for ${provider.discoveryUrl}',
+          level: 1000,
+        );
         markSessionExpired();
         return false;
 
       case TokenRefreshFailure(:final reason):
         // networkError is recoverable on retry; unknownError is the
-        // anomaly worth a SEVERE entry. invalidGrant and noRefreshToken
-        // are filtered earlier and reach markSessionExpired.
+        // anomaly worth a SEVERE entry.
         dev.log(
-          'Token refresh failed: ${reason.name}',
+          'Token refresh failed (${reason.name}) for ${provider.discoveryUrl}',
           level: reason == TokenRefreshFailureReason.networkError ? 900 : 1000,
         );
         return false;

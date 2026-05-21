@@ -82,7 +82,12 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
 
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
-      dev.log('Auth callback failed', error: e, stackTrace: st);
+      dev.log(
+        'Auth callback failed',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
       _fail('Something went wrong. Please try again.');
     }
   }
@@ -90,11 +95,11 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
   /// Returns [returnTo] if it's a safe relative in-app path, else
   /// falls back to the lobby.
   ///
-  /// Rejects absolute URLs (`http://`, `https://`) and
-  /// protocol-relative URLs (`//host/...`) — these could otherwise be
-  /// used as open-redirect targets when the callback honors a value
-  /// crafted by a third party. The PreAuthState cookie is short-lived
-  /// and same-origin-stored, but defense in depth.
+  /// Defense in depth on top of [PreAuthState]'s constructor
+  /// validation: rejects absolute URLs (`http://`, `https://`) and
+  /// protocol-relative URLs (`//host/...`) so a tampered storage entry
+  /// cannot open-redirect the user even if it bypassed the type
+  /// invariant.
   String _safeReturnTo(String? returnTo) {
     if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
     if (returnTo.startsWith('//') ||

@@ -58,9 +58,9 @@ class ServerManager {
   /// A revision marker that bumps on any per-server session-state
   /// change, including transitions that leave the aggregate
   /// [authState] unchanged (e.g. one of several servers flipping to
-  /// expired while others stay active). Wire GoRouter's
-  /// `refreshListenable` here so per-server route guards re-evaluate
-  /// on every transition.
+  /// expired while others stay active). Consumed by GoRouter as a
+  /// `refreshListenable` so per-server route guards re-evaluate on
+  /// every transition.
   late final ReadonlySignal<List<SessionState>> connectionRevision =
       computed(() => [
             for (final entry in _servers.value.values) entry.auth.session.value,

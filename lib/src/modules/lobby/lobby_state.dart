@@ -135,7 +135,7 @@ class LobbyState {
         };
         _userProfiles.value = {..._userProfiles.value, serverId: null};
       case NoSession():
-        // Logout or never authenticated: prune the row.
+        // Signed out: prune the row.
         final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
           ..remove(serverId);
         final updatedProfiles =
@@ -144,8 +144,6 @@ class LobbyState {
         _roomsByServer.value = updatedRooms;
         _userProfiles.value = updatedProfiles;
       case ActiveSession():
-        // Unreachable: isConnected is true when the session is
-        // ActiveSession, so the early return above would have fired.
         assert(false, 'ActiveSession reached the !isConnected branch');
     }
   }

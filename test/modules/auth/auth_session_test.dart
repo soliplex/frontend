@@ -90,18 +90,6 @@ void main() {
       expect(session.accessToken, isNull);
     });
 
-    test('refreshToken returns token for Active and Expired', () {
-      session.login(provider: _provider, tokens: _tokens());
-      expect(session.refreshToken, 'refresh');
-
-      session.markSessionExpired();
-      expect(session.refreshToken, 'refresh');
-    });
-
-    test('refreshToken returns null for NoSession', () {
-      expect(session.refreshToken, isNull);
-    });
-
     test('isAuthenticated is false for ExpiredSession', () {
       session.login(provider: _provider, tokens: _tokens());
       session.markSessionExpired();

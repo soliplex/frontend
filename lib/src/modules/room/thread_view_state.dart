@@ -292,6 +292,18 @@ class ThreadViewState {
           // banner so the user sees what happened before the redirect.
           _auth.markSessionExpired();
         }
+        if (reason == FailureReason.internalError ||
+            reason == FailureReason.serverError) {
+          // Both reasons surface to the user only as a friendly string.
+          // Without this log, the underlying error and stack are
+          // unrecoverable for diagnosis.
+          dev.log(
+            'Thread run failed: ${reason.name}',
+            error: error,
+            name: 'ThreadViewState',
+            level: 1000,
+          );
+        }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);

@@ -16,14 +16,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Includes [createdAt] for expiry — states older than [maxAge] are rejected.
 @immutable
 class PreAuthState {
-  const PreAuthState({
+  PreAuthState({
     required this.serverUrl,
     required this.providerId,
     required this.discoveryUrl,
     required this.clientId,
     required this.createdAt,
     this.frontendReturnTo,
-  });
+  }) {
+    if (frontendReturnTo != null && !_isSafeReturnTo(frontendReturnTo!)) {
+      throw ArgumentError.value(
+        frontendReturnTo,
+        'frontendReturnTo',
+        'must be an in-app path starting with "/" and not "//"',
+      );
+    }
+  }
 
   factory PreAuthState.fromJson(Map<String, dynamic> json) {
     return PreAuthState(
@@ -36,6 +44,12 @@ class PreAuthState {
     );
   }
 
+  static bool _isSafeReturnTo(String value) {
+    if (value.isEmpty) return false;
+    if (value.startsWith('//')) return false;
+    return value.startsWith('/');
+  }
+
   final Uri serverUrl;
   final String providerId;
   final String discoveryUrl;
@@ -46,12 +60,13 @@ class PreAuthState {
   /// re-auth (e.g. `/room/<alias>/<roomId>`). Null when there's no
   /// specific return target; the callback falls back to the lobby.
   ///
-  /// Must be a relative route — absolute URLs are rejected at the
-  /// callback boundary to prevent open-redirect attacks.
+  /// The constructor rejects anything that isn't a relative in-app
+  /// path (open-redirect defense): absolute URLs and `//host/...`
+  /// values throw [ArgumentError] before they can be persisted.
   final String? frontendReturnTo;
 
-  /// 30-minute window covers typical OIDC roundtrips: password reset,
-  /// MFA prompts, email magic links. Five minutes is too short.
+  /// Covers typical OIDC roundtrips: password reset, MFA prompts,
+  /// email magic links.
   static const maxAge = Duration(minutes: 30);
 
   bool isExpired({DateTime? now}) {

@@ -10,13 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// because none of the persisted state is sensitive — tokens go
 /// through the secure store.
 ///
-/// Entries expire after 24 hours. Drafts are user content, so the TTL
-/// is generous: a 5-minute TTL would silently delete a composer draft
-/// if the user took six minutes to sign back in, which is hostile.
-/// 24 hours bounds the staleness window without surprising the user.
+/// Entries expire after 24 hours so drafts survive multi-minute OIDC
+/// roundtrips with retries while still bounding staleness.
 abstract final class ReturnToStorage {
-  /// Prefix for every key written by this store. Lets us namespace
-  /// cleanly and grep for it during debugging.
   static const _prefix = 'soliplex_return_to';
 
   /// Entries older than this are treated as missing and lazily cleared

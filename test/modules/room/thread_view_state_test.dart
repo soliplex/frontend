@@ -21,6 +21,29 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       agUiStreamClient: FakeAgUiStreamClient(),
     );
 
+/// FakeSoliplexApi variant that holds getThreadHistory open until the
+/// test resolves it. Used to assert observable behavior on an in-flight
+/// request (notably cancel-token cancellation on auth flip).
+class _PendingHistoryApi extends FakeSoliplexApi {
+  Completer<ThreadHistory>? _pending;
+  CancelToken? capturedToken;
+
+  @override
+  Future<ThreadHistory> getThreadHistory(
+    String roomId,
+    String threadId, {
+    CancelToken? cancelToken,
+  }) {
+    capturedToken = cancelToken;
+    _pending ??= Completer<ThreadHistory>();
+    return _pending!.future;
+  }
+
+  void completeWith(ThreadHistory history) {
+    _pending?.complete(history);
+  }
+}
+
 /// Minimal session fake for testing [ThreadViewState] signal behavior.
 class _FakeAgentSession implements AgentSession {
   _FakeAgentSession({List<SessionExtension> extensions = const []})
@@ -990,6 +1013,48 @@ void main() {
         );
 
         expect(state.lastSendError.value?.error, 'Some other failure');
+
+        state.dispose();
+      },
+    );
+
+    test(
+      'auth flip to ExpiredSession cancels an in-flight history fetch',
+      () async {
+        final pendingApi = _PendingHistoryApi();
+        final pendingConnection = _fakeConnection(pendingApi);
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        final state = ThreadViewState(
+          connection: pendingConnection,
+          auth: auth,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          registry: registry,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final inFlightToken = pendingApi.capturedToken;
+        expect(inFlightToken, isNotNull);
+        expect(inFlightToken!.isCancelled, isFalse);
+
+        auth.markSessionExpired();
+
+        expect(inFlightToken.isCancelled, isTrue);
+        expect(inFlightToken.reason, 'auth expired');
+
+        pendingApi.completeWith(ThreadHistory(messages: const []));
+        await Future<void>.delayed(Duration.zero);
 
         state.dispose();
       },

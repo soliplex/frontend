@@ -70,6 +70,42 @@ void main() {
       expect(restored.frontendReturnTo, isNull);
     });
 
+    test('constructor rejects open-redirect candidates for frontendReturnTo',
+        () {
+      // The constructor is the type-level open-redirect guard: any
+      // value that isn't an in-app path starting with a single `/`
+      // must throw before it can be persisted or honored by the
+      // callback.
+      for (final unsafe in [
+        'https://evil.com/x',
+        'http://evil.com/x',
+        '//evil.com/x',
+        'lobby',
+        '../admin',
+        '',
+      ]) {
+        expect(
+          () => _makeState(frontendReturnTo: unsafe),
+          throwsA(isA<ArgumentError>()),
+          reason: 'unsafe=$unsafe should be rejected by the constructor',
+        );
+      }
+    });
+
+    test('constructor accepts safe relative paths for frontendReturnTo', () {
+      for (final safe in [
+        '/lobby',
+        '/room/server-a/r1',
+        '/room/server-a/r1?focus=last',
+      ]) {
+        expect(
+          () => _makeState(frontendReturnTo: safe),
+          returnsNormally,
+          reason: 'safe=$safe should be accepted',
+        );
+      }
+    });
+
     test('equality', () {
       final a = _makeState();
       final b = _makeState();

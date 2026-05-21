@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,16 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/auth_callback_screen.dart';
 
 import '../../../helpers/fakes.dart';
+
+String _rawPreAuthJson({required String frontendReturnTo}) => jsonEncode({
+      'serverUrl': 'https://api.example.com',
+      'providerId': 'keycloak',
+      'discoveryUrl':
+          'https://sso.example.com/.well-known/openid-configuration',
+      'clientId': 'soliplex',
+      'createdAt': DateTime.timestamp().toUtc().toIso8601String(),
+      'frontendReturnTo': frontendReturnTo,
+    });
 
 ServerManager _createServerManager() => ServerManager(
       authFactory: () => AuthSession(
@@ -168,27 +180,23 @@ void main() {
       expect(find.text('Lobby Screen'), findsNothing);
     });
 
-    testWidgets('falls back to lobby on absolute frontendReturnTo',
+    testWidgets('tampered storage with absolute frontendReturnTo is rejected',
         (tester) async {
-      // Open-redirect guard: crafted absolute URLs must be rejected
-      // and the user lands on the safe default.
+      // Defense in depth: even if shared_preferences is tampered with
+      // externally (the constructor would otherwise reject these),
+      // load() must not propagate a value that could open-redirect
+      // the user.
       for (final crafted in [
         'https://evil.com/x',
         'http://evil.com/x',
         '//evil.com/x',
       ]) {
-        SharedPreferences.setMockInitialValues({});
+        SharedPreferences.setMockInitialValues({
+          PreAuthStateStorage.storageKey: _rawPreAuthJson(
+            frontendReturnTo: crafted,
+          ),
+        });
         final serverManager = _createServerManager();
-        final state = PreAuthState(
-          serverUrl: Uri.parse('https://api.example.com'),
-          providerId: 'keycloak',
-          discoveryUrl:
-              'https://sso.example.com/.well-known/openid-configuration',
-          clientId: 'soliplex',
-          createdAt: DateTime.timestamp(),
-          frontendReturnTo: crafted,
-        );
-        await PreAuthStateStorage.save(state);
 
         await tester.pumpWidget(_buildApp(
           serverManager: serverManager,
@@ -201,9 +209,15 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
+          find.text('Room ${crafted.replaceAll('/', '')}'),
+          findsNothing,
+          reason: 'crafted=$crafted must not navigate to the attacker target',
+        );
+        expect(
           find.text('Lobby Screen'),
-          findsOneWidget,
-          reason: 'crafted=$crafted should be rejected',
+          findsNothing,
+          reason: 'crafted=$crafted should surface the error, not silently '
+              'land on the lobby',
         );
       }
     });

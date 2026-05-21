@@ -628,10 +628,8 @@ class UploadTracker {
           continue;
         }
         // Retries exhausted: commit the failed row first so the
-        // tracker state is consistent, then funnel through the auth
-        // funnel. The route guard / lobby UX react asynchronously
-        // (next microtask) and pick up the new auth state — the user
-        // returns to find the failed row already recorded.
+        // tracker state is consistent before any auth-change listener
+        // observes the flip and reacts.
         _markFailed(scope, id, error);
         _auth.markSessionExpired();
         return;
