@@ -99,10 +99,14 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
     if (returnTo.startsWith('//') ||
         returnTo.startsWith('http://') ||
-        returnTo.startsWith('https://')) {
+        returnTo.startsWith('https://') ||
+        !returnTo.startsWith('/')) {
+      dev.log(
+        'Rejected unsafe returnTo: $returnTo',
+        level: 900,
+      );
       return AppRoutes.lobby;
     }
-    if (!returnTo.startsWith('/')) return AppRoutes.lobby;
     return returnTo;
   }
 

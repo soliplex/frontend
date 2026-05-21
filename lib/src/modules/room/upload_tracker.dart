@@ -834,6 +834,11 @@ class UploadTracker {
   /// leaves [ActiveSession]. The route guard navigates the user away;
   /// this stops the upload's HTTP work so it doesn't reconnect-loop
   /// against a dead token.
+  ///
+  /// Walking `scope.pending` covers both states because each queued
+  /// job's [_QueuedJob.token] is the same [CancelToken] instance as the
+  /// matching `_Pending.cancelToken`. The drain loop skips queued jobs
+  /// whose token is cancelled (`_drain`'s `isCancelled` check).
   void _onAuthChanged(SessionState state) {
     if (_isDisposed) return;
     if (state is ActiveSession) return;
