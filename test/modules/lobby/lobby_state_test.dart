@@ -222,7 +222,9 @@ void main() {
           expect(entry.auth.session.value, isA<ExpiredSession>());
           // Section is kept visible with the RoomsExpired marker.
           expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
-          // Profile is cleared (null) — see test rationale above.
+          // Profile entry is present but null: the key is preserved so
+          // the sidebar still iterates it, but stale identity data is
+          // cleared.
           expect(
             state.userProfiles.value.containsKey('auth-server'),
             isTrue,

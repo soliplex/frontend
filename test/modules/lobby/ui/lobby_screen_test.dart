@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 
@@ -13,7 +14,10 @@ ServerManager _createManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-Widget _buildApp(ServerManager manager) {
+Widget _buildApp(
+  ServerManager manager, {
+  void Function(Uri location)? onHomeRoute,
+}) {
   final router = GoRouter(
     initialLocation: '/lobby',
     routes: [
@@ -24,6 +28,13 @@ Widget _buildApp(ServerManager manager) {
       GoRoute(
         path: '/servers',
         builder: (_, __) => const Scaffold(body: Text('Servers')),
+      ),
+      GoRoute(
+        path: '/',
+        builder: (_, state) {
+          onHomeRoute?.call(state.uri);
+          return const Scaffold(body: Text('Home'));
+        },
       ),
     ],
   );
@@ -95,5 +106,62 @@ void main() {
       // Empty state: prominent Add Server CTA in the room content area
       expect(find.text('No servers connected'), findsOneWidget);
     });
+
+    testWidgets(
+      'expired-session row renders Sign in button that routes to '
+      'homeWithUrl with returnTo=lobby',
+      (tester) async {
+        // The whole purpose of keeping the expired row visible is to
+        // give the user a way to recover. A regression that removed
+        // the button or mis-wired its onPressed would re-introduce
+        // the "invisible expired server" bug this commit fixes.
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        entry.auth.markSessionExpired();
+
+        Uri? homeLocation;
+        await tester.pumpWidget(
+          _buildApp(manager, onHomeRoute: (uri) => homeLocation = uri),
+        );
+        await tester.pump();
+
+        // The panel description is unique to the RoomsExpired arm
+        // (the sidebar tile also renders "Session expired", but only
+        // as a subtitle), so it pins the panel without ambiguity.
+        expect(
+          find.text('Sign in again to view rooms on this server.'),
+          findsOneWidget,
+        );
+        expect(find.text('Sign in'), findsOneWidget);
+
+        await tester.tap(find.text('Sign in'));
+        await tester.pumpAndSettle();
+
+        expect(homeLocation, isNotNull);
+        expect(
+          homeLocation!.queryParameters['url'],
+          'https://api.example.com',
+        );
+        expect(homeLocation!.queryParameters['returnTo'], '/lobby');
+      },
+    );
   });
 }

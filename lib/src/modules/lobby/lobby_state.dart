@@ -123,26 +123,31 @@ class LobbyState {
       return;
     }
     _cancelTokens.remove(serverId)?.cancel('disconnected');
-    final session = entry.auth.session.value;
-    if (session is ExpiredSession) {
-      // Keep the row visible with an inline "sign in again" affordance.
-      // The previously-known profile is dropped so a re-auth as a
-      // different identity does not briefly show the previous user's
-      // name; one frame of no-name placeholder is honest.
-      _roomsByServer.value = {
-        ..._roomsByServer.value,
-        serverId: RoomsExpired(),
-      };
-      _userProfiles.value = {..._userProfiles.value, serverId: null};
-      return;
+    switch (entry.auth.session.value) {
+      case ExpiredSession():
+        // Keep the row visible with an inline "sign in again" affordance.
+        // The previously-known profile is dropped so a re-auth as a
+        // different identity does not briefly render the prior user's
+        // name.
+        _roomsByServer.value = {
+          ..._roomsByServer.value,
+          serverId: RoomsExpired(),
+        };
+        _userProfiles.value = {..._userProfiles.value, serverId: null};
+      case NoSession():
+        // Logout or never authenticated: prune the row.
+        final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
+          ..remove(serverId);
+        final updatedProfiles =
+            Map<String, UserProfile?>.from(_userProfiles.value)
+              ..remove(serverId);
+        _roomsByServer.value = updatedRooms;
+        _userProfiles.value = updatedProfiles;
+      case ActiveSession():
+        // Unreachable: isConnected is true when the session is
+        // ActiveSession, so the early return above would have fired.
+        assert(false, 'ActiveSession reached the !isConnected branch');
     }
-    // NoSession (logout or never authenticated): prune the row.
-    final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
-      ..remove(serverId);
-    final updatedProfiles = Map<String, UserProfile?>.from(_userProfiles.value)
-      ..remove(serverId);
-    _roomsByServer.value = updatedRooms;
-    _userProfiles.value = updatedProfiles;
   }
 
   void _fetchRooms(String serverId, ServerEntry entry) {

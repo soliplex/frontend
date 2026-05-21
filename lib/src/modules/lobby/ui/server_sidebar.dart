@@ -121,8 +121,14 @@ class _ServerTile extends StatelessWidget {
 
   String _identityLabel(SessionState session) {
     if (!entry.requiresAuth) return 'No authentication required';
-    if (session is ExpiredSession) return 'Session expired';
-    if (session is NoSession) return 'Not signed in';
+    return switch (session) {
+      ExpiredSession() => 'Session expired',
+      NoSession() => 'Not signed in',
+      ActiveSession() => _activeIdentityLabel(),
+    };
+  }
+
+  String _activeIdentityLabel() {
     if (profile == null) return 'Signed in';
     final name = '${profile!.givenName} ${profile!.familyName}'.trim();
     if (name.isNotEmpty) return name;
