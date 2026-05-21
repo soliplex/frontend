@@ -126,6 +126,59 @@ void main() {
       });
 
       test(
+        'PermissionDeniedException on rooms fetch produces RoomsFailed '
+        'and does NOT funnel to markSessionExpired',
+        () async {
+          // A 403 means the user is authenticated but lacks access;
+          // re-auth wouldn't help, so the lobby renders an inline
+          // permission message instead of flipping the session to
+          // ExpiredSession. A future refactor that lumps
+          // PermissionDeniedException under AuthException (or routes
+          // it through the auth funnel) would silently break this
+          // contract — this test pins it.
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          final error = const PermissionDeniedException(
+            message: 'Forbidden',
+            statusCode: 403,
+          );
+          fakeApi.nextError = error;
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+
+          await Future<void>.delayed(Duration.zero);
+
+          // Session must stay ActiveSession; 403 is not an auth failure.
+          expect(entry.auth.session.value, isA<ActiveSession>());
+          // Section is preserved and surfaces the 403 inline.
+          final rooms = state.roomsByServer.value;
+          expect(rooms['auth-server'], isA<RoomsFailed>());
+          expect((rooms['auth-server']! as RoomsFailed).error, same(error));
+
+          state.dispose();
+        },
+      );
+
+      test(
         'AuthException on rooms fetch funnels to markSessionExpired '
         'and section is removed (not RoomsFailed)',
         () async {
