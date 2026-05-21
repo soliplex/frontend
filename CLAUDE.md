@@ -100,8 +100,10 @@ has the full accessor cheat sheet.
    container surface, use `colorScheme.errorContainer` /
    `onErrorContainer` — **not** `danger`.
 3. **No magic `EdgeInsets` / `SizedBox` numbers.** Use `SoliplexSpacing.s1`
-   (4) / `s2` (8) / `s3` (12) / `s4` (16) / `s6` (24). The only documented
-   exception is chat bubble padding `14/10`.
+   (4) / `s2` (8) / `s3` (12) / `s4` (16) / `s6` (24). There is intentionally
+   no `s5` — the scale steps from `s4` (16) straight to `s6` (24); use `s6`
+   rather than reaching for 20. The only documented exception is chat bubble
+   padding `14/10`.
 4. **No raw `BorderRadius.circular(N)`.** Use
    `SoliplexTheme.of(context).radii.{sm|md|lg|xl}`. Default is `md` (12 px);
    `sm` (6 px) only for checkboxes and small hit-target wells.

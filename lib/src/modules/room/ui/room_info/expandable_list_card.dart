@@ -58,7 +58,7 @@ class ExpandableTile extends StatelessWidget {
                   padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(soliplexRadii.md),
                   ),
                   child: content,
                 ),

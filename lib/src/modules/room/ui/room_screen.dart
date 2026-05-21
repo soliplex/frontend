@@ -547,7 +547,7 @@ class _RoomScreenState extends State<RoomScreen> {
           if (chip != null)
             Material(
               color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(soliplexRadii.lg),
               clipBehavior: Clip.antiAlias,
               child: chip,
             ),
@@ -656,7 +656,7 @@ class _RoomScreenState extends State<RoomScreen> {
         padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
         // Cap the popover height so a large file list scrolls inside
         // the panel instead of pushing the chat input off-screen.

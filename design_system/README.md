@@ -43,6 +43,8 @@ These files describe an **existing, shipped design system**. They are not protot
 | onDestructive               | `#ffffff`            |
 | errorContainer              | `#FEE2E2`            |
 | onErrorContainer            | `#991B1B`            |
+| successContainer            | `#DCFCE7`            |
+| onSuccessContainer          | `#166534`            |
 | border                      | `rgba(0,0,0,0.10)`   |
 | outline                     | `#C0C0C4`            |
 | outlineVariant              | `#E0E0E2`            |
@@ -78,6 +80,8 @@ These files describe an **existing, shipped design system**. They are not protot
 | onDestructive               | `#FFFFFF`            |
 | errorContainer              | `#3D1A1A`            |
 | onErrorContainer            | `#FCA5A5`            |
+| successContainer            | `#1A3D1A`            |
+| onSuccessContainer          | `#86EFAC`            |
 | border                      | `#2A2A2A`            |
 | outline                     | `#555555`            |
 | outlineVariant              | `#3A3A3A`            |
@@ -196,7 +200,7 @@ Read via the `SymbolicColors` extension on `ColorScheme`:
 - `warning` — orange
 - `danger` — red
 
-Errors that need a container use `errorContainer` / `onErrorContainer` from the scheme, **not** the symbolic `danger`.
+Errors that need a container use `errorContainer` / `onErrorContainer` from the scheme, **not** the symbolic `danger`. Success states that need a container use `successContainer` / `onSuccessContainer`, read via `SoliplexTheme.of(context).colors`.
 
 ### Execution timeline (Call → Events → Event Details)
 The room view's "answering" area renders agent execution as nested swim-lanes:
@@ -226,7 +230,7 @@ Riverpod throughout. Each feature module exposes a `ModuleContribution { routes,
 - Theming: `tokens/colors.dart` → `soliplexLightTheme` / `soliplexDarkTheme` → `ThemeExtension<SoliplexTheme>`.
 
 ### Theming flow
-1. `SoliplexColors` record (31 fields) declared in `tokens/colors.dart`.
+1. `SoliplexColors` record (33 fields) declared in `tokens/colors.dart`.
 2. `soliplexLightTheme(colors)` maps the record into a Material 3 `ThemeData` — app bar, buttons, inputs, list tiles, chips, cards, expansion tiles, dropdowns, popup menus.
 3. A `SoliplexTheme` `ThemeExtension` carries the raw record + `SoliplexRadii` + `SoliplexBadgeThemeData` so code paths that need the record (not just the scheme) can read `Theme.of(context).extension<SoliplexTheme>()`.
 4. The `standard()` flavor adds a `MarkdownThemeExtension` for chat-message rendering.

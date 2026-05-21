@@ -153,7 +153,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           const SizedBox(width: SoliplexSpacing.s1),
           InkWell(
             onTap: _onTellUsWhyTap,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(soliplexRadii.sm),
             child: Text(
               'Tell us why!',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -191,7 +191,7 @@ class _ThumbButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
           child: Icon(icon, size: 20, color: color),
         ),
       ),
@@ -228,8 +228,9 @@ class _CountdownIndicator extends StatelessWidget {
               ),
               Text(
                 '$remaining',
-                // Exception: 8pt is intentionally smaller than labelSmall (12pt)
-                // so the countdown numeral fits inside the 16x16 progress ring.
+                // design-system exception (approved): 8pt is intentionally
+                // smaller than labelSmall (12pt) so the countdown numeral
+                // fits inside the small progress ring.
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontSize: 8,

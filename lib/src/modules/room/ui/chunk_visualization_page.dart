@@ -98,7 +98,8 @@ class ChunkVisualizationPage extends StatefulWidget {
     required String documentTitle,
     required List<int> pageNumbers,
   }) {
-    final useDialog = MediaQuery.sizeOf(context).width >= 600;
+    final useDialog =
+        MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
     final child = ChunkVisualizationPage(
       api: api,
       roomId: roomId,
@@ -252,7 +253,12 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget _buildTitleBar(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s3,
+        SoliplexSpacing.s2,
+        SoliplexSpacing.s2,
+      ),
       child: Row(
         children: [
           Expanded(

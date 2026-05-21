@@ -78,7 +78,8 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
       children: [
         _toolbar(theme),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s3, 0, SoliplexSpacing.s3, SoliplexSpacing.s3),
           child: _showSource ? _sourceView() : _previewView(),
         ),
       ],
@@ -128,7 +129,7 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
           child: Tooltip(
             message: _showSource ? 'Show preview' : 'Show source',
             child: InkWell(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
               onTap: () => setState(() => _showSource = !_showSource),
               child: Padding(
                 padding: const EdgeInsets.all(SoliplexSpacing.s1),
@@ -198,7 +199,8 @@ class _CodeBlock extends StatelessWidget {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s3, 0, SoliplexSpacing.s3, SoliplexSpacing.s3),
           child: HighlightView(
             code,
             language: language,

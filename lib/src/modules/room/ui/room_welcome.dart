@@ -33,7 +33,7 @@ class RoomWelcome extends StatelessWidget {
 
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(SoliplexSpacing.s6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -136,13 +136,13 @@ class _SuggestionChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
           child: Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
             decoration: BoxDecoration(
               border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(soliplexRadii.md),
             ),
             child: Text(label, style: theme.textTheme.bodyMedium),
           ),

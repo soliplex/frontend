@@ -57,7 +57,7 @@ ThemeData _defaultTheme() {
         ),
         codeBlockDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
         blockquoteDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
