@@ -96,11 +96,13 @@ class FakeAuthFlow implements AuthFlow {
   bool endSessionCalled = false;
   String? lastEndSessionDiscoveryUrl;
 
-  /// If set, [endSession] throws this exception instead of returning.
+  /// If set, [endSession] throws this exception after awaiting any
+  /// pending [endSessionCompleter], instead of returning normally.
   Exception? endSessionError;
 
   /// If set, [endSession] awaits this completer before returning or
-  /// throwing. Lets tests assert in-flight UI state.
+  /// throwing. Lets tests pin in-flight UI state (e.g. spinner on the
+  /// row while the IdP round-trip is outstanding).
   Completer<void>? endSessionCompleter;
 
   @override

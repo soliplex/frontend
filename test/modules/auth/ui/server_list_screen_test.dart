@@ -476,17 +476,17 @@ void main() {
 
       expect(entry.auth.isAuthenticated, isTrue);
       expect(find.text('Connected (1)'), findsOneWidget);
-      expect(find.textContaining('Log out failed'), findsOneWidget);
+      expect(find.textContaining('Log out failed:'), findsOneWidget);
       expect(find.textContaining('idp unreachable'), findsOneWidget);
     });
 
     testWidgets('discovery-fetch failure surfaces inline and preserves session',
         (tester) async {
-      // The pre-941ce4d code wrapped `fetchOidcDiscoveryDocument` in a
-      // try/catch and degraded to `endSessionEndpoint = null`; the new
-      // code lets the failure bubble to `_runLogout`. Without this
-      // pin, a flaky discovery endpoint could regress to a silent
-      // partial logout that races local state with the IdP.
+      // Pins: a discovery-fetch failure must bubble to `_runLogout`
+      // and surface inline. The alternative — degrading to
+      // `endSessionEndpoint = null` — would race local state with the
+      // IdP, leaving the user appearing signed out while the IdP
+      // session is still alive.
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -516,14 +516,11 @@ void main() {
       expect(entry.auth.isAuthenticated, isTrue,
           reason: 'Local session stays Active when discovery fails so the '
               'user can retry without dropping into a half-logged-out state.');
-      expect(find.textContaining('Log out failed'), findsOneWidget);
-      // `fetchOidcDiscoveryDocument` wraps the raw transport failure in
-      // a `NetworkException` with this message — the inner exception's
-      // text is its `originalError`, not the rendered string.
-      expect(
-        find.textContaining('Failed to fetch OIDC discovery document'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Log out failed:'), findsOneWidget);
+      // The rendered text mentions the discovery transport; match on
+      // the load-bearing word rather than the full upstream sentence
+      // so a reword in soliplex_agent doesn't break this test.
+      expect(find.textContaining('discovery'), findsOneWidget);
     });
 
     testWidgets('delete-row logout failure preserves entry and shows error',

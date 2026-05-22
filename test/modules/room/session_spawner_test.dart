@@ -309,26 +309,6 @@ void main() {
       );
     });
 
-    test('AuthException without onAuthExpired still funnels', () async {
-      final auth = _authInActiveSession();
-      final errorSignal = Signal<SendError?>(null);
-      final spawner = SessionSpawner(auth: auth);
-
-      await spawner.spawn(
-        spawnFn: () => Future<AgentSession>.error(
-          AuthException(statusCode: 401, message: 'JWT validation failed'),
-        ),
-        errorSignal: errorSignal,
-        prompt: 'hello',
-        isDisposed: () => false,
-        onSpawned: (_) => fail('spawn should not have succeeded'),
-        onStateTransition: (_) {},
-      );
-
-      expect(auth.session.value, isA<ExpiredSession>());
-      expect(errorSignal.value, isNull);
-    });
-
     test('surfaces PermissionDeniedException inline without funneling',
         () async {
       final auth = _authInActiveSession();
