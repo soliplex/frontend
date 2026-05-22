@@ -95,6 +95,7 @@ class ThreadViewState {
   void Function()? _authUnsub;
   bool _isDisposed = false;
 
+  // `late`: `_auth` is a field, not visible in the initializer list.
   late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<ThreadViewStatus> _messages =

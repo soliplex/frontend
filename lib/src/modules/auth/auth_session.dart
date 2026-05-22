@@ -99,6 +99,12 @@ class AuthSession implements TokenRefresher {
       markSessionExpired();
       return false;
     } catch (e, st) {
+      // Deliberately does NOT funnel via `markSessionExpired` (unlike
+      // the AuthException arm above): an unexpected throw here is a
+      // bug or a transient anomaly, not proof the IdP grant is dead.
+      // Flipping to ExpiredSession would lock the user out for a
+      // recoverable failure. Log SEVERE and let the next API call
+      // surface the real status via AuthException → funnel.
       dev.log(
         'Token refresh threw before producing a result',
         error: e,
