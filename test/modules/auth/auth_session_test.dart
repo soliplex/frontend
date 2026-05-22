@@ -288,6 +288,31 @@ void main() {
       expect(session.isAuthenticated, isTrue);
     });
 
+    test('AuthException from refresh service flips to ExpiredSession',
+        () async {
+      final tokens = _tokens(expiresIn: const Duration(seconds: 30));
+      final throwingService = _ThrowingRefreshService(
+        const AuthException(
+          statusCode: 401,
+          message: 'refresh blocked by IdP',
+        ),
+      );
+      final throwingSession = AuthSession(refreshService: throwingService);
+      throwingSession.login(provider: _provider, tokens: tokens);
+
+      final result = await throwingSession.tryRefresh();
+
+      expect(result, isFalse);
+      expect(
+        throwingSession.session.value,
+        isA<ExpiredSession>(),
+        reason: 'AuthException out of the refresh service is the same '
+            'class of failure the per-call-site funnels catch — it must '
+            'mark the session expired here rather than leaving dead '
+            'tokens for the next data fetch to discover.',
+      );
+    });
+
     test('guards against session change during await', () async {
       session.login(
         provider: _provider,
@@ -354,6 +379,21 @@ void main() {
       expect(callCount, 1);
     });
   });
+}
+
+/// Refresh service that throws a fixed error from `refresh`.
+class _ThrowingRefreshService extends TokenRefreshService {
+  _ThrowingRefreshService(this._error) : super(httpClient: FakeHttpClient());
+
+  final Object _error;
+
+  @override
+  Future<TokenRefreshResult> refresh({
+    required String discoveryUrl,
+    required String refreshToken,
+    required String clientId,
+  }) =>
+      Future<TokenRefreshResult>.error(_error);
 }
 
 /// Refresh service that delays until a future completes.

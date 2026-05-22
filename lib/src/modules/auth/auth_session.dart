@@ -89,6 +89,15 @@ class AuthSession implements TokenRefresher {
         refreshToken: tokens.refreshToken,
         clientId: provider.clientId,
       );
+    } on AuthException catch (e, st) {
+      dev.log(
+        'Token refresh threw AuthException; funneling to markSessionExpired',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      markSessionExpired();
+      return false;
     } catch (e, st) {
       dev.log(
         'Token refresh threw before producing a result',
