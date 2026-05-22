@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
@@ -195,8 +194,28 @@ class ThreadViewState {
     unawaited(
       _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
-          .catchError((Object e) {
-        debugPrint('Feedback submission failed: $e');
+          .then((_) {}, onError: (Object e, StackTrace st) {
+        if (e is AuthException) {
+          dev.log(
+            'submitFeedback hit AuthException; funneling to markSessionExpired',
+            error: e,
+            stackTrace: st,
+            name: 'ThreadViewState',
+            level: 900,
+          );
+          _auth.markSessionExpired();
+          return;
+        }
+        // Fire-and-forget UX: surface nothing inline (thumbs-up is
+        // ambient), but keep the failure debuggable so 5xx / decode /
+        // programmer errors don't vanish.
+        dev.log(
+          'Feedback submission failed',
+          error: e,
+          stackTrace: st,
+          name: 'ThreadViewState',
+          level: 900,
+        );
       }),
     );
   }

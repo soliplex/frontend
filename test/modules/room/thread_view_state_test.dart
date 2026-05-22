@@ -1509,4 +1509,47 @@ void main() {
       state.dispose();
     });
   });
+
+  group('submitFeedback auth funneling', () {
+    void activate(AuthSession a) {
+      a.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+    }
+
+    test('AuthException funnels through markSessionExpired', () async {
+      activate(auth);
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+      api.nextSubmitFeedbackError = AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      );
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      state.submitFeedback('run-1', FeedbackType.thumbsUp, null);
+      for (var i = 0; i < 5; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(auth.session.value, isA<ExpiredSession>());
+
+      state.dispose();
+    });
+  });
 }

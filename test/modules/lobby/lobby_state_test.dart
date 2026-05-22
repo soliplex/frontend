@@ -638,6 +638,46 @@ void main() {
         state.dispose();
       });
 
+      test('401 from /user_info funnels through markSessionExpired', () async {
+        // entry.httpClient is the raw decorator chain (no HttpTransport),
+        // so a 401 surfaces as a response — not as a thrown
+        // AuthException. The success arm must funnel explicitly.
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl:
+                'https://auth.example.com/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        final fakeClient = entry.httpClient as FakeHttpClient;
+        fakeClient.onRequest = (method, uri) async => HttpResponse(
+              statusCode: 401,
+              bodyBytes: Uint8List(0),
+            );
+
+        final state = LobbyState(
+          serverManager: manager,
+          apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        expect(entry.auth.session.value, isA<ExpiredSession>());
+
+        state.dispose();
+      });
+
       test('removes profile when server is removed', () async {
         final manager = _createManager();
         final entry = manager.addServer(

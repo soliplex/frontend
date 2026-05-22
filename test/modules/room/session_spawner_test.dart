@@ -204,6 +204,37 @@ void main() {
       expect(spawner.cancel(), isFalse);
     });
 
+    test(
+        'late-arriving AuthException after cancel still funnels through '
+        'markSessionExpired', () async {
+      // The cancelled-spawn cleanup awaits the pending future. If it
+      // eventually rejects with AuthException, the auth state machine
+      // is the singleton funnel and still needs the signal — otherwise
+      // a 401 that arrived just after cancel is silently swallowed.
+      final auth = _authInActiveSession();
+      final spawner = SessionSpawner(auth: auth);
+      final completer = Completer<AgentSession>();
+
+      unawaited(spawner.spawn(
+        spawnFn: () => completer.future,
+        errorSignal: Signal<SendError?>(null),
+        prompt: 'hi',
+        isDisposed: () => false,
+        onSpawned: (_) {},
+        onStateTransition: (_) {},
+      ));
+      expect(spawner.cancel(), isTrue);
+
+      completer.completeError(
+        AuthException(statusCode: 401, message: 'JWT validation failed'),
+      );
+      for (var i = 0; i < 5; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(auth.session.value, isA<ExpiredSession>());
+    });
+
     test('emits null and surfaces error when spawnFn throws synchronously',
         () async {
       final transitions = <AgentSessionState?>[];

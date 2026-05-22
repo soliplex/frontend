@@ -118,9 +118,16 @@ class RoomState {
         level: 900,
       );
       _auth.markSessionExpired();
-    } on Object catch (error) {
+    } on Object catch (error, st) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
+      dev.log(
+        'getRoom failed',
+        error: error,
+        stackTrace: st,
+        name: 'RoomState',
+        level: 1000,
+      );
       _room.value = RoomFailed(error);
     }
   }
@@ -188,8 +195,15 @@ class RoomState {
       );
       _auth.markSessionExpired();
       return null;
-    } on Object catch (error) {
+    } on Object catch (error, st) {
       if (_isDisposed) return null;
+      dev.log(
+        'createThread failed',
+        error: error,
+        stackTrace: st,
+        name: 'RoomState',
+        level: 1000,
+      );
       _lastError.value = SendError(error);
       return null;
     }

@@ -359,6 +359,22 @@ class FakeSoliplexApi extends SoliplexApi {
       'FakeSoliplexApi: set nextQuizAnswerResult or nextQuizAnswerError',
     );
   }
+
+  Object? nextSubmitFeedbackError;
+  int submitFeedbackCallCount = 0;
+
+  @override
+  Future<void> submitFeedback(
+    String roomId,
+    String threadId,
+    String runId,
+    FeedbackType feedback, {
+    String? reason,
+    CancelToken? cancelToken,
+  }) async {
+    submitFeedbackCallCount++;
+    if (nextSubmitFeedbackError != null) throw nextSubmitFeedbackError!;
+  }
 }
 
 /// AgUiStreamClient that throws [UnimplementedError] for all calls.

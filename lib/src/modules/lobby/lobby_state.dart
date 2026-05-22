@@ -228,11 +228,23 @@ class LobbyState {
     final url = entry.serverUrl.resolve('/api/user_info');
     Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
       if (!_authSubscriptions.containsKey(serverId)) return;
+      // `entry.httpClient` is the raw decorator chain (no HttpTransport),
+      // so a 401 comes back as a response, not as a thrown AuthException
+      // — funnel it explicitly. RefreshingHttpClient has already tried
+      // refresh-and-retry by the time we see this status.
+      if (response.statusCode == 401) {
+        entry.auth.markSessionExpired();
+        return;
+      }
       final UserProfile? profile;
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         profile = UserProfile.fromJson(json);
       } else {
+        dev.log(
+          'Profile fetch returned ${response.statusCode} for $serverId',
+          level: 900,
+        );
         profile = null;
       }
       _userProfiles.value = {..._userProfiles.value, serverId: profile};

@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
@@ -117,8 +116,30 @@ class SessionSpawner {
       pending.then((s) {
         s.cancel();
         s.dispose();
-      }).catchError((Object e) {
-        debugPrint('SessionSpawner: cancelled spawn cleanup failed: $e');
+      }).then((_) {}, onError: (Object e, StackTrace st) {
+        if (e is AuthException) {
+          // A 401 arrived after the user cancelled the spawn. The
+          // caller is gone, but the auth state machine is the
+          // singleton funnel and still needs the signal — otherwise
+          // the next interaction continues with a dead session.
+          dev.log(
+            'Cancelled spawn cleanup hit AuthException; '
+            'funneling to markSessionExpired',
+            error: e,
+            stackTrace: st,
+            name: 'SessionSpawner',
+            level: 900,
+          );
+          _auth.markSessionExpired();
+          return;
+        }
+        dev.log(
+          'Cancelled spawn cleanup failed',
+          error: e,
+          stackTrace: st,
+          name: 'SessionSpawner',
+          level: 900,
+        );
       }),
     );
     return true;
