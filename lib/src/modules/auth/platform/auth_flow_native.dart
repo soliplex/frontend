@@ -78,17 +78,12 @@ class NativeAuthFlow implements AuthFlow {
     required String idToken,
     required String clientId,
   }) async {
-    try {
-      await _appAuth.endSession(
-        EndSessionRequest(
-          idTokenHint: idToken,
-          discoveryUrl: discoveryUrl,
-          postLogoutRedirectUrl: _redirectUri,
-        ),
-      );
-    } on Exception catch (e, st) {
-      // IdP session cleanup is best-effort; local logout already handled.
-      dev.log('NativeAuthFlow.endSession', error: e, stackTrace: st);
-    }
+    await _appAuth.endSession(
+      EndSessionRequest(
+        idTokenHint: idToken,
+        discoveryUrl: discoveryUrl,
+        postLogoutRedirectUrl: _redirectUri,
+      ),
+    );
   }
 }

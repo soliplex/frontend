@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -159,7 +160,22 @@ void main() {
       );
       _loginEntry(entry);
 
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        probeClient: probeClient,
+      ));
       await tester.pumpAndSettle();
 
       expect(find.text('Connected (1)'), findsOneWidget);
@@ -217,7 +233,7 @@ void main() {
       expect(find.text('Log out'), findsNothing);
     });
 
-    testWidgets('logout clears local auth before calling endSession',
+    testWidgets('logout calls endSession before clearing local auth',
         (tester) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
@@ -226,7 +242,19 @@ void main() {
       );
       _loginEntry(entry);
 
-      bool wasAuthenticatedDuringEndSession = true;
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      bool wasAuthenticatedDuringEndSession = false;
       final authFlow = RecordingAuthFlow(
         onEndSession: () {
           wasAuthenticatedDuringEndSession = entry.auth.isAuthenticated;
@@ -236,6 +264,7 @@ void main() {
       await tester.pumpWidget(_buildApp(
         serverManager: serverManager,
         authFlow: authFlow,
+        probeClient: probeClient,
       ));
       await tester.pumpAndSettle();
 
@@ -243,7 +272,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(authFlow.endSessionCalled, isTrue);
-      expect(wasAuthenticatedDuringEndSession, isFalse);
+      expect(wasAuthenticatedDuringEndSession, isTrue);
+      expect(entry.auth.isAuthenticated, isFalse);
     });
 
     testWidgets('updates when servers change externally', (tester) async {
@@ -406,6 +436,171 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(authFlow.endSessionCalled, isTrue);
+      expect(serverManager.servers.value, isEmpty);
+    });
+
+    testWidgets('logout failure preserves session and surfaces error text',
+        (tester) async {
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      final authFlow = RecordingAuthFlow(
+        endSessionError: Exception('idp unreachable'),
+      );
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      expect(entry.auth.isAuthenticated, isTrue);
+      expect(find.text('Connected (1)'), findsOneWidget);
+      expect(find.textContaining('Log out failed'), findsOneWidget);
+      expect(find.textContaining('idp unreachable'), findsOneWidget);
+    });
+
+    testWidgets('delete-row logout failure preserves entry and shows error',
+        (tester) async {
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      final authFlow = RecordingAuthFlow(
+        endSessionError: Exception('idp unreachable'),
+      );
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      expect(serverManager.servers.value, contains('test'));
+      expect(entry.auth.isAuthenticated, isTrue);
+      expect(find.textContaining('Log out failed'), findsOneWidget);
+    });
+
+    testWidgets('in-flight logout disables both Log out and delete',
+        (tester) async {
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      final blocker = Completer<void>();
+      final authFlow = FakeAuthFlow()..endSessionCompleter = blocker;
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      // Pump enough for the discovery fetch to complete and endSession to be
+      // awaiting the blocker; do not settle (the blocker future never
+      // completes until we tell it to).
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      // The Log out button now shows a spinner instead of text — find the
+      // TextButton ancestor of the spinner to verify it's disabled.
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      final logoutButton = tester.widget<TextButton>(
+        find.ancestor(
+          of: find.byType(CircularProgressIndicator),
+          matching: find.byType(TextButton),
+        ),
+      );
+      expect(logoutButton.onPressed, isNull);
+
+      final deleteButton = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.delete_outline),
+      );
+      expect(deleteButton.onPressed, isNull);
+
+      blocker.complete();
+      await tester.pumpAndSettle();
+
+      expect(entry.auth.isAuthenticated, isFalse);
+    });
+
+    testWidgets('logout on non-active session skips IdP round-trip',
+        (tester) async {
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+
+      final authFlow = RecordingAuthFlow();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      expect(authFlow.endSessionCalled, isFalse);
       expect(serverManager.servers.value, isEmpty);
     });
   });

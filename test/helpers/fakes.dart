@@ -96,6 +96,13 @@ class FakeAuthFlow implements AuthFlow {
   bool endSessionCalled = false;
   String? lastEndSessionDiscoveryUrl;
 
+  /// If set, [endSession] throws this exception instead of returning.
+  Exception? endSessionError;
+
+  /// If set, [endSession] awaits this completer before returning or
+  /// throwing. Lets tests assert in-flight UI state.
+  Completer<void>? endSessionCompleter;
+
   @override
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
@@ -116,14 +123,20 @@ class FakeAuthFlow implements AuthFlow {
   }) async {
     endSessionCalled = true;
     lastEndSessionDiscoveryUrl = discoveryUrl;
+    if (endSessionCompleter != null) await endSessionCompleter!.future;
+    if (endSessionError != null) throw endSessionError!;
   }
 }
 
 /// AuthFlow that calls a callback during endSession for order verification.
 class RecordingAuthFlow implements AuthFlow {
-  RecordingAuthFlow({this.onEndSession});
+  RecordingAuthFlow({this.onEndSession, this.endSessionError});
 
   final void Function()? onEndSession;
+
+  /// If set, [endSession] throws this exception instead of returning.
+  final Exception? endSessionError;
+
   bool endSessionCalled = false;
   String? lastEndSessionEndpoint;
 
@@ -145,6 +158,7 @@ class RecordingAuthFlow implements AuthFlow {
     endSessionCalled = true;
     lastEndSessionEndpoint = endSessionEndpoint;
     onEndSession?.call();
+    if (endSessionError != null) throw endSessionError!;
   }
 }
 
