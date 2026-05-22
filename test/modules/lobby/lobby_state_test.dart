@@ -238,16 +238,13 @@ void main() {
       test(
         'ExpiredSession → ActiveSession refetches rooms and profile',
         () async {
-          // Silent-recovery path: a still-alive background HTTP request
-          // (e.g., a long upload that survived navigation to the lobby)
-          // can succeed in refreshing tokens for a server whose row
-          // currently shows RoomsExpired. When that happens the lobby
-          // observes ExpiredSession → ActiveSession and must
-          // transition the row out of RoomsExpired back into
-          // RoomsLoaded. This is the load-bearing case that
-          // distinguishes Option B from the original storm fix: token
-          // rotation (Active → Active) must NOT refetch, but every
-          // other transition INTO Active should.
+          // Silent-recovery path: any in-flight HTTP request through
+          // RefreshingHttpClient can succeed in refreshing tokens for a
+          // server whose row currently shows RoomsExpired. When that
+          // happens the lobby observes ExpiredSession → ActiveSession
+          // and must transition the row out of RoomsExpired back into
+          // RoomsLoaded. Pins the contract: refetch on transitions
+          // INTO ActiveSession, never on Active → Active rotation.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -399,6 +396,10 @@ void main() {
         final rooms = state.roomsByServer.value;
         expect(rooms, contains('local'));
         expect(rooms['local'], isA<RoomsLoaded>());
+        // Exactly one fetch: the seed-before-subscribe ordering in
+        // `_onServersChanged` keeps the immediate-fire of the auth
+        // signal from racing the explicit initial fetch.
+        expect(fakeApi.getRoomsCallCount, 1);
 
         state.dispose();
       });
@@ -406,10 +407,10 @@ void main() {
 
     group('auth state changes', () {
       test('fetches rooms and profile after login', () async {
-        // NoSession → ActiveSession transition: same Option B trigger
-        // as silent recovery. The UI doesn't currently exercise this
-        // path (the sign-in flow navigates away and remounts the
-        // lobby), but the contract is well-defined and worth pinning.
+        // NoSession → ActiveSession must trigger a fetch. Pins the
+        // transition-INTO-ActiveSession contract independently of
+        // which screen happens to be mounted when the transition
+        // occurs.
         final manager = _createManager();
         final fakeApi = FakeSoliplexApi();
         fakeApi.nextRooms = [const Room(id: 'r1', name: 'Room 1')];
@@ -458,17 +459,13 @@ void main() {
         'writing a fresh ActiveSession for an already-connected server '
         'does NOT trigger a new rooms fetch',
         () async {
-          // Background: `TokenRefreshService` writes a new `ActiveSession`
-          // to `auth.session` after every successful refresh. The local
-          // `debug-timeout` Keycloak client issues 300s access tokens
-          // and the refresh threshold is also 5 min, so the
-          // `needsRefresh → refresh → write ActiveSession` cycle runs
-          // continuously while the lobby is mounted. Each write must
-          // be a no-op for the lobby — the user, server, rooms list,
-          // and profile are unchanged across a token rotation. Without
-          // this guard, the lobby fans out into rooms and profile
-          // fetches on every rotation, producing the storm documented
-          // in `scratchpad/auth-refresh-loop-findings.md`.
+          // `TokenRefreshService` writes a new `ActiveSession` to
+          // `auth.session` after every successful refresh. The user,
+          // server, rooms list, and profile are unchanged across a
+          // rotation, so the lobby must treat it as a no-op. Without
+          // this guard, an IdP that issues access tokens shorter than
+          // the refresh threshold creates a self-amplifying
+          // refresh→fetch→refresh loop while the lobby is mounted.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',

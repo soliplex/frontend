@@ -79,12 +79,9 @@ class LobbyState {
   /// Per-server auth session subscriptions.
   final Map<String, void Function()> _authSubscriptions = {};
 
-  /// Last-seen session state per server. Used to distinguish transitions
-  /// into [ActiveSession] (silent recovery — refetch) from
-  /// [ActiveSession] → [ActiveSession] token rotation (no-op). Seeded
-  /// in [_onServersChanged] before [auth.session.subscribe] so the
-  /// immediate-fire of the subscription does not register as a
-  /// transition.
+  /// Last-seen session state per server. Used to gate refetch on
+  /// transitions INTO [ActiveSession] while suppressing
+  /// [ActiveSession] → [ActiveSession] token rotation.
   final Map<String, SessionState> _lastSessionState = {};
 
   static SoliplexApi _defaultResolver(ServerEntry entry) =>
@@ -116,9 +113,12 @@ class LobbyState {
     for (final id in added) {
       final entry = servers[id]!;
       // Seed before subscribing: the signals library fires the
-      // callback synchronously with the current value, and we use
-      // `_lastSessionState[id]` to recognize that immediate-fire as
-      // a no-op rather than a transition into ActiveSession.
+      // callback synchronously with the current value. The seed
+      // lets [_onAuthChanged] see `previous == current` on that
+      // immediate fire so the transition gate does not misread it
+      // as a fresh entry into ActiveSession. (The non-connected
+      // switch branch still runs and paints `RoomsExpired` for a
+      // pre-expired server, which is the desired behavior.)
       _lastSessionState[id] = entry.auth.session.value;
       _authSubscriptions[id] = entry.auth.session.subscribe((_) {
         _onAuthChanged(id, entry);
@@ -140,11 +140,9 @@ class LobbyState {
       // recovery from a prior ExpiredSession/NoSession). Active →
       // Active is token rotation: the user, server, rooms list, and
       // profile are unchanged, and refetching on every rotation
-      // produces the refresh storm documented in
-      // `scratchpad/auth-refresh-loop-findings.md`. The
-      // immediate-fire of the subscription is also caught here:
-      // `previous` was just seeded to `current` in
-      // `_onServersChanged`, so a same-state callback is a no-op.
+      // would race the proactive refresh threshold and produce a
+      // self-amplifying refresh→fetch→refresh loop whenever the
+      // IdP issues access tokens shorter than that threshold.
       if (current is ActiveSession && previous is! ActiveSession) {
         _fetchRooms(serverId, entry);
         _fetchUserProfile(serverId, entry);

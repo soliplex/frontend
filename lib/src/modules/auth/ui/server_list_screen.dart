@@ -232,16 +232,15 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
   // BEFORE navigating, accepting the weaker invariant that if the user
   // dismisses the IdP logout sheet, local will be cleared even though
   // the IdP session is still alive. This drift self-corrects on the
-  // next sign-in (Keycloak's SSO cookie typically auto-issues fresh
+  // next sign-in (the IdP's SSO cookie typically auto-issues fresh
   // tokens for the same user without a prompt).
   //
   // The principled fix for web parity would be a backend "BFF logout"
   // endpoint (mirroring the existing `/api/login/{provider}` BFF
   // sign-in pattern). The frontend would POST to the backend, which
-  // calls Keycloak's logout server-to-server (no CORS, no full-page
+  // calls the IdP's logout server-to-server (no CORS, no full-page
   // navigation), and the await would resolve only when the IdP
-  // confirms — matching native semantics. Tracked separately; see
-  // `scratchpad/logout-fix-proposal.md` for context.
+  // confirms — matching native semantics.
   Future<void> _logout(ServerEntry entry) async {
     final session = entry.auth.session.value;
     if (session is ActiveSession) {

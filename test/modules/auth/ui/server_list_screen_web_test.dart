@@ -2,14 +2,6 @@
 library;
 
 // Run with: `flutter test --platform chrome <this file>`.
-//
-// Default `flutter test` (VM platform) silently skips this file — the
-// project's CI pipeline does not currently run browser tests, so a
-// regression to the web-specific ordering this test pins would not be
-// caught automatically. Until CI gains a `--platform chrome` step,
-// developers touching `_logout` in
-// `lib/src/modules/auth/ui/server_list_screen.dart` should run this
-// file manually.
 
 import 'dart:convert';
 import 'dart:typed_data';
