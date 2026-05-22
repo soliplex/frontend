@@ -360,8 +360,11 @@ void main() {
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
 
-    testWidgets('logout fetches endSessionEndpoint from OIDC discovery',
-        (tester) async {
+    testWidgets('logout on native skips OIDC discovery', (tester) async {
+      // `NativeAuthFlow.endSession` re-discovers via `discoveryUrl`
+      // internally, so `_logout` must not pay for a redundant
+      // pre-fetch. Pin both halves: probeClient is never called, and
+      // `endSession` runs with `endSessionEndpoint: null`.
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -369,16 +372,11 @@ void main() {
       );
       _loginEntry(entry);
 
-      final discoveryJson = jsonEncode({
-        'token_endpoint': 'https://sso.example.com/token',
-        'end_session_endpoint': 'https://sso.example.com/logout',
-      });
+      int probeRequests = 0;
       final probeClient = FakeHttpClient()
         ..onRequest = (method, uri) async {
-          return HttpResponse(
-            statusCode: 200,
-            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
-          );
+          probeRequests++;
+          return HttpResponse(statusCode: 200, bodyBytes: Uint8List(0));
         };
 
       final authFlow = RecordingAuthFlow();
@@ -393,11 +391,10 @@ void main() {
       await tester.tap(find.text('Log out'));
       await tester.pumpAndSettle();
 
+      expect(probeRequests, 0,
+          reason: 'Native must not fetch discovery on logout.');
       expect(authFlow.endSessionCalled, isTrue);
-      expect(
-        authFlow.lastEndSessionEndpoint,
-        'https://sso.example.com/logout',
-      );
+      expect(authFlow.lastEndSessionEndpoint, isNull);
     });
 
     testWidgets('deleting a connected server logs out before removing',
@@ -478,49 +475,6 @@ void main() {
       expect(find.text('Connected (1)'), findsOneWidget);
       expect(find.textContaining('Log out failed:'), findsOneWidget);
       expect(find.textContaining('idp unreachable'), findsOneWidget);
-    });
-
-    testWidgets('discovery-fetch failure surfaces inline and preserves session',
-        (tester) async {
-      // Pins: a discovery-fetch failure must bubble to `_runLogout`
-      // and surface inline. The alternative — degrading to
-      // `endSessionEndpoint = null` — would race local state with the
-      // IdP, leaving the user appearing signed out while the IdP
-      // session is still alive.
-      final serverManager = _createServerManager();
-      final entry = serverManager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
-      _loginEntry(entry);
-
-      final probeClient = FakeHttpClient()
-        ..onRequest = (method, uri) async {
-          throw Exception('discovery DNS failure');
-        };
-
-      final authFlow = RecordingAuthFlow();
-
-      await tester.pumpWidget(_buildApp(
-        serverManager: serverManager,
-        authFlow: authFlow,
-        probeClient: probeClient,
-      ));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Log out'));
-      await tester.pumpAndSettle();
-
-      expect(authFlow.endSessionCalled, isFalse,
-          reason: 'endSession should not run when discovery fails.');
-      expect(entry.auth.isAuthenticated, isTrue,
-          reason: 'Local session stays Active when discovery fails so the '
-              'user can retry without dropping into a half-logged-out state.');
-      expect(find.textContaining('Log out failed:'), findsOneWidget);
-      // The rendered text mentions the discovery transport; match on
-      // the load-bearing word rather than the full upstream sentence
-      // so a reword in soliplex_agent doesn't break this test.
-      expect(find.textContaining('discovery'), findsOneWidget);
     });
 
     testWidgets('delete-row logout failure preserves entry and shows error',

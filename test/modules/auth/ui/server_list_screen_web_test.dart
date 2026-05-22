@@ -127,5 +127,86 @@ void main() {
       expect(wasAuthenticatedDuringEndSession, isFalse);
       expect(entry.auth.isAuthenticated, isFalse);
     });
+
+    testWidgets(
+        'logout passes end_session_endpoint from OIDC discovery to endSession',
+        (tester) async {
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      final authFlow = RecordingAuthFlow();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      expect(authFlow.endSessionCalled, isTrue);
+      expect(authFlow.lastEndSessionEndpoint, 'https://sso.example.com/logout');
+    });
+
+    testWidgets('discovery-fetch failure surfaces inline and preserves session',
+        (tester) async {
+      // Pins: a discovery-fetch failure must bubble to `_runLogout`
+      // and surface inline. The alternative — degrading to
+      // `endSessionEndpoint = null` — would race local state with the
+      // IdP on web, where `WebAuthFlow.endSession` becomes a no-op
+      // without the endpoint, leaving the user appearing signed out
+      // while the IdP session is still alive.
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          throw Exception('discovery DNS failure');
+        };
+
+      final authFlow = RecordingAuthFlow();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      expect(authFlow.endSessionCalled, isFalse,
+          reason: 'endSession should not run when discovery fails.');
+      expect(entry.auth.isAuthenticated, isTrue,
+          reason: 'Local session stays Active when discovery fails so the '
+              'user can retry without dropping into a half-logged-out state.');
+      expect(find.textContaining('Log out failed:'), findsOneWidget);
+      // Match on the load-bearing word rather than the upstream
+      // sentence so a reword in soliplex_agent doesn't break this.
+      expect(find.textContaining('discovery'), findsOneWidget);
+    });
   });
 }

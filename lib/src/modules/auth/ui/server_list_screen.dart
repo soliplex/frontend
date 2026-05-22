@@ -268,27 +268,45 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
   // confirms — matching native semantics.
   Future<void> _logout(ServerEntry entry) async {
     final session = entry.auth.session.value;
-    if (session is ActiveSession) {
-      final authFlow = ref.read(authFlowProvider);
+    if (session is! ActiveSession) {
+      entry.auth.logout();
+      return;
+    }
+    final authFlow = ref.read(authFlowProvider);
+
+    if (kIsWeb) {
+      // Web needs the IdP's `end_session_endpoint` (extracted from the
+      // discovery document) to navigate to. `WebAuthFlow.endSession`
+      // is a full-page navigation, so local state is cleared first per
+      // the ordering comment above. A discovery-fetch failure bubbles
+      // to `_runLogout` and preserves the local session — the
+      // alternative (degrading to `endSessionEndpoint = null`) would
+      // clear local while the IdP session stays alive.
       final httpClient = ref.read(probeClientProvider);
       final discovery = await fetchOidcDiscoveryDocument(
         Uri.parse(session.provider.discoveryUrl),
         httpClient,
       );
-      if (kIsWeb) {
-        entry.auth.logout();
-      }
+      entry.auth.logout();
       await authFlow.endSession(
         discoveryUrl: session.provider.discoveryUrl,
         endSessionEndpoint: discovery.endSessionEndpoint?.toString(),
         idToken: session.tokens.idToken ?? '',
         clientId: session.provider.clientId,
       );
-      if (!kIsWeb) {
-        entry.auth.logout();
-      }
-    } else {
-      entry.auth.logout();
+      return;
     }
+
+    // Native: `NativeAuthFlow.endSession` re-discovers via
+    // `discoveryUrl` through `flutter_appauth`, so the
+    // `endSessionEndpoint` argument is unused — don't pay for a
+    // pre-fetch.
+    await authFlow.endSession(
+      discoveryUrl: session.provider.discoveryUrl,
+      endSessionEndpoint: null,
+      idToken: session.tokens.idToken ?? '',
+      clientId: session.provider.clientId,
+    );
+    entry.auth.logout();
   }
 }
