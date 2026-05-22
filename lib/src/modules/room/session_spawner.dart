@@ -81,6 +81,12 @@ class SessionSpawner {
       succeeded = true;
     } on PermissionDeniedException catch (error) {
       if (_cancelled || isDisposed()) return;
+      dev.log(
+        'Spawn forbidden (403)',
+        error: error,
+        name: 'SessionSpawner',
+        level: 900,
+      );
       errorSignal.value = SendError(error, unsentText: prompt);
     } on AuthException catch (error) {
       if (_cancelled || isDisposed()) return;

@@ -107,6 +107,12 @@ class RoomState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
+      dev.log(
+        'getRoom forbidden (403)',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
       _room.value = RoomFailed(error);
     } on AuthException catch (error) {
       if (token.isCancelled) return;
@@ -184,6 +190,12 @@ class RoomState {
       return threadInfo.id;
     } on PermissionDeniedException catch (error) {
       if (_isDisposed) return null;
+      dev.log(
+        'createThread forbidden (403)',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
       _lastError.value = SendError(error);
       return null;
     } on Object catch (error, st) {

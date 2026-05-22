@@ -194,13 +194,15 @@ class ThreadListState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      if (_threads.value is ThreadsLoaded) {
-        dev.log(
-          'Thread refresh forbidden, keeping stale list',
-          error: error,
-          name: 'ThreadListState',
-        );
-      } else {
+      dev.log(
+        _threads.value is ThreadsLoaded
+            ? 'Thread refresh forbidden (403), keeping stale list'
+            : 'Thread fetch forbidden (403)',
+        error: error,
+        name: 'ThreadListState',
+        level: 900,
+      );
+      if (_threads.value is! ThreadsLoaded) {
         _threads.value = ThreadsFailed(error);
       }
     } on AuthException catch (error) {

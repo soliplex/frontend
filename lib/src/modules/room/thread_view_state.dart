@@ -444,6 +444,14 @@ class ThreadViewState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
+      dev.log(
+        _messages.value is MessagesLoaded
+            ? 'Thread history refresh forbidden (403), keeping stale messages'
+            : 'Thread history forbidden (403)',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
       }
