@@ -175,6 +175,7 @@ class FakeSoliplexApi extends SoliplexApi {
   List<Room>? nextRooms;
   Room? nextRoom;
   Exception? nextError;
+  int getRoomsCallCount = 0;
 
   List<RagDocument>? nextDocuments;
   Exception? nextDocumentsError;
@@ -200,6 +201,7 @@ class FakeSoliplexApi extends SoliplexApi {
 
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    getRoomsCallCount++;
     if (nextError != null) throw nextError!;
     if (nextRooms != null) return nextRooms!;
     throw StateError(

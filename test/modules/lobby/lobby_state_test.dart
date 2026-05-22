@@ -238,9 +238,16 @@ void main() {
       test(
         'ExpiredSession → ActiveSession refetches rooms and profile',
         () async {
-          // The user clicks "Sign in" on the expired card, the new
-          // ActiveSession arrives, and the lobby must transition the
-          // section out of RoomsExpired back into RoomsLoaded.
+          // Silent-recovery path: a still-alive background HTTP request
+          // (e.g., a long upload that survived navigation to the lobby)
+          // can succeed in refreshing tokens for a server whose row
+          // currently shows RoomsExpired. When that happens the lobby
+          // observes ExpiredSession → ActiveSession and must
+          // transition the row out of RoomsExpired back into
+          // RoomsLoaded. This is the load-bearing case that
+          // distinguishes Option B from the original storm fix: token
+          // rotation (Active → Active) must NOT refetch, but every
+          // other transition INTO Active should.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -273,8 +280,8 @@ void main() {
           await Future<void>.delayed(Duration.zero);
           expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
 
-          // Re-sign-in: clear the error, queue a successful rooms list,
-          // and flip the session back to ActiveSession.
+          // Silent recovery: clear the error, queue a successful rooms
+          // list, and flip the session back to ActiveSession.
           fakeApi.nextError = null;
           fakeApi.nextRooms = const <Room>[];
           entry.auth.login(
@@ -399,6 +406,10 @@ void main() {
 
     group('auth state changes', () {
       test('fetches rooms and profile after login', () async {
+        // NoSession → ActiveSession transition: same Option B trigger
+        // as silent recovery. The UI doesn't currently exercise this
+        // path (the sign-in flow navigates away and remounts the
+        // lobby), but the contract is well-defined and worth pinning.
         final manager = _createManager();
         final fakeApi = FakeSoliplexApi();
         fakeApi.nextRooms = [const Room(id: 'r1', name: 'Room 1')];
@@ -440,6 +451,81 @@ void main() {
 
         state.dispose();
       });
+    });
+
+    group('token rotation', () {
+      test(
+        'writing a fresh ActiveSession for an already-connected server '
+        'does NOT trigger a new rooms fetch',
+        () async {
+          // Background: `TokenRefreshService` writes a new `ActiveSession`
+          // to `auth.session` after every successful refresh. The local
+          // `debug-timeout` Keycloak client issues 300s access tokens
+          // and the refresh threshold is also 5 min, so the
+          // `needsRefresh → refresh → write ActiveSession` cycle runs
+          // continuously while the lobby is mounted. Each write must
+          // be a no-op for the lobby — the user, server, rooms list,
+          // and profile are unchanged across a token rotation. Without
+          // this guard, the lobby fans out into rooms and profile
+          // fetches on every rotation, producing the storm documented
+          // in `scratchpad/auth-refresh-loop-findings.md`.
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          const provider = OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          );
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'access-1',
+              refreshToken: 'refresh-1',
+              expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          fakeApi.nextRooms = const <Room>[];
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          // Initial fetch already ran via _onServersChanged.
+          expect(fakeApi.getRoomsCallCount, 1);
+
+          // Simulate a token refresh: same provider, new tokens.
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'access-2',
+              refreshToken: 'refresh-2',
+              expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          // A second rotation, to be thorough.
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'access-3',
+              refreshToken: 'refresh-3',
+              expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          expect(fakeApi.getRoomsCallCount, 1);
+
+          state.dispose();
+        },
+      );
     });
 
     group('refresh', () {
