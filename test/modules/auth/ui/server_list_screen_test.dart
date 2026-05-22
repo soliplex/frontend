@@ -480,6 +480,52 @@ void main() {
       expect(find.textContaining('idp unreachable'), findsOneWidget);
     });
 
+    testWidgets('discovery-fetch failure surfaces inline and preserves session',
+        (tester) async {
+      // The pre-941ce4d code wrapped `fetchOidcDiscoveryDocument` in a
+      // try/catch and degraded to `endSessionEndpoint = null`; the new
+      // code lets the failure bubble to `_runLogout`. Without this
+      // pin, a flaky discovery endpoint could regress to a silent
+      // partial logout that races local state with the IdP.
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          throw Exception('discovery DNS failure');
+        };
+
+      final authFlow = RecordingAuthFlow();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      expect(authFlow.endSessionCalled, isFalse,
+          reason: 'endSession should not run when discovery fails.');
+      expect(entry.auth.isAuthenticated, isTrue,
+          reason: 'Local session stays Active when discovery fails so the '
+              'user can retry without dropping into a half-logged-out state.');
+      expect(find.textContaining('Log out failed'), findsOneWidget);
+      // `fetchOidcDiscoveryDocument` wraps the raw transport failure in
+      // a `NetworkException` with this message — the inner exception's
+      // text is its `originalError`, not the rendered string.
+      expect(
+        find.textContaining('Failed to fetch OIDC discovery document'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('delete-row logout failure preserves entry and shows error',
         (tester) async {
       final serverManager = _createServerManager();

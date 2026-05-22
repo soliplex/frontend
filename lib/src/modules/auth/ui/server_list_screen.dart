@@ -2,10 +2,12 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
     show fetchOidcDiscoveryDocument;
+import 'package:soliplex_client/soliplex_client.dart' show SoliplexException;
 
 import '../../../core/routes.dart';
 import '../auth_providers.dart';
@@ -200,7 +202,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         stackTrace: st,
       );
       if (mounted) {
-        setState(() => _logoutErrors[entry.serverId] = e.toString());
+        setState(() => _logoutErrors[entry.serverId] = _friendlyLogoutError(e));
       }
     } finally {
       if (mounted) {
@@ -241,6 +243,24 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
   // calls the IdP's logout server-to-server (no CORS, no full-page
   // navigation), and the await would resolve only when the IdP
   // confirms — matching native semantics.
+  /// Strips internal exception type names from common logout errors so
+  /// "Log out failed: $msg" reads as a sentence rather than a stack
+  /// trace. `dev.log` in `_runLogout` captures the original for
+  /// debugging.
+  String _friendlyLogoutError(Object e) {
+    if (e is PlatformException) {
+      return e.message ?? e.code;
+    }
+    if (e is SoliplexException) {
+      return e.message;
+    }
+    if (e is Exception) {
+      final s = e.toString();
+      return s.startsWith('Exception: ') ? s.substring(11) : s;
+    }
+    return e.toString();
+  }
+
   Future<void> _logout(ServerEntry entry) async {
     final session = entry.auth.session.value;
     if (session is ActiveSession) {
