@@ -250,6 +250,39 @@ void main() {
       final errorSignal = Signal<SendError?>(null);
       final spawner = SessionSpawner(auth: auth);
 
+      String? authExpiredPrompt;
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(
+          AuthException(statusCode: 401, message: 'JWT validation failed'),
+        ),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+        onAuthExpired: (prompt) => authExpiredPrompt = prompt,
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(
+        errorSignal.value,
+        isNull,
+        reason: 'AuthException is funneled; the inline banner stays clear so '
+            'the route guard can redirect cleanly.',
+      );
+      expect(
+        authExpiredPrompt,
+        'hello',
+        reason: 'onAuthExpired receives the prompt so the caller can persist '
+            'the composer before the route guard redirects.',
+      );
+    });
+
+    test('AuthException without onAuthExpired still funnels', () async {
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
       await spawner.spawn(
         spawnFn: () => Future<AgentSession>.error(
           AuthException(statusCode: 401, message: 'JWT validation failed'),
@@ -262,12 +295,7 @@ void main() {
       );
 
       expect(auth.session.value, isA<ExpiredSession>());
-      expect(
-        errorSignal.value,
-        isNull,
-        reason: 'AuthException is funneled; the inline banner stays clear so '
-            'the route guard can redirect cleanly.',
-      );
+      expect(errorSignal.value, isNull);
     });
 
     test('surfaces PermissionDeniedException inline without funneling',

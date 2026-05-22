@@ -53,6 +53,12 @@ class SessionSpawner {
   /// - Emits `null` via [onStateTransition] when the spawn completes
   ///   without success (e.g. error path), so callers can clear their
   ///   lifecycle signal without duplicating bookkeeping.
+  ///
+  /// [onAuthExpired] fires on the AuthException branch with the original
+  /// [prompt] just before [markSessionExpired] flips the session. Callers
+  /// use it to persist state that won't survive the route guard's
+  /// redirect. The spawner stays generic — what to persist is the
+  /// caller's call.
   Future<void> spawn({
     required Future<AgentSession> Function() spawnFn,
     required Signal<SendError?> errorSignal,
@@ -60,6 +66,7 @@ class SessionSpawner {
     required bool Function() isDisposed,
     required void Function(AgentSession) onSpawned,
     required void Function(AgentSessionState?) onStateTransition,
+    void Function(String prompt)? onAuthExpired,
   }) async {
     if (_pendingSpawn != null) return;
     _cancelled = false;
@@ -84,6 +91,7 @@ class SessionSpawner {
         name: 'SessionSpawner',
         level: 900,
       );
+      onAuthExpired?.call(prompt);
       _auth.markSessionExpired();
     } on Object catch (error) {
       if (_cancelled || isDisposed()) return;

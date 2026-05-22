@@ -6,6 +6,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
+import 'composer_persistence.dart';
 import 'run_registry.dart';
 import 'session_spawner.dart';
 import 'thread_list_state.dart';
@@ -246,6 +247,11 @@ class RoomState {
         errorSignal: _lastError,
         prompt: prompt,
         isDisposed: () => _isDisposed,
+        onAuthExpired: (text) => persistComposerDraft(
+          serverId: _connection.serverId,
+          roomId: _roomId,
+          prompt: text,
+        ),
         onSpawned: (session) {
           // Clear room-level spawn state — the thread view takes over.
           _sessionState.value = null;

@@ -6,7 +6,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
-import '../auth/return_to_storage.dart';
+import 'composer_persistence.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -73,7 +73,6 @@ class ThreadViewState {
         _roomId = roomId,
         _registry = registry {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
-    _sendErrorUnsub = _lastSendError.subscribe(_onSendError);
     if (!_restoreFromRegistry()) unawaited(_fetch());
   }
 
@@ -95,7 +94,6 @@ class ThreadViewState {
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
   void Function()? _authUnsub;
-  void Function()? _sendErrorUnsub;
   bool _isDisposed = false;
 
   late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
@@ -226,6 +224,7 @@ class ThreadViewState {
       errorSignal: _lastSendError,
       prompt: prompt,
       isDisposed: () => _isDisposed,
+      onAuthExpired: _persistComposer,
       onSpawned: (session) {
         _registry.register(threadKey, session);
         if (_isDisposed) return;
@@ -452,8 +451,6 @@ class ThreadViewState {
     _isDisposed = true;
     _authUnsub?.call();
     _authUnsub = null;
-    _sendErrorUnsub?.call();
-    _sendErrorUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
@@ -473,35 +470,17 @@ class ThreadViewState {
     _activeSession.value?.cancel();
   }
 
-  /// Persists composer text when a spawn-failure SendError lands with
-  /// the original prompt attached AND the underlying error is an
-  /// auth failure. The auth path is the only one where the user gets
-  /// navigated away (route guard) — for non-auth errors the screen
-  /// stays mounted and the in-memory [SendError.unsentText] +
-  /// `_restoreUnsentText` path handles restoration without touching
-  /// storage.
-  ///
-  /// Storage failures are logged at SEVERE and swallowed; the user's
-  /// draft is lost but the redirect still proceeds.
-  void _onSendError(SendError? err) {
+  /// Wires the shared [persistComposerDraft] helper as the spawner's
+  /// `onAuthExpired` hook. The auth path is the only one where the
+  /// user gets navigated away; non-auth errors leave the screen
+  /// mounted and the in-memory [SendError.unsentText] + room-screen
+  /// restore path handles restoration without touching storage.
+  void _persistComposer(String prompt) {
     if (_isDisposed) return;
-    if (err == null) return;
-    final text = err.unsentText;
-    if (text == null || text.trim().isEmpty) return;
-    if (err.error is! AuthException) return;
-    unawaited(
-      ReturnToStorage.saveComposer(
-        serverId: _connection.serverId,
-        roomId: _roomId,
-        unsentText: text,
-      ).catchError((Object e, StackTrace st) {
-        dev.log(
-          'Failed to persist composer draft for auth roundtrip',
-          error: e,
-          stackTrace: st,
-          level: 1000,
-        );
-      }),
+    persistComposerDraft(
+      serverId: _connection.serverId,
+      roomId: _roomId,
+      prompt: prompt,
     );
   }
 }

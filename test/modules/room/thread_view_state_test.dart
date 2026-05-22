@@ -44,6 +44,38 @@ class _PendingHistoryApi extends FakeSoliplexApi {
   }
 }
 
+/// AgentRuntime whose [spawn] always errors with [AuthException]. Used to
+/// exercise the spawner's AuthException branch end-to-end from
+/// `ThreadViewState.sendMessage`.
+class _AuthExceptionThrowingRuntime extends AgentRuntime {
+  _AuthExceptionThrowingRuntime(ServerConnection connection)
+      : super(
+          connection: connection,
+          toolRegistryResolver: (_) async => const ToolRegistry(),
+          platform: TestPlatformConstraints(),
+          logger: testLogger(),
+        );
+
+  @override
+  Future<AgentSession> spawn({
+    required String roomId,
+    required String prompt,
+    String? threadId,
+    Duration? timeout,
+    bool ephemeral = false,
+    bool autoDispose = false,
+    AgentSession? parent,
+    Map<String, dynamic>? stateOverlay,
+  }) {
+    return Future<AgentSession>.error(
+      const AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      ),
+    );
+  }
+}
+
 /// Minimal session fake for testing [ThreadViewState] signal behavior.
 class _FakeAgentSession implements AgentSession {
   _FakeAgentSession({List<SessionExtension> extensions = const []})
@@ -1099,8 +1131,13 @@ void main() {
     );
 
     test(
-      'AuthException SendError persists composer text via ReturnToStorage',
+      'spawn-time AuthException persists composer text for the auth roundtrip',
       () async {
+        // Drives the full path: a runtime that throws AuthException at
+        // spawn time → SessionSpawner funnels via markSessionExpired →
+        // ThreadViewState's onAuthExpired callback persists the prompt
+        // to ReturnToStorage so the composer survives the route guard
+        // redirect and reload.
         api.nextThreadHistory = ThreadHistory(messages: const []);
 
         final state = ThreadViewState(
@@ -1112,57 +1149,24 @@ void main() {
         );
         await Future<void>.delayed(Duration.zero);
 
-        // Simulate the spawn-failure path: SessionSpawner writes a
-        // SendError with the original prompt and an AuthException.
-        state.lastSendError; // ensure signal is materialized
-        // ignore: invalid_use_of_protected_member
-        (state.lastSendError as Signal<SendError?>).value = const SendError(
-          AuthException(message: 'Unauthorized', statusCode: 401),
-          unsentText: 'half-written question',
-        );
+        final throwingRuntime = _AuthExceptionThrowingRuntime(connection);
+        await state.sendMessage('half-written question', throwingRuntime);
 
-        await Future<void>.delayed(Duration.zero);
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
 
         final restored = await ReturnToStorage.loadComposer(
           serverId: 'test-server',
           roomId: 'room-1',
         );
-        expect(restored, 'half-written question');
-
-        state.dispose();
-      },
-    );
-
-    test(
-      'non-auth SendError does not persist composer text',
-      () async {
-        api.nextThreadHistory = ThreadHistory(messages: const []);
-
-        final state = ThreadViewState(
-          connection: connection,
-          auth: auth,
-          roomId: 'room-1',
-          threadId: 'thread-1',
-          registry: registry,
+        expect(
+          restored,
+          'half-written question',
+          reason: 'ThreadViewState must wire composer persistence as the '
+              "spawner's onAuthExpired hook; without it the user's draft "
+              'is dropped on the floor by the redirect.',
         );
-        await Future<void>.delayed(Duration.zero);
-
-        // ignore: invalid_use_of_protected_member
-        (state.lastSendError as Signal<SendError?>).value = const SendError(
-          NetworkException(message: 'offline'),
-          unsentText: 'half-written question',
-        );
-
-        await Future<void>.delayed(Duration.zero);
-
-        // Only auth errors trigger persistence — for transient
-        // failures, the in-memory SendError.unsentText path handles
-        // restoration without touching storage.
-        final restored = await ReturnToStorage.loadComposer(
-          serverId: 'test-server',
-          roomId: 'room-1',
-        );
-        expect(restored, isNull);
 
         state.dispose();
       },

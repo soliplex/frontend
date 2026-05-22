@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
@@ -11,6 +13,54 @@ import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
 import '../../helpers/fakes.dart';
+
+/// AgentRuntime whose [spawn] always errors with [AuthException]. Used to
+/// drive the spawner's AuthException branch from [RoomState.sendToNewThread]
+/// without disposing the runtime (which would surface a StateError on the
+/// `on Object` arm instead).
+class _AuthExceptionThrowingRuntime extends AgentRuntime {
+  _AuthExceptionThrowingRuntime(ServerConnection connection)
+      : super(
+          connection: connection,
+          toolRegistryResolver: (_) async => const ToolRegistry(),
+          platform: TestPlatformConstraints(),
+          logger: testLogger(),
+        );
+
+  @override
+  Future<AgentSession> spawn({
+    required String roomId,
+    required String prompt,
+    String? threadId,
+    Duration? timeout,
+    bool ephemeral = false,
+    bool autoDispose = false,
+    AgentSession? parent,
+    Map<String, dynamic>? stateOverlay,
+  }) {
+    return Future<AgentSession>.error(
+      const AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      ),
+    );
+  }
+}
+
+/// [AgentRuntimeManager] that always returns the runtime it was given.
+class _StubRuntimeManager extends AgentRuntimeManager {
+  _StubRuntimeManager(this._runtime)
+      : super(
+          platform: TestPlatformConstraints(),
+          toolRegistryResolver: (_) async => const ToolRegistry(),
+          logger: testLogger(),
+        );
+
+  final AgentRuntime _runtime;
+
+  @override
+  AgentRuntime getRuntime(ServerConnection connection) => _runtime;
+}
 
 void _activate(AuthSession auth) {
   auth.login(
@@ -766,6 +816,60 @@ void main() {
       expect(id, isNull);
       expect(serverEntry.auth.session.value, isA<ActiveSession>());
       expect(state.lastError.value, isNotNull);
+
+      state.dispose();
+    });
+  });
+
+  group('sendToNewThread auth funneling', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('AuthException persists composer text for the auth roundtrip',
+        () async {
+      // Drives the full path: runtime throws AuthException at spawn time
+      // → SessionSpawner funnels via markSessionExpired → RoomState's
+      // onAuthExpired callback persists the prompt to ReturnToStorage so
+      // the composer survives the route guard redirect.
+      _activate(serverEntry.auth);
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [];
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: _StubRuntimeManager(
+          _AuthExceptionThrowingRuntime(connection),
+        ),
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await state.sendToNewThread('half-written question');
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(serverEntry.auth.session.value, isA<ExpiredSession>());
+      expect(
+        state.lastError.value,
+        isNull,
+        reason: 'AuthException is funneled, not surfaced inline.',
+      );
+
+      final restored = await ReturnToStorage.loadComposer(
+        serverId: 'test-server',
+        roomId: 'room-1',
+      );
+      expect(
+        restored,
+        'half-written question',
+        reason: 'RoomState.sendToNewThread must wire composer persistence '
+            "as the spawner's onAuthExpired hook; without it the user's "
+            'draft is dropped on the floor by the redirect.',
+      );
 
       state.dispose();
     });
