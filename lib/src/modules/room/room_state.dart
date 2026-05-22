@@ -167,7 +167,8 @@ class RoomState {
     _lastError.value = null;
     try {
       final result = await threadList.createThread();
-      if (result == null) return null; // disposed
+      // null = disposed or AuthException funneled inside threadList.
+      if (result == null) return null;
       final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
       runtime.seedThreadState(
@@ -184,16 +185,6 @@ class RoomState {
     } on PermissionDeniedException catch (error) {
       if (_isDisposed) return null;
       _lastError.value = SendError(error);
-      return null;
-    } on AuthException catch (error) {
-      if (_isDisposed) return null;
-      dev.log(
-        'createThread hit AuthException; funneling to markSessionExpired',
-        error: error,
-        name: 'RoomState',
-        level: 900,
-      );
-      _auth.markSessionExpired();
       return null;
     } on Object catch (error, st) {
       if (_isDisposed) return null;

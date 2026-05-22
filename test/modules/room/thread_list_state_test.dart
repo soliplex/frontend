@@ -667,6 +667,102 @@ void main() {
     state.dispose();
   });
 
+  test('createThread funnels AuthException through markSessionExpired',
+      () async {
+    api.nextThreads = [];
+    final auth = _authInActiveSession();
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    api.nextCreateThreadError = AuthException(
+      statusCode: 401,
+      message: 'JWT validation failed',
+    );
+
+    final result = await state.createThread();
+
+    expect(result, isNull,
+        reason: 'AuthException must not surface as an exception to the '
+            'caller; the route guard redirects via session change.');
+    expect(auth.session.value, isA<ExpiredSession>());
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads, isEmpty,
+        reason: 'No local insert on a failed create.');
+
+    state.dispose();
+  });
+
+  test('deleteThread funnels AuthException through markSessionExpired',
+      () async {
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Doomed',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+    final auth = _authInActiveSession();
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    api.nextDeleteThreadError = AuthException(
+      statusCode: 401,
+      message: 'JWT validation failed',
+    );
+
+    await state.deleteThread('thread-1');
+
+    expect(auth.session.value, isA<ExpiredSession>());
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.single.id, 'thread-1',
+        reason: 'Server rejected the delete; local list must not drop it.');
+
+    state.dispose();
+  });
+
+  test('renameThread funnels AuthException through markSessionExpired',
+      () async {
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'Old',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+    final auth = _authInActiveSession();
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: auth,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    api.nextUpdateMetadataError = AuthException(
+      statusCode: 401,
+      message: 'JWT validation failed',
+    );
+
+    await state.renameThread('thread-1', 'New');
+
+    expect(auth.session.value, isA<ExpiredSession>());
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.single.name, 'Old',
+        reason: 'Server rejected the rename; local list must keep the '
+            'original name.');
+
+    state.dispose();
+  });
+
   test('surfaces PermissionDeniedException inline without funneling', () async {
     api.nextThreadsError = PermissionDeniedException(
       statusCode: 403,

@@ -58,7 +58,13 @@ class ThreadListState {
   /// was disposed before the call could complete.
   Future<(ThreadInfo, Map<String, dynamic>)?> createThread() async {
     if (_isDisposed) return null;
-    final result = await _connection.api.createThread(_roomId);
+    final (ThreadInfo, Map<String, dynamic>) result;
+    try {
+      result = await _connection.api.createThread(_roomId);
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'createThread');
+      return null;
+    }
     if (_isDisposed) return null;
     _insertLocally(result.$1);
     return result;
@@ -91,7 +97,12 @@ class ThreadListState {
 
   Future<void> deleteThread(String threadId) async {
     if (_isDisposed) return;
-    await _connection.api.deleteThread(_roomId, threadId);
+    try {
+      await _connection.api.deleteThread(_roomId, threadId);
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'deleteThread');
+      return;
+    }
     if (_isDisposed) return;
     final latest = _threads.value;
     if (latest is ThreadsLoaded) {
@@ -133,12 +144,17 @@ class ThreadListState {
     final rawDesc = existing.description;
     final description = rawDesc.isNotEmpty ? rawDesc : null;
 
-    await _connection.api.updateThreadMetadata(
-      _roomId,
-      threadId,
-      name: name,
-      description: description,
-    );
+    try {
+      await _connection.api.updateThreadMetadata(
+        _roomId,
+        threadId,
+        name: name,
+        description: description,
+      );
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'renameThread');
+      return;
+    }
     if (_isDisposed) return;
 
     final latest = _threads.value;
@@ -211,6 +227,16 @@ class ThreadListState {
         _threads.value = ThreadsFailed(error);
       }
     }
+  }
+
+  void _funnelAuthException(AuthException error, {required String op}) {
+    dev.log(
+      '$op hit AuthException; funneling to markSessionExpired',
+      error: error,
+      name: 'ThreadListState',
+      level: 900,
+    );
+    _auth.markSessionExpired();
   }
 
   void dispose() {
