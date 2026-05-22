@@ -298,6 +298,81 @@ void main() {
       );
 
       test(
+        'cascading AuthException on silent recovery settles in ExpiredSession',
+        () async {
+          // Pin the no-oscillation contract: if a silent-recovery
+          // refetch ALSO returns 401 (backend revoked the grant before
+          // the frontend learned), the lobby must settle in
+          // RoomsExpired rather than flip into a self-amplifying
+          // Active↔Expired loop. `markSessionExpired` on an already-
+          // ExpiredSession is a no-op (auth_session.dart:48), and the
+          // _onAuthChanged gate's `current is ActiveSession && previous
+          // is! ActiveSession` check stays false on a re-arriving
+          // Expired, so no second fetch is fired.
+          final manager = _createManager();
+          final entry = manager.addServer(
+            serverId: 'auth-server',
+            serverUrl: Uri.parse('https://api.example.com'),
+          );
+          const provider = OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          );
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+          final fakeApi = FakeSoliplexApi();
+          fakeApi.nextError = const AuthException(
+            message: 'Unauthorized',
+            statusCode: 401,
+          );
+
+          final state = LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => fakeApi,
+          );
+          await Future<void>.delayed(Duration.zero);
+          expect(entry.auth.session.value, isA<ExpiredSession>());
+          expect(state.roomsByServer.value['auth-server'], isA<RoomsExpired>());
+
+          // Silent recovery: tokens refresh successfully → ActiveSession,
+          // but the refetch immediately returns 401 because the grant
+          // was revoked server-side.
+          // (Keep nextError set so the second getRooms also fails.)
+          entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: 'a2',
+              refreshToken: 'r2',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          expect(
+            entry.auth.session.value,
+            isA<ExpiredSession>(),
+            reason: 'Cascaded 401 must funnel back to ExpiredSession, not '
+                'leave the session Active.',
+          );
+          expect(
+            state.roomsByServer.value['auth-server'],
+            isA<RoomsExpired>(),
+            reason: 'The row stays in RoomsExpired; no flicker to '
+                'RoomsLoaded/RoomsFailed.',
+          );
+
+          state.dispose();
+        },
+      );
+
+      test(
         'NoSession (logout) prunes the section',
         () async {
           // A true sign-out should not leave a stale "session expired"

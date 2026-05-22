@@ -309,6 +309,32 @@ void main() {
       );
     });
 
+    test('funnels via markSessionExpired even when onAuthExpired throws',
+        () async {
+      // Pin: the persistence callback runs BEFORE markSessionExpired so
+      // the caller can save state that won't survive the redirect, but
+      // a throw from the callback (e.g., SharedPreferences failure)
+      // must not strand the user on a dead ActiveSession. The funnel is
+      // the load-bearing side-effect — it must fire either way.
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(
+          AuthException(statusCode: 401, message: 'JWT validation failed'),
+        ),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+        onAuthExpired: (_) => throw Exception('storage denied'),
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+    });
+
     test('surfaces PermissionDeniedException inline without funneling',
         () async {
       final auth = _authInActiveSession();

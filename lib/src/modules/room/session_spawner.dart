@@ -96,7 +96,20 @@ class SessionSpawner {
         name: 'SessionSpawner',
         level: 900,
       );
-      onAuthExpired?.call(prompt);
+      // The persistence callback runs first so the caller can save
+      // state the redirect would otherwise drop, but a throw here must
+      // not skip `markSessionExpired` — that funnel is load-bearing.
+      try {
+        onAuthExpired?.call(prompt);
+      } catch (callbackError, st) {
+        dev.log(
+          'onAuthExpired callback threw; continuing to markSessionExpired',
+          error: callbackError,
+          stackTrace: st,
+          name: 'SessionSpawner',
+          level: 1000,
+        );
+      }
       _auth.markSessionExpired();
     } on Object catch (error) {
       if (_cancelled || isDisposed()) return;
