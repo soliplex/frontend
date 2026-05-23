@@ -498,11 +498,10 @@ class ThreadViewState {
     _activeSession.value?.cancel();
   }
 
-  /// Wires the shared [persistComposerDraft] helper as the spawner's
-  /// `onAuthExpired` hook. The auth path is the only one where the
-  /// user gets navigated away; non-auth errors leave the screen
-  /// mounted and the in-memory [SendError.unsentText] + room-screen
-  /// restore path handles restoration without touching storage.
+  /// The auth path is the only one where the user gets navigated
+  /// away; non-auth errors leave the screen mounted and the in-memory
+  /// [SendError.unsentText] + room-screen restore path handles
+  /// restoration without touching storage.
   void _persistComposer(String prompt) {
     if (_isDisposed) return;
     persistComposerDraft(
