@@ -304,11 +304,9 @@ void main() {
           // refetch ALSO returns 401 (backend revoked the grant before
           // the frontend learned), the lobby must settle in
           // RoomsExpired rather than flip into a self-amplifying
-          // Active↔Expired loop. `markSessionExpired` on an already-
-          // ExpiredSession is a no-op (auth_session.dart:48), and the
-          // _onAuthChanged gate's `current is ActiveSession && previous
-          // is! ActiveSession` check stays false on a re-arriving
-          // Expired, so no second fetch is fired.
+          // Active↔Expired loop. The no-op-on-already-expired guard in
+          // `markSessionExpired` plus the transition gate (only refetch
+          // on entries INTO ActiveSession) jointly prevent the loop.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -471,10 +469,10 @@ void main() {
         final rooms = state.roomsByServer.value;
         expect(rooms, contains('local'));
         expect(rooms['local'], isA<RoomsLoaded>());
-        // Exactly one fetch: the transition gate in `_onAuthChanged`
-        // (`current is ActiveSession && previous is! ActiveSession`)
-        // suppresses the subscribe immediate-fire because this
-        // requiresAuth=false server's session stays `NoSession`.
+        // Exactly one fetch: the transition gate (only refetch on
+        // entries INTO ActiveSession) suppresses the subscribe
+        // immediate-fire because this requiresAuth=false server's
+        // session stays `NoSession`.
         expect(fakeApi.getRoomsCallCount, 1);
 
         state.dispose();
@@ -627,7 +625,6 @@ void main() {
           );
           await Future<void>.delayed(Duration.zero);
 
-          // A second rotation, to be thorough.
           entry.auth.login(
             provider: provider,
             tokens: AuthTokens(
