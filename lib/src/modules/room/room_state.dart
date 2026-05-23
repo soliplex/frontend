@@ -72,7 +72,6 @@ class RoomState {
   CancelToken? _roomFetchToken;
   bool _isDisposed = false;
 
-  // `late`: `_auth` is a field, not visible in the initializer list.
   late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
