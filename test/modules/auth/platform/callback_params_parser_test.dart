@@ -63,6 +63,26 @@ void main() {
       expect(success.expiresIn, 3600);
     });
 
+    test('id_token forwarded when present', () {
+      // Required for RP-Initiated Logout: Keycloak (and most OIDC IdPs)
+      // need `id_token_hint` to deterministically end the SSO session.
+      // Without it, the IdP falls back to a confirmation page whose
+      // outcome is user-interactive — making logout intermittent.
+      final result = parseCallbackParams({
+        'token': 'abc',
+        'id_token': 'idtok-xyz',
+      });
+
+      final success = result as WebCallbackSuccess;
+      expect(success.idToken, 'idtok-xyz');
+    });
+
+    test('id_token absent leaves idToken null', () {
+      final result = parseCallbackParams({'token': 'abc'});
+
+      expect((result as WebCallbackSuccess).idToken, isNull);
+    });
+
     test('invalid expires_in returns null', () {
       final result = parseCallbackParams({
         'token': 'abc',

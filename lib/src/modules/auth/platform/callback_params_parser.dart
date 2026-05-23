@@ -22,6 +22,7 @@ CallbackParams parseCallbackParams(Map<String, String> params) {
       accessToken: accessToken,
       refreshToken: params['refresh_token'],
       expiresIn: _parseIntOrNull(params['expires_in']),
+      idToken: params['id_token'],
     );
   }
 
