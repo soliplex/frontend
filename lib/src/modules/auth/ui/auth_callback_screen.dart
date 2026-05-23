@@ -76,7 +76,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           expiresAt: params.expiresIn != null
               ? DateTime.now().add(Duration(seconds: params.expiresIn!))
               : DateTime.now().add(AuthTokens.defaultLifetime),
-          idToken: null,
+          idToken: params.idToken,
         ),
       );
 

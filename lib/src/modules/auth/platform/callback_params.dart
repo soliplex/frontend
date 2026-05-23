@@ -9,16 +9,23 @@ class WebCallbackSuccess extends CallbackParams {
     required this.accessToken,
     this.refreshToken,
     this.expiresIn,
+    this.idToken,
   });
 
   final String accessToken;
   final String? refreshToken;
   final int? expiresIn;
 
+  /// OIDC ID Token. Required as `id_token_hint` for RP-Initiated
+  /// Logout to deterministically end the IdP SSO session. Null until
+  /// the BFF includes `id_token` in the callback redirect.
+  final String? idToken;
+
   @override
   String toString() => 'WebCallbackSuccess('
       'hasRefreshToken: ${refreshToken != null}, '
-      'expiresIn: $expiresIn)';
+      'expiresIn: $expiresIn, '
+      'hasIdToken: ${idToken != null})';
 }
 
 /// Failed web BFF OAuth callback.
