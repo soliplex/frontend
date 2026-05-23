@@ -54,8 +54,10 @@ class ThreadListState {
   /// Creates a new thread on the backend and reflects it in the local list.
   ///
   /// Returns the server's [ThreadInfo] plus the initial AGUI state the
-  /// caller needs to seed into the agent runtime, or `null` if this state
-  /// was disposed before the call could complete.
+  /// caller needs to seed into the agent runtime. Returns `null` if
+  /// this state was disposed before the call could complete, or if the
+  /// call hit an [AuthException] (funneled internally via
+  /// [AuthSession.markSessionExpired]).
   Future<(ThreadInfo, Map<String, dynamic>)?> createThread() async {
     if (_isDisposed) return null;
     final (ThreadInfo, Map<String, dynamic>) result;

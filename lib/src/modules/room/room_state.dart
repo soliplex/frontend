@@ -173,7 +173,6 @@ class RoomState {
     _lastError.value = null;
     try {
       final result = await threadList.createThread();
-      // null = disposed or AuthException funneled inside threadList.
       if (result == null) return null;
       final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
