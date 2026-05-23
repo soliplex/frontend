@@ -190,6 +190,103 @@ void main() {
       expect(status, isA<UploadsLoaded>());
       expect((status as UploadsLoaded).uploads, hasLength(1));
     });
+
+    test('AuthException from refreshRoom funnels via markSessionExpired',
+        () async {
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(
+        const AuthException(statusCode: 401, message: 'token expired'),
+      );
+
+      await tracker.refreshRoom('room-1');
+
+      // Funneled — not surfaced as UploadsFailed. The route guard
+      // navigates the user away; the tracker's signal is no longer
+      // the UX channel for an auth failure.
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(
+        tracker.roomUploads('room-1').value,
+        isNot(isA<UploadsFailed>()),
+      );
+    });
+
+    test('AuthException from refreshThread funnels via markSessionExpired',
+        () async {
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
+      when(() => mockApi.getThreadUploads(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(
+        const AuthException(statusCode: 401, message: 'token expired'),
+      );
+
+      await tracker.refreshThread('room-1', 'thread-1');
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(
+        tracker.threadUploads('room-1', 'thread-1').value,
+        isNot(isA<UploadsFailed>()),
+      );
+    });
+
+    test('AuthException during refresh funnels even with a Loaded baseline',
+        () async {
+      // Without an AuthException-specific arm, the SoliplexException
+      // catch swallows it into "keep stale list" and the funnel never
+      // fires — the user appears connected with a dead token.
+      stubGetRoomUploads([_fileUpload('a.pdf')]);
+      await tracker.refreshRoom('room-1');
+      expect(tracker.roomUploads('room-1').value, isA<UploadsLoaded>());
+
+      auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+
+      when(() => mockApi.getRoomUploads(
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+          )).thenThrow(
+        const AuthException(statusCode: 401, message: 'token expired'),
+      );
+
+      await tracker.refreshRoom('room-1');
+
+      expect(auth.session.value, isA<ExpiredSession>());
+    });
   });
 
   group('upload success', () {
