@@ -213,8 +213,8 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
 
   /// Strips internal exception type names from common logout errors so
   /// "Log out failed: $msg" reads as a sentence rather than a stack
-  /// trace. `dev.log` in `_runLogout` captures the original for
-  /// debugging.
+  /// trace. The original exception is logged elsewhere; this is
+  /// render-only.
   String _friendlyLogoutError(Object e) {
     String raw;
     if (e is PlatformException) {
