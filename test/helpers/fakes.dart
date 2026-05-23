@@ -363,7 +363,6 @@ class FakeSoliplexApi extends SoliplexApi {
   }
 
   Object? nextSubmitFeedbackError;
-  int submitFeedbackCallCount = 0;
 
   @override
   Future<void> submitFeedback(
@@ -374,7 +373,6 @@ class FakeSoliplexApi extends SoliplexApi {
     String? reason,
     CancelToken? cancelToken,
   }) async {
-    submitFeedbackCallCount++;
     if (nextSubmitFeedbackError != null) throw nextSubmitFeedbackError!;
   }
 }
