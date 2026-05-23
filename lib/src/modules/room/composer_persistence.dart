@@ -4,7 +4,7 @@ import 'dart:developer' as dev;
 import '../auth/return_to_storage.dart';
 
 /// Persists [prompt] so it survives the route guard's redirect on auth
-/// expiry. Wired as the spawner's `onAuthExpired` hook.
+/// expiry.
 ///
 /// Empty / whitespace-only [prompt] is a no-op. Storage failures are
 /// logged at SEVERE and swallowed; the user's draft is lost but the
