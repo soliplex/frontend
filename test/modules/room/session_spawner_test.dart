@@ -3,8 +3,28 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/room/send_error.dart';
 import 'package:soliplex_frontend/src/modules/room/session_spawner.dart';
+
+import '../../helpers/fakes.dart';
+
+AuthSession _authInActiveSession() {
+  final auth = AuthSession(refreshService: FakeTokenRefreshService());
+  auth.login(
+    provider: const OidcProvider(
+      discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      clientId: 'test-client',
+    ),
+    tokens: AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    ),
+  );
+  return auth;
+}
 
 class _StubAgentSession implements AgentSession {
   bool cancelCalled = false;
@@ -30,7 +50,7 @@ void main() {
       final errorSignal = Signal<SendError?>(null);
       AgentSession? received;
 
-      await SessionSpawner().spawn(
+      await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => session,
         errorSignal: errorSignal,
         prompt: 'hi',
@@ -48,7 +68,7 @@ void main() {
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
 
-      await SessionSpawner().spawn(
+      await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => throw StateError('boom'),
         errorSignal: errorSignal,
         prompt: 'hi',
@@ -66,7 +86,7 @@ void main() {
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
 
-      await SessionSpawner().spawn(
+      await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => _StubAgentSession(),
         errorSignal: errorSignal,
         prompt: 'hi',
@@ -86,7 +106,7 @@ void main() {
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
 
-      await SessionSpawner().spawn(
+      await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => throw StateError('boom'),
         errorSignal: errorSignal,
         prompt: 'hi',
@@ -102,7 +122,7 @@ void main() {
     test(
         'cancel during spawn suppresses transition and error, '
         'and disposes the spawned session', () async {
-      final spawner = SessionSpawner();
+      final spawner = SessionSpawner(auth: _authInActiveSession());
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
       final completer = Completer<AgentSession>();
@@ -135,7 +155,7 @@ void main() {
     });
 
     test('re-entrant spawn is a no-op while another is in-flight', () async {
-      final spawner = SessionSpawner();
+      final spawner = SessionSpawner(auth: _authInActiveSession());
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
       final firstCompleter = Completer<AgentSession>();
@@ -180,8 +200,39 @@ void main() {
     });
 
     test('cancel returns false when nothing is pending', () {
-      final spawner = SessionSpawner();
+      final spawner = SessionSpawner(auth: _authInActiveSession());
       expect(spawner.cancel(), isFalse);
+    });
+
+    test(
+        'late-arriving AuthException after cancel still funnels through '
+        'markSessionExpired', () async {
+      // The cancelled-spawn cleanup awaits the pending future. If it
+      // eventually rejects with AuthException, the auth state machine
+      // is the singleton funnel and still needs the signal — otherwise
+      // a 401 that arrived just after cancel is silently swallowed.
+      final auth = _authInActiveSession();
+      final spawner = SessionSpawner(auth: auth);
+      final completer = Completer<AgentSession>();
+
+      unawaited(spawner.spawn(
+        spawnFn: () => completer.future,
+        errorSignal: Signal<SendError?>(null),
+        prompt: 'hi',
+        isDisposed: () => false,
+        onSpawned: (_) {},
+        onStateTransition: (_) {},
+      ));
+      expect(spawner.cancel(), isTrue);
+
+      completer.completeError(
+        AuthException(statusCode: 401, message: 'JWT validation failed'),
+      );
+      for (var i = 0; i < 5; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(auth.session.value, isA<ExpiredSession>());
     });
 
     test('emits null and surfaces error when spawnFn throws synchronously',
@@ -189,7 +240,7 @@ void main() {
       final transitions = <AgentSessionState?>[];
       final errorSignal = Signal<SendError?>(null);
 
-      await SessionSpawner().spawn(
+      await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () => throw StateError('sync boom'),
         errorSignal: errorSignal,
         prompt: 'hi',
@@ -206,7 +257,7 @@ void main() {
     test(
         'cancel after successful spawn returns false and leaves '
         'the session untouched', () async {
-      final spawner = SessionSpawner();
+      final spawner = SessionSpawner(auth: _authInActiveSession());
       final session = _StubAgentSession();
 
       await spawner.spawn(
@@ -222,6 +273,108 @@ void main() {
       expect(spawner.cancel(), isFalse);
       expect(session.cancelCalled, isFalse);
       expect(session.disposed, isFalse);
+    });
+
+    test('funnels AuthException from spawnFn through markSessionExpired',
+        () async {
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
+      String? authExpiredPrompt;
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(
+          AuthException(statusCode: 401, message: 'JWT validation failed'),
+        ),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+        onAuthExpired: (prompt) => authExpiredPrompt = prompt,
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      expect(
+        errorSignal.value,
+        isNull,
+        reason: 'AuthException is funneled; the inline banner stays clear so '
+            'the route guard can redirect cleanly.',
+      );
+      expect(
+        authExpiredPrompt,
+        'hello',
+        reason: 'onAuthExpired receives the prompt so the caller can persist '
+            'the composer before the route guard redirects.',
+      );
+    });
+
+    test('funnels via markSessionExpired even when onAuthExpired throws',
+        () async {
+      // Pin: the persistence callback runs BEFORE markSessionExpired so
+      // the caller can save state that won't survive the redirect, but
+      // a throw from the callback (e.g., SharedPreferences failure)
+      // must not strand the user on a dead ActiveSession. The funnel is
+      // the load-bearing side-effect — it must fire either way.
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(
+          AuthException(statusCode: 401, message: 'JWT validation failed'),
+        ),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+        onAuthExpired: (_) => throw Exception('storage denied'),
+      );
+
+      expect(auth.session.value, isA<ExpiredSession>());
+    });
+
+    test('surfaces PermissionDeniedException inline without funneling',
+        () async {
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(
+          PermissionDeniedException(statusCode: 403, message: 'Forbidden'),
+        ),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+      );
+
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(errorSignal.value, isNotNull);
+      expect(errorSignal.value!.error, isA<PermissionDeniedException>());
+      expect(errorSignal.value!.unsentText, 'hello');
+    });
+
+    test('generic error still surfaces inline (regression)', () async {
+      final auth = _authInActiveSession();
+      final errorSignal = Signal<SendError?>(null);
+      final spawner = SessionSpawner(auth: auth);
+
+      await spawner.spawn(
+        spawnFn: () => Future<AgentSession>.error(Exception('network down')),
+        errorSignal: errorSignal,
+        prompt: 'hello',
+        isDisposed: () => false,
+        onSpawned: (_) => fail('spawn should not have succeeded'),
+        onStateTransition: (_) {},
+      );
+
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(errorSignal.value, isNotNull);
+      expect(errorSignal.value!.unsentText, 'hello');
     });
   });
 }

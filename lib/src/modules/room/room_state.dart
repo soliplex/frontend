@@ -1,10 +1,12 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
+import 'composer_persistence.dart';
 import 'run_registry.dart';
 import 'session_spawner.dart';
 import 'thread_list_state.dart';
@@ -44,10 +46,11 @@ class RoomState {
         threadList = ThreadListState(
           connection: serverEntry.connection,
           roomId: roomId,
+          auth: serverEntry.auth,
         ),
         uploadTracker =
             uploadRegistry.trackerFor(entry: serverEntry, roomId: roomId) {
-    _fetchRoom();
+    unawaited(_fetchRoom());
     // Every room entry forces a refresh so the list reflects server
     // state from other devices and self-heals any pending record that
     // got stuck behind a transient refresh failure.
@@ -69,7 +72,7 @@ class RoomState {
   CancelToken? _roomFetchToken;
   bool _isDisposed = false;
 
-  final SessionSpawner _spawner = SessionSpawner();
+  late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<RoomStatus> _room = Signal<RoomStatus>(RoomLoading());
   ReadonlySignal<RoomStatus> get room => _room;
@@ -93,18 +96,46 @@ class RoomState {
 
   void clearError() => _lastError.value = null;
 
-  void _fetchRoom() {
+  Future<void> _fetchRoom() async {
     final token = CancelToken();
     _roomFetchToken = token;
-    _connection.api.getRoom(_roomId, cancelToken: token).then((room) {
+    try {
+      final room = await _connection.api.getRoom(_roomId, cancelToken: token);
       if (token.isCancelled) return;
       _roomFetchToken = null;
       _room.value = RoomLoaded(room);
-    }).catchError((Object error) {
+    } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
+      dev.log(
+        'getRoom forbidden (403)',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
       _room.value = RoomFailed(error);
-    });
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _roomFetchToken = null;
+      dev.log(
+        'getRoom hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+    } on Object catch (error, st) {
+      if (token.isCancelled) return;
+      _roomFetchToken = null;
+      dev.log(
+        'getRoom failed',
+        error: error,
+        stackTrace: st,
+        name: 'RoomState',
+        level: 1000,
+      );
+      _room.value = RoomFailed(error);
+    }
   }
 
   ThreadViewState? get activeThreadView => _activeThreadView;
@@ -142,7 +173,7 @@ class RoomState {
     _lastError.value = null;
     try {
       final result = await threadList.createThread();
-      if (result == null) return null; // disposed
+      if (result == null) return null;
       final (threadInfo, aguiState) = result;
       if (_isDisposed) return threadInfo.id;
       runtime.seedThreadState(
@@ -156,8 +187,25 @@ class RoomState {
       selectThread(threadInfo.id);
       onNavigateToThread?.call(threadInfo.id);
       return threadInfo.id;
-    } on Object catch (error) {
+    } on PermissionDeniedException catch (error) {
       if (_isDisposed) return null;
+      dev.log(
+        'createThread forbidden (403)',
+        error: error,
+        name: 'RoomState',
+        level: 900,
+      );
+      _lastError.value = SendError(error);
+      return null;
+    } on Object catch (error, st) {
+      if (_isDisposed) return null;
+      dev.log(
+        'createThread failed',
+        error: error,
+        stackTrace: st,
+        name: 'RoomState',
+        level: 1000,
+      );
       _lastError.value = SendError(error);
       return null;
     }
@@ -215,6 +263,11 @@ class RoomState {
         errorSignal: _lastError,
         prompt: prompt,
         isDisposed: () => _isDisposed,
+        onAuthExpired: (text) => persistComposerDraft(
+          serverId: _connection.serverId,
+          roomId: _roomId,
+          prompt: text,
+        ),
         onSpawned: (session) {
           // Clear room-level spawn state — the thread view takes over.
           _sessionState.value = null;

@@ -71,6 +71,9 @@ class NativeAuthFlow implements AuthFlow {
     }
   }
 
+  /// Propagates any [FlutterAppAuth] failure (user cancel, network,
+  /// IdP unreachable) to the caller; the local session is the caller's
+  /// to preserve or clear based on the platform's logout invariant.
   @override
   Future<void> endSession({
     required String discoveryUrl,
@@ -78,17 +81,12 @@ class NativeAuthFlow implements AuthFlow {
     required String idToken,
     required String clientId,
   }) async {
-    try {
-      await _appAuth.endSession(
-        EndSessionRequest(
-          idTokenHint: idToken,
-          discoveryUrl: discoveryUrl,
-          postLogoutRedirectUrl: _redirectUri,
-        ),
-      );
-    } on Exception catch (e, st) {
-      // IdP session cleanup is best-effort; local logout already handled.
-      dev.log('NativeAuthFlow.endSession', error: e, stackTrace: st);
-    }
+    await _appAuth.endSession(
+      EndSessionRequest(
+        idTokenHint: idToken,
+        discoveryUrl: discoveryUrl,
+        postLogoutRedirectUrl: _redirectUri,
+      ),
+    );
   }
 }

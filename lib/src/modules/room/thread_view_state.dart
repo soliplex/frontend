@@ -1,12 +1,11 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
-import '../auth/return_to_storage.dart';
+import 'composer_persistence.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -73,8 +72,7 @@ class ThreadViewState {
         _roomId = roomId,
         _registry = registry {
     _authUnsub = _auth.session.subscribe(_onAuthChanged);
-    _sendErrorUnsub = _lastSendError.subscribe(_onSendError);
-    if (!_restoreFromRegistry()) _fetch();
+    if (!_restoreFromRegistry()) unawaited(_fetch());
   }
 
   final ServerConnection _connection;
@@ -95,10 +93,9 @@ class ThreadViewState {
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
   void Function()? _authUnsub;
-  void Function()? _sendErrorUnsub;
   bool _isDisposed = false;
 
-  final SessionSpawner _spawner = SessionSpawner();
+  late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<ThreadViewStatus> _messages =
       Signal<ThreadViewStatus>(MessagesLoading());
@@ -197,15 +194,35 @@ class ThreadViewState {
     unawaited(
       _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
-          .catchError((Object e) {
-        debugPrint('Feedback submission failed: $e');
+          .then((_) {}, onError: (Object e, StackTrace st) {
+        if (e is AuthException) {
+          dev.log(
+            'submitFeedback hit AuthException; funneling to markSessionExpired',
+            error: e,
+            stackTrace: st,
+            name: 'ThreadViewState',
+            level: 900,
+          );
+          _auth.markSessionExpired();
+          return;
+        }
+        // Fire-and-forget UX: surface nothing inline (thumbs-up is
+        // ambient), but keep the failure debuggable so 5xx / decode /
+        // programmer errors don't vanish.
+        dev.log(
+          'Feedback submission failed',
+          error: e,
+          stackTrace: st,
+          name: 'ThreadViewState',
+          level: 900,
+        );
       }),
     );
   }
 
   void clearSendError() => _lastSendError.value = null;
 
-  void refresh() => _fetch();
+  Future<void> refresh() => _fetch();
 
   Future<void> sendMessage(
     String prompt,
@@ -226,6 +243,7 @@ class ThreadViewState {
       errorSignal: _lastSendError,
       prompt: prompt,
       isDisposed: () => _isDisposed,
+      onAuthExpired: _persistComposer,
       onSpawned: (session) {
         _registry.register(threadKey, session);
         if (_isDisposed) return;
@@ -397,7 +415,7 @@ class ThreadViewState {
     }
   }
 
-  void _fetch() {
+  Future<void> _fetch() async {
     if (_isDisposed) return;
     _cancelToken?.cancel('re-fetch');
     final token = CancelToken();
@@ -407,9 +425,9 @@ class ThreadViewState {
       _messages.value = MessagesLoading();
     }
 
-    _connection.api
-        .getThreadHistory(_roomId, threadId, cancelToken: token)
-        .then((history) {
+    try {
+      final history = await _connection.api
+          .getThreadHistory(_roomId, threadId, cancelToken: token);
       if (token.isCancelled) return;
       _cancelToken = null;
       // putIfAbsent (not []=) on refresh: server replay must not overwrite a
@@ -423,21 +441,43 @@ class ThreadViewState {
         messageStates: history.messageStates,
       );
       onHistoryLoaded?.call(threadId, history);
-    }).catchError((Object error) {
+    } on PermissionDeniedException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        _messages.value is MessagesLoaded
+            ? 'Thread history refresh forbidden (403), keeping stale messages'
+            : 'Thread history forbidden (403)',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
+      if (_messages.value is! MessagesLoaded) {
+        _messages.value = MessagesFailed(error);
+      }
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        'Thread history hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+    } on Object catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
       }
-    });
+    }
   }
 
   void dispose() {
     _isDisposed = true;
     _authUnsub?.call();
     _authUnsub = null;
-    _sendErrorUnsub?.call();
-    _sendErrorUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
@@ -457,35 +497,16 @@ class ThreadViewState {
     _activeSession.value?.cancel();
   }
 
-  /// Persists composer text when a spawn-failure SendError lands with
-  /// the original prompt attached AND the underlying error is an
-  /// auth failure. The auth path is the only one where the user gets
-  /// navigated away (route guard) — for non-auth errors the screen
-  /// stays mounted and the in-memory [SendError.unsentText] +
-  /// `_restoreUnsentText` path handles restoration without touching
-  /// storage.
-  ///
-  /// Storage failures are logged at SEVERE and swallowed; the user's
-  /// draft is lost but the redirect still proceeds.
-  void _onSendError(SendError? err) {
+  /// The auth path is the only one where the user gets navigated
+  /// away; non-auth errors leave the screen mounted and the in-memory
+  /// [SendError.unsentText] + room-screen restore path handles
+  /// restoration without touching storage.
+  void _persistComposer(String prompt) {
     if (_isDisposed) return;
-    if (err == null) return;
-    final text = err.unsentText;
-    if (text == null || text.trim().isEmpty) return;
-    if (err.error is! AuthException) return;
-    unawaited(
-      ReturnToStorage.saveComposer(
-        serverId: _connection.serverId,
-        roomId: _roomId,
-        unsentText: text,
-      ).catchError((Object e, StackTrace st) {
-        dev.log(
-          'Failed to persist composer draft for auth roundtrip',
-          error: e,
-          stackTrace: st,
-          level: 1000,
-        );
-      }),
+    persistComposerDraft(
+      serverId: _connection.serverId,
+      roomId: _roomId,
+      prompt: prompt,
     );
   }
 }

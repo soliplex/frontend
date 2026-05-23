@@ -3,6 +3,8 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
+
 sealed class ThreadListStatus {}
 
 class ThreadsLoading extends ThreadListStatus {}
@@ -21,13 +23,16 @@ class ThreadListState {
   ThreadListState({
     required ServerConnection connection,
     required String roomId,
+    required AuthSession auth,
   })  : _connection = connection,
-        _roomId = roomId {
+        _roomId = roomId,
+        _auth = auth {
     unawaited(_fetch());
   }
 
   final ServerConnection _connection;
   final String _roomId;
+  final AuthSession _auth;
   CancelToken? _cancelToken;
   bool _isDisposed = false;
 
@@ -49,11 +54,19 @@ class ThreadListState {
   /// Creates a new thread on the backend and reflects it in the local list.
   ///
   /// Returns the server's [ThreadInfo] plus the initial AGUI state the
-  /// caller needs to seed into the agent runtime, or `null` if this state
-  /// was disposed before the call could complete.
+  /// caller needs to seed into the agent runtime. Returns `null` if
+  /// this state was disposed before the call could complete, or if the
+  /// call hit an [AuthException] (funneled internally via
+  /// [AuthSession.markSessionExpired]).
   Future<(ThreadInfo, Map<String, dynamic>)?> createThread() async {
     if (_isDisposed) return null;
-    final result = await _connection.api.createThread(_roomId);
+    final (ThreadInfo, Map<String, dynamic>) result;
+    try {
+      result = await _connection.api.createThread(_roomId);
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'createThread');
+      return null;
+    }
     if (_isDisposed) return null;
     _insertLocally(result.$1);
     return result;
@@ -86,7 +99,12 @@ class ThreadListState {
 
   Future<void> deleteThread(String threadId) async {
     if (_isDisposed) return;
-    await _connection.api.deleteThread(_roomId, threadId);
+    try {
+      await _connection.api.deleteThread(_roomId, threadId);
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'deleteThread');
+      return;
+    }
     if (_isDisposed) return;
     final latest = _threads.value;
     if (latest is ThreadsLoaded) {
@@ -128,12 +146,17 @@ class ThreadListState {
     final rawDesc = existing.description;
     final description = rawDesc.isNotEmpty ? rawDesc : null;
 
-    await _connection.api.updateThreadMetadata(
-      _roomId,
-      threadId,
-      name: name,
-      description: description,
-    );
+    try {
+      await _connection.api.updateThreadMetadata(
+        _roomId,
+        threadId,
+        name: name,
+        description: description,
+      );
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'renameThread');
+      return;
+    }
     if (_isDisposed) return;
 
     final latest = _threads.value;
@@ -170,6 +193,30 @@ class ThreadListState {
       final sorted = threads.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _threads.value = ThreadsLoaded(sorted);
+    } on PermissionDeniedException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        _threads.value is ThreadsLoaded
+            ? 'Thread refresh forbidden (403), keeping stale list'
+            : 'Thread fetch forbidden (403)',
+        error: error,
+        name: 'ThreadListState',
+        level: 900,
+      );
+      if (_threads.value is! ThreadsLoaded) {
+        _threads.value = ThreadsFailed(error);
+      }
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        'Thread fetch hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'ThreadListState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
     } on Object catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
@@ -184,6 +231,16 @@ class ThreadListState {
         _threads.value = ThreadsFailed(error);
       }
     }
+  }
+
+  void _funnelAuthException(AuthException error, {required String op}) {
+    dev.log(
+      '$op hit AuthException; funneling to markSessionExpired',
+      error: error,
+      name: 'ThreadListState',
+      level: 900,
+    );
+    _auth.markSessionExpired();
   }
 
   void dispose() {

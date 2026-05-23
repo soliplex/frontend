@@ -345,6 +345,21 @@ class UploadTracker {
     } on CancelledException {
       // Fetch was superseded or the tracker is tearing down.
       return;
+    } on AuthException catch (error) {
+      // Must precede the SoliplexException arm: keeping a stale Loaded
+      // list while the access token is dead would let the user click
+      // through a stale view and silently 401 on the next mutation.
+      // The route guard handles navigation; this tracker's signal is
+      // no longer the UX channel for an auth failure.
+      if (token.isCancelled || _isDisposed) return;
+      scope.fetchToken = null;
+      dev.log(
+        'Upload list refresh hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'UploadTracker',
+        level: 900,
+      );
+      _auth.markSessionExpired();
     } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
