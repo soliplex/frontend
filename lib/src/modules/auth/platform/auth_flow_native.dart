@@ -72,9 +72,8 @@ class NativeAuthFlow implements AuthFlow {
   }
 
   /// Propagates any [FlutterAppAuth] failure (user cancel, network,
-  /// IdP unreachable) to the caller. Callers — currently only
-  /// `ServerListScreen._logout` — keep the local session intact and
-  /// surface the error inline on throw.
+  /// IdP unreachable) to the caller; the local session is the caller's
+  /// to preserve or clear based on the platform's logout invariant.
   @override
   Future<void> endSession({
     required String discoveryUrl,
