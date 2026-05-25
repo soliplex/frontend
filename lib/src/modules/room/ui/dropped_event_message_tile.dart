@@ -3,7 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../diagnostics/models/json_tree_model.dart';
 import '../../diagnostics/ui/json_tree_view.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Renders a [DroppedEventMessage] as a low-emphasis, collapsed-by-default
 /// card. Schema-drift events in production should show as a quiet hint,

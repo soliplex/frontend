@@ -21,7 +21,7 @@ import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class RoomInfoScreen extends StatefulWidget {
   const RoomInfoScreen({

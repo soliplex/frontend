@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/platform_resolver.dart';
-
 TextStyle appMonospaceTextStyle(BuildContext context, {TextStyle? base}) {
   final effectiveBase = base ?? Theme.of(context).textTheme.bodyMedium;
+  final platform = Theme.of(context).platform;
+  final isCupertino =
+      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
 
-  if (isCupertino(context)) {
+  if (isCupertino) {
     return effectiveBase!.copyWith(
       fontFamily: 'SF Mono',
       fontFamilyFallback: const ['Menlo', 'monospace'],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/design/tokens/colors.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 void main() {
   group('SoliplexColors', () {

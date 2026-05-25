@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import 'room_info_widgets.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 Widget buildSkillContent(RoomSkill skill) {
   return SkillContentColumn(skill: skill);

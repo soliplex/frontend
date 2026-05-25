@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../../design/design.dart';
 import 'code_preview.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.json_preview');

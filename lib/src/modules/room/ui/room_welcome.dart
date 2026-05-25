@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'markdown/flutter_markdown_plus_renderer.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class RoomWelcome extends StatelessWidget {
   const RoomWelcome({

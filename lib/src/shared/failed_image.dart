@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'copy_button.dart';
 
 const double _iconBoxSize = 96;

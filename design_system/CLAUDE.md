@@ -38,5 +38,5 @@ If a value you need is genuinely missing from the system:
 
 ## When in doubt
 - Read `README.md` end-to-end before introducing UI.
-- Match the production codebase patterns at `lib/src/design/` — production is canonical, this folder mirrors it.
+- Match the production codebase patterns in the `soliplex_design` package (`packages/soliplex_design/`) — production is canonical, this folder mirrors it.
 - Run the adoption checklist at the bottom of `README.md` before submitting a PR.

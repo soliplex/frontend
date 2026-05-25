@@ -13,6 +13,7 @@ workspace:
   - packages/soliplex_agent
   - packages/soliplex_client
   - packages/soliplex_client_native
+  - packages/soliplex_design
   - packages/soliplex_logging
 
 dependencies:
@@ -41,6 +42,8 @@ dependencies:
     path: packages/soliplex_client
   soliplex_client_native:
     path: packages/soliplex_client_native
+  soliplex_design:
+    path: packages/soliplex_design
   soliplex_logging:
     path: packages/soliplex_logging
 

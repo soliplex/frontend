@@ -37,6 +37,28 @@ class SoliplexColors {
     required this.link,
   });
 
+  /// Derives a palette from a single brand [accent] color.
+  ///
+  /// The accent drives `primary` (and its readable `onPrimary` foreground)
+  /// only — that is, buttons and other interactive elements. Every other
+  /// slot, including all neutral surfaces and the `primaryContainer` tonal
+  /// role used for selected / "this is yours" states, stays from
+  /// [lightSoliplexColors] / [darkSoliplexColors]. Container surfaces are
+  /// deliberately brand-independent: tinting a surface that itself hosts
+  /// colored content distorts how those colors read.
+  factory SoliplexColors.fromAccent(
+    Color accent, {
+    required Brightness brightness,
+  }) {
+    final base = brightness == Brightness.light
+        ? lightSoliplexColors
+        : darkSoliplexColors;
+    return base.copyWith(
+      primary: accent,
+      onPrimary: _contrastingForeground(accent),
+    );
+  }
+
   final Color background;
   final Color foreground;
   final Color primary;
@@ -142,28 +164,6 @@ class SoliplexColors {
           surfaceContainerHighest ?? this.surfaceContainerHighest,
       inversePrimary: inversePrimary ?? this.inversePrimary,
       link: link ?? this.link,
-    );
-  }
-
-  /// Derives a palette from a single brand [accent] color.
-  ///
-  /// The accent drives `primary` (and its readable `onPrimary` foreground)
-  /// only — that is, buttons and other interactive elements. Every other
-  /// slot, including all neutral surfaces and the `primaryContainer` tonal
-  /// role used for selected / "this is yours" states, stays from
-  /// [lightSoliplexColors] / [darkSoliplexColors]. Container surfaces are
-  /// deliberately brand-independent: tinting a surface that itself hosts
-  /// colored content distorts how those colors read.
-  factory SoliplexColors.fromAccent(
-    Color accent, {
-    required Brightness brightness,
-  }) {
-    final base = brightness == Brightness.light
-        ? lightSoliplexColors
-        : darkSoliplexColors;
-    return base.copyWith(
-      primary: accent,
-      onPrimary: _contrastingForeground(accent),
     );
   }
 }

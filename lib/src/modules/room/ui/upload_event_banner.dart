@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Transient inline notifications that announce upload transitions the
 /// user may have missed while focused on the composer.

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../tokens/colors.dart';
-import '../tokens/radii.dart';
-import '../tokens/spacing.dart';
-import '../tokens/typography.dart';
-import 'markdown_theme_extension.dart';
-import 'theme_extensions.dart';
+import 'package:soliplex_design/src/theme/markdown_theme_extension.dart';
+import 'package:soliplex_design/src/theme/theme_extensions.dart';
+import 'package:soliplex_design/src/tokens/colors.dart';
+import 'package:soliplex_design/src/tokens/radii.dart';
+import 'package:soliplex_design/src/tokens/spacing.dart';
+import 'package:soliplex_design/src/tokens/typography.dart';
 
 ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) =>
     _buildTheme(colors: colors, brightness: Brightness.light);

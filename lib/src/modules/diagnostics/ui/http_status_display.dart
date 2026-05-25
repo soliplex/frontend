@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
 

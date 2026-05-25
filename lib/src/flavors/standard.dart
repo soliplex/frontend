@@ -7,7 +7,7 @@ import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 import '../core/branding.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
-import '../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/consent_notice.dart';

@@ -45,7 +45,7 @@ import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 300;
 const double _wideBreakpoint = 600;

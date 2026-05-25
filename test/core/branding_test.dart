@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/core/branding.dart';
-import 'package:soliplex_frontend/src/design/effects/glow.dart';
-import 'package:soliplex_frontend/src/design/tokens/colors.dart';
 
 void main() {
   group('BrandLogo', () {

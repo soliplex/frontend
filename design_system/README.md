@@ -3,7 +3,7 @@
 ## Overview
 This bundle is the **single source of truth** for visual design in the Soliplex Flutter frontend (v0.83.1). It documents tokens (color, type, spacing, radii, breakpoints), components, and adoption rules so an engineer working with Claude Code can pull values directly into the codebase without inventing new ones.
 
-The design system is **Flutter-first** — production tokens live in `lib/src/design/`. This bundle provides:
+The design system is **Flutter-first** — production tokens live in the `soliplex_design` workspace package (`packages/soliplex_design/`). This bundle provides:
 - `tokens.css` — CSS custom properties (framework-agnostic; useful for any web previews, marketing pages, or non-Flutter surfaces).
 - `tokens.dart` — Flutter `SoliplexColors`, `SoliplexSpacing`, `SoliplexRadii`, `SoliplexBreakpoints` records (drop-in for any Flutter target).
 - `Soliplex Design System.html` — Static reference doc with live swatches, typography specimens, and component demos. Open it locally to visually verify.
@@ -11,7 +11,7 @@ The design system is **Flutter-first** — production tokens live in `lib/src/de
 
 ## About these files
 These files describe an **existing, shipped design system**. They are not prototypes to recreate — they are the canonical values. When implementing a feature:
-- If you are working in the **Soliplex Flutter repo**, use the existing Dart tokens at `lib/src/design/`. Treat this bundle as documentation only.
+- If you are working in the **Soliplex Flutter repo**, use the Dart tokens from the `soliplex_design` package (`packages/soliplex_design/`). Treat this bundle as documentation only.
 - If you are bootstrapping a **new surface** (web preview, internal tool, sister Flutter app), copy `tokens.css` or `tokens.dart` into the new project and route every color/spacing/radius/font through these tokens.
 - **Never** hardcode hex values, pixel paddings, or font sizes in feature code.
 

@@ -6,7 +6,7 @@ import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class NoResponseTileWidget extends StatelessWidget {
   const NoResponseTileWidget({

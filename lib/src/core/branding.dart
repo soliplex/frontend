@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Brand identity for a Soliplex shell: accent colors for light and dark
 /// themes, a display name, and one or two logo widgets.

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 enum _ThreadAction { rename, delete }
 

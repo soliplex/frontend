@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../tokens/colors.dart';
-import '../tokens/radii.dart';
+import 'package:soliplex_design/src/tokens/colors.dart';
+import 'package:soliplex_design/src/tokens/radii.dart';
 
 class SoliplexBadgeThemeData {
   const SoliplexBadgeThemeData({

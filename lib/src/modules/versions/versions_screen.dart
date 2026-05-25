@@ -7,7 +7,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../version.dart';
 import '../../core/routes.dart';
-import '../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import 'app_version_loader.dart';

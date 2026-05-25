@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../design/design.dart';
 import '../../../shared/preview_icon_button.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';

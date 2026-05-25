@@ -10,20 +10,20 @@ import 'package:flutter/material.dart';
 /// fades to fully transparent at its rim.
 class SoliplexGlow extends StatelessWidget {
   const SoliplexGlow({
-    super.key,
     required this.color,
     required this.child,
+    super.key,
     this.extent = 16,
   });
 
   /// Color of the glow at its center; fades to transparent at the rim.
   final Color color;
 
+  final Widget child;
+
   /// How far the glow radiates beyond each edge of [child], in logical
   /// pixels.
   final double extent;
-
-  final Widget child;
 
   @override
   Widget build(BuildContext context) {

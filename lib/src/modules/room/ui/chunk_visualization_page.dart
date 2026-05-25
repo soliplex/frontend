@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/failed_image.dart';
 import 'pager_dots.dart';
 

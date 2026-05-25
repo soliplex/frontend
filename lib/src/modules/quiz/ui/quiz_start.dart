@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class QuizStartView extends StatelessWidget {
   const QuizStartView({

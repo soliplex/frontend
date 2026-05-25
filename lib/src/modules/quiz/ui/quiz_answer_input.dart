@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import '../quiz_session.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class QuizMultipleChoiceInput extends StatelessWidget {
   const QuizMultipleChoiceInput({

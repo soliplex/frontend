@@ -3,7 +3,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../../shared/file_type_icons.dart';
 import 'room_info_widgets.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class DocumentsCard extends StatefulWidget {
   const DocumentsCard({
