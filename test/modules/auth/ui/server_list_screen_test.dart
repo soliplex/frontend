@@ -17,6 +17,10 @@ import 'package:soliplex_frontend/src/modules/auth/ui/server_list_screen.dart';
 
 import '../../../helpers/fakes.dart';
 
+/// A bare [Error] (not an [Exception]) used to exercise the else-branch of
+/// [_friendlyLogoutError] without leaking a runtime type name.
+class _LogoutBoom extends Error {}
+
 ServerManager _createServerManager() => ServerManager(
       authFactory: () => AuthSession(
         refreshService: FakeTokenRefreshService(),
@@ -575,6 +579,53 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(entry.auth.isAuthenticated, isFalse);
+    });
+
+    testWidgets(
+        'logout Error (non-Exception) shows generic message without type name',
+        (tester) async {
+      final serverManager = _createServerManager();
+      final entry = serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      _loginEntry(entry);
+
+      final discoveryJson = jsonEncode({
+        'token_endpoint': 'https://sso.example.com/token',
+        'end_session_endpoint': 'https://sso.example.com/logout',
+      });
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async {
+          return HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(discoveryJson)),
+          );
+        };
+
+      final authFlow = RecordingAuthFlow(
+        onEndSession: () => throw _LogoutBoom(),
+      );
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        authFlow: authFlow,
+        probeClient: probeClient,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      expect(entry.auth.isAuthenticated, isTrue);
+      expect(find.textContaining('Log out failed:'), findsOneWidget);
+      expect(
+        find.text('Log out failed: Sign-out failed. Please try again.'),
+        findsOneWidget,
+      );
+      // Ensure no minified/raw runtime type name leaks (e.g. "(Nra)" or
+      // "(_LogoutBoom)").
+      expect(find.textContaining(RegExp(r'\(\w{3,}\)')), findsNothing);
     });
 
     testWidgets('logout on non-active session skips IdP round-trip',
