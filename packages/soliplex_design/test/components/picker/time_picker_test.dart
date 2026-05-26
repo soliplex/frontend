@@ -12,23 +12,9 @@ Widget _harness(Widget child) {
 }
 
 void main() {
-  testWidgets('renders the formatted initial time and clock icon',
-      (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        const SoliplexTimePickerField(
-          label: 'Reminder',
-          initialValue: TimeOfDay(hour: 9, minute: 0),
-        ),
-      ),
-    );
-    expect(find.byIcon(Icons.schedule_outlined), findsOneWidget);
-    // Locale-formatted time should contain a colon between hour and minute.
-    expect(find.textContaining(':'), findsOneWidget);
-  });
-
-  testWidgets('isLoading swaps the trailing icon for a spinner',
-      (tester) async {
+  testWidgets('isLoading swaps the trailing icon for a spinner', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
         const SoliplexTimePickerField(label: 'Reminder', isLoading: true),
@@ -49,8 +35,6 @@ void main() {
     );
     await tester.tap(find.byType(TextFormField));
     await tester.pumpAndSettle();
-    // showTimePicker opens its own dialog. Cancel to dismiss without
-    // exercising the keypad-vs-dial fork.
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
   });

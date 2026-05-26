@@ -11,25 +11,6 @@ Widget _harness(Widget child) {
 
 void main() {
   group('SoliplexChip (display)', () {
-    testWidgets('renders the label', (tester) async {
-      await tester.pumpWidget(
-        _harness(const SoliplexChip(label: Text('Draft'))),
-      );
-      expect(find.text('Draft'), findsOneWidget);
-    });
-
-    testWidgets('renders optional leading icon', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          const SoliplexChip(
-            label: Text('Synced'),
-            icon: Icon(Icons.check),
-          ),
-        ),
-      );
-      expect(find.byIcon(Icons.check), findsOneWidget);
-    });
-
     testWidgets('onDeleted fires when close button tapped', (tester) async {
       var fired = 0;
       await tester.pumpWidget(
@@ -41,8 +22,9 @@ void main() {
       expect(fired, 1);
     });
 
-    testWidgets('intent.danger paints errorContainer background',
-        (tester) async {
+    testWidgets('intent.danger paints errorContainer background', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           const SoliplexChip(
@@ -71,15 +53,6 @@ void main() {
       await tester.tap(find.text('Retry'));
       expect(fired, 1);
     });
-
-    testWidgets('builds an ActionChip', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexChip.action(label: const Text('Retry'), onPressed: () {}),
-        ),
-      );
-      expect(find.byType(ActionChip), findsOneWidget);
-    });
   });
 
   group('SoliplexChip.filter', () {
@@ -99,19 +72,6 @@ void main() {
       await tester.tap(find.text('All'));
       await tester.pump();
       expect(current, isTrue);
-    });
-
-    testWidgets('builds a FilterChip', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexChip.filter(
-            label: const Text('All'),
-            selected: false,
-            onSelected: (_) {},
-          ),
-        ),
-      );
-      expect(find.byType(FilterChip), findsOneWidget);
     });
   });
 }

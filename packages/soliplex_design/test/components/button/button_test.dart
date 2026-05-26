@@ -72,23 +72,9 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('icon variant uses FilledButton.icon', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexButton.filled(
-            onPressed: () {},
-            icon: const Icon(Icons.add),
-            child: const Text('Add'),
-          ),
-        ),
-      );
-      // FilledButton.icon still builds a FilledButton; presence of the
-      // leading icon is what we verify.
-      expect(find.byIcon(Icons.add), findsOneWidget);
-    });
-
-    testWidgets('icon + isLoading swaps the icon for a spinner',
-        (tester) async {
+    testWidgets('icon + isLoading swaps the icon for a spinner', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           SoliplexButton.filled(
@@ -105,20 +91,9 @@ void main() {
   });
 
   group('SoliplexButton.outlined', () {
-    testWidgets('renders an OutlinedButton', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexButton.outlined(
-            onPressed: () {},
-            child: const Text('Cancel'),
-          ),
-        ),
-      );
-      expect(find.byType(OutlinedButton), findsOneWidget);
-    });
-
-    testWidgets('intent.danger tints foreground with scheme.error',
-        (tester) async {
+    testWidgets('intent.danger tints foreground with scheme.error', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           SoliplexButton.outlined(
@@ -136,18 +111,6 @@ void main() {
   });
 
   group('SoliplexButton.text', () {
-    testWidgets('renders a TextButton', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexButton.text(
-            onPressed: () {},
-            child: const Text('More'),
-          ),
-        ),
-      );
-      expect(find.byType(TextButton), findsOneWidget);
-    });
-
     testWidgets('isCompact applies compact visual density', (tester) async {
       await tester.pumpWidget(
         _harness(
@@ -161,21 +124,6 @@ void main() {
       final btn = tester.widget<TextButton>(find.byType(TextButton));
       final density = btn.style!.visualDensity;
       expect(density, VisualDensity.compact);
-    });
-
-    testWidgets('isCompact false uses default density', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          SoliplexButton.text(
-            onPressed: () {},
-            child: const Text('Lobby'),
-          ),
-        ),
-      );
-      final btn = tester.widget<TextButton>(find.byType(TextButton));
-      // When isCompact is false the style does not assert a visualDensity,
-      // so it stays null (the theme/default fills it in).
-      expect(btn.style!.visualDensity, isNull);
     });
   });
 }

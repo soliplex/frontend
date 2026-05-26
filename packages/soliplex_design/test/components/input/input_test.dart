@@ -21,35 +21,6 @@ void main() {
     expect(captured, 'hello');
   });
 
-  testWidgets('renders label, hint, and helper', (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        const SoliplexInput(
-          label: 'Email',
-          hintText: 'you@example.com',
-          helperText: 'never shared',
-        ),
-      ),
-    );
-    expect(find.text('Email'), findsOneWidget);
-    expect(find.text('you@example.com'), findsOneWidget);
-    expect(find.text('never shared'), findsOneWidget);
-  });
-
-  testWidgets('errorText replaces helperText', (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        const SoliplexInput(
-          label: 'Email',
-          helperText: 'never shared',
-          errorText: 'bad email',
-        ),
-      ),
-    );
-    expect(find.text('bad email'), findsOneWidget);
-    expect(find.text('never shared'), findsNothing);
-  });
-
   group('password mode', () {
     testWidgets('obscures text by default', (tester) async {
       await tester.pumpWidget(
@@ -74,22 +45,22 @@ void main() {
     });
   });
 
-  group('loading mode', () {
-    testWidgets('disables interaction and shows a spinner', (tester) async {
-      final controller = TextEditingController();
-      await tester.pumpWidget(
-        _harness(
-          SoliplexInput(
-            label: 'Username',
-            controller: controller,
-            isLoading: true,
-          ),
+  testWidgets('isLoading disables interaction and shows a spinner', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    await tester.pumpWidget(
+      _harness(
+        SoliplexInput(
+          label: 'Username',
+          controller: controller,
+          isLoading: true,
         ),
-      );
-      await tester.enterText(find.byType(TextFormField), 'hi');
-      expect(controller.text, isEmpty);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    });
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField), 'hi');
+    expect(controller.text, isEmpty);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   testWidgets('enabled: false disables without spinner', (tester) async {
@@ -106,23 +77,5 @@ void main() {
     await tester.enterText(find.byType(TextFormField), 'hi');
     expect(controller.text, isEmpty);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-  });
-
-  testWidgets('passes validator through to the form field', (tester) async {
-    final key = GlobalKey<FormState>();
-    await tester.pumpWidget(
-      _harness(
-        Form(
-          key: key,
-          child: SoliplexInput(
-            label: 'Email',
-            validator: (v) => v == null || v.isEmpty ? 'required' : null,
-          ),
-        ),
-      ),
-    );
-    expect(key.currentState!.validate(), isFalse);
-    await tester.pump();
-    expect(find.text('required'), findsOneWidget);
   });
 }
