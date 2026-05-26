@@ -51,7 +51,7 @@ enum AuthFailureKind {
 class AuthException implements Exception {
   const AuthException(
     this.message, {
-    this.kind = AuthFailureKind.unknown,
+    required this.kind,
     this.oauthError,
   });
 

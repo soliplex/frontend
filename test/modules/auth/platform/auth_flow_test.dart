@@ -4,7 +4,10 @@ import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 void main() {
   group('AuthException', () {
     test('toString includes kind and message', () {
-      const error = AuthException('something failed');
+      const error = AuthException(
+        'something failed',
+        kind: AuthFailureKind.unknown,
+      );
       expect(
         error.toString(),
         'AuthException(AuthFailureKind.unknown): something failed',
