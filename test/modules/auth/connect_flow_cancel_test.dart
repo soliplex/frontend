@@ -39,7 +39,7 @@ void main() {
     });
 
     test(
-      'cancelled → ConnectNotice (not ConnectError), text is cancel copy',
+      'cancelled → ConnectNotice (not ConnectError), text is cancel message',
       () async {
         final flow = _createFlow(
           authFlow: FakeAuthFlow()
@@ -60,7 +60,7 @@ void main() {
     );
 
     test(
-      'idpRejected with access_denied → ConnectError, copy says rejected, '
+      'idpRejected with access_denied → ConnectError, text says rejected, '
       'raw oauthError not exposed',
       () async {
         final flow = _createFlow(

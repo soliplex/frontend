@@ -1,7 +1,7 @@
 import 'platform/auth_flow.dart';
 
 /// Maps an [AuthFailureKind] (plus optional context) to user-facing
-/// text. Centralised so UI never re-interpolates raw exception fields.
+/// text. Centralized so UI never re-interpolates raw exception fields.
 ///
 /// Never returns the raw [oauthError] string — unknown OAuth codes fall
 /// back to a generic retry message. RFC 6749 error codes are
@@ -39,7 +39,7 @@ String _describeIdpRejection(String? oauthError) {
       return 'Your sign-in has expired. Please sign in again.';
     case 'invalid_client':
     case 'unauthorized_client':
-      return 'This app is not authorised to sign in with this server. '
+      return 'This app is not authorized to sign in with this server. '
           'Contact your administrator.';
     case 'invalid_scope':
       return 'This app requested permissions the server does not allow. '

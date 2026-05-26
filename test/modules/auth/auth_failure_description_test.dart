@@ -4,7 +4,7 @@ import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 
 void main() {
   group('describeAuthFailure', () {
-    test('cancelled returns neutral copy', () {
+    test('cancelled returns neutral text', () {
       expect(
         describeAuthFailure(kind: AuthFailureKind.cancelled),
         'Sign-in was cancelled.',
@@ -42,7 +42,7 @@ void main() {
       );
     });
 
-    test('idpRejected invalid_grant maps to re-login copy', () {
+    test('idpRejected invalid_grant maps to re-login text', () {
       expect(
         describeAuthFailure(
           kind: AuthFailureKind.idpRejected,
@@ -87,11 +87,12 @@ void main() {
         'output never contains the literal word "Exception" or runtimeType junk',
         () {
       for (final kind in AuthFailureKind.values) {
-        final copy = describeAuthFailure(kind: kind);
-        expect(copy, isNot(contains('Exception')));
-        expect(copy, isNot(contains('runtimeType')));
-        expect(copy, isNot(matches(RegExp(r'\(\w{3,4}\)\.'))),
-            reason: 'Avoid leaking minified type names like "(Nra).": $copy');
+        final description = describeAuthFailure(kind: kind);
+        expect(description, isNot(contains('Exception')));
+        expect(description, isNot(contains('runtimeType')));
+        expect(description, isNot(matches(RegExp(r'\(\w{3,4}\)\.'))),
+            reason:
+                'Avoid leaking minified type names like "(Nra).": $description');
       }
     });
   });
