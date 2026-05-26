@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routes.dart';
+import '../auth_failure_description.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
+import '../platform/auth_flow.dart';
 import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
 import '../server_entry.dart';
@@ -41,7 +43,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           _fail('No callback parameters received.');
           return;
         case WebCallbackError(:final error):
-          _fail('Authentication failed: $error');
+          _fail(describeAuthFailure(
+            kind: AuthFailureKind.idpRejected,
+            oauthError: error,
+          ));
           return;
         case WebCallbackSuccess():
           break;

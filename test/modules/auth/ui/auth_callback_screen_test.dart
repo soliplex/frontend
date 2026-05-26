@@ -115,7 +115,40 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('access_denied'), findsOneWidget);
+      expect(
+        find.text('The identity provider rejected the sign-in request.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('access_denied'), findsNothing);
+    });
+
+    testWidgets('shows friendly message for invalid_grant error',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackError(error: 'invalid_grant'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('expired'), findsOneWidget);
+      expect(find.textContaining('invalid_grant'), findsNothing);
+    });
+
+    testWidgets('shows generic message for unknown OAuth error code',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackError(error: 'some_unknown_code'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Sign-in was rejected. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('some_unknown_code'), findsNothing);
     });
 
     testWidgets('shows error when no pre-auth state saved', (tester) async {
