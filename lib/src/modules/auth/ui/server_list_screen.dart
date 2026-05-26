@@ -228,7 +228,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
       // Unknown throwable (e.g. a stray Error from a programmer bug).
       // Render a generic one-liner rather than risk dumping a raw
       // toString into the inline error slot.
-      raw = 'Unexpected error (${e.runtimeType})';
+      raw = 'Sign-out failed. Please try again.';
     }
     const limit = 200;
     return raw.length > limit ? '${raw.substring(0, limit - 1)}…' : raw;

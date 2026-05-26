@@ -1,5 +1,6 @@
 import 'dart:developer' as dev;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
@@ -52,7 +53,14 @@ class NativeAuthFlow implements AuthFlow {
 
       final accessToken = result.accessToken;
       if (accessToken == null) {
-        throw const AuthException('IdP returned success but no access token');
+        dev.log(
+          'NativeAuthFlow: token exchange succeeded but access token was null',
+          level: 1000,
+        );
+        throw const AuthException(
+          'IdP returned success but no access token',
+          kind: AuthFailureKind.unknown,
+        );
       }
 
       return AuthResult(
@@ -63,12 +71,77 @@ class NativeAuthFlow implements AuthFlow {
       );
     } on AuthException {
       rethrow;
-    } on Exception catch (e, st) {
-      dev.log('NativeAuthFlow.authenticate', error: e, stackTrace: st);
+    } on FlutterAppAuthUserCancelledException catch (e, st) {
+      dev.log('NativeAuthFlow: user cancelled', error: e, stackTrace: st);
+      throw const AuthException(
+        'User cancelled sign-in',
+        kind: AuthFailureKind.cancelled,
+      );
+    } on FlutterAppAuthPlatformException catch (e, st) {
+      dev.log('NativeAuthFlow: platform exception', error: e, stackTrace: st);
+      throw _classifyAppAuth(e);
+    } on PlatformException catch (e, st) {
+      dev.log('NativeAuthFlow: channel exception', error: e, stackTrace: st);
       throw AuthException(
-        'Authentication failed (${e.runtimeType}). Please try again.',
+        'Sign-in channel error: ${e.code}',
+        kind: AuthFailureKind.unknown,
+      );
+    } on Exception catch (e, st) {
+      dev.log('NativeAuthFlow: unexpected', error: e, stackTrace: st);
+      throw const AuthException(
+        'Unexpected sign-in failure',
+        kind: AuthFailureKind.unknown,
       );
     }
+  }
+
+  /// Maps a [FlutterAppAuthPlatformException] to an [AuthFailureKind].
+  ///
+  /// Priority order is deliberate: an IdP-returned RFC 6749 `error` is the
+  /// most specific signal (the server told us exactly what was wrong), so it
+  /// wins over the plugin's generic `code` and the iOS-only `domain`. When
+  /// nothing classifies, falls back to [AuthFailureKind.unknown].
+  AuthException _classifyAppAuth(FlutterAppAuthPlatformException e) {
+    final oauthError = e.platformErrorDetails.error;
+    if (oauthError != null && oauthError.isNotEmpty) {
+      return AuthException(
+        'IdP rejected sign-in: $oauthError',
+        kind: AuthFailureKind.idpRejected,
+        oauthError: oauthError,
+      );
+    }
+
+    switch (e.code) {
+      case 'no_browser_available':
+        return const AuthException(
+          'No browser available',
+          kind: AuthFailureKind.noBrowser,
+        );
+      case 'discovery_failed':
+        return const AuthException(
+          'Discovery doc unreachable',
+          kind: AuthFailureKind.discoveryUnreachable,
+        );
+    }
+
+    final domain = e.platformErrorDetails.domain;
+    if (domain != null) {
+      if (domain.startsWith('org.openid.appauth.discovery')) {
+        return const AuthException(
+          'Discovery doc unreachable',
+          kind: AuthFailureKind.discoveryUnreachable,
+        );
+      }
+      if (domain == 'NSURLErrorDomain' ||
+          domain.startsWith('org.openid.appauth.network')) {
+        return const AuthException(
+          'Network failure during sign-in',
+          kind: AuthFailureKind.network,
+        );
+      }
+    }
+
+    return const AuthException('Sign-in failed', kind: AuthFailureKind.unknown);
   }
 
   /// Propagates any [FlutterAppAuth] failure (user cancel, network,

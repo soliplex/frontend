@@ -221,8 +221,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // -- State UIs --
 
   List<Widget> _buildUrlInput(BuildContext context) {
-    final theme = Theme.of(context);
-    final error = (_flow.state.value as UrlInput).error;
+    final message = (_flow.state.value as UrlInput).message;
 
     return [
       ..._buildHeader(context, 'Enter the URL of your backend server'),
@@ -252,32 +251,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       const SizedBox(height: SoliplexSpacing.s4),
-      if (error != null) ...[
-        Container(
-          padding: const EdgeInsets.all(SoliplexSpacing.s3),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(soliplexRadii.sm),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.error_outline,
-                color: theme.colorScheme.onErrorContainer,
-                size: 20,
-              ),
-              const SizedBox(width: SoliplexSpacing.s2),
-              Expanded(
-                child: Text(
-                  error,
-                  style: TextStyle(
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      if (message != null) ...[
+        UrlMessageBanner(message: message),
         const SizedBox(height: SoliplexSpacing.s4),
       ],
       FilledButton.icon(
@@ -509,5 +484,53 @@ class _VersionFooter extends StatelessWidget {
         child: const Text('Versions'),
       ),
     );
+  }
+}
+
+/// Renders a [ConnectMessage] on the URL-input screen.
+///
+/// [ConnectError] renders a red error banner with an icon.
+/// [ConnectNotice] renders a quiet neutral message with no container.
+class UrlMessageBanner extends StatelessWidget {
+  const UrlMessageBanner({super.key, required this.message});
+
+  final ConnectMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return switch (message) {
+      ConnectError(:final text) => Container(
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: theme.colorScheme.onErrorContainer,
+                size: 20,
+              ),
+              const SizedBox(width: SoliplexSpacing.s2),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ConnectNotice(:final text) => Text(
+          text,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+    };
   }
 }

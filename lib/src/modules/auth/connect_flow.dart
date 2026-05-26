@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_agent/soliplex_agent.dart' as agent show AuthException;
 
+import 'auth_failure_description.dart';
 import 'auth_tokens.dart';
 import 'connection_probe.dart';
 import 'consent_notice.dart';
@@ -16,9 +17,26 @@ sealed class ConnectState {
   const ConnectState();
 }
 
+/// A message to show on the URL-input screen.
+sealed class ConnectMessage {
+  const ConnectMessage(this.text);
+  final String text;
+}
+
+/// An alarming failure (network, server rejection, …) — rendered red.
+final class ConnectError extends ConnectMessage {
+  const ConnectError(super.text);
+}
+
+/// A neutral, non-alarming message (sign-in cancelled, session expired) —
+/// rendered without error styling.
+final class ConnectNotice extends ConnectMessage {
+  const ConnectNotice(super.text);
+}
+
 final class UrlInput extends ConnectState {
-  const UrlInput({this.error});
-  final String? error;
+  const UrlInput({this.message});
+  final ConnectMessage? message;
 }
 
 final class Probing extends ConnectState {
@@ -120,14 +138,18 @@ class ConnectFlow {
           }
           _proceedAfterProbe(result, result.providers);
         case ConnectionFailure(:final error, :final attemptedUrls):
-          state.value =
-              UrlInput(error: describeConnectionError(error, attemptedUrls));
+          state.value = UrlInput(
+            message: ConnectError(
+              describeConnectionError(error, attemptedUrls),
+            ),
+          );
       }
     } catch (e, st) {
       debugPrint('ConnectFlow.connect: $e\n$st');
       if (!_isCancelled(gen)) {
-        state.value =
-            UrlInput(error: 'Unexpected error connecting to $url: $e');
+        state.value = UrlInput(
+          message: ConnectError('Unexpected error connecting to $url: $e'),
+        );
       }
     }
   }
@@ -260,14 +282,25 @@ class ConnectFlow {
     } on AuthException catch (e) {
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
-        state.value = UrlInput(error: '${probeResult.serverUrl}: ${e.message}');
+        final description = describeAuthFailure(
+          kind: e.kind,
+          oauthError: e.oauthError,
+          serverUrl: probeResult.serverUrl.toString(),
+        );
+        state.value = UrlInput(
+          message: e.kind == AuthFailureKind.cancelled
+              ? ConnectNotice(description)
+              : ConnectError(description),
+        );
       }
     } on Exception catch (e, st) {
       debugPrint('ConnectFlow._authenticate: $e\n$st');
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
-          error: 'Authentication with ${probeResult.serverUrl} failed: $e',
+          message: ConnectError(
+            describeAuthFailure(kind: AuthFailureKind.unknown),
+          ),
         );
       }
     }
