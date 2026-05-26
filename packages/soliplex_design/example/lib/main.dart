@@ -1,31 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-void main() => runApp(const ButtonGalleryApp());
+void main() => runApp(const GalleryApp());
 
-class ButtonGalleryApp extends StatelessWidget {
-  const ButtonGalleryApp({super.key});
+class GalleryApp extends StatelessWidget {
+  const GalleryApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SoliplexButton Gallery',
+      title: 'soliplex_design gallery',
       theme: soliplexLightTheme(),
       darkTheme: soliplexDarkTheme(),
-      home: const ButtonGalleryScreen(),
+      home: const GalleryHome(),
     );
   }
 }
 
-class ButtonGalleryScreen extends StatefulWidget {
-  const ButtonGalleryScreen({super.key});
+/// Tabbed shell hosting one gallery per component family.
+class GalleryHome extends StatefulWidget {
+  const GalleryHome({super.key});
 
   @override
-  State<ButtonGalleryScreen> createState() => _ButtonGalleryScreenState();
+  State<GalleryHome> createState() => _GalleryHomeState();
 }
 
-class _ButtonGalleryScreenState extends State<ButtonGalleryScreen> {
+class _GalleryHomeState extends State<GalleryHome> {
   ThemeMode _themeMode = ThemeMode.light;
+
+  static const _sections = <(String, Widget)>[
+    ('Buttons', ButtonGallery()),
+    ('Badges', BadgeGallery()),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -36,28 +42,41 @@ class _ButtonGalleryScreenState extends State<ButtonGalleryScreen> {
       child: Builder(
         builder: (context) {
           final theme = Theme.of(context);
-          return Scaffold(
-            backgroundColor: theme.scaffoldBackgroundColor,
-            appBar: AppBar(
-              title: const Text('SoliplexButton'),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    _themeMode == ThemeMode.light
-                        ? Icons.dark_mode
-                        : Icons.light_mode,
-                  ),
-                  onPressed: () => setState(
-                    () => _themeMode = _themeMode == ThemeMode.light
-                        ? ThemeMode.dark
-                        : ThemeMode.light,
-                  ),
+          return DefaultTabController(
+            length: _sections.length,
+            child: Scaffold(
+              backgroundColor: theme.scaffoldBackgroundColor,
+              appBar: AppBar(
+                title: const Text('soliplex_design'),
+                bottom: TabBar(
+                  tabs: [
+                    for (final (label, _) in _sections) Tab(text: label),
+                  ],
                 ),
-              ],
-            ),
-            body: const SingleChildScrollView(
-              padding: EdgeInsets.all(SoliplexSpacing.s4),
-              child: ButtonGallery(),
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      _themeMode == ThemeMode.light
+                          ? Icons.dark_mode
+                          : Icons.light_mode,
+                    ),
+                    onPressed: () => setState(
+                      () => _themeMode = _themeMode == ThemeMode.light
+                          ? ThemeMode.dark
+                          : ThemeMode.light,
+                    ),
+                  ),
+                ],
+              ),
+              body: TabBarView(
+                children: [
+                  for (final (_, gallery) in _sections)
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(SoliplexSpacing.s4),
+                      child: gallery,
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -66,8 +85,12 @@ class _ButtonGalleryScreenState extends State<ButtonGalleryScreen> {
   }
 }
 
-/// The button gallery as a pure widget, reusable from both the runnable
-/// app and from golden tests.
+// =====================================================================
+// Buttons
+// =====================================================================
+
+/// Gallery of every `SoliplexButton` variant. Reused by golden tests so
+/// the snapshot matches the runnable app.
 class ButtonGallery extends StatelessWidget {
   const ButtonGallery({super.key});
 
@@ -78,25 +101,25 @@ class ButtonGallery extends StatelessWidget {
       children: [
         _Section(
           title: 'Filled',
-          children: _shapeRow(ButtonShape.filled),
+          children: _shapeRow(_ButtonShape.filled),
         ),
         _Section(
           title: 'Outlined',
-          children: _shapeRow(ButtonShape.outlined),
+          children: _shapeRow(_ButtonShape.outlined),
         ),
         _Section(
           title: 'Text',
-          children: _shapeRow(ButtonShape.text),
+          children: _shapeRow(_ButtonShape.text),
         ),
         _Section(
           title: 'Text — compact',
-          children: _shapeRow(ButtonShape.text, compact: true),
+          children: _shapeRow(_ButtonShape.text, compact: true),
         ),
       ],
     );
   }
 
-  List<Widget> _shapeRow(ButtonShape shape, {bool compact = false}) {
+  List<Widget> _shapeRow(_ButtonShape shape, {bool compact = false}) {
     return [
       _GalleryButton(shape: shape, intent: ButtonIntent.primary, label: 'Save'),
       _GalleryButton(
@@ -128,7 +151,7 @@ class ButtonGallery extends StatelessWidget {
         label: 'Deleting…',
         isLoading: true,
       ),
-      if (shape == ButtonShape.text)
+      if (shape == _ButtonShape.text)
         _GalleryButton(
           shape: shape,
           intent: ButtonIntent.primary,
@@ -140,7 +163,7 @@ class ButtonGallery extends StatelessWidget {
   }
 }
 
-enum ButtonShape { filled, outlined, text }
+enum _ButtonShape { filled, outlined, text }
 
 class _GalleryButton extends StatelessWidget {
   const _GalleryButton({
@@ -153,7 +176,7 @@ class _GalleryButton extends StatelessWidget {
     this.isCompact = false,
   });
 
-  final ButtonShape shape;
+  final _ButtonShape shape;
   final ButtonIntent intent;
   final String label;
   final Widget? icon;
@@ -166,7 +189,7 @@ class _GalleryButton extends StatelessWidget {
     final onPressed = disabled ? null : () {};
     final child = Text(label);
     switch (shape) {
-      case ButtonShape.filled:
+      case _ButtonShape.filled:
         return SoliplexButton.filled(
           onPressed: onPressed,
           icon: icon,
@@ -174,7 +197,7 @@ class _GalleryButton extends StatelessWidget {
           isLoading: isLoading,
           child: child,
         );
-      case ButtonShape.outlined:
+      case _ButtonShape.outlined:
         return SoliplexButton.outlined(
           onPressed: onPressed,
           icon: icon,
@@ -182,7 +205,7 @@ class _GalleryButton extends StatelessWidget {
           isLoading: isLoading,
           child: child,
         );
-      case ButtonShape.text:
+      case _ButtonShape.text:
         return SoliplexButton.text(
           onPressed: onPressed,
           icon: icon,
@@ -194,6 +217,67 @@ class _GalleryButton extends StatelessWidget {
     }
   }
 }
+
+// =====================================================================
+// Badges
+// =====================================================================
+
+/// Gallery of every `SoliplexBadge` intent. Reused by golden tests.
+class BadgeGallery extends StatelessWidget {
+  const BadgeGallery({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Section(
+          title: 'Label only',
+          children: [
+            SoliplexBadge(label: Text('Neutral')),
+            SoliplexBadge(label: Text('Info'), intent: BadgeIntent.info),
+            SoliplexBadge(label: Text('Active'), intent: BadgeIntent.success),
+            SoliplexBadge(
+              label: Text('Review'),
+              intent: BadgeIntent.warning,
+            ),
+            SoliplexBadge(label: Text('Blocked'), intent: BadgeIntent.danger),
+          ],
+        ),
+        _Section(
+          title: 'With leading icon',
+          children: [
+            SoliplexBadge(label: Text('Draft'), icon: Icon(Icons.edit)),
+            SoliplexBadge(
+              label: Text('Info'),
+              icon: Icon(Icons.info_outline),
+              intent: BadgeIntent.info,
+            ),
+            SoliplexBadge(
+              label: Text('Synced'),
+              icon: Icon(Icons.check),
+              intent: BadgeIntent.success,
+            ),
+            SoliplexBadge(
+              label: Text('Pending'),
+              icon: Icon(Icons.schedule),
+              intent: BadgeIntent.warning,
+            ),
+            SoliplexBadge(
+              label: Text('Error'),
+              icon: Icon(Icons.error_outline),
+              intent: BadgeIntent.danger,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// =====================================================================
+// Shared
+// =====================================================================
 
 class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children});
