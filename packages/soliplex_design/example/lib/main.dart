@@ -33,6 +33,7 @@ class _GalleryHomeState extends State<GalleryHome> {
     ('Badges', BadgeGallery()),
     ('Chips', ChipGallery()),
     ('Inputs', InputGallery()),
+    ('Dropdowns', DropdownGallery()),
   ];
 
   @override
@@ -466,6 +467,92 @@ class _InputSection extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+// =====================================================================
+// Dropdowns
+// =====================================================================
+
+/// Gallery of every `SoliplexDropdown` variant. Reused by golden tests.
+class DropdownGallery extends StatelessWidget {
+  const DropdownGallery({super.key});
+
+  static const List<SoliplexDropdownEntry<String>> _planEntries = [
+    SoliplexDropdownEntry(value: 'free', label: 'Free'),
+    SoliplexDropdownEntry(value: 'pro', label: 'Pro'),
+    SoliplexDropdownEntry(value: 'team', label: 'Team'),
+  ];
+
+  static const List<SoliplexDropdownEntry<String>> _regionEntries = [
+    SoliplexDropdownEntry(
+      value: 'eu',
+      label: 'Europe',
+      icon: Icon(Icons.public),
+    ),
+    SoliplexDropdownEntry(
+      value: 'us',
+      label: 'North America',
+      icon: Icon(Icons.public),
+    ),
+    SoliplexDropdownEntry(
+      value: 'apac',
+      label: 'Asia Pacific',
+      icon: Icon(Icons.public),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _InputSection(
+          title: 'Basic',
+          child: SoliplexDropdown<String>(
+            label: 'Plan',
+            entries: _planEntries,
+            initialValue: 'free',
+          ),
+        ),
+        _InputSection(
+          title: 'With leading icon and helper',
+          child: SoliplexDropdown<String>(
+            label: 'Region',
+            helperText: 'Where to host your workload.',
+            leadingIcon: Icon(Icons.location_on_outlined),
+            entries: _regionEntries,
+            initialValue: 'eu',
+          ),
+        ),
+        _InputSection(
+          title: 'With error',
+          child: SoliplexDropdown<String>(
+            label: 'Plan',
+            errorText: 'Choose a plan to continue.',
+            entries: _planEntries,
+          ),
+        ),
+        _InputSection(
+          title: 'Loading',
+          child: SoliplexDropdown<String>(
+            label: 'Region',
+            helperText: 'Fetching available regions…',
+            isLoading: true,
+            entries: _regionEntries,
+          ),
+        ),
+        _InputSection(
+          title: 'Disabled',
+          child: SoliplexDropdown<String>(
+            label: 'Plan',
+            enabled: false,
+            entries: _planEntries,
+            initialValue: 'team',
+          ),
+        ),
+      ],
     );
   }
 }

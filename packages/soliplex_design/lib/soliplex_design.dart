@@ -5,6 +5,7 @@ export 'src/components/button/button.dart';
 export 'src/components/button/intent.dart';
 export 'src/components/chip/chip.dart';
 export 'src/components/chip/intent.dart';
+export 'src/components/dropdown/dropdown.dart';
 export 'src/components/input/input.dart';
 export 'src/effects/glow.dart';
 export 'src/theme/markdown_theme_extension.dart';
