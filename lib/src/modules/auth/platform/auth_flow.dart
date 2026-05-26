@@ -18,14 +18,53 @@ class AuthResult {
   final DateTime? expiresAt;
 }
 
-/// Authentication failure.
+/// Why an OIDC authentication attempt failed.
+///
+/// Distinct from HTTP-level auth errors (those use
+/// `package:soliplex_agent`'s `AuthException`). This taxonomy captures
+/// causes specific to the platform-level OIDC flow — discovery, the
+/// browser handoff, and the token exchange.
+enum AuthFailureKind {
+  /// User dismissed the OAuth browser sheet. Not an error; UI should
+  /// render this as a neutral notice, not a red banner.
+  cancelled,
+
+  /// Discovery doc fetch failed or returned non-JSON.
+  discoveryUnreachable,
+
+  /// Network failure during the auth flow (TLS, DNS, timeout, offline).
+  network,
+
+  /// IdP returned an OAuth error on `/authorize` or `/token`. The
+  /// specific RFC 6749 code is in [AuthException.oauthError].
+  idpRejected,
+
+  /// No installed browser available (Android only).
+  noBrowser,
+
+  /// IdP returned success but no access token, or PKCE/state mismatch,
+  /// or anything we can't classify.
+  unknown,
+}
+
+/// Authentication failure from the platform OIDC flow.
 class AuthException implements Exception {
-  const AuthException(this.message);
+  const AuthException(
+    this.message, {
+    this.kind = AuthFailureKind.unknown,
+    this.oauthError,
+  });
 
   final String message;
+  final AuthFailureKind kind;
+
+  /// Populated when [kind] is [AuthFailureKind.idpRejected]; carries
+  /// the RFC 6749 `error` string (`access_denied`, `invalid_grant`, …).
+  final String? oauthError;
 
   @override
-  String toString() => 'AuthException: $message';
+  String toString() =>
+      'AuthException($kind${oauthError != null ? ', oauthError: $oauthError' : ''}): $message';
 }
 
 /// Thrown when web auth triggers a browser redirect to the IdP.
