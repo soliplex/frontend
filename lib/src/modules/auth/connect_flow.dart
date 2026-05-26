@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_agent/soliplex_agent.dart' as agent show AuthException;
 
+import 'auth_failure_description.dart';
 import 'auth_tokens.dart';
 import 'connection_probe.dart';
 import 'consent_notice.dart';
@@ -281,8 +282,15 @@ class ConnectFlow {
     } on AuthException catch (e) {
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
+        final description = describeAuthFailure(
+          kind: e.kind,
+          oauthError: e.oauthError,
+          serverUrl: probeResult.serverUrl.toString(),
+        );
         state.value = UrlInput(
-          message: ConnectError('${probeResult.serverUrl}: ${e.message}'),
+          message: e.kind == AuthFailureKind.cancelled
+              ? ConnectNotice(description)
+              : ConnectError(description),
         );
       }
     } on Exception catch (e, st) {
@@ -291,7 +299,7 @@ class ConnectFlow {
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
           message: ConnectError(
-            'Authentication with ${probeResult.serverUrl} failed: $e',
+            describeAuthFailure(kind: AuthFailureKind.unknown),
           ),
         );
       }
