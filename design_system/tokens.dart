@@ -1,6 +1,7 @@
 // Soliplex design tokens — Flutter.
 //
-// This file mirrors lib/src/design/tokens/* in the production frontend.
+// This file mirrors packages/soliplex_design/lib/src/tokens/* in the
+// production frontend.
 // Drop it into a new app under lib/src/design/ if you are bootstrapping a
 // sister project. In the main repo, reference the existing tokens directly.
 

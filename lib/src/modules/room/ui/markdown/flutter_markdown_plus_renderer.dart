@@ -22,15 +22,6 @@ final _brTag = RegExp(r'<br\s*/?>');
 
 String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
 
-// Duplicated from lib/src/design/tokens/typography_x.dart so we can hand a
-// bare TextStyle (not BuildContext-derived) to MarkdownStyleSheet. Keep in
-// sync with appMonospaceTextStyle.
-String monospaceFont(TargetPlatform platform) {
-  final isApple =
-      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
-  return isApple ? 'SF Mono' : 'Roboto Mono';
-}
-
 class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   const FlutterMarkdownPlusRenderer({
     required super.data,
@@ -42,9 +33,10 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   @override
   Widget build(BuildContext context) {
     final markdownTheme = Theme.of(context).extension<MarkdownThemeExtension>();
+    final mono = monospaceFontFamily(Theme.of(context).platform);
     final monoStyle = TextStyle(
-      fontFamily: monospaceFont(Theme.of(context).platform),
-      fontFamilyFallback: const ['monospace'],
+      fontFamily: mono.family,
+      fontFamilyFallback: mono.fallback,
     );
 
     return MarkdownBody(
