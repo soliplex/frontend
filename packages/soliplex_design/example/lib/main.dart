@@ -31,6 +31,7 @@ class _GalleryHomeState extends State<GalleryHome> {
   static const _sections = <(String, Widget)>[
     ('Buttons', ButtonGallery()),
     ('Badges', BadgeGallery()),
+    ('Chips', ChipGallery()),
   ];
 
   @override
@@ -268,6 +269,98 @@ class BadgeGallery extends StatelessWidget {
               icon: Icon(Icons.error_outline),
               intent: BadgeIntent.danger,
             ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// =====================================================================
+// Chips
+// =====================================================================
+
+/// Gallery of every `SoliplexChip` variant. Reused by golden tests.
+///
+/// Stateful so filter chips can show both selected and unselected
+/// states with a working toggle.
+class ChipGallery extends StatefulWidget {
+  const ChipGallery({super.key});
+
+  @override
+  State<ChipGallery> createState() => _ChipGalleryState();
+}
+
+class _ChipGalleryState extends State<ChipGallery> {
+  final _filterSelections = <String, bool>{
+    'All': true,
+    'Active': false,
+    'Archived': false,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Section(
+          title: 'Display — label only',
+          children: [
+            SoliplexChip(label: Text('Neutral')),
+            SoliplexChip(label: Text('Info'), intent: ChipIntent.info),
+            SoliplexChip(label: Text('Active'), intent: ChipIntent.success),
+            SoliplexChip(label: Text('Review'), intent: ChipIntent.warning),
+            SoliplexChip(label: Text('Blocked'), intent: ChipIntent.danger),
+          ],
+        ),
+        _Section(
+          title: 'Display — with icon and delete',
+          children: [
+            SoliplexChip(
+              label: const Text('Draft'),
+              icon: const Icon(Icons.edit),
+              onDeleted: () {},
+            ),
+            SoliplexChip(
+              label: const Text('Synced'),
+              icon: const Icon(Icons.check),
+              intent: ChipIntent.success,
+              onDeleted: () {},
+            ),
+            SoliplexChip(
+              label: const Text('Failed'),
+              icon: const Icon(Icons.error_outline),
+              intent: ChipIntent.danger,
+              onDeleted: () {},
+            ),
+          ],
+        ),
+        _Section(
+          title: 'Action',
+          children: [
+            SoliplexChip.action(
+              label: const Text('Retry'),
+              icon: const Icon(Icons.refresh),
+              onPressed: () {},
+            ),
+            SoliplexChip.action(
+              label: const Text('Remove'),
+              icon: const Icon(Icons.delete_outline),
+              intent: ChipIntent.danger,
+              onPressed: () {},
+            ),
+          ],
+        ),
+        _Section(
+          title: 'Filter',
+          children: [
+            for (final entry in _filterSelections.entries)
+              SoliplexChip.filter(
+                label: Text(entry.key),
+                selected: entry.value,
+                onSelected: (v) =>
+                    setState(() => _filterSelections[entry.key] = v),
+              ),
           ],
         ),
       ],
