@@ -1,4 +1,6 @@
 export 'src/color/color_scheme_extensions.dart';
+export 'src/components/button/button.dart';
+export 'src/components/button/intent.dart';
 export 'src/effects/glow.dart';
 export 'src/theme/markdown_theme_extension.dart';
 export 'src/theme/theme.dart';
