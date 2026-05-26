@@ -32,6 +32,7 @@ class _GalleryHomeState extends State<GalleryHome> {
     ('Buttons', ButtonGallery()),
     ('Badges', BadgeGallery()),
     ('Chips', ChipGallery()),
+    ('Inputs', InputGallery()),
   ];
 
   @override
@@ -364,6 +365,107 @@ class _ChipGalleryState extends State<ChipGallery> {
           ],
         ),
       ],
+    );
+  }
+}
+
+// =====================================================================
+// Inputs
+// =====================================================================
+
+/// Gallery of every `SoliplexInput` variant. Reused by golden tests.
+class InputGallery extends StatelessWidget {
+  const InputGallery({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _InputSection(
+          title: 'Basic',
+          child: SoliplexInput(
+            label: 'Name',
+            hintText: 'Jane Doe',
+          ),
+        ),
+        _InputSection(
+          title: 'With leading icon and helper',
+          child: SoliplexInput(
+            label: 'Email',
+            hintText: 'you@example.com',
+            helperText: "We'll never share your email.",
+            leadingIcon: Icon(Icons.alternate_email),
+          ),
+        ),
+        _InputSection(
+          title: 'With error',
+          child: SoliplexInput(
+            label: 'Email',
+            initialValue: 'not-an-email',
+            errorText: 'Enter a valid email address.',
+            leadingIcon: Icon(Icons.alternate_email),
+          ),
+        ),
+        _InputSection(
+          title: 'Password',
+          child: SoliplexInput(
+            label: 'Password',
+            isPassword: true,
+            leadingIcon: Icon(Icons.lock_outline),
+          ),
+        ),
+        _InputSection(
+          title: 'Loading',
+          child: SoliplexInput(
+            label: 'Username',
+            initialValue: 'jane.doe',
+            helperText: 'Checking availability…',
+            isLoading: true,
+            leadingIcon: Icon(Icons.person_outline),
+          ),
+        ),
+        _InputSection(
+          title: 'Disabled',
+          child: SoliplexInput(
+            label: 'Read-only',
+            initialValue: 'cannot change me',
+            enabled: false,
+          ),
+        ),
+        _InputSection(
+          title: 'Multi-line',
+          child: SoliplexInput(
+            label: 'Bio',
+            hintText: 'Tell us about yourself',
+            maxLines: 4,
+            minLines: 3,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InputSection extends StatelessWidget {
+  const _InputSection({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: theme.textTheme.titleMedium),
+          const SizedBox(height: SoliplexSpacing.s2),
+          child,
+        ],
+      ),
     );
   }
 }
