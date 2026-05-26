@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'room_info_widgets.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ExpandableTile extends StatelessWidget {
   const ExpandableTile({

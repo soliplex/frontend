@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../human_approval_extension.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Bridges a [ReadonlySignal] of [ApprovalRequest] to imperative
 /// `showDialog` calls. Renders nothing itself; mount anywhere in the tree

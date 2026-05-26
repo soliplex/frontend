@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../room_providers.dart';
 import '../copy_button.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// A collapsible "Thinking..." block driven by a static text payload.
 ///

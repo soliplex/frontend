@@ -11,7 +11,7 @@ import '../consent_notice.dart';
 import '../connection_probe.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class InlineCodeBuilder extends MarkdownElementBuilder {
   @override

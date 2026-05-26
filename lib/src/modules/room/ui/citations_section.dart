@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../design/design.dart';
 import '../../../shared/copy_button.dart';
 import '../../../shared/preview_icon_button.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';

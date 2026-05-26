@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import 'room_info_widgets.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class FeaturesCard extends StatelessWidget {
   const FeaturesCard({

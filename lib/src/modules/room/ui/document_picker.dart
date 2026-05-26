@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class DocumentPicker extends StatefulWidget {
   const DocumentPicker({

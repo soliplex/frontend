@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
-import '../../../../design/design.dart';
 import '../markdown/flutter_markdown_plus_renderer.dart';
 
 /// Renders [content] through the shared markdown renderer. Used for

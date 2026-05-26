@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class GenUiTile extends StatelessWidget {
   const GenUiTile({super.key, required this.message});

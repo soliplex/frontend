@@ -11,7 +11,7 @@ import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class AuthCallbackScreen extends ConsumerStatefulWidget {
   const AuthCallbackScreen({super.key, required this.serverManager});

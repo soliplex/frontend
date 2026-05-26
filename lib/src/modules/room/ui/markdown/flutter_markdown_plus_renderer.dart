@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../../design/theme/markdown_theme_extension.dart';
 import '../../../../shared/failed_image.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
 import 'file_image_loader.dart'
     if (dart.library.io) 'file_image_loader_io.dart';
 import 'inline_code_builder.dart';
+import 'markdown_style_sheet.dart';
 import 'log_source.dart';
 import 'markdown_renderer.dart';
 
@@ -20,15 +21,6 @@ final _logger =
 final _brTag = RegExp(r'<br\s*/?>');
 
 String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
-
-// Duplicated from lib/src/design/tokens/typography_x.dart so we can hand a
-// bare TextStyle (not BuildContext-derived) to MarkdownStyleSheet. Keep in
-// sync with appMonospaceTextStyle.
-String monospaceFont(TargetPlatform platform) {
-  final isApple =
-      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
-  return isApple ? 'SF Mono' : 'Roboto Mono';
-}
 
 class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   const FlutterMarkdownPlusRenderer({
@@ -41,9 +33,10 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   @override
   Widget build(BuildContext context) {
     final markdownTheme = Theme.of(context).extension<MarkdownThemeExtension>();
+    final mono = monospaceFontFamily(Theme.of(context).platform);
     final monoStyle = TextStyle(
-      fontFamily: monospaceFont(Theme.of(context).platform),
-      fontFamilyFallback: const ['monospace'],
+      fontFamily: mono.family,
+      fontFamilyFallback: mono.fallback,
     );
 
     return MarkdownBody(

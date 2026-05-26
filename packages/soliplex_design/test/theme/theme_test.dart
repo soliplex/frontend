@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/design/theme/markdown_theme_extension.dart';
-import 'package:soliplex_frontend/src/design/theme/theme.dart';
-import 'package:soliplex_frontend/src/design/theme/theme_extensions.dart';
-import 'package:soliplex_frontend/src/design/tokens/colors.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 void main() {
   group('soliplexLightTheme', () {
@@ -104,13 +101,17 @@ void main() {
       expect(cs.surface, lightSoliplexColors.background);
       expect(cs.onSurface, lightSoliplexColors.foreground);
       expect(cs.onSurfaceVariant, lightSoliplexColors.mutedForeground);
-      expect(cs.surfaceContainerLowest,
-          lightSoliplexColors.surfaceContainerLowest);
+      expect(
+        cs.surfaceContainerLowest,
+        lightSoliplexColors.surfaceContainerLowest,
+      );
       expect(cs.surfaceContainerLow, lightSoliplexColors.surfaceContainerLow);
       expect(cs.surfaceContainer, lightSoliplexColors.inputBackground);
       expect(cs.surfaceContainerHigh, lightSoliplexColors.surfaceContainerHigh);
-      expect(cs.surfaceContainerHighest,
-          lightSoliplexColors.surfaceContainerHighest);
+      expect(
+        cs.surfaceContainerHighest,
+        lightSoliplexColors.surfaceContainerHighest,
+      );
       expect(cs.surfaceDim, lightSoliplexColors.accent);
       expect(cs.surfaceBright, lightSoliplexColors.background);
       expect(cs.surfaceTint, lightSoliplexColors.primary);

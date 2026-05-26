@@ -11,7 +11,7 @@ import '../quiz_session_controller.dart';
 import 'quiz_question.dart';
 import 'quiz_results.dart';
 import 'quiz_start.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class QuizScreen extends StatefulWidget {
   const QuizScreen({

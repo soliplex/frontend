@@ -4,7 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ChatInput extends StatefulWidget {
   const ChatInput({

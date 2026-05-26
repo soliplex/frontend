@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
-import '../../../../design/design.dart';
 import 'download_feedback_button.dart';
 import 'download_outcome.dart';
 

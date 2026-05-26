@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Compact eye-icon affordance for "open a preview / viewer for this
 /// row". Mirrors the visual weight of [CopyButton]: bare icon, hover

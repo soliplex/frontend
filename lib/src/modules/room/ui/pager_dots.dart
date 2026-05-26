@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Tappable dots indicator for a `PageView`. Each dot maps to one
 /// item; tapping a dot calls [onGoTo] with that index.

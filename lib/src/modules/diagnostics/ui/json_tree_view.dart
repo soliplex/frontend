@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.

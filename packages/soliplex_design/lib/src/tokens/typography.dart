@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'colors.dart';
+import 'package:soliplex_design/src/tokens/colors.dart';
 
 TextTheme soliplexTextTheme(SoliplexColors colors) {
   return TextTheme(

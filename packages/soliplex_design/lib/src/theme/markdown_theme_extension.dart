@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 class MarkdownThemeExtension extends ThemeExtension<MarkdownThemeExtension> {
   const MarkdownThemeExtension({
@@ -21,20 +20,6 @@ class MarkdownThemeExtension extends ThemeExtension<MarkdownThemeExtension> {
   final TextStyle? link;
   final Decoration? codeBlockDecoration;
   final Decoration? blockquoteDecoration;
-
-  MarkdownStyleSheet toMarkdownStyleSheet({TextStyle? codeFontStyle}) {
-    final mergedCode = codeFontStyle?.merge(code) ?? code;
-    return MarkdownStyleSheet(
-      h1: h1,
-      h2: h2,
-      h3: h3,
-      p: body,
-      code: mergedCode,
-      a: link,
-      codeblockDecoration: codeBlockDecoration,
-      blockquoteDecoration: blockquoteDecoration,
-    );
-  }
 
   @override
   MarkdownThemeExtension copyWith({

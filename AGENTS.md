@@ -86,12 +86,13 @@ Five feature modules composed in the standard flavor (`lib/src/flavors/standard.
   detects duplicate paths and parameterized shadowing. Module order determines
   redirect priority (first non-null wins).
 - **Theming**: `ShellConfig` takes `ThemeData` directly. Design tokens
-  (colors, spacing, radii, typography, breakpoints) in `lib/src/design/tokens/`.
+  (colors, spacing, radii, typography, breakpoints) live in the
+  `soliplex_design` package (`packages/soliplex_design/lib/src/tokens/`).
   Material 3 with `SoliplexTheme` and `MarkdownThemeExtension` extensions.
 
 ## Workspace Packages
 
-Four internal packages under `packages/`:
+Five internal packages under `packages/`:
 
 - `soliplex_agent` -- Agent orchestration: runtime lifecycle, session state
   machine (spawning, running, completed, failed, cancelled), tool registry
@@ -103,6 +104,9 @@ Four internal packages under `packages/`:
   with token refresh, cancel tokens, and observable clients.
 - `soliplex_client_native` -- Native HTTP client for iOS/macOS via
   cupertino_http. Stub on other platforms.
+- `soliplex_design` -- Core design system: tokens (colors, spacing, radii,
+  typography, breakpoints), theme factories, `SoliplexGlow`, and shared visual
+  primitives. Depends only on `flutter`.
 - `soliplex_logging` -- Structured logging with levels (trace through fatal),
   sinks (memory with circular buffer, console, disk queue, backend POST),
   distributed tracing support (spanId, traceId).

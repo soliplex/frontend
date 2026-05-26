@@ -1,12 +1,13 @@
-# Soliplex design system
+# soliplex_design
 
-This folder is the **single source of truth** for color, type, spacing, radii,
-and breakpoints in the Flutter frontend. Everything under
-`lib/src/modules/` must consume tokens from here — no hex literals, no magic
-padding numbers, no hardcoded font sizes or families.
+The **single source of truth** for color, type, spacing, radii, and breakpoints
+in the Soliplex Flutter stack. Consumed by `soliplex_frontend` and any
+whitelabel app embedding it; everything under `lib/src/modules/` in the frontend
+must consume tokens from here — no hex literals, no magic padding numbers, no
+hardcoded font sizes or families.
 
 The canonical reference (with swatches, type specimens, and component demos) is
-[`design_system/`](../../../design_system/). Open
+[`design_system/`](../../design_system/). Open
 `design_system/Soliplex Design System.html` in a browser to verify a new screen
 matches.
 
@@ -30,12 +31,12 @@ matches.
 Import the whole surface via:
 
 ```dart
-import 'package:soliplex_frontend/src/design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 ```
 
 ## Hard rules
 
-1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue|yellow` outside this folder.
+1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue|yellow` outside this package.
 2. No bare `BorderRadius.circular(N)` — use `SoliplexTheme.of(context).radii.*`.
 3. No `TextStyle(fontSize: ...)` or bare `fontSize:` in `.copyWith` — start from a `textTheme` entry and `copyWith` only the delta you need.
 4. No `fontFamily: 'monospace'` / `'Roboto Mono'` / `'SF Mono'` string literals — use `context.monospace`.
@@ -64,6 +65,6 @@ Mirror of the checklist in `design_system/README.md`:
 Don't, without explicit user approval. If a missing value is genuinely needed:
 
 1. Stop. Raise the case in the relevant PR.
-2. Add the token to `tokens/colors.dart` (or the matching tokens file) **and**
-   to `design_system/tokens.{dart,css,jsx}` in the same change.
+2. Add the token to `lib/src/tokens/colors.dart` (or the matching tokens file)
+   **and** to `design_system/tokens.{dart,css,jsx}` in the same change.
 3. Update `design_system/README.md` so the table stays accurate.

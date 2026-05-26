@@ -10,7 +10,7 @@ import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'room_card.dart';
 import 'server_sidebar.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 240;
 const double _wideBreakpoint = 600;

@@ -4,7 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import '../thread_list_state.dart';
 import 'error_retry_panel.dart';
 import 'thread_tile.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ThreadSidebar extends StatelessWidget {
   const ThreadSidebar({

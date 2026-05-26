@@ -13,7 +13,7 @@ import '../../message_expansions.dart';
 import '../../room_providers.dart';
 import '../copy_button.dart';
 import 'timeline_entry.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.execution_timeline');

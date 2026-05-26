@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 /// Compact header strip showing aggregate queue health from the HTTP
 /// concurrency limiter.

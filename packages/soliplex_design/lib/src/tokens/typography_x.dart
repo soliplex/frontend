@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/platform_resolver.dart';
+/// The monospace font family and fallbacks to use on [platform].
+({String family, List<String> fallback}) monospaceFontFamily(
+  TargetPlatform platform,
+) {
+  final isCupertino =
+      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+  return isCupertino
+      ? (family: 'SF Mono', fallback: const ['Menlo', 'monospace'])
+      : (family: 'Roboto Mono', fallback: const ['monospace']);
+}
 
 TextStyle appMonospaceTextStyle(BuildContext context, {TextStyle? base}) {
   final effectiveBase = base ?? Theme.of(context).textTheme.bodyMedium;
-
-  if (isCupertino(context)) {
-    return effectiveBase!.copyWith(
-      fontFamily: 'SF Mono',
-      fontFamilyFallback: const ['Menlo', 'monospace'],
-    );
-  }
-
+  final mono = monospaceFontFamily(Theme.of(context).platform);
   return effectiveBase!.copyWith(
-    fontFamily: 'Roboto Mono',
-    fontFamilyFallback: const ['monospace'],
+    fontFamily: mono.family,
+    fontFamilyFallback: mono.fallback,
   );
 }
 

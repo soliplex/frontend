@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class CopyButton extends StatefulWidget {
   const CopyButton({

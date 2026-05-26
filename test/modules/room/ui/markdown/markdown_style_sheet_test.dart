@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:soliplex_frontend/src/design/theme/markdown_theme_extension.dart';
+import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/markdown/markdown_style_sheet.dart';
 
 void main() {
   test('toMarkdownStyleSheet applies heading and body styles', () {
@@ -31,15 +31,5 @@ void main() {
     expect(sheet.code?.fontFamily, 'monospace');
     expect(sheet.code?.fontSize, 14);
     expect(sheet.code?.backgroundColor, Colors.black12);
-  });
-
-  test('copyWith overrides specified fields', () {
-    final original = MarkdownThemeExtension(
-      h1: const TextStyle(fontSize: 24),
-      h2: const TextStyle(fontSize: 20),
-    );
-    final copied = original.copyWith(h1: const TextStyle(fontSize: 30));
-    expect(copied.h1?.fontSize, 30);
-    expect(copied.h2?.fontSize, 20);
   });
 }

@@ -7,7 +7,7 @@ import '../../execution_tracker.dart';
 import '../../message_expansions.dart' show MessageExpansion;
 import '../../room_providers.dart';
 import '../copy_button.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ExecutionThinkingBlock extends ConsumerStatefulWidget {
   const ExecutionThinkingBlock({

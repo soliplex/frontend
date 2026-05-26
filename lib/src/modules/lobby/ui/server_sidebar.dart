@@ -4,7 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../lobby_state.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ServerSidebar extends StatelessWidget {
   const ServerSidebar({

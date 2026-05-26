@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../models/event_accumulator.dart';
 import '../models/http_event_group.dart';
 import '../models/json_tree_model.dart';

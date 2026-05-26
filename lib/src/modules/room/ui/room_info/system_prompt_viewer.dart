@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/copy_button.dart';
-import '../../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class SystemPromptViewer extends StatefulWidget {
   const SystemPromptViewer({super.key, required this.prompt});

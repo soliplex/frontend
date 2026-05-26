@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show FeedbackType;
 
 import 'feedback_reason_dialog.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 enum _FeedbackPhase { idle, countdown, modal, submitted }
 

@@ -11,7 +11,7 @@ import 'execution/thinking_block.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'workdir_files_section.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class TextMessageTile extends StatelessWidget {
   const TextMessageTile({

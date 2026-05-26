@@ -11,7 +11,7 @@ import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
 import 'workdir_files_section.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({

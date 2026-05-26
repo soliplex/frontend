@@ -14,7 +14,7 @@ import '../auth_providers.dart';
 import '../auth_tokens.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
-import '../../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class ServerListScreen extends ConsumerStatefulWidget {
   const ServerListScreen({super.key, required this.serverManager});

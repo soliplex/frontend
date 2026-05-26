@@ -5,7 +5,7 @@ import 'package:soliplex_client/soliplex_client.dart' show BackendVersionInfo;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/routes.dart';
-import '../../design/design.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import '../auth/server_entry.dart';
 import 'backend_version_fetcher.dart';
 

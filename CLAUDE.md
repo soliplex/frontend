@@ -71,7 +71,8 @@ Mental model: `Watch` is to signals what `StreamBuilder` is to streams.
 `ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor
 provides its own `ThemeData`. Custom palette abstractions deferred until multiple
 flavors need them. The brand tokens that build those `ThemeData` instances live in
-`lib/src/design/` — see the **Design system** section below before writing UI code.
+the `soliplex_design` workspace package (`packages/soliplex_design/`) — see the
+**Design system** section below before writing UI code.
 
 ### Flavors
 
@@ -82,16 +83,17 @@ flavor — no enum or toggle framework.
 ## Design system
 
 The design system is the **single source of truth** for color, type, spacing,
-radii, and breakpoints. It lives in `lib/src/design/` (production code) and is
-documented in `lib/src/design/README.md` and the canonical reference bundle at
+radii, and breakpoints. It lives in the `soliplex_design` workspace package
+(`packages/soliplex_design/`) and is documented in
+`packages/soliplex_design/README.md` and the canonical reference bundle at
 `design_system/` (tokens, swatches, type specimens, component demos). **Read
-`lib/src/design/README.md` before writing or modifying any widget code** — it
-has the full accessor cheat sheet.
+`packages/soliplex_design/README.md` before writing or modifying any widget
+code** — it has the full accessor cheat sheet.
 
 ### Hard rules — do not violate without explicit user approval
 
 1. **No hex color literals** (`Color(0x...)`, `Color.fromARGB`, `Color.fromRGBO`)
-   outside `lib/src/design/`. Use
+   outside `packages/soliplex_design/`. Use
    `Theme.of(context).colorScheme.<token>` or
    `SoliplexTheme.of(context).colors.<token>`.
 2. **No `Colors.red|green|orange|blue|yellow`** (or their `.shadeN` variants) for
@@ -114,8 +116,8 @@ has the full accessor cheat sheet.
    `labelMedium`, `labelSmall`.
 6. **No `fontFamily: 'monospace'|'Roboto Mono'|'SF Mono'|'Menlo'`** string
    literals. Use `context.monospace` (from
-   `lib/src/design/tokens/typography_x.dart`) — it picks the right family per
-   platform.
+   `packages/soliplex_design/lib/src/tokens/typography_x.dart`) — it picks the
+   right family per platform.
 7. **No hardcoded width breakpoints.** Use `SoliplexBreakpoints.mobile` (320),
    `tablet` (600), `desktop` (840).
 8. **Destructive actions** use `colorScheme.error` / `errorContainer`. Never red
@@ -133,14 +135,14 @@ has the full accessor cheat sheet.
 | Monospace             | `context.monospace`                                                                                  |
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
 
-Import surface: `import 'package:soliplex_frontend/src/design/design.dart';`
+Import surface: `import 'package:soliplex_design/soliplex_design.dart';`
 
 ### Adding a new token
 
 Don't, without explicit user approval. If a value is genuinely missing:
 
 1. Stop. Raise the case in the relevant PR before writing code.
-2. Add the token to `lib/src/design/tokens/` **and** to
+2. Add the token to `packages/soliplex_design/lib/src/tokens/` **and** to
    `design_system/tokens.{dart,css,jsx}` in the same change.
 3. Update `design_system/README.md` so the table stays accurate.
 
@@ -168,11 +170,12 @@ Five feature modules composed in the standard flavor:
 
 ## Workspace Packages
 
-Four internal packages under `packages/`:
+Five internal packages under `packages/`:
 
 - `soliplex_agent` — Agent orchestration (runtime, sessions, tool registry, execution events)
 - `soliplex_client` — Backend HTTP/AG-UI API client, domain models, citation extraction
 - `soliplex_client_native` — Native HTTP client (iOS/macOS via cupertino_http)
+- `soliplex_design` — Core design system: tokens, theme factories, `SoliplexGlow`, shared visual primitives
 - `soliplex_logging` — Structured logging with memory, console, disk, and backend sinks
 
 ## CI
