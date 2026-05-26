@@ -107,5 +107,26 @@ void main() {
         expect(text, isNot(contains('Exception')));
       },
     );
+
+    test(
+      'discoveryUnreachable → ConnectError mentioning the probed server URL',
+      () async {
+        final flow = _createFlow(
+          authFlow: FakeAuthFlow()
+            ..nextError = const AuthException(
+              'Discovery doc unreachable',
+              kind: AuthFailureKind.discoveryUnreachable,
+            ),
+        );
+
+        await flow.connect('https://server.example.com');
+        await pumpEventQueue();
+
+        final s = flow.state.value as UrlInput;
+        final m = s.message;
+        expect(m, isA<ConnectError>());
+        expect((m as ConnectError).text, contains('server.example.com'));
+      },
+    );
   });
 }

@@ -53,6 +53,10 @@ class NativeAuthFlow implements AuthFlow {
 
       final accessToken = result.accessToken;
       if (accessToken == null) {
+        dev.log(
+          'NativeAuthFlow: token exchange succeeded but access token was null',
+          level: 1000,
+        );
         throw const AuthException(
           'IdP returned success but no access token',
           kind: AuthFailureKind.unknown,
@@ -91,6 +95,12 @@ class NativeAuthFlow implements AuthFlow {
     }
   }
 
+  /// Maps a [FlutterAppAuthPlatformException] to an [AuthFailureKind].
+  ///
+  /// Priority order is deliberate: an IdP-returned RFC 6749 `error` is the
+  /// most specific signal (the server told us exactly what was wrong), so it
+  /// wins over the plugin's generic `code` and the iOS-only `domain`. When
+  /// nothing classifies, falls back to [AuthFailureKind.unknown].
   AuthException _classifyAppAuth(FlutterAppAuthPlatformException e) {
     final oauthError = e.platformErrorDetails.error;
     if (oauthError != null && oauthError.isNotEmpty) {

@@ -43,6 +43,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           _fail('No callback parameters received.');
           return;
         case WebCallbackError(:final error):
+          dev.log('Auth callback returned OAuth error', error: error);
           _fail(describeAuthFailure(
             kind: AuthFailureKind.idpRejected,
             oauthError: error,
