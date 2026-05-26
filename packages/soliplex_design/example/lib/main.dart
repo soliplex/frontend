@@ -34,6 +34,7 @@ class _GalleryHomeState extends State<GalleryHome> {
     ('Chips', ChipGallery()),
     ('Inputs', InputGallery()),
     ('Dropdowns', DropdownGallery()),
+    ('Pickers', PickerGallery()),
   ];
 
   @override
@@ -550,6 +551,75 @@ class DropdownGallery extends StatelessWidget {
             enabled: false,
             entries: _planEntries,
             initialValue: 'team',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =====================================================================
+// Pickers (modal date / time)
+// =====================================================================
+
+/// Gallery of the modal date- and time-picker fields. Reused by golden
+/// tests.
+class PickerGallery extends StatelessWidget {
+  const PickerGallery({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _InputSection(
+          title: 'Date — basic',
+          child: SoliplexDatePickerField(
+            label: 'Start',
+            initialValue: DateTime(2026, 1, 15),
+          ),
+        ),
+        const _InputSection(
+          title: 'Date — with helper',
+          child: SoliplexDatePickerField(
+            label: 'Deadline',
+            helperText: 'Pick a date in the future.',
+          ),
+        ),
+        const _InputSection(
+          title: 'Date — with error',
+          child: SoliplexDatePickerField(
+            label: 'Start',
+            errorText: 'A start date is required.',
+          ),
+        ),
+        const _InputSection(
+          title: 'Date — loading',
+          child: SoliplexDatePickerField(
+            label: 'Start',
+            isLoading: true,
+            helperText: 'Checking calendar conflicts…',
+          ),
+        ),
+        const _InputSection(
+          title: 'Date — disabled',
+          child: SoliplexDatePickerField(
+            label: 'Start',
+            enabled: false,
+          ),
+        ),
+        const _InputSection(
+          title: 'Time — basic',
+          child: SoliplexTimePickerField(
+            label: 'Reminder',
+            initialValue: TimeOfDay(hour: 9, minute: 0),
+          ),
+        ),
+        const _InputSection(
+          title: 'Time — disabled',
+          child: SoliplexTimePickerField(
+            label: 'Reminder',
+            enabled: false,
           ),
         ),
       ],
