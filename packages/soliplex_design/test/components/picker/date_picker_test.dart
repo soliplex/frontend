@@ -49,8 +49,7 @@ void main() {
     expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
   });
 
-  testWidgets('opens the picker on tap and forwards onChanged',
-      (tester) async {
+  testWidgets('opens the picker on tap and forwards onChanged', (tester) async {
     DateTime? picked;
     await tester.pumpWidget(
       _harness(

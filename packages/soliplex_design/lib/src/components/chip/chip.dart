@@ -76,9 +76,8 @@ class SoliplexChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = chipIntentColors(intent, context);
-    final labelStyle = colors.foreground == null
-        ? null
-        : TextStyle(color: colors.foreground);
+    final labelStyle =
+        colors.foreground == null ? null : TextStyle(color: colors.foreground);
 
     switch (_kind) {
       case _ChipKind.display:
