@@ -184,7 +184,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return [
       if (widget.logo != null)
-        SizedBox(width: _logoSize, height: _logoSize, child: widget.logo)
+        // Centered so the fixed-size box survives the header Column's
+        // CrossAxisAlignment.stretch — otherwise the logo (and any glow
+        // backplate behind it) gets stretched to the full column width.
+        Center(
+          child: SizedBox(
+            width: _logoSize,
+            height: _logoSize,
+            child: widget.logo,
+          ),
+        )
       else
         Icon(
           Icons.dns_outlined,

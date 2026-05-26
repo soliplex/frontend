@@ -7,8 +7,9 @@ import 'router.dart';
 
 class ShellConfig {
   final String appName;
-  final Widget? logo;
-  final ThemeData theme;
+  final ThemeData lightTheme;
+  final ThemeData? darkTheme;
+  final ThemeMode themeMode;
   final String initialRoute;
   final Listenable? refreshListenable;
 
@@ -28,8 +29,9 @@ class ShellConfig {
 
   ShellConfig._internal({
     required this.appName,
-    this.logo,
-    required this.theme,
+    required this.lightTheme,
+    this.darkTheme,
+    this.themeMode = ThemeMode.system,
     this.initialRoute = '/',
     required List<RouteBase> routes,
     required List<Override> overrides,
@@ -57,16 +59,18 @@ class ShellConfig {
   static Future<ShellConfig> fromModules({
     required List<AppModule> modules,
     required String appName,
-    Widget? logo,
-    required ThemeData theme,
+    required ThemeData lightTheme,
+    ThemeData? darkTheme,
+    ThemeMode themeMode = ThemeMode.system,
     String initialRoute = '/',
     Listenable? refreshListenable,
   }) async {
     final coordinator = _AppModuleCoordinator(modules);
     return ShellConfig._internal(
       appName: appName,
-      logo: logo,
-      theme: theme,
+      lightTheme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       initialRoute: initialRoute,
       routes: coordinator.routes,
       overrides: coordinator.overrides,

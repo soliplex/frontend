@@ -4,6 +4,7 @@ import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../../design/theme/markdown_theme_extension.dart';
 import '../../../../shared/failed_image.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
@@ -12,7 +13,6 @@ import 'file_image_loader.dart'
 import 'inline_code_builder.dart';
 import 'log_source.dart';
 import 'markdown_renderer.dart';
-import 'markdown_theme_extension.dart';
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.markdown_image');

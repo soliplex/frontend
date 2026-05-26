@@ -1,4 +1,6 @@
 export 'color/color_scheme_extensions.dart';
+export 'effects/glow.dart';
+export 'theme/markdown_theme_extension.dart';
 export 'theme/theme.dart';
 export 'theme/theme_extensions.dart';
 export 'tokens/breakpoints.dart';
