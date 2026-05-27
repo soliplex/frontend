@@ -57,9 +57,12 @@ lib/src/
 
 ## Dependencies
 
-- `soliplex_client` -- REST API, AG-UI client, domain models
-- `ag_ui` -- AG-UI protocol types (events, tool definitions)
+- `soliplex_client` -- REST API, AG-UI client, domain models, and the
+  AG-UI protocol types (events, tool definitions) re-exported from its
+  barrel
 - `soliplex_logging` -- structured logging
+- `signals_core` -- reactive signals for session and run state
+- `collection` -- collection utilities
 - `meta` -- annotations
 
 ## Rules

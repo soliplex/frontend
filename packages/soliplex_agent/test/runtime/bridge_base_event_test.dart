@@ -1,6 +1,6 @@
-import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_agent/src/orchestration/execution_event.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
+import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
 void main() {

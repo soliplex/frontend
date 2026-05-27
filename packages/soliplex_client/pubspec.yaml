@@ -10,12 +10,12 @@ environment:
 dependencies:
   ag_ui:
     git:
-      url: https://github.com/soliplex/ag-ui.git
+      url: https://github.com/ag-ui-protocol/ag-ui.git
       path: sdks/community/dart
   collection: ^1.19.1
   http: ^1.2.0
   meta: ^1.9.0
-  signals_core: ^6.2.0
+  signals_core: ^6.3.1
   soliplex_logging:
     path: ../soliplex_logging
 

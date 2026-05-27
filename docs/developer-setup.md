@@ -4,7 +4,7 @@ Platform-specific setup instructions for building and running Soliplex.
 
 ## Prerequisites
 
-- Flutter SDK (stable channel, >=3.27.0)
+- Flutter SDK (stable channel, >=3.38.4; CI builds with 3.38.7)
 - Xcode (for iOS/macOS)
 - CocoaPods (`gem install cocoapods`)
 - Android Studio (for Android)
@@ -12,12 +12,22 @@ Platform-specific setup instructions for building and running Soliplex.
 ## Quick Start
 
 ```bash
+# The ag_ui dependency is fetched from a Git LFS-enabled repo whose
+# binary assets we don't use, and one of its LFS objects is missing
+# upstream — which aborts the clone during pub get. We need only its
+# pure Dart sources (not LFS-tracked), so skip the LFS smudge filter:
+export GIT_LFS_SKIP_SMUDGE=1
+
 # Install dependencies
 flutter pub get
 
 # Run the app
 flutter run -d macos   # or: -d ios, -d chrome, -d android
 ```
+
+Add `export GIT_LFS_SKIP_SMUDGE=1` to your shell profile (`~/.zshrc`,
+`~/.bashrc`) so it persists. CI sets this automatically for its
+`pub get` step.
 
 ## Platform Setup
 

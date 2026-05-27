@@ -14,8 +14,8 @@ packages:
     description:
       path: "sdks/community/dart"
       ref: HEAD
-      resolved-ref: "29ae5b90c763ef4df3117b8e6f3b863755f41e7e"
-      url: "https://github.com/soliplex/ag-ui.git"
+      resolved-ref: "282291ea436a3d7d77b09fe690cb8309b9cd3a7b"
+      url: "https://github.com/ag-ui-protocol/ag-ui.git"
     source: git
     version: "0.1.0"
   analyzer:
@@ -307,26 +307,26 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_secure_storage
-      sha256: "6848263f9744072d0977347c383fb8b57d9780319a6bf5238b5a2866a029de62"
+      sha256: "7686b1d6a29985dcbb808c59518226e603e3bfa7c0ddfd1a0d00e4cda77c868e"
       url: "https://pub.dev"
     source: hosted
-    version: "10.2.0"
+    version: "10.3.1"
   flutter_secure_storage_darwin:
     dependency: transitive
     description:
       name: flutter_secure_storage_darwin
-      sha256: "67cd1ff671add31dc13e45194398187a04bb63804b37fa47866afae296d73fcb"
+      sha256: "82329fa5cdf343773b1b6897dea959105a29f092454259edff92f9f6637e8149"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.1"
+    version: "0.3.2"
   flutter_secure_storage_linux:
     dependency: transitive
     description:
       name: flutter_secure_storage_linux
-      sha256: "2b5c76dce569ab752d55a1cee6a2242bcc11fdba927078fb88c503f150767cda"
+      sha256: a5f35ddab43cf5c8215d2feb4ce1957851f28c5c37e6f04335066a0602087bf5
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "3.0.1"
   flutter_secure_storage_platform_interface:
     dependency: transitive
     description:
@@ -749,10 +749,10 @@ packages:
     dependency: transitive
     description:
       name: preact_signals
-      sha256: ad45313c86b2228536a16d3dfc86da8263705d4acb4136c42907378de6910d8c
+      sha256: "0cd9262527732f1d9760e3fed1e407630e893c49e48229ff3f007daf357dbb1e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.9.4"
+    version: "6.3.1"
   provider:
     dependency: transitive
     description:
@@ -877,18 +877,18 @@ packages:
     dependency: transitive
     description:
       name: signals_core
-      sha256: ea427bd53619e69e6f6cf244177e3b72870e433065c807600fb496fd80611c9f
+      sha256: abed6049b557da5b4e9c41715fd67bcc1a032dcc1ec147a9f228c2acf34ee151
       url: "https://pub.dev"
     source: hosted
-    version: "6.2.1"
+    version: "6.3.1"
   signals_flutter:
     dependency: "direct main"
     description:
       name: signals_flutter
-      sha256: "7c83418f47e3538685217e583f0fbd17a29716fa1a9ce2247e2455786e8ea81a"
+      sha256: "018625c022925fd1b586ae9f4aec670cdc94ba4fe117ec73cd6a945359529113"
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.0"
+    version: "6.3.1"
   sky_engine:
     dependency: transitive
     description: flutter
