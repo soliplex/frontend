@@ -2,6 +2,16 @@ import 'package:meta/meta.dart';
 import 'package:signals_core/signals_core.dart';
 import 'package:soliplex_client/src/domain/surface.dart';
 
+/// Callback invoked after every successful [StateBus] commit.
+///
+/// [tag] is the optional source label passed to [StateBus.setAgentState]
+/// or [StateBus.update]; `null` when the writer did not provide one.
+/// [snapshot] is the frozen post-commit agent-state map.
+typedef BusObserver = void Function(
+  String? tag,
+  Map<String, dynamic> snapshot,
+);
+
 /// Per-thread reactive bus that mirrors AG-UI agent state and runs
 /// registered surface projections over it.
 ///
@@ -25,6 +35,7 @@ class StateBus {
       : _agentState = signal(_freeze(initialAgentState));
 
   final Signal<Map<String, dynamic>> _agentState;
+  final List<BusObserver> _observers = [];
 
   bool _disposed = false;
 
@@ -34,11 +45,24 @@ class StateBus {
   /// even when delta application produces structurally-equal maps.
   ReadonlySignal<Map<String, dynamic>> get agentState => _agentState.readonly();
 
+  /// Register [observer] to be invoked after every successful commit.
+  /// Returns a disposer that detaches [observer] when called.
+  /// Adding an observer to a disposed bus is a no-op; the returned
+  /// disposer is then a no-op too.
+  void Function() addObserver(BusObserver observer) {
+    if (_disposed) return () {};
+    _observers.add(observer);
+    return () => _observers.remove(observer);
+  }
+
   /// Replace the entire agent-state map. Call when an AG-UI
-  /// `StateSnapshotEvent` arrives.
-  void setAgentState(Map<String, dynamic> next) {
+  /// `StateSnapshotEvent` arrives. Pass [tag] to label the source of
+  /// this write (e.g. `'agui.snapshot'`); observers receive the tag.
+  void setAgentState(Map<String, dynamic> next, {String? tag}) {
     if (_disposed) return;
-    _agentState.value = _freeze(next);
+    final frozen = _freeze(next);
+    _agentState.value = frozen;
+    _notifyObservers(tag, frozen);
   }
 
   /// Replace via a transform applied to the current map. Convenient
@@ -48,11 +72,26 @@ class StateBus {
   /// ```dart
   /// bus.update((current) => applyJsonPatch(current, deltaOps));
   /// ```
+  ///
+  /// Pass [tag] to label the source of this write; observers receive
+  /// the tag.
   void update(
-    Map<String, dynamic> Function(Map<String, dynamic> current) transform,
-  ) {
+    Map<String, dynamic> Function(Map<String, dynamic> current) transform, {
+    String? tag,
+  }) {
     if (_disposed) return;
-    _agentState.value = _freeze(transform(_agentState.value));
+    final frozen = _freeze(transform(_agentState.value));
+    _agentState.value = frozen;
+    _notifyObservers(tag, frozen);
+  }
+
+  void _notifyObservers(String? tag, Map<String, dynamic> snapshot) {
+    if (_observers.isEmpty) return;
+    // Iterate over a snapshot so an observer detaching itself during
+    // dispatch (e.g. via the returned disposer) does not skip siblings.
+    for (final observer in List<BusObserver>.of(_observers)) {
+      observer(tag, snapshot);
+    }
   }
 
   /// Register a [StateProjection] and receive a derived signal that
@@ -69,6 +108,7 @@ class StateBus {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _observers.clear();
     _agentState.dispose();
   }
 
