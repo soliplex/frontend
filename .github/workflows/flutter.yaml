@@ -79,16 +79,12 @@ jobs:
           echo "::group::Testing packages/soliplex_client_native"
           (cd packages/soliplex_client_native && flutter test)
           echo "::endgroup::"
-          # Goldens excluded until a Linux baseline is committed. To gate them:
-          # run the update-goldens workflow, commit its artifact, then drop
-          # --exclude-tags golden here. Pin Flutter to the same version here
-          # and in update-goldens.yaml (add a flutter-version input to
-          # setup-dart-env) so the two render identically, and add an
-          # `if: failure()` step uploading test/components/**/failures/ so the
-          # diff images survive the run. They render per-platform, so they're
-          # authoritative on Linux only.
+          # Full suite incl. goldens. Goldens render per-platform; the
+          # committed baseline is rendered on Linux at the Flutter version
+          # pinned in setup-dart-env, so it's authoritative here. Refresh it
+          # with the update-goldens workflow.
           echo "::group::Testing packages/soliplex_design"
-          (cd packages/soliplex_design && flutter test --exclude-tags golden)
+          (cd packages/soliplex_design && flutter test)
           echo "::endgroup::"
 
       - name: Report seed on failure
@@ -97,6 +93,15 @@ jobs:
           SEED="${{ steps.seed.outputs.value }}"
           echo "::error::Tests failed with ordering seed: $SEED"
           echo "Reproduce with: --test-randomize-ordering-seed=$SEED"
+
+      - name: Upload golden diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-failures
+          path: packages/soliplex_design/test/components/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Check coverage threshold
         run: |
