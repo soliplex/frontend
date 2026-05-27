@@ -61,6 +61,8 @@ void main() {
     await tester.enterText(find.byType(TextFormField), 'hi');
     expect(controller.text, isEmpty);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    final spinner = tester.getSize(find.byType(CircularProgressIndicator));
+    expect(spinner.width, spinner.height, reason: 'spinner must stay round');
   });
 
   testWidgets('enabled: false disables without spinner', (tester) async {
