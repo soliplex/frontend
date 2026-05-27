@@ -93,6 +93,79 @@ void main() {
       bus.dispose();
     });
 
+    test('addObserver fires after each commit with tag and snapshot', () {
+      final bus = StateBus();
+      final received = <(String?, Map<String, dynamic>)>[];
+      bus
+        ..addObserver((tag, snapshot) => received.add((tag, snapshot)))
+        ..setAgentState({'a': 1}, tag: 'agui.snapshot')
+        ..update((current) => {'a': (current['a'] as int) + 1}, tag: 'delta')
+        ..setAgentState({'a': 99}); // untagged
+
+      expect(received, hasLength(3));
+      expect(received[0].$1, 'agui.snapshot');
+      expect(received[0].$2['a'], 1);
+      expect(received[1].$1, 'delta');
+      expect(received[1].$2['a'], 2);
+      expect(received[2].$1, isNull);
+      expect(received[2].$2['a'], 99);
+      bus.dispose();
+    });
+
+    test('addObserver disposer detaches a single observer', () {
+      final bus = StateBus();
+      final a = <String?>[];
+      final b = <String?>[];
+      final disposeA = bus.addObserver((tag, _) => a.add(tag));
+      bus
+        ..addObserver((tag, _) => b.add(tag))
+        ..setAgentState({}, tag: 'first');
+      disposeA();
+      bus.setAgentState({}, tag: 'second');
+
+      expect(a, ['first']);
+      expect(b, ['first', 'second']);
+      bus.dispose();
+    });
+
+    test(
+      'observer detaching itself during dispatch does not skip siblings',
+      () {
+        final bus = StateBus();
+        final calls = <String>[];
+        late final void Function() disposeMid;
+        bus.addObserver((_, __) => calls.add('first'));
+        disposeMid = bus.addObserver((_, __) {
+          calls.add('mid');
+          disposeMid();
+        });
+        bus
+          ..addObserver((_, __) => calls.add('last'))
+          ..setAgentState({});
+        expect(calls, ['first', 'mid', 'last']);
+        bus.dispose();
+      },
+    );
+
+    test('dispose clears observers and stops further notifications', () {
+      final bus = StateBus();
+      final received = <String?>[];
+      bus
+        ..addObserver((tag, _) => received.add(tag))
+        ..setAgentState({}, tag: 'before')
+        ..dispose()
+        ..setAgentState({}, tag: 'after');
+
+      expect(received, ['before']);
+    });
+
+    test('addObserver on disposed bus returns a no-op disposer', () {
+      final bus = StateBus()..dispose();
+      // Must not throw.
+      final disposer = bus.addObserver((_, __) {});
+      disposer();
+    });
+
     test(
       'RagSnapshotProjection conforms to StateProjection and produces '
       'a typed snapshot from the rag namespace',
