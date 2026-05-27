@@ -10,7 +10,7 @@ environment:
 dependencies:
   collection: ^1.18.0
   meta: ^1.9.0
-  signals_core: ^6.2.0
+  signals_core: ^6.3.1
   soliplex_client:
     path: ../soliplex_client
   soliplex_logging:
