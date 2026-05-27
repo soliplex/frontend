@@ -36,6 +36,9 @@
 **/build/
 /coverage/
 
+# Golden test failure artifacts (written by flutter_test on mismatch)
+**/test/**/failures/
+
 # Android related
 **/android/**/gradle-wrapper.jar
 .gradle/

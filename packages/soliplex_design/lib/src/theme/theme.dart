@@ -56,6 +56,11 @@ ThemeData _buildTheme({
     surfaceTint: colors.primary,
   );
 
+  // Lets validation/helper text wrap instead of ellipsizing in narrow
+  // fields. Shared so inputs and dropdowns (separate decoration channels)
+  // can't drift apart.
+  const inputFeedbackMaxLines = 2;
+
   return ThemeData(
     brightness: brightness,
     colorScheme: colorScheme,
@@ -112,6 +117,8 @@ ThemeData _buildTheme({
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: colors.inputBackground,
+      helperMaxLines: inputFeedbackMaxLines,
+      errorMaxLines: inputFeedbackMaxLines,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(soliplexRadii.md),
         borderSide: BorderSide.none,
@@ -202,6 +209,8 @@ ThemeData _buildTheme({
       inputDecorationTheme: const InputDecorationTheme(
         isDense: true,
         border: OutlineInputBorder(),
+        helperMaxLines: inputFeedbackMaxLines,
+        errorMaxLines: inputFeedbackMaxLines,
       ),
     ),
     popupMenuTheme: PopupMenuThemeData(

@@ -1,0 +1,5 @@
+tags:
+  golden:
+    # Pixel snapshot tests. Rendering is platform-sensitive, so these are
+    # authoritative on CI (Linux) only. On macOS run `flutter test
+    # --exclude-tags golden`; regenerate via the update-goldens CI workflow.

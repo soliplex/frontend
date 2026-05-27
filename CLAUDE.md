@@ -83,12 +83,13 @@ flavor — no enum or toggle framework.
 ## Design system
 
 The design system is the **single source of truth** for color, type, spacing,
-radii, and breakpoints. It lives in the `soliplex_design` workspace package
-(`packages/soliplex_design/`) and is documented in
+radii, breakpoints, and the core component library (button, badge, chip,
+input, dropdown, date/time picker). It lives in the `soliplex_design`
+workspace package (`packages/soliplex_design/`) and is documented in
 `packages/soliplex_design/README.md` and the canonical reference bundle at
 `design_system/` (tokens, swatches, type specimens, component demos). **Read
 `packages/soliplex_design/README.md` before writing or modifying any widget
-code** — it has the full accessor cheat sheet.
+code** — it has the full accessor cheat sheet and the component inventory.
 
 ### Hard rules — do not violate without explicit user approval
 
@@ -122,6 +123,14 @@ code** — it has the full accessor cheat sheet.
    `tablet` (600), `desktop` (840).
 8. **Destructive actions** use `colorScheme.error` / `errorContainer`. Never red
    hex.
+9. **Prefer the branded component over its Material equivalent** when one
+   exists. Use `SoliplexButton` over `FilledButton`/`OutlinedButton`/
+   `TextButton`, `SoliplexBadge` for inline status pills, `SoliplexChip` over
+   `Chip`/`ActionChip`/`FilterChip`, `SoliplexInput` over `TextField`/
+   `TextFormField`, `SoliplexDropdown<T>` over `DropdownMenu<T>`,
+   `SoliplexDatePickerField` / `SoliplexTimePickerField` over ad-hoc
+   `showDatePicker` / `showTimePicker` wiring. Raw Material widgets are fine
+   when no Soliplex wrapper exists — they still pick up the brand `ThemeData`.
 
 ### Accessor cheat sheet
 
@@ -134,8 +143,30 @@ code** — it has the full accessor cheat sheet.
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace`                                                                                  |
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
+| Action button         | `SoliplexButton.{filled,outlined,text}` with `intent: ButtonIntent.{primary,danger}` and optional `isLoading` / `isCompact` / `icon` |
+| Inline status pill    | `SoliplexBadge(label, intent, icon)` — `BadgeIntent.{neutral,info,success,warning,danger}`           |
+| Chip                  | `SoliplexChip` (display), `.action`, `.filter` — same status intents as badge                        |
+| Text input            | `SoliplexInput(label, isPassword, isLoading, ...)` — eye toggle built in                             |
+| Select menu           | `SoliplexDropdown<T>(entries, onSelected, isLoading, ...)`                                           |
+| Date / time picker    | `SoliplexDatePickerField` / `SoliplexTimePickerField`, or imperative `showSoliplexDatePicker()` / `showSoliplexTimePicker()` |
 
 Import surface: `import 'package:soliplex_design/soliplex_design.dart';`
+
+### Components
+
+The package ships six interactive families with a shared axis vocabulary —
+`intent` (per-component enum, see table above), `isLoading` (disables
+interaction and paints a spinner *in the existing slot* so the widget doesn't
+shift size between idle/loading), and `enabled` (disables without spinner).
+Each wrapper delegates to its Material counterpart so any `ThemeData`
+override the host app sets still applies; the wrapper only customises the
+axes Material leaves to the caller.
+
+A runnable gallery of every variant lives at
+`packages/soliplex_design/example/lib/main.dart`. Golden snapshots of every
+gallery in both themes live under
+`packages/soliplex_design/test/components/*/goldens/` — skim these for a
+static visual reference when you're picking between variants.
 
 ### Adding a new token
 
@@ -154,6 +185,8 @@ Don't, without explicit user approval. If a value is genuinely missing:
 - [ ] Text styles come from `Theme.of(context).textTheme`.
 - [ ] Monospace uses `context.monospace`.
 - [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Interactive widgets use the branded `SoliplexX` wrapper when one exists
+      (button, badge, chip, input, dropdown, date/time picker).
 - [ ] Screen behaves at all three `SoliplexBreakpoints`.
 - [ ] Both light and dark palettes look correct.
 - [ ] Destructive actions use `colorScheme.error`; never red hex.
@@ -175,7 +208,7 @@ Five internal packages under `packages/`:
 - `soliplex_agent` — Agent orchestration (runtime, sessions, tool registry, execution events)
 - `soliplex_client` — Backend HTTP/AG-UI API client, domain models, citation extraction
 - `soliplex_client_native` — Native HTTP client (iOS/macOS via cupertino_http)
-- `soliplex_design` — Core design system: tokens, theme factories, `SoliplexGlow`, shared visual primitives
+- `soliplex_design` — Core design system: tokens, theme factories, branded component library (button / badge / chip / input / dropdown / date+time picker), `SoliplexGlow`, shared visual primitives
 - `soliplex_logging` — Structured logging with memory, console, disk, and backend sinks
 
 ## CI

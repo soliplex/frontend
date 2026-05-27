@@ -1,0 +1,35 @@
+name: Update Goldens
+
+# Manual only. Regenerates soliplex_design golden snapshots on Linux (the
+# platform CI compares against) and uploads them as an artifact to download
+# and commit. This is the sanctioned way to refresh goldens. Once a baseline
+# is committed and the test job drops --exclude-tags golden, that job runs
+# them in compare mode, so it stays a real gate. At that point, pin the
+# Flutter version here and in the test job so the two render identically.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-goldens:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dart environment
+        uses: ./.github/actions/setup-dart-env
+
+      - name: Regenerate goldens
+        run: |
+          cd packages/soliplex_design
+          flutter test --tags golden --update-goldens
+
+      - name: Upload regenerated goldens
+        uses: actions/upload-artifact@v7
+        with:
+          name: soliplex-design-goldens
+          path: packages/soliplex_design/test/components/**/goldens/*.png
+          retention-days: 7

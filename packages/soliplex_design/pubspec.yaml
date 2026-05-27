@@ -15,6 +15,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Reused by golden tests so the snapshot matches what `flutter run` shows.
+  soliplex_design_example:
+    path: example
   very_good_analysis: ^10.0.0
 
 flutter:
