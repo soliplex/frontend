@@ -8,10 +8,6 @@ environment:
   sdk: ^3.6.0
 
 dependencies:
-  ag_ui:
-    git:
-      url: https://github.com/soliplex/ag-ui.git
-      path: sdks/community/dart
   collection: ^1.18.0
   meta: ^1.9.0
   signals_core: ^6.2.0
