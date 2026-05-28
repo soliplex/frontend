@@ -55,7 +55,7 @@ across the library:
 
 | Family                          | Constructors                                    | Replaces                                            | Key axes                              |
 | ------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------- |
-| `SoliplexButton`                | `.filled`, `.outlined`, `.text`                 | `FilledButton`, `OutlinedButton`, `TextButton`      | `intent`, `isLoading`, `isCompact`, `icon` |
+| `SoliplexButton`                | `.filled`, `.outlined`, `.text`                 | `FilledButton`, `OutlinedButton`, `TextButton`      | `intent`, `isLoading`, `isCompact`, `icon`, `iconAlignment` |
 | `SoliplexBadge`                 | default                                         | inline status pills (not Material's positional `Badge`) | `intent`, `icon`                  |
 | `SoliplexChip`                  | default (display), `.action`, `.filter`         | `Chip`, `ActionChip`, `FilterChip`                  | `intent`, `selected`, `onDeleted`     |
 | `SoliplexInput`                 | default                                         | `TextField` / `TextFormField`                       | `isPassword` (eye toggle), `isLoading`, validation |
