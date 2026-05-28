@@ -5,6 +5,7 @@ import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../core/branding.dart';
+import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -37,6 +38,8 @@ Future<ShellConfig> standard({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
+  Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
+  Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
   final brand = branding ?? SoliplexBranding.soliplex;
   final lightTheme = soliplexLightTheme(
@@ -141,6 +144,10 @@ Future<ShellConfig> standard({
             ? AppRoutes.lobby
             : AppRoutes.home),
     refreshListenable: authMod.refreshListenable,
+    inactivity: InactivityConfig(
+      warningDuration: inactivityWarningDuration,
+      graceDuration: inactivityGraceDuration,
+    ),
     modules: [
       DiagnosticsAppModule(inspector: inspector),
       authMod,
