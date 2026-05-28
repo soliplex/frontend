@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../../modules/auth/auth_tokens.dart';
@@ -100,7 +101,7 @@ class InactivityMonitor {
   void _onWarningFired() {
     _warningTimer = null;
     _warningVisible.value = true;
-    _graceDeadline.value = DateTime.now().add(_config.graceDuration);
+    _graceDeadline.value = clock.now().add(_config.graceDuration);
     _graceTimer = Timer(_config.graceDuration, _performLogout);
   }
 
