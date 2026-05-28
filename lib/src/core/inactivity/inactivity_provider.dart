@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../modules/auth/auth_providers.dart';
+import '../../modules/auth/inactivity_logout_storage.dart';
+import '../../modules/auth/server_manager.dart';
 import 'inactivity_config.dart';
 import 'inactivity_monitor.dart';
 
@@ -11,16 +13,28 @@ final inactivityConfigProvider = Provider<InactivityConfig>(
   (_) => throw UnimplementedError('must be overridden by SoliplexShell'),
 );
 
-/// The shell-scoped [InactivityMonitor].
+/// The shell-scoped [InactivityMonitor], or `null` when the auth-module
+/// providers it depends on (`serverManagerProvider`,
+/// `inactivityLogoutFlagsProvider`) are not configured.
 ///
-/// Wired with the [ServerManager.servers] signal, the active
-/// [InactivityConfig], and the [InactivityLogoutFlagStorage] so it can
-/// flag servers whose tokens it drops at grace-timer expiry.
-final inactivityMonitorProvider = Provider<InactivityMonitor>((ref) {
+/// Returning nullable keeps the library bootable by consumers that
+/// don't include the auth module — inactivity logout simply stays
+/// disabled instead of crashing the shell.
+final inactivityMonitorProvider = Provider<InactivityMonitor?>((ref) {
+  final ServerManager serverManager;
+  final InactivityLogoutFlagStorage flags;
+  try {
+    serverManager = ref.watch(serverManagerProvider);
+    flags = ref.watch(inactivityLogoutFlagsProvider);
+  } catch (_) {
+    // Auth module providers not overridden — keep the shell bootable
+    // for consumers that don't include them.
+    return null;
+  }
   final monitor = InactivityMonitor(
-    servers: ref.watch(serverManagerProvider).servers,
+    servers: serverManager.servers,
     config: ref.watch(inactivityConfigProvider),
-    inactivityLogoutFlags: ref.watch(inactivityLogoutFlagsProvider),
+    inactivityLogoutFlags: flags,
   );
   ref.onDispose(monitor.dispose);
   return monitor;

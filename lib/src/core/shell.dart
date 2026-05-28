@@ -95,33 +95,51 @@ class _ShellRoot extends ConsumerStatefulWidget {
 }
 
 class _ShellRootState extends ConsumerState<_ShellRoot> {
-  late final InactivityMonitor _monitor = ref.read(inactivityMonitorProvider);
+  late final InactivityMonitor? _monitor = ref.read(inactivityMonitorProvider);
 
   @override
   void initState() {
     super.initState();
-    // HardwareKeyboard sees every key the framework receives, regardless
-    // of which widget owns focus — a root `Focus` widget would miss keys
-    // consumed by descendants like `TextField`.
-    HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    if (_monitor != null) {
+      // HardwareKeyboard sees every key the framework receives,
+      // regardless of which widget owns focus — a root `Focus` widget
+      // would miss keys consumed by descendants like `TextField`.
+      HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    }
   }
 
   @override
   void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    if (_monitor != null) {
+      HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    }
     super.dispose();
   }
 
   bool _onKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent) _monitor.bumpActivity();
-    // Returning false lets the framework continue normal dispatch.
+    if (event is KeyDownEvent) _monitor?.bumpActivity();
     return false;
   }
 
-  void _onPointer(PointerEvent _) => _monitor.bumpActivity();
+  void _onPointer(PointerEvent _) => _monitor?.bumpActivity();
 
   @override
   Widget build(BuildContext context) {
+    final monitor = _monitor;
+    final app = MaterialApp.router(
+      title: widget.config.appName,
+      theme: widget.config.lightTheme,
+      darkTheme: widget.config.darkTheme,
+      themeMode: widget.config.themeMode,
+      routerConfig: widget.router,
+      builder: monitor == null
+          ? null
+          : (context, child) => InactivityDialogHost(
+                monitor: monitor,
+                child: child ?? const SizedBox.shrink(),
+              ),
+    );
+    if (monitor == null) return app;
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: _onPointer,
@@ -129,19 +147,7 @@ class _ShellRootState extends ConsumerState<_ShellRoot> {
       // web. On mobile, scrolling is a drag gesture starting with
       // `onPointerDown`.
       onPointerSignal: _onPointer,
-      child: MaterialApp.router(
-        title: widget.config.appName,
-        theme: widget.config.lightTheme,
-        darkTheme: widget.config.darkTheme,
-        themeMode: widget.config.themeMode,
-        routerConfig: widget.router,
-        builder: (context, child) {
-          return InactivityDialogHost(
-            monitor: _monitor,
-            child: child ?? const SizedBox.shrink(),
-          );
-        },
-      ),
+      child: app,
     );
   }
 }

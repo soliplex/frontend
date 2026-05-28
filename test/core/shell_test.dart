@@ -6,11 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/core/app_module.dart';
 import 'package:soliplex_frontend/src/core/shell.dart';
 import 'package:soliplex_frontend/src/core/shell_config.dart';
-import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
-import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
-import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
-
-import '../helpers/fakes.dart';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -33,33 +28,6 @@ class _TestModule extends AppModule {
   @override
   ModuleRoutes build() =>
       ModuleRoutes(routes: routes, overrides: overrides, redirect: redirect);
-}
-
-/// Stand-in for the auth module overrides that the shell wires the
-/// [InactivityMonitor] against. Tests that mount a real [SoliplexShell]
-/// without [AuthAppModule] include this so the monitor's
-/// [ServerManager] and [InactivityLogoutFlagStorage] reads resolve.
-class _AuthStubModule extends AppModule {
-  @override
-  String get namespace => 'auth-stub';
-
-  @override
-  ModuleRoutes build() => ModuleRoutes(
-        overrides: [
-          serverManagerProvider.overrideWithValue(
-            ServerManager(
-              authFactory: () => AuthSession(
-                refreshService: FakeTokenRefreshService(),
-              ),
-              clientFactory: ({getToken, tokenRefresher}) => FakeHttpClient(),
-              storage: InMemoryServerStorage(),
-            ),
-          ),
-          inactivityLogoutFlagsProvider.overrideWithValue(
-            InMemoryInactivityLogoutFlagStorage(),
-          ),
-        ],
-      );
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +57,6 @@ void main() {
         lightTheme: ThemeData(),
         initialRoute: '/check',
         modules: [
-          _AuthStubModule(),
           _TestModule(
             overrides: [greeting.overrideWithValue('hello')],
           ),
@@ -127,7 +94,6 @@ void main() {
         lightTheme: ThemeData(),
         initialRoute: '/a',
         modules: [
-          _AuthStubModule(),
           _TestModule(
             redirect: (context, state) =>
                 state.matchedLocation == '/a' ? '/b' : null,
@@ -217,7 +183,7 @@ void main() {
         final config = await ShellConfig.fromModules(
           appName: 'Test',
           lightTheme: ThemeData(),
-          modules: [_AuthStubModule(), _LifecycleModule('x', log)],
+          modules: [_LifecycleModule('x', log)],
         );
 
         await tester.pumpWidget(SoliplexShell(config: config));
