@@ -12,6 +12,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         UrlBuilder;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
+import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
 
@@ -105,11 +106,17 @@ class FakeAuthFlow implements AuthFlow {
   /// row while the IdP round-trip is outstanding).
   Completer<void>? endSessionCompleter;
 
+  /// Captures the [forceLoginPrompt] value from the most recent
+  /// [authenticate] call so tests can assert it was threaded through.
+  bool lastForceLoginPrompt = false;
+
   @override
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   }) async {
+    lastForceLoginPrompt = forceLoginPrompt;
     if (throwRedirectInitiated) throw const AuthRedirectInitiated();
     if (nextError != null) throw nextError!;
     if (nextResult != null) return nextResult!;
@@ -146,6 +153,7 @@ class RecordingAuthFlow implements AuthFlow {
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   }) async {
     throw StateError('RecordingAuthFlow: authenticate not configured');
   }
@@ -457,6 +465,30 @@ class TestPlatformConstraints implements PlatformConstraints {
 }
 
 /// In-memory server storage for tests.
+class InMemoryInactivityLogoutFlagStorage
+    implements InactivityLogoutFlagStorage {
+  final Set<String> marked = {};
+  final List<String> isMarkedLog = [];
+  final List<String> clearLog = [];
+
+  @override
+  Future<void> mark(String serverId) async {
+    marked.add(serverId);
+  }
+
+  @override
+  Future<bool> isMarked(String serverId) async {
+    isMarkedLog.add(serverId);
+    return marked.contains(serverId);
+  }
+
+  @override
+  Future<void> clear(String serverId) async {
+    clearLog.add(serverId);
+    marked.remove(serverId);
+  }
+}
+
 class InMemoryServerStorage implements ServerStorage {
   final Map<String, PersistedServer> _store = {};
   int saveCount = 0;

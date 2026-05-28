@@ -28,6 +28,7 @@ ConnectFlow _createFlow({required FakeAuthFlow authFlow}) => ConnectFlow(
       probeClient: FakeHttpClient(),
       discover: (_, __) async => [_provider],
       authFlow: authFlow,
+      inactivityLogoutFlags: InMemoryInactivityLogoutFlagStorage(),
     );
 
 void main() {

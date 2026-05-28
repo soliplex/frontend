@@ -14,6 +14,7 @@ import '../modules/auth/auth_module.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
+import '../modules/auth/inactivity_logout_storage.dart';
 import '../modules/auth/platform/auth_flow.dart';
 import '../modules/auth/platform/callback_params.dart';
 import '../modules/auth/secure_server_storage.dart';
@@ -122,11 +123,14 @@ Future<ShellConfig> standard({
 
   final registry = RunRegistry();
 
+  final inactivityLogoutFlags = SharedPrefsInactivityLogoutFlagStorage();
+
   final authMod = AuthAppModule(
     serverManager: serverManager,
     probeClient: plainClient,
     authFlow: authFlow,
     appName: brand.appName,
+    inactivityLogoutFlags: inactivityLogoutFlags,
     callbackParams: callbackParams is! NoCallbackParams ? callbackParams : null,
     consentNotice: consentNotice,
     logo: brandLogo,

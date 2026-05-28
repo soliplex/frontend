@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../../modules/auth/auth_tokens.dart';
+import '../../modules/auth/inactivity_logout_storage.dart';
 import '../../modules/auth/server_entry.dart';
 import 'inactivity_config.dart';
 
@@ -22,8 +23,10 @@ class InactivityMonitor {
   InactivityMonitor({
     required ReadonlySignal<Map<String, ServerEntry>> servers,
     required InactivityConfig config,
+    InactivityLogoutFlagStorage? inactivityLogoutFlags,
   })  : _servers = servers,
-        _config = config {
+        _config = config,
+        _inactivityLogoutFlags = inactivityLogoutFlags {
     if (!_config.isEnabled) return;
     final hasAnyActive = computed(() {
       return _servers.value.values
@@ -35,6 +38,7 @@ class InactivityMonitor {
 
   final ReadonlySignal<Map<String, ServerEntry>> _servers;
   final InactivityConfig _config;
+  final InactivityLogoutFlagStorage? _inactivityLogoutFlags;
 
   ReadonlySignal<bool>? _hasAnyActive;
   void Function()? _activeSubscription;
@@ -110,6 +114,10 @@ class InactivityMonitor {
         .where((e) => e.auth.session.value is ActiveSession)
         .toList();
     for (final entry in active) {
+      // Mark before logout so a successful re-auth on a different code
+      // path doesn't race the flag write. The future is intentionally
+      // not awaited — best-effort persistence, fire-and-forget.
+      unawaited(_inactivityLogoutFlags?.mark(entry.serverId) ?? Future.value());
       entry.auth.logout();
     }
     // The hasAnyActive subscription handles dialog dismiss and timer

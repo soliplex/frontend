@@ -49,6 +49,7 @@ class WebAuthFlow implements AuthFlow {
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   }) async {
     final frontendOrigin = _navigator.origin;
     final returnTo = Uri.encodeFull('$frontendOrigin/#/auth/callback');
@@ -56,8 +57,13 @@ class WebAuthFlow implements AuthFlow {
     // Use backendUrl for BFF endpoint, fall back to same origin.
     final backend = backendUrl?.toString() ?? frontendOrigin;
 
-    final loginUrl = '$backend/api/login/${provider.id}?return_to=$returnTo';
-    _navigator.navigateTo(loginUrl);
+    final buffer = StringBuffer(
+      '$backend/api/login/${provider.id}?return_to=$returnTo',
+    );
+    if (forceLoginPrompt) {
+      buffer.write('&prompt=login');
+    }
+    _navigator.navigateTo(buffer.toString());
 
     // Browser navigates away; throw to make the type system honest.
     throw const AuthRedirectInitiated();

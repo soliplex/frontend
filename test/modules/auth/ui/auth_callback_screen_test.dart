@@ -73,6 +73,8 @@ Widget _buildApp({
     overrides: [
       authFlowProvider.overrideWithValue(FakeAuthFlow()),
       callbackParamsProvider.overrideWithValue(callbackParams),
+      inactivityLogoutFlagsProvider
+          .overrideWithValue(InMemoryInactivityLogoutFlagStorage()),
     ],
     child: MaterialApp.router(routerConfig: router),
   );

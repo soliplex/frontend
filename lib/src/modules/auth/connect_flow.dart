@@ -7,6 +7,7 @@ import 'auth_tokens.dart';
 import 'connection_probe.dart';
 import 'consent_notice.dart';
 import 'default_backend_url.dart';
+import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'pre_auth_state.dart';
 import 'server_entry.dart';
@@ -84,6 +85,7 @@ class ConnectFlow {
     required this.probeClient,
     required this.discover,
     required this.authFlow,
+    required this.inactivityLogoutFlags,
     this.consentNotice,
   });
 
@@ -91,6 +93,7 @@ class ConnectFlow {
   final SoliplexHttpClient probeClient;
   final DiscoverProviders discover;
   final AuthFlow authFlow;
+  final InactivityLogoutFlagStorage inactivityLogoutFlags;
   final ConsentNotice? consentNotice;
 
   final Signal<ConnectState> state = Signal<ConnectState>(const UrlInput());
@@ -244,17 +247,20 @@ class ConnectFlow {
       frontendReturnTo: _pendingReturnTo,
     ));
 
+    final serverId = serverIdFromUrl(probeResult.serverUrl);
+    final forceLoginPrompt = await inactivityLogoutFlags.isMarked(serverId);
+
     if (_isCancelled(gen)) return;
 
     try {
       final authResult = await authFlow.authenticate(
         provider,
         backendUrl: probeResult.serverUrl,
+        forceLoginPrompt: forceLoginPrompt,
       );
 
       if (_isCancelled(gen)) return;
 
-      final serverId = serverIdFromUrl(probeResult.serverUrl);
       final entry = serverManager.addServer(
         serverId: serverId,
         serverUrl: probeResult.serverUrl,
@@ -275,10 +281,15 @@ class ConnectFlow {
       );
 
       await PreAuthStateStorage.clear();
+      // Only clear after a successful login. If the IdP challenge was
+      // cancelled or failed, the flag stays set so the next attempt
+      // also forces prompt=login.
+      await inactivityLogoutFlags.clear(serverId);
       DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
       if (!_isCancelled(gen)) state.value = const Connected();
     } on AuthRedirectInitiated {
-      // Web: browser is redirecting to IdP.
+      // Web: browser is redirecting to IdP. The flag stays set;
+      // AuthCallbackScreen clears it after persisting the new tokens.
     } on AuthException catch (e) {
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {

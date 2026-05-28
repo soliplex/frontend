@@ -23,6 +23,7 @@ AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
       probeClient: FakeHttpClient(),
       authFlow: FakeAuthFlow(),
       appName: 'Soliplex',
+      inactivityLogoutFlags: InMemoryInactivityLogoutFlagStorage(),
     );
 
 void main() {

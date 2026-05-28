@@ -116,6 +116,8 @@ Widget _buildApp({
       serverManagerProvider.overrideWithValue(serverManager),
       authFlowProvider.overrideWithValue(fakeAuthFlow),
       probeClientProvider.overrideWithValue(FakeHttpClient()),
+      inactivityLogoutFlagsProvider
+          .overrideWithValue(InMemoryInactivityLogoutFlagStorage()),
       discoverProvidersProvider.overrideWithValue(
         discover ?? _noAuthDiscover,
       ),

@@ -36,6 +36,7 @@ class NativeAuthFlow implements AuthFlow {
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   }) async {
     final discoveryUrl =
         '${provider.serverUrl}/.well-known/openid-configuration';
@@ -48,6 +49,8 @@ class NativeAuthFlow implements AuthFlow {
           scopes: provider.scope.split(' '),
           externalUserAgent:
               ExternalUserAgent.ephemeralAsWebAuthenticationSession,
+          additionalParameters:
+              forceLoginPrompt ? const {'prompt': 'login'} : null,
         ),
       );
 

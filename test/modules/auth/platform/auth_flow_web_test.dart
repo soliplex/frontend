@@ -138,5 +138,23 @@ void main() {
       final uri = Uri.parse(navigator.lastNavigatedUrl!);
       expect(uri.queryParameters.containsKey('id_token_hint'), isFalse);
     });
+
+    test('authenticate omits prompt=login by default', () {
+      expect(
+        () => authFlow.authenticate(_provider),
+        throwsA(isA<AuthRedirectInitiated>()),
+      );
+
+      expect(navigator.lastNavigatedUrl, isNot(contains('prompt=login')));
+    });
+
+    test('authenticate appends prompt=login when forceLoginPrompt is true', () {
+      expect(
+        () => authFlow.authenticate(_provider, forceLoginPrompt: true),
+        throwsA(isA<AuthRedirectInitiated>()),
+      );
+
+      expect(navigator.lastNavigatedUrl, contains('&prompt=login'));
+    });
   });
 }

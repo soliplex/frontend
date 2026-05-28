@@ -6,6 +6,7 @@ import 'package:soliplex_frontend/src/core/inactivity/inactivity_monitor.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
+import '../../helpers/fakes.dart';
 import '../../helpers/test_server_entry.dart';
 
 const _provider = OidcProvider(
@@ -216,6 +217,28 @@ void main() {
         async.elapse(const Duration(minutes: 30));
 
         expect(entry.auth.session.value, isA<ActiveSession>());
+      });
+    });
+
+    test('grace logout marks the inactivity flag for each active entry', () {
+      fakeAsync((async) {
+        final servers = Signal<Map<String, ServerEntry>>({});
+        final flags = InMemoryInactivityLogoutFlagStorage();
+        final monitor = InactivityMonitor(
+          servers: servers,
+          config: _config,
+          inactivityLogoutFlags: flags,
+        );
+        final entry1 = _activeEntry(id: 's1');
+        final entry2 = _activeEntry(id: 's2');
+        servers.value = {entry1.serverId: entry1, entry2.serverId: entry2};
+
+        async.elapse(const Duration(minutes: 15));
+        async.flushMicrotasks();
+
+        expect(flags.marked, containsAll([entry1.serverId, entry2.serverId]));
+
+        monitor.dispose();
       });
     });
 
