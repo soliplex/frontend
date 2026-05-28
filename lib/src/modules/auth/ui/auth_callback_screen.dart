@@ -158,7 +158,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
               const SizedBox(height: SoliplexSpacing.s4),
               Text(_error ?? 'An error occurred'),
               const SizedBox(height: SoliplexSpacing.s4),
-              FilledButton(
+              SoliplexButton.filled(
                 onPressed: () => context.go(AppRoutes.home),
                 child: const Text('Back to home'),
               ),

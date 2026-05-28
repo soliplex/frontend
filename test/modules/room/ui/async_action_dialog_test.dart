@@ -64,7 +64,12 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Go'), findsNothing);
+      // SoliplexButton keeps the label mounted (faded) while loading so the
+      // button's width stays stable; the action is disabled instead of removed.
+      final actionButton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Go'),
+      );
+      expect(actionButton.onPressed, isNull);
 
       completer.complete();
       await tester.pumpAndSettle();

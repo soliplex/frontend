@@ -255,10 +255,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         UrlMessageBanner(message: message),
         const SizedBox(height: SoliplexSpacing.s4),
       ],
-      FilledButton.icon(
+      SoliplexButton.filled(
         onPressed: _connect,
         icon: const Icon(Icons.login),
-        label: const Text('Connect'),
+        child: const Text('Connect'),
       ),
     ];
   }
@@ -290,12 +290,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          OutlinedButton(
+          SoliplexButton.outlined(
             onPressed: _flow.reset,
             child: const Text('Cancel'),
           ),
           const SizedBox(width: SoliplexSpacing.s4),
-          FilledButton(
+          SoliplexButton.filled(
             onPressed: _flow.acceptInsecure,
             child: const Text('Connect anyway'),
           ),
@@ -319,12 +319,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          OutlinedButton(
+          SoliplexButton.outlined(
             onPressed: _flow.reset,
             child: const Text('Cancel'),
           ),
           const SizedBox(width: SoliplexSpacing.s4),
-          FilledButton(
+          SoliplexButton.filled(
             onPressed: _flow.acknowledgeConsent,
             child: Text(notice.acknowledgmentLabel),
           ),
@@ -347,13 +347,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       for (final provider in providers)
         Padding(
           padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
-          child: FilledButton(
+          child: SoliplexButton.filled(
             onPressed: () => _flow.selectProvider(provider),
             child: Text(provider.name),
           ),
         ),
       const SizedBox(height: SoliplexSpacing.s2),
-      TextButton(
+      SoliplexButton.text(
         onPressed: _flow.reset,
         child: const Text('Change server'),
       ),
@@ -410,7 +410,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       Align(
         alignment: Alignment.centerRight,
-        child: TextButton(
+        child: SoliplexButton.text(
           onPressed: () => context.push(AppRoutes.servers),
           child: Text('All servers ($connectedCount connected)'),
         ),
@@ -432,7 +432,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       if (hiddenCount > 0)
         Center(
-          child: TextButton(
+          child: SoliplexButton.text(
             onPressed: () => setState(() => _showAllServers = true),
             child: Text('Show $hiddenCount more'),
           ),
@@ -479,7 +479,7 @@ class _VersionFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: TextButton(
+      child: SoliplexButton.text(
         onPressed: () => context.push(AppRoutes.versions),
         child: const Text('Versions'),
       ),

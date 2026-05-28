@@ -95,29 +95,17 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: _busy ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        if (_busy)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else
-          TextButton(
-            onPressed: widget.canSubmit ? _run : null,
-            style: widget.isDestructive
-                ? TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                  )
-                : null,
-            child: Text(widget.actionLabel),
-          ),
+        SoliplexButton.text(
+          onPressed: widget.canSubmit ? _run : null,
+          isLoading: _busy,
+          intent:
+              widget.isDestructive ? ButtonIntent.danger : ButtonIntent.primary,
+          child: Text(widget.actionLabel),
+        ),
       ],
     );
   }
