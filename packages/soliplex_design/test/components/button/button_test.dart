@@ -88,6 +88,24 @@ void main() {
       expect(find.byIcon(Icons.add), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
+
+    testWidgets('iconAlignment.end renders the icon after the label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          SoliplexButton.filled(
+            onPressed: () {},
+            icon: const Icon(Icons.arrow_forward),
+            iconAlignment: IconAlignment.end,
+            child: const Text('Next'),
+          ),
+        ),
+      );
+      final iconX = tester.getCenter(find.byIcon(Icons.arrow_forward)).dx;
+      final labelX = tester.getCenter(find.text('Next')).dx;
+      expect(iconX, greaterThan(labelX));
+    });
   });
 
   group('SoliplexButton.outlined', () {

@@ -29,6 +29,7 @@ class SoliplexButton extends StatelessWidget {
     required this.child,
     super.key,
     this.icon,
+    this.iconAlignment = IconAlignment.start,
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
   })  : _shape = _ButtonShape.filled,
@@ -41,6 +42,7 @@ class SoliplexButton extends StatelessWidget {
     required this.child,
     super.key,
     this.icon,
+    this.iconAlignment = IconAlignment.start,
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
   })  : _shape = _ButtonShape.outlined,
@@ -57,6 +59,7 @@ class SoliplexButton extends StatelessWidget {
     required this.child,
     super.key,
     this.icon,
+    this.iconAlignment = IconAlignment.start,
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
     this.isCompact = false,
@@ -71,9 +74,15 @@ class SoliplexButton extends StatelessWidget {
   /// stable, and a spinner sits centered over it.
   final Widget child;
 
-  /// Optional leading icon. If [isLoading] is true the icon slot becomes
-  /// the spinner; the label fades.
+  /// Optional icon. Sits before the label by default; pass
+  /// [iconAlignment] to move it after. If [isLoading] is true the icon
+  /// slot becomes the spinner and the label fades.
   final Widget? icon;
+
+  /// Which side of the label the [icon] sits on. Ignored when [icon] is
+  /// null. Mirrors Material's `IconAlignment` — use [IconAlignment.end]
+  /// for trailing affordances ("Next →", "Go to Lobby →").
+  final IconAlignment iconAlignment;
 
   /// Semantic role — defaults to [ButtonIntent.primary]. [ButtonIntent.danger]
   /// swaps to the theme's error palette.
@@ -116,6 +125,7 @@ class SoliplexButton extends StatelessWidget {
       return FilledButton.icon(
         onPressed: effectiveOnPressed,
         style: style,
+        iconAlignment: iconAlignment,
         icon: _iconOrSpinner(colors.foreground),
         label: body,
       );
@@ -140,6 +150,7 @@ class SoliplexButton extends StatelessWidget {
       return OutlinedButton.icon(
         onPressed: effectiveOnPressed,
         style: style,
+        iconAlignment: iconAlignment,
         icon: _iconOrSpinner(fg),
         label: body,
       );
@@ -166,6 +177,7 @@ class SoliplexButton extends StatelessWidget {
       return TextButton.icon(
         onPressed: effectiveOnPressed,
         style: style,
+        iconAlignment: iconAlignment,
         icon: _iconOrSpinner(fg),
         label: body,
       );

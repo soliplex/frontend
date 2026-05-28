@@ -135,6 +135,13 @@ class ButtonGallery extends StatelessWidget {
       _GalleryButton(
         shape: shape,
         intent: ButtonIntent.primary,
+        label: 'Next',
+        icon: const Icon(Icons.arrow_forward),
+        iconAlignment: IconAlignment.end,
+      ),
+      _GalleryButton(
+        shape: shape,
+        intent: ButtonIntent.primary,
         label: 'Saving…',
         isLoading: true,
       ),
@@ -175,6 +182,7 @@ class _GalleryButton extends StatelessWidget {
     required this.intent,
     required this.label,
     this.icon,
+    this.iconAlignment = IconAlignment.start,
     this.isLoading = false,
     this.disabled = false,
     this.isCompact = false,
@@ -184,6 +192,7 @@ class _GalleryButton extends StatelessWidget {
   final ButtonIntent intent;
   final String label;
   final Widget? icon;
+  final IconAlignment iconAlignment;
   final bool isLoading;
   final bool disabled;
   final bool isCompact;
@@ -197,6 +206,7 @@ class _GalleryButton extends StatelessWidget {
         return SoliplexButton.filled(
           onPressed: onPressed,
           icon: icon,
+          iconAlignment: iconAlignment,
           intent: intent,
           isLoading: isLoading,
           child: child,
@@ -205,6 +215,7 @@ class _GalleryButton extends StatelessWidget {
         return SoliplexButton.outlined(
           onPressed: onPressed,
           icon: icon,
+          iconAlignment: iconAlignment,
           intent: intent,
           isLoading: isLoading,
           child: child,
@@ -213,6 +224,7 @@ class _GalleryButton extends StatelessWidget {
         return SoliplexButton.text(
           onPressed: onPressed,
           icon: icon,
+          iconAlignment: iconAlignment,
           intent: intent,
           isLoading: isLoading,
           isCompact: isCompact,
