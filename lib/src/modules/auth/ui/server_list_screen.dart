@@ -62,12 +62,12 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         title: const Text('Servers'),
         automaticallyImplyLeading: false,
         actions: [
-          TextButton(
+          SoliplexButton.text(
             onPressed: () => context.go(AppRoutes.home),
             child: const Text('Home'),
           ),
           if (connected.isNotEmpty)
-            TextButton(
+            SoliplexButton.text(
               onPressed: () => context.go(AppRoutes.lobby),
               child: const Text('Lobby'),
             ),
@@ -113,17 +113,10 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (entry.requiresAuth)
-                TextButton(
-                  onPressed: inFlight
-                      ? null
-                      : () => _runLogout(entry, removeAfter: false),
-                  child: inFlight
-                      ? const SizedBox(
-                          width: SoliplexSpacing.s4,
-                          height: SoliplexSpacing.s4,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Log out'),
+                SoliplexButton.text(
+                  onPressed: () => _runLogout(entry, removeAfter: false),
+                  isLoading: inFlight,
+                  child: const Text('Log out'),
                 ),
               IconButton(
                 icon: Icon(
@@ -163,7 +156,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextButton(
+          SoliplexButton.text(
             onPressed: () => context.go(
               AppRoutes.homeWithUrl(entry.serverUrl.toString()),
             ),
