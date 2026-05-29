@@ -83,10 +83,10 @@ class _ServerList extends StatelessWidget {
           ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-          child: OutlinedButton.icon(
+          child: SoliplexButton.outlined(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add Server'),
+            child: const Text('Add Server'),
           ),
         ),
       ],
@@ -153,15 +153,15 @@ class _ActionButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: onAddServer,
           child: const Text('Home'),
         ),
-        TextButton(
+        SoliplexButton.text(
           onPressed: onNetworkInspector,
           child: const Text('Network Inspector'),
         ),
-        TextButton(
+        SoliplexButton.text(
           onPressed: onVersions,
           child: const Text('Versions'),
         ),

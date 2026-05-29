@@ -253,7 +253,7 @@ class _RoomContent extends StatelessWidget {
           children: [
             const Text('No servers connected'),
             const SizedBox(height: SoliplexSpacing.s4),
-            FilledButton(
+            SoliplexButton.filled(
               onPressed: onAddServer,
               child: const Text('Add Server'),
             ),
@@ -350,7 +350,7 @@ class _ServerSection extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: SoliplexSpacing.s3),
-                  FilledButton.tonal(
+                  SoliplexButton.filled(
                     onPressed: () => onSignIn(serverId),
                     child: const Text('Sign in'),
                   ),
