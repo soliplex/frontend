@@ -50,5 +50,27 @@ void main() {
       expect(await storage.isMarked('server-b'), isFalse);
       expect(await storage.isMarked('server-a'), isTrue);
     });
+
+    group('degrades gracefully when the storage layer throws', () {
+      // A thrown PlatformException from SharedPreferences must not wedge
+      // the auth flow (isMarked runs before sign-in) or surface as an
+      // error (mark/clear are best-effort side effects).
+      SharedPrefsInactivityLogoutFlagStorage failing() =>
+          SharedPrefsInactivityLogoutFlagStorage(
+            prefsFactory: () => Future.error(StateError('prefs unavailable')),
+          );
+
+      test('isMarked returns false instead of throwing', () async {
+        expect(await failing().isMarked('server-a'), isFalse);
+      });
+
+      test('mark completes without throwing', () async {
+        await expectLater(failing().mark('server-a'), completes);
+      });
+
+      test('clear completes without throwing', () async {
+        await expectLater(failing().clear('server-a'), completes);
+      });
+    });
   });
 }

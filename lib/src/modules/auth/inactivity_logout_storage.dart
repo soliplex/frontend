@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Per-server flag recording that the most recent logout was triggered by
@@ -27,27 +29,70 @@ abstract class InactivityLogoutFlagStorage {
 /// SharedPreferences-backed implementation. The flag is not sensitive —
 /// it carries no token material — so it lives in shared_preferences
 /// rather than secure storage.
+///
+/// Every method degrades gracefully if the storage layer throws: writes
+/// and clears become no-ops and reads default to not-marked, each logged
+/// at SEVERE. Storage is best-effort here precisely because a thrown
+/// `PlatformException` must not wedge the auth flow ([isMarked] runs
+/// before sign-in) or mask a completed sign-in as a failure ([clear]
+/// runs after it). A dropped flag at worst forces a harmless extra
+/// `prompt=login`.
 class SharedPrefsInactivityLogoutFlagStorage
     implements InactivityLogoutFlagStorage {
+  SharedPrefsInactivityLogoutFlagStorage({
+    Future<SharedPreferences> Function()? prefsFactory,
+  }) : _prefsFactory = prefsFactory ?? SharedPreferences.getInstance;
+
+  final Future<SharedPreferences> Function() _prefsFactory;
+
   static const _prefix = 'soliplex_inactivity_logout_pending_';
 
   String _key(String serverId) => '$_prefix$serverId';
 
   @override
   Future<void> mark(String serverId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_key(serverId), true);
+    try {
+      final prefs = await _prefsFactory();
+      await prefs.setBool(_key(serverId), true);
+    } catch (e, st) {
+      dev.log(
+        'Failed to persist inactivity-logout flag for $serverId',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+    }
   }
 
   @override
   Future<bool> isMarked(String serverId) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_key(serverId)) ?? false;
+    try {
+      final prefs = await _prefsFactory();
+      return prefs.getBool(_key(serverId)) ?? false;
+    } catch (e, st) {
+      dev.log(
+        'Failed to read inactivity-logout flag for $serverId; '
+        'defaulting to not-marked',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return false;
+    }
   }
 
   @override
   Future<void> clear(String serverId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key(serverId));
+    try {
+      final prefs = await _prefsFactory();
+      await prefs.remove(_key(serverId));
+    } catch (e, st) {
+      dev.log(
+        'Failed to clear inactivity-logout flag for $serverId',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+    }
   }
 }

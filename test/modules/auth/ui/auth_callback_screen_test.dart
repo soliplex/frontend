@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -35,6 +36,7 @@ ServerManager _createServerManager() => ServerManager(
 Widget _buildApp({
   required ServerManager serverManager,
   required CallbackParams callbackParams,
+  InactivityLogoutFlagStorage? inactivityFlags,
 }) {
   final router = GoRouter(
     initialLocation: '/auth/callback',
@@ -73,8 +75,8 @@ Widget _buildApp({
     overrides: [
       authFlowProvider.overrideWithValue(FakeAuthFlow()),
       callbackParamsProvider.overrideWithValue(callbackParams),
-      inactivityLogoutFlagsProvider
-          .overrideWithValue(InMemoryInactivityLogoutFlagStorage()),
+      inactivityLogoutFlagsProvider.overrideWithValue(
+          inactivityFlags ?? InMemoryInactivityLogoutFlagStorage()),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
@@ -305,6 +307,53 @@ void main() {
       expect(find.text('Lobby Screen'), findsOneWidget);
       final entry = serverManager.servers.value['https://api.example.com']!;
       expect(entry.isConnected, isTrue);
+    });
+
+    testWidgets('clears the inactivity flag on a successful callback',
+        (tester) async {
+      const serverId = 'https://api.example.com';
+      final flags = InMemoryInactivityLogoutFlagStorage()..marked.add(serverId);
+      final serverManager = _createServerManager();
+      await PreAuthStateStorage.save(_validPreAuthState());
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+        inactivityFlags: flags,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lobby Screen'), findsOneWidget);
+      expect(flags.clearLog, contains(serverId));
+      expect(flags.marked, isNot(contains(serverId)));
+    });
+
+    testWidgets('keeps the inactivity flag when the callback fails',
+        (tester) async {
+      // No pre-auth state saved → callback fails before login. The flag
+      // must survive so the next attempt still forces prompt=login.
+      const serverId = 'https://api.example.com';
+      final flags = InMemoryInactivityLogoutFlagStorage()..marked.add(serverId);
+      final serverManager = _createServerManager();
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+        inactivityFlags: flags,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('expired'), findsOneWidget);
+      expect(flags.clearLog, isEmpty);
+      expect(flags.marked, contains(serverId));
     });
 
     testWidgets('back to home button navigates to /', (tester) async {

@@ -27,8 +27,14 @@ final inactivityMonitorProvider = Provider<InactivityMonitor?>((ref) {
     serverManager = ref.watch(serverManagerProvider);
     flags = ref.watch(inactivityLogoutFlagsProvider);
   } catch (_) {
-    // Auth module providers not overridden — keep the shell bootable
-    // for consumers that don't include them.
+    // The auth-module providers throw UnimplementedError when not
+    // overridden, but riverpod wraps that in a ProviderException that it
+    // doesn't export — so it can't be caught by type. In practice this is
+    // the only thing this catch ever sees: those providers are always
+    // installed via overrideWithValue (a pre-built instance that can't
+    // throw at read time), so there is no "installed but errored" case to
+    // distinguish. Returning null keeps the shell bootable for consumers
+    // that don't include the auth module.
     return null;
   }
   final monitor = InactivityMonitor(

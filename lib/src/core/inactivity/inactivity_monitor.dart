@@ -67,9 +67,7 @@ class InactivityMonitor {
   /// timer from zero.
   void extendSession() {
     if (!_warningVisible.value) return;
-    _graceTimer?.cancel();
-    _graceTimer = null;
-    _graceDeadline.value = null;
+    _clearGrace();
     _warningVisible.value = false;
     _armWarningTimer();
   }
@@ -92,7 +90,7 @@ class InactivityMonitor {
       }
     } else {
       _cancelAllTimers();
-      _graceDeadline.value = null;
+      _clearGrace();
       _warningVisible.value = false;
     }
   }
@@ -114,9 +112,9 @@ class InactivityMonitor {
         .where((e) => e.auth.session.value is ActiveSession)
         .toList();
     for (final entry in active) {
-      // Mark before logout so a successful re-auth on a different code
-      // path doesn't race the flag write. The future is intentionally
-      // not awaited — best-effort persistence, fire-and-forget.
+      // Persist the flag best-effort (fire-and-forget); logout proceeds
+      // regardless. The storage layer swallows and logs its own failures,
+      // so the unawaited future never rejects.
       unawaited(_inactivityLogoutFlags?.mark(entry.serverId) ?? Future.value());
       entry.auth.logout();
     }
@@ -129,5 +127,13 @@ class InactivityMonitor {
     _graceTimer?.cancel();
     _warningTimer = null;
     _graceTimer = null;
+  }
+
+  /// Clears the grace state — the grace timer and its deadline always
+  /// move together, so they have a single reset point.
+  void _clearGrace() {
+    _graceTimer?.cancel();
+    _graceTimer = null;
+    _graceDeadline.value = null;
   }
 }

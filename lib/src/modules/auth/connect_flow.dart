@@ -280,7 +280,16 @@ class ConnectFlow {
         ),
       );
 
-      await PreAuthStateStorage.clear();
+      // Post-login housekeeping is best-effort: the user is already
+      // signed in, so a storage failure here must not bounce them to the
+      // error state. Guard the PreAuthState clear (the inactivity flag
+      // store swallows its own failures).
+      try {
+        await PreAuthStateStorage.clear();
+      } catch (e, st) {
+        debugPrint(
+            'ConnectFlow: post-login PreAuthState clear failed: $e\n$st');
+      }
       // Only clear after a successful login. If the IdP challenge was
       // cancelled or failed, the flag stays set so the next attempt
       // also forces prompt=login.

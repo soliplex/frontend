@@ -146,7 +146,10 @@ class _ShellRootState extends ConsumerState<_ShellRoot> {
       onPointerDown: _onPointer,
       // `onPointerSignal` fires on trackpad/wheel scroll on desktop and
       // web. On mobile, scrolling is a drag gesture starting with
-      // `onPointerDown`.
+      // `onPointerDown`. Bare cursor movement/hover (`onPointerHover`/
+      // `onPointerMove` with no button) is intentionally NOT counted as
+      // activity — presence of the cursor isn't engagement, and counting
+      // it would defeat inactivity detection on desktop/web.
       onPointerSignal: _onPointer,
       child: app,
     );

@@ -2,8 +2,8 @@
 ///
 /// `warningDuration` is the idle interval before the "stay signed in?"
 /// dialog appears. `graceDuration` is the additional interval the dialog
-/// stays open before the app performs a local logout. Defaults match
-/// issue #284: 10 minutes of inactivity, then a 5-minute grace.
+/// stays open before the app performs a local logout. Defaults: 10
+/// minutes of inactivity, then a 5-minute grace.
 ///
 /// Pass [InactivityConfig.disabled] (or any zero duration) to opt out;
 /// the monitor checks [isEnabled] and never schedules timers when off.
