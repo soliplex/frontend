@@ -138,16 +138,13 @@ class QuizTextInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDisabled = questionState is Answered || questionState is Submitting;
 
-    return TextField(
+    return SoliplexInput(
       controller: controller,
       enabled: !isDisabled,
       textInputAction: TextInputAction.done,
       onSubmitted: isDisabled ? null : (_) => onSubmitted(),
       onChanged: onChanged,
-      decoration: const InputDecoration(
-        hintText: 'Type your answer...',
-        border: OutlineInputBorder(),
-      ),
+      hintText: 'Type your answer...',
     );
   }
 }

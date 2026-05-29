@@ -89,7 +89,7 @@ class QuizErrorFeedback extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          SoliplexButton.text(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
