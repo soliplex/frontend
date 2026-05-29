@@ -71,14 +71,34 @@ void main() {
         throwsA(isA<AuthRedirectInitiated>()),
       );
 
+      // return_to must arrive as a real query parameter the backend can
+      // read — not swallowed into a client-only URL fragment.
+      final uri = Uri.parse(navigator.lastNavigatedUrl!);
       expect(
-        navigator.lastNavigatedUrl,
-        contains('return_to='),
+        uri.queryParameters['return_to'],
+        'https://app.example.com/#/auth/callback',
       );
+    });
+
+    test(
+        'authenticate sends return_to and prompt as query params, not '
+        'fragment', () {
       expect(
-        navigator.lastNavigatedUrl,
-        contains('/auth/callback'),
+        () => authFlow.authenticate(_provider, forceLoginPrompt: true),
+        throwsA(isA<AuthRedirectInitiated>()),
       );
+
+      // A bare '#' in the URL turns everything after it into a fragment
+      // that the browser keeps client-side and never sends to the backend.
+      // Both values must be query parameters, and the login URL itself
+      // must carry no fragment.
+      final uri = Uri.parse(navigator.lastNavigatedUrl!);
+      expect(uri.queryParameters['prompt'], 'login');
+      expect(
+        uri.queryParameters['return_to'],
+        'https://app.example.com/#/auth/callback',
+      );
+      expect(uri.fragment, isEmpty);
     });
 
     test('endSession redirects to IdP logout endpoint', () async {
@@ -154,7 +174,8 @@ void main() {
         throwsA(isA<AuthRedirectInitiated>()),
       );
 
-      expect(navigator.lastNavigatedUrl, contains('&prompt=login'));
+      final uri = Uri.parse(navigator.lastNavigatedUrl!);
+      expect(uri.queryParameters['prompt'], 'login');
     });
   });
 }
