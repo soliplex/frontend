@@ -9,8 +9,8 @@ environment:
 
 dependencies:
   collection: ^1.18.0
-  meta: ^1.9.0
-  signals_core: ^6.3.1
+  meta: ^1.18.0
+  signals_core: ^7.0.0
   soliplex_client:
     path: ../soliplex_client
   soliplex_logging:
@@ -18,5 +18,5 @@ dependencies:
 
 dev_dependencies:
   mocktail: ^1.0.0
-  test: ^1.24.0
+  test: ^1.31.0
   very_good_analysis: ^10.0.0
