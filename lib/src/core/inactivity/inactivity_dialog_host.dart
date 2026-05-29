@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'inactivity_dialog.dart';
@@ -14,10 +16,18 @@ class InactivityDialogHost extends StatefulWidget {
   const InactivityDialogHost({
     super.key,
     required this.monitor,
+    required this.navigatorKey,
     required this.child,
   });
 
   final InactivityMonitor monitor;
+
+  /// Key for the navigator the dialog is pushed onto. The host itself
+  /// sits in `MaterialApp.router`'s `builder` slot, which is *above*
+  /// the navigator in the widget tree, so `Navigator.of(context)`
+  /// can't find one from the host's own context. The key gives the
+  /// host a direct handle to the navigator's state.
+  final GlobalKey<NavigatorState> navigatorKey;
   final Widget child;
 
   @override
@@ -44,16 +54,24 @@ class _InactivityDialogHostState extends State<InactivityDialogHost> {
 
   void _onWarningVisibleChanged(bool visible) {
     if (!mounted) return;
-    if (visible && _dialogRoute == null) {
-      _showDialog();
-    } else if (!visible && _dialogRoute != null) {
-      _dismissDialog();
-    }
+    // Microtask defers past the current signal-update batch but still
+    // runs before the next frame, so we don't depend on a frame being
+    // scheduled by some other code path before the dialog appears.
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      if (visible && _dialogRoute == null) {
+        _showDialog();
+      } else if (!visible && _dialogRoute != null) {
+        _dismissDialog();
+      }
+    });
   }
 
   void _showDialog() {
+    final nav = widget.navigatorKey.currentState;
+    if (nav == null) return;
     final route = DialogRoute<void>(
-      context: context,
+      context: nav.context,
       barrierDismissible: false,
       animationStyle: AnimationStyle.noAnimation,
       builder: (_) => InactivityDialog(
@@ -63,14 +81,14 @@ class _InactivityDialogHostState extends State<InactivityDialogHost> {
       ),
     );
     _dialogRoute = route;
-    Navigator.of(context, rootNavigator: true).push(route);
+    nav.push(route);
   }
 
   void _dismissDialog() {
     final route = _dialogRoute;
     _dialogRoute = null;
     if (route == null || !route.isActive) return;
-    Navigator.of(context, rootNavigator: true).removeRoute(route);
+    widget.navigatorKey.currentState?.removeRoute(route);
   }
 
   @override

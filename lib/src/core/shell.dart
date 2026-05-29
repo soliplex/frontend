@@ -136,6 +136,7 @@ class _ShellRootState extends ConsumerState<_ShellRoot> {
           ? null
           : (context, child) => InactivityDialogHost(
                 monitor: monitor,
+                navigatorKey: widget.router.routerDelegate.navigatorKey,
                 child: child ?? const SizedBox.shrink(),
               ),
     );
