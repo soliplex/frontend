@@ -91,6 +91,13 @@ class LobbyState {
     LobbyViewModeStorage.save(mode);
   }
 
+  /// Free-text room-name filter. Ephemeral — intentionally not persisted,
+  /// so each lobby visit starts unfiltered.
+  final Signal<String> _searchQuery = Signal('');
+  ReadonlySignal<String> get searchQuery => _searchQuery;
+
+  void setSearchQuery(String query) => _searchQuery.value = query;
+
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
   final Map<String, CancelToken> _cancelTokens = {};
 
