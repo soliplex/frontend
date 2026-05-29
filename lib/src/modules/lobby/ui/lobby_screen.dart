@@ -12,6 +12,7 @@ import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
+import 'room_grid_layout.dart';
 import 'server_sidebar.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -459,8 +460,7 @@ class _ServerSection extends StatelessWidget {
 ///
 /// Lives inside the outer room `ListView`, so it lays out with a [Wrap]
 /// (fixed-width cells, intrinsic height) rather than a nested scrollable
-/// grid. Column count steps with the available width via
-/// [SoliplexBreakpoints].
+/// grid. Column count and cell width come from [roomGridLayout].
 class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,
@@ -480,21 +480,15 @@ class _RoomGrid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final columns = width >= SoliplexBreakpoints.desktop
-              ? 3
-              : width >= SoliplexBreakpoints.mobile
-                  ? 2
-                  : 1;
           const spacing = SoliplexSpacing.s3;
-          final cellWidth = (width - spacing * (columns - 1)) / columns;
+          final layout = roomGridLayout(constraints.maxWidth, spacing: spacing);
           return Wrap(
             spacing: spacing,
             runSpacing: spacing,
             children: [
               for (final room in rooms)
                 SizedBox(
-                  width: cellWidth,
+                  width: layout.cellWidth,
                   child: RoomGridCard(
                     room: room,
                     onTap: () => onRoomTap(serverId, room.id),

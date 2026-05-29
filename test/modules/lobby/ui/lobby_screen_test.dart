@@ -197,7 +197,6 @@ void main() {
       expect(find.byType(RoomCard), findsOneWidget);
       expect(find.byType(RoomGridCard), findsNothing);
 
-      // Switch to grid.
       await tester.tap(find.byIcon(Icons.grid_view));
       await tester.pumpAndSettle();
 

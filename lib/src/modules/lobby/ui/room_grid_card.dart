@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-/// Vertical card used for the lobby's grid layout. Carries the same
-/// affordances as the list-row [RoomCard] (open on tap, info button,
-/// quiz indicator) in a shape that tiles cleanly into a grid cell.
+/// Vertical card used for the lobby's grid layout: open on tap, info
+/// button, and a quiz indicator, in a shape that tiles cleanly into a
+/// grid cell. The list-row counterpart is [RoomCard].
 class RoomGridCard extends StatelessWidget {
   const RoomGridCard({
     super.key,
