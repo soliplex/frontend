@@ -25,6 +25,20 @@ void main() {
       expect(find.text('Team-wide chat'), findsOneWidget);
     });
 
+    testWidgets('omits the description when empty', (tester) async {
+      await tester.pumpWidget(_harness(
+        RoomGridCard(
+          room: const Room(id: 'r1', name: 'General'),
+          onTap: () {},
+          onInfoTap: () {},
+        ),
+      ));
+
+      // Only the name renders; the description block is skipped entirely.
+      expect(find.text('General'), findsOneWidget);
+      expect(find.byType(Text), findsOneWidget);
+    });
+
     testWidgets('shows the quiz badge only when the room has quizzes',
         (tester) async {
       await tester.pumpWidget(_harness(
