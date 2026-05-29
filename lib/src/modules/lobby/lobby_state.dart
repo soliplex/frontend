@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
@@ -60,7 +61,7 @@ class LobbyState {
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
-    _loadViewMode();
+    unawaited(_loadViewMode());
   }
 
   final ServerManager _serverManager;
@@ -88,7 +89,7 @@ class LobbyState {
   void setViewMode(LobbyViewMode mode) {
     if (mode == _viewMode.value) return;
     _viewMode.value = mode;
-    LobbyViewModeStorage.save(mode);
+    unawaited(LobbyViewModeStorage.save(mode));
   }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
