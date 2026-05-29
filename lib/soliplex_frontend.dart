@@ -11,7 +11,7 @@ export 'src/interfaces/auth_state.dart'
 export 'src/modules/auth/auth_providers.dart'
     show inactivityLogoutFlagsProvider, serverManagerProvider;
 export 'src/modules/auth/inactivity_logout_storage.dart'
-    show InactivityLogoutFlagStorage, SharedPrefsInactivityLogoutFlagStorage;
+    show InactivityLogoutFlagStorage, LocalInactivityLogoutFlagStorage;
 export 'src/modules/auth/platform/callback_service.dart'
     show CallbackParamsCapture, clearCallbackUrl;
 export 'src/modules/auth/consent_notice.dart' show ConsentNotice;

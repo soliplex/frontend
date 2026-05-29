@@ -123,7 +123,7 @@ Future<ShellConfig> standard({
 
   final registry = RunRegistry();
 
-  final inactivityLogoutFlags = SharedPrefsInactivityLogoutFlagStorage();
+  final inactivityLogoutFlags = LocalInactivityLogoutFlagStorage();
 
   final authMod = AuthAppModule(
     serverManager: serverManager,

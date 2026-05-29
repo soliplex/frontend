@@ -83,6 +83,25 @@ void main() {
       });
     });
 
+    test('a second active session does not reset the running warning timer',
+        () {
+      fakeAsync((async) {
+        final servers = Signal<Map<String, ServerEntry>>({});
+        final monitor = InactivityMonitor(servers: servers, config: _config);
+        final entry1 = _activeEntry(id: 's1');
+        servers.value = {entry1.serverId: entry1};
+
+        async.elapse(const Duration(minutes: 9));
+        final entry2 = _activeEntry(id: 's2');
+        servers.value = {entry1.serverId: entry1, entry2.serverId: entry2};
+
+        async.elapse(const Duration(minutes: 1));
+        expect(monitor.warningVisible.value, isTrue);
+
+        monitor.dispose();
+      });
+    });
+
     test('bumpActivity is a no-op while the warning dialog is open', () {
       fakeAsync((async) {
         final servers = Signal<Map<String, ServerEntry>>({});

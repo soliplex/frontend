@@ -35,11 +35,12 @@ abstract class InactivityLogoutFlagStorage {
 /// at SEVERE. Storage is best-effort here precisely because a thrown
 /// `PlatformException` must not wedge the auth flow ([isMarked] runs
 /// before sign-in) or mask a completed sign-in as a failure ([clear]
-/// runs after it). A dropped flag at worst forces a harmless extra
-/// `prompt=login`.
-class SharedPrefsInactivityLogoutFlagStorage
-    implements InactivityLogoutFlagStorage {
-  SharedPrefsInactivityLogoutFlagStorage({
+/// runs after it). The two write failures fail safe in opposite
+/// directions: a lost [clear] forces a harmless extra `prompt=login` on
+/// the next sign-in, while a lost [mark] lets the next sign-in proceed
+/// via SSO instead of forcing the intended re-authentication.
+class LocalInactivityLogoutFlagStorage implements InactivityLogoutFlagStorage {
+  LocalInactivityLogoutFlagStorage({
     Future<SharedPreferences> Function()? prefsFactory,
   }) : _prefsFactory = prefsFactory ?? SharedPreferences.getInstance;
 
