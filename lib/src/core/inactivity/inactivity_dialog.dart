@@ -7,9 +7,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 /// The "are you still there?" modal shown when inactivity is detected.
 ///
-/// The remaining time is computed from the `graceDeadline` signal
-/// exposed by `InactivityMonitor` and repainted once per second by a
-/// periodic timer. Tapping "Stay signed in" calls [onExtend];
+/// A periodic timer triggers a rebuild every second, recomputing the
+/// remaining time from the current `graceDeadline` value (exposed by
+/// `InactivityMonitor`) against the wall clock; the dialog does not
+/// subscribe to the signal. Tapping "Stay signed in" calls [onExtend];
 /// tapping "Sign out now" calls [onLogout]. The shell drives showing
 /// and dismissing the dialog via `InactivityMonitor.warningVisible`,
 /// so the dialog itself never pops its own route.

@@ -27,6 +27,19 @@ class InactivityMonitor {
   })  : _servers = servers,
         _config = config,
         _inactivityLogoutFlags = inactivityLogoutFlags {
+    assert(
+      config.warningDuration >= Duration.zero &&
+          config.graceDuration >= Duration.zero,
+      'InactivityConfig durations must be non-negative '
+      '(warning=${config.warningDuration}, grace=${config.graceDuration}).',
+    );
+    assert(
+      (config.warningDuration == Duration.zero) ==
+          (config.graceDuration == Duration.zero),
+      'InactivityConfig must enable both durations or neither — a single '
+      'zero silently disables inactivity logout '
+      '(warning=${config.warningDuration}, grace=${config.graceDuration}).',
+    );
     if (!_config.isEnabled) return;
     final hasAnyActive = computed(() {
       return _servers.value.values
@@ -74,6 +87,10 @@ class InactivityMonitor {
 
   /// "Sign out now" — equivalent to letting the grace timer fire.
   void logoutNow() {
+    assert(
+      _warningVisible.value,
+      'logoutNow is only expected while the warning dialog is showing.',
+    );
     _performLogout();
   }
 

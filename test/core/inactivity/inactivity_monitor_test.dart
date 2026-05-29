@@ -279,5 +279,35 @@ void main() {
         monitor.dispose();
       });
     });
+
+    test('rejects a half-configured config where one duration is zero', () {
+      final servers = Signal<Map<String, ServerEntry>>({});
+
+      expect(
+        () => InactivityMonitor(
+          servers: servers,
+          config: const InactivityConfig(
+            warningDuration: Duration(minutes: 10),
+            graceDuration: Duration.zero,
+          ),
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('rejects a negative duration', () {
+      final servers = Signal<Map<String, ServerEntry>>({});
+
+      expect(
+        () => InactivityMonitor(
+          servers: servers,
+          config: const InactivityConfig(
+            warningDuration: Duration(minutes: -1),
+            graceDuration: Duration(minutes: 5),
+          ),
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
   });
 }
