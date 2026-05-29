@@ -8,6 +8,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import 'lobby_view_mode.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -59,6 +60,7 @@ class LobbyState {
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
+    _loadViewMode();
   }
 
   final ServerManager _serverManager;
@@ -72,6 +74,22 @@ class LobbyState {
   final Signal<Map<String, UserProfile?>> _userProfiles =
       Signal<Map<String, UserProfile?>>({});
   ReadonlySignal<Map<String, UserProfile?>> get userProfiles => _userProfiles;
+
+  /// Preferred room layout. Starts at [LobbyViewMode.list] and flips to
+  /// the persisted value once [_loadViewMode] resolves.
+  final Signal<LobbyViewMode> _viewMode = Signal(LobbyViewMode.list);
+  ReadonlySignal<LobbyViewMode> get viewMode => _viewMode;
+
+  Future<void> _loadViewMode() async {
+    _viewMode.value = await LobbyViewModeStorage.load();
+  }
+
+  /// Updates the room layout and persists the choice for next launch.
+  void setViewMode(LobbyViewMode mode) {
+    if (mode == _viewMode.value) return;
+    _viewMode.value = mode;
+    LobbyViewModeStorage.save(mode);
+  }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
   final Map<String, CancelToken> _cancelTokens = {};

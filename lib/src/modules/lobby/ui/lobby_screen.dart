@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show Room;
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException;
 
@@ -8,7 +9,9 @@ import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
+import '../lobby_view_mode.dart';
 import 'room_card.dart';
+import 'room_grid_card.dart';
 import 'server_sidebar.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -16,9 +19,18 @@ const double _sidebarWidth = 240;
 const double _wideBreakpoint = 600;
 
 class LobbyScreen extends StatefulWidget {
-  const LobbyScreen({super.key, required this.serverManager});
+  const LobbyScreen({
+    super.key,
+    required this.serverManager,
+    this.apiResolver,
+  });
 
   final ServerManager serverManager;
+
+  /// Test seam forwarded to [LobbyState]; production uses the default
+  /// per-entry API resolver.
+  @visibleForTesting
+  final ApiResolver? apiResolver;
 
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
@@ -30,7 +42,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void initState() {
     super.initState();
-    _state = LobbyState(serverManager: widget.serverManager);
+    _state = LobbyState(
+      serverManager: widget.serverManager,
+      apiResolver: widget.apiResolver,
+    );
   }
 
   @override
@@ -78,6 +93,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final servers = widget.serverManager.servers.watch(context);
     final profiles = _state.userProfiles.watch(context);
     final roomsByServer = _state.roomsByServer.watch(context);
+    final viewMode = _state.viewMode.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
@@ -86,6 +102,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 servers: servers,
                 profiles: profiles,
                 roomsByServer: roomsByServer,
+                viewMode: viewMode,
+                onViewModeChanged: _state.setViewMode,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -98,6 +116,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 servers: servers,
                 profiles: profiles,
                 roomsByServer: roomsByServer,
+                viewMode: viewMode,
+                onViewModeChanged: _state.setViewMode,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -116,6 +136,8 @@ class _WideLayout extends StatelessWidget {
     required this.servers,
     required this.profiles,
     required this.roomsByServer,
+    required this.viewMode,
+    required this.onViewModeChanged,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -128,6 +150,8 @@ class _WideLayout extends StatelessWidget {
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final Map<String, ServerRooms> roomsByServer;
+  final LobbyViewMode viewMode;
+  final void Function(LobbyViewMode) onViewModeChanged;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -157,6 +181,8 @@ class _WideLayout extends StatelessWidget {
             child: _RoomContent(
               roomsByServer: roomsByServer,
               servers: servers,
+              viewMode: viewMode,
+              onViewModeChanged: onViewModeChanged,
               onRoomTap: onRoomTap,
               onInfoTap: onInfoTap,
               onAddServer: onAddServer,
@@ -174,6 +200,8 @@ class _NarrowLayout extends StatelessWidget {
     required this.servers,
     required this.profiles,
     required this.roomsByServer,
+    required this.viewMode,
+    required this.onViewModeChanged,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -186,6 +214,8 @@ class _NarrowLayout extends StatelessWidget {
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final Map<String, ServerRooms> roomsByServer;
+  final LobbyViewMode viewMode;
+  final void Function(LobbyViewMode) onViewModeChanged;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -218,6 +248,8 @@ class _NarrowLayout extends StatelessWidget {
       body: _RoomContent(
         roomsByServer: roomsByServer,
         servers: servers,
+        viewMode: viewMode,
+        onViewModeChanged: onViewModeChanged,
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
         onAddServer: onAddServer,
@@ -231,6 +263,8 @@ class _RoomContent extends StatelessWidget {
   const _RoomContent({
     required this.roomsByServer,
     required this.servers,
+    required this.viewMode,
+    required this.onViewModeChanged,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onAddServer,
@@ -239,6 +273,8 @@ class _RoomContent extends StatelessWidget {
 
   final Map<String, ServerRooms> roomsByServer;
   final Map<String, ServerEntry> servers;
+  final LobbyViewMode viewMode;
+  final void Function(LobbyViewMode) onViewModeChanged;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
@@ -262,18 +298,64 @@ class _RoomContent extends StatelessWidget {
       );
     }
 
-    return ListView(
+    return Column(
       children: [
-        for (final entry in roomsByServer.entries)
-          _ServerSection(
-            serverId: entry.key,
-            serverUrl: servers[entry.key]?.serverUrl,
-            serverRooms: entry.value,
-            onRoomTap: onRoomTap,
-            onInfoTap: onInfoTap,
-            onSignIn: onSignIn,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _ViewModeToggle(
+              viewMode: viewMode,
+              onChanged: onViewModeChanged,
+            ),
           ),
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final entry in roomsByServer.entries)
+                _ServerSection(
+                  serverId: entry.key,
+                  serverUrl: servers[entry.key]?.serverUrl,
+                  serverRooms: entry.value,
+                  viewMode: viewMode,
+                  onRoomTap: onRoomTap,
+                  onInfoTap: onInfoTap,
+                  onSignIn: onSignIn,
+                ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _ViewModeToggle extends StatelessWidget {
+  const _ViewModeToggle({required this.viewMode, required this.onChanged});
+
+  final LobbyViewMode viewMode;
+  final void Function(LobbyViewMode) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<LobbyViewMode>(
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(
+          value: LobbyViewMode.list,
+          icon: Icon(Icons.view_list),
+          tooltip: 'List view',
+        ),
+        ButtonSegment(
+          value: LobbyViewMode.grid,
+          icon: Icon(Icons.grid_view),
+          tooltip: 'Grid view',
+        ),
+      ],
+      selected: {viewMode},
+      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }
@@ -283,6 +365,7 @@ class _ServerSection extends StatelessWidget {
     required this.serverId,
     required this.serverUrl,
     required this.serverRooms,
+    required this.viewMode,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onSignIn,
@@ -291,6 +374,7 @@ class _ServerSection extends StatelessWidget {
   final String serverId;
   final Uri? serverUrl;
   final ServerRooms serverRooms;
+  final LobbyViewMode viewMode;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
@@ -324,16 +408,24 @@ class _ServerSection extends StatelessWidget {
                 _ => 'Failed to load rooms: $error',
               }),
             ),
-          RoomsLoaded(:final rooms) => Column(
-              children: [
-                for (final room in rooms)
-                  RoomCard(
-                    room: room,
-                    onTap: () => onRoomTap(serverId, room.id),
-                    onInfoTap: () => onInfoTap(serverId, room.id),
-                  ),
-              ],
-            ),
+          RoomsLoaded(:final rooms) => switch (viewMode) {
+              LobbyViewMode.list => Column(
+                  children: [
+                    for (final room in rooms)
+                      RoomCard(
+                        room: room,
+                        onTap: () => onRoomTap(serverId, room.id),
+                        onInfoTap: () => onInfoTap(serverId, room.id),
+                      ),
+                  ],
+                ),
+              LobbyViewMode.grid => _RoomGrid(
+                  serverId: serverId,
+                  rooms: rooms,
+                  onRoomTap: onRoomTap,
+                  onInfoTap: onInfoTap,
+                ),
+            },
           RoomsExpired() => Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
@@ -359,6 +451,60 @@ class _ServerSection extends StatelessWidget {
             ),
         },
       ],
+    );
+  }
+}
+
+/// Responsive grid of [RoomGridCard]s for a single server's rooms.
+///
+/// Lives inside the outer room `ListView`, so it lays out with a [Wrap]
+/// (fixed-width cells, intrinsic height) rather than a nested scrollable
+/// grid. Column count steps with the available width via
+/// [SoliplexBreakpoints].
+class _RoomGrid extends StatelessWidget {
+  const _RoomGrid({
+    required this.serverId,
+    required this.rooms,
+    required this.onRoomTap,
+    required this.onInfoTap,
+  });
+
+  final String serverId;
+  final List<Room> rooms;
+  final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onInfoTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final columns = width >= SoliplexBreakpoints.desktop
+              ? 3
+              : width >= SoliplexBreakpoints.mobile
+                  ? 2
+                  : 1;
+          const spacing = SoliplexSpacing.s3;
+          final cellWidth = (width - spacing * (columns - 1)) / columns;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final room in rooms)
+                SizedBox(
+                  width: cellWidth,
+                  child: RoomGridCard(
+                    room: room,
+                    onTap: () => onRoomTap(serverId, room.id),
+                    onInfoTap: () => onInfoTap(serverId, room.id),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
