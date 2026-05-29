@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show Room;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -17,13 +22,17 @@ ServerManager _createManager() => ServerManager(
 Widget _buildApp(
   ServerManager manager, {
   void Function(Uri location)? onHomeRoute,
+  ApiResolver? apiResolver,
 }) {
   final router = GoRouter(
     initialLocation: '/lobby',
     routes: [
       GoRoute(
         path: '/lobby',
-        builder: (_, __) => LobbyScreen(serverManager: manager),
+        builder: (_, __) => LobbyScreen(
+          serverManager: manager,
+          apiResolver: apiResolver,
+        ),
       ),
       GoRoute(
         path: '/servers',
@@ -42,6 +51,8 @@ Widget _buildApp(
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   group('LobbyScreen', () {
     testWidgets('shows sidebar on wide viewport with Add Server visible',
         (tester) async {
@@ -163,5 +174,58 @@ void main() {
         expect(homeLocation!.queryParameters['returnTo'], '/lobby');
       },
     );
+
+    testWidgets('toggle switches loaded rooms from list to grid cards',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'room-1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // List mode (default): list-row card, no grid card.
+      expect(find.byType(RoomCard), findsOneWidget);
+      expect(find.byType(RoomGridCard), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.grid_view));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomGridCard), findsOneWidget);
+      expect(find.byType(RoomCard), findsNothing);
+    });
+
+    testWidgets('honors the persisted grid mode on load', (tester) async {
+      SharedPreferences.setMockInitialValues(
+        {'soliplex_lobby_view_mode': 'grid'},
+      );
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'room-1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomGridCard), findsOneWidget);
+      expect(find.byType(RoomCard), findsNothing);
+    });
   });
 }

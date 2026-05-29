@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
@@ -8,6 +9,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import 'lobby_view_mode.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -59,6 +61,7 @@ class LobbyState {
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
+    unawaited(_loadViewMode());
   }
 
   final ServerManager _serverManager;
@@ -72,6 +75,46 @@ class LobbyState {
   final Signal<Map<String, UserProfile?>> _userProfiles =
       Signal<Map<String, UserProfile?>>({});
   ReadonlySignal<Map<String, UserProfile?>> get userProfiles => _userProfiles;
+
+  /// Preferred room layout. Starts at [LobbyViewMode.list]; replaced by the
+  /// persisted preference (or its [LobbyViewMode.list] fallback) once
+  /// [_loadViewMode] resolves.
+  final Signal<LobbyViewMode> _viewMode = Signal(LobbyViewMode.list);
+  ReadonlySignal<LobbyViewMode> get viewMode => _viewMode;
+
+  Future<void> _loadViewMode() async {
+    try {
+      _viewMode.value = await LobbyViewModeStorage.load();
+    } catch (error, st) {
+      // Keep the default; a missing preference is not worth blocking on, but
+      // a systematic storage failure should still leave a trace.
+      dev.log(
+        'Failed to load lobby view mode',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+  }
+
+  /// Updates the room layout and persists the choice for next launch.
+  void setViewMode(LobbyViewMode mode) {
+    if (mode == _viewMode.value) return;
+    _viewMode.value = mode;
+    unawaited(
+      LobbyViewModeStorage.save(mode).catchError((Object error, StackTrace st) {
+        // The in-memory choice already took effect; only persistence failed.
+        // The next launch falls back to the default, which the user can
+        // re-select — but log so a silent storage failure is debuggable.
+        dev.log(
+          'Failed to persist lobby view mode',
+          error: error,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
+  }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
   final Map<String, CancelToken> _cancelTokens = {};
