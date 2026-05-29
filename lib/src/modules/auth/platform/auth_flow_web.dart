@@ -49,15 +49,25 @@ class WebAuthFlow implements AuthFlow {
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   }) async {
     final frontendOrigin = _navigator.origin;
-    final returnTo = Uri.encodeFull('$frontendOrigin/#/auth/callback');
+    final returnTo = '$frontendOrigin/#/auth/callback';
 
     // Use backendUrl for BFF endpoint, fall back to same origin.
     final backend = backendUrl?.toString() ?? frontendOrigin;
 
-    final loginUrl = '$backend/api/login/${provider.id}?return_to=$returnTo';
-    _navigator.navigateTo(loginUrl);
+    // Build the query with Uri so values are percent-encoded. The '#' in
+    // return_to must become %23; left bare it starts a fragment the browser
+    // keeps client-side, dropping return_to's callback path and prompt
+    // before the request reaches the backend.
+    final loginUri = Uri.parse('$backend/api/login/${provider.id}').replace(
+      queryParameters: {
+        'return_to': returnTo,
+        if (forceLoginPrompt) 'prompt': 'login',
+      },
+    );
+    _navigator.navigateTo(loginUri.toString());
 
     // Browser navigates away; throw to make the type system honest.
     throw const AuthRedirectInitiated();

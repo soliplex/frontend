@@ -88,10 +88,17 @@ abstract interface class AuthFlow {
   /// [provider] contains the IdP configuration from server discovery.
   /// [backendUrl] is the backend URL for web BFF login (ignored on native).
   ///
+  /// Set [forceLoginPrompt] when the previous logout was triggered by the
+  /// inactivity monitor. On native this passes `prompt=login` to the IdP
+  /// via `flutter_appauth.additionalParameters`. On web it adds
+  /// `prompt=login` as a query parameter to the BFF login URL, which the
+  /// backend forwards to the IdP's authorization request.
+  ///
   /// Returns [AuthResult] on native, throws [AuthRedirectInitiated] on web.
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
     Uri? backendUrl,
+    bool forceLoginPrompt = false,
   });
 
   /// End the OIDC session.

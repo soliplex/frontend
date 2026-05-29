@@ -86,6 +86,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         ),
       );
 
+      // Web: the inactivity flag survived the redirect via storage.
+      // Clear it now that a credential-challenged sign-in has completed.
+      await ref.read(inactivityLogoutFlagsProvider).clear(serverId);
+
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
       dev.log(

@@ -5,6 +5,7 @@ import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
 import '../core/branding.dart';
+import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -13,6 +14,7 @@ import '../modules/auth/auth_module.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
+import '../modules/auth/inactivity_logout_storage.dart';
 import '../modules/auth/platform/auth_flow.dart';
 import '../modules/auth/platform/callback_params.dart';
 import '../modules/auth/secure_server_storage.dart';
@@ -37,6 +39,8 @@ Future<ShellConfig> standard({
   String defaultBackendUrl = 'http://localhost:8000',
   CallbackParams callbackParams = const NoCallbackParams(),
   ConsentNotice? consentNotice,
+  Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
+  Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
   final brand = branding ?? SoliplexBranding.soliplex;
   final lightTheme = soliplexLightTheme(
@@ -119,11 +123,14 @@ Future<ShellConfig> standard({
 
   final registry = RunRegistry();
 
+  final inactivityLogoutFlags = LocalInactivityLogoutFlagStorage();
+
   final authMod = AuthAppModule(
     serverManager: serverManager,
     probeClient: plainClient,
     authFlow: authFlow,
     appName: brand.appName,
+    inactivityLogoutFlags: inactivityLogoutFlags,
     callbackParams: callbackParams is! NoCallbackParams ? callbackParams : null,
     consentNotice: consentNotice,
     logo: brandLogo,
@@ -141,6 +148,10 @@ Future<ShellConfig> standard({
             ? AppRoutes.lobby
             : AppRoutes.home),
     refreshListenable: authMod.refreshListenable,
+    inactivity: InactivityConfig(
+      warningDuration: inactivityWarningDuration,
+      graceDuration: inactivityGraceDuration,
+    ),
     modules: [
       DiagnosticsAppModule(inspector: inspector),
       authMod,

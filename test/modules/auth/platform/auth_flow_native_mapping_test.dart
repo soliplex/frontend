@@ -188,4 +188,41 @@ void main() {
       expect(e.message, contains('no access token'));
     });
   });
+
+  group('NativeAuthFlow forceLoginPrompt', () {
+    AuthorizationTokenResponse validResponse() => AuthorizationTokenResponse(
+          'access',
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        );
+
+    test('omits prompt=login when forceLoginPrompt is false', () async {
+      when(() => appAuth.authorizeAndExchangeCode(any()))
+          .thenAnswer((_) async => validResponse());
+
+      await flow.authenticate(provider);
+
+      final captured = verify(
+        () => appAuth.authorizeAndExchangeCode(captureAny()),
+      ).captured.single as AuthorizationTokenRequest;
+      expect(captured.additionalParameters, isNull);
+    });
+
+    test('passes prompt=login when forceLoginPrompt is true', () async {
+      when(() => appAuth.authorizeAndExchangeCode(any()))
+          .thenAnswer((_) async => validResponse());
+
+      await flow.authenticate(provider, forceLoginPrompt: true);
+
+      final captured = verify(
+        () => appAuth.authorizeAndExchangeCode(captureAny()),
+      ).captured.single as AuthorizationTokenRequest;
+      expect(captured.additionalParameters, equals({'prompt': 'login'}));
+    });
+  });
 }

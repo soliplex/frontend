@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_module.dart';
+import 'inactivity/inactivity_config.dart';
 import 'router.dart';
 
 class ShellConfig {
@@ -12,6 +13,7 @@ class ShellConfig {
   final ThemeMode themeMode;
   final String initialRoute;
   final Listenable? refreshListenable;
+  final InactivityConfig inactivity;
 
   /// Tears down every module's `onDispose` in reverse registration order.
   ///
@@ -37,6 +39,7 @@ class ShellConfig {
     required List<Override> overrides,
     required List<GoRouterRedirect> redirects,
     this.refreshListenable,
+    this.inactivity = const InactivityConfig(),
     this.dispose,
   })  : _routes = routes,
         _overrides = overrides,
@@ -64,6 +67,7 @@ class ShellConfig {
     ThemeMode themeMode = ThemeMode.system,
     String initialRoute = '/',
     Listenable? refreshListenable,
+    InactivityConfig inactivity = const InactivityConfig(),
   }) async {
     final coordinator = _AppModuleCoordinator(modules);
     return ShellConfig._internal(
@@ -76,6 +80,7 @@ class ShellConfig {
       overrides: coordinator.overrides,
       redirects: coordinator.redirects,
       refreshListenable: refreshListenable,
+      inactivity: inactivity,
       dispose: coordinator.disposeAll,
     );
   }

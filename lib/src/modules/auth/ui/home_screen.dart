@@ -63,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       probeClient: ref.read(probeClientProvider),
       discover: ref.read(discoverProvidersProvider),
       authFlow: ref.read(authFlowProvider),
+      inactivityLogoutFlags: ref.read(inactivityLogoutFlagsProvider),
       consentNotice: ref.read(consentNoticeProvider),
     );
 

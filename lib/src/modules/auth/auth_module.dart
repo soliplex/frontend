@@ -8,6 +8,7 @@ import '../../core/signal_listenable.dart';
 import '../../interfaces/auth_state.dart';
 import 'auth_providers.dart';
 import 'consent_notice.dart';
+import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'platform/callback_params.dart';
 import 'server_manager.dart';
@@ -28,6 +29,7 @@ class AuthAppModule extends AppModule {
     required SoliplexHttpClient probeClient,
     required AuthFlow authFlow,
     required String appName,
+    required InactivityLogoutFlagStorage inactivityLogoutFlags,
     CallbackParams? callbackParams,
     ConsentNotice? consentNotice,
     Widget? logo,
@@ -36,6 +38,7 @@ class AuthAppModule extends AppModule {
         _probeClient = probeClient,
         _authFlow = authFlow,
         _appName = appName,
+        _inactivityLogoutFlags = inactivityLogoutFlags,
         _callbackParams = callbackParams,
         _consentNotice = consentNotice,
         _logo = logo,
@@ -46,6 +49,7 @@ class AuthAppModule extends AppModule {
   final SoliplexHttpClient _probeClient;
   final AuthFlow _authFlow;
   final String _appName;
+  final InactivityLogoutFlagStorage _inactivityLogoutFlags;
   final CallbackParams? _callbackParams;
   final ConsentNotice? _consentNotice;
   final Widget? _logo;
@@ -65,6 +69,8 @@ class AuthAppModule extends AppModule {
           serverManagerProvider.overrideWithValue(_serverManager),
           authFlowProvider.overrideWithValue(_authFlow),
           probeClientProvider.overrideWithValue(_probeClient),
+          inactivityLogoutFlagsProvider
+              .overrideWithValue(_inactivityLogoutFlags),
           if (_callbackParams != null)
             callbackParamsProvider.overrideWithValue(_callbackParams),
           if (_consentNotice != null)

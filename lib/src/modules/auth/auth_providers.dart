@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import 'connection_probe.dart';
 import 'consent_notice.dart';
+import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'platform/callback_params.dart';
 import 'server_manager.dart';
@@ -18,6 +19,10 @@ final authFlowProvider = Provider<AuthFlow>(
 );
 
 final probeClientProvider = Provider<SoliplexHttpClient>(
+  (_) => throw UnimplementedError('must be overridden by authModule'),
+);
+
+final inactivityLogoutFlagsProvider = Provider<InactivityLogoutFlagStorage>(
   (_) => throw UnimplementedError('must be overridden by authModule'),
 );
 

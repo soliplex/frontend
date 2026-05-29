@@ -4,8 +4,13 @@ import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'inactivity/inactivity_dialog_host.dart';
+import 'inactivity/inactivity_monitor.dart';
+import 'inactivity/inactivity_provider.dart';
 import 'router.dart';
 import 'shell_config.dart';
 
@@ -61,14 +66,11 @@ class _SoliplexShellState extends State<SoliplexShell> {
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      overrides: widget.config.overrides,
-      child: MaterialApp.router(
-        title: widget.config.appName,
-        theme: widget.config.lightTheme,
-        darkTheme: widget.config.darkTheme,
-        themeMode: widget.config.themeMode,
-        routerConfig: _router,
-      ),
+      overrides: [
+        ...widget.config.overrides,
+        inactivityConfigProvider.overrideWithValue(widget.config.inactivity),
+      ],
+      child: _ShellRoot(config: widget.config, router: _router),
     );
   }
 
@@ -76,5 +78,80 @@ class _SoliplexShellState extends State<SoliplexShell> {
   void dispose() {
     _router.dispose();
     super.dispose();
+  }
+}
+
+/// Lives inside [ProviderScope] so it can read the [InactivityMonitor]
+/// via Riverpod. Owns the global activity listeners (pointer + keyboard)
+/// and wraps [MaterialApp.router]'s builder slot with the dialog host.
+class _ShellRoot extends ConsumerStatefulWidget {
+  const _ShellRoot({required this.config, required this.router});
+
+  final ShellConfig config;
+  final GoRouter router;
+
+  @override
+  ConsumerState<_ShellRoot> createState() => _ShellRootState();
+}
+
+class _ShellRootState extends ConsumerState<_ShellRoot> {
+  late final InactivityMonitor? _monitor = ref.read(inactivityMonitorProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_monitor != null) {
+      // HardwareKeyboard sees every key the framework receives,
+      // regardless of which widget owns focus — a root `Focus` widget
+      // would miss keys consumed by descendants like `TextField`.
+      HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_monitor != null) {
+      HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    }
+    super.dispose();
+  }
+
+  bool _onKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent) _monitor?.bumpActivity();
+    return false;
+  }
+
+  void _onPointer(PointerEvent _) => _monitor?.bumpActivity();
+
+  @override
+  Widget build(BuildContext context) {
+    final monitor = _monitor;
+    final app = MaterialApp.router(
+      title: widget.config.appName,
+      theme: widget.config.lightTheme,
+      darkTheme: widget.config.darkTheme,
+      themeMode: widget.config.themeMode,
+      routerConfig: widget.router,
+      builder: monitor == null
+          ? null
+          : (context, child) => InactivityDialogHost(
+                monitor: monitor,
+                navigatorKey: widget.router.routerDelegate.navigatorKey,
+                child: child ?? const SizedBox.shrink(),
+              ),
+    );
+    if (monitor == null) return app;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _onPointer,
+      // `onPointerSignal` fires on trackpad/wheel scroll on desktop and
+      // web. On mobile, scrolling is a drag gesture starting with
+      // `onPointerDown`. Bare cursor movement/hover (`onPointerHover`/
+      // `onPointerMove` with no button) is intentionally NOT counted as
+      // activity — presence of the cursor isn't engagement, and counting
+      // it would defeat inactivity detection on desktop/web.
+      onPointerSignal: _onPointer,
+      child: app,
+    );
   }
 }
