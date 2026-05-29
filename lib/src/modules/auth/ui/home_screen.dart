@@ -401,11 +401,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (connectedCount > 0)
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton.icon(
+          child: SoliplexButton.text(
             onPressed: () => context.go(AppRoutes.lobby),
             iconAlignment: IconAlignment.end,
             icon: const Icon(Icons.arrow_forward),
-            label: const Text('Go to Lobby'),
+            child: const Text('Go to Lobby'),
           ),
         ),
       Align(
