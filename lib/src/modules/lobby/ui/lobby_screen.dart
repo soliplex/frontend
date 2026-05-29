@@ -96,6 +96,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final roomsByServer = _state.roomsByServer.watch(context);
     final viewMode = _state.viewMode.watch(context);
     final searchQuery = _state.searchQuery.watch(context);
+    final hiddenServerIds = _state.hiddenServerIds.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
@@ -108,6 +109,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
+                hiddenServerIds: hiddenServerIds,
+                onToggleHidden: _state.toggleServerHidden,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -124,6 +127,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
+                hiddenServerIds: hiddenServerIds,
+                onToggleHidden: _state.toggleServerHidden,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -146,6 +151,8 @@ class _WideLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.hiddenServerIds,
+    required this.onToggleHidden,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -162,6 +169,8 @@ class _WideLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final Set<String> hiddenServerIds;
+  final void Function(String serverId) onToggleHidden;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -180,6 +189,8 @@ class _WideLayout extends StatelessWidget {
             child: ServerSidebar(
               servers: servers,
               profiles: profiles,
+              hiddenServerIds: hiddenServerIds,
+              onToggleHidden: onToggleHidden,
               onServerTap: onServerTap,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
@@ -195,6 +206,7 @@ class _WideLayout extends StatelessWidget {
               onViewModeChanged: onViewModeChanged,
               searchQuery: searchQuery,
               onSearchChanged: onSearchChanged,
+              hiddenServerIds: hiddenServerIds,
               onRoomTap: onRoomTap,
               onInfoTap: onInfoTap,
               onAddServer: onAddServer,
@@ -216,6 +228,8 @@ class _NarrowLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.hiddenServerIds,
+    required this.onToggleHidden,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -232,6 +246,8 @@ class _NarrowLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final Set<String> hiddenServerIds;
+  final void Function(String serverId) onToggleHidden;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -255,6 +271,8 @@ class _NarrowLayout extends StatelessWidget {
         child: ServerSidebar(
           servers: servers,
           profiles: profiles,
+          hiddenServerIds: hiddenServerIds,
+          onToggleHidden: onToggleHidden,
           onServerTap: onServerTap,
           onAddServer: onAddServer,
           onNetworkInspector: onNetworkInspector,
@@ -268,6 +286,7 @@ class _NarrowLayout extends StatelessWidget {
         onViewModeChanged: onViewModeChanged,
         searchQuery: searchQuery,
         onSearchChanged: onSearchChanged,
+        hiddenServerIds: hiddenServerIds,
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
         onAddServer: onAddServer,
@@ -285,6 +304,7 @@ class _RoomContent extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.hiddenServerIds,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onAddServer,
@@ -297,6 +317,7 @@ class _RoomContent extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final Set<String> hiddenServerIds;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
@@ -332,23 +353,47 @@ class _RoomContent extends StatelessWidget {
             onSearchChanged: onSearchChanged,
           ),
         ),
-        Expanded(
-          child: ListView(
-            children: [
-              for (final entry in roomsByServer.entries)
-                _ServerSection(
-                  serverId: entry.key,
-                  serverUrl: servers[entry.key]?.serverUrl,
-                  serverRooms: entry.value,
-                  viewMode: viewMode,
-                  searchQuery: searchQuery,
-                  onRoomTap: onRoomTap,
-                  onInfoTap: onInfoTap,
-                  onSignIn: onSignIn,
+        Expanded(child: _buildSections(context)),
+      ],
+    );
+  }
+
+  Widget _buildSections(BuildContext context) {
+    final visible = roomsByServer.entries
+        .where((entry) => !hiddenServerIds.contains(entry.key))
+        .toList();
+
+    // Distinguish "everything is hidden" from "no room data yet" — only the
+    // former gets the explanatory copy; the latter renders blank as before.
+    if (visible.isEmpty && roomsByServer.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(SoliplexSpacing.s6),
+          child: Text(
+            'All servers are hidden. Use the eye icon next to a server to '
+            'show its rooms.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-            ],
           ),
         ),
+      );
+    }
+
+    return ListView(
+      children: [
+        for (final entry in visible)
+          _ServerSection(
+            serverId: entry.key,
+            serverUrl: servers[entry.key]?.serverUrl,
+            serverRooms: entry.value,
+            viewMode: viewMode,
+            searchQuery: searchQuery,
+            onRoomTap: onRoomTap,
+            onInfoTap: onInfoTap,
+            onSignIn: onSignIn,
+          ),
       ],
     );
   }
