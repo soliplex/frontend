@@ -40,10 +40,10 @@ class QuizStartView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: SoliplexSpacing.s6),
-              FilledButton.icon(
+              SoliplexButton.filled(
                 onPressed: onStart,
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Start Quiz'),
+                child: const Text('Start Quiz'),
               ),
             ],
           ),

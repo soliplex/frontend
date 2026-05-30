@@ -58,11 +58,11 @@ class QuizResultsView extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton(
+                  SoliplexButton.outlined(
                     onPressed: onBack,
                     child: const Text('Back to Room'),
                   ),
-                  FilledButton(
+                  SoliplexButton.filled(
                     onPressed: onRetake,
                     child: const Text('Retake Quiz'),
                   ),
