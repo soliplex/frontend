@@ -95,6 +95,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final profiles = _state.userProfiles.watch(context);
     final roomsByServer = _state.roomsByServer.watch(context);
     final viewMode = _state.viewMode.watch(context);
+    final searchQuery = _state.searchQuery.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
@@ -105,6 +106,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
                 onViewModeChanged: _state.setViewMode,
+                searchQuery: searchQuery,
+                onSearchChanged: _state.setSearchQuery,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -119,6 +122,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
                 onViewModeChanged: _state.setViewMode,
+                searchQuery: searchQuery,
+                onSearchChanged: _state.setSearchQuery,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -139,6 +144,8 @@ class _WideLayout extends StatelessWidget {
     required this.roomsByServer,
     required this.viewMode,
     required this.onViewModeChanged,
+    required this.searchQuery,
+    required this.onSearchChanged,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -153,6 +160,8 @@ class _WideLayout extends StatelessWidget {
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
+  final String searchQuery;
+  final void Function(String) onSearchChanged;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -184,6 +193,8 @@ class _WideLayout extends StatelessWidget {
               servers: servers,
               viewMode: viewMode,
               onViewModeChanged: onViewModeChanged,
+              searchQuery: searchQuery,
+              onSearchChanged: onSearchChanged,
               onRoomTap: onRoomTap,
               onInfoTap: onInfoTap,
               onAddServer: onAddServer,
@@ -203,6 +214,8 @@ class _NarrowLayout extends StatelessWidget {
     required this.roomsByServer,
     required this.viewMode,
     required this.onViewModeChanged,
+    required this.searchQuery,
+    required this.onSearchChanged,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -217,6 +230,8 @@ class _NarrowLayout extends StatelessWidget {
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
+  final String searchQuery;
+  final void Function(String) onSearchChanged;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -251,6 +266,8 @@ class _NarrowLayout extends StatelessWidget {
         servers: servers,
         viewMode: viewMode,
         onViewModeChanged: onViewModeChanged,
+        searchQuery: searchQuery,
+        onSearchChanged: onSearchChanged,
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
         onAddServer: onAddServer,
@@ -266,6 +283,8 @@ class _RoomContent extends StatelessWidget {
     required this.servers,
     required this.viewMode,
     required this.onViewModeChanged,
+    required this.searchQuery,
+    required this.onSearchChanged,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onAddServer,
@@ -276,6 +295,8 @@ class _RoomContent extends StatelessWidget {
   final Map<String, ServerEntry> servers;
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
+  final String searchQuery;
+  final void Function(String) onSearchChanged;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
@@ -304,12 +325,11 @@ class _RoomContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(
               SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: _ViewModeToggle(
-              viewMode: viewMode,
-              onChanged: onViewModeChanged,
-            ),
+          child: _LobbyControls(
+            viewMode: viewMode,
+            onViewModeChanged: onViewModeChanged,
+            searchQuery: searchQuery,
+            onSearchChanged: onSearchChanged,
           ),
         ),
         Expanded(
@@ -321,6 +341,7 @@ class _RoomContent extends StatelessWidget {
                   serverUrl: servers[entry.key]?.serverUrl,
                   serverRooms: entry.value,
                   viewMode: viewMode,
+                  searchQuery: searchQuery,
                   onRoomTap: onRoomTap,
                   onInfoTap: onInfoTap,
                   onSignIn: onSignIn,
@@ -329,6 +350,96 @@ class _RoomContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The lobby's control row: a room-name filter and the view-mode toggle.
+///
+/// Stateful so the search field's [TextEditingController] survives the
+/// signal-driven rebuilds (every keystroke updates the query signal) and
+/// the wide/narrow layout switch. On narrow widths the search field takes
+/// the full width and the toggle drops below it.
+class _LobbyControls extends StatefulWidget {
+  const _LobbyControls({
+    required this.viewMode,
+    required this.onViewModeChanged,
+    required this.searchQuery,
+    required this.onSearchChanged,
+  });
+
+  final LobbyViewMode viewMode;
+  final void Function(LobbyViewMode) onViewModeChanged;
+  final String searchQuery;
+  final void Function(String) onSearchChanged;
+
+  @override
+  State<_LobbyControls> createState() => _LobbyControlsState();
+}
+
+class _LobbyControlsState extends State<_LobbyControls> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.searchQuery)
+      ..addListener(_handleChanged);
+  }
+
+  void _handleChanged() {
+    widget.onSearchChanged(_controller.text);
+    // Refresh the clear-button affordance as the field empties/fills.
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final search = SoliplexInput(
+      controller: _controller,
+      hintText: 'Filter rooms',
+      leadingIcon: const Icon(Icons.search),
+      textInputAction: TextInputAction.search,
+      trailingIcon: _controller.text.isEmpty
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.clear),
+              tooltip: 'Clear filter',
+              onPressed: _controller.clear,
+            ),
+    );
+    final toggle = _ViewModeToggle(
+      viewMode: widget.viewMode,
+      onChanged: widget.onViewModeChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= SoliplexBreakpoints.tablet) {
+          return Row(
+            children: [
+              Expanded(child: search),
+              const SizedBox(width: SoliplexSpacing.s3),
+              toggle,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            search,
+            const SizedBox(height: SoliplexSpacing.s2),
+            Align(alignment: Alignment.centerRight, child: toggle),
+          ],
+        );
+      },
     );
   }
 }
@@ -367,6 +478,7 @@ class _ServerSection extends StatelessWidget {
     required this.serverUrl,
     required this.serverRooms,
     required this.viewMode,
+    required this.searchQuery,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onSignIn,
@@ -376,6 +488,7 @@ class _ServerSection extends StatelessWidget {
   final Uri? serverUrl;
   final ServerRooms serverRooms;
   final LobbyViewMode viewMode;
+  final String searchQuery;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
@@ -409,24 +522,7 @@ class _ServerSection extends StatelessWidget {
                 _ => 'Failed to load rooms: $error',
               }),
             ),
-          RoomsLoaded(:final rooms) => switch (viewMode) {
-              LobbyViewMode.list => Column(
-                  children: [
-                    for (final room in rooms)
-                      RoomCard(
-                        room: room,
-                        onTap: () => onRoomTap(serverId, room.id),
-                        onInfoTap: () => onInfoTap(serverId, room.id),
-                      ),
-                  ],
-                ),
-              LobbyViewMode.grid => _RoomGrid(
-                  serverId: serverId,
-                  rooms: rooms,
-                  onRoomTap: onRoomTap,
-                  onInfoTap: onInfoTap,
-                ),
-            },
+          RoomsLoaded(:final rooms) => _buildRooms(context, rooms),
           RoomsExpired() => Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
@@ -453,6 +549,50 @@ class _ServerSection extends StatelessWidget {
         },
       ],
     );
+  }
+
+  Widget _buildRooms(BuildContext context, List<Room> rooms) {
+    final query = searchQuery.trim().toLowerCase();
+    final matches = query.isEmpty
+        ? rooms
+        : rooms
+            .where((room) => room.name.toLowerCase().contains(query))
+            .toList();
+
+    if (matches.isEmpty) {
+      // A server with no rooms and no active filter renders nothing, as
+      // before. The "no matches" copy is reserved for an active filter.
+      if (query.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4, 0, SoliplexSpacing.s4, SoliplexSpacing.s2),
+        child: Text(
+          'No rooms match "${searchQuery.trim()}".',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      );
+    }
+
+    return switch (viewMode) {
+      LobbyViewMode.list => Column(
+          children: [
+            for (final room in matches)
+              RoomCard(
+                room: room,
+                onTap: () => onRoomTap(serverId, room.id),
+                onInfoTap: () => onInfoTap(serverId, room.id),
+              ),
+          ],
+        ),
+      LobbyViewMode.grid => _RoomGrid(
+          serverId: serverId,
+          rooms: matches,
+          onRoomTap: onRoomTap,
+          onInfoTap: onInfoTap,
+        ),
+    };
   }
 }
 

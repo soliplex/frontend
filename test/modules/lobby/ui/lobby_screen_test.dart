@@ -227,5 +227,90 @@ void main() {
       expect(find.byType(RoomGridCard), findsOneWidget);
       expect(find.byType(RoomCard), findsNothing);
     });
+
+    testWidgets('search filters rooms by name within the section',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'General'),
+          Room(id: 'r2', name: 'Random'),
+        ];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+      expect(find.byType(RoomCard), findsNWidgets(2));
+
+      await tester.enterText(find.byType(TextField), 'gen');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomCard), findsOneWidget);
+      expect(find.text('General'), findsOneWidget);
+      expect(find.text('Random'), findsNothing);
+    });
+
+    testWidgets('shows no-match copy when the filter excludes everything',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomCard), findsNothing);
+      expect(find.textContaining('No rooms match'), findsOneWidget);
+    });
+
+    testWidgets('clear button resets the filter', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'General'),
+          Room(id: 'r2', name: 'Random'),
+        ];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'gen');
+      await tester.pumpAndSettle();
+      expect(find.byType(RoomCard), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.clear));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomCard), findsNWidgets(2));
+    });
   });
 }

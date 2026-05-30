@@ -922,6 +922,18 @@ void main() {
         // No exception means cancellation was handled gracefully
       });
     });
+
+    group('searchQuery', () {
+      test('defaults to empty and is updated by setSearchQuery', () {
+        final state = LobbyState(serverManager: _createManager());
+        expect(state.searchQuery.value, '');
+
+        state.setSearchQuery('design');
+        expect(state.searchQuery.value, 'design');
+
+        state.dispose();
+      });
+    });
   });
 }
 
