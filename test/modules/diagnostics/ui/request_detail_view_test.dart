@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/models/http_event_group.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/ui/request_detail_view.dart';
 
 import '../../../helpers/http_event_factories.dart';
+
+// The scope dropdown (SoliplexDropdown/DropdownMenu) keeps its entry labels
+// in the tree, and some scopes ("Request", "Response", "curl", "Overview")
+// share text with the tabs. Scope tab finders to the TabBar to disambiguate.
+Finder _tab(String label) => find.descendant(
+      of: find.byType(TabBar),
+      matching: find.text(label),
+    );
 
 void main() {
   group('RequestDetailView', () {
@@ -17,13 +26,14 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      expect(find.text('Request'), findsOneWidget);
-      expect(find.text('Response'), findsOneWidget);
-      expect(find.text('curl'), findsOneWidget);
-      expect(find.text('Overview'), findsOneWidget);
+      expect(_tab('Request'), findsOneWidget);
+      expect(_tab('Response'), findsOneWidget);
+      expect(_tab('curl'), findsOneWidget);
+      expect(_tab('Overview'), findsOneWidget);
     });
 
-    testWidgets('shows search bar with text field', (tester) async {
+    testWidgets('shows search bar with branded input and scope dropdown',
+        (tester) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),
@@ -32,8 +42,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.widgetWithText(TextField, ''), findsOneWidget);
+      expect(find.byType(SoliplexInput), findsOneWidget);
+      expect(find.text('Search…'), findsOneWidget);
+      expect(find.byType(SoliplexDropdown<SearchScope>), findsOneWidget);
     });
 
     testWidgets('request tab shows headers and body when present',
@@ -76,7 +87,7 @@ void main() {
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
       // Navigate to Response tab
-      await tester.tap(find.text('Response'));
+      await tester.tap(_tab('Response'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Waiting for response...'), findsOneWidget);
@@ -93,7 +104,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      await tester.tap(find.text('Response'));
+      await tester.tap(_tab('Response'));
       await tester.pumpAndSettle();
       expect(find.text('Connection refused'), findsOneWidget);
     });
@@ -106,7 +117,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      await tester.tap(find.text('Response'));
+      await tester.tap(_tab('Response'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Stream in progress...'), findsOneWidget);
@@ -125,7 +136,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      await tester.tap(find.text('curl'));
+      await tester.tap(_tab('curl'));
       await tester.pumpAndSettle();
       expect(find.text('curl command'), findsOneWidget);
       expect(find.textContaining('curl'), findsWidgets);
@@ -142,7 +153,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RequestDetailView(group: group))),
       );
-      await tester.tap(find.text('curl'));
+      await tester.tap(_tab('curl'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(

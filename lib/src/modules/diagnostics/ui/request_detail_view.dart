@@ -171,33 +171,28 @@ class _RequestDetailViewState extends State<RequestDetailView>
       child: Row(
         children: [
           Expanded(
-            child: TextField(
+            child: SoliplexInput(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search…',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () => _searchController.clear(),
-                        tooltip: 'Clear search',
-                      )
-                    : null,
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
-                ),
-              ),
+              hintText: 'Search…',
+              leadingIcon: const Icon(Icons.search, size: 18),
+              trailingIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () => _searchController.clear(),
+                      tooltip: 'Clear search',
+                    )
+                  : null,
             ),
           ),
           const SizedBox(width: SoliplexSpacing.s2),
-          DropdownButton<SearchScope>(
-            value: _scope,
-            underline: const SizedBox.shrink(),
-            isDense: true,
-            onChanged: (v) {
+          SoliplexDropdown<SearchScope>(
+            initialValue: _scope,
+            width: 160,
+            entries: [
+              for (final scope in SearchScope.values)
+                SoliplexDropdownEntry(value: scope, label: scope.label),
+            ],
+            onSelected: (v) {
               if (v != null) {
                 setState(() {
                   _scope = v;
@@ -205,13 +200,6 @@ class _RequestDetailViewState extends State<RequestDetailView>
                 });
               }
             },
-            items: [
-              for (final scope in SearchScope.values)
-                DropdownMenuItem(
-                  value: scope,
-                  child: Text(scope.label),
-                ),
-            ],
           ),
           if (_searchController.text.isNotEmpty && _totalMatches > 0) ...[
             const SizedBox(width: SoliplexSpacing.s2),
