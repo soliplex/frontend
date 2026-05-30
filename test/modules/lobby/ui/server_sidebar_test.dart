@@ -18,6 +18,8 @@ ServerManager _createManager() => ServerManager(
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
   Map<String, UserProfile?> profiles = const {},
+  Set<String> hiddenServerIds = const {},
+  void Function(String serverId)? onToggleHidden,
   VoidCallback? onServerTap,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
@@ -28,6 +30,8 @@ Widget _buildSidebar({
       body: ServerSidebar(
         servers: servers,
         profiles: profiles,
+        hiddenServerIds: hiddenServerIds,
+        onToggleHidden: onToggleHidden ?? (_) {},
         onServerTap: onServerTap ?? () {},
         onAddServer: onAddServer ?? () {},
         onNetworkInspector: onNetworkInspector ?? () {},
@@ -142,5 +146,44 @@ void main() {
         expect(find.text('Signed in'), findsNothing);
       },
     );
+
+    testWidgets('eye button fires onToggleHidden with the server id',
+        (tester) async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'http://srv1.test',
+        serverUrl: Uri.parse('http://srv1.test'),
+        requiresAuth: false,
+      );
+
+      String? toggled;
+      await tester.pumpWidget(_buildSidebar(
+        servers: manager.servers.value,
+        onToggleHidden: (id) => toggled = id,
+      ));
+
+      // Visible server shows the "visibility" (eye) icon.
+      expect(find.byIcon(Icons.visibility), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.visibility));
+      expect(toggled, 'http://srv1.test');
+    });
+
+    testWidgets('hidden server renders the visibility_off icon',
+        (tester) async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'http://srv1.test',
+        serverUrl: Uri.parse('http://srv1.test'),
+        requiresAuth: false,
+      );
+
+      await tester.pumpWidget(_buildSidebar(
+        servers: manager.servers.value,
+        hiddenServerIds: const {'http://srv1.test'},
+      ));
+
+      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+      expect(find.byIcon(Icons.visibility), findsNothing);
+    });
   });
 }
