@@ -11,6 +11,7 @@ import 'data_uri_image.dart';
 import 'file_image_loader.dart'
     if (dart.library.io) 'file_image_loader_io.dart';
 import 'inline_code_builder.dart';
+import 'launch_markdown_link.dart';
 import 'markdown_style_sheet.dart';
 import 'log_source.dart';
 import 'markdown_renderer.dart';
@@ -48,11 +49,15 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       extensionSet: md.ExtensionSet.gitHubFlavored,
       blockSyntaxes: [LatexBlockSyntax()],
       inlineSyntaxes: [LatexInlineSyntax()],
-      onTapLink: onLinkTap == null
-          ? null
-          : (_, href, title) {
-              if (href != null) onLinkTap!(href, title);
-            },
+      onTapLink: (_, href, title) {
+        if (href == null) return;
+        final handleTap = onLinkTap;
+        if (handleTap != null) {
+          handleTap(href, title);
+        } else {
+          launchMarkdownLink(href);
+        }
+      },
       imageBuilder: _buildImage,
       builders: {
         'code': InlineCodeBuilder(),
