@@ -50,7 +50,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
       );
-      final button = tester.widget<IconButton>(find.byType(IconButton));
+      final button = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.delete_outline));
       expect(button.onPressed, isNull);
     });
 
@@ -59,7 +60,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
       );
-      final button = tester.widget<IconButton>(find.byType(IconButton));
+      final button = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.delete_outline));
       expect(button.onPressed, isNotNull);
     });
 
@@ -75,7 +77,7 @@ void main() {
         MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
       );
 
-      await tester.tap(find.byType(IconButton));
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.delete_outline));
       await tester.pump();
 
       expect(find.text('No HTTP requests yet'), findsOneWidget);
@@ -89,7 +91,8 @@ void main() {
         MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
       );
 
-      final button = tester.widget<IconButton>(find.byType(IconButton));
+      final button = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.delete_outline));
       expect(
         button.onPressed,
         isNotNull,
@@ -118,7 +121,7 @@ void main() {
       // Panel is visible when concurrency events exist.
       expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
 
-      await tester.tap(find.byType(IconButton));
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.delete_outline));
       await tester.pump();
 
       // Panel hides itself when the list is empty.
