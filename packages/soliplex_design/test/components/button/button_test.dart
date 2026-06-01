@@ -143,5 +143,42 @@ void main() {
       final density = btn.style!.visualDensity;
       expect(density, VisualDensity.compact);
     });
+
+    testWidgets('alignment threads through to the button style', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          SoliplexButton.text(
+            onPressed: () {},
+            alignment: Alignment.centerLeft,
+            child: const Text('Room info'),
+          ),
+        ),
+      );
+      final btn = tester.widget<TextButton>(find.byType(TextButton));
+      expect(btn.style!.alignment?.resolve(null), Alignment.centerLeft);
+    });
+
+    testWidgets('left-aligned full-width button hugs the leading edge', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          SizedBox(
+            width: 300,
+            child: SoliplexButton.text(
+              onPressed: () {},
+              alignment: Alignment.centerLeft,
+              child: const Text('Room info'),
+            ),
+          ),
+        ),
+      );
+      // The label sits left of the 300-px box's centre when left-aligned.
+      final labelX = tester.getCenter(find.text('Room info')).dx;
+      final boxCentreX = tester.getCenter(find.byType(SizedBox).first).dx;
+      expect(labelX, lessThan(boxCentreX));
+    });
   });
 }
