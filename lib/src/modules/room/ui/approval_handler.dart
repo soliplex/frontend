@@ -140,11 +140,11 @@ class ApprovalDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: () => Navigator.of(context).pop(false),
           child: const Text('Deny'),
         ),
-        FilledButton(
+        SoliplexButton.filled(
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Allow'),
         ),

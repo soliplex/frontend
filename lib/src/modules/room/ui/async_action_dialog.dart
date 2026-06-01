@@ -157,10 +157,10 @@ class _RenameDialogState extends State<RenameDialog> {
       actionLabel: 'Save',
       canSubmit: _canSave,
       onAction: () => widget.onAction(_controller.text.trim()),
-      contentBuilder: (onSubmit) => TextField(
+      contentBuilder: (onSubmit) => SoliplexInput(
         controller: _controller,
         autofocus: true,
-        decoration: const InputDecoration(labelText: 'Thread name'),
+        label: 'Thread name',
         onSubmitted: onSubmit != null ? (_) => onSubmit() : null,
       ),
     );
