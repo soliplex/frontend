@@ -80,4 +80,35 @@ void main() {
     expect(controller.text, isEmpty);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
+
+  testWidgets('readOnly blocks edits while staying enabled', (tester) async {
+    final controller = TextEditingController();
+    await tester.pumpWidget(
+      _harness(
+        SoliplexInput(
+          label: 'Frozen',
+          controller: controller,
+          readOnly: true,
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField), 'hi');
+    expect(controller.text, isEmpty, reason: 'readOnly must reject edits');
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.enabled, isTrue, reason: 'readOnly keeps the field enabled');
+  });
+
+  testWidgets('forwards an external focusNode to the field', (tester) async {
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    await tester.pumpWidget(
+      _harness(SoliplexInput(label: 'Name', focusNode: focusNode)),
+    );
+    expect(focusNode.hasFocus, isFalse);
+    focusNode.requestFocus();
+    await tester.pump();
+    expect(focusNode.hasFocus, isTrue);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.focusNode, same(focusNode));
+  });
 }

@@ -23,6 +23,7 @@ class SoliplexInput extends StatefulWidget {
   const SoliplexInput({
     super.key,
     this.controller,
+    this.focusNode,
     this.initialValue,
     this.label,
     this.hintText,
@@ -36,6 +37,7 @@ class SoliplexInput extends StatefulWidget {
     this.isPassword = false,
     this.isLoading = false,
     this.enabled = true,
+    this.readOnly = false,
     this.maxLines = 1,
     this.minLines,
     this.keyboardType,
@@ -45,6 +47,10 @@ class SoliplexInput extends StatefulWidget {
 
   /// External text controller. Mutually exclusive with [initialValue].
   final TextEditingController? controller;
+
+  /// External focus node. Lets callers drive focus programmatically
+  /// (e.g. refocusing the field after a submit).
+  final FocusNode? focusNode;
 
   /// One-time initial value. Use [controller] if you need to read or
   /// programmatically change the text after construction.
@@ -83,6 +89,12 @@ class SoliplexInput extends StatefulWidget {
   /// Set false to disable both interaction and visual emphasis.
   final bool enabled;
 
+  /// Locks editing while keeping the field's normal (non-disabled)
+  /// styling. Unlike [enabled], the text stays fully legible and the
+  /// field remains focusable — use it to freeze input during a
+  /// transient busy state without greying the field out.
+  final bool readOnly;
+
   /// Material's [TextField.maxLines]. Defaults to 1 (single-line).
   /// Set to `null` for unbounded multi-line growth.
   final int? maxLines;
@@ -106,8 +118,10 @@ class _SoliplexInputState extends State<SoliplexInput> {
 
     return TextFormField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       initialValue: widget.initialValue,
       enabled: widget.enabled && !widget.isLoading,
+      readOnly: widget.readOnly,
       obscureText: obscure,
       maxLines: obscure ? 1 : widget.maxLines,
       minLines: widget.minLines,
