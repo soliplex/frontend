@@ -149,7 +149,7 @@ class SkillDetailDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
