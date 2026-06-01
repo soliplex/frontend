@@ -117,23 +117,20 @@ class QuizQuestionView extends StatelessWidget {
 
   Widget _buildActionButton(QuestionState questionState) {
     return switch (questionState) {
-      AwaitingInput() => const FilledButton(
+      AwaitingInput() => const SoliplexButton.filled(
           onPressed: null,
           child: Text('Submit Answer'),
         ),
-      Composing(:final canSubmit) => FilledButton(
+      Composing(:final canSubmit) => SoliplexButton.filled(
           onPressed: canSubmit ? onSubmit : null,
           child: const Text('Submit Answer'),
         ),
-      Submitting() => const FilledButton(
+      Submitting() => const SoliplexButton.filled(
           onPressed: null,
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+          isLoading: true,
+          child: Text('Submit Answer'),
         ),
-      Answered() => FilledButton(
+      Answered() => SoliplexButton.filled(
           onPressed: onNext,
           child: Text(
             session.isLastQuestion ? 'See Results' : 'Next Question',

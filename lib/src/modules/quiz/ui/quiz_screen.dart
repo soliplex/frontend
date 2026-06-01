@@ -136,7 +136,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     children: [
                       Text(message),
                       const SizedBox(height: SoliplexSpacing.s4),
-                      FilledButton(
+                      SoliplexButton.filled(
                         onPressed: action,
                         child: Text(label),
                       ),
@@ -220,11 +220,11 @@ class _QuizScreenState extends State<QuizScreen> {
           title: const Text('Leave Quiz?'),
           content: const Text('Your progress will be lost.'),
           actions: [
-            TextButton(
+            SoliplexButton.text(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            SoliplexButton.filled(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Leave'),
             ),
