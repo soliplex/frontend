@@ -8,6 +8,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/hidden_servers_storage.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 
 import '../../helpers/fakes.dart';
@@ -931,6 +932,35 @@ void main() {
         state.setSearchQuery('design');
         expect(state.searchQuery.value, 'design');
 
+        state.dispose();
+      });
+    });
+
+    group('hiddenServerIds', () {
+      test('defaults to empty; toggle adds then removes and persists',
+          () async {
+        final state = LobbyState(serverManager: _createManager());
+        await Future<void>.delayed(Duration.zero);
+        expect(state.hiddenServerIds.value, isEmpty);
+
+        state.toggleServerHidden('srv-1');
+        expect(state.hiddenServerIds.value, {'srv-1'});
+        expect(await HiddenServersStorage.load(), {'srv-1'});
+
+        state.toggleServerHidden('srv-1');
+        expect(state.hiddenServerIds.value, isEmpty);
+        expect(await HiddenServersStorage.load(), isEmpty);
+
+        state.dispose();
+      });
+
+      test('adopts the persisted hidden set after async load', () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_hidden_servers': ['srv-1', 'srv-2'],
+        });
+        final state = LobbyState(serverManager: _createManager());
+        await Future<void>.delayed(Duration.zero);
+        expect(state.hiddenServerIds.value, {'srv-1', 'srv-2'});
         state.dispose();
       });
     });

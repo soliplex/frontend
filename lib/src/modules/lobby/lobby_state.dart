@@ -9,6 +9,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import 'hidden_servers_storage.dart';
 import 'lobby_view_mode.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
@@ -62,6 +63,7 @@ class LobbyState {
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
+    unawaited(_loadHiddenServers());
   }
 
   final ServerManager _serverManager;
@@ -122,6 +124,24 @@ class LobbyState {
   ReadonlySignal<String> get searchQuery => _searchQuery;
 
   void setSearchQuery(String query) => _searchQuery.value = query;
+
+  /// Server IDs whose rooms are hidden from the lobby content. Persisted
+  /// across launches; the servers stay in the sidebar so visibility can be
+  /// toggled back on.
+  final Signal<Set<String>> _hiddenServerIds = Signal(const {});
+  ReadonlySignal<Set<String>> get hiddenServerIds => _hiddenServerIds;
+
+  Future<void> _loadHiddenServers() async {
+    _hiddenServerIds.value = await HiddenServersStorage.load();
+  }
+
+  /// Toggles whether [serverId]'s rooms are shown, persisting the change.
+  void toggleServerHidden(String serverId) {
+    final next = Set<String>.from(_hiddenServerIds.value);
+    if (!next.add(serverId)) next.remove(serverId);
+    _hiddenServerIds.value = next;
+    HiddenServersStorage.save(next);
+  }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
   final Map<String, CancelToken> _cancelTokens = {};

@@ -312,5 +312,55 @@ void main() {
 
       expect(find.byType(RoomCard), findsNWidgets(2));
     });
+
+    testWidgets('hiding a server removes its rooms section', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+      expect(find.byType(RoomCard), findsOneWidget);
+
+      // Toggle the server off via its sidebar eye button.
+      await tester.tap(find.byIcon(Icons.visibility));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomCard), findsNothing);
+      expect(find.textContaining('All servers are hidden'), findsOneWidget);
+    });
+
+    testWidgets('honors a persisted hidden server on load', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_lobby_hidden_servers': ['local'],
+      });
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomCard), findsNothing);
+      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+    });
   });
 }
