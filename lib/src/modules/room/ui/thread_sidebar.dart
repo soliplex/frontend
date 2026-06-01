@@ -52,26 +52,18 @@ class ThreadSidebar extends StatelessWidget {
               horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
           child: Row(
             children: [
-              TextButton.icon(
+              SoliplexButton.text(
                 onPressed: onBackToLobby,
+                isCompact: true,
                 icon: const Icon(Icons.arrow_back, size: 16),
-                label: const Text('Lobby'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: SoliplexSpacing.s2),
-                  visualDensity: VisualDensity.compact,
-                ),
+                child: const Text('Lobby'),
               ),
               const Spacer(),
-              TextButton.icon(
+              SoliplexButton.text(
                 onPressed: onCreateThread,
+                isCompact: true,
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('New Thread'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: SoliplexSpacing.s2),
-                  visualDensity: VisualDensity.compact,
-                ),
+                child: const Text('New Thread'),
               ),
             ],
           ),
@@ -86,32 +78,23 @@ class ThreadSidebar extends StatelessWidget {
         ],
         Expanded(child: _buildContent(context)),
         const Divider(height: 1),
-        TextButton.icon(
+        SoliplexButton.text(
           onPressed: onRoomInfo,
+          isCompact: true,
           icon: const Icon(Icons.info_outline, size: 16),
-          label: Text(roomName),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-            visualDensity: VisualDensity.compact,
-          ),
+          child: Text(roomName),
         ),
-        TextButton.icon(
+        SoliplexButton.text(
           onPressed: onNetworkInspector,
+          isCompact: true,
           icon: const Icon(Icons.http, size: 16),
-          label: const Text('Network Inspector'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-            visualDensity: VisualDensity.compact,
-          ),
+          child: const Text('Network Inspector'),
         ),
-        TextButton.icon(
+        SoliplexButton.text(
           onPressed: onVersions,
+          isCompact: true,
           icon: const Icon(Icons.info_outline, size: 16),
-          label: const Text('Versions'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
-            visualDensity: VisualDensity.compact,
-          ),
+          child: const Text('Versions'),
         ),
       ],
     );
@@ -224,17 +207,20 @@ class _QuizRowState extends State<_QuizRow> {
     required VoidCallback? onPressed,
     bool indent = false,
   }) {
-    return TextButton.icon(
+    final button = SoliplexButton.text(
       onPressed: onPressed,
+      isCompact: true,
+      alignment: Alignment.centerLeft,
       icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: TextButton.styleFrom(
-        padding: EdgeInsets.symmetric(
-          horizontal: indent ? 24 : 8,
-        ),
-        visualDensity: VisualDensity.compact,
-        alignment: Alignment.centerLeft,
-      ),
+      child: Text(label),
+    );
+    // Nested quiz rows indent under the "Quizzes (N)" expander. The
+    // compact button already carries s2 of leading padding, so an extra
+    // s4 lands the content at the same offset as the old hand-rolled 24.
+    if (!indent) return button;
+    return Padding(
+      padding: const EdgeInsets.only(left: SoliplexSpacing.s4),
+      child: button,
     );
   }
 }
