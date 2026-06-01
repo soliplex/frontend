@@ -119,6 +119,19 @@ class ButtonGallery extends StatelessWidget {
           title: 'Text — compact',
           children: _shapeRow(_ButtonShape.text, compact: true),
         ),
+        const _Section(
+          title: 'Text — left-aligned (nav rows)',
+          children: [
+            SizedBox(
+              width: 220,
+              child: _NavRowButton('Room info', Icons.info_outline),
+            ),
+            SizedBox(
+              width: 220,
+              child: _NavRowButton('Network Inspector', Icons.http),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -175,6 +188,28 @@ class ButtonGallery extends StatelessWidget {
 }
 
 enum _ButtonShape { filled, outlined, text }
+
+/// A full-width, left-aligned compact text button — the sidebar/nav-row
+/// pattern enabled by [SoliplexButton.text]'s `alignment` axis. The
+/// surrounding fixed-width box makes the left alignment visible (the
+/// button stretches past its content).
+class _NavRowButton extends StatelessWidget {
+  const _NavRowButton(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoliplexButton.text(
+      onPressed: () {},
+      alignment: Alignment.centerLeft,
+      isCompact: true,
+      icon: Icon(icon, size: 16),
+      child: Text(label),
+    );
+  }
+}
 
 class _GalleryButton extends StatelessWidget {
   const _GalleryButton({

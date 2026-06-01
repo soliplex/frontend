@@ -33,7 +33,8 @@ class SoliplexButton extends StatelessWidget {
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
   })  : _shape = _ButtonShape.filled,
-        isCompact = false;
+        isCompact = false,
+        alignment = null;
 
   /// An outlined button — medium visual weight. Use for secondary
   /// actions ("Cancel", "Back").
@@ -46,7 +47,8 @@ class SoliplexButton extends StatelessWidget {
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
   })  : _shape = _ButtonShape.outlined,
-        isCompact = false;
+        isCompact = false,
+        alignment = null;
 
   /// A text button — lowest visual weight. Use for tertiary actions
   /// inside dense surfaces (sidebars, list rows) and dialog dismissals.
@@ -63,6 +65,7 @@ class SoliplexButton extends StatelessWidget {
     this.intent = ButtonIntent.primary,
     this.isLoading = false,
     this.isCompact = false,
+    this.alignment,
   }) : _shape = _ButtonShape.text;
 
   /// Fired on tap. While [isLoading] is true, taps are ignored even if
@@ -96,6 +99,14 @@ class SoliplexButton extends StatelessWidget {
   /// Visual compactness only — the underlying tap target still satisfies
   /// the Material 48 logical-px minimum via [MaterialTapTargetSize.padded].
   final bool isCompact;
+
+  /// `text`-shape only: how the icon+label sit within the button's box.
+  ///
+  /// Defaults to `null` (Material centers the content). Pass
+  /// [Alignment.centerLeft] for full-width left-aligned sidebar/nav rows
+  /// where the button stretches to fill its column but the label should
+  /// hug the leading edge.
+  final AlignmentGeometry? alignment;
 
   final _ButtonShape _shape;
 
@@ -166,6 +177,7 @@ class SoliplexButton extends StatelessWidget {
     final fg = outlinedOrTextIntentForeground(intent, scheme);
     final style = TextButton.styleFrom(
       foregroundColor: fg,
+      alignment: alignment,
       padding: isCompact
           ? const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2)
           : null,

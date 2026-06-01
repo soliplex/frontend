@@ -143,7 +143,7 @@ code** — it has the full accessor cheat sheet and the component inventory.
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace`                                                                                  |
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
-| Action button         | `SoliplexButton.{filled,outlined,text}` with `intent: ButtonIntent.{primary,danger}` and optional `isLoading` / `isCompact` / `icon` (set `iconAlignment: IconAlignment.end` for a trailing icon) |
+| Action button         | `SoliplexButton.{filled,outlined,text}` with `intent: ButtonIntent.{primary,danger}` and optional `isLoading` / `isCompact` / `icon` (set `iconAlignment: IconAlignment.end` for a trailing icon; `.text` also takes `alignment: Alignment.centerLeft` for full-width left-aligned nav rows) |
 | Inline status pill    | `SoliplexBadge(label, intent, icon)` — `BadgeIntent.{neutral,info,success,warning,danger}`           |
 | Chip                  | `SoliplexChip` (display), `.action`, `.filter` — same status intents as badge                        |
 | Text input            | `SoliplexInput(label, isPassword, isLoading, ...)` — eye toggle built in                             |
