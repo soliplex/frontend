@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 
@@ -12,6 +13,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(null);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (text) => sentText = text,
@@ -40,6 +42,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(null);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (_) {},
@@ -62,6 +65,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(AgentSessionState.running);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (_) {},
@@ -85,6 +89,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(AgentSessionState.running);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (_) {},
@@ -105,6 +110,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(null);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (text) => sentText = text,
@@ -130,6 +136,7 @@ void main() {
     final sessionState = signal<AgentSessionState?>(AgentSessionState.running);
 
     await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
           onSend: (text) => sentText = text,
@@ -163,6 +170,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: soliplexLightTheme(),
         home: Scaffold(
           body: ChatInput(
             onSend: (_) {},
@@ -178,7 +186,7 @@ void main() {
     // onDeleted is null, which removes the delete icon entirely.
     final chip = tester.widget<Chip>(find.byType(Chip));
     expect(chip.onDeleted, isNull);
-    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.cancel), findsNothing);
     expect(removed, isNull);
 
     sessionState.dispose();
@@ -190,6 +198,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: soliplexLightTheme(),
         home: Scaffold(
           body: ChatInput(
             onSend: (_) {},
@@ -213,6 +222,7 @@ void main() {
   testWidgets('filter button hidden when onFilterTap is null', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: soliplexLightTheme(),
         home: Scaffold(
           body: ChatInput(
             onSend: (_) {},
@@ -233,6 +243,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -250,6 +261,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -269,6 +281,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -280,7 +293,8 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.close).first);
+      // SoliplexChip uses Material's default delete glyph (Icons.cancel).
+      await tester.tap(find.byIcon(Icons.cancel).first);
       expect(removed, doc);
     });
   });
@@ -289,6 +303,7 @@ void main() {
     testWidgets('shows when onAttachFile provided', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -305,6 +320,7 @@ void main() {
     testWidgets('hidden when onAttachFile is null', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -324,6 +340,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -349,6 +366,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: soliplexLightTheme(),
           home: Scaffold(
             body: ChatInput(
               onSend: (_) {},
@@ -369,6 +387,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
+            theme: soliplexLightTheme(),
             home: Scaffold(
               body: ChatInput(
                 onSend: (_) {},
@@ -400,6 +419,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: soliplexLightTheme(),
             home: Scaffold(
               body: ChatInput(
                 onSend: (_) {},
