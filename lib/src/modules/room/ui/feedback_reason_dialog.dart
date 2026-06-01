@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 class FeedbackReasonDialog extends StatefulWidget {
   const FeedbackReasonDialog({super.key});
@@ -20,21 +21,19 @@ class _FeedbackReasonDialogState extends State<FeedbackReasonDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Tell us why'),
-      content: TextField(
+      content: SoliplexInput(
         controller: _controller,
         autofocus: true,
         maxLines: 5,
-        decoration: const InputDecoration(
-          hintText: 'Add a reason (optional)',
-        ),
+        hintText: 'Add a reason (optional)',
         textInputAction: TextInputAction.newline,
       ),
       actions: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
+        SoliplexButton.filled(
           onPressed: () => Navigator.of(context).pop(_controller.text),
           child: const Text('Send'),
         ),
