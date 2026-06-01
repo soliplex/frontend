@@ -57,27 +57,23 @@ class _DocumentPickerState extends State<DocumentPicker> {
             SoliplexSpacing.s4,
             SoliplexSpacing.s2,
           ),
-          child: TextField(
+          child: SoliplexInput(
             controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search documents...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _query.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        setState(() {
-                          _searchController.clear();
-                          _query = '';
-                        });
-                        widget.onSearchChanged?.call(_filtered.length);
-                      },
-                    )
-                  : null,
-              isDense: true,
-              border: const OutlineInputBorder(),
-            ),
+            hintText: 'Search documents...',
+            leadingIcon: const Icon(Icons.search),
+            trailingIcon: _query.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear search',
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _query = '';
+                      });
+                      widget.onSearchChanged?.call(_filtered.length);
+                    },
+                  )
+                : null,
             onChanged: (v) {
               setState(() => _query = v);
               widget.onSearchChanged?.call(_filtered.length);
@@ -94,7 +90,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
                   '${widget.selected.length} selected',
                   style: theme.textTheme.bodySmall,
                 ),
-                TextButton(
+                SoliplexButton.text(
                   onPressed: () => widget.onChanged(const {}),
                   child: const Text('Clear all'),
                 ),
@@ -198,12 +194,12 @@ Future<Set<RagDocument>?> showDocumentPicker({
                         ),
                   ),
                   const SizedBox(height: SoliplexSpacing.s2),
-                  TextButton.icon(
+                  SoliplexButton.text(
                     onPressed: () => setDialogState(() {
                       documentsFuture = fetchDocuments();
                     }),
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
@@ -236,11 +232,11 @@ Future<Set<RagDocument>?> showDocumentPicker({
               child: SizedBox(width: double.maxFinite, child: content),
             ),
             actions: [
-              TextButton(
+              SoliplexButton.text(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
-              FilledButton(
+              SoliplexButton.filled(
                 onPressed:
                     canConfirm ? () => Navigator.pop(context, current) : null,
                 child: const Text('Done'),
