@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../shared/copy_button.dart';
 import '../../../shared/preview_icon_button.dart';
@@ -237,6 +236,18 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (sourceReference.documentUri.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+              child: Text(
+                sourceReference.documentUri,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           if (sourceReference.headings.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
@@ -260,23 +271,7 @@ class _SourceReferenceRow extends StatelessWidget {
               child: SingleChildScrollView(
                 child: FlutterMarkdownPlusRenderer(
                   data: sourceReference.content,
-                  onLinkTap: (href, _) {
-                    final uri = Uri.tryParse(href);
-                    if (uri != null) launchUrl(uri);
-                  },
                 ),
-              ),
-            ),
-          if (sourceReference.documentUri.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-              child: Text(
-                sourceReference.documentUri,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
         ],

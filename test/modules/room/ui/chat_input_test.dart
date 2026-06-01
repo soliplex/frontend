@@ -38,6 +38,34 @@ void main() {
     sessionState.dispose();
   });
 
+  testWidgets('long pasted text does not overflow the surrounding layout',
+      (tester) async {
+    // Mirrors the room layout: the chat input is a non-flex child of a
+    // bounded Column alongside an Expanded body. An uncapped field grows
+    // to its content height and overflows the Column.
+    final controller = TextEditingController(text: 'line\n' * 500);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
+      home: Scaffold(
+        body: Column(
+          children: [
+            const Expanded(child: SizedBox.expand()),
+            ChatInput(
+              controller: controller,
+              onSend: (_) {},
+              onCancel: () {},
+            ),
+          ],
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('send button disabled when text is empty', (tester) async {
     final sessionState = signal<AgentSessionState?>(null);
 

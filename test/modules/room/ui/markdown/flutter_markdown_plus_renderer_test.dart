@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
@@ -39,26 +40,87 @@ void main() {
       expect(find.text('Hello world'), findsOneWidget);
     });
 
-    testWidgets('fires onLinkTap with correct href', (tester) async {
-      String? tappedHref;
+    group('link taps', () {
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      final launchedUrls = <String>[];
+      var failNextLaunch = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FlutterMarkdownPlusRenderer(
-              data: '[click me](https://example.com)',
-              onLinkTap: (href, title) {
-                tappedHref = href;
-              },
+      setUp(() {
+        launchedUrls.clear();
+        failNextLaunch = false;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+          if (call.method != 'launch') return null;
+          if (failNextLaunch) {
+            throw PlatformException(code: 'no_handler');
+          }
+          launchedUrls.add((call.arguments as Map)['url'] as String);
+          return true;
+        });
+      });
+
+      tearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      testWidgets('tapping a link launches its URL', (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: FlutterMarkdownPlusRenderer(
+                data: '[email me](mailto:someone@example.com)',
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('click me'));
-      await tester.pump();
+        await tester.tap(find.text('email me'));
+        await tester.pump();
 
-      expect(tappedHref, 'https://example.com');
+        expect(launchedUrls, ['mailto:someone@example.com']);
+      });
+
+      testWidgets('a link whose launch fails does not throw', (tester) async {
+        failNextLaunch = true;
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: FlutterMarkdownPlusRenderer(
+                data: '[email me](mailto:someone@example.com)',
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('email me'));
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a provided onLinkTap overrides the default launch',
+          (tester) async {
+        String? tappedHref;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: FlutterMarkdownPlusRenderer(
+                data: '[email me](mailto:someone@example.com)',
+                onLinkTap: (href, _) => tappedHref = href,
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('email me'));
+        await tester.pump();
+
+        expect(tappedHref, 'mailto:someone@example.com');
+        expect(launchedUrls, isEmpty);
+      });
     });
   });
 
