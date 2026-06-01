@@ -236,6 +236,18 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (sourceReference.documentUri.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+              child: Text(
+                sourceReference.documentUri,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           if (sourceReference.headings.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
@@ -260,18 +272,6 @@ class _SourceReferenceRow extends StatelessWidget {
                 child: FlutterMarkdownPlusRenderer(
                   data: sourceReference.content,
                 ),
-              ),
-            ),
-          if (sourceReference.documentUri.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-              child: Text(
-                sourceReference.documentUri,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
         ],
