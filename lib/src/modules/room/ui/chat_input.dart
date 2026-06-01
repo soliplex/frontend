@@ -181,18 +181,11 @@ class _ChatInputState extends State<ChatInput> {
                               runSpacing: 4,
                               children: [
                                 for (final doc in widget.selectedDocuments)
-                                  Chip(
-                                    avatar: Icon(
-                                      getFileTypeIcon(
-                                        documentIconPath(doc),
-                                      ),
-                                      size: 16,
+                                  SoliplexChip(
+                                    icon: Icon(
+                                      getFileTypeIcon(documentIconPath(doc)),
                                     ),
                                     label: Text(documentDisplayName(doc)),
-                                    deleteIcon: const Icon(
-                                      Icons.close,
-                                      size: 16,
-                                    ),
                                     onDeleted:
                                         widget.onDocumentRemoved == null ||
                                                 disabled
@@ -200,9 +193,6 @@ class _ChatInputState extends State<ChatInput> {
                                             : () => widget.onDocumentRemoved!(
                                                   doc,
                                                 ),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
                                   ),
                               ],
                             ),
@@ -278,16 +268,13 @@ class _ChatInputState extends State<ChatInput> {
                   bindings: {
                     const SingleActivator(LogicalKeyboardKey.enter): _send,
                   },
-                  child: TextField(
+                  child: SoliplexInput(
                     controller: _controller,
                     focusNode: _focusNode,
                     readOnly: disabled,
                     maxLines: null,
                     textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
-                    ),
+                    hintText: 'Type a message...',
                   ),
                 ),
               ),
