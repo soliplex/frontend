@@ -457,15 +457,15 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              FilledButton.icon(
+              SoliplexButton.filled(
                 onPressed: () => _pickAndUpload(pickFiles),
                 icon: const Icon(Icons.upload_file, size: 18),
-                label: const Text('Upload files to room'),
+                child: const Text('Upload files to room'),
               ),
-              FilledButton.icon(
+              SoliplexButton.filled(
                 onPressed: () => _pickAndUpload(pickFolder),
                 icon: const Icon(Icons.drive_folder_upload, size: 18),
-                label: const Text('Upload folder to room'),
+                child: const Text('Upload folder to room'),
               ),
             ],
           ),

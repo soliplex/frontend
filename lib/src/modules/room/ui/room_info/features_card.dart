@@ -113,12 +113,12 @@ class _McpTokenRowState extends State<McpTokenRow> {
         if (snapshot.hasError) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-            child: OutlinedButton.icon(
+            child: SoliplexButton.outlined(
               icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Retry token'),
               onPressed: () => setState(() {
                 _tokenFuture = widget.api.getMcpToken(widget.roomId);
               }),
+              child: const Text('Retry token'),
             ),
           );
         }
@@ -133,12 +133,12 @@ class _McpTokenRowState extends State<McpTokenRow> {
         };
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-          child: OutlinedButton.icon(
+          child: SoliplexButton.outlined(
             icon: Icon(icon, size: 16),
-            label: Text(label),
             onPressed: _copyState == _TokenCopyState.idle
                 ? () => _copyToken(token)
                 : null,
+            child: Text(label),
           ),
         );
       },

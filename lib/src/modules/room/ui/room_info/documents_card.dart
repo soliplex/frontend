@@ -71,7 +71,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
                 ),
-                FilledButton(
+                SoliplexButton.filled(
                   onPressed: widget.onRetry,
                   child: const Text('Retry'),
                 ),
@@ -99,28 +99,20 @@ class _DocumentsCardState extends State<DocumentsCard> {
               if (docs.length > 1)
                 Padding(
                   padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
-                  child: TextField(
+                  child: SoliplexInput(
                     controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search documents...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              tooltip: 'Clear search',
-                              onPressed: () => setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              }),
-                            )
-                          : null,
-                      isDense: true,
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: SoliplexSpacing.s3,
-                        vertical: SoliplexSpacing.s2,
-                      ),
-                    ),
+                    hintText: 'Search documents...',
+                    leadingIcon: const Icon(Icons.search),
+                    trailingIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            tooltip: 'Clear search',
+                            onPressed: () => setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            }),
+                          )
+                        : null,
                     onChanged: (value) => setState(() => _searchQuery = value),
                   ),
                 ),
@@ -267,14 +259,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
             if (doc.metadata.isNotEmpty)
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    textStyle: theme.textTheme.labelSmall,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: SoliplexSpacing.s4,
-                      vertical: SoliplexSpacing.s2,
-                    ),
-                  ),
+                child: SoliplexButton.text(
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (_) => MetadataDialog(
@@ -363,7 +348,7 @@ class MetadataDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        SoliplexButton.text(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),

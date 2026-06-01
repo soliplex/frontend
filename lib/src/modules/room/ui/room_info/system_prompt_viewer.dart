@@ -80,7 +80,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                   if (overflows || _expanded)
                     Align(
                       alignment: Alignment.centerRight,
-                      child: TextButton(
+                      child: SoliplexButton.text(
                         onPressed: () => setState(() => _expanded = !_expanded),
                         child: Text(_expanded ? 'Collapse' : 'Expand'),
                       ),

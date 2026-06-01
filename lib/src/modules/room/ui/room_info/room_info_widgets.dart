@@ -100,15 +100,9 @@ class DialogButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Align(
       alignment: Alignment.centerRight,
-      child: TextButton(
-        style: TextButton.styleFrom(
-          textStyle: theme.textTheme.labelSmall,
-          padding: const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s2),
-        ),
+      child: SoliplexButton.text(
         onPressed: onPressed,
         child: Text(label),
       ),
