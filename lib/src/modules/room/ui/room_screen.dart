@@ -290,6 +290,24 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _onBackToLobby() => context.go(AppRoutes.lobby);
 
+  /// Drives the user back through sign-in for this server, returning to the
+  /// current room/thread afterward. Reached only if an [AuthException]
+  /// surfaces in an error panel despite the funnel-to-redirect path.
+  void _onReauthenticate() {
+    final alias = widget.serverEntry.alias;
+    final roomId = widget.roomId;
+    final threadId = widget.threadId;
+    final returnTo = threadId != null
+        ? AppRoutes.thread(alias, roomId, threadId)
+        : AppRoutes.room(alias, roomId);
+    context.go(
+      AppRoutes.homeWithUrl(
+        widget.serverEntry.serverUrl.toString(),
+        returnTo: returnTo,
+      ),
+    );
+  }
+
   void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
 
   void _onVersions() => context.push(AppRoutes.versions);
@@ -439,6 +457,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onRoomInfo: _onRoomInfo,
             roomName: roomName,
             onRetryThreads: () => _state.threadList.refresh(),
+            onReauthenticate: _onReauthenticate,
             quizzes: room?.quizzes ?? const {},
             onQuizTapped: _onQuizTapped,
             onRenameThread: _showRenameDialog,
@@ -499,6 +518,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     roomName: roomName,
                     runningThreadIds: _state.runningThreadIds,
                     onRetryThreads: () => _state.threadList.refresh(),
+                    onReauthenticate: _onReauthenticate,
                     quizzes: room?.quizzes ?? const {},
                     onQuizTapped: _onQuizTapped,
                     onRenameThread: (id, name) {
@@ -969,6 +989,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     onRetry: error is MalformedResponseException
                         ? null
                         : threadView.refresh,
+                    onReauthenticate: _onReauthenticate,
                   ),
                 MessagesLoaded(:final messages, :final messageStates) =>
                   computeDisplayMessages(messages, streaming).isEmpty

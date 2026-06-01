@@ -20,6 +20,7 @@ class ThreadSidebar extends StatelessWidget {
     required this.roomName,
     required this.runningThreadIds,
     this.onRetryThreads,
+    this.onReauthenticate,
     this.quizzes = const {},
     this.onQuizTapped,
     this.onRenameThread,
@@ -36,6 +37,7 @@ class ThreadSidebar extends StatelessWidget {
   final VoidCallback onRoomInfo;
   final String roomName;
   final Future<void> Function()? onRetryThreads;
+  final VoidCallback? onReauthenticate;
   final Map<String, String> quizzes;
   final void Function(String quizId)? onQuizTapped;
   final void Function(String threadId, String currentName)? onRenameThread;
@@ -109,6 +111,7 @@ class ThreadSidebar extends StatelessWidget {
             title: 'Failed to load threads',
             error: error,
             onRetry: onRetryThreads,
+            onReauthenticate: onReauthenticate,
           ),
         ),
       ThreadsLoaded(:final threads) => _wrapWithRefresh(
