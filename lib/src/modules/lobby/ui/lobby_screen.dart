@@ -6,6 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException;
 
 import '../../../core/routes.dart';
+import '../../../shared/marking/effective_marking.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
@@ -341,8 +342,17 @@ class _RoomContent extends StatelessWidget {
       );
     }
 
+    final visibleRoomIds = <String>[
+      for (final entry in roomsByServer.entries)
+        if (!hiddenServerIds.contains(entry.key))
+          if (entry.value case RoomsLoaded(:final rooms))
+            for (final room in rooms) room.id,
+    ];
+
     return Column(
       children: [
+        if (visibleRoomIds.isNotEmpty)
+          _ResultSetMarkingBar(roomIds: visibleRoomIds),
         Padding(
           padding: const EdgeInsets.fromLTRB(
               SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
@@ -513,6 +523,52 @@ class _ViewModeToggle extends StatelessWidget {
       ],
       selected: {viewMode},
       onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
+}
+
+/// Shows the effective marking of the visible result set and, when the
+/// set spans more than one marking, the mixed-results warning required by
+/// the marking guidance.
+class _ResultSetMarkingBar extends StatelessWidget {
+  const _ResultSetMarkingBar({required this.roomIds});
+
+  final List<String> roomIds;
+
+  @override
+  Widget build(BuildContext context) {
+    // DEMO STUB — every dataset reports the same default marking, so the
+    // effective marking of the result set is that constant and the set is
+    // never mixed. Resolve per-id here when the backend supplies markings.
+    final markings = [for (final _ in roomIds) kDemoDefaultMarking];
+    final effective = DatasetMarking.highestOf(markings);
+    final mixed = DatasetMarking.isMixed(markings);
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s4, SoliplexSpacing.s3, SoliplexSpacing.s4, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Results shown at:', style: textTheme.bodySmall),
+              const SizedBox(width: SoliplexSpacing.s2),
+              SoliplexMarkingBadge(marking: effective),
+            ],
+          ),
+          if (mixed) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
+            Text(
+              'Results include mixed markings. This view is displayed at '
+              'the highest applicable level.',
+              style: textTheme.bodySmall?.copyWith(color: colorScheme.warning),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

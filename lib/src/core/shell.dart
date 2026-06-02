@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/marking/marking_app_chrome.dart';
 import 'inactivity/inactivity_dialog_host.dart';
 import 'inactivity/inactivity_monitor.dart';
 import 'inactivity/inactivity_provider.dart';
@@ -132,13 +133,19 @@ class _ShellRootState extends ConsumerState<_ShellRoot> {
       darkTheme: widget.config.darkTheme,
       themeMode: widget.config.themeMode,
       routerConfig: widget.router,
-      builder: monitor == null
-          ? null
-          : (context, child) => InactivityDialogHost(
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        final inner = monitor == null
+            ? content
+            : InactivityDialogHost(
                 monitor: monitor,
                 navigatorKey: widget.router.routerDelegate.navigatorKey,
-                child: child ?? const SizedBox.shrink(),
-              ),
+                child: content,
+              );
+        // Persistent classification chrome + pre-access gate wraps every
+        // route. Outermost so the marking is visible on all screens.
+        return MarkingAppChrome(child: inner);
+      },
     );
     if (monitor == null) return app;
     return Listener(

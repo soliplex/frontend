@@ -3,9 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_frontend/src/core/app_module.dart';
 import 'package:soliplex_frontend/src/core/shell.dart';
 import 'package:soliplex_frontend/src/core/shell_config.dart';
+import 'package:soliplex_frontend/src/shared/marking/pre_access_notice.dart';
+
+/// Pre-acknowledges the marking pre-access notice so full-shell tests see
+/// routed content directly instead of the gate.
+Override _ackOverride() =>
+    markingNoticeAcknowledgedProvider.overrideWithValue(Signal<bool>(true));
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -58,7 +65,7 @@ void main() {
         initialRoute: '/check',
         modules: [
           _TestModule(
-            overrides: [greeting.overrideWithValue('hello')],
+            overrides: [greeting.overrideWithValue('hello'), _ackOverride()],
           ),
           _TestModule(
             overrides: [farewell.overrideWithValue('goodbye')],
@@ -95,6 +102,7 @@ void main() {
         initialRoute: '/a',
         modules: [
           _TestModule(
+            overrides: [_ackOverride()],
             redirect: (context, state) =>
                 state.matchedLocation == '/a' ? '/b' : null,
           ),

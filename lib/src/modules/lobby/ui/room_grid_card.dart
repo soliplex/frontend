@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/marking/effective_marking.dart';
+
 /// Vertical card used for the lobby's grid layout: open on tap, info
 /// button, and a quiz indicator, in a shape that tiles cleanly into a
 /// grid cell. The list-row counterpart is [RoomCard].
@@ -31,6 +33,11 @@ class RoomGridCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: SoliplexMarkingBadge(marking: kDemoDefaultMarking),
+              ),
+              const SizedBox(height: SoliplexSpacing.s2),
               Row(
                 children: [
                   Expanded(

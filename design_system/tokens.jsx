@@ -30,6 +30,17 @@ const SP_DARK = {
   link:'#60A5FA',
 };
 
+// Dataset classification markings — fixed DoD palette, theme-independent.
+// The text label is authoritative; color is only a secondary cue.
+const SP_MARKING = {
+  unclassified: { bg: '#007A33', fg: '#FFFFFF', label: 'UNCLASSIFIED' },
+  cui:          { bg: '#502B85', fg: '#FFFFFF', label: 'CUI' },
+  confidential: { bg: '#0033A0', fg: '#FFFFFF', label: 'CONFIDENTIAL' },
+  secret:       { bg: '#C8102E', fg: '#FFFFFF', label: 'SECRET' },
+  topSecret:    { bg: '#FF8C00', fg: '#000000', label: 'TOP SECRET' },
+  topSecretSci: { bg: '#FCE83A', fg: '#000000', label: 'TOP SECRET//SCI' },
+};
+
 const SP_FONT = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const SP_MONO = '"JetBrains Mono", "SF Mono", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace';
 
@@ -86,6 +97,6 @@ function SoliplexMark({ size = 28 }) {
 }
 
 Object.assign(window, {
-  SP_LIGHT, SP_DARK, SP_FONT, SP_MONO,
+  SP_LIGHT, SP_DARK, SP_MARKING, SP_FONT, SP_MONO,
   Icon, ICON, SoliplexMark,
 });

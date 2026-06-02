@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/copy_button.dart';
+import '../../../shared/marking/effective_marking.dart';
 import '../../../shared/preview_icon_button.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 
@@ -82,6 +83,7 @@ class _CitationsSectionState extends State<CitationsSection> {
                     tooltip: 'Copy all',
                     text: formatAllCitationsForClipboard(
                       widget.sourceReferences,
+                      marking: kDemoDefaultMarking,
                     ),
                   ),
                 ),
@@ -130,6 +132,7 @@ class _SourceReferenceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const marking = kDemoDefaultMarking;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
@@ -165,6 +168,8 @@ class _SourceReferenceRow extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: SoliplexSpacing.s2),
+                        SoliplexMarkingBadge.portion(marking: marking),
+                        const SizedBox(width: SoliplexSpacing.s1),
                         Expanded(
                           child: Text(
                             sourceReference.displayTitle,
@@ -203,7 +208,10 @@ class _SourceReferenceRow extends StatelessWidget {
                 height: 32,
                 child: Center(
                   child: CopyButton(
-                    text: formatCitationForClipboard(sourceReference),
+                    text: formatCitationForClipboard(
+                      sourceReference,
+                      marking: marking,
+                    ),
                     tooltip: 'Copy citation $badgeNumber',
                     iconSize: 16,
                   ),
@@ -281,8 +289,13 @@ class _SourceReferenceRow extends StatelessWidget {
 }
 
 @visibleForTesting
-String formatCitationForClipboard(SourceReference ref) {
-  final lines = <String>[ref.displayTitle];
+String formatCitationForClipboard(SourceReference ref,
+    {DatasetMarking? marking}) {
+  // Preserve the portion marking in exported/copied text, before the title.
+  final title = marking == null
+      ? ref.displayTitle
+      : '${marking.portionLabel} ${ref.displayTitle}';
+  final lines = <String>[title];
   if (ref.headings.isNotEmpty) {
     lines.add(ref.headings.join(' > '));
   }
@@ -302,5 +315,10 @@ String formatCitationForClipboard(SourceReference ref) {
 }
 
 @visibleForTesting
-String formatAllCitationsForClipboard(List<SourceReference> refs) =>
-    refs.map(formatCitationForClipboard).join('\n\n---\n\n');
+String formatAllCitationsForClipboard(
+  List<SourceReference> refs, {
+  DatasetMarking? marking,
+}) =>
+    refs
+        .map((ref) => formatCitationForClipboard(ref, marking: marking))
+        .join('\n\n---\n\n');

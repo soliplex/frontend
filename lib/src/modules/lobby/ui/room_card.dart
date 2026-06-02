@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
+
+import '../../../shared/marking/effective_marking.dart';
 
 class RoomCard extends StatelessWidget {
   const RoomCard({
@@ -17,7 +20,13 @@ class RoomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        title: Text(room.name),
+        title: Row(
+          children: [
+            const SoliplexMarkingBadge(marking: kDemoDefaultMarking),
+            const SizedBox(width: SoliplexSpacing.s2),
+            Expanded(child: Text(room.name)),
+          ],
+        ),
         subtitle: room.description.isNotEmpty ? Text(room.description) : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

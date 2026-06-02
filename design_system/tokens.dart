@@ -199,3 +199,24 @@ class SoliplexBreakpoints {
   static const double tablet = 600;
   static const double desktop = 840;
 }
+
+// ---------- Dataset classification markings ----------
+//
+// Fixed DoD palette, theme-independent: a classification color must read
+// identically in light and dark and must not be re-tinted by a flavor.
+// The text label is the authoritative cue; color is only secondary.
+
+enum SoliplexMarking {
+  unclassified('UNCLASSIFIED', Color(0xFF007A33), Color(0xFFFFFFFF)),
+  cui('CUI', Color(0xFF502B85), Color(0xFFFFFFFF)),
+  confidential('CONFIDENTIAL', Color(0xFF0033A0), Color(0xFFFFFFFF)),
+  secret('SECRET', Color(0xFFC8102E), Color(0xFFFFFFFF)),
+  topSecret('TOP SECRET', Color(0xFFFF8C00), Color(0xFF000000)),
+  topSecretSci('TOP SECRET//SCI', Color(0xFFFCE83A), Color(0xFF000000));
+
+  const SoliplexMarking(this.label, this.background, this.foreground);
+
+  final String label;
+  final Color background;
+  final Color foreground;
+}

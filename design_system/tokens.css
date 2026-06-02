@@ -59,6 +59,16 @@
   --sp-brand-mark-ring:    #60C7D8;
   --sp-brand-mark-bar:     #333335;
   --sp-brand-mark-diamond: #E6F1F3;
+
+  /* Dataset classification markings — fixed DoD palette, theme-independent.
+     Declared only here so dark mode inherits the same authoritative values.
+     The text label is the authoritative cue; color is secondary. */
+  --sp-marking-unclassified-bg: #007A33; --sp-marking-unclassified-fg: #FFFFFF;
+  --sp-marking-cui-bg:          #502B85; --sp-marking-cui-fg:          #FFFFFF;
+  --sp-marking-confidential-bg: #0033A0; --sp-marking-confidential-fg: #FFFFFF;
+  --sp-marking-secret-bg:       #C8102E; --sp-marking-secret-fg:       #FFFFFF;
+  --sp-marking-top-secret-bg:   #FF8C00; --sp-marking-top-secret-fg:   #000000;
+  --sp-marking-ts-sci-bg:       #FCE83A; --sp-marking-ts-sci-fg:       #000000;
 }
 
 [data-theme="dark"] {

@@ -102,6 +102,27 @@ These files describe an **existing, shipped design system**. They are not protot
 | mark/bar         | `#333335` |
 | mark/diamond     | `#E6F1F3` |
 
+### Dataset classification markings (default DoD palette)
+Theme-independent: identical in light and dark. The **text label is
+authoritative**; color is only a secondary cue (the UI must still work in
+grayscale and for screen readers). These values are the **default**
+(`SoliplexMarkingColors.dod`) — white-label builds override them per marking
+via `soliplexLightTheme(markingColors: SoliplexMarkingColors.dod.copyWith(...))`,
+because customers (e.g. AMIA vs AFSOC) mandate different palettes. In the live
+app the palette lives on `SoliplexTheme` and is reached via
+`SoliplexTheme.markingColorsOf(context)`. Use `SoliplexMarkingBadge` and
+`SoliplexMarkingBanner` rather than hand-rolling these colors. CSS/JSX mirrors
+(`--sp-marking-*`, `SP_MARKING`) carry the same defaults.
+
+| Marking          | Background  | Font color |
+|------------------|-------------|------------|
+| UNCLASSIFIED     | `#007A33`   | white      |
+| CUI              | `#502B85`   | white      |
+| CONFIDENTIAL     | `#0033A0`   | white      |
+| SECRET           | `#C8102E`   | white      |
+| TOP SECRET       | `#FF8C00`   | black      |
+| TOP SECRET//SCI  | `#FCE83A`   | black      |
+
 ### Typography
 Platform-native sans (Roboto on Android, SF on iOS/macOS, system on web/desktop). No bundled font family. All styles use `height: 1.5` except `headlineMedium` which uses `1.3`.
 

@@ -34,9 +34,10 @@ void main() {
         ),
       ));
 
-      // Only the name renders; the description block is skipped entirely.
+      // The marking badge and the name render; the description block is
+      // skipped entirely (so just those two Texts, no description).
       expect(find.text('General'), findsOneWidget);
-      expect(find.byType(Text), findsOneWidget);
+      expect(find.byType(Text), findsNWidgets(2));
     });
 
     testWidgets('shows the quiz badge only when the room has quizzes',

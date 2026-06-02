@@ -3,19 +3,35 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_design/src/theme/markdown_theme_extension.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
+import 'package:soliplex_design/src/tokens/marking_colors.dart';
 import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/spacing.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
 
-ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) =>
-    _buildTheme(colors: colors, brightness: Brightness.light);
+ThemeData soliplexLightTheme({
+  SoliplexColors colors = lightSoliplexColors,
+  SoliplexMarkingColors markingColors = SoliplexMarkingColors.dod,
+}) =>
+    _buildTheme(
+      colors: colors,
+      brightness: Brightness.light,
+      markingColors: markingColors,
+    );
 
-ThemeData soliplexDarkTheme({SoliplexColors colors = darkSoliplexColors}) =>
-    _buildTheme(colors: colors, brightness: Brightness.dark);
+ThemeData soliplexDarkTheme({
+  SoliplexColors colors = darkSoliplexColors,
+  SoliplexMarkingColors markingColors = SoliplexMarkingColors.dod,
+}) =>
+    _buildTheme(
+      colors: colors,
+      brightness: Brightness.dark,
+      markingColors: markingColors,
+    );
 
 ThemeData _buildTheme({
   required SoliplexColors colors,
   required Brightness brightness,
+  SoliplexMarkingColors markingColors = SoliplexMarkingColors.dod,
 }) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
@@ -227,6 +243,7 @@ ThemeData _buildTheme({
       SoliplexTheme(
         colors: colors,
         radii: soliplexRadii,
+        markingColors: markingColors,
         badgeTheme: SoliplexBadgeThemeData(
           background: Color.alphaBlend(
             colors.foreground.withAlpha(15),

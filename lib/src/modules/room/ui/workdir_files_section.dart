@@ -7,6 +7,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../shared/marking/effective_marking.dart';
 import '../../../shared/preview_icon_button.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
@@ -182,6 +183,9 @@ class _WorkdirFileRow extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
+                const SoliplexMarkingBadge.portion(
+                    marking: kDemoDefaultMarking),
+                const SizedBox(width: SoliplexSpacing.s1),
                 Expanded(
                   child: _FilenameText(
                     filename: file.filename,
@@ -581,6 +585,26 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                const SizedBox(height: SoliplexSpacing.s1),
+                // Export preview: shows the marking that will appear on the
+                // file when it is downloaded.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SoliplexMarkingBadge.portion(
+                      marking: kDemoDefaultMarking,
+                    ),
+                    const SizedBox(width: SoliplexSpacing.s1),
+                    Flexible(
+                      child: Text(
+                        'Downloads carry this marking',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

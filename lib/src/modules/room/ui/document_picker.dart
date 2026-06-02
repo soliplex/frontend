@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
+import '../../../shared/marking/effective_marking.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class DocumentPicker extends StatefulWidget {
@@ -114,9 +115,19 @@ class _DocumentPickerState extends State<DocumentPicker> {
                     final selected = widget.selected.contains(doc);
                     return CheckboxListTile(
                       secondary: Icon(getFileTypeIcon(documentIconPath(doc))),
-                      title: Text(
-                        documentDisplayName(doc),
-                        overflow: TextOverflow.ellipsis,
+                      title: Row(
+                        children: [
+                          const SoliplexMarkingBadge.portion(
+                            marking: kDemoDefaultMarking,
+                          ),
+                          const SizedBox(width: SoliplexSpacing.s1),
+                          Expanded(
+                            child: Text(
+                              documentDisplayName(doc),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       subtitle: doc.uri.isNotEmpty
                           ? Text(
