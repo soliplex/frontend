@@ -306,10 +306,10 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          FilledButton.icon(
+          SoliplexButton.filled(
             onPressed: _retry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
+            child: const Text('Retry'),
           ),
         ],
       ),

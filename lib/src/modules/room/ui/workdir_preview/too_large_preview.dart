@@ -53,10 +53,10 @@ class TooLargePreview extends StatelessWidget {
             extraLogAttributes: {'byteSize': byteSize},
             builder: (context, state, onTap) {
               final (icon, label) = state.affordance;
-              return FilledButton.icon(
+              return SoliplexButton.filled(
                 onPressed: onTap,
                 icon: Icon(icon),
-                label: Text(label),
+                child: Text(label),
               );
             },
           ),

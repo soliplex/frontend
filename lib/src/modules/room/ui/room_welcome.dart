@@ -102,13 +102,17 @@ class RoomWelcome extends StatelessWidget {
                       alignment: WrapAlignment.center,
                       children: [
                         for (final entry in currentRoom.quizzes.entries)
-                          ActionChip(
-                            avatar: const Icon(Icons.play_arrow, size: 16),
-                            label: Text(entry.value),
-                            onPressed: onQuizTapped != null
-                                ? () => onQuizTapped!(entry.key)
-                                : null,
-                          ),
+                          if (onQuizTapped != null)
+                            SoliplexChip.action(
+                              icon: const Icon(Icons.play_arrow),
+                              label: Text(entry.value),
+                              onPressed: () => onQuizTapped!(entry.key),
+                            )
+                          else
+                            SoliplexChip(
+                              icon: const Icon(Icons.play_arrow),
+                              label: Text(entry.value),
+                            ),
                       ],
                     ),
                   ],
