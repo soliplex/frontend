@@ -228,27 +228,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..._buildHeader(context, 'Enter the URL of your backend server'),
       Form(
         key: _formKey,
-        child: TextFormField(
+        child: SoliplexInput(
           controller: _urlController,
           focusNode: _urlFocusNode,
           autofocus: true,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: _validateUrl,
-          decoration: InputDecoration(
-            labelText: 'Backend URL',
-            hintText: 'api.example.com',
-            prefixIcon: const Icon(Icons.link),
-            border: const OutlineInputBorder(),
-            suffixIcon: _hasUrlText
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => _urlController.clear(),
-                  )
-                : null,
-          ),
+          label: 'Backend URL',
+          hintText: 'api.example.com',
+          leadingIcon: const Icon(Icons.link),
+          trailingIcon: _hasUrlText
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => _urlController.clear(),
+                )
+              : null,
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.go,
-          onFieldSubmitted: (_) => _connect(),
+          onSubmitted: (_) => _connect(),
         ),
       ),
       const SizedBox(height: SoliplexSpacing.s4),
