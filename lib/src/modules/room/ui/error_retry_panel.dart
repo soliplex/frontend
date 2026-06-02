@@ -44,7 +44,7 @@ class ErrorRetryPanel extends StatelessWidget {
               child: const Text('Sign in'),
             )
           else if (onRetry != null)
-            FilledButton.tonal(
+            SoliplexButton.filled(
               onPressed: onRetry,
               child: const Text('Retry'),
             ),

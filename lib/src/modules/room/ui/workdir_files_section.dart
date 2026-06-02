@@ -540,10 +540,10 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: SoliplexSpacing.s4),
-          FilledButton.icon(
+          SoliplexButton.filled(
             onPressed: () => _retry(file),
             icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
+            child: const Text('Retry'),
           ),
         ],
       ),
@@ -857,10 +857,10 @@ class _CannotPreview extends StatelessWidget {
             logTag: 'preview-fallback download callback threw',
             builder: (context, state, onTap) {
               final (btnIcon, label) = state.affordance;
-              return FilledButton.icon(
+              return SoliplexButton.filled(
                 onPressed: onTap,
                 icon: Icon(btnIcon),
-                label: Text(label),
+                child: Text(label),
               );
             },
           ),
