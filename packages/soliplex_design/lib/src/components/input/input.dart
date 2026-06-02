@@ -34,6 +34,7 @@ class SoliplexInput extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.validator,
+    this.autovalidateMode,
     this.isPassword = false,
     this.isLoading = false,
     this.enabled = true,
@@ -79,6 +80,12 @@ class SoliplexInput extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final FormFieldValidator<String>? validator;
+
+  /// When to run [validator]. Defaults to Material's behaviour
+  /// ([AutovalidateMode.disabled] — validate only on
+  /// `Form.validate()`). Pass [AutovalidateMode.onUserInteraction] for
+  /// fields that should surface errors as the user types.
+  final AutovalidateMode? autovalidateMode;
 
   /// Obscures the input and shows an eye toggle as the trailing icon.
   final bool isPassword;
@@ -131,6 +138,7 @@ class _SoliplexInputState extends State<SoliplexInput> {
       onChanged: widget.onChanged,
       onFieldSubmitted: widget.onSubmitted,
       validator: widget.validator,
+      autovalidateMode: widget.autovalidateMode,
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hintText,

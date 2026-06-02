@@ -111,4 +111,23 @@ void main() {
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.focusNode, same(focusNode));
   });
+
+  testWidgets('autovalidateMode validates on user interaction', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        SoliplexInput(
+          label: 'URL',
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: (v) => (v ?? '').isEmpty ? 'Required' : null,
+        ),
+      ),
+    );
+    // No Form.validate() call — the error only appears because the
+    // field self-validates as the user types.
+    expect(find.text('Required'), findsNothing);
+    await tester.enterText(find.byType(TextFormField), 'x');
+    await tester.enterText(find.byType(TextFormField), '');
+    await tester.pump();
+    expect(find.text('Required'), findsOneWidget);
+  });
 }

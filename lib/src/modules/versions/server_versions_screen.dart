@@ -94,13 +94,10 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.all(SoliplexSpacing.s4),
-          child: TextField(
+          child: SoliplexInput(
             controller: _searchController,
-            decoration: const InputDecoration(
-              hintText: 'Search packages…',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
+            hintText: 'Search packages…',
+            leadingIcon: const Icon(Icons.search),
             onChanged: (value) => setState(() => _searchQuery = value),
           ),
         ),

@@ -251,7 +251,7 @@ class _ServerVersionTileState extends State<_ServerVersionTile> {
                   onPressed: _retry,
                 )
               else
-                TextButton(
+                SoliplexButton.text(
                   onPressed: info == null
                       ? null
                       : () => context.push(
