@@ -5,6 +5,7 @@ export 'src/components/button/button.dart';
 export 'src/components/button/intent.dart';
 export 'src/components/chip/chip.dart';
 export 'src/components/chip/intent.dart';
+export 'src/components/classification/classification_badge.dart';
 export 'src/components/dropdown/dropdown.dart';
 export 'src/components/input/input.dart';
 export 'src/components/picker/date_picker.dart';

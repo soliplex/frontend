@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 
 /// A single configurable confidentiality marking.
@@ -69,6 +71,66 @@ class ClassificationTheme extends ThemeExtension<ClassificationTheme> {
   /// Id of the level applied when a surface supplies no classification.
   /// Required — the deployment decides the err-direction; we never guess.
   final String defaultId;
+
+  /// Resolves [id] to a level. `null` → the [defaultId] level. A known id
+  /// → its level. An **unrecognized** id → a fail-loud alarm level built
+  /// from `colorScheme.errorContainer`/`onErrorContainer`, carrying the
+  /// raw id in its label, plus a `developer.log` warning. An unknown
+  /// marking must read as alarming, never as a benign pill.
+  ClassificationLevel resolve(BuildContext context, String? id) {
+    final effectiveId = id ?? defaultId;
+    for (final level in levels) {
+      if (level.id == effectiveId) return level;
+    }
+    return _alarm(context, effectiveId);
+  }
+
+  /// The most restrictive level among [ids] by list position. Empty → the
+  /// default level. Any unrecognized id → the fail-loud alarm level (an
+  /// aggregate containing something unknown must not under-report). `null`
+  /// entries count as [defaultId].
+  ClassificationLevel highestOf(BuildContext context, Iterable<String?> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return resolve(context, null);
+
+    var bestIndex = -1;
+    ClassificationLevel? best;
+    for (final id in list) {
+      final effectiveId = id ?? defaultId;
+      final index = levels.indexWhere((l) => l.id == effectiveId);
+      if (index < 0) return _alarm(context, effectiveId);
+      if (index > bestIndex) {
+        bestIndex = index;
+        best = levels[index];
+      }
+    }
+    return best!;
+  }
+
+  /// Whether [ids] resolve to more than one distinct level. `null` entries
+  /// count as [defaultId]; distinct unrecognized ids each count as
+  /// themselves.
+  bool isMixed(Iterable<String?> ids) {
+    return ids.map((id) => id ?? defaultId).toSet().length > 1;
+  }
+
+  /// Fail-loud level for an unrecognized id.
+  ClassificationLevel _alarm(BuildContext context, String id) {
+    developer.log(
+      'Unrecognized classification id "$id"; rendering fail-loud alarm '
+      'marking.',
+      name: 'ClassificationTheme',
+      level: 900,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    return ClassificationLevel(
+      id: id,
+      label: 'UNKNOWN: $id',
+      background: scheme.errorContainer,
+      foreground: scheme.onErrorContainer,
+      icon: Icons.error_outline,
+    );
+  }
 
   @override
   ClassificationTheme copyWith({
