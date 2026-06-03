@@ -64,13 +64,19 @@ class RoomGridCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: SoliplexSpacing.s2),
-              Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  tooltip: 'Room info',
-                  onPressed: onInfoTap,
-                ),
+              Row(
+                children: [
+                  // Bottom-left marking; renders nothing until a deployment
+                  // configures classifications. Backend per-room value
+                  // wires in here later via `classification:`.
+                  const SoliplexClassificationBadge(),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.info_outline),
+                    tooltip: 'Room info',
+                    onPressed: onInfoTap,
+                  ),
+                ],
               ),
             ],
           ),

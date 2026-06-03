@@ -34,6 +34,7 @@ import '../modules/versions/versions_module.dart';
 
 Future<ShellConfig> standard({
   SoliplexBranding? branding,
+  ClassificationTheme? classifications,
   ThemeMode themeMode = ThemeMode.system,
   String redirectScheme = 'ai.soliplex.client',
   String defaultBackendUrl = 'http://localhost:8000',
@@ -43,17 +44,22 @@ Future<ShellConfig> standard({
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
   final brand = branding ?? SoliplexBranding.soliplex;
+  // Markings don't flip with brightness — the same instance feeds both
+  // themes. Omitted → the design system's neutral built-in (no pills).
+  // This is the adopter's configuration point for deployment vocabularies.
   final lightTheme = soliplexLightTheme(
     colors: SoliplexColors.fromAccent(
       brand.accentLight,
       brightness: Brightness.light,
     ),
+    classifications: classifications,
   );
   final darkTheme = soliplexDarkTheme(
     colors: SoliplexColors.fromAccent(
       brand.accentDark,
       brightness: Brightness.dark,
     ),
+    classifications: classifications,
   );
   final brandLogo = BrandLogo(branding: brand);
 
