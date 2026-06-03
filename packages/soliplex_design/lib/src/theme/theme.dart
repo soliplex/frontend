@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/theme/classification_theme.dart';
 import 'package:soliplex_design/src/theme/markdown_theme_extension.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
@@ -7,15 +8,30 @@ import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/spacing.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
 
-ThemeData soliplexLightTheme({SoliplexColors colors = lightSoliplexColors}) =>
-    _buildTheme(colors: colors, brightness: Brightness.light);
+ThemeData soliplexLightTheme({
+  SoliplexColors colors = lightSoliplexColors,
+  ClassificationTheme? classifications,
+}) =>
+    _buildTheme(
+      colors: colors,
+      brightness: Brightness.light,
+      classifications: classifications,
+    );
 
-ThemeData soliplexDarkTheme({SoliplexColors colors = darkSoliplexColors}) =>
-    _buildTheme(colors: colors, brightness: Brightness.dark);
+ThemeData soliplexDarkTheme({
+  SoliplexColors colors = darkSoliplexColors,
+  ClassificationTheme? classifications,
+}) =>
+    _buildTheme(
+      colors: colors,
+      brightness: Brightness.dark,
+      classifications: classifications,
+    );
 
 ThemeData _buildTheme({
   required SoliplexColors colors,
   required Brightness brightness,
+  ClassificationTheme? classifications,
 }) {
   final textTheme = soliplexTextTheme(colors);
   final colorScheme = ColorScheme(
@@ -224,6 +240,7 @@ ThemeData _buildTheme({
     useMaterial3: true,
     textTheme: textTheme,
     extensions: [
+      classifications ?? ClassificationTheme.fallback,
       SoliplexTheme(
         colors: colors,
         radii: soliplexRadii,
