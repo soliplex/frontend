@@ -1,7 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
+
+ClassificationTheme _classifications() => ClassificationTheme(
+      defaultId: 'internal',
+      levels: const [
+        ClassificationLevel(
+          id: 'internal',
+          label: 'INTERNAL',
+          background: Colors.black12,
+          foreground: Colors.black87,
+        ),
+      ],
+    );
 
 Widget _buildCard({
   required Room room,
@@ -81,6 +94,29 @@ void main() {
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
       await tester.tap(find.byIcon(Icons.info_outline));
       expect(infoTapped, isTrue);
+    });
+
+    testWidgets('carries a classification badge seam', (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room');
+
+      await tester.pumpWidget(_buildCard(room: room));
+
+      expect(find.byType(SoliplexClassificationBadge), findsOneWidget);
+    });
+
+    testWidgets('shows the configured default marking', (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(classifications: _classifications()),
+          home: Scaffold(
+            body: RoomCard(room: room, onTap: () {}, onInfoTap: () {}),
+          ),
+        ),
+      );
+
+      expect(find.text('INTERNAL'), findsOneWidget);
     });
   });
 }
