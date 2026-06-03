@@ -228,7 +228,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
             const SizedBox(height: SoliplexSpacing.s1),
             SelectableText(
               doc.id,
-              style: SoliplexTheme.mergeCode(context, valueStyle),
+              style: SoliplexTheme.withCodeFont(context, valueStyle),
             ),
             if (doc.uri.isNotEmpty || dateFields.isNotEmpty)
               const SizedBox(height: SoliplexSpacing.s2),
@@ -237,7 +237,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
               const SizedBox(height: SoliplexSpacing.s1),
               SelectableText(
                 doc.uri,
-                style: SoliplexTheme.mergeCode(context, valueStyle),
+                style: SoliplexTheme.withCodeFont(context, valueStyle),
               ),
               if (dateFields.isNotEmpty)
                 const SizedBox(height: SoliplexSpacing.s2),

@@ -15,7 +15,7 @@ class JsonTreeView extends StatelessWidget {
       final theme = Theme.of(context);
       return Text(
         '(empty)',
-        style: SoliplexTheme.mergeCode(
+        style: SoliplexTheme.withCodeFont(
           context,
           theme.textTheme.bodySmall,
         ).copyWith(
@@ -104,7 +104,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     }
 
     final baseStyle =
-        SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall);
+        SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall);
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
@@ -140,7 +140,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final baseStyle =
-        SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall);
+        SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

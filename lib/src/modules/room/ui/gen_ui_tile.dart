@@ -25,8 +25,8 @@ class GenUiTile extends StatelessWidget {
             const SizedBox(height: SoliplexSpacing.s2),
             SelectableText(
               const JsonEncoder.withIndent('  ').convert(message.data),
-              style:
-                  SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
+              style: SoliplexTheme.withCodeFont(
+                  context, theme.textTheme.bodySmall),
             ),
           ],
         ),

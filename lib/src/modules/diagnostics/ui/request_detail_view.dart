@@ -275,7 +275,8 @@ class _RequestDetailViewState extends State<RequestDetailView>
           const SizedBox(height: SoliplexSpacing.s2),
           SelectableText(
             group.uri.toString(),
-            style: SoliplexTheme.mergeCode(context, theme.textTheme.bodyMedium),
+            style:
+                SoliplexTheme.withCodeFont(context, theme.textTheme.bodyMedium),
           ),
         ],
       ),
@@ -585,8 +586,8 @@ class _CurlTab extends StatelessWidget {
               ),
               child: SelectableText(
                 curl,
-                style:
-                    SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
+                style: SoliplexTheme.withCodeFont(
+                    context, theme.textTheme.bodySmall),
               ),
             ),
           ),
@@ -657,7 +658,7 @@ class _HeadersTable extends StatelessWidget {
                     width: 140,
                     child: SelectableText(
                       entry.key,
-                      style: SoliplexTheme.mergeCode(
+                      style: SoliplexTheme.withCodeFont(
                         context,
                         theme.textTheme.bodySmall,
                       ).copyWith(fontWeight: FontWeight.w600),
@@ -667,7 +668,7 @@ class _HeadersTable extends StatelessWidget {
                   Expanded(
                     child: SelectableText(
                       entry.value,
-                      style: SoliplexTheme.mergeCode(
+                      style: SoliplexTheme.withCodeFont(
                         context,
                         theme.textTheme.bodySmall,
                       ),
@@ -700,7 +701,7 @@ class _BodyDisplay extends StatelessWidget {
       ),
       child: SelectableText(
         formattedBody,
-        style: SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
+        style: SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall),
       ),
     );
   }

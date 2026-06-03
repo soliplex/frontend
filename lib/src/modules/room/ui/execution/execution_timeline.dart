@@ -312,8 +312,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             ),
             SelectableText(
               source,
-              style: context
-                  .monospaceOn(theme.textTheme.labelSmall)
+              style: SoliplexTheme.withCodeFont(
+                      context, theme.textTheme.labelSmall)
                   .copyWith(height: 1.3),
             ),
           ],

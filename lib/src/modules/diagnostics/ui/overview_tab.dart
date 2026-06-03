@@ -382,7 +382,7 @@ class _SseEventCardState extends State<_SseEventCard> {
                     Expanded(
                       child: Text(
                         summary,
-                        style: SoliplexTheme.mergeCode(
+                        style: SoliplexTheme.withCodeFont(
                           context,
                           theme.textTheme.bodySmall,
                         ).copyWith(color: colorScheme.onSurfaceVariant),
@@ -481,7 +481,7 @@ class _JsonSection extends StatelessWidget {
           child: plainText != null
               ? SelectableText(
                   plainText,
-                  style: SoliplexTheme.mergeCode(
+                  style: SoliplexTheme.withCodeFont(
                     context,
                     theme.textTheme.bodySmall,
                   ),

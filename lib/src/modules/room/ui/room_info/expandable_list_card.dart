@@ -27,7 +27,7 @@ class ExpandableTile extends StatelessWidget {
         Expanded(
           child: Text(
             name,
-            style: SoliplexTheme.mergeCode(
+            style: SoliplexTheme.withCodeFont(
               context,
               theme.textTheme.bodyMedium,
             ).copyWith(fontWeight: FontWeight.w600),

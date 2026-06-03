@@ -97,9 +97,10 @@ class _FailedImageState extends State<FailedImage> {
       child: SingleChildScrollView(
         child: SelectableText(
           source,
-          style: context.monospaceOn(theme.textTheme.bodySmall).copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          style: SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall)
+              .copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

@@ -84,7 +84,8 @@ class _CodeBlock extends StatelessWidget {
           const SizedBox(height: SoliplexSpacing.s1),
           SelectableText(
             text,
-            style: SoliplexTheme.mergeCode(context, theme.textTheme.bodySmall),
+            style:
+                SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall),
           ),
         ],
       ),

@@ -138,6 +138,6 @@ SelectableText formatDynamicValue(
   }
   return SelectableText(
     text,
-    style: isComplex ? SoliplexTheme.mergeCode(context, style) : style,
+    style: isComplex ? SoliplexTheme.withCodeFont(context, style) : style,
   );
 }

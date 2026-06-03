@@ -88,21 +88,20 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
     );
   }
 
-  /// Merges the code font family onto an existing [TextStyle].
+  /// Applies the code font family onto [base], defaulting to `bodyMedium`.
   ///
-  /// If [base] is `null`, returns [codeStyle]. Otherwise copies the code
-  /// font family and `['monospace']` fallback onto the base style.
-  static TextStyle mergeCode(BuildContext context, [TextStyle? base]) {
+  /// Uses `['Menlo', 'monospace']` fallback on Apple platforms and
+  /// `['monospace']` elsewhere. Respects a configured [codeFont] override.
+  static TextStyle withCodeFont(BuildContext context, [TextStyle? base]) {
     final family = resolveCodeFontFamily(context);
-    if (base == null) {
-      return TextStyle(
-        fontFamily: family,
-        fontFamilyFallback: const ['monospace'],
-      );
-    }
-    return base.copyWith(
+    final effectiveBase = base ?? Theme.of(context).textTheme.bodyMedium!;
+    final platform = Theme.of(context).platform;
+    final isApple =
+        platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+    return effectiveBase.copyWith(
       fontFamily: family,
-      fontFamilyFallback: const ['monospace'],
+      fontFamilyFallback:
+          isApple ? const ['Menlo', 'monospace'] : const ['monospace'],
     );
   }
 

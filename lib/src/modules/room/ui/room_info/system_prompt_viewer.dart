@@ -45,7 +45,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
           const SizedBox(height: SoliplexSpacing.s2),
           LayoutBuilder(
             builder: (context, constraints) {
-              final promptStyle = SoliplexTheme.mergeCode(
+              final promptStyle = SoliplexTheme.withCodeFont(
                 context,
                 theme.textTheme.bodyMedium,
               ).copyWith(fontSize: 14);

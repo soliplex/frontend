@@ -113,9 +113,9 @@ has the full accessor cheat sheet.
    `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`,
    `labelMedium`, `labelSmall`.
 6. **No `fontFamily: 'monospace'|'Roboto Mono'|'SF Mono'|'Menlo'`** string
-   literals. Use `context.monospace` (from
-   `lib/src/design/tokens/typography_x.dart`) — it picks the right family per
-   platform.
+   literals. Use `context.monospace` (bodyMedium base) or
+   `SoliplexTheme.withCodeFont(context, base)` for a specific text style — both
+   pick the right family and fallback chain per platform.
 7. **No hardcoded width breakpoints.** Use `SoliplexBreakpoints.mobile` (320),
    `tablet` (600), `desktop` (840).
 8. **Destructive actions** use `colorScheme.error` / `errorContainer`. Never red
@@ -130,7 +130,7 @@ has the full accessor cheat sheet.
 | Spacing               | `SoliplexSpacing.{s1,s2,s3,s4,s6}` (4/8/12/16/24)                                                    |
 | Radius                | `SoliplexTheme.of(context).radii.{sm,md,lg,xl}` (6/12/16/24)                                         |
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
-| Monospace             | `context.monospace`                                                                                  |
+| Monospace             | `context.monospace` (bodyMedium base) or `SoliplexTheme.withCodeFont(context, base)`                 |
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
 
 Import surface: `import 'package:soliplex_frontend/src/design/design.dart';`
@@ -150,7 +150,7 @@ Don't, without explicit user approval. If a value is genuinely missing:
 - [ ] Padding values come from `SoliplexSpacing`.
 - [ ] Corner radii come from `SoliplexTheme.of(context).radii`.
 - [ ] Text styles come from `Theme.of(context).textTheme`.
-- [ ] Monospace uses `context.monospace`.
+- [ ] Monospace uses `context.monospace` or `SoliplexTheme.withCodeFont(context, base)`.
 - [ ] Status colors go through the `SymbolicColors` extension.
 - [ ] Screen behaves at all three `SoliplexBreakpoints`.
 - [ ] Both light and dark palettes look correct.

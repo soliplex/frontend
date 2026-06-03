@@ -25,8 +25,8 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final mono =
-        context.monospaceOn(theme.textTheme.bodySmall).copyWith(color: muted);
+    final mono = SoliplexTheme.withCodeFont(context, theme.textTheme.bodySmall)
+        .copyWith(color: muted);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
