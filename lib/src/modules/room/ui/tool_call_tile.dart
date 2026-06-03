@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class ToolCallTile extends StatelessWidget {
   const ToolCallTile({super.key, required this.message});
@@ -71,7 +70,8 @@ class _CodeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s4, 0, SoliplexSpacing.s4, SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

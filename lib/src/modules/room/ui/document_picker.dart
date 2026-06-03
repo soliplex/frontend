@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../shared/file_type_icons.dart';
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class DocumentPicker extends StatefulWidget {
   const DocumentPicker({
@@ -51,7 +51,12 @@ class _DocumentPickerState extends State<DocumentPicker> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+          ),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(

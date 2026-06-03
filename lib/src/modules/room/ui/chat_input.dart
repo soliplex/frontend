@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../../../soliplex_frontend.dart';
 import '../../../shared/file_type_icons.dart';
+import '../../../design/design.dart';
 
 class ChatInput extends StatefulWidget {
   const ChatInput({
@@ -141,7 +141,7 @@ class _ChatInputState extends State<ChatInput> {
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(soliplexRadii.md),
               ),
               width: double.infinity,
               child: _chipsExpanded

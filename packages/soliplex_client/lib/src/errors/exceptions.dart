@@ -20,9 +20,11 @@ abstract class SoliplexException implements Exception {
   String toString() => '$runtimeType: $message';
 }
 
-/// Exception thrown when authentication fails (401, 403).
+/// Exception thrown when authentication is missing or expired (401).
 ///
-/// UI should redirect to login.
+/// The bearer token is absent, malformed, or no longer accepted by the
+/// server. Callers should attempt a token refresh and, if that fails,
+/// drive the user to re-authenticate.
 class AuthException extends SoliplexException {
   /// Creates an auth exception.
   const AuthException({
@@ -47,6 +49,37 @@ class AuthException extends SoliplexException {
       return 'AuthException($statusCode): $message';
     }
     return 'AuthException: $message';
+  }
+}
+
+/// Exception thrown when the user is authenticated but lacks permission
+/// for the requested resource (403).
+///
+/// Re-authenticating with the same identity does not resolve this — the
+/// server has explicitly denied access. UI should surface an inline
+/// "no permission" message rather than driving a re-auth flow.
+class PermissionDeniedException extends SoliplexException {
+  /// Creates a permission-denied exception.
+  const PermissionDeniedException({
+    required super.message,
+    this.statusCode,
+    this.serverMessage,
+    super.originalError,
+    super.stackTrace,
+  });
+
+  /// The HTTP status code that triggered this exception (typically 403).
+  final int? statusCode;
+
+  /// The error message from the server, if any.
+  final String? serverMessage;
+
+  @override
+  String toString() {
+    if (statusCode != null) {
+      return 'PermissionDeniedException($statusCode): $message';
+    }
+    return 'PermissionDeniedException: $message';
   }
 }
 

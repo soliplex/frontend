@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_client/soliplex_client.dart'
+    show PermissionDeniedException;
 
-import '../../../../soliplex_frontend.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
+import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'room_card.dart';
 import 'server_sidebar.dart';
+import '../../../design/design.dart';
 
 const double _sidebarWidth = 280;
 const double _wideBreakpoint = SoliplexBreakpoints.tablet;
@@ -58,6 +61,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
     context.push(AppRoutes.roomInfo(entry.alias, roomId));
   }
 
+  void _onSignIn(String serverId) {
+    final entry = widget.serverManager.servers.value[serverId];
+    assert(entry != null, 'Sign-in tap for unknown serverId: $serverId');
+    if (entry == null) return;
+    context.go(
+      AppRoutes.homeWithUrl(
+        entry.serverUrl.toString(),
+        returnTo: AppRoutes.lobby,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final servers = widget.serverManager.servers.watch(context);
@@ -77,6 +92,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
+                onSignIn: _onSignIn,
               )
             : _NarrowLayout(
                 servers: servers,
@@ -88,6 +104,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onInfoTap: _onInfoTap,
+                onSignIn: _onSignIn,
               );
       },
     );
@@ -105,6 +122,7 @@ class _WideLayout extends StatelessWidget {
     required this.onVersions,
     required this.onRoomTap,
     required this.onInfoTap,
+    required this.onSignIn,
   });
 
   final Map<String, ServerEntry> servers;
@@ -116,6 +134,7 @@ class _WideLayout extends StatelessWidget {
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
+  final void Function(String serverId) onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +160,7 @@ class _WideLayout extends StatelessWidget {
               onRoomTap: onRoomTap,
               onInfoTap: onInfoTap,
               onAddServer: onAddServer,
+              onSignIn: onSignIn,
             ),
           ),
         ],
@@ -160,6 +180,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onVersions,
     required this.onRoomTap,
     required this.onInfoTap,
+    required this.onSignIn,
   });
 
   final Map<String, ServerEntry> servers;
@@ -171,6 +192,7 @@ class _NarrowLayout extends StatelessWidget {
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
+  final void Function(String serverId) onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +221,7 @@ class _NarrowLayout extends StatelessWidget {
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
         onAddServer: onAddServer,
+        onSignIn: onSignIn,
       ),
     );
   }
@@ -211,6 +234,7 @@ class _RoomContent extends StatelessWidget {
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onAddServer,
+    required this.onSignIn,
   });
 
   final Map<String, ServerRooms> roomsByServer;
@@ -218,6 +242,7 @@ class _RoomContent extends StatelessWidget {
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
+  final void Function(String serverId) onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -246,6 +271,7 @@ class _RoomContent extends StatelessWidget {
             serverRooms: entry.value,
             onRoomTap: onRoomTap,
             onInfoTap: onInfoTap,
+            onSignIn: onSignIn,
           ),
       ],
     );
@@ -259,6 +285,7 @@ class _ServerSection extends StatelessWidget {
     required this.serverRooms,
     required this.onRoomTap,
     required this.onInfoTap,
+    required this.onSignIn,
   });
 
   final String serverId;
@@ -266,6 +293,7 @@ class _ServerSection extends StatelessWidget {
   final ServerRooms serverRooms;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
+  final void Function(String serverId) onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +341,11 @@ class _ServerSection extends StatelessWidget {
           RoomsFailed(:final error) => Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: SoliplexSpacing.s9, vertical: SoliplexSpacing.s4),
-              child: Text('Failed to load rooms: $error'),
+              child: Text(switch (error) {
+                PermissionDeniedException() =>
+                  "You don't have permission to view rooms on this server.",
+                _ => 'Failed to load rooms: $error',
+              }),
             ),
           RoomsLoaded(:final rooms) => Padding(
               padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -325,6 +357,29 @@ class _ServerSection extends StatelessWidget {
                       onTap: () => onRoomTap(serverId, room.id),
                       onInfoTap: () => onInfoTap(serverId, room.id),
                     ),
+                ],
+              ),
+            ),
+          RoomsExpired() => Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: SoliplexSpacing.s9, vertical: SoliplexSpacing.s4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Session expired',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: SoliplexSpacing.s1),
+                  Text(
+                    'Sign in again to view rooms on this server.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: SoliplexSpacing.s3),
+                  FilledButton.tonal(
+                    onPressed: () => onSignIn(serverId),
+                    child: const Text('Sign in'),
+                  ),
                 ],
               ),
             ),

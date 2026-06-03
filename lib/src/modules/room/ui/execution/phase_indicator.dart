@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
-import '../../../../../soliplex_frontend.dart';
+import '../../../../design/design.dart';
 
 class PhaseIndicator extends StatelessWidget {
   const PhaseIndicator({super.key, required this.phase});

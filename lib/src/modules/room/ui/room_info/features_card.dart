@@ -6,6 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../../../soliplex_frontend.dart';
 import 'room_info_widgets.dart';
+import '../../../../design/design.dart';
 
 class FeaturesCard extends StatelessWidget {
   const FeaturesCard({

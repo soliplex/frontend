@@ -74,3 +74,16 @@ final class ActiveSession extends SessionState {
   final OidcProvider provider;
   final AuthTokens tokens;
 }
+
+/// In-memory transient state after an auth attempt has failed and a
+/// silent refresh could not recover. Tokens are preserved so the next
+/// user interaction can attempt another refresh.
+final class ExpiredSession extends SessionState {
+  const ExpiredSession({
+    required this.provider,
+    required this.tokens,
+  });
+
+  final OidcProvider provider;
+  final AuthTokens tokens;
+}

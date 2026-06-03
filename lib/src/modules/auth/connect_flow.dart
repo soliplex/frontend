@@ -80,11 +80,18 @@ class ConnectFlow {
   bool _disposed = false;
   int _generation = 0;
 
+  /// Held between the start of [connect] and the eventual save of
+  /// `PreAuthState` so the user lands back where they came from after
+  /// a successful re-auth. Carried across consent / provider-selection
+  /// pauses since those don't reset the flow.
+  String? _pendingReturnTo;
+
   bool _isCancelled(int gen) => _disposed || gen != _generation;
 
-  Future<void> connect(String url) async {
+  Future<void> connect(String url, {String? returnTo}) async {
     if (state.value is! UrlInput) return;
     final gen = ++_generation;
+    _pendingReturnTo = returnTo;
     state.value = const Probing();
 
     try {
@@ -146,6 +153,7 @@ class ConnectFlow {
 
   void reset() {
     _generation++;
+    _pendingReturnTo = null;
     state.value = const UrlInput();
   }
 
@@ -211,6 +219,7 @@ class ConnectFlow {
       discoveryUrl: discoveryUrl,
       clientId: provider.clientId,
       createdAt: DateTime.timestamp(),
+      frontendReturnTo: _pendingReturnTo,
     ));
 
     if (_isCancelled(gen)) return;

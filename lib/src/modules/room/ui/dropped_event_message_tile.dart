@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../diagnostics/models/json_tree_model.dart';
 import '../../diagnostics/ui/json_tree_view.dart';
+import '../../../design/design.dart';
 
 /// Renders a [DroppedEventMessage] as a low-emphasis, collapsed-by-default
 /// card. Schema-drift events in production should show as a quiet hint,
@@ -24,18 +25,20 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final mono = theme.textTheme.bodySmall?.copyWith(
-      fontFamily: 'monospace',
-      color: muted,
-    );
+    final mono =
+        context.monospaceOn(theme.textTheme.bodySmall).copyWith(color: muted);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+      padding: const EdgeInsets.symmetric(
+        vertical: SoliplexSpacing.s1,
+        horizontal: SoliplexSpacing.s2,
+      ),
       child: InkWell(
         onTap: () => setState(() => _expanded = !_expanded),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+              horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -46,7 +49,7 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
                     size: 16,
                     color: muted,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: SoliplexSpacing.s2),
                   Expanded(
                     child: Text(
                       _collapsedLabel(),
@@ -63,9 +66,9 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
                 ],
               ),
               if (_expanded) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: SoliplexSpacing.s2),
                 Padding(
-                  padding: const EdgeInsets.only(left: 22),
+                  padding: const EdgeInsets.only(left: SoliplexSpacing.s6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -75,7 +78,7 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
                           color: muted,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: SoliplexSpacing.s2),
                       _payload(theme, mono),
                     ],
                   ),

@@ -5,7 +5,7 @@ import '../execution_tracker.dart';
 import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/thinking_block.dart';
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class LoadingMessageTile extends StatelessWidget {
   const LoadingMessageTile({

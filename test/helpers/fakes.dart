@@ -96,6 +96,15 @@ class FakeAuthFlow implements AuthFlow {
   bool endSessionCalled = false;
   String? lastEndSessionDiscoveryUrl;
 
+  /// If set, [endSession] throws this exception after awaiting any
+  /// pending [endSessionCompleter], instead of returning normally.
+  Exception? endSessionError;
+
+  /// If set, [endSession] awaits this completer before returning or
+  /// throwing. Lets tests pin in-flight UI state (e.g. spinner on the
+  /// row while the IdP round-trip is outstanding).
+  Completer<void>? endSessionCompleter;
+
   @override
   Future<AuthResult> authenticate(
     AuthProviderConfig provider, {
@@ -116,14 +125,20 @@ class FakeAuthFlow implements AuthFlow {
   }) async {
     endSessionCalled = true;
     lastEndSessionDiscoveryUrl = discoveryUrl;
+    if (endSessionCompleter != null) await endSessionCompleter!.future;
+    if (endSessionError != null) throw endSessionError!;
   }
 }
 
 /// AuthFlow that calls a callback during endSession for order verification.
 class RecordingAuthFlow implements AuthFlow {
-  RecordingAuthFlow({this.onEndSession});
+  RecordingAuthFlow({this.onEndSession, this.endSessionError});
 
   final void Function()? onEndSession;
+
+  /// If set, [endSession] throws this exception instead of returning.
+  final Exception? endSessionError;
+
   bool endSessionCalled = false;
   String? lastEndSessionEndpoint;
 
@@ -145,6 +160,7 @@ class RecordingAuthFlow implements AuthFlow {
     endSessionCalled = true;
     lastEndSessionEndpoint = endSessionEndpoint;
     onEndSession?.call();
+    if (endSessionError != null) throw endSessionError!;
   }
 }
 
@@ -161,6 +177,7 @@ class FakeSoliplexApi extends SoliplexApi {
   List<Room>? nextRooms;
   Room? nextRoom;
   Exception? nextError;
+  int getRoomsCallCount = 0;
 
   List<RagDocument>? nextDocuments;
   Exception? nextDocumentsError;
@@ -186,6 +203,7 @@ class FakeSoliplexApi extends SoliplexApi {
 
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    getRoomsCallCount++;
     if (nextError != null) throw nextError!;
     if (nextRooms != null) return nextRooms!;
     throw StateError(
@@ -342,6 +360,20 @@ class FakeSoliplexApi extends SoliplexApi {
     throw StateError(
       'FakeSoliplexApi: set nextQuizAnswerResult or nextQuizAnswerError',
     );
+  }
+
+  Object? nextSubmitFeedbackError;
+
+  @override
+  Future<void> submitFeedback(
+    String roomId,
+    String threadId,
+    String runId,
+    FeedbackType feedback, {
+    String? reason,
+    CancelToken? cancelToken,
+  }) async {
+    if (nextSubmitFeedbackError != null) throw nextSubmitFeedbackError!;
   }
 }
 

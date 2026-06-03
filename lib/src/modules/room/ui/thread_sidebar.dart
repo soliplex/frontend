@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import '../../../../soliplex_frontend.dart';
-import '../../../shared/theme_toggle_button.dart';
 import '../thread_list_state.dart';
 import 'error_retry_panel.dart';
 import 'thread_tile.dart';
+import '../../../design/design.dart';
+import '../../../shared/theme_toggle_button.dart';
 
 class ThreadSidebar extends StatelessWidget {
   const ThreadSidebar({

@@ -7,7 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../copy_button.dart';
-import '../../../../../soliplex_frontend.dart';
+import '../../../../design/design.dart';
 
 class CodeBlockBuilder extends MarkdownElementBuilder {
   CodeBlockBuilder({required this.preferredStyle});
@@ -78,7 +78,8 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
       children: [
         _toolbar(theme),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s3, 0, SoliplexSpacing.s3, SoliplexSpacing.s3),
           child: _showSource ? _sourceView() : _previewView(),
         ),
       ],
@@ -197,7 +198,8 @@ class _CodeBlock extends StatelessWidget {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(
+              SoliplexSpacing.s3, 0, SoliplexSpacing.s3, SoliplexSpacing.s3),
           child: HighlightView(
             code,
             language: language,

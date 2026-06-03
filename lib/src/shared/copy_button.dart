@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../design/design.dart';
+
 class CopyButton extends StatefulWidget {
   const CopyButton({
     super.key,
@@ -75,7 +77,7 @@ class _CopyButtonState extends State<CopyButton> {
         message: widget.tooltip,
         child: InkWell(
           onTap: _feedback == _CopyFeedback.idle ? _copy : null,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
           child: Icon(icon, size: widget.iconSize, color: color),
         ),
       ),

@@ -204,7 +204,10 @@ class AgUiStreamClient {
 
   bool _retryable(Object e) => switch (e) {
         CancelledException() => false,
-        AuthException() || NotFoundException() => false,
+        AuthException() ||
+        PermissionDeniedException() ||
+        NotFoundException() =>
+          false,
         ApiException(:final statusCode) =>
           statusCode >= 500 && statusCode < 600,
         NetworkException() => true,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class ErrorRetryPanel extends StatelessWidget {
   const ErrorRetryPanel({

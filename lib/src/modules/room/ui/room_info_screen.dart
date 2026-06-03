@@ -22,7 +22,7 @@ import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class RoomInfoScreen extends StatefulWidget {
   const RoomInfoScreen({
@@ -594,7 +594,7 @@ class _UploadEntryRow extends StatelessWidget {
             Expanded(
               child: Text(
                 errorMessage,
-                style: theme.textTheme.bodySmall?.copyWith(
+                style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onErrorContainer,
                 ),
                 maxLines: 1,

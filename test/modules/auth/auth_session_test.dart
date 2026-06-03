@@ -72,6 +72,60 @@ void main() {
     });
   });
 
+  group('ExpiredSession', () {
+    test('can be constructed with provider and tokens', () {
+      final tokens = _tokens();
+      final expired = ExpiredSession(provider: _provider, tokens: tokens);
+
+      expect(expired.provider, same(_provider));
+      expect(expired.tokens, same(tokens));
+    });
+
+    test('accessToken returns null when state is ExpiredSession', () {
+      final tokens = _tokens();
+      session.login(provider: _provider, tokens: tokens);
+      session.markSessionExpired();
+
+      expect(session.session.value, isA<ExpiredSession>());
+      expect(session.accessToken, isNull);
+    });
+
+    test('isAuthenticated is false for ExpiredSession', () {
+      session.login(provider: _provider, tokens: _tokens());
+      session.markSessionExpired();
+
+      expect(session.isAuthenticated, isFalse);
+    });
+  });
+
+  group('markSessionExpired', () {
+    test('flips ActiveSession to ExpiredSession preserving tokens', () {
+      final tokens = _tokens();
+      session.login(provider: _provider, tokens: tokens);
+
+      session.markSessionExpired();
+
+      final expired = session.session.value as ExpiredSession;
+      expect(expired.provider, same(_provider));
+      expect(expired.tokens, same(tokens));
+    });
+
+    test('is a no-op when state is already ExpiredSession', () {
+      session.login(provider: _provider, tokens: _tokens());
+      session.markSessionExpired();
+      final firstExpired = session.session.value;
+
+      session.markSessionExpired();
+
+      expect(session.session.value, same(firstExpired));
+    });
+
+    test('is a no-op when state is NoSession', () {
+      session.markSessionExpired();
+      expect(session.session.value, isA<NoSession>());
+    });
+  });
+
   group('needsRefresh', () {
     test('false when not authenticated', () {
       expect(session.needsRefresh, isFalse);
@@ -86,6 +140,17 @@ void main() {
       session.login(
         provider: _provider,
         tokens: _tokens(expiresIn: const Duration(seconds: 30)),
+      );
+      expect(session.needsRefresh, isTrue);
+    });
+
+    test('true when tokens are within the 5-minute refresh window', () {
+      // The 5-minute threshold gives long-running streams (LLM
+      // generations, uploads) headroom to refresh proactively before
+      // their access token expires mid-stream.
+      session.login(
+        provider: _provider,
+        tokens: _tokens(expiresIn: const Duration(minutes: 4)),
       );
       expect(session.needsRefresh, isTrue);
     });
@@ -112,11 +177,9 @@ void main() {
       expect(active.tokens.refreshToken, 'new-refresh');
     });
 
-    test('invalidGrant logs out', () async {
-      session.login(
-        provider: _provider,
-        tokens: _tokens(expiresIn: const Duration(seconds: 30)),
-      );
+    test('invalidGrant flips to ExpiredSession preserving tokens', () async {
+      final tokens = _tokens(expiresIn: const Duration(seconds: 30));
+      session.login(provider: _provider, tokens: tokens);
 
       refreshService.nextResult = const TokenRefreshFailure(
         TokenRefreshFailureReason.invalidGrant,
@@ -126,6 +189,69 @@ void main() {
 
       expect(result, isFalse);
       expect(session.isAuthenticated, isFalse);
+      final expired = session.session.value as ExpiredSession;
+      expect(expired.tokens, same(tokens));
+    });
+
+    test('noRefreshToken flips to ExpiredSession', () async {
+      final tokens = _tokens(expiresIn: const Duration(seconds: 30));
+      session.login(provider: _provider, tokens: tokens);
+
+      refreshService.nextResult = const TokenRefreshFailure(
+        TokenRefreshFailureReason.noRefreshToken,
+      );
+
+      final result = await session.tryRefresh();
+
+      expect(result, isFalse);
+      expect(session.session.value, isA<ExpiredSession>());
+    });
+
+    test('refresh succeeds from ExpiredSession and promotes to Active',
+        () async {
+      session.login(provider: _provider, tokens: _tokens());
+      session.markSessionExpired();
+      expect(session.session.value, isA<ExpiredSession>());
+
+      refreshService.nextResult = TokenRefreshSuccess(
+        accessToken: 'revived',
+        refreshToken: 'new-refresh',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+
+      final result = await session.tryRefresh();
+
+      expect(result, isTrue);
+      expect(session.session.value, isA<ActiveSession>());
+      expect(session.accessToken, 'revived');
+    });
+
+    test('race: markSessionExpired during await does not drop new tokens',
+        () async {
+      final completer = Completer<TokenRefreshResult>();
+      final slowRefreshService = _DelayedRefreshService(completer.future);
+      final slowSession = AuthSession(refreshService: slowRefreshService);
+      slowSession.login(
+        provider: _provider,
+        tokens: _tokens(expiresIn: const Duration(seconds: 30)),
+      );
+
+      final refreshFuture = slowSession.tryRefresh();
+
+      slowSession.markSessionExpired();
+      expect(slowSession.session.value, isA<ExpiredSession>());
+
+      completer.complete(TokenRefreshSuccess(
+        accessToken: 'revived',
+        refreshToken: 'new-refresh',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      ));
+
+      final result = await refreshFuture;
+
+      expect(result, isTrue);
+      expect(slowSession.session.value, isA<ActiveSession>());
+      expect(slowSession.accessToken, 'revived');
     });
 
     test('other failure keeps session', () async {
@@ -160,6 +286,31 @@ void main() {
 
       expect(result, isFalse);
       expect(session.isAuthenticated, isTrue);
+    });
+
+    test('AuthException from refresh service flips to ExpiredSession',
+        () async {
+      final tokens = _tokens(expiresIn: const Duration(seconds: 30));
+      final throwingService = _ThrowingRefreshService(
+        const AuthException(
+          statusCode: 401,
+          message: 'refresh blocked by IdP',
+        ),
+      );
+      final throwingSession = AuthSession(refreshService: throwingService);
+      throwingSession.login(provider: _provider, tokens: tokens);
+
+      final result = await throwingSession.tryRefresh();
+
+      expect(result, isFalse);
+      expect(
+        throwingSession.session.value,
+        isA<ExpiredSession>(),
+        reason: 'AuthException out of the refresh service is the same '
+            'class of failure the per-call-site funnels catch — it must '
+            'mark the session expired here rather than leaving dead '
+            'tokens for the next data fetch to discover.',
+      );
     });
 
     test('guards against session change during await', () async {
@@ -228,6 +379,21 @@ void main() {
       expect(callCount, 1);
     });
   });
+}
+
+/// Refresh service that throws a fixed error from `refresh`.
+class _ThrowingRefreshService extends TokenRefreshService {
+  _ThrowingRefreshService(this._error) : super(httpClient: FakeHttpClient());
+
+  final Object _error;
+
+  @override
+  Future<TokenRefreshResult> refresh({
+    required String discoveryUrl,
+    required String refreshToken,
+    required String clientId,
+  }) =>
+      Future<TokenRefreshResult>.error(_error);
 }
 
 /// Refresh service that delays until a future completes.

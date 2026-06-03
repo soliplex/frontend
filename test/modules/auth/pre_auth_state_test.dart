@@ -4,12 +4,14 @@ import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 
 final _baseTime = DateTime.utc(2026, 3, 19, 12, 0);
 
-PreAuthState _makeState({DateTime? createdAt}) => PreAuthState(
+PreAuthState _makeState({DateTime? createdAt, String? frontendReturnTo}) =>
+    PreAuthState(
       serverUrl: Uri.parse('https://api.example.com'),
       providerId: 'keycloak',
       discoveryUrl: 'https://sso.example.com/.well-known/openid-configuration',
       clientId: 'soliplex',
       createdAt: createdAt ?? _baseTime,
+      frontendReturnTo: frontendReturnTo,
     );
 
 void main() {
@@ -35,18 +37,73 @@ void main() {
       expect(restored.createdAt.isUtc, isTrue);
     });
 
-    test('isExpired returns false within maxAge', () {
+    test('isExpired returns false within 30-minute maxAge', () {
+      // 30 minutes covers typical OIDC roundtrips that involve a
+      // password reset, MFA prompt, or email magic link.
       final state = _makeState();
-      final now = _baseTime.add(const Duration(minutes: 4, seconds: 59));
+      final now = _baseTime.add(const Duration(minutes: 29, seconds: 59));
 
       expect(state.isExpired(now: now), isFalse);
     });
 
-    test('isExpired returns true after maxAge', () {
+    test('isExpired returns true after 30-minute maxAge', () {
       final state = _makeState();
-      final now = _baseTime.add(const Duration(minutes: 5, seconds: 1));
+      final now = _baseTime.add(const Duration(minutes: 30, seconds: 1));
 
       expect(state.isExpired(now: now), isTrue);
+    });
+
+    test('frontendReturnTo round-trips through JSON', () {
+      final state = _makeState(frontendReturnTo: '/room/server-a/r1');
+
+      final restored = PreAuthState.fromJson(state.toJson());
+
+      expect(restored.frontendReturnTo, '/room/server-a/r1');
+    });
+
+    test('frontendReturnTo defaults to null and round-trips as null', () {
+      final state = _makeState();
+
+      final restored = PreAuthState.fromJson(state.toJson());
+
+      expect(state.frontendReturnTo, isNull);
+      expect(restored.frontendReturnTo, isNull);
+    });
+
+    test('constructor rejects open-redirect candidates for frontendReturnTo',
+        () {
+      // The constructor is the type-level open-redirect guard: any
+      // value that isn't an in-app path starting with a single `/`
+      // must throw before it can be persisted or honored by the
+      // callback.
+      for (final unsafe in [
+        'https://evil.com/x',
+        'http://evil.com/x',
+        '//evil.com/x',
+        'lobby',
+        '../admin',
+        '',
+      ]) {
+        expect(
+          () => _makeState(frontendReturnTo: unsafe),
+          throwsA(isA<ArgumentError>()),
+          reason: 'unsafe=$unsafe should be rejected by the constructor',
+        );
+      }
+    });
+
+    test('constructor accepts safe relative paths for frontendReturnTo', () {
+      for (final safe in [
+        '/lobby',
+        '/room/server-a/r1',
+        '/room/server-a/r1?focus=last',
+      ]) {
+        expect(
+          () => _makeState(frontendReturnTo: safe),
+          returnsNormally,
+          reason: 'safe=$safe should be accepted',
+        );
+      }
     });
 
     test('equality', () {
@@ -85,7 +142,7 @@ void main() {
       final state = _makeState();
       await PreAuthStateStorage.save(state);
 
-      final expiredNow = _baseTime.add(const Duration(minutes: 6));
+      final expiredNow = _baseTime.add(const Duration(minutes: 31));
       final loaded = await PreAuthStateStorage.load(now: expiredNow);
       expect(loaded, isNull);
 

@@ -247,6 +247,29 @@ void main() {
         );
       });
 
+      test('propagates PermissionDeniedException from transport on 403',
+          () async {
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenThrow(
+          const PermissionDeniedException(
+            message: 'Forbidden',
+            statusCode: 403,
+          ),
+        );
+
+        expect(
+          () => client.runAgent(endpoint, input).toList(),
+          throwsA(isA<PermissionDeniedException>()),
+        );
+      });
+
       test('propagates ApiException from transport on 500', () async {
         when(
           () => mockTransport.requestStream(

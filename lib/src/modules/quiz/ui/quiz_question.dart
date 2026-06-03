@@ -5,6 +5,7 @@ import '../../../../soliplex_frontend.dart';
 import '../quiz_session.dart';
 import 'quiz_answer_input.dart';
 import 'quiz_feedback.dart';
+import '../../../design/design.dart';
 
 class QuizQuestionView extends StatelessWidget {
   const QuizQuestionView({
@@ -52,10 +53,11 @@ class QuizQuestionView extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(SoliplexSpacing.s4),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
+                constraints:
+                    const BoxConstraints(maxWidth: SoliplexBreakpoints.tablet),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

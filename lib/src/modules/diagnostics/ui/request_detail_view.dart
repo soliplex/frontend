@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 import '../../../shared/copy_button.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
@@ -159,7 +159,9 @@ class _RequestDetailViewState extends State<RequestDetailView>
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
+        horizontal: SoliplexSpacing.s3,
+        vertical: SoliplexSpacing.s2,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         border: Border(
@@ -244,7 +246,7 @@ class _RequestDetailViewState extends State<RequestDetailView>
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         border: Border(
@@ -318,17 +320,19 @@ class _MatchBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
       ),
       child: Text(
         '$count',
-        style: TextStyle(
-          fontSize: 10,
+        style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
           color: colorScheme.onPrimaryContainer,
         ),
@@ -345,7 +349,8 @@ class _MethodBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final backgroundColor = isStream
         ? colorScheme.secondaryContainer
         : colorScheme.primaryContainer;
@@ -355,15 +360,16 @@ class _MethodBadge extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: backgroundColor,
       ),
       child: Text(
         method,
-        style: TextStyle(
+        style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
-          fontSize: 12,
           color: textColor,
         ),
       ),
@@ -386,7 +392,7 @@ class _RequestTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       children: [
         if (headers.isNotEmpty) ...[
           _SectionHeader(
@@ -457,7 +463,7 @@ class _ResponseTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       children: [
         _MetadataRow(
           label: 'Duration',
@@ -493,7 +499,7 @@ class _ResponseTab extends StatelessWidget {
 
   Widget _buildNormalResponse(HttpResponseEvent resp) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       children: [
         _MetadataRow(label: 'Status', value: '${resp.statusCode}'),
         if (resp.reasonPhrase != null)
@@ -554,7 +560,7 @@ class _CurlTab extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -573,7 +579,7 @@ class _CurlTab extends StatelessWidget {
           Expanded(
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(SoliplexSpacing.s3),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
               ),
@@ -600,7 +606,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Row(
         children: [
           Text(title, style: theme.textTheme.titleSmall),
@@ -688,7 +694,7 @@ class _BodyDisplay extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(SoliplexSpacing.s3),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
       ),
@@ -765,7 +771,7 @@ class _ErrorDisplay extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

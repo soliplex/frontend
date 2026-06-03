@@ -5,12 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routes.dart';
-import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
 import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
 import '../server_entry.dart';
+import '../server_manager.dart';
+import '../../../design/design.dart';
 
 class AuthCallbackScreen extends ConsumerStatefulWidget {
   const AuthCallbackScreen({super.key, required this.serverManager});
@@ -75,15 +76,49 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           expiresAt: params.expiresIn != null
               ? DateTime.now().add(Duration(seconds: params.expiresIn!))
               : DateTime.now().add(AuthTokens.defaultLifetime),
-          idToken: null,
+          idToken: params.idToken,
         ),
       );
 
-      if (mounted) context.go(AppRoutes.lobby);
+      if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
-      dev.log('Auth callback failed', error: e, stackTrace: st);
+      dev.log(
+        'Auth callback failed',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
       _fail('Something went wrong. Please try again.');
     }
+  }
+
+  /// Returns [returnTo] if it's a safe relative in-app path, else
+  /// falls back to the lobby.
+  ///
+  /// Defense in depth on top of [PreAuthState]'s constructor
+  /// validation: rejects absolute URLs (`http://`, `https://`) and
+  /// protocol-relative URLs (`//host/...`) so a tampered storage entry
+  /// cannot open-redirect the user even if it bypassed the type
+  /// invariant.
+  String _safeReturnTo(String? returnTo) {
+    if (returnTo == null || returnTo.isEmpty) return AppRoutes.lobby;
+    if (returnTo.startsWith('//') ||
+        returnTo.startsWith('http://') ||
+        returnTo.startsWith('https://')) {
+      dev.log(
+        'Rejected returnTo (open-redirect target): $returnTo',
+        level: 900,
+      );
+      return AppRoutes.lobby;
+    }
+    if (!returnTo.startsWith('/')) {
+      dev.log(
+        'Rejected returnTo (not an absolute path): $returnTo',
+        level: 800,
+      );
+      return AppRoutes.lobby;
+    }
+    return returnTo;
   }
 
   void _fail(String message) {
@@ -105,7 +140,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     return Scaffold(
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

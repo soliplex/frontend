@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../../../soliplex_frontend.dart';
 import '../execution_tracker.dart';
 import 'citations_section.dart';
 import 'copy_button.dart';
@@ -12,6 +11,7 @@ import 'execution/thinking_block.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class TextMessageTile extends StatelessWidget {
   const TextMessageTile({
@@ -90,7 +90,7 @@ class TextMessageTile extends StatelessWidget {
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
                   onTap: onInspect,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
                   child: Icon(
                     Icons.bug_report_outlined,
                     size: 20,

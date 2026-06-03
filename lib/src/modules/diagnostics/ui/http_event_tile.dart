@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 import '../models/format_utils.dart';
 import '../models/http_event_group.dart';
 import 'http_status_display.dart';
@@ -79,11 +79,12 @@ class HttpEventTile extends StatelessWidget {
 
   Widget _buildResultLine(ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    final metaStyle = theme.textTheme.bodySmall?.copyWith(
+    final metaStyle =
+        (dense ? theme.textTheme.labelSmall : theme.textTheme.bodySmall)
+            ?.copyWith(
       color: isSelected
           ? colorScheme.onPrimaryContainer
           : colorScheme.onSurfaceVariant,
-      fontSize: dense ? 11 : null,
     );
 
     return Row(

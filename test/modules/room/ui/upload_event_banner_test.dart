@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_frontend/src/design/design.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/upload_event_banner.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker.dart';
+
+import '../../../helpers/fakes.dart';
 
 class _MockApi extends Mock implements SoliplexApi {}
 
@@ -26,7 +30,10 @@ void main() {
 
   setUp(() {
     api = _MockApi();
-    tracker = UploadTracker(api: api);
+    tracker = UploadTracker(
+      api: api,
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
+    );
 
     // Defaults: empty server lists, uploads succeed. Individual tests
     // override as needed.
@@ -65,6 +72,7 @@ void main() {
 
   Widget frame(String roomId, String? threadId) {
     return MaterialApp(
+      theme: soliplexLightTheme(),
       home: Scaffold(
         body: UploadEventBanner(
           tracker: tracker,

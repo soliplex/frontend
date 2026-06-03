@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
-import '../../../../soliplex_frontend.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
+import '../consent_notice.dart';
 import '../connection_probe.dart';
 import '../server_entry.dart';
+import '../server_manager.dart';
+import '../../../design/design.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({
@@ -19,6 +21,7 @@ class HomeScreen extends ConsumerStatefulWidget {
     this.logo,
     this.defaultBackendUrl,
     this.autoConnectUrl,
+    this.autoConnectReturnTo,
   });
 
   final ServerManager serverManager;
@@ -26,6 +29,12 @@ class HomeScreen extends ConsumerStatefulWidget {
   final Widget? logo;
   final String? defaultBackendUrl;
   final String? autoConnectUrl;
+
+  /// In-app route to return the user to after a successful re-auth
+  /// triggered by this auto-connect. Forwarded to
+  /// [ConnectFlow.connect] which stashes it in `PreAuthState` for the
+  /// callback to honor.
+  final String? autoConnectReturnTo;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -140,7 +149,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(SoliplexSpacing.s6),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
@@ -236,7 +245,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: SoliplexSpacing.s4),
       if (error != null) ...[
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
           ),
@@ -352,7 +361,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: SoliplexSpacing.s4),
       for (final provider in providers)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
           child: FilledButton(
             onPressed: () => _flow.selectProvider(provider),
             child: Text(provider.name),
@@ -472,7 +481,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _connect() {
     if (!_formKey.currentState!.validate()) return;
-    _flow.connect(_urlController.text.trim());
+    _flow.connect(
+      _urlController.text.trim(),
+      returnTo: widget.autoConnectReturnTo,
+    );
   }
 }
 

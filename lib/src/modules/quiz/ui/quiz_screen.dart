@@ -12,6 +12,7 @@ import '../quiz_session_controller.dart';
 import 'quiz_question.dart';
 import 'quiz_results.dart';
 import 'quiz_start.dart';
+import '../../../design/design.dart';
 
 class QuizScreen extends StatefulWidget {
   const QuizScreen({
@@ -45,6 +46,7 @@ class _QuizScreenState extends State<QuizScreen> {
     _quizFuture = _fetchQuiz();
     _controller = QuizSessionController(
       api: api,
+      auth: widget.serverEntry.auth,
       roomId: widget.roomId,
       logger: _logger,
     );
@@ -106,6 +108,11 @@ class _QuizScreenState extends State<QuizScreen> {
                     _handleBack,
                     'Back to Room',
                   ),
+                PermissionDeniedException() => (
+                    "You don't have permission to view this quiz.",
+                    _handleBack,
+                    'Back to Room',
+                  ),
                 NotFoundException() => (
                     'This quiz is no longer available.',
                     _handleBack,
@@ -124,7 +131,7 @@ class _QuizScreenState extends State<QuizScreen> {
               };
               return Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(SoliplexSpacing.s4),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

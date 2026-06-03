@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'room_info_widgets.dart';
-import '../../../../../soliplex_frontend.dart';
+import '../../../../design/design.dart';
 
 class ExpandableTile extends StatelessWidget {
   const ExpandableTile({
@@ -59,7 +59,7 @@ class ExpandableTile extends StatelessWidget {
                   padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(soliplexRadii.md),
                   ),
                   child: content,
                 ),

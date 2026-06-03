@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' show FeedbackType;
 
 import 'feedback_reason_dialog.dart';
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 enum _FeedbackPhase { idle, countdown, modal, submitted }
 
@@ -153,7 +153,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           const SizedBox(width: SoliplexSpacing.s1),
           InkWell(
             onTap: _onTellUsWhyTap,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(soliplexRadii.sm),
             child: Text(
               'Tell us why!',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -191,7 +191,7 @@ class _ThumbButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
           child: Icon(icon, size: 20, color: color),
         ),
       ),
@@ -228,6 +228,9 @@ class _CountdownIndicator extends StatelessWidget {
               ),
               Text(
                 '$remaining',
+                // design-system exception (approved): 8pt is intentionally
+                // smaller than labelSmall (12pt) so the countdown numeral
+                // fits inside the small progress ring.
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontSize: 8,

@@ -34,6 +34,8 @@ void main() {
         onDestructive: Colors.white,
         errorContainer: Colors.grey,
         onErrorContainer: Colors.red,
+        successContainer: Colors.grey,
+        onSuccessContainer: Colors.green,
         border: Colors.grey,
         outline: Colors.grey,
         outlineVariant: Colors.grey,

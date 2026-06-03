@@ -17,6 +17,9 @@ FailureReason classifyError(Object error) {
     return classifyError(error.originalError!);
   }
   if (error is AuthException) return FailureReason.authExpired;
+  if (error is PermissionDeniedException) {
+    return FailureReason.permissionDenied;
+  }
   if (error is NetworkException) return FailureReason.networkLost;
   if (error is TransportError) return _classifyTransportError(error);
   return FailureReason.internalError;
@@ -25,7 +28,8 @@ FailureReason classifyError(Object error) {
 FailureReason _classifyTransportError(TransportError error) {
   final status = error.statusCode;
   if (status == null) return FailureReason.serverError;
-  if (status == 401 || status == 403) return FailureReason.authExpired;
+  if (status == 401) return FailureReason.authExpired;
+  if (status == 403) return FailureReason.permissionDenied;
   if (status == 429) return FailureReason.rateLimited;
   return FailureReason.serverError;
 }

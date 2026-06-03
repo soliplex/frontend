@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../../../soliplex_frontend.dart';
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
@@ -12,6 +11,7 @@ import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class MessageTimeline extends StatefulWidget {
   const MessageTimeline({

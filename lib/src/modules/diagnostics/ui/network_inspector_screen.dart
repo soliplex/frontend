@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 import '../../../shared/theme_toggle_button.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
@@ -59,7 +59,8 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                     if (sortedGroups.isEmpty) {
                       return _buildEmptyState(context);
                     }
-                    final isWide = constraints.maxWidth >= 600;
+                    final isWide =
+                        constraints.maxWidth >= SoliplexBreakpoints.tablet;
                     if (isWide) {
                       return _buildMasterDetailLayout(context, sortedGroups);
                     }

@@ -6,6 +6,9 @@ import 'dart:io' show FileSystemException, SocketException;
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
+import '../auth/auth_session.dart';
+import '../auth/auth_tokens.dart';
+
 /// Sealed status for a single upload scope (a room or a thread).
 ///
 /// A refresh failure from a `Loaded` state is logged but not surfaced
@@ -236,9 +239,15 @@ class _QueuedJob {
 /// for every enqueued upload immediately, regardless of where it sits
 /// in the queue.
 class UploadTracker {
-  UploadTracker({required SoliplexApi api}) : _api = api;
+  UploadTracker({required SoliplexApi api, required AuthSession auth})
+      : _api = api,
+        _auth = auth {
+    _authUnsub = _auth.session.subscribe(_onAuthChanged);
+  }
 
   final SoliplexApi _api;
+  final AuthSession _auth;
+  void Function()? _authUnsub;
   final Map<String, _ScopeState> _scopes = {};
   final Queue<_QueuedJob> _queue = Queue<_QueuedJob>();
   bool _draining = false;
@@ -336,6 +345,21 @@ class UploadTracker {
     } on CancelledException {
       // Fetch was superseded or the tracker is tearing down.
       return;
+    } on AuthException catch (error) {
+      // Must precede the SoliplexException arm: keeping a stale Loaded
+      // list while the access token is dead would let the user click
+      // through a stale view and silently 401 on the next mutation.
+      // The route guard handles navigation; this tracker's signal is
+      // no longer the UX channel for an auth failure.
+      if (token.isCancelled || _isDisposed) return;
+      scope.fetchToken = null;
+      dev.log(
+        'Upload list refresh hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'UploadTracker',
+        level: 900,
+      );
+      _auth.markSessionExpired();
     } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
@@ -618,7 +642,11 @@ class UploadTracker {
           );
           continue;
         }
+        // Retries exhausted: commit the failed row first so the
+        // tracker state is consistent before any auth-change listener
+        // observes the flip and reacts.
         _markFailed(scope, id, error);
+        _auth.markSessionExpired();
         return;
       } on Object catch (error, stackTrace) {
         if (_isDisposed) return;
@@ -796,6 +824,8 @@ class UploadTracker {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _authUnsub?.call();
+    _authUnsub = null;
     for (final scope in _scopes.values) {
       // Cancel both in-flight POSTs and queued-but-not-started jobs.
       // Each queued job's token is the same CancelToken instance stored
@@ -811,5 +841,26 @@ class UploadTracker {
     }
     _queue.clear();
     _scopes.clear();
+  }
+
+  /// Cancels all in-flight and queued uploads when the auth session
+  /// leaves [ActiveSession]. The route guard navigates the user away;
+  /// this stops the upload's HTTP work so it doesn't reconnect-loop
+  /// against a dead token.
+  ///
+  /// Walking `scope.pending` covers both states because each queued
+  /// job's [_QueuedJob.token] is the same [CancelToken] instance as the
+  /// matching `_Pending.cancelToken`. The drain loop skips queued jobs
+  /// whose token is cancelled (`_drain`'s `isCancelled` check).
+  void _onAuthChanged(SessionState state) {
+    if (_isDisposed) return;
+    if (state is ActiveSession) return;
+    for (final scope in _scopes.values) {
+      for (final record in scope.pending) {
+        if (record is _Pending) {
+          record.cancelToken.cancel('auth expired');
+        }
+      }
+    }
   }
 }

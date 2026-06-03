@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 
-import '../../../../soliplex_frontend.dart';
-import '../../../shared/theme_toggle_button.dart';
+import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../lobby_state.dart';
+import '../../../design/design.dart';
+import '../../../shared/theme_toggle_button.dart';
 
 class ServerSidebar extends StatelessWidget {
   const ServerSidebar({
@@ -112,15 +114,26 @@ class _ServerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(formatServerUrl(entry.serverUrl)),
-      subtitle: Text(_identityLabel),
+      // The label depends on entry.auth.session, which the parent does
+      // not watch — Watch rebuilds the subtitle on session flips.
+      subtitle: Watch(
+        (context) => Text(_identityLabel(entry.auth.session.value)),
+      ),
       dense: true,
       onTap: onTap,
     );
   }
 
-  String get _identityLabel {
+  String _identityLabel(SessionState session) {
     if (!entry.requiresAuth) return 'No authentication required';
-    if (!entry.isConnected) return 'Not signed in';
+    return switch (session) {
+      ExpiredSession() => 'Session expired',
+      NoSession() => 'Not signed in',
+      ActiveSession() => _activeIdentityLabel(),
+    };
+  }
+
+  String _activeIdentityLabel() {
     if (profile == null) return 'Signed in';
     final name = '${profile!.givenName} ${profile!.familyName}'.trim();
     if (name.isNotEmpty) return name;
@@ -162,7 +175,7 @@ class _ActionButtons extends StatelessWidget {
         TextButton.icon(
           onPressed: onVersions,
           icon: const Icon(Icons.info, size: 16),
-          label: const Text('Network Versions'),
+          label: const Text('Versions'),
           style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
       ],

@@ -75,7 +75,8 @@ class HttpTransport {
   ///
   /// Throws:
   /// - [CancelledException] if the request was cancelled via [cancelToken]
-  /// - [AuthException] for 401 and 403 responses
+  /// - [AuthException] for 401 responses
+  /// - [PermissionDeniedException] for 403 responses
   /// - [NotFoundException] for 404 responses
   /// - [ApiException] for other 4xx and 5xx responses
   /// - [NetworkException] for connection failures (from client)
@@ -137,7 +138,8 @@ class HttpTransport {
   ///
   /// Throws:
   /// - [CancelledException] if the request was cancelled via [cancelToken]
-  /// - [AuthException] for 401 and 403 responses
+  /// - [AuthException] for 401 responses
+  /// - [PermissionDeniedException] for 403 responses
   /// - [NotFoundException] for 404 responses
   /// - [ApiException] for other 4xx and 5xx responses
   /// - [NetworkException] for connection failures (from client)
@@ -181,7 +183,8 @@ class HttpTransport {
   /// Throws:
   /// - [CancelledException] if cancelled before the stream starts
   /// - [NetworkException] for connection failures (from client)
-  /// - [AuthException] for 401/403 on stream setup
+  /// - [AuthException] for 401 on stream setup
+  /// - [PermissionDeniedException] for 403 on stream setup
   /// - [ApiException] for other 4xx/5xx on stream setup
   Future<StreamedHttpResponse> requestStream(
     String method,
@@ -302,8 +305,15 @@ class HttpTransport {
     final message = 'HTTP $statusCode'
         '${response.reasonPhrase != null ? ': ${response.reasonPhrase}' : ''}';
 
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401) {
       throw AuthException(message: message, statusCode: statusCode);
+    }
+
+    if (statusCode == 403) {
+      throw PermissionDeniedException(
+        message: message,
+        statusCode: statusCode,
+      );
     }
 
     if (statusCode == 404) {
@@ -325,8 +335,16 @@ class HttpTransport {
     final serverMessage = _extractErrorMessage(body);
     final message = serverMessage ?? 'HTTP $statusCode';
 
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401) {
       throw AuthException(
+        message: message,
+        statusCode: statusCode,
+        serverMessage: serverMessage,
+      );
+    }
+
+    if (statusCode == 403) {
+      throw PermissionDeniedException(
         message: message,
         statusCode: statusCode,
         serverMessage: serverMessage,

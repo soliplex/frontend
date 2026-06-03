@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
+import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
@@ -11,7 +14,67 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart'
 
 import '../../helpers/fakes.dart';
 
-class _FakeAuthSession extends Fake implements AuthSession {}
+/// AgentRuntime whose [spawn] always errors with [AuthException]. Used to
+/// drive the spawner's AuthException branch from [RoomState.sendToNewThread]
+/// without disposing the runtime (which would surface a StateError on the
+/// `on Object` arm instead).
+class _AuthExceptionThrowingRuntime extends AgentRuntime {
+  _AuthExceptionThrowingRuntime(ServerConnection connection)
+      : super(
+          connection: connection,
+          toolRegistryResolver: (_) async => const ToolRegistry(),
+          platform: TestPlatformConstraints(),
+          logger: testLogger(),
+        );
+
+  @override
+  Future<AgentSession> spawn({
+    required String roomId,
+    required String prompt,
+    String? threadId,
+    Duration? timeout,
+    bool ephemeral = false,
+    bool autoDispose = false,
+    AgentSession? parent,
+    Map<String, dynamic>? stateOverlay,
+  }) {
+    return Future<AgentSession>.error(
+      const AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      ),
+    );
+  }
+}
+
+/// [AgentRuntimeManager] that always returns the runtime it was given.
+class _StubRuntimeManager extends AgentRuntimeManager {
+  _StubRuntimeManager(this._runtime)
+      : super(
+          platform: TestPlatformConstraints(),
+          toolRegistryResolver: (_) async => const ToolRegistry(),
+          logger: testLogger(),
+        );
+
+  final AgentRuntime _runtime;
+
+  @override
+  AgentRuntime getRuntime(ServerConnection connection) => _runtime;
+}
+
+void _activate(AuthSession auth) {
+  auth.login(
+    provider: const OidcProvider(
+      discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      clientId: 'test-client',
+    ),
+    tokens: AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    ),
+  );
+}
 
 ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
@@ -23,7 +86,7 @@ ServerEntry _fakeServerEntry(ServerConnection connection) => ServerEntry(
       serverId: connection.serverId,
       alias: connection.serverId,
       serverUrl: Uri.parse('https://${connection.serverId}.example.com'),
-      auth: _FakeAuthSession(),
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
       httpClient: FakeHttpClient(),
       connection: connection,
     );
@@ -589,6 +652,224 @@ void main() {
       // thread-1 should still be selected, no navigation fired.
       expect(state.activeThreadView!.threadId, 'thread-1');
       expect(navigatedId, 'sentinel');
+
+      state.dispose();
+    });
+  });
+
+  group('_fetchRoom auth funneling', () {
+    test('AuthException funnels through markSessionExpired', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ExpiredSession>());
+      expect(
+        state.room.value,
+        isA<RoomLoading>(),
+        reason: 'On AuthException we leave RoomLoading so the route guard '
+            'can redirect without a transient RoomFailed banner.',
+      );
+
+      state.dispose();
+    });
+
+    test('PermissionDeniedException surfaces as RoomFailed', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = PermissionDeniedException(
+        statusCode: 403,
+        message: 'Forbidden',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.room.value, isA<RoomFailed>());
+
+      state.dispose();
+    });
+
+    test('generic error still surfaces as RoomFailed (regression)', () async {
+      _activate(serverEntry.auth);
+      api.nextThreads = [];
+      api.nextError = Exception('network down');
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.room.value, isA<RoomFailed>());
+
+      state.dispose();
+    });
+  });
+
+  group('createThread auth funneling', () {
+    test('AuthException funnels through markSessionExpired', () async {
+      _activate(serverEntry.auth);
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [];
+      api.nextCreateThreadError = AuthException(
+        statusCode: 401,
+        message: 'JWT validation failed',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final id = await state.createThread();
+
+      expect(id, isNull);
+      expect(serverEntry.auth.session.value, isA<ExpiredSession>());
+      expect(
+        state.lastError.value,
+        isNull,
+        reason: 'AuthException is funneled, not surfaced inline.',
+      );
+
+      state.dispose();
+    });
+
+    test('PermissionDeniedException surfaces inline', () async {
+      _activate(serverEntry.auth);
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [];
+      api.nextCreateThreadError = PermissionDeniedException(
+        statusCode: 403,
+        message: 'Forbidden',
+      );
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final id = await state.createThread();
+
+      expect(id, isNull);
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.lastError.value, isNotNull);
+      expect(state.lastError.value!.error, isA<PermissionDeniedException>());
+
+      state.dispose();
+    });
+
+    test('generic error still surfaces inline (regression)', () async {
+      _activate(serverEntry.auth);
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [];
+      api.nextCreateThreadError = Exception('network down');
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final id = await state.createThread();
+
+      expect(id, isNull);
+      expect(serverEntry.auth.session.value, isA<ActiveSession>());
+      expect(state.lastError.value, isNotNull);
+
+      state.dispose();
+    });
+  });
+
+  group('sendToNewThread auth funneling', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('AuthException persists composer text for the auth roundtrip',
+        () async {
+      // Drives the full path: runtime throws AuthException at spawn time
+      // → SessionSpawner funnels via markSessionExpired → RoomState's
+      // onAuthExpired callback persists the prompt to ReturnToStorage so
+      // the composer survives the route guard redirect.
+      _activate(serverEntry.auth);
+      api.nextRoom = Room(id: 'room-1', name: 'Test');
+      api.nextThreads = [];
+
+      final state = RoomState(
+        serverEntry: serverEntry,
+        roomId: 'room-1',
+        runtimeManager: _StubRuntimeManager(
+          _AuthExceptionThrowingRuntime(connection),
+        ),
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await state.sendToNewThread('half-written question');
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(serverEntry.auth.session.value, isA<ExpiredSession>());
+      expect(
+        state.lastError.value,
+        isNull,
+        reason: 'AuthException is funneled, not surfaced inline.',
+      );
+
+      final restored = await ReturnToStorage.loadComposer(
+        serverId: 'test-server',
+        roomId: 'room-1',
+      );
+      expect(
+        restored,
+        'half-written question',
+        reason: 'RoomState.sendToNewThread must wire composer persistence '
+            "as the spawner's onAuthExpired hook; without it the user's "
+            'draft is dropped on the floor by the redirect.',
+      );
 
       state.dispose();
     });

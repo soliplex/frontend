@@ -3,7 +3,7 @@ import 'package:soliplex_client/soliplex_client.dart' hide State;
 
 import '../../../../shared/file_type_icons.dart';
 import 'room_info_widgets.dart';
-import '../../../../../soliplex_frontend.dart';
+import '../../../../design/design.dart';
 
 class DocumentsCard extends StatefulWidget {
   const DocumentsCard({
@@ -219,7 +219,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
         padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,8 +244,8 @@ class _DocumentsCardState extends State<DocumentsCard> {
             ],
             if (dateFields.isNotEmpty)
               Wrap(
-                spacing: 16,
-                runSpacing: 8,
+                spacing: SoliplexSpacing.s4,
+                runSpacing: SoliplexSpacing.s2,
                 children: [
                   for (final (label, value) in dateFields)
                     SizedBox(

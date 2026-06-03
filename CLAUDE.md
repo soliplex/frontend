@@ -70,13 +70,91 @@ Mental model: `Watch` is to signals what `StreamBuilder` is to streams.
 
 `ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor
 provides its own `ThemeData`. Custom palette abstractions deferred until multiple
-flavors need them.
+flavors need them. The brand tokens that build those `ThemeData` instances live in
+`lib/src/design/` — see the **Design system** section below before writing UI code.
 
 ### Flavors
 
 Flavors are functions that construct `AppModule` instances and call
 `ShellConfig.fromModules(...)`. Modules are included/excluded by presence in the
 flavor — no enum or toggle framework.
+
+## Design system
+
+The design system is the **single source of truth** for color, type, spacing,
+radii, and breakpoints. It lives in `lib/src/design/` (production code) and is
+documented in `lib/src/design/README.md` and the canonical reference bundle at
+`design_system/` (tokens, swatches, type specimens, component demos). **Read
+`lib/src/design/README.md` before writing or modifying any widget code** — it
+has the full accessor cheat sheet.
+
+### Hard rules — do not violate without explicit user approval
+
+1. **No hex color literals** (`Color(0x...)`, `Color.fromARGB`, `Color.fromRGBO`)
+   outside `lib/src/design/`. Use
+   `Theme.of(context).colorScheme.<token>` or
+   `SoliplexTheme.of(context).colors.<token>`.
+2. **No `Colors.red|green|orange|blue|yellow`** (or their `.shadeN` variants) for
+   status. Use the `SymbolicColors` extension on `ColorScheme`:
+   `colorScheme.danger`, `success`, `warning`, `info`. For errors *with* a
+   container surface, use `colorScheme.errorContainer` /
+   `onErrorContainer` — **not** `danger`.
+3. **No magic `EdgeInsets` / `SizedBox` numbers.** Use `SoliplexSpacing.s1`
+   (4) / `s2` (8) / `s3` (12) / `s4` (16) / `s6` (24). There is intentionally
+   no `s5` — the scale steps from `s4` (16) straight to `s6` (24); use `s6`
+   rather than reaching for 20. The only documented exception is chat bubble
+   padding `14/10`.
+4. **No raw `BorderRadius.circular(N)`.** Use
+   `SoliplexTheme.of(context).radii.{sm|md|lg|xl}`. Default is `md` (12 px);
+   `sm` (6 px) only for checkboxes and small hit-target wells.
+5. **No `TextStyle(fontSize: ...)` or bare `fontSize:` in `.copyWith`.** Start
+   from a `Theme.of(context).textTheme.<style>` entry and `.copyWith` only the
+   delta you need. The shipped styles are `headlineMedium`, `titleLarge`,
+   `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`,
+   `labelMedium`, `labelSmall`.
+6. **No `fontFamily: 'monospace'|'Roboto Mono'|'SF Mono'|'Menlo'`** string
+   literals. Use `context.monospace` (from
+   `lib/src/design/tokens/typography_x.dart`) — it picks the right family per
+   platform.
+7. **No hardcoded width breakpoints.** Use `SoliplexBreakpoints.mobile` (320),
+   `tablet` (600), `desktop` (840).
+8. **Destructive actions** use `colorScheme.error` / `errorContainer`. Never red
+   hex.
+
+### Accessor cheat sheet
+
+| What                  | How                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Color                 | `Theme.of(context).colorScheme.<token>` or `SoliplexTheme.of(context).colors.<token>`                |
+| Status color          | `colorScheme.{danger,success,warning,info}` (via `SymbolicColors`)                                   |
+| Spacing               | `SoliplexSpacing.{s1,s2,s3,s4,s6}` (4/8/12/16/24)                                                    |
+| Radius                | `SoliplexTheme.of(context).radii.{sm,md,lg,xl}` (6/12/16/24)                                         |
+| Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
+| Monospace             | `context.monospace`                                                                                  |
+| Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
+
+Import surface: `import 'package:soliplex_frontend/src/design/design.dart';`
+
+### Adding a new token
+
+Don't, without explicit user approval. If a value is genuinely missing:
+
+1. Stop. Raise the case in the relevant PR before writing code.
+2. Add the token to `lib/src/design/tokens/` **and** to
+   `design_system/tokens.{dart,css,jsx}` in the same change.
+3. Update `design_system/README.md` so the table stays accurate.
+
+### Adoption checklist (run before opening a PR that touches UI)
+
+- [ ] Colors come from `Theme.of(context).colorScheme` (or `SoliplexTheme`), not hex literals.
+- [ ] Padding values come from `SoliplexSpacing`.
+- [ ] Corner radii come from `SoliplexTheme.of(context).radii`.
+- [ ] Text styles come from `Theme.of(context).textTheme`.
+- [ ] Monospace uses `context.monospace`.
+- [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Screen behaves at all three `SoliplexBreakpoints`.
+- [ ] Both light and dark palettes look correct.
+- [ ] Destructive actions use `colorScheme.error`; never red hex.
 
 ## Modules
 

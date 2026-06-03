@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../design/theme/theme_extensions.dart';
@@ -39,6 +40,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
       ),
+      extensionSet: md.ExtensionSet.gitHubFlavored,
       blockSyntaxes: [LatexBlockSyntax()],
       inlineSyntaxes: [LatexInlineSyntax()],
       onTapLink: onLinkTap == null
@@ -49,6 +51,9 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
       imageBuilder: _buildImage,
       builders: {
         'pre': CodeBlockBuilder(
+          // design-system exception (approved): 14pt sits between bodySmall
+          // (13) and bodyMedium (16); chosen so block code reads at roughly
+          // the size of surrounding prose without dominating it.
           preferredStyle: monoStyle.copyWith(fontSize: 14),
         ),
         'latex': LatexElementBuilder(),

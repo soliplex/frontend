@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../../../soliplex_frontend.dart';
 import '../execution_tracker.dart';
 import 'dropped_event_message_tile.dart';
 import 'error_message_tile.dart';
@@ -11,6 +10,7 @@ import 'no_response_tile_widget.dart';
 import 'text_message_tile.dart';
 import 'tool_call_tile.dart';
 import 'workdir_files_section.dart';
+import '../../../design/design.dart';
 
 class MessageTile extends StatelessWidget {
   const MessageTile({

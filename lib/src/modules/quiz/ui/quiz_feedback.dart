@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import '../../../design/design.dart';
 
 import '../../../../soliplex_frontend.dart';
 
@@ -14,12 +15,12 @@ class QuizAnswerFeedback extends StatelessWidget {
     final isCorrect = result.isCorrect;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       decoration: BoxDecoration(
         color: isCorrect
             ? colorScheme.primaryContainer
             : colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
       ),
       child: Row(
         children: [
@@ -73,10 +74,10 @@ class QuizErrorFeedback extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
       ),
       child: Row(
         children: [

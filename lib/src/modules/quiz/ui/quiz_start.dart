@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
-
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 
 class QuizStartView extends StatelessWidget {
   const QuizStartView({
@@ -20,7 +19,7 @@ class QuizStartView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

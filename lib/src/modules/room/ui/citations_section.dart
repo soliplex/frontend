@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../design/design.dart';
 import '../../../shared/copy_button.dart';
+import '../../../shared/preview_icon_button.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
-import '../../../../soliplex_frontend.dart';
 
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
@@ -38,7 +39,7 @@ class _CitationsSectionState extends State<CitationsSection> {
           children: [
             InkWell(
               onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(soliplexRadii.md),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     vertical: SoliplexSpacing.s1,
@@ -141,7 +142,7 @@ class _SourceReferenceRow extends StatelessWidget {
               Expanded(
                 child: InkWell(
                   onTap: onToggle,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(soliplexRadii.md),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         vertical: SoliplexSpacing.s1),
@@ -152,7 +153,8 @@ class _SourceReferenceRow extends StatelessWidget {
                           height: SoliplexSpacing.s6,
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius:
+                                BorderRadius.circular(soliplexRadii.sm),
                           ),
                           alignment: Alignment.center,
                           child: Text(
@@ -186,6 +188,17 @@ class _SourceReferenceRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (sourceReference.isPdf && onShowChunkVisualization != null)
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Center(
+                    child: PreviewIconButton(
+                      onTap: () => onShowChunkVisualization!(sourceReference),
+                      tooltip: 'View source PDF',
+                    ),
+                  ),
+                ),
               SizedBox(
                 width: 32,
                 height: 32,
@@ -199,7 +212,7 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
               InkWell(
                 onTap: onToggle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(soliplexRadii.md),
                 child: Padding(
                   padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   child: Icon(
@@ -242,7 +255,7 @@ class _SourceReferenceRow extends StatelessWidget {
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(soliplexRadii.md),
               ),
               child: SingleChildScrollView(
                 child: FlutterMarkdownPlusRenderer(
@@ -264,21 +277,6 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (sourceReference.isPdf && onShowChunkVisualization != null)
-            Padding(
-              padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-              child: TextButton.icon(
-                onPressed: () => onShowChunkVisualization!(sourceReference),
-                icon: const Icon(Icons.picture_as_pdf, size: 16),
-                label: const Text('View in PDF'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: SoliplexSpacing.s2),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
               ),
             ),
         ],

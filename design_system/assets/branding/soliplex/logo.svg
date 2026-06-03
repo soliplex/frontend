@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024px" height="1024px" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Soliplex Logo</title>
+    <defs>
+        <path d="M0,0 L1024,0 L1024,1024 L0,1024 L0,0 Z" id="path-1"></path>
+    </defs>
+    <g id="Newer-Logo" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Soliplex-Logo" xlink:href="#path-1">
+            <circle id="Background-Oval" fill="#2F3337" fill-rule="evenodd" cx="512" cy="512" r="512"></circle>
+            <circle id="Inner-Ring" stroke="#60C7D8" stroke-width="48.4126074" cx="512" cy="510.532951" r="430.578797"></circle>
+            <circle id="Middle-Ring" stroke="#60C7D8" stroke-width="44.0114613" cx="512.733524" cy="512.733524" r="335.22063"></circle>
+            <circle id="Outter-Ring" stroke="#60C7D8" stroke-width="35.2091691" cx="513.467049" cy="512" r="247.931232"></circle>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(512.7335, 850.8883) rotate(90) translate(-512.7335, -850.8883)" points="397.570201 825.948424 627.896848 825.948424 627.896848 875.82808 397.570201 875.82808"></polygon>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(512.7335, 170.1777) rotate(90) translate(-512.7335, -170.1777)" points="397.570201 145.237822 627.896848 145.237822 627.896848 195.117479 397.570201 195.117479"></polygon>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(270.6705, 269.937) rotate(45) translate(-270.6705, -269.937)" points="155.507163 244.997135 385.833811 244.997135 385.833811 294.876791 155.507163 294.876791"></polygon>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(751.8625, 751.1289) rotate(45) translate(-751.8625, -751.1289)" points="636.69914 726.189112 867.025788 726.189112 867.025788 776.068768 636.69914 776.068768"></polygon>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(751.8625, 269.937) rotate(135) translate(-751.8625, -269.937)" points="636.69914 244.997135 867.025788 244.997135 867.025788 294.876791 636.69914 294.876791"></polygon>
+            <polygon id="Rectangle" fill="#333335" fill-rule="evenodd" transform="translate(751.8625, 269.937) rotate(135) translate(-751.8625, -269.937)" points="636.69914 244.997135 867.025788 244.997135 867.025788 294.876791 636.69914 294.876791"></polygon>
+            <polygon id="Rectangle-Copy" fill="#333335" fill-rule="evenodd" transform="translate(270.6705, 751.1289) rotate(135) translate(-270.6705, -751.1289)" points="155.507163 726.189112 385.833811 726.189112 385.833811 776.068768 155.507163 776.068768"></polygon>
+            <rect id="Rectangle" fill="#333335" fill-rule="evenodd" x="737.925501" y="484.126074" width="230.326648" height="49.8796562"></rect>
+            <rect id="Rectangle" fill="#333335" fill-rule="evenodd" x="55.747851" y="484.126074" width="230.326648" height="49.8796562"></rect>
+            <g id="Diamond" stroke-width="1" fill-rule="evenodd" transform="translate(400.5043, 306.6132)">
+                <polygon id="Path" fill="#E6F1F3" points="111.495702 4.16960322e-14 223.096225 195.156051 111.495702 147.494511"></polygon>
+                <polygon id="Path" fill="#FDFDFB" transform="translate(55.8003, 97.578) scale(-1, 1) translate(-55.8003, -97.578)" points="0.104820993 8.66666967e-14 111.495702 195.156051 0.104820993 147.494511"></polygon>
+                <polygon id="Path" fill="#C7DFEB" points="111.548113 267.52452 223.096225 195.156051 111.495702 147.494511"></polygon>
+                <polygon id="Path" fill="#E9F3F4" transform="translate(55.7479, 207.5095) scale(-1, 1) translate(-55.7479, -207.5095)" points="3.86828423e-16 267.52452 111.495702 195.156051 5.72506067e-14 147.494511"></polygon>
+                <path d="M111.495702,296.250627 C111.355941,296.250627 111.355941,333.156027 111.495702,406.966827 L217.306713,225.012038 C146.9058,272.50443 111.635463,296.250627 111.495702,296.250627 Z" id="Path" fill="#B7D2DD"></path>
+                <polygon id="Path" fill="#EBF5F6" transform="translate(58.6295, 315.9894) scale(-1, 1) translate(-58.6295, -315.9894)" points="5.76337385 296.250627 5.76337385 406.966827 111.495702 225.012038"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>

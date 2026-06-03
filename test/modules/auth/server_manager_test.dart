@@ -233,6 +233,42 @@ void main() {
     });
   });
 
+  group('connectionRevision', () {
+    test('fires when any single server flips between active and expired', () {
+      // The aggregate authState stays Authenticated when only one of
+      // several servers' sessions changes, so the route guard cannot
+      // listen to it alone. connectionRevision must fire on every
+      // per-server transition.
+      final manager = _createManager();
+
+      final a = manager.addServer(
+        serverId: 'a',
+        serverUrl: Uri.parse('https://a.example.com'),
+      );
+      final b = manager.addServer(
+        serverId: 'b',
+        serverUrl: Uri.parse('https://b.example.com'),
+      );
+
+      a.auth.login(provider: _provider, tokens: _tokens());
+      b.auth.login(provider: _provider, tokens: _tokens());
+
+      final aggregateBefore = manager.authState.value;
+      final revisionBefore = manager.connectionRevision.value;
+
+      // Flip A only.
+      a.auth.markSessionExpired();
+
+      // authState aggregate stays Authenticated (B is still active).
+      expect(manager.authState.value, equals(aggregateBefore));
+      // But connectionRevision must observe the per-server change.
+      expect(
+        manager.connectionRevision.value,
+        isNot(equals(revisionBefore)),
+      );
+    });
+  });
+
   group('requiresAuth', () {
     test('defaults to true', () {
       final manager = _createManager();
@@ -310,6 +346,31 @@ void main() {
       final stored = await storage.loadAll();
       expect(stored, hasLength(1));
       expect(stored['test']!.serverUrl, Uri.parse('https://api.example.com'));
+    });
+
+    test('markSessionExpired persists tokens as AuthenticatedServer', () async {
+      // Refresh tokens must survive app restart through an expired
+      // session — that's what keeps a silent refresh possible after
+      // relaunching the app. A regression that maps the expired arm
+      // back to KnownServer would silently lose refresh tokens.
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
+
+      final entry = manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final tokens = _tokens();
+      entry.auth.login(provider: _provider, tokens: tokens);
+      entry.auth.markSessionExpired();
+
+      await Future<void>.delayed(Duration.zero);
+      final stored = await storage.loadAll();
+      expect(stored, hasLength(1));
+      final persisted = stored['test'];
+      expect(persisted, isA<AuthenticatedServer>());
+      expect((persisted! as AuthenticatedServer).tokens.refreshToken,
+          tokens.refreshToken);
     });
 
     test('logout persists server without tokens', () async {

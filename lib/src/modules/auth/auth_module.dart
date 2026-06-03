@@ -40,7 +40,7 @@ class AuthAppModule extends AppModule {
         _consentNotice = consentNotice,
         _logo = logo,
         _defaultBackendUrl = defaultBackendUrl,
-        _refreshListenable = SignalListenable(serverManager.authState);
+        _refreshListenable = SignalListenable(serverManager.connectionRevision);
 
   final ServerManager _serverManager;
   final SoliplexHttpClient _probeClient;
@@ -75,6 +75,7 @@ class AuthAppModule extends AppModule {
             path: AppRoutes.home,
             pageBuilder: (_, state) {
               final autoConnectUrl = state.uri.queryParameters['url'];
+              final returnTo = state.uri.queryParameters['returnTo'];
               return NoTransitionPage(
                 key: autoConnectUrl != null ? UniqueKey() : state.pageKey,
                 child: HomeScreen(
@@ -83,6 +84,7 @@ class AuthAppModule extends AppModule {
                   logo: _logo,
                   defaultBackendUrl: _defaultBackendUrl,
                   autoConnectUrl: autoConnectUrl,
+                  autoConnectReturnTo: returnTo,
                 ),
               );
             },
@@ -101,10 +103,29 @@ class AuthAppModule extends AppModule {
           ),
         ],
         redirect: (_, state) {
+          final isPublic = _publicPaths.contains(state.matchedLocation);
+          if (isPublic) return null;
+
+          // Per-server guard: if the route names a specific server and
+          // that server isn't connected (signed out or expired),
+          // redirect to its sign-in entry. Carry the original location
+          // through so the callback can return the user back here.
+          final alias = state.pathParameters['serverAlias'];
+          if (alias != null) {
+            final entry = _serverManager.entryByAlias(alias);
+            if (entry != null && !entry.isConnected) {
+              return AppRoutes.homeWithUrl(
+                entry.serverUrl.toString(),
+                returnTo: state.matchedLocation,
+              );
+            }
+          }
+
+          // Global guard: if no server is connected at all, fall back
+          // to the home screen / server list.
           final isAuthenticated =
               _serverManager.authState.value is Authenticated;
-          final isPublic = _publicPaths.contains(state.matchedLocation);
-          if (!isAuthenticated && !isPublic) return AppRoutes.home;
+          if (!isAuthenticated) return AppRoutes.home;
           return null;
         },
       );

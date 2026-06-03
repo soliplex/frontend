@@ -1,8 +1,11 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../auth/auth_session.dart';
+import '../auth/auth_tokens.dart';
+import 'composer_persistence.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
 import 'historical_replay.dart';
@@ -59,17 +62,21 @@ typedef HistoryLoadedCallback = void Function(
 class ThreadViewState {
   ThreadViewState({
     required ServerConnection connection,
+    required AuthSession auth,
     required String roomId,
     required this.threadId,
     required RunRegistry registry,
     this.onHistoryLoaded,
   })  : _connection = connection,
+        _auth = auth,
         _roomId = roomId,
         _registry = registry {
-    if (!_restoreFromRegistry()) _fetch();
+    _authUnsub = _auth.session.subscribe(_onAuthChanged);
+    if (!_restoreFromRegistry()) unawaited(_fetch());
   }
 
   final ServerConnection _connection;
+  final AuthSession _auth;
   final String _roomId;
   final String threadId;
   final HistoryLoadedCallback? onHistoryLoaded;
@@ -85,9 +92,10 @@ class ThreadViewState {
   final Signal<AgentSession?> _activeSession = Signal<AgentSession?>(null);
   void Function()? _runStateUnsub;
   void Function()? _reconnectStatusUnsub;
+  void Function()? _authUnsub;
   bool _isDisposed = false;
 
-  final SessionSpawner _spawner = SessionSpawner();
+  late final SessionSpawner _spawner = SessionSpawner(auth: _auth);
 
   final Signal<ThreadViewStatus> _messages =
       Signal<ThreadViewStatus>(MessagesLoading());
@@ -186,15 +194,35 @@ class ThreadViewState {
     unawaited(
       _connection.api
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
-          .catchError((Object e) {
-        debugPrint('Feedback submission failed: $e');
+          .then((_) {}, onError: (Object e, StackTrace st) {
+        if (e is AuthException) {
+          dev.log(
+            'submitFeedback hit AuthException; funneling to markSessionExpired',
+            error: e,
+            stackTrace: st,
+            name: 'ThreadViewState',
+            level: 900,
+          );
+          _auth.markSessionExpired();
+          return;
+        }
+        // Fire-and-forget UX: surface nothing inline (thumbs-up is
+        // ambient), but keep the failure debuggable so 5xx / decode /
+        // programmer errors don't vanish.
+        dev.log(
+          'Feedback submission failed',
+          error: e,
+          stackTrace: st,
+          name: 'ThreadViewState',
+          level: 900,
+        );
       }),
     );
   }
 
   void clearSendError() => _lastSendError.value = null;
 
-  void refresh() => _fetch();
+  Future<void> refresh() => _fetch();
 
   Future<void> sendMessage(
     String prompt,
@@ -215,6 +243,7 @@ class ThreadViewState {
       errorSignal: _lastSendError,
       prompt: prompt,
       isDisposed: () => _isDisposed,
+      onAuthExpired: _persistComposer,
       onSpawned: (session) {
         _registry.register(threadKey, session);
         if (_isDisposed) return;
@@ -275,6 +304,24 @@ class ThreadViewState {
         _messages.value = _messagesLoaded(conversation);
       case FailedState(:final conversation, :final reason, :final error):
         _detachSession();
+        if (reason == FailureReason.authExpired) {
+          // Funnel to the per-server auth funnel so the route guard
+          // (and any lobby UX) can react. The screen also surfaces a
+          // banner so the user sees what happened before the redirect.
+          _auth.markSessionExpired();
+        }
+        if (reason == FailureReason.internalError ||
+            reason == FailureReason.serverError) {
+          // Both reasons surface to the user only as a friendly string.
+          // Without this log, the underlying error and stack are
+          // unrecoverable for diagnosis.
+          dev.log(
+            'Thread run failed: ${reason.name}',
+            error: error,
+            name: 'ThreadViewState',
+            level: 1000,
+          );
+        }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
         if (conversation != null) {
           _messages.value = _messagesLoaded(conversation);
@@ -368,7 +415,7 @@ class ThreadViewState {
     }
   }
 
-  void _fetch() {
+  Future<void> _fetch() async {
     if (_isDisposed) return;
     _cancelToken?.cancel('re-fetch');
     final token = CancelToken();
@@ -378,9 +425,9 @@ class ThreadViewState {
       _messages.value = MessagesLoading();
     }
 
-    _connection.api
-        .getThreadHistory(_roomId, threadId, cancelToken: token)
-        .then((history) {
+    try {
+      final history = await _connection.api
+          .getThreadHistory(_roomId, threadId, cancelToken: token);
       if (token.isCancelled) return;
       _cancelToken = null;
       // putIfAbsent (not []=) on refresh: server replay must not overwrite a
@@ -394,22 +441,72 @@ class ThreadViewState {
         messageStates: history.messageStates,
       );
       onHistoryLoaded?.call(threadId, history);
-    }).catchError((Object error) {
+    } on PermissionDeniedException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        _messages.value is MessagesLoaded
+            ? 'Thread history refresh forbidden (403), keeping stale messages'
+            : 'Thread history forbidden (403)',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
+      if (_messages.value is! MessagesLoaded) {
+        _messages.value = MessagesFailed(error);
+      }
+    } on AuthException catch (error) {
+      if (token.isCancelled) return;
+      _cancelToken = null;
+      dev.log(
+        'Thread history hit AuthException; funneling to markSessionExpired',
+        error: error,
+        name: 'ThreadViewState',
+        level: 900,
+      );
+      _auth.markSessionExpired();
+    } on Object catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
       }
-    });
+    }
   }
 
   void dispose() {
     _isDisposed = true;
+    _authUnsub?.call();
+    _authUnsub = null;
     _cancelToken?.cancel('disposed');
     _detachSession();
     _sessionState.dispose();
     _reconnectStatus.dispose();
     isCancellable.dispose();
     pendingApproval.dispose();
+  }
+
+  /// Cancels the active run and pending history fetch when the auth
+  /// session leaves [ActiveSession] (expired or signed out). The
+  /// route guard handles navigation; this just stops in-flight work
+  /// so the SSE client doesn't reconnect-loop with a dead token.
+  void _onAuthChanged(SessionState state) {
+    if (_isDisposed) return;
+    if (state is ActiveSession) return;
+    _cancelToken?.cancel('auth expired');
+    _activeSession.value?.cancel();
+  }
+
+  /// The auth path is the only one where the user gets navigated
+  /// away; non-auth errors leave the screen mounted and the in-memory
+  /// [SendError.unsentText] + room-screen restore path handles
+  /// restoration without touching storage.
+  void _persistComposer(String prompt) {
+    if (_isDisposed) return;
+    persistComposerDraft(
+      serverId: _connection.serverId,
+      roomId: _roomId,
+      prompt: prompt,
+    );
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../../../soliplex_frontend.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
+import '../../../design/design.dart';
 
 class RoomWelcome extends StatelessWidget {
   const RoomWelcome({
@@ -140,13 +140,13 @@ class _SuggestionChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
           child: Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: SoliplexSpacing.s4, vertical: SoliplexSpacing.s1),
             decoration: BoxDecoration(
               border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(soliplexRadii.md),
             ),
             child: Text(label, style: theme.textTheme.bodyMedium),
           ),

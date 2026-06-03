@@ -13,6 +13,7 @@ import '../../message_expansions.dart';
 import '../../room_providers.dart';
 import '../copy_button.dart';
 import 'timeline_entry.dart';
+import '../../../../design/design.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.execution_timeline');
@@ -109,12 +110,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +131,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                     size: 16,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: SoliplexSpacing.s1),
                   Text(
                     '$total event${total == 1 ? '' : 's'}',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -140,7 +142,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               ),
             ),
             if (_expanded) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: SoliplexSpacing.s1),
               for (final entry in entries) _buildEntry(entry, theme, calls),
             ],
           ],
@@ -205,11 +207,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   Widget _stepRow(ExecutionStep step, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
       child: Row(
         children: [
           _stepIcon(step, theme),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               step.label,
@@ -220,9 +222,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           ),
           Text(
             _formatDuration(step.timestamp),
-            style: theme.textTheme.bodySmall?.copyWith(
+            style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.outline,
-              fontSize: 11,
             ),
           ),
         ],
@@ -240,7 +241,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     final isExpanded = _isSourceExpanded(activity.messageId);
 
     return Padding(
-      padding: EdgeInsets.only(left: indent, top: 2, bottom: 2),
+      padding: EdgeInsets.only(
+        left: indent,
+        top: SoliplexSpacing.s1,
+        bottom: SoliplexSpacing.s1,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -259,9 +264,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                         )
                       : const SizedBox.shrink(),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: SoliplexSpacing.s1),
                 _activityStatusIcon(activity.status, theme),
-                const SizedBox(width: 8),
+                const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
                   child: Text(
                     activity.toolName,
@@ -272,9 +277,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                 ),
                 Text(
                   activity.status.label,
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.outline,
-                    fontSize: 11,
                   ),
                 ),
               ],
@@ -288,12 +292,16 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   Widget _sourceBlock(String source, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6, left: 24),
+      padding: const EdgeInsets.only(
+        top: SoliplexSpacing.s1,
+        bottom: SoliplexSpacing.s2,
+        left: SoliplexSpacing.s6,
+      ),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -304,11 +312,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             ),
             SelectableText(
               source,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                height: 1.3,
-              ),
+              style: context
+                  .monospaceOn(theme.textTheme.labelSmall)
+                  .copyWith(height: 1.3),
             ),
           ],
         ),

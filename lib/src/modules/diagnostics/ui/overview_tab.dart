@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 import '../models/event_accumulator.dart';
 import '../models/http_event_group.dart';
 import '../models/json_tree_model.dart';
@@ -52,7 +52,7 @@ class _OverviewTabState extends State<OverviewTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
       children: [
         if (hasRequestBody) ...[
           _JsonSection(title: 'Request Body', body: body),
@@ -144,12 +144,15 @@ class _StreamSection extends StatelessWidget {
 class _TruncationBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
+        horizontal: SoliplexSpacing.s3,
+        vertical: SoliplexSpacing.s2,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.tertiaryContainer,
       ),
@@ -163,8 +166,7 @@ class _TruncationBanner extends StatelessWidget {
           const SizedBox(width: SoliplexSpacing.s2),
           Text(
             'Earlier stream content was truncated',
-            style: TextStyle(
-              fontSize: 12,
+            style: theme.textTheme.labelSmall?.copyWith(
               color: colorScheme.onTertiaryContainer,
             ),
           ),
@@ -259,9 +261,9 @@ class _RunEntryCard extends StatelessWidget {
     };
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(SoliplexSpacing.s3),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -294,16 +296,18 @@ class _RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: color,
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 10,
+        style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
           color: textColor,
         ),
@@ -359,7 +363,7 @@ class _SseEventCardState extends State<_SseEventCard> {
     final nodes = buildJsonTree(widget.event.payload);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -367,7 +371,9 @@ class _SseEventCardState extends State<_SseEventCard> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
+                horizontal: SoliplexSpacing.s3,
+                vertical: SoliplexSpacing.s2,
+              ),
               child: Row(
                 children: [
                   _EventTypeBadge(type: widget.event.type),
@@ -395,7 +401,12 @@ class _SseEventCardState extends State<_SseEventCard> {
           ),
           if (_expanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(
+                SoliplexSpacing.s3,
+                0,
+                SoliplexSpacing.s3,
+                SoliplexSpacing.s3,
+              ),
               child: JsonTreeView(nodes: nodes),
             ),
         ],
@@ -411,10 +422,13 @@ class _EventTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
+        horizontal: SoliplexSpacing.s2,
+        vertical: SoliplexSpacing.s1,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
       ),
@@ -460,7 +474,7 @@ class _JsonSection extends StatelessWidget {
         const SizedBox(height: SoliplexSpacing.s2),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
           ),

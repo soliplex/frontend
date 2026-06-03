@@ -3,7 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'expandable_list_card.dart';
 import 'room_info_widgets.dart';
-import '../../../../../soliplex_frontend.dart';
+import '../../../../design/design.dart';
 
 class ClientToolsCard extends StatelessWidget {
   const ClientToolsCard({super.key, required this.clientToolsFuture});

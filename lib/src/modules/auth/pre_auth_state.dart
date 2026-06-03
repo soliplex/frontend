@@ -16,13 +16,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Includes [createdAt] for expiry — states older than [maxAge] are rejected.
 @immutable
 class PreAuthState {
-  const PreAuthState({
+  PreAuthState({
     required this.serverUrl,
     required this.providerId,
     required this.discoveryUrl,
     required this.clientId,
     required this.createdAt,
-  });
+    this.frontendReturnTo,
+  }) {
+    if (frontendReturnTo != null && !_isSafeReturnTo(frontendReturnTo!)) {
+      throw ArgumentError.value(
+        frontendReturnTo,
+        'frontendReturnTo',
+        'must be an in-app path starting with "/" and not "//"',
+      );
+    }
+  }
 
   factory PreAuthState.fromJson(Map<String, dynamic> json) {
     return PreAuthState(
@@ -31,7 +40,14 @@ class PreAuthState {
       discoveryUrl: json['discoveryUrl'] as String,
       clientId: json['clientId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      frontendReturnTo: json['frontendReturnTo'] as String?,
     );
+  }
+
+  static bool _isSafeReturnTo(String value) {
+    if (value.isEmpty) return false;
+    if (value.startsWith('//')) return false;
+    return value.startsWith('/');
   }
 
   final Uri serverUrl;
@@ -40,7 +56,18 @@ class PreAuthState {
   final String clientId;
   final DateTime createdAt;
 
-  static const maxAge = Duration(minutes: 5);
+  /// In-app route the user should be returned to after a successful
+  /// re-auth (e.g. `/room/<alias>/<roomId>`). Null when there's no
+  /// specific return target; the callback falls back to the lobby.
+  ///
+  /// The constructor rejects anything that isn't a relative in-app
+  /// path (open-redirect defense): absolute URLs and `//host/...`
+  /// values throw [ArgumentError] before they can be persisted.
+  final String? frontendReturnTo;
+
+  /// Covers typical OIDC roundtrips: password reset, MFA prompts,
+  /// email magic links.
+  static const maxAge = Duration(minutes: 30);
 
   bool isExpired({DateTime? now}) {
     final currentTime = now ?? DateTime.timestamp();
@@ -53,6 +80,7 @@ class PreAuthState {
         'discoveryUrl': discoveryUrl,
         'clientId': clientId,
         'createdAt': createdAt.toUtc().toIso8601String(),
+        if (frontendReturnTo != null) 'frontendReturnTo': frontendReturnTo,
       };
 
   @override
@@ -62,11 +90,18 @@ class PreAuthState {
       other.providerId == providerId &&
       other.discoveryUrl == discoveryUrl &&
       other.clientId == clientId &&
-      other.createdAt == createdAt;
+      other.createdAt == createdAt &&
+      other.frontendReturnTo == frontendReturnTo;
 
   @override
-  int get hashCode =>
-      Object.hash(serverUrl, providerId, discoveryUrl, clientId, createdAt);
+  int get hashCode => Object.hash(
+        serverUrl,
+        providerId,
+        discoveryUrl,
+        clientId,
+        createdAt,
+        frontendReturnTo,
+      );
 
   @override
   String toString() =>

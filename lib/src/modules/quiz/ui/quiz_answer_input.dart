@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 
 import '../quiz_session.dart';
+import '../../../design/design.dart';
 
 class QuizMultipleChoiceInput extends StatelessWidget {
   const QuizMultipleChoiceInput({
@@ -78,21 +79,21 @@ class _OptionTile extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Material(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(soliplexRadii.sm),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(SoliplexSpacing.s4),
             decoration: BoxDecoration(
               border: Border.all(
                 color: isSelected ? colorScheme.primary : colorScheme.outline,
                 width: isSelected ? 2 : 1,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(soliplexRadii.sm),
             ),
             child: Row(
               children: [

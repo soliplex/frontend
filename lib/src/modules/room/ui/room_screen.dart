@@ -17,8 +17,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         SourceReferenceFormatting,
         buildDocumentFilter;
-import '../../../../soliplex_frontend.dart';
 import '../../../core/routes.dart';
+import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
@@ -45,6 +45,7 @@ import 'thread_sidebar.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
+import '../../../design/design.dart';
 
 const double _sidebarWidth = 280;
 const double _wideBreakpoint = SoliplexBreakpoints.tablet;
@@ -150,6 +151,41 @@ class _RoomScreenState extends State<RoomScreen> {
       _state.selectThread(widget.threadId!);
     } else {
       _autoSelectFirstThread();
+    }
+    unawaited(_restorePersistedComposer());
+  }
+
+  /// Restores a composer draft that was persisted across an
+  /// auth-failure redirect for this `(serverId, roomId)`. No-op if
+  /// the controller already has text (user typed something since
+  /// mount, or another restoration path already populated it).
+  ///
+  /// Storage failures are logged at SEVERE and swallowed; an empty
+  /// composer is the safe fallback.
+  Future<void> _restorePersistedComposer() async {
+    try {
+      final text = await ReturnToStorage.loadComposer(
+        serverId: widget.serverEntry.serverId,
+        roomId: widget.roomId,
+      );
+      if (!mounted || text == null) return;
+      if (_chatController.text.isNotEmpty) return;
+      _chatController.text = text;
+      _chatController.selection =
+          TextSelection.collapsed(offset: _chatController.text.length);
+      // One-shot: clear once restored so subsequent mounts of the same
+      // room don't re-pre-fill the box with stale content.
+      await ReturnToStorage.clearComposer(
+        serverId: widget.serverEntry.serverId,
+        roomId: widget.roomId,
+      );
+    } catch (e, st) {
+      dev.log(
+        'Failed to restore persisted composer draft',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
     }
   }
 
@@ -566,7 +602,7 @@ class _RoomScreenState extends State<RoomScreen> {
             if (chip != null)
               Material(
                 color: theme.colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(soliplexRadii.lg),
                 clipBehavior: Clip.antiAlias,
                 child: chip,
               ),
@@ -625,7 +661,8 @@ class _RoomScreenState extends State<RoomScreen> {
     return InkWell(
       onTap: () => setState(() => _filesExpanded = !_filesExpanded),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -727,7 +764,7 @@ class _RoomScreenState extends State<RoomScreen> {
       UploadsLoading() => Row(
           children: [
             _sectionLabel(label, theme),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             const SizedBox(
               width: 12,
               height: 12,
@@ -747,7 +784,7 @@ class _RoomScreenState extends State<RoomScreen> {
       UploadsFailed(error: final error) => Row(
           children: [
             _sectionLabel(label, theme),
-            const SizedBox(width: 8),
+            const SizedBox(width: SoliplexSpacing.s2),
             Expanded(
               child: Text(
                 'Failed to load: ${uploadErrorMessage(error)}',
@@ -845,9 +882,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 if (errorMessage != null)
                   Text(
                     errorMessage,
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onErrorContainer,
-                      fontSize: 11,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

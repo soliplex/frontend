@@ -4,12 +4,13 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
-import '../core/models/font_config.dart';
-import '../core/models/theme_config.dart';
+import '../design/design.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
-import '../design/design.dart';
+import '../core/models/font_config.dart';
+import '../core/models/theme_config.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
+import '../modules/versions/versions_module.dart';
 import '../modules/auth/auth_module.dart';
 import '../modules/auth/default_backend_url.dart';
 import '../modules/auth/auth_session.dart';
@@ -29,7 +30,6 @@ import '../modules/room/human_approval_extension.dart';
 import '../modules/room/room_module.dart';
 import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
-import '../modules/versions/versions_module.dart';
 
 const _defaultLogoAsset = 'assets/branding/soliplex/logo_1024.png';
 const _logoSize = 64.0;

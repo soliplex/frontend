@@ -1,7 +1,9 @@
 {
   "ignores": [
     ".dart_tool/**",
+    ".fvm/**",
     "linux/**",
-    "windows/**"
+    "windows/**",
+    "design_system/**"
   ]
 }

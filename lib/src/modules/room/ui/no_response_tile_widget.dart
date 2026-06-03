@@ -6,6 +6,7 @@ import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
+import '../../../design/design.dart';
 
 class NoResponseTileWidget extends StatelessWidget {
   const NoResponseTileWidget({
@@ -54,7 +55,7 @@ class NoResponseTileWidget extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: SoliplexSpacing.s1),
         _TerminalReasonBubble(
           reason: message.reason,
           errorDetail: message.errorDetail,
@@ -90,15 +91,17 @@ class _TerminalReasonBubble extends StatelessWidget {
         ),
     };
     return Container(
+      // design-system exception: 14/10 is the documented chat-bubble
+      // padding (see design_system/README.md "the only 14").
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(soliplexRadii.md),
       ),
       child: Row(
         children: [
           Icon(icon, size: 16, color: theme.colorScheme.onTertiaryContainer),
-          const SizedBox(width: 8),
+          const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Text(
               label,

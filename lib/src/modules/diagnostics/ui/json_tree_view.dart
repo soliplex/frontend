@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../soliplex_frontend.dart';
+import '../../../design/design.dart';
 import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.
@@ -12,14 +12,15 @@ class JsonTreeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (nodes.isEmpty) {
+      final theme = Theme.of(context);
       return Text(
         '(empty)',
         style: SoliplexTheme.mergeCode(
           context,
-          Theme.of(context).textTheme.bodySmall,
+          theme.textTheme.bodySmall,
         ).copyWith(
           fontStyle: FontStyle.italic,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          color: theme.colorScheme.onSurfaceVariant,
         ),
       );
     }
@@ -60,7 +61,7 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    final indent = widget.depth * 16.0;
+    final indent = widget.depth * SoliplexSpacing.s4;
 
     return switch (node) {
       ValueNode() => _buildValueRow(context, node, indent),
