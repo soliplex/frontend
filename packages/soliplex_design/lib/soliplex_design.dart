@@ -10,6 +10,7 @@ export 'src/components/input/input.dart';
 export 'src/components/picker/date_picker.dart';
 export 'src/components/picker/time_picker.dart';
 export 'src/effects/glow.dart';
+export 'src/theme/classification_theme.dart';
 export 'src/theme/markdown_theme_extension.dart';
 export 'src/theme/theme.dart';
 export 'src/theme/theme_extensions.dart';
