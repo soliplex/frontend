@@ -544,4 +544,53 @@ void main() {
 
     blockingApi.completeThreads(blockingApi.nextThreads!);
   });
+
+  group('document filter button visibility', () {
+    Future<void> pumpRoom(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          enableDocumentFilter: true,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('hidden when the room has no filterable documents',
+        (tester) async {
+      api.nextDocuments = const [];
+
+      await pumpRoom(tester);
+
+      expect(find.byTooltip('Filter documents'), findsNothing);
+    });
+
+    testWidgets('shown when the room has filterable documents', (tester) async {
+      api.nextDocuments = const [RagDocument(id: '1', title: 'Report.pdf')];
+
+      await pumpRoom(tester);
+
+      expect(find.byTooltip('Filter documents'), findsOneWidget);
+    });
+
+    testWidgets(
+        'shown when the document fetch fails so the affordance '
+        'is not lost on a transient error', (tester) async {
+      api.nextDocumentsError = Exception('network down');
+
+      await pumpRoom(tester);
+
+      expect(find.byTooltip('Filter documents'), findsOneWidget);
+    });
+  });
 }
