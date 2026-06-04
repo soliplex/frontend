@@ -32,6 +32,7 @@ class _GalleryHomeState extends State<GalleryHome> {
     ('Buttons', ButtonGallery()),
     ('Badges', BadgeGallery()),
     ('Chips', ChipGallery()),
+    ('Classification', ClassificationBadgeGallery()),
     ('Inputs', InputGallery()),
     ('Dropdowns', DropdownGallery()),
     ('Pickers', PickerGallery()),
@@ -322,6 +323,98 @@ class BadgeGallery extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+// =====================================================================
+// Classification
+// =====================================================================
+
+/// Sample multi-level theme for the gallery. Neutral placeholders only —
+/// deployments supply their own vocabulary in flavor code; nothing here is
+/// a real-world classification scheme.
+final _sampleClassifications = ClassificationTheme(
+  defaultId: 'public',
+  levels: const [
+    ClassificationLevel(
+      id: 'public',
+      label: 'PUBLIC',
+      background: Color(0xFFDCF3E4),
+      foreground: Color(0xFF1B5E36),
+    ),
+    ClassificationLevel(
+      id: 'internal',
+      label: 'INTERNAL',
+      background: Color(0xFFFDF1D6),
+      foreground: Color(0xFF6B5310),
+      icon: Icons.lock_outline,
+    ),
+    ClassificationLevel(
+      id: 'restricted',
+      label: 'RESTRICTED',
+      background: Color(0xFFF8DAD6),
+      foreground: Color(0xFF7A271F),
+      icon: Icons.lock,
+    ),
+    ClassificationLevel(
+      id: 'partner-confidential',
+      label: 'PARTNER CONFIDENTIAL',
+      background: Color(0xFFE7DEF8),
+      foreground: Color(0xFF3D2A6B),
+      icon: Icons.lock,
+    ),
+  ],
+);
+
+/// Gallery of `SoliplexClassificationBadge` against a sample multi-level
+/// theme. Reused by golden tests. Shows configured levels, the default
+/// (null) marking, a fail-loud unknown id, and a long label wrapping
+/// inside a narrow container.
+class ClassificationBadgeGallery extends StatelessWidget {
+  const ClassificationBadgeGallery({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context);
+    final extensions = List<ThemeExtension<dynamic>>.of(base.extensions.values)
+      ..add(_sampleClassifications);
+    return Theme(
+      data: base.copyWith(extensions: extensions),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Section(
+            title: 'Configured levels',
+            children: [
+              SoliplexClassificationBadge(classification: 'public'),
+              SoliplexClassificationBadge(classification: 'internal'),
+              SoliplexClassificationBadge(classification: 'restricted'),
+              SoliplexClassificationBadge(
+                classification: 'partner-confidential',
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Default (null) + unknown id (fail-loud)',
+            children: [
+              SoliplexClassificationBadge(),
+              SoliplexClassificationBadge(classification: 'totally-unknown'),
+            ],
+          ),
+          _Section(
+            title: 'Long label wraps in a narrow container',
+            children: [
+              SizedBox(
+                width: 96,
+                child: SoliplexClassificationBadge(
+                  classification: 'partner-confidential',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

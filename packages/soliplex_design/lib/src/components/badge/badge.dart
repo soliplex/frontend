@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/components/badge/intent.dart';
+import 'package:soliplex_design/src/components/badge/pill.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
-import 'package:soliplex_design/src/tokens/spacing.dart';
 
 /// An inline status pill — a small rounded surface carrying a short label
 /// and optional leading icon, tinted by [BadgeIntent].
@@ -37,35 +37,15 @@ class SoliplexBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = badgeIntentColors(intent, context);
     final theme = SoliplexTheme.of(context);
-    final textStyle = theme.badgeTheme.textStyle.copyWith(
-      color: colors.foreground,
-    );
 
-    return Container(
+    return BadgePill(
+      label: label,
+      icon: icon,
+      background: colors.background,
+      foreground: colors.foreground,
       padding: theme.badgeTheme.padding,
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: BorderRadius.circular(theme.radii.sm),
-      ),
-      child: DefaultTextStyle.merge(
-        style: textStyle,
-        child: IconTheme.merge(
-          data: IconThemeData(
-            color: colors.foreground,
-            size: textStyle.fontSize,
-          ),
-          child: icon == null
-              ? label
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    icon!,
-                    const SizedBox(width: SoliplexSpacing.s1),
-                    label,
-                  ],
-                ),
-        ),
-      ),
+      radius: theme.radii.sm,
+      textStyle: theme.badgeTheme.textStyle,
     );
   }
 }
