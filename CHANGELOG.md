@@ -8,6 +8,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.88.0+58] - 2026-06-03
+
+### Added
+
+- Design: configurable `ClassificationTheme` with classification resolution
+  logic, a `ClassificationBadge` component, and a `Pill` primitive shared with
+  the badge family.
+- Lobby: show a classification marking on room cards.
+
 ### Changed
 
 - Upgraded within-constraint dependencies: `flutter_appauth` 12.0.1,
