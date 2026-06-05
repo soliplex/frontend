@@ -131,6 +131,20 @@ void main() {
       expect(theme.dividerTheme.thickness, 1);
       expect(theme.cardTheme.elevation, 0);
     });
+
+    test('segmented button uses the md radius, not a stadium border', () {
+      final theme = soliplexLightTheme();
+      final radii = theme.extension<SoliplexTheme>()!.radii;
+
+      final shape =
+          theme.segmentedButtonTheme.style?.shape?.resolve(<WidgetState>{});
+
+      expect(shape, isA<RoundedRectangleBorder>());
+      expect(
+        (shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(radii.md),
+      );
+    });
   });
 
   group('soliplexDarkTheme', () {

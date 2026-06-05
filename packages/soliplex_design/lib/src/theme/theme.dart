@@ -212,6 +212,18 @@ ThemeData _buildTheme({
     toggleButtonsTheme: ToggleButtonsThemeData(
       borderRadius: BorderRadius.circular(soliplexRadii.md),
     ),
+    // Material's M3 default is a StadiumBorder (full pill). Pin the segmented
+    // control to the system's md radius so it matches ToggleButtons and the
+    // rest of the rounded surfaces.
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        shape: WidgetStateProperty.all<OutlinedBorder?>(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(soliplexRadii.md),
+          ),
+        ),
+      ),
+    ),
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: textTheme.bodyMedium,
       menuStyle: MenuStyle(
