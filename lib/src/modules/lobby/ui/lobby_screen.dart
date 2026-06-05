@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' show Room;
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException;
 
+import '../../../core/branding.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
@@ -22,10 +23,14 @@ class LobbyScreen extends StatefulWidget {
   const LobbyScreen({
     super.key,
     required this.serverManager,
+    required this.branding,
     this.apiResolver,
   });
 
   final ServerManager serverManager;
+
+  /// Brand identity for the sidebar header (logo + app name).
+  final SoliplexBranding branding;
 
   /// Test seam forwarded to [LobbyState]; production uses the default
   /// per-entry API resolver.
@@ -105,6 +110,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ? _WideLayout(
                 servers: servers,
                 profiles: profiles,
+                branding: widget.branding,
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
                 onViewModeChanged: _state.setViewMode,
@@ -123,6 +129,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             : _NarrowLayout(
                 servers: servers,
                 profiles: profiles,
+                branding: widget.branding,
                 roomsByServer: roomsByServer,
                 viewMode: viewMode,
                 onViewModeChanged: _state.setViewMode,
@@ -147,6 +154,7 @@ class _WideLayout extends StatelessWidget {
   const _WideLayout({
     required this.servers,
     required this.profiles,
+    required this.branding,
     required this.roomsByServer,
     required this.viewMode,
     required this.onViewModeChanged,
@@ -165,6 +173,7 @@ class _WideLayout extends StatelessWidget {
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
+  final SoliplexBranding branding;
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
@@ -190,6 +199,7 @@ class _WideLayout extends StatelessWidget {
             child: ServerSidebar(
               servers: servers,
               profiles: profiles,
+              branding: branding,
               selectedServerId: selectedServerId,
               onSelectServer: onSelectServer,
               onServerTap: onServerTap,
@@ -224,6 +234,7 @@ class _NarrowLayout extends StatelessWidget {
   const _NarrowLayout({
     required this.servers,
     required this.profiles,
+    required this.branding,
     required this.roomsByServer,
     required this.viewMode,
     required this.onViewModeChanged,
@@ -242,6 +253,7 @@ class _NarrowLayout extends StatelessWidget {
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
+  final SoliplexBranding branding;
   final Map<String, ServerRooms> roomsByServer;
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
@@ -275,6 +287,7 @@ class _NarrowLayout extends StatelessWidget {
           builder: (drawerContext) => ServerSidebar(
             servers: servers,
             profiles: profiles,
+            branding: branding,
             selectedServerId: selectedServerId,
             onSelectServer: (id) {
               onSelectServer(id);

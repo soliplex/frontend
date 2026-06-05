@@ -12,9 +12,20 @@ import 'package:soliplex_client/soliplex_client.dart'
         UrlBuilder;
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
+import 'package:flutter/material.dart';
+import 'package:soliplex_frontend/src/core/branding.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+
+/// Minimal branding for widget tests: a trivial inline logo (no asset
+/// loading) plus placeholder accents and name.
+SoliplexBranding testBranding() => const SoliplexBranding(
+      accentLight: Colors.green,
+      accentDark: Colors.lightGreen,
+      appName: 'Test App',
+      logoLight: Icon(Icons.bolt),
+    );
 
 /// Minimal HTTP client with configurable responses.
 ///

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_frontend/src/core/branding.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
+import 'package:soliplex_frontend/version.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -18,6 +20,7 @@ ServerManager _createManager() => ServerManager(
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
   Map<String, UserProfile?> profiles = const {},
+  SoliplexBranding? branding,
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
   VoidCallback? onServerTap,
@@ -30,6 +33,7 @@ Widget _buildSidebar({
       body: ServerSidebar(
         servers: servers,
         profiles: profiles,
+        branding: branding ?? testBranding(),
         selectedServerId: selectedServerId,
         onSelectServer: onSelectServer ?? (_) {},
         onServerTap: onServerTap ?? () {},
@@ -43,6 +47,15 @@ Widget _buildSidebar({
 
 void main() {
   group('ServerSidebar', () {
+    testWidgets('header shows the brand logo, app name, and version',
+        (tester) async {
+      await tester.pumpWidget(_buildSidebar(servers: const {}));
+
+      expect(find.byType(BrandLogo), findsOneWidget);
+      expect(find.text('Test App'), findsOneWidget);
+      expect(find.text('v$soliplexVersion'), findsOneWidget);
+    });
+
     testWidgets('displays connected servers with formatted URLs',
         (tester) async {
       final manager = _createManager();
