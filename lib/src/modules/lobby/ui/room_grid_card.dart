@@ -22,6 +22,9 @@ class RoomGridCard extends StatelessWidget {
     final theme = Theme.of(context);
     final radius = BorderRadius.circular(soliplexRadii.md);
     return Card(
+      // The grid's Wrap owns all spacing (s3 run/cross gaps); drop the
+      // default card margin so each card fills its cell cleanly.
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
         borderRadius: radius,

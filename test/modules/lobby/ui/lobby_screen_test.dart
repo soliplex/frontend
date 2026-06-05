@@ -56,7 +56,7 @@ void main() {
   group('LobbyScreen', () {
     testWidgets('shows sidebar on wide viewport with Add Server visible',
         (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -106,7 +106,7 @@ void main() {
 
     testWidgets('shows empty state CTA when no servers connected',
         (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -126,7 +126,7 @@ void main() {
         // give the user a way to recover. A regression that removed
         // the button or mis-wired its onPressed would re-introduce
         // the "invisible expired server" bug this commit fixes.
-        tester.view.physicalSize = const Size(800, 600);
+        tester.view.physicalSize = const Size(900, 600);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
 
@@ -177,7 +177,7 @@ void main() {
 
     testWidgets('toggle switches loaded rooms from list to grid cards',
         (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -208,7 +208,7 @@ void main() {
       SharedPreferences.setMockInitialValues(
         {'soliplex_lobby_view_mode': 'grid'},
       );
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -230,7 +230,7 @@ void main() {
 
     testWidgets('search filters rooms by name within the section',
         (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -260,7 +260,7 @@ void main() {
 
     testWidgets('shows no-match copy when the filter excludes everything',
         (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -284,7 +284,7 @@ void main() {
     });
 
     testWidgets('clear button resets the filter', (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -314,7 +314,7 @@ void main() {
     });
 
     testWidgets('hiding a server removes its rooms section', (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -343,7 +343,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'soliplex_lobby_hidden_servers': ['local'],
       });
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 

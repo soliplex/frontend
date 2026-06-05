@@ -17,7 +17,6 @@ import 'server_sidebar.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 240;
-const double _wideBreakpoint = 600;
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({
@@ -99,7 +98,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final hiddenServerIds = _state.hiddenServerIds.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
+        // Persistent sidebar / two-pane layout is a desktop affordance; the
+        // tablet band (600–840) uses the drawer, per the design spec.
+        final isWide = constraints.maxWidth >= SoliplexBreakpoints.desktop;
         return isWide
             ? _WideLayout(
                 servers: servers,
@@ -621,15 +622,20 @@ class _ServerSection extends StatelessWidget {
     }
 
     return switch (viewMode) {
-      LobbyViewMode.list => Column(
-          children: [
-            for (final room in matches)
-              RoomCard(
-                room: room,
-                onTap: () => onRoomTap(serverId, room.id),
-                onInfoTap: () => onInfoTap(serverId, room.id),
-              ),
-          ],
+      LobbyViewMode.list => Padding(
+          // Match the section heading and the grid's s4 gutter so list rows
+          // align with everything around them instead of hugging the edge.
+          padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+          child: Column(
+            children: [
+              for (final room in matches)
+                RoomCard(
+                  room: room,
+                  onTap: () => onRoomTap(serverId, room.id),
+                  onInfoTap: () => onInfoTap(serverId, room.id),
+                ),
+            ],
+          ),
         ),
       LobbyViewMode.grid => _RoomGrid(
           serverId: serverId,

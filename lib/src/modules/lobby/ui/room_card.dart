@@ -17,6 +17,9 @@ class RoomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      // The list owns the horizontal gutter; the card owns only the 12px
+      // (s3) inter-row gap, matching the design mockup's list tiles.
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
       child: ListTile(
         title: Text(room.name),
         subtitle: room.description.isNotEmpty ? Text(room.description) : null,
