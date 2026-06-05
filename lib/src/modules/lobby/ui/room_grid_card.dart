@@ -32,7 +32,11 @@ class RoomGridCard extends StatelessWidget {
           padding: const EdgeInsets.all(SoliplexSpacing.s3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            // Fill the cell height the grid hands us so a row of cards reads
+            // as a regular block; the footer is then pinned to the bottom via
+            // the Spacer below. The grid (or any host) must give this card a
+            // bounded height — see _RoomGrid in lobby_screen.dart.
+            mainAxisSize: MainAxisSize.max,
             children: [
               Row(
                 children: [
@@ -66,7 +70,10 @@ class RoomGridCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
+              // Minimum gap above the footer, then a Spacer so the footer
+              // sits at the bottom of a taller-than-content card.
               const SizedBox(height: SoliplexSpacing.s2),
+              const Spacer(),
               Row(
                 children: [
                   // Bottom-left marking; renders nothing until a deployment

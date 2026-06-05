@@ -672,20 +672,48 @@ class _RoomGrid extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = SoliplexSpacing.s3;
-          final layout = roomGridLayout(constraints.maxWidth, spacing: spacing);
-          return Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: [
-              for (final room in rooms)
-                SizedBox(
-                  width: layout.cellWidth,
-                  child: RoomGridCard(
-                    room: room,
-                    onTap: () => onRoomTap(serverId, room.id),
-                    onInfoTap: () => onInfoTap(serverId, room.id),
-                  ),
+          final columns =
+              roomGridLayout(constraints.maxWidth, spacing: spacing).columns;
+          // Lay the cards out as explicit rows rather than a Wrap so each row
+          // can be wrapped in an IntrinsicHeight: cards in the same row then
+          // share the tallest one's height and read as a regular grid,
+          // instead of each sizing to its own text. Cells stretch and the
+          // last row is padded with empty slots to keep widths uniform.
+          final rows = <Widget>[];
+          for (var start = 0; start < rooms.length; start += columns) {
+            final end =
+                start + columns < rooms.length ? start + columns : rooms.length;
+            final rowRooms = rooms.sublist(start, end);
+            rows.add(
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < columns; i++) ...[
+                      if (i > 0) const SizedBox(width: spacing),
+                      Expanded(
+                        child: i < rowRooms.length
+                            ? RoomGridCard(
+                                room: rowRooms[i],
+                                onTap: () =>
+                                    onRoomTap(serverId, rowRooms[i].id),
+                                onInfoTap: () =>
+                                    onInfoTap(serverId, rowRooms[i].id),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
+            );
+          }
+          return Column(
+            children: [
+              for (var r = 0; r < rows.length; r++) ...[
+                if (r > 0) const SizedBox(height: spacing),
+                rows[r],
+              ],
             ],
           );
         },
