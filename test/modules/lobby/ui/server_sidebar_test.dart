@@ -90,36 +90,31 @@ void main() {
       expect(find.text('No authentication required'), findsOneWidget);
     });
 
-    testWidgets('the more menu routes Home / Network Inspector / Versions',
+    testWidgets('the more menu routes Network Inspector / Versions',
         (tester) async {
-      var home = 0;
       var inspector = 0;
       var versions = 0;
 
       await tester.pumpWidget(_buildSidebar(
         servers: const {},
-        onAddServer: () => home++,
         onNetworkInspector: () => inspector++,
         onVersions: () => versions++,
       ));
 
-      // Actions are collapsed behind the ⋮ menu, not shown inline.
+      // Open the menu: no "Home" item (the Add Server button already routes
+      // home), and selecting Network Inspector routes and closes it.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
       expect(find.text('Home'), findsNothing);
-
-      Future<void> selectMenu(String label) async {
-        await tester.tap(find.byIcon(Icons.more_vert));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text(label));
-        await tester.pumpAndSettle();
-      }
-
-      await selectMenu('Home');
-      expect(home, 1);
-
-      await selectMenu('Network Inspector');
+      await tester.tap(find.text('Network Inspector'));
+      await tester.pumpAndSettle();
       expect(inspector, 1);
 
-      await selectMenu('Versions');
+      // Reopen for Versions.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Versions'));
+      await tester.pumpAndSettle();
       expect(versions, 1);
     });
 

@@ -48,30 +48,32 @@ class ServerSidebar extends StatelessWidget {
         selectedServerId == null ? null : servers[selectedServerId];
     final selectedProfile =
         selectedServerId == null ? null : profiles[selectedServerId];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _BrandHeader(branding: branding),
-        const Divider(height: 1),
-        Expanded(
-          child: _ServerList(
-            servers: servers,
-            profiles: profiles,
-            selectedServerId: selectedServerId,
-            onSelectServer: onSelectServer,
-            onServerTap: onServerTap,
-            onAddServer: onAddServer,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BrandHeader(branding: branding),
+          const Divider(height: 1),
+          Expanded(
+            child: _ServerList(
+              servers: servers,
+              profiles: profiles,
+              selectedServerId: selectedServerId,
+              onSelectServer: onSelectServer,
+              onServerTap: onServerTap,
+              onAddServer: onAddServer,
+            ),
           ),
-        ),
-        const Divider(height: 1),
-        _AccountBar(
-          entry: selectedEntry,
-          profile: selectedProfile,
-          onHome: onAddServer,
-          onNetworkInspector: onNetworkInspector,
-          onVersions: onVersions,
-        ),
-      ],
+          const Divider(height: 1),
+          _AccountBar(
+            entry: selectedEntry,
+            profile: selectedProfile,
+            onNetworkInspector: onNetworkInspector,
+            onVersions: onVersions,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -103,7 +105,7 @@ class _BrandHeader extends StatelessWidget {
               child: BrandLogo(branding: branding),
             ),
           ),
-          const SizedBox(width: SoliplexSpacing.s4),
+          const SizedBox(width: SoliplexSpacing.s6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,9 +184,7 @@ class _ServerList extends StatelessWidget {
             onTap: () => onSelectServer(entry.key),
           ),
         Padding(
-          // s3 above lifts the button off the last server tile.
-          padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s2,
-              SoliplexSpacing.s3, SoliplexSpacing.s2, SoliplexSpacing.s2),
+          padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
           child: SoliplexButton.outlined(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
@@ -243,9 +243,10 @@ class _ServerTile extends StatelessWidget {
 }
 
 /// The actions collapsed behind the sidebar's "more" (⋮) menu. These are
-/// mostly developer/utility destinations, deliberately de-emphasised vs. the
-/// account block they sit beside.
-enum _SidebarAction { home, networkInspector, versions }
+/// developer/utility destinations, deliberately de-emphasised vs. the account
+/// block they sit beside. ("Home" is intentionally absent — the Add Server
+/// button already routes to the home screen.)
+enum _SidebarAction { networkInspector, versions }
 
 /// Sidebar footer: the signed-in account on the left, a ⋮ menu of utility
 /// actions on the right.
@@ -253,21 +254,17 @@ class _AccountBar extends StatelessWidget {
   const _AccountBar({
     required this.entry,
     required this.profile,
-    required this.onHome,
     required this.onNetworkInspector,
     required this.onVersions,
   });
 
   final ServerEntry? entry;
   final UserProfile? profile;
-  final VoidCallback onHome;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
 
   void _onSelected(_SidebarAction action) {
     switch (action) {
-      case _SidebarAction.home:
-        onHome();
       case _SidebarAction.networkInspector:
         onNetworkInspector();
       case _SidebarAction.versions:
@@ -278,8 +275,8 @@ class _AccountBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4, SoliplexSpacing.s2,
-          SoliplexSpacing.s2, SoliplexSpacing.s2),
+      padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s2, SoliplexSpacing.s2, 0, SoliplexSpacing.s2),
       child: Row(
         children: [
           Expanded(child: _AccountBlock(entry: entry, profile: profile)),
@@ -289,10 +286,6 @@ class _AccountBar extends StatelessWidget {
             tooltip: 'More',
             onSelected: _onSelected,
             itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _SidebarAction.home,
-                child: _MenuRow(icon: Icons.home_outlined, label: 'Home'),
-              ),
               PopupMenuItem(
                 value: _SidebarAction.networkInspector,
                 child: _MenuRow(
