@@ -74,6 +74,11 @@ class ServerSidebar extends StatelessWidget {
 class _BrandHeader extends StatelessWidget {
   const _BrandHeader({required this.branding});
 
+  /// Logo box height. Kept close to the title + version block so the mark
+  /// reads as part of the header rather than dominating it; the flavor's
+  /// logo is scaled to fit regardless of its intrinsic size.
+  static const double _logoSize = 40;
+
   final SoliplexBranding branding;
 
   @override
@@ -83,8 +88,14 @@ class _BrandHeader extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s4),
       child: Row(
         children: [
-          BrandLogo(branding: branding),
-          const SizedBox(width: SoliplexSpacing.s3),
+          SizedBox.square(
+            dimension: _logoSize,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: BrandLogo(branding: branding),
+            ),
+          ),
+          const SizedBox(width: SoliplexSpacing.s4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +174,9 @@ class _ServerList extends StatelessWidget {
             onTap: () => onSelectServer(entry.key),
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
+          // s3 above lifts the button off the last server tile.
+          padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s2,
+              SoliplexSpacing.s3, SoliplexSpacing.s2, SoliplexSpacing.s2),
           child: SoliplexButton.outlined(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
