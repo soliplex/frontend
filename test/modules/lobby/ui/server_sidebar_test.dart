@@ -90,32 +90,37 @@ void main() {
       expect(find.text('No authentication required'), findsOneWidget);
     });
 
-    testWidgets('Home action button fires the add-server callback',
+    testWidgets('the more menu routes Home / Network Inspector / Versions',
         (tester) async {
-      var addTapped = false;
+      var home = 0;
+      var inspector = 0;
+      var versions = 0;
 
       await tester.pumpWidget(_buildSidebar(
         servers: const {},
-        onAddServer: () => addTapped = true,
+        onAddServer: () => home++,
+        onNetworkInspector: () => inspector++,
+        onVersions: () => versions++,
       ));
 
-      expect(find.text('Home'), findsOneWidget);
-      await tester.tap(find.text('Home'));
-      expect(addTapped, isTrue);
-    });
+      // Actions are collapsed behind the ⋮ menu, not shown inline.
+      expect(find.text('Home'), findsNothing);
 
-    testWidgets('shows Network Inspector button that fires callback',
-        (tester) async {
-      var inspectorTapped = false;
+      Future<void> selectMenu(String label) async {
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+      }
 
-      await tester.pumpWidget(_buildSidebar(
-        servers: const {},
-        onNetworkInspector: () => inspectorTapped = true,
-      ));
+      await selectMenu('Home');
+      expect(home, 1);
 
-      expect(find.text('Network Inspector'), findsOneWidget);
-      await tester.tap(find.text('Network Inspector'));
-      expect(inspectorTapped, isTrue);
+      await selectMenu('Network Inspector');
+      expect(inspector, 1);
+
+      await selectMenu('Versions');
+      expect(versions, 1);
     });
 
     testWidgets(
@@ -220,6 +225,103 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
       expect(managed, isTrue);
+    });
+
+    group('account block', () {
+      ServerEntry addServer(ServerManager m, {required bool requiresAuth}) =>
+          m.addServer(
+            serverId: 'srv',
+            serverUrl: Uri.parse('https://api.example.com'),
+            requiresAuth: requiresAuth,
+          );
+
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      testWidgets('shows Guest for a no-auth server', (tester) async {
+        final manager = _createManager();
+        addServer(manager, requiresAuth: false);
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+        ));
+
+        expect(find.text('Guest'), findsOneWidget);
+        expect(find.text('G'), findsOneWidget);
+      });
+
+      testWidgets('shows Guest when auth is required but not signed in',
+          (tester) async {
+        final manager = _createManager();
+        addServer(manager, requiresAuth: true); // session is NoSession
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+        ));
+
+        expect(find.text('Guest'), findsOneWidget);
+      });
+
+      testWidgets('shows the signed-in name, email, and initial',
+          (tester) async {
+        final manager = _createManager();
+        final entry = addServer(manager, requiresAuth: true);
+        signIn(entry);
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+          profiles: const {
+            'srv': UserProfile(
+              givenName: 'Ada',
+              familyName: 'Lovelace',
+              email: 'ada@example.com',
+              preferredUsername: 'ada',
+            ),
+          },
+        ));
+
+        // The name renders in both the account block and the selected
+        // server's tile subtitle; the email and avatar initial are unique to
+        // the account block.
+        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        expect(find.text('ada@example.com'), findsOneWidget);
+        expect(find.text('A'), findsOneWidget); // avatar initial
+      });
+
+      testWidgets('falls back to preferred_username when no full name',
+          (tester) async {
+        final manager = _createManager();
+        final entry = addServer(manager, requiresAuth: true);
+        signIn(entry);
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          selectedServerId: 'srv',
+          profiles: const {
+            'srv': UserProfile(
+              givenName: '',
+              familyName: '',
+              email: '',
+              preferredUsername: 'ada99',
+            ),
+          },
+        ));
+
+        expect(find.text('ada99'), findsOneWidget);
+        expect(find.text('A'), findsOneWidget);
+      });
     });
   });
 }
