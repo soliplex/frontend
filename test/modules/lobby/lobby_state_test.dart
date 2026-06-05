@@ -8,8 +8,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
-import 'package:soliplex_frontend/src/modules/lobby/hidden_servers_storage.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
+import 'package:soliplex_frontend/src/modules/lobby/selected_server_storage.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -936,31 +936,76 @@ void main() {
       });
     });
 
-    group('hiddenServerIds', () {
-      test('defaults to empty; toggle adds then removes and persists',
-          () async {
-        final state = LobbyState(serverManager: _createManager());
+    group('selectedServerId', () {
+      ServerManager managerWith(List<String> ids) {
+        final manager = _createManager();
+        for (final id in ids) {
+          manager.addServer(
+            serverId: id,
+            serverUrl: Uri.parse('http://$id:8000'),
+            requiresAuth: false,
+          );
+        }
+        return manager;
+      }
+
+      LobbyState stateFor(ServerManager manager) => LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
+          );
+
+      test('defaults to the first server once loaded', () async {
+        final state = stateFor(managerWith(['a', 'b']));
         await Future<void>.delayed(Duration.zero);
-        expect(state.hiddenServerIds.value, isEmpty);
+        expect(state.selectedServerId.value, 'a');
+        state.dispose();
+      });
 
-        state.toggleServerHidden('srv-1');
-        expect(state.hiddenServerIds.value, {'srv-1'});
-        expect(await HiddenServersStorage.load(), {'srv-1'});
+      test('restores the persisted selection when it still exists', () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
 
-        state.toggleServerHidden('srv-1');
-        expect(state.hiddenServerIds.value, isEmpty);
-        expect(await HiddenServersStorage.load(), isEmpty);
+      test('falls back to first when the persisted selection is gone',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'gone',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'a');
+        state.dispose();
+      });
+
+      test('selectServer updates the signal and persists the choice', () async {
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+
+        state.selectServer('b');
+        expect(state.selectedServerId.value, 'b');
+        await Future<void>.delayed(Duration.zero);
+        expect(await SelectedServerStorage.load(), 'b');
 
         state.dispose();
       });
 
-      test('adopts the persisted hidden set after async load', () async {
-        SharedPreferences.setMockInitialValues({
-          'soliplex_lobby_hidden_servers': ['srv-1', 'srv-2'],
-        });
-        final state = LobbyState(serverManager: _createManager());
+      test(
+          'falls back to the first remaining server when the selected '
+          'one is removed', () async {
+        final manager = managerWith(['a', 'b']);
+        final state = stateFor(manager);
         await Future<void>.delayed(Duration.zero);
-        expect(state.hiddenServerIds.value, {'srv-1', 'srv-2'});
+        state.selectServer('a');
+
+        manager.removeServer('a');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.selectedServerId.value, 'b');
         state.dispose();
       });
     });

@@ -9,8 +9,8 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
-import 'hidden_servers_storage.dart';
 import 'lobby_view_mode.dart';
+import 'selected_server_storage.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -63,7 +63,7 @@ class LobbyState {
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
-    unawaited(_loadHiddenServers());
+    unawaited(_loadSelectedServer());
   }
 
   final ServerManager _serverManager;
@@ -125,22 +125,75 @@ class LobbyState {
 
   void setSearchQuery(String query) => _searchQuery.value = query;
 
-  /// Server IDs whose rooms are hidden from the lobby content. Persisted
-  /// across launches; the servers stay in the sidebar so visibility can be
-  /// toggled back on.
-  final Signal<Set<String>> _hiddenServerIds = Signal(const {});
-  ReadonlySignal<Set<String>> get hiddenServerIds => _hiddenServerIds;
+  /// The server whose rooms are shown in the main pane. `null` only before
+  /// the first server is known. The selection is persisted across launches.
+  final Signal<String?> _selectedServerId = Signal<String?>(null);
+  ReadonlySignal<String?> get selectedServerId => _selectedServerId;
 
-  Future<void> _loadHiddenServers() async {
-    _hiddenServerIds.value = await HiddenServersStorage.load();
+  /// Set once [_loadSelectedServer] has resolved. Until then the persisted
+  /// load owns the initial selection, so [_reconcileSelection] must not
+  /// race ahead and auto-pick the first server (which would shadow a
+  /// still-loading persisted choice).
+  bool _selectionInitialized = false;
+
+  /// Restores the persisted selection if it still maps to a known server,
+  /// else falls back to the first available server (or `null` when there
+  /// are none).
+  Future<void> _loadSelectedServer() async {
+    String? persisted;
+    try {
+      persisted = await SelectedServerStorage.load();
+    } catch (error, st) {
+      dev.log(
+        'Failed to load selected server',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+    final servers = _serverManager.servers.value;
+    final restored = (persisted != null && servers.containsKey(persisted))
+        ? persisted
+        : (servers.isNotEmpty ? servers.keys.first : null);
+    _selectionInitialized = true;
+    if (restored != _selectedServerId.value) {
+      _selectedServerId.value = restored;
+    }
   }
 
-  /// Toggles whether [serverId]'s rooms are shown, persisting the change.
-  void toggleServerHidden(String serverId) {
-    final next = Set<String>.from(_hiddenServerIds.value);
-    if (!next.add(serverId)) next.remove(serverId);
-    _hiddenServerIds.value = next;
-    HiddenServersStorage.save(next);
+  /// Selects [serverId] as the viewed server and persists the choice.
+  void selectServer(String serverId) {
+    if (serverId == _selectedServerId.value) return;
+    _selectedServerId.value = serverId;
+    _persistSelection(serverId);
+  }
+
+  /// Keeps the selection valid as the server set changes: an explicit,
+  /// still-present selection is left alone; otherwise it falls back to the
+  /// first server (or `null`). No-op until the persisted load has resolved.
+  void _reconcileSelection(Map<String, ServerEntry> servers) {
+    if (!_selectionInitialized) return;
+    final current = _selectedServerId.value;
+    if (current != null && servers.containsKey(current)) return;
+    final next = servers.isEmpty ? null : servers.keys.first;
+    if (next != current) {
+      _selectedServerId.value = next;
+      _persistSelection(next);
+    }
+  }
+
+  void _persistSelection(String? serverId) {
+    unawaited(
+      SelectedServerStorage.save(serverId)
+          .catchError((Object e, StackTrace st) {
+        dev.log(
+          'Failed to persist selected server',
+          error: e,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
   }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
@@ -198,6 +251,8 @@ class LobbyState {
         _fetchUserProfile(id, entry);
       }
     }
+
+    _reconcileSelection(servers);
   }
 
   void _onAuthChanged(String serverId, ServerEntry entry) {

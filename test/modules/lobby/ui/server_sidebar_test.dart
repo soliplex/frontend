@@ -18,8 +18,8 @@ ServerManager _createManager() => ServerManager(
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
   Map<String, UserProfile?> profiles = const {},
-  Set<String> hiddenServerIds = const {},
-  void Function(String serverId)? onToggleHidden,
+  String? selectedServerId,
+  void Function(String serverId)? onSelectServer,
   VoidCallback? onServerTap,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
@@ -30,8 +30,8 @@ Widget _buildSidebar({
       body: ServerSidebar(
         servers: servers,
         profiles: profiles,
-        hiddenServerIds: hiddenServerIds,
-        onToggleHidden: onToggleHidden ?? (_) {},
+        selectedServerId: selectedServerId,
+        onSelectServer: onSelectServer ?? (_) {},
         onServerTap: onServerTap ?? () {},
         onAddServer: onAddServer ?? () {},
         onNetworkInspector: onNetworkInspector ?? () {},
@@ -147,7 +147,7 @@ void main() {
       },
     );
 
-    testWidgets('eye button fires onToggleHidden with the server id',
+    testWidgets('tapping a server tile fires onSelectServer with its id',
         (tester) async {
       final manager = _createManager();
       manager.addServer(
@@ -156,20 +156,41 @@ void main() {
         requiresAuth: false,
       );
 
-      String? toggled;
+      String? selected;
       await tester.pumpWidget(_buildSidebar(
         servers: manager.servers.value,
-        onToggleHidden: (id) => toggled = id,
+        onSelectServer: (id) => selected = id,
       ));
 
-      // Visible server shows the "visibility" (eye) icon.
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.visibility));
-      expect(toggled, 'http://srv1.test');
+      await tester.tap(find.text('http://srv1.test'));
+      expect(selected, 'http://srv1.test');
     });
 
-    testWidgets('hidden server renders the visibility_off icon',
-        (tester) async {
+    testWidgets('the selected server tile is marked selected', (tester) async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'http://srv1.test',
+        serverUrl: Uri.parse('http://srv1.test'),
+        requiresAuth: false,
+      );
+      manager.addServer(
+        serverId: 'http://srv2.test',
+        serverUrl: Uri.parse('http://srv2.test'),
+        requiresAuth: false,
+      );
+
+      await tester.pumpWidget(_buildSidebar(
+        servers: manager.servers.value,
+        selectedServerId: 'http://srv2.test',
+      ));
+
+      ListTile tileFor(String url) =>
+          tester.widget<ListTile>(find.widgetWithText(ListTile, url));
+      expect(tileFor('http://srv2.test').selected, isTrue);
+      expect(tileFor('http://srv1.test').selected, isFalse);
+    });
+
+    testWidgets('manage-servers button fires onServerTap', (tester) async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'http://srv1.test',
@@ -177,13 +198,14 @@ void main() {
         requiresAuth: false,
       );
 
+      var managed = false;
       await tester.pumpWidget(_buildSidebar(
         servers: manager.servers.value,
-        hiddenServerIds: const {'http://srv1.test'},
+        onServerTap: () => managed = true,
       ));
 
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.visibility), findsNothing);
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      expect(managed, isTrue);
     });
   });
 }
