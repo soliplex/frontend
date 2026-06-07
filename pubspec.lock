@@ -13,7 +13,7 @@ packages:
     dependency: transitive
     description:
       path: "sdks/community/dart"
-      ref: HEAD
+      ref: d4552e3ad0d5e33e34a3df5325260d88ede8bff9
       resolved-ref: d4552e3ad0d5e33e34a3df5325260d88ede8bff9
       url: "https://github.com/ag-ui-protocol/ag-ui.git"
     source: git
