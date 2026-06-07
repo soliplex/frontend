@@ -12,6 +12,12 @@ dependencies:
     git:
       url: https://github.com/ag-ui-protocol/ag-ui.git
       path: sdks/community/dart
+      # Pin to a fixed ref. Without it the dep floats to upstream HEAD: a
+      # fresh resolution (e.g. an external consumer with no lockfile) pulls
+      # ag_ui 0.3.0, which retyped ActivitySnapshotEvent.content from
+      # Map<String, dynamic> to Object? and fails to web-compile here. This
+      # is the commit already in pubspec.lock, so behavior is unchanged.
+      ref: d4552e3ad0d5e33e34a3df5325260d88ede8bff9
   collection: ^1.19.1
   http: ^1.2.0
   meta: ^1.9.0
