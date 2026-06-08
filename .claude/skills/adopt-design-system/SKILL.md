@@ -1,14 +1,13 @@
 ---
 name: adopt-design-system
 description: >-
-  Migrate a whitelabel fork's custom UI onto the soliplex_design system and
-  the SoliplexBranding API. Use when a fork or downstream deployment has its
-  own hand-rolled theming, hex colors, magic spacing, raw Material widgets, or
-  a custom ThemeData, and wants to adopt Soliplex tokens, branded components,
-  and per-flavor branding (light/dark accents, logo, app name). Triggers:
-  "adopt the design system", "migrate our fork to soliplex_design",
-  "whitelabel branding", "replace our custom theme", "switch to Soliplex
-  tokens".
+  Use when a whitelabel fork or downstream deployment has its own hand-rolled
+  theming — a custom ThemeData/ColorScheme, hex color literals, magic
+  spacing/radii, raw Material widgets, or font-family strings — and wants to
+  adopt soliplex_design tokens, branded components, and per-flavor
+  SoliplexBranding (light/dark accents, logo, app name). Triggers: "adopt the
+  design system", "migrate our fork to soliplex_design", "whitelabel branding",
+  "replace our custom theme", "switch to Soliplex tokens".
 ---
 
 # Adopt the Soliplex design system
@@ -41,10 +40,10 @@ Run the bundled scanner against the fork's UI (default target `lib`):
 ```
 
 It reports every hard-rule candidate as `file:line:match` and exits non-zero
-when any are found, so it also works as a CI gate. The scanner over-reports by
-design — treat each hit as something to review, not an automatic defect. The
-spacing/breakpoint section is advisory because token values and raw numbers
-look alike; those need human eyes.
+when any are found. The scanner over-reports by design — treat each hit as
+something to review, not an automatic defect. The spacing/breakpoint section
+is advisory because token values and raw numbers look alike; those need human
+eyes.
 
 Group the findings by rule before editing so the migration is systematic, not
 file-by-file whack-a-mole.
@@ -147,7 +146,7 @@ Run from the fork root and resolve everything before opening the PR:
 1. `dart format .` (or `mcp__dart__dart_format`)
 2. `flutter analyze` — **zero** warnings (or `mcp__dart__analyze_files`)
 3. `flutter test --reporter failures-only` — fix any golden/widget drift
-4. Re-run `audit.sh lib` — it should now report no violations
+4. Re-run `audit.sh lib` — the sanctioned brand-accent hex is expected; review any other hits
 5. `markdownlint-cli2 "**/*.md" "#node_modules"` if any `.md` changed
 
 Then walk the adoption checklist (also in `packages/soliplex_design/README.md`):

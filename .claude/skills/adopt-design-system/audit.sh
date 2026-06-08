@@ -10,10 +10,12 @@
 # system, only banned in consumers. Generated files (*.g.dart, *.freezed.dart,
 # *.gen.dart) are skipped too.
 #
-# Uses plain `grep` so it runs on any machine with no extra tooling. Exit
-# status is non-zero when any violation is found, so the script doubles as a
-# CI gate. Each finding prints `file:line:match`; review every hit and migrate
-# it per the mapping table in SKILL.md.
+# Uses plain `grep` so it runs on any machine with no extra tooling. Each
+# finding prints `file:line:match`; review every hit and migrate it per the
+# mapping table in SKILL.md. Exit status is non-zero when any candidate is
+# found, but sanctioned residuals (e.g. a brand accent written as a raw
+# `Color(0x...)` literal) keep it non-zero on a clean repo — so it surfaces
+# candidates for review, not a pass/fail CI gate.
 
 set -uo pipefail
 
@@ -36,7 +38,7 @@ found=0
 RULES=(
   "Hex color literal (use colorScheme/SoliplexTheme tokens)|Color\(0x|Color\.fromARGB|Color\.fromRGBO"
   "Material status color (use SymbolicColors: danger/success/warning/info)|Colors\.(red|green|orange|blue|yellow)"
-  "Raw border radius (use SoliplexTheme.of(context).radii.*)|BorderRadius\.circular\("
+  "Raw border radius (use SoliplexTheme.of(context).radii.*)|BorderRadius\.circular\( *[0-9]"
   "Hardcoded font size (start from textTheme + copyWith)|fontSize:"
   "Font-family string literal (use context.monospace)|fontFamily: *['\"](monospace|Roboto Mono|SF Mono|Menlo)"
   "Material widget with a Soliplex wrapper (prefer SoliplexX)|\b(FilledButton|OutlinedButton|TextButton|ActionChip|FilterChip|TextField|TextFormField|DropdownMenu)\b"
