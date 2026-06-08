@@ -31,6 +31,19 @@ class _BlockingThreadsApi extends FakeSoliplexApi {
       _completer.future;
 }
 
+/// Holds `room-1`'s document fetch open until [firstRoomDocuments] is
+/// completed, while every other room resolves immediately to an empty corpus.
+class _StaleDocumentsApi extends FakeSoliplexApi {
+  final firstRoomDocuments = Completer<List<RagDocument>>();
+
+  @override
+  Future<List<RagDocument>> getDocuments(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) =>
+      roomId == 'room-1' ? firstRoomDocuments.future : Future.value(const []);
+}
+
 Widget _buildRouted({
   required ServerEntry entry,
   required AgentRuntimeManager runtimeManager,
@@ -591,6 +604,49 @@ void main() {
       await pumpRoom(tester);
 
       expect(find.byTooltip('Filter documents'), findsOneWidget);
+    });
+
+    testWidgets(
+        'a slow fetch from the previous room cannot reveal the button '
+        'after switching to an empty room', (tester) async {
+      final staleApi = _StaleDocumentsApi()
+        ..nextThreads = const []
+        ..nextThreadHistory = ThreadHistory(messages: const []);
+      final staleEntry = createTestServerEntry(api: staleApi);
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      Widget roomScreen(String roomId) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: staleEntry,
+              roomId: roomId,
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              enableDocumentFilter: true,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      // room-1's fetch is in flight and held open by the completer.
+      await tester.pumpWidget(roomScreen('room-1'));
+      await tester.pumpAndSettle();
+
+      // Switch to room-2, which resolves to an empty corpus.
+      await tester.pumpWidget(roomScreen('room-2'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Filter documents'), findsNothing);
+
+      // room-1's now-stale fetch resolves with documents; it must not
+      // resurrect the button for the empty room-2.
+      staleApi.firstRoomDocuments
+          .complete(const [RagDocument(id: '1', title: 'Report.pdf')]);
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Filter documents'), findsNothing);
     });
   });
 }
