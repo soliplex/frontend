@@ -1,6 +1,11 @@
 /// Modular Flutter frontend framework for Soliplex.
 library;
 
+// General design-system theming primitives, re-exported so consumers that
+// depend only on this package can build a ThemeData (with the classification
+// ThemeExtension) without taking a direct dependency on soliplex_design.
+export 'package:soliplex_design/soliplex_design.dart'
+    show ClassificationLevel, ClassificationTheme;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 export 'src/core/branding.dart' show BrandLogo, SoliplexBranding;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
