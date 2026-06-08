@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
+        CancelToken,
         MalformedResponseException,
         RagDocument,
         ReconnectFailed,
@@ -99,6 +100,25 @@ class _RoomScreenState extends State<RoomScreen> {
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
+  /// Whether the room exposes any filterable documents/datasets. Resolved
+  /// asynchronously by [_refreshFilterableDocuments]; starts `false` so the
+  /// filter button pops in once a non-empty corpus is confirmed rather than
+  /// flashing and disappearing for empty rooms.
+  bool _hasFilterableDocuments = false;
+
+  /// Set when the document fetch fails. We can't tell whether the room has a
+  /// corpus, so the filter button stays visible to avoid stripping the
+  /// affordance on a transient network error — the picker handles its own
+  /// retry.
+  bool _filterDocsLoadFailed = false;
+
+  CancelToken? _filterDocsCancelToken;
+
+  /// Show the filter button only when filtering is enabled and there is
+  /// something to filter (or we failed to find out).
+  bool get _showDocumentFilter =>
+      _filterEnabled && (_hasFilterableDocuments || _filterDocsLoadFailed);
+
   DocumentSelections get _documentSelections => widget.documentSelections;
 
   Set<RagDocument> get _selectedDocuments => _filterEnabled
@@ -108,6 +128,35 @@ class _RoomScreenState extends State<RoomScreen> {
   void _updateSelection(Set<RagDocument> selection) {
     setState(() {
       _documentSelections.set(widget.roomId, widget.threadId, selection);
+    });
+  }
+
+  /// Fetches the room's document corpus to decide whether the filter button
+  /// should be shown. No-op when filtering is disabled. Cancels any in-flight
+  /// fetch so a room switch can't apply a stale result.
+  void _refreshFilterableDocuments() {
+    if (!_filterEnabled) return;
+    _filterDocsCancelToken?.cancel('refresh');
+    final token = CancelToken();
+    _filterDocsCancelToken = token;
+    widget.serverEntry.connection.api
+        .getDocuments(widget.roomId, cancelToken: token)
+        .then((docs) {
+      if (!mounted || token != _filterDocsCancelToken) return;
+      setState(() {
+        _hasFilterableDocuments = docs.isNotEmpty;
+        _filterDocsLoadFailed = false;
+      });
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!mounted || token != _filterDocsCancelToken) return;
+      dev.log(
+        'Failed to load filterable documents',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 1000,
+      );
+      setState(() => _filterDocsLoadFailed = true);
     });
   }
 
@@ -147,6 +196,7 @@ class _RoomScreenState extends State<RoomScreen> {
     HardwareKeyboard.instance.addHandler(_handleKey);
     _state = _createRoomState();
     _workdirs = _createWorkdirController();
+    _refreshFilterableDocuments();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
     } else {
@@ -199,6 +249,9 @@ class _RoomScreenState extends State<RoomScreen> {
       _chatController.clear();
       _state = _createRoomState();
       _workdirs = _createWorkdirController();
+      _hasFilterableDocuments = false;
+      _filterDocsLoadFailed = false;
+      _refreshFilterableDocuments();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -273,6 +326,7 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void dispose() {
     _cancelAutoSelect();
+    _filterDocsCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
     _chatController.dispose();
@@ -1106,7 +1160,7 @@ class _RoomScreenState extends State<RoomScreen> {
       focusNode: _chatFocusNode,
       enabled: threadView == null || status is MessagesLoaded,
       selectedDocuments: _selectedDocuments,
-      onFilterTap: _filterEnabled ? _openDocumentPicker : null,
+      onFilterTap: _showDocumentFilter ? _openDocumentPicker : null,
       onDocumentRemoved: _filterEnabled
           ? (doc) => _updateSelection(Set.of(_selectedDocuments)..remove(doc))
           : null,
