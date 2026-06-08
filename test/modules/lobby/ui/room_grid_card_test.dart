@@ -4,8 +4,15 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
 
-Widget _harness(Widget child) =>
-    MaterialApp(home: Scaffold(body: Center(child: child)));
+// RoomGridCard fills the height of its grid cell (footer pinned to bottom),
+// so it must be given a bounded height — mirror that here with a sized cell.
+Widget _harness(Widget child) => MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(width: 280, height: 220, child: child),
+        ),
+      ),
+    );
 
 ClassificationTheme _classifications() => ClassificationTheme(
       defaultId: 'internal',

@@ -16,10 +16,23 @@ class RoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
+      // The list owns the horizontal gutter; the card owns only the 12px
+      // (s3) inter-row gap, matching the design mockup's list tiles.
+      margin: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
       child: ListTile(
-        title: Text(room.name),
-        subtitle: room.description.isNotEmpty ? Text(room.description) : null,
+        // Match RoomGridCard's title/subtitle styles so the two views read
+        // identically: titleMedium name, small muted description.
+        title: Text(room.name, style: theme.textTheme.titleMedium),
+        subtitle: room.description.isNotEmpty
+            ? Text(
+                room.description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -34,7 +47,7 @@ class RoomCard extends StatelessWidget {
                 child: Icon(
                   Icons.quiz,
                   size: 20,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: theme.colorScheme.primary,
                 ),
               ),
             IconButton(
