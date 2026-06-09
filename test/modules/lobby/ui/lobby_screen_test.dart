@@ -175,6 +175,62 @@ void main() {
       },
     );
 
+    testWidgets(
+      'signed-out row renders Sign in button that routes to '
+      'homeWithUrl with returnTo=lobby',
+      (tester) async {
+        // A logged-out (or inactivity-timed-out) server stays selected in
+        // the single-server lobby. Without a recoverable affordance the
+        // content pane is blank, stranding the user; the row must offer a
+        // sign-in path instead.
+        tester.view.physicalSize = const Size(900, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        entry.auth.logout();
+
+        Uri? homeLocation;
+        await tester.pumpWidget(
+          _buildApp(manager, onHomeRoute: (uri) => homeLocation = uri),
+        );
+        await tester.pump();
+
+        // Copy is unique to the RoomsSignedOut arm so it pins the panel
+        // without colliding with the RoomsExpired arm's "again" wording.
+        expect(
+          find.text('Sign in to view rooms on this server.'),
+          findsOneWidget,
+        );
+        expect(find.text('Sign in'), findsOneWidget);
+
+        await tester.tap(find.text('Sign in'));
+        await tester.pumpAndSettle();
+
+        expect(homeLocation, isNotNull);
+        expect(
+          homeLocation!.queryParameters['url'],
+          'https://api.example.com',
+        );
+        expect(homeLocation!.queryParameters['returnTo'], '/lobby');
+      },
+    );
+
     testWidgets('toggle switches loaded rooms from list to grid cards',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);
@@ -313,7 +369,9 @@ void main() {
       expect(find.byType(RoomCard), findsNWidgets(2));
     });
 
-    testWidgets('hiding a server removes its rooms section', (tester) async {
+    testWidgets(
+        'shows only the selected server, and switching the sidebar '
+        'selection swaps the shown rooms', (tester) async {
       tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -324,26 +382,39 @@ void main() {
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
       );
-      final fakeApi = FakeSoliplexApi()
+      manager.addServer(
+        serverId: 'other',
+        serverUrl: Uri.parse('http://other.test:8000'),
+        requiresAuth: false,
+      );
+
+      final localApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')];
+      final otherApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r2', name: 'Special')];
 
-      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpWidget(_buildApp(
+        manager,
+        apiResolver: (entry) => entry.serverId == 'local' ? localApi : otherApi,
+      ));
       await tester.pumpAndSettle();
-      expect(find.byType(RoomCard), findsOneWidget);
 
-      // Toggle the server off via its sidebar eye button.
-      await tester.tap(find.byIcon(Icons.visibility));
+      // First server is auto-selected: only its room shows.
+      expect(find.text('General'), findsOneWidget);
+      expect(find.text('Special'), findsNothing);
+
+      // Select the second server in the sidebar.
+      await tester.tap(find.text('http://other.test:8000'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(RoomCard), findsNothing);
-      expect(find.textContaining('All servers are hidden'), findsOneWidget);
+      expect(find.text('Special'), findsOneWidget);
+      expect(find.text('General'), findsNothing);
     });
 
-    testWidgets('honors a persisted hidden server on load', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_lobby_hidden_servers': ['local'],
-      });
-      tester.view.physicalSize = const Size(900, 600);
+    testWidgets(
+        'selecting a server in the narrow drawer closes it and swaps '
+        'the shown rooms', (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
@@ -353,14 +424,36 @@ void main() {
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
       );
-      final fakeApi = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+      manager.addServer(
+        serverId: 'other',
+        serverUrl: Uri.parse('http://other.test:8000'),
+        requiresAuth: false,
+      );
 
-      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      final localApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+      final otherApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r2', name: 'Special')];
+
+      await tester.pumpWidget(_buildApp(
+        manager,
+        apiResolver: (entry) => entry.serverId == 'local' ? localApi : otherApi,
+      ));
       await tester.pumpAndSettle();
 
-      expect(find.byType(RoomCard), findsNothing);
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+      // First server is auto-selected; open the drawer to switch.
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+
+      // Tap the second server's tile inside the drawer.
+      await tester.tap(find.text('http://other.test:8000'));
+      await tester.pumpAndSettle();
+
+      // The drawer closes and the newly-selected server's rooms show.
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.text('Special'), findsOneWidget);
+      expect(find.text('General'), findsNothing);
     });
   });
 }

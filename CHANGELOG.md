@@ -8,6 +8,33 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Design: re-export `ClassificationTheme` and `ClassificationLevel` from the
+  public API so adopters can configure classification without a direct
+  `soliplex_design` dependency.
+
+### Changed
+
+- Lobby: select a single server in the sidebar to view its rooms, replacing the
+  multi-server show/hide model; the last selection persists across launches,
+  and server management moves to a settings icon in the list header.
+- Lobby: switch the two-pane layout at the desktop breakpoint (840) instead of
+  a hardcoded width.
+- Room: hide the document filter button in rooms with no filterable documents.
+
+### Fixed
+
+- Lobby: a signed-out or inactivity-timed-out server keeps an inline "Sign in"
+  panel instead of blanking the content pane; show a loading indicator while
+  the persisted selection resolves on launch.
+- Lobby: align list-card gutters and spacing to the design mockup, give grid
+  cards equal height with a pinned footer, and match list-card title/subtitle
+  styles to the grid card.
+- soliplex_client: pin the `ag_ui` git dependency to a fixed ref for
+  deterministic resolution; a floating HEAD pulled an incompatible release that
+  broke web builds.
+
 ## [0.88.0+58] - 2026-06-03
 
 ### Added

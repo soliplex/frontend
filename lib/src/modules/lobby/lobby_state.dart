@@ -9,8 +9,8 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
-import 'hidden_servers_storage.dart';
 import 'lobby_view_mode.dart';
+import 'selected_server_storage.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -35,24 +35,37 @@ class UserProfile {
       );
 }
 
-sealed class ServerRooms {}
+sealed class ServerRooms {
+  const ServerRooms();
+}
 
-class RoomsLoading extends ServerRooms {}
+final class RoomsLoading extends ServerRooms {
+  const RoomsLoading();
+}
 
-class RoomsLoaded extends ServerRooms {
-  RoomsLoaded(this.rooms);
+final class RoomsLoaded extends ServerRooms {
+  RoomsLoaded(List<Room> rooms) : rooms = List.unmodifiable(rooms);
   final List<Room> rooms;
 }
 
-class RoomsFailed extends ServerRooms {
-  RoomsFailed(this.error);
+final class RoomsFailed extends ServerRooms {
+  const RoomsFailed(this.error);
   final Object error;
 }
 
 /// The server's session has expired. Tokens are preserved (for a silent
 /// refresh attempt later), but the user must re-authenticate to see
 /// rooms. The lobby renders an inline "sign in again" affordance.
-class RoomsExpired extends ServerRooms {}
+final class RoomsExpired extends ServerRooms {
+  const RoomsExpired();
+}
+
+/// The user has signed out of the server (no tokens remain). The server
+/// stays listed so the single-server lobby can offer an inline "sign in"
+/// affordance instead of a blank pane.
+final class RoomsSignedOut extends ServerRooms {
+  const RoomsSignedOut();
+}
 
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
@@ -63,7 +76,7 @@ class LobbyState {
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
-    unawaited(_loadHiddenServers());
+    unawaited(_loadSelectedServer());
   }
 
   final ServerManager _serverManager;
@@ -125,22 +138,77 @@ class LobbyState {
 
   void setSearchQuery(String query) => _searchQuery.value = query;
 
-  /// Server IDs whose rooms are hidden from the lobby content. Persisted
-  /// across launches; the servers stay in the sidebar so visibility can be
-  /// toggled back on.
-  final Signal<Set<String>> _hiddenServerIds = Signal(const {});
-  ReadonlySignal<Set<String>> get hiddenServerIds => _hiddenServerIds;
+  /// The server whose rooms are shown in the main pane. `null` when no
+  /// server is available — before the persisted selection resolves on
+  /// launch, or after the last server is removed. The selection is
+  /// persisted across launches.
+  final Signal<String?> _selectedServerId = Signal<String?>(null);
+  ReadonlySignal<String?> get selectedServerId => _selectedServerId;
 
-  Future<void> _loadHiddenServers() async {
-    _hiddenServerIds.value = await HiddenServersStorage.load();
+  /// Set once [_loadSelectedServer] has resolved. Until then the persisted
+  /// load owns the initial selection, so [_reconcileSelection] must not
+  /// race ahead and auto-pick the first server (which would shadow a
+  /// still-loading persisted choice).
+  bool _selectionInitialized = false;
+
+  /// Restores the persisted selection if it still maps to a known server,
+  /// else falls back to the first available server (or `null` when there
+  /// are none).
+  Future<void> _loadSelectedServer() async {
+    String? persisted;
+    try {
+      persisted = await SelectedServerStorage.load();
+    } catch (error, st) {
+      dev.log(
+        'Failed to load selected server',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+    final servers = _serverManager.servers.value;
+    final restored = (persisted != null && servers.containsKey(persisted))
+        ? persisted
+        : (servers.isNotEmpty ? servers.keys.first : null);
+    _selectionInitialized = true;
+    if (restored != _selectedServerId.value) {
+      _selectedServerId.value = restored;
+    }
   }
 
-  /// Toggles whether [serverId]'s rooms are shown, persisting the change.
-  void toggleServerHidden(String serverId) {
-    final next = Set<String>.from(_hiddenServerIds.value);
-    if (!next.add(serverId)) next.remove(serverId);
-    _hiddenServerIds.value = next;
-    HiddenServersStorage.save(next);
+  /// Selects [serverId] as the viewed server and persists the choice.
+  void selectServer(String serverId) {
+    if (serverId == _selectedServerId.value) return;
+    _selectedServerId.value = serverId;
+    _persistSelection(serverId);
+  }
+
+  /// Keeps the selection valid as the server set changes: an explicit,
+  /// still-present selection is left alone; otherwise it falls back to the
+  /// first server (or `null`). No-op until the persisted load has resolved.
+  void _reconcileSelection(Map<String, ServerEntry> servers) {
+    if (!_selectionInitialized) return;
+    final current = _selectedServerId.value;
+    if (current != null && servers.containsKey(current)) return;
+    final next = servers.isEmpty ? null : servers.keys.first;
+    if (next != current) {
+      _selectedServerId.value = next;
+      _persistSelection(next);
+    }
+  }
+
+  void _persistSelection(String? serverId) {
+    unawaited(
+      SelectedServerStorage.save(serverId)
+          .catchError((Object e, StackTrace st) {
+        dev.log(
+          'Failed to persist selected server',
+          error: e,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
   }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.
@@ -198,6 +266,8 @@ class LobbyState {
         _fetchUserProfile(id, entry);
       }
     }
+
+    _reconcileSelection(servers);
   }
 
   void _onAuthChanged(String serverId, ServerEntry entry) {
@@ -228,18 +298,19 @@ class LobbyState {
         // name.
         _roomsByServer.value = {
           ..._roomsByServer.value,
-          serverId: RoomsExpired(),
+          serverId: const RoomsExpired(),
         };
         _userProfiles.value = {..._userProfiles.value, serverId: null};
       case NoSession():
-        // Signed out: prune the row.
-        final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
-          ..remove(serverId);
-        final updatedProfiles =
-            Map<String, UserProfile?>.from(_userProfiles.value)
-              ..remove(serverId);
-        _roomsByServer.value = updatedRooms;
-        _userProfiles.value = updatedProfiles;
+        // Signed out: keep the row with an inline "sign in" affordance so
+        // the single-server lobby shows a recoverable state rather than a
+        // blank pane. The profile is dropped so a re-auth as a different
+        // identity does not briefly render the prior user's name.
+        _roomsByServer.value = {
+          ..._roomsByServer.value,
+          serverId: const RoomsSignedOut(),
+        };
+        _userProfiles.value = {..._userProfiles.value, serverId: null};
       case ActiveSession():
         assert(false, 'ActiveSession reached the !isConnected branch');
     }
@@ -255,7 +326,7 @@ class LobbyState {
     // Mark as loading
     _roomsByServer.value = {
       ..._roomsByServer.value,
-      serverId: RoomsLoading(),
+      serverId: const RoomsLoading(),
     };
 
     _apiResolver(entry).getRooms(cancelToken: token).then((rooms) {

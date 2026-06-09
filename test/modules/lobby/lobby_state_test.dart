@@ -8,8 +8,8 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
-import 'package:soliplex_frontend/src/modules/lobby/hidden_servers_storage.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
+import 'package:soliplex_frontend/src/modules/lobby/selected_server_storage.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -78,7 +78,9 @@ void main() {
         state.dispose();
       });
 
-      test('skips servers that are not connected', () async {
+      test(
+          'does not fetch for a not-connected server, but marks it '
+          'RoomsSignedOut', () async {
         final manager = _createManager();
         // requiresAuth: true with no login → not connected
         manager.addServer(
@@ -97,7 +99,11 @@ void main() {
 
         await Future<void>.delayed(Duration.zero);
 
-        expect(state.roomsByServer.value, isEmpty);
+        // No fetch happens, but the row carries a sign-in affordance rather
+        // than being absent, so a selected not-connected server is
+        // recoverable instead of blank.
+        expect(state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
+        expect(fakeApi.getRoomsCallCount, 0);
 
         state.dispose();
       });
@@ -376,11 +382,14 @@ void main() {
       );
 
       test(
-        'NoSession (logout) prunes the section',
+        'NoSession (logout) marks the section RoomsSignedOut and drops '
+        'the profile',
         () async {
-          // A true sign-out should not leave a stale "session expired"
-          // row in the lobby. Pruning the section is the right disposition
-          // because there are no tokens to recover from.
+          // The single-server lobby shows the selected server's section
+          // alone, so a logged-out server keeps a RoomsSignedOut row with a
+          // sign-in affordance instead of a blank pane. The profile is
+          // dropped so a re-auth as a different identity does not flash the
+          // prior user's name.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -411,8 +420,9 @@ void main() {
           entry.auth.logout();
           await Future<void>.delayed(Duration.zero);
 
-          expect(state.roomsByServer.value.containsKey('auth-server'), isFalse);
-          expect(state.userProfiles.value.containsKey('auth-server'), isFalse);
+          expect(
+              state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
+          expect(state.userProfiles.value['auth-server'], isNull);
 
           state.dispose();
         },
@@ -550,8 +560,8 @@ void main() {
         );
         await Future<void>.delayed(Duration.zero);
 
-        // Not connected yet — no rooms fetched
-        expect(state.roomsByServer.value, isEmpty);
+        // Not connected yet — signed-out affordance shown, no rooms fetched.
+        expect(state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
 
         // Simulate login
         entry.auth.login(
@@ -936,31 +946,135 @@ void main() {
       });
     });
 
-    group('hiddenServerIds', () {
-      test('defaults to empty; toggle adds then removes and persists',
-          () async {
-        final state = LobbyState(serverManager: _createManager());
+    group('selectedServerId', () {
+      ServerManager managerWith(List<String> ids) {
+        final manager = _createManager();
+        for (final id in ids) {
+          manager.addServer(
+            serverId: id,
+            serverUrl: Uri.parse('http://$id:8000'),
+            requiresAuth: false,
+          );
+        }
+        return manager;
+      }
+
+      LobbyState stateFor(ServerManager manager) => LobbyState(
+            serverManager: manager,
+            apiResolver: (_) => FakeSoliplexApi()..nextRooms = [],
+          );
+
+      test('defaults to the first server once loaded', () async {
+        final state = stateFor(managerWith(['a', 'b']));
         await Future<void>.delayed(Duration.zero);
-        expect(state.hiddenServerIds.value, isEmpty);
+        expect(state.selectedServerId.value, 'a');
+        state.dispose();
+      });
 
-        state.toggleServerHidden('srv-1');
-        expect(state.hiddenServerIds.value, {'srv-1'});
-        expect(await HiddenServersStorage.load(), {'srv-1'});
+      test('restores the persisted selection when it still exists', () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
 
-        state.toggleServerHidden('srv-1');
-        expect(state.hiddenServerIds.value, isEmpty);
-        expect(await HiddenServersStorage.load(), isEmpty);
+      test('falls back to first when the persisted selection is gone',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'gone',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'a');
+        state.dispose();
+      });
+
+      test('selectServer updates the signal and persists the choice', () async {
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+
+        state.selectServer('b');
+        expect(state.selectedServerId.value, 'b');
+        await Future<void>.delayed(Duration.zero);
+        expect(await SelectedServerStorage.load(), 'b');
 
         state.dispose();
       });
 
-      test('adopts the persisted hidden set after async load', () async {
-        SharedPreferences.setMockInitialValues({
-          'soliplex_lobby_hidden_servers': ['srv-1', 'srv-2'],
-        });
-        final state = LobbyState(serverManager: _createManager());
+      test(
+          'falls back to the first remaining server when the selected '
+          'one is removed', () async {
+        final manager = managerWith(['a', 'b']);
+        final state = stateFor(manager);
         await Future<void>.delayed(Duration.zero);
-        expect(state.hiddenServerIds.value, {'srv-1', 'srv-2'});
+        state.selectServer('a');
+
+        manager.removeServer('a');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
+
+      test('does not persist a fallback over the still-loading selection',
+          () async {
+        // _onServersChanged fires synchronously when LobbyState subscribes
+        // (the servers are already present), before the async persisted
+        // load resolves. Without the _selectionInitialized guard,
+        // _reconcileSelection picks the first server and persists it,
+        // clobbering the stored 'b'. The settled signal value can survive
+        // that race, so the storage read is the assertion with teeth.
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.selectedServerId.value, 'b');
+        expect(await SelectedServerStorage.load(), 'b');
+        state.dispose();
+      });
+
+      test('keeps an explicit selection when another server is added',
+          () async {
+        final manager = managerWith(['a', 'b']);
+        final state = stateFor(manager);
+        await Future<void>.delayed(Duration.zero);
+        state.selectServer('b');
+
+        manager.addServer(
+          serverId: 'c',
+          serverUrl: Uri.parse('http://c:8000'),
+          requiresAuth: false,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // Adding a server reconciles the selection, but a still-present
+        // explicit choice must be left alone, not yanked back to first.
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
+
+      test('clears the selection and storage when the only server is removed',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'only',
+        });
+        final manager = managerWith(['only']);
+        final state = stateFor(manager);
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'only');
+
+        manager.removeServer('only');
+        await Future<void>.delayed(Duration.zero);
+
+        // No servers left: the selection clears and the stale pointer is
+        // removed from storage so the next launch starts clean.
+        expect(state.selectedServerId.value, isNull);
+        expect(await SelectedServerStorage.load(), isNull);
         state.dispose();
       });
     });

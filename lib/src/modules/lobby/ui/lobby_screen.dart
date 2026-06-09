@@ -95,7 +95,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final roomsByServer = _state.roomsByServer.watch(context);
     final viewMode = _state.viewMode.watch(context);
     final searchQuery = _state.searchQuery.watch(context);
-    final hiddenServerIds = _state.hiddenServerIds.watch(context);
+    final selectedServerId = _state.selectedServerId.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         // Persistent sidebar / two-pane layout is a desktop affordance; the
@@ -110,8 +110,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
-                hiddenServerIds: hiddenServerIds,
-                onToggleHidden: _state.toggleServerHidden,
+                selectedServerId: selectedServerId,
+                onSelectServer: _state.selectServer,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -128,8 +128,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
-                hiddenServerIds: hiddenServerIds,
-                onToggleHidden: _state.toggleServerHidden,
+                selectedServerId: selectedServerId,
+                onSelectServer: _state.selectServer,
                 onServerTap: _onServerTap,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -152,8 +152,8 @@ class _WideLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
-    required this.hiddenServerIds,
-    required this.onToggleHidden,
+    required this.selectedServerId,
+    required this.onSelectServer,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -170,8 +170,8 @@ class _WideLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
-  final Set<String> hiddenServerIds;
-  final void Function(String serverId) onToggleHidden;
+  final String? selectedServerId;
+  final void Function(String serverId) onSelectServer;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -190,8 +190,8 @@ class _WideLayout extends StatelessWidget {
             child: ServerSidebar(
               servers: servers,
               profiles: profiles,
-              hiddenServerIds: hiddenServerIds,
-              onToggleHidden: onToggleHidden,
+              selectedServerId: selectedServerId,
+              onSelectServer: onSelectServer,
               onServerTap: onServerTap,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
@@ -207,7 +207,7 @@ class _WideLayout extends StatelessWidget {
               onViewModeChanged: onViewModeChanged,
               searchQuery: searchQuery,
               onSearchChanged: onSearchChanged,
-              hiddenServerIds: hiddenServerIds,
+              selectedServerId: selectedServerId,
               onRoomTap: onRoomTap,
               onInfoTap: onInfoTap,
               onAddServer: onAddServer,
@@ -229,8 +229,8 @@ class _NarrowLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
-    required this.hiddenServerIds,
-    required this.onToggleHidden,
+    required this.selectedServerId,
+    required this.onSelectServer,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -247,8 +247,8 @@ class _NarrowLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
-  final Set<String> hiddenServerIds;
-  final void Function(String serverId) onToggleHidden;
+  final String? selectedServerId;
+  final void Function(String serverId) onSelectServer;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -269,15 +269,22 @@ class _NarrowLayout extends StatelessWidget {
         ),
       ),
       drawer: Drawer(
-        child: ServerSidebar(
-          servers: servers,
-          profiles: profiles,
-          hiddenServerIds: hiddenServerIds,
-          onToggleHidden: onToggleHidden,
-          onServerTap: onServerTap,
-          onAddServer: onAddServer,
-          onNetworkInspector: onNetworkInspector,
-          onVersions: onVersions,
+        // Builder gives a context under this Scaffold so selecting a server
+        // can close the drawer before revealing its rooms.
+        child: Builder(
+          builder: (drawerContext) => ServerSidebar(
+            servers: servers,
+            profiles: profiles,
+            selectedServerId: selectedServerId,
+            onSelectServer: (id) {
+              onSelectServer(id);
+              Scaffold.of(drawerContext).closeDrawer();
+            },
+            onServerTap: onServerTap,
+            onAddServer: onAddServer,
+            onNetworkInspector: onNetworkInspector,
+            onVersions: onVersions,
+          ),
         ),
       ),
       body: _RoomContent(
@@ -287,7 +294,7 @@ class _NarrowLayout extends StatelessWidget {
         onViewModeChanged: onViewModeChanged,
         searchQuery: searchQuery,
         onSearchChanged: onSearchChanged,
-        hiddenServerIds: hiddenServerIds,
+        selectedServerId: selectedServerId,
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
         onAddServer: onAddServer,
@@ -305,7 +312,7 @@ class _RoomContent extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
-    required this.hiddenServerIds,
+    required this.selectedServerId,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onAddServer,
@@ -318,7 +325,7 @@ class _RoomContent extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
-  final Set<String> hiddenServerIds;
+  final String? selectedServerId;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
@@ -354,47 +361,51 @@ class _RoomContent extends StatelessWidget {
             onSearchChanged: onSearchChanged,
           ),
         ),
-        Expanded(child: _buildSections(context)),
+        Expanded(child: _buildSelectedServer(context)),
       ],
     );
   }
 
-  Widget _buildSections(BuildContext context) {
-    final visible = roomsByServer.entries
-        .where((entry) => !hiddenServerIds.contains(entry.key))
-        .toList();
-
-    // Distinguish "everything is hidden" from "no room data yet" — only the
-    // former gets the explanatory copy; the latter renders blank as before.
-    if (visible.isEmpty && roomsByServer.isNotEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(SoliplexSpacing.s6),
-          child: Text(
-            'All servers are hidden. Use the eye icon next to a server to '
-            'show its rooms.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+  Widget _buildSelectedServer(BuildContext context) {
+    final id = selectedServerId;
+    // No selection yet — the persisted choice loads asynchronously on launch.
+    // Show the same loading indicator the rooms-loading state uses so cold
+    // start reads as spinner -> rooms with no flash of a blank pane.
+    if (id == null) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+            child: LinearProgressIndicator(),
           ),
-        ),
+        ],
       );
+    }
+    // Every server in the set has a room state by the time it can be selected:
+    // _onServersChanged fetches (-> RoomsLoading) for a connected server, and
+    // its synchronous auth-subscription fire routes a not-connected one through
+    // _onAuthChanged (-> RoomsExpired / RoomsSignedOut). A missing entry should
+    // not happen; assert in debug and fall back to a blank pane in release
+    // rather than throwing in front of the user.
+    final serverRooms = roomsByServer[id];
+    if (serverRooms == null) {
+      assert(false, 'Selected server "$id" has no room state');
+      return const SizedBox.shrink();
     }
 
     return ListView(
       children: [
-        for (final entry in visible)
-          _ServerSection(
-            serverId: entry.key,
-            serverUrl: servers[entry.key]?.serverUrl,
-            serverRooms: entry.value,
-            viewMode: viewMode,
-            searchQuery: searchQuery,
-            onRoomTap: onRoomTap,
-            onInfoTap: onInfoTap,
-            onSignIn: onSignIn,
-          ),
+        _ServerSection(
+          serverId: id,
+          serverUrl: servers[id]?.serverUrl,
+          serverRooms: serverRooms,
+          viewMode: viewMode,
+          searchQuery: searchQuery,
+          onRoomTap: onRoomTap,
+          onInfoTap: onInfoTap,
+          onSignIn: onSignIn,
+        ),
       ],
     );
   }
@@ -569,31 +580,43 @@ class _ServerSection extends StatelessWidget {
               }),
             ),
           RoomsLoaded(:final rooms) => _buildRooms(context, rooms),
-          RoomsExpired() => Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Session expired',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: SoliplexSpacing.s1),
-                  Text(
-                    'Sign in again to view rooms on this server.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: SoliplexSpacing.s3),
-                  SoliplexButton.filled(
-                    onPressed: () => onSignIn(serverId),
-                    child: const Text('Sign in'),
-                  ),
-                ],
-              ),
+          RoomsExpired() => _reauthPanel(
+              context,
+              title: 'Session expired',
+              body: 'Sign in again to view rooms on this server.',
+            ),
+          RoomsSignedOut() => _reauthPanel(
+              context,
+              title: 'Signed out',
+              body: 'Sign in to view rooms on this server.',
             ),
         },
       ],
+    );
+  }
+
+  /// Inline panel for a not-connected server: a heading, a one-line
+  /// explanation, and a button that routes to the server's sign-in flow.
+  Widget _reauthPanel(
+    BuildContext context, {
+    required String title,
+    required String body,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: SoliplexSpacing.s1),
+          Text(body, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: SoliplexSpacing.s3),
+          SoliplexButton.filled(
+            onPressed: () => onSignIn(serverId),
+            child: const Text('Sign in'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -649,9 +672,10 @@ class _ServerSection extends StatelessWidget {
 
 /// Responsive grid of [RoomGridCard]s for a single server's rooms.
 ///
-/// Lives inside the outer room `ListView`, so it lays out with a [Wrap]
-/// (fixed-width cells, intrinsic height) rather than a nested scrollable
-/// grid. Column count and cell width come from [roomGridLayout].
+/// Lives inside the outer room `ListView`, so it lays the cards out as a
+/// [Column] of [IntrinsicHeight] rows rather than a nested scrollable grid.
+/// Each row stretches its cells with [Expanded] so cards in a row share the
+/// tallest one's height. Only the column count comes from [roomGridLayout].
 class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,

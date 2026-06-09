@@ -11,8 +11,8 @@ class ServerSidebar extends StatelessWidget {
     super.key,
     required this.servers,
     required this.profiles,
-    required this.hiddenServerIds,
-    required this.onToggleHidden,
+    required this.selectedServerId,
+    required this.onSelectServer,
     required this.onServerTap,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -21,8 +21,14 @@ class ServerSidebar extends StatelessWidget {
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
-  final Set<String> hiddenServerIds;
-  final void Function(String serverId) onToggleHidden;
+
+  /// The currently-viewed server; its tile is highlighted.
+  final String? selectedServerId;
+
+  /// Selects a server to view its rooms in the main pane.
+  final void Function(String serverId) onSelectServer;
+
+  /// Opens the server-management screen.
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -37,8 +43,8 @@ class ServerSidebar extends StatelessWidget {
           child: _ServerList(
             servers: servers,
             profiles: profiles,
-            hiddenServerIds: hiddenServerIds,
-            onToggleHidden: onToggleHidden,
+            selectedServerId: selectedServerId,
+            onSelectServer: onSelectServer,
             onServerTap: onServerTap,
             onAddServer: onAddServer,
           ),
@@ -58,16 +64,16 @@ class _ServerList extends StatelessWidget {
   const _ServerList({
     required this.servers,
     required this.profiles,
-    required this.hiddenServerIds,
-    required this.onToggleHidden,
+    required this.selectedServerId,
+    required this.onSelectServer,
     required this.onServerTap,
     required this.onAddServer,
   });
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
-  final Set<String> hiddenServerIds;
-  final void Function(String serverId) onToggleHidden;
+  final String? selectedServerId;
+  final void Function(String serverId) onSelectServer;
   final VoidCallback onServerTap;
   final VoidCallback onAddServer;
 
@@ -77,21 +83,33 @@ class _ServerList extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-              SoliplexSpacing.s4, SoliplexSpacing.s4, SoliplexSpacing.s2),
-          child: Text(
-            'Servers (${servers.length})',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Servers (${servers.length})',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
+              ),
+              // Server management lives behind this gear so a row tap is free
+              // to select a server for viewing its rooms.
+              IconButton(
+                icon: const Icon(Icons.settings_outlined, size: 18),
+                tooltip: 'Manage servers',
+                onPressed: onServerTap,
+              ),
+            ],
           ),
         ),
         for (final entry in servers.entries)
           _ServerTile(
             entry: entry.value,
             profile: profiles[entry.key],
-            hidden: hiddenServerIds.contains(entry.key),
-            onToggleHidden: () => onToggleHidden(entry.key),
-            onTap: onServerTap,
+            selected: entry.key == selectedServerId,
+            onTap: () => onSelectServer(entry.key),
           ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
@@ -110,39 +128,24 @@ class _ServerTile extends StatelessWidget {
   const _ServerTile({
     required this.entry,
     required this.profile,
-    required this.hidden,
-    required this.onToggleHidden,
+    required this.selected,
     required this.onTap,
   });
 
   final ServerEntry entry;
   final UserProfile? profile;
-  final bool hidden;
-  final VoidCallback onToggleHidden;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      // Dim the title/subtitle when hidden to signal the server's rooms
-      // are excluded from the lobby; the eye button stays full-strength so
-      // it's still an obvious affordance to toggle back.
-      title: Opacity(
-        opacity: hidden ? 0.5 : 1.0,
-        child: Text(formatServerUrl(entry.serverUrl)),
-      ),
+      selected: selected,
+      title: Text(formatServerUrl(entry.serverUrl)),
       // The label depends on entry.auth.session, which the parent does
       // not watch — Watch rebuilds the subtitle on session flips.
-      subtitle: Opacity(
-        opacity: hidden ? 0.5 : 1.0,
-        child: Watch(
-          (context) => Text(_identityLabel(entry.auth.session.value)),
-        ),
-      ),
-      trailing: IconButton(
-        icon: Icon(hidden ? Icons.visibility_off : Icons.visibility),
-        tooltip: hidden ? 'Show rooms' : 'Hide rooms',
-        onPressed: onToggleHidden,
+      subtitle: Watch(
+        (context) => Text(_identityLabel(entry.auth.session.value)),
       ),
       dense: true,
       onTap: onTap,
