@@ -42,28 +42,38 @@ class ServerSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _BrandHeader(branding: branding),
-        const Divider(height: 1),
-        Expanded(
-          child: _ServerList(
-            servers: servers,
-            profiles: profiles,
-            selectedServerId: selectedServerId,
-            onSelectServer: onSelectServer,
-            onServerTap: onServerTap,
-            onAddServer: onAddServer,
+    // The account block reflects whoever is signed in on the selected
+    // server (or Guest when there's no selection / no auth).
+    final selectedEntry =
+        selectedServerId == null ? null : servers[selectedServerId];
+    final selectedProfile =
+        selectedServerId == null ? null : profiles[selectedServerId];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BrandHeader(branding: branding),
+          const Divider(height: 1),
+          Expanded(
+            child: _ServerList(
+              servers: servers,
+              profiles: profiles,
+              selectedServerId: selectedServerId,
+              onSelectServer: onSelectServer,
+              onServerTap: onServerTap,
+              onAddServer: onAddServer,
+            ),
           ),
-        ),
-        const Divider(height: 1),
-        _ActionButtons(
-          onAddServer: onAddServer,
-          onNetworkInspector: onNetworkInspector,
-          onVersions: onVersions,
-        ),
-      ],
+          const Divider(height: 1),
+          _AccountBar(
+            entry: selectedEntry,
+            profile: selectedProfile,
+            onNetworkInspector: onNetworkInspector,
+            onVersions: onVersions,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -95,7 +105,7 @@ class _BrandHeader extends StatelessWidget {
               child: BrandLogo(branding: branding),
             ),
           ),
-          const SizedBox(width: SoliplexSpacing.s4),
+          const SizedBox(width: SoliplexSpacing.s6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,9 +184,7 @@ class _ServerList extends StatelessWidget {
             onTap: () => onSelectServer(entry.key),
           ),
         Padding(
-          // s3 above lifts the button off the last server tile.
-          padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s2,
-              SoliplexSpacing.s3, SoliplexSpacing.s2, SoliplexSpacing.s2),
+          padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
           child: SoliplexButton.outlined(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
@@ -221,48 +229,191 @@ class _ServerTile extends StatelessWidget {
     return switch (session) {
       ExpiredSession() => 'Session expired',
       NoSession() => 'Not signed in',
-      ActiveSession() => _activeIdentityLabel(),
+      ActiveSession() => _signedInName(profile),
     };
-  }
-
-  String _activeIdentityLabel() {
-    if (profile == null) return 'Signed in';
-    final name = '${profile!.givenName} ${profile!.familyName}'.trim();
-    if (name.isNotEmpty) return name;
-    if (profile!.email.isNotEmpty) return profile!.email;
-    return 'Signed in';
   }
 }
 
-class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({
-    required this.onAddServer,
+/// The signed-in user's display name from [profile], falling back through the
+/// preferred username and email to a generic label when no name is set.
+String _signedInName(UserProfile? profile) {
+  if (profile == null) return 'Signed in';
+  final full = '${profile.givenName} ${profile.familyName}'.trim();
+  if (full.isNotEmpty) return full;
+  if (profile.preferredUsername.isNotEmpty) return profile.preferredUsername;
+  if (profile.email.isNotEmpty) return profile.email;
+  return 'Signed in';
+}
+
+/// The actions collapsed behind the sidebar's "more" (⋮) menu. These are
+/// developer/utility destinations, deliberately de-emphasised vs. the account
+/// block they sit beside. ("Home" is intentionally absent — the Add Server
+/// button already routes to the home screen.)
+enum _SidebarAction { networkInspector, versions }
+
+/// Sidebar footer: the signed-in account on the left, a ⋮ menu of utility
+/// actions on the right.
+class _AccountBar extends StatelessWidget {
+  const _AccountBar({
+    required this.entry,
+    required this.profile,
     required this.onNetworkInspector,
     required this.onVersions,
   });
 
-  final VoidCallback onAddServer;
+  final ServerEntry? entry;
+  final UserProfile? profile;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
 
+  void _onSelected(_SidebarAction action) {
+    switch (action) {
+      case _SidebarAction.networkInspector:
+        onNetworkInspector();
+      case _SidebarAction.versions:
+        onVersions();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SoliplexSpacing.s2, SoliplexSpacing.s2, 0, SoliplexSpacing.s2),
+      child: Row(
+        children: [
+          Expanded(child: _AccountBlock(entry: entry, profile: profile)),
+          const SizedBox(width: SoliplexSpacing.s2),
+          PopupMenuButton<_SidebarAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: _onSelected,
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _SidebarAction.networkInspector,
+                child: _MenuRow(
+                    icon: Icons.lan_outlined, label: 'Network Inspector'),
+              ),
+              PopupMenuItem(
+                value: _SidebarAction.versions,
+                child: _MenuRow(icon: Icons.info_outline, label: 'Versions'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SoliplexButton.text(
-          onPressed: onAddServer,
-          child: const Text('Home'),
-        ),
-        SoliplexButton.text(
-          onPressed: onNetworkInspector,
-          child: const Text('Network Inspector'),
-        ),
-        SoliplexButton.text(
-          onPressed: onVersions,
-          child: const Text('Versions'),
-        ),
+        Icon(icon, size: 20),
+        const SizedBox(width: SoliplexSpacing.s3),
+        // Flexible so a long label (e.g. "Network Inspector") can't overflow
+        // the menu's width; the menu widens to fit when there's room.
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
       ],
+    );
+  }
+}
+
+/// The account identity for the selected server: name, optional email, and a
+/// colored initial avatar. Falls back to a "Guest" identity when the server
+/// is unauthenticated or in no-auth mode.
+class _AccountBlock extends StatelessWidget {
+  const _AccountBlock({required this.entry, required this.profile});
+
+  final ServerEntry? entry;
+  final UserProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    // Session is a per-entry signal the parent does not watch; Watch rebuilds
+    // the block when it flips (e.g. sign-in / expiry) without a map mutation.
+    return Watch((context) {
+      final theme = Theme.of(context);
+      final identity = _resolveIdentity();
+      return Row(
+        children: [
+          _Avatar(initial: identity.name.characters.first.toUpperCase()),
+          const SizedBox(width: SoliplexSpacing.s2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  identity.name,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (identity.email != null)
+                  Text(
+                    identity.email!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  ({String name, String? email}) _resolveIdentity() {
+    final isAuthenticated = entry != null &&
+        entry!.requiresAuth &&
+        entry!.auth.session.value is ActiveSession;
+    if (!isAuthenticated) {
+      return (name: 'Guest', email: null);
+    }
+    final email = (profile?.email.isNotEmpty ?? false) ? profile!.email : null;
+    return (name: _signedInName(profile), email: email);
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.initial});
+
+  /// Avatar side, sized to the two-line name/email block. Not tokenised —
+  /// there is no avatar-size token.
+  static const double _size = 36;
+
+  final String initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+      ),
+      child: Text(
+        initial,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
