@@ -1018,6 +1018,65 @@ void main() {
         expect(state.selectedServerId.value, 'b');
         state.dispose();
       });
+
+      test('does not persist a fallback over the still-loading selection',
+          () async {
+        // _onServersChanged fires synchronously when LobbyState subscribes
+        // (the servers are already present), before the async persisted
+        // load resolves. Without the _selectionInitialized guard,
+        // _reconcileSelection picks the first server and persists it,
+        // clobbering the stored 'b'. The settled signal value can survive
+        // that race, so the storage read is the assertion with teeth.
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'b',
+        });
+        final state = stateFor(managerWith(['a', 'b']));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.selectedServerId.value, 'b');
+        expect(await SelectedServerStorage.load(), 'b');
+        state.dispose();
+      });
+
+      test('keeps an explicit selection when another server is added',
+          () async {
+        final manager = managerWith(['a', 'b']);
+        final state = stateFor(manager);
+        await Future<void>.delayed(Duration.zero);
+        state.selectServer('b');
+
+        manager.addServer(
+          serverId: 'c',
+          serverUrl: Uri.parse('http://c:8000'),
+          requiresAuth: false,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // Adding a server reconciles the selection, but a still-present
+        // explicit choice must be left alone, not yanked back to first.
+        expect(state.selectedServerId.value, 'b');
+        state.dispose();
+      });
+
+      test('clears the selection and storage when the only server is removed',
+          () async {
+        SharedPreferences.setMockInitialValues({
+          'soliplex_lobby_selected_server': 'only',
+        });
+        final manager = managerWith(['only']);
+        final state = stateFor(manager);
+        await Future<void>.delayed(Duration.zero);
+        expect(state.selectedServerId.value, 'only');
+
+        manager.removeServer('only');
+        await Future<void>.delayed(Duration.zero);
+
+        // No servers left: the selection clears and the stale pointer is
+        // removed from storage so the next launch starts clean.
+        expect(state.selectedServerId.value, isNull);
+        expect(await SelectedServerStorage.load(), isNull);
+        state.dispose();
+      });
     });
   });
 }
