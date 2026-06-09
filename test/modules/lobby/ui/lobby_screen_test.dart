@@ -410,5 +410,50 @@ void main() {
       expect(find.text('Special'), findsOneWidget);
       expect(find.text('General'), findsNothing);
     });
+
+    testWidgets(
+        'selecting a server in the narrow drawer closes it and swaps '
+        'the shown rooms', (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      manager.addServer(
+        serverId: 'other',
+        serverUrl: Uri.parse('http://other.test:8000'),
+        requiresAuth: false,
+      );
+
+      final localApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+      final otherApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r2', name: 'Special')];
+
+      await tester.pumpWidget(_buildApp(
+        manager,
+        apiResolver: (entry) => entry.serverId == 'local' ? localApi : otherApi,
+      ));
+      await tester.pumpAndSettle();
+
+      // First server is auto-selected; open the drawer to switch.
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+
+      // Tap the second server's tile inside the drawer.
+      await tester.tap(find.text('http://other.test:8000'));
+      await tester.pumpAndSettle();
+
+      // The drawer closes and the newly-selected server's rooms show.
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.text('Special'), findsOneWidget);
+      expect(find.text('General'), findsNothing);
+    });
   });
 }

@@ -77,7 +77,8 @@ void main() {
       expect(find.text('No authentication required'), findsOneWidget);
     });
 
-    testWidgets('shows Add Server button that fires callback', (tester) async {
+    testWidgets('Home action button fires the add-server callback',
+        (tester) async {
       var addTapped = false;
 
       await tester.pumpWidget(_buildSidebar(

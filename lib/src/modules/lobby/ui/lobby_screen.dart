@@ -382,10 +382,12 @@ class _RoomContent extends StatelessWidget {
         ],
       );
     }
-    // A selected server always carries a room state once it has been seen by
-    // _onServersChanged (loading / loaded / failed / expired / signed-out), so
-    // a missing entry should not happen; assert in debug and fall back to a
-    // blank pane in release rather than throwing in front of the user.
+    // Every server in the set has a room state by the time it can be selected:
+    // _onServersChanged fetches (-> RoomsLoading) for a connected server, and
+    // its synchronous auth-subscription fire routes a not-connected one through
+    // _onAuthChanged (-> RoomsExpired / RoomsSignedOut). A missing entry should
+    // not happen; assert in debug and fall back to a blank pane in release
+    // rather than throwing in front of the user.
     final serverRooms = roomsByServer[id];
     if (serverRooms == null) {
       assert(false, 'Selected server "$id" has no room state');
