@@ -280,12 +280,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return [
       ..._buildHeader(context, 'Insecure Connection'),
-      Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.error),
+      Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.warning),
       const SizedBox(height: SoliplexSpacing.s4),
       Text(
         'This connection to ${formatServerUrl(probeResult.serverUrl)} is not '
         'encrypted. Your data, including credentials, may be visible to '
         'others on the network.',
+        style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: SoliplexSpacing.s6),
@@ -316,7 +317,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..._buildHeader(context, 'Sign in to continue'),
       Text(notice.title, style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: SoliplexSpacing.s4),
-      Text(notice.body),
+      Text(notice.body, style: Theme.of(context).textTheme.bodyMedium),
       const SizedBox(height: SoliplexSpacing.s4),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
