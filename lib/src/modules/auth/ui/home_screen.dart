@@ -44,6 +44,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _logoSize = 64.0;
   static const _maxCollapsedServers = 5;
 
+  /// Max width of the centered auth column on wide viewports, so the form
+  /// and buttons don't stretch edge-to-edge on desktop/web.
+  static const _maxContentWidth = 400.0;
+
   late final ConnectFlow _flow;
   late final void Function() _unsubscribeFlow;
   late final void Function() _unsubscribeServers;
@@ -152,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(SoliplexSpacing.s6),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -515,7 +519,7 @@ class UrlMessageBanner extends StatelessWidget {
               Expanded(
                 child: Text(
                   text,
-                  style: TextStyle(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onErrorContainer,
                   ),
                 ),
