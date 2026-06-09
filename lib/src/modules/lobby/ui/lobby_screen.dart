@@ -9,8 +9,10 @@ import '../../../core/branding.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
+import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
+import '../room_activity_format.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -101,6 +103,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final viewMode = _state.viewMode.watch(context);
     final searchQuery = _state.searchQuery.watch(context);
     final selectedServerId = _state.selectedServerId.watch(context);
+    final sortMode = _state.sortMode.watch(context);
+    final roomActivity = _state.roomActivity.watch(context);
+    final activityLoading = _state.activityLoading.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         // Persistent sidebar / two-pane layout is a desktop affordance; the
@@ -116,6 +121,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
+                sortMode: sortMode,
+                onSortModeChanged: _state.setSortMode,
+                roomActivity: roomActivity,
+                activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
                 onServerTap: _onServerTap,
@@ -135,6 +144,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onViewModeChanged: _state.setViewMode,
                 searchQuery: searchQuery,
                 onSearchChanged: _state.setSearchQuery,
+                sortMode: sortMode,
+                onSortModeChanged: _state.setSortMode,
+                roomActivity: roomActivity,
+                activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
                 onServerTap: _onServerTap,
@@ -160,6 +173,10 @@ class _WideLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.sortMode,
+    required this.onSortModeChanged,
+    required this.roomActivity,
+    required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onServerTap,
@@ -179,6 +196,10 @@ class _WideLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+  final Map<(String, String), DateTime?> roomActivity;
+  final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
   final VoidCallback onServerTap;
@@ -220,6 +241,10 @@ class _WideLayout extends StatelessWidget {
                 onViewModeChanged: onViewModeChanged,
                 searchQuery: searchQuery,
                 onSearchChanged: onSearchChanged,
+                sortMode: sortMode,
+                onSortModeChanged: onSortModeChanged,
+                roomActivity: roomActivity,
+                activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onRoomTap: onRoomTap,
                 onInfoTap: onInfoTap,
@@ -244,6 +269,10 @@ class _NarrowLayout extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.sortMode,
+    required this.onSortModeChanged,
+    required this.roomActivity,
+    required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onServerTap,
@@ -263,6 +292,10 @@ class _NarrowLayout extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+  final Map<(String, String), DateTime?> roomActivity;
+  final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
   final VoidCallback onServerTap;
@@ -315,6 +348,10 @@ class _NarrowLayout extends StatelessWidget {
         onViewModeChanged: onViewModeChanged,
         searchQuery: searchQuery,
         onSearchChanged: onSearchChanged,
+        sortMode: sortMode,
+        onSortModeChanged: onSortModeChanged,
+        roomActivity: roomActivity,
+        activityLoading: activityLoading,
         selectedServerId: selectedServerId,
         onRoomTap: onRoomTap,
         onInfoTap: onInfoTap,
@@ -333,6 +370,10 @@ class _RoomContent extends StatelessWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.sortMode,
+    required this.onSortModeChanged,
+    required this.roomActivity,
+    required this.activityLoading,
     required this.selectedServerId,
     required this.onRoomTap,
     required this.onInfoTap,
@@ -346,6 +387,10 @@ class _RoomContent extends StatelessWidget {
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+  final Map<(String, String), DateTime?> roomActivity;
+  final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -380,6 +425,9 @@ class _RoomContent extends StatelessWidget {
             onViewModeChanged: onViewModeChanged,
             searchQuery: searchQuery,
             onSearchChanged: onSearchChanged,
+            sortMode: sortMode,
+            onSortModeChanged: onSortModeChanged,
+            sortLoading: activityLoading,
           ),
         ),
         Expanded(child: _buildSelectedServer(context)),
@@ -423,6 +471,8 @@ class _RoomContent extends StatelessWidget {
           serverRooms: serverRooms,
           viewMode: viewMode,
           searchQuery: searchQuery,
+          sortMode: sortMode,
+          roomActivity: roomActivity,
           onRoomTap: onRoomTap,
           onInfoTap: onInfoTap,
           onSignIn: onSignIn,
@@ -444,12 +494,18 @@ class _LobbyControls extends StatefulWidget {
     required this.onViewModeChanged,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.sortMode,
+    required this.onSortModeChanged,
+    required this.sortLoading,
   });
 
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
   final String searchQuery;
   final void Function(String) onSearchChanged;
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+  final bool sortLoading;
 
   @override
   State<_LobbyControls> createState() => _LobbyControlsState();
@@ -497,6 +553,33 @@ class _LobbyControlsState extends State<_LobbyControls> {
       viewMode: widget.viewMode,
       onChanged: widget.onViewModeChanged,
     );
+    // "Recent activity" is derived from each room's newest thread (the backend
+    // has no last-access field), so it can take a moment to populate; the
+    // dropdown stays live (so the user can switch back) and a small spinner
+    // sits beside it while the sweep runs.
+    final sort = SoliplexDropdown<LobbySortMode>(
+      leadingIcon: const Icon(Icons.sort),
+      initialValue: widget.sortMode,
+      onSelected: (mode) =>
+          widget.onSortModeChanged(mode ?? LobbySortMode.none),
+      entries: const [
+        SoliplexDropdownEntry(value: LobbySortMode.none, label: 'None'),
+        SoliplexDropdownEntry(
+          value: LobbySortMode.recentActivity,
+          label: 'Recent activity',
+        ),
+      ],
+    );
+    final busy =
+        widget.sortLoading && widget.sortMode == LobbySortMode.recentActivity
+            ? const Padding(
+                padding: EdgeInsets.only(left: SoliplexSpacing.s2),
+                child: SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -504,6 +587,9 @@ class _LobbyControlsState extends State<_LobbyControls> {
           return Row(
             children: [
               Expanded(child: search),
+              const SizedBox(width: SoliplexSpacing.s3),
+              SizedBox(width: 184, child: sort),
+              busy,
               const SizedBox(width: SoliplexSpacing.s3),
               toggle,
             ],
@@ -514,7 +600,14 @@ class _LobbyControlsState extends State<_LobbyControls> {
           children: [
             search,
             const SizedBox(height: SoliplexSpacing.s2),
-            Align(alignment: Alignment.centerRight, child: toggle),
+            Row(
+              children: [
+                Expanded(child: sort),
+                busy,
+                const SizedBox(width: SoliplexSpacing.s3),
+                toggle,
+              ],
+            ),
           ],
         );
       },
@@ -557,6 +650,8 @@ class _ServerSection extends StatelessWidget {
     required this.serverRooms,
     required this.viewMode,
     required this.searchQuery,
+    required this.sortMode,
+    required this.roomActivity,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onSignIn,
@@ -567,6 +662,8 @@ class _ServerSection extends StatelessWidget {
   final ServerRooms serverRooms;
   final LobbyViewMode viewMode;
   final String searchQuery;
+  final LobbySortMode sortMode;
+  final Map<(String, String), DateTime?> roomActivity;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
@@ -665,6 +762,35 @@ class _ServerSection extends StatelessWidget {
       );
     }
 
+    final ordered = _applySort(matches);
+
+    // When sorting by recency, split the (already date-descending) list into
+    // "Today / Yesterday / ..." sections, each under a header + divider — like
+    // an LLM chat history. Otherwise render one flat block.
+    if (sortMode != LobbySortMode.recentActivity) {
+      return _buildBlock(context, ordered);
+    }
+
+    final groups = <ActivityBucket, List<Room>>{};
+    for (final room in ordered) {
+      (groups[bucketFor(_activityFor(room))] ??= []).add(room);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final bucket in ActivityBucket.values)
+          if (groups[bucket] case final bucketRooms?) ...[
+            _GroupHeader(label: bucket.label),
+            _buildBlock(context, bucketRooms),
+          ],
+      ],
+    );
+  }
+
+  DateTime? _activityFor(Room room) => roomActivity[(serverId, room.id)];
+
+  /// Renders [rooms] in the active view mode (no grouping).
+  Widget _buildBlock(BuildContext context, List<Room> rooms) {
     return switch (viewMode) {
       LobbyViewMode.list => Padding(
           // Match the section heading and the grid's s4 gutter so list rows
@@ -672,9 +798,10 @@ class _ServerSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
           child: Column(
             children: [
-              for (final room in matches)
+              for (final room in rooms)
                 RoomCard(
                   room: room,
+                  activityTime: _activityFor(room),
                   onTap: () => onRoomTap(serverId, room.id),
                   onInfoTap: () => onInfoTap(serverId, room.id),
                 ),
@@ -683,11 +810,32 @@ class _ServerSection extends StatelessWidget {
         ),
       LobbyViewMode.grid => _RoomGrid(
           serverId: serverId,
-          rooms: matches,
+          rooms: rooms,
+          roomActivity: roomActivity,
           onRoomTap: onRoomTap,
           onInfoTap: onInfoTap,
         ),
     };
+  }
+
+  /// Orders rooms by most-recent-thread activity (descending) when that sort
+  /// is active. Rooms without a known timestamp — none fetched, no threads,
+  /// or a failed lookup — keep their original relative order at the end. Does
+  /// not mutate the input list.
+  List<Room> _applySort(List<Room> rooms) {
+    if (sortMode != LobbySortMode.recentActivity) return rooms;
+    final dated = <Room>[];
+    final undated = <Room>[];
+    for (final room in rooms) {
+      if (roomActivity[(serverId, room.id)] != null) {
+        dated.add(room);
+      } else {
+        undated.add(room);
+      }
+    }
+    dated.sort((a, b) => roomActivity[(serverId, b.id)]!
+        .compareTo(roomActivity[(serverId, a.id)]!));
+    return [...dated, ...undated];
   }
 }
 
@@ -701,12 +849,14 @@ class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,
     required this.rooms,
+    required this.roomActivity,
     required this.onRoomTap,
     required this.onInfoTap,
   });
 
   final String serverId;
   final List<Room> rooms;
+  final Map<(String, String), DateTime?> roomActivity;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -740,6 +890,8 @@ class _RoomGrid extends StatelessWidget {
                         child: i < rowRooms.length
                             ? RoomGridCard(
                                 room: rowRooms[i],
+                                activityTime:
+                                    roomActivity[(serverId, rowRooms[i].id)],
                                 onTap: () =>
                                     onRoomTap(serverId, rowRooms[i].id),
                                 onInfoTap: () =>
@@ -762,6 +914,35 @@ class _RoomGrid extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// A recency-bucket section header: a muted label with a trailing rule, used
+/// to separate "Today", "Yesterday", ... groups when sorting by activity.
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4, SoliplexSpacing.s3,
+          SoliplexSpacing.s4, SoliplexSpacing.s2),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: SoliplexSpacing.s3),
+          const Expanded(child: Divider()),
+        ],
       ),
     );
   }

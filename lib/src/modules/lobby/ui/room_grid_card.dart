@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../room_activity_format.dart';
+
 /// Vertical card used for the lobby's grid layout: open on tap, info
 /// button, and a quiz indicator, in a shape that tiles cleanly into a
 /// grid cell. The list-row counterpart is [RoomCard].
@@ -11,11 +13,16 @@ class RoomGridCard extends StatelessWidget {
     required this.room,
     required this.onTap,
     required this.onInfoTap,
+    this.activityTime,
   });
 
   final Room room;
   final VoidCallback onTap;
   final VoidCallback onInfoTap;
+
+  /// Most-recent-thread timestamp, shown as a muted relative label in the
+  /// footer's bottom-left. Null while unknown (not yet fetched, or no threads).
+  final DateTime? activityTime;
 
   @override
   Widget build(BuildContext context) {
@@ -76,11 +83,23 @@ class RoomGridCard extends StatelessWidget {
               const Spacer(),
               Row(
                 children: [
-                  // Bottom-left marking; renders nothing until a deployment
-                  // configures classifications. Backend per-room value
-                  // wires in here later via `classification:`.
+                  // Bottom-left: relative activity time when known, then the
+                  // marking (which renders nothing until a deployment
+                  // configures classifications — backend per-room value wires
+                  // in here later via `classification:`).
+                  Expanded(
+                    child: activityTime == null
+                        ? const SizedBox.shrink()
+                        : Text(
+                            formatRelativeActivity(activityTime!),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                  ),
                   const SoliplexClassificationBadge(),
-                  const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.info_outline),
                     tooltip: 'Room info',

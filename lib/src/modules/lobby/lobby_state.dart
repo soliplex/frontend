@@ -9,6 +9,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../auth/auth_tokens.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
 import 'selected_server_storage.dart';
 
@@ -76,6 +77,7 @@ class LobbyState {
         _apiResolver = apiResolver ?? _defaultResolver {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
+    unawaited(_loadSortMode());
     unawaited(_loadSelectedServer());
   }
 
@@ -131,6 +133,133 @@ class LobbyState {
     );
   }
 
+  /// How rooms are ordered in the main pane. Starts at [LobbySortMode.none];
+  /// replaced by the persisted preference once [_loadSortMode] resolves.
+  final Signal<LobbySortMode> _sortMode = Signal(LobbySortMode.none);
+  ReadonlySignal<LobbySortMode> get sortMode => _sortMode;
+
+  Future<void> _loadSortMode() async {
+    try {
+      _sortMode.value = await LobbySortModeStorage.load();
+      // A persisted "recent activity" choice needs its data fetched on launch.
+      _reconcileActivity();
+    } catch (error, st) {
+      dev.log(
+        'Failed to load lobby sort mode',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+  }
+
+  /// Updates the room ordering and persists the choice for next launch.
+  /// Selecting [LobbySortMode.recentActivity] lazily fetches per-room
+  /// activity for the selected server (see [_reconcileActivity]).
+  void setSortMode(LobbySortMode mode) {
+    if (mode == _sortMode.value) return;
+    _sortMode.value = mode;
+    _reconcileActivity();
+    unawaited(
+      LobbySortModeStorage.save(mode).catchError((Object error, StackTrace st) {
+        dev.log(
+          'Failed to persist lobby sort mode',
+          error: error,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  /// Most-recent-thread timestamp per room, keyed by (serverId, roomId).
+  /// A present-but-null value means "fetched, room has no threads"; an absent
+  /// key means "not fetched yet". Used only to order [LobbySortMode]
+  /// .recentActivity; rooms without a timestamp sort last.
+  final Signal<Map<(String, String), DateTime?>> _roomActivity =
+      Signal<Map<(String, String), DateTime?>>({});
+  ReadonlySignal<Map<(String, String), DateTime?>> get roomActivity =>
+      _roomActivity;
+
+  /// True while per-room activity for the selected server is being fetched.
+  final Signal<bool> _activityLoading = Signal(false);
+  ReadonlySignal<bool> get activityLoading => _activityLoading;
+
+  /// Cancels an in-flight activity sweep when the selection changes or the
+  /// state is disposed.
+  CancelToken? _activityToken;
+
+  /// Loads activity timestamps for the selected server's rooms. Fetched
+  /// eagerly (the room cards display the relative time regardless of sort
+  /// order), and reused for [LobbySortMode.recentActivity] ordering. No-op
+  /// before a server is selected or before that server's rooms have loaded.
+  /// Only uncached rooms are fetched; results are merged into [_roomActivity],
+  /// so switching servers reuses prior fetches. The backend exposes no
+  /// last-access field, so "recency" is the newest thread's `createdAt` (one
+  /// `getThreads` per room — the transport's concurrency limiter throttles
+  /// the burst).
+  void _reconcileActivity() {
+    _activityToken?.cancel('activity reconcile');
+    _activityToken = null;
+
+    final serverId = _selectedServerId.value;
+    if (serverId == null) return;
+    final entry = _serverManager.servers.value[serverId];
+    if (entry == null) return;
+    final rooms = _roomsByServer.value[serverId];
+    if (rooms is! RoomsLoaded) return;
+
+    final missing = rooms.rooms
+        .where((r) => !_roomActivity.value.containsKey((serverId, r.id)))
+        .toList();
+    if (missing.isEmpty) {
+      _activityLoading.value = false;
+      return;
+    }
+
+    final token = CancelToken();
+    _activityToken = token;
+    _activityLoading.value = true;
+    final api = _apiResolver(entry);
+
+    Future.wait(
+      missing.map((room) async {
+        try {
+          final threads = await api.getThreads(room.id, cancelToken: token);
+          return MapEntry((serverId, room.id), _latestCreatedAt(threads));
+        } catch (error, st) {
+          // A room whose threads can't be listed simply has no recency
+          // signal; it sorts last rather than failing the whole view.
+          if (!token.isCancelled) {
+            dev.log(
+              'Failed to fetch thread activity for ${room.id} on $serverId',
+              error: error,
+              stackTrace: st,
+              level: 900,
+            );
+          }
+          return MapEntry<(String, String), DateTime?>(
+            (serverId, room.id),
+            null,
+          );
+        }
+      }),
+    ).then((entries) {
+      if (token.isCancelled) return;
+      _activityToken = null;
+      _activityLoading.value = false;
+      _roomActivity.value = {..._roomActivity.value}..addEntries(entries);
+    });
+  }
+
+  static DateTime? _latestCreatedAt(List<ThreadInfo> threads) {
+    DateTime? latest;
+    for (final t in threads) {
+      if (latest == null || t.createdAt.isAfter(latest)) latest = t.createdAt;
+    }
+    return latest;
+  }
+
   /// Free-text room-name filter. Ephemeral — intentionally not persisted,
   /// so each lobby visit starts unfiltered.
   final Signal<String> _searchQuery = Signal('');
@@ -173,6 +302,7 @@ class LobbyState {
     _selectionInitialized = true;
     if (restored != _selectedServerId.value) {
       _selectedServerId.value = restored;
+      _reconcileActivity();
     }
   }
 
@@ -181,6 +311,7 @@ class LobbyState {
     if (serverId == _selectedServerId.value) return;
     _selectedServerId.value = serverId;
     _persistSelection(serverId);
+    _reconcileActivity();
   }
 
   /// Keeps the selection valid as the server set changes: an explicit,
@@ -194,6 +325,7 @@ class LobbyState {
     if (next != current) {
       _selectedServerId.value = next;
       _persistSelection(next);
+      _reconcileActivity();
     }
   }
 
@@ -336,6 +468,13 @@ class LobbyState {
         ..._roomsByServer.value,
         serverId: RoomsLoaded(rooms),
       };
+      // A fresh room list invalidates cached activity for this server (rooms
+      // may have been added); drop those entries so recency refetches.
+      if (_roomActivity.value.keys.any((k) => k.$1 == serverId)) {
+        _roomActivity.value = {..._roomActivity.value}
+          ..removeWhere((k, _) => k.$1 == serverId);
+      }
+      if (serverId == _selectedServerId.value) _reconcileActivity();
     }).catchError((Object error, StackTrace st) {
       if (token.isCancelled) return;
       _cancelTokens.remove(serverId);
@@ -424,6 +563,7 @@ class LobbyState {
 
   void dispose() {
     _unsubscribe();
+    _activityToken?.cancel('disposed');
     for (final unsub in _authSubscriptions.values) {
       unsub();
     }

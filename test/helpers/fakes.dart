@@ -204,6 +204,10 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextMcpTokenError;
 
   List<ThreadInfo>? nextThreads;
+
+  /// Per-room thread lists, consulted before [nextThreads]. Lets a test give
+  /// different rooms different thread sets (e.g. for activity-based sorting).
+  final Map<String, List<ThreadInfo>> threadsByRoom = {};
   Exception? nextThreadsError;
   ThreadHistory? nextThreadHistory;
   Exception? nextThreadHistoryError;
@@ -243,6 +247,7 @@ class FakeSoliplexApi extends SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     if (nextThreadsError != null) throw nextThreadsError!;
+    if (threadsByRoom.containsKey(roomId)) return threadsByRoom[roomId]!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');
   }

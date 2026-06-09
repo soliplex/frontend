@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show Room;
+import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_sort_mode.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
@@ -350,7 +351,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RoomCard), findsNWidgets(2));
 
-      await tester.enterText(find.byType(TextField), 'gen');
+      await tester.enterText(
+          find.widgetWithIcon(TextField, Icons.search), 'gen');
       await tester.pumpAndSettle();
 
       expect(find.byType(RoomCard), findsOneWidget);
@@ -376,7 +378,8 @@ void main() {
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField), 'zzz');
+      await tester.enterText(
+          find.widgetWithIcon(TextField, Icons.search), 'zzz');
       await tester.pumpAndSettle();
 
       expect(find.byType(RoomCard), findsNothing);
@@ -403,7 +406,8 @@ void main() {
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField), 'gen');
+      await tester.enterText(
+          find.widgetWithIcon(TextField, Icons.search), 'gen');
       await tester.pumpAndSettle();
       expect(find.byType(RoomCard), findsOneWidget);
 
@@ -411,6 +415,100 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RoomCard), findsNWidgets(2));
+    });
+
+    testWidgets(
+        'sorting by recent activity reorders rooms by their newest thread',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      // 'General' is listed first but has the older thread; 'Random' has the
+      // newer one, so recent-activity sorting must put 'Random' on top.
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'General'),
+          Room(id: 'r2', name: 'Random'),
+        ]
+        ..threadsByRoom['r1'] = [
+          ThreadInfo(id: 't1', roomId: 'r1', createdAt: DateTime.utc(2026, 1)),
+        ]
+        ..threadsByRoom['r2'] = [
+          ThreadInfo(id: 't2', roomId: 'r2', createdAt: DateTime.utc(2026, 6)),
+        ];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      List<String> roomOrder() => tester
+          .widgetList<RoomCard>(find.byType(RoomCard))
+          .map((c) => c.room.name)
+          .toList();
+
+      // Default sort (none): backend order is preserved.
+      expect(roomOrder(), ['General', 'Random']);
+
+      // Open the sort dropdown and choose "Recent activity" (the offstage
+      // measurement copy of the entry isn't hit-testable, so target the
+      // on-screen one).
+      await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.pumpAndSettle();
+
+      expect(roomOrder(), ['Random', 'General']);
+    });
+
+    testWidgets('recent-activity sort groups rooms under date-bucket headers',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final now = DateTime.now();
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'Fresh'),
+          Room(id: 'r2', name: 'Stale'),
+        ]
+        ..threadsByRoom['r1'] = [
+          ThreadInfo(id: 't1', roomId: 'r1', createdAt: now),
+        ]
+        ..threadsByRoom['r2'] = [
+          ThreadInfo(
+            id: 't2',
+            roomId: 'r2',
+            createdAt: now.subtract(const Duration(days: 10)),
+          ),
+        ];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // No section headers until sorting by recent activity.
+      expect(find.text('Today'), findsNothing);
+
+      await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.pumpAndSettle();
+
+      // Two buckets: today (Fresh) and ~10 days ago (This month).
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('This month'), findsOneWidget);
     });
 
     testWidgets(
