@@ -44,7 +44,7 @@ final class RoomsLoading extends ServerRooms {
 }
 
 final class RoomsLoaded extends ServerRooms {
-  const RoomsLoaded(this.rooms);
+  RoomsLoaded(List<Room> rooms) : rooms = List.unmodifiable(rooms);
   final List<Room> rooms;
 }
 
@@ -138,8 +138,10 @@ class LobbyState {
 
   void setSearchQuery(String query) => _searchQuery.value = query;
 
-  /// The server whose rooms are shown in the main pane. `null` only before
-  /// the first server is known. The selection is persisted across launches.
+  /// The server whose rooms are shown in the main pane. `null` when no
+  /// server is available — before the persisted selection resolves on
+  /// launch, or after the last server is removed. The selection is
+  /// persisted across launches.
   final Signal<String?> _selectedServerId = Signal<String?>(null);
   ReadonlySignal<String?> get selectedServerId => _selectedServerId;
 
