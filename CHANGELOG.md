@@ -15,6 +15,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `soliplex_design` dependency.
 - Lobby: branded header in the server sidebar (logo, app name, and version),
   sourced from the flavor's `SoliplexBranding`.
+- Lobby: account block in the sidebar footer showing the selected server's
+  signed-in identity (avatar, name, and email), with a ⋮ menu that collapses
+  the Network Inspector and Versions actions.
 
 ### Changed
 
@@ -33,6 +36,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: align list-card gutters and spacing to the design mockup, give grid
   cards equal height with a pinned footer, and match list-card title/subtitle
   styles to the grid card.
+- Lobby: keep the sidebar's brand header and account bar clear of the status
+  bar, notch, and home indicator by wrapping the two-pane body and the drawer
+  in a safe area.
 - soliplex_client: pin the `ag_ui` git dependency to a fixed ref for
   deterministic resolution; a floating HEAD pulled an incompatible release that
   broke web builds.
