@@ -191,40 +191,44 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No AppBar in this two-pane layout, so SafeArea keeps the sidebar and
+    // room pane clear of the status bar, home indicator, and side notches.
     return Scaffold(
-      body: Row(
-        children: [
-          SizedBox(
-            width: _sidebarWidth,
-            child: ServerSidebar(
-              servers: servers,
-              profiles: profiles,
-              branding: branding,
-              selectedServerId: selectedServerId,
-              onSelectServer: onSelectServer,
-              onServerTap: onServerTap,
-              onAddServer: onAddServer,
-              onNetworkInspector: onNetworkInspector,
-              onVersions: onVersions,
+      body: SafeArea(
+        child: Row(
+          children: [
+            SizedBox(
+              width: _sidebarWidth,
+              child: ServerSidebar(
+                servers: servers,
+                profiles: profiles,
+                branding: branding,
+                selectedServerId: selectedServerId,
+                onSelectServer: onSelectServer,
+                onServerTap: onServerTap,
+                onAddServer: onAddServer,
+                onNetworkInspector: onNetworkInspector,
+                onVersions: onVersions,
+              ),
             ),
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: _RoomContent(
-              roomsByServer: roomsByServer,
-              servers: servers,
-              viewMode: viewMode,
-              onViewModeChanged: onViewModeChanged,
-              searchQuery: searchQuery,
-              onSearchChanged: onSearchChanged,
-              selectedServerId: selectedServerId,
-              onRoomTap: onRoomTap,
-              onInfoTap: onInfoTap,
-              onAddServer: onAddServer,
-              onSignIn: onSignIn,
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: _RoomContent(
+                roomsByServer: roomsByServer,
+                servers: servers,
+                viewMode: viewMode,
+                onViewModeChanged: onViewModeChanged,
+                searchQuery: searchQuery,
+                onSearchChanged: onSearchChanged,
+                selectedServerId: selectedServerId,
+                onRoomTap: onRoomTap,
+                onInfoTap: onInfoTap,
+                onAddServer: onAddServer,
+                onSignIn: onSignIn,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -281,22 +285,26 @@ class _NarrowLayout extends StatelessWidget {
         ),
       ),
       drawer: Drawer(
-        // Builder gives a context under this Scaffold so selecting a server
-        // can close the drawer before revealing its rooms.
-        child: Builder(
-          builder: (drawerContext) => ServerSidebar(
-            servers: servers,
-            profiles: profiles,
-            branding: branding,
-            selectedServerId: selectedServerId,
-            onSelectServer: (id) {
-              onSelectServer(id);
-              Scaffold.of(drawerContext).closeDrawer();
-            },
-            onServerTap: onServerTap,
-            onAddServer: onAddServer,
-            onNetworkInspector: onNetworkInspector,
-            onVersions: onVersions,
+        // A Drawer adds no inset of its own, so SafeArea keeps the brand
+        // header and account bar clear of the status bar and home indicator.
+        child: SafeArea(
+          // Builder gives a context under this Scaffold so selecting a server
+          // can close the drawer before revealing its rooms.
+          child: Builder(
+            builder: (drawerContext) => ServerSidebar(
+              servers: servers,
+              profiles: profiles,
+              branding: branding,
+              selectedServerId: selectedServerId,
+              onSelectServer: (id) {
+                onSelectServer(id);
+                Scaffold.of(drawerContext).closeDrawer();
+              },
+              onServerTap: onServerTap,
+              onAddServer: onAddServer,
+              onNetworkInspector: onNetworkInspector,
+              onVersions: onVersions,
+            ),
           ),
         ),
       ),

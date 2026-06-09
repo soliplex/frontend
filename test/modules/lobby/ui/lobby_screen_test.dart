@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -102,6 +103,48 @@ void main() {
           matching: find.text('Add Server'),
         ),
         findsOneWidget,
+      );
+    });
+
+    testWidgets('wide layout insets content below the top safe area',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = const FakeViewPadding(top: 50);
+      addTearDown(tester.view.reset);
+
+      final manager = _createManager();
+      await tester.pumpWidget(_buildApp(manager));
+      await tester.pump();
+
+      // The wide layout has no AppBar, so without a SafeArea the sidebar
+      // would paint under the status bar / notch. It must start below the
+      // top inset.
+      expect(
+        tester.getTopLeft(find.byType(ServerSidebar)).dy,
+        greaterThanOrEqualTo(50.0),
+      );
+    });
+
+    testWidgets('narrow drawer insets the sidebar below the top safe area',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = const FakeViewPadding(top: 50);
+      addTearDown(tester.view.reset);
+
+      final manager = _createManager();
+      await tester.pumpWidget(_buildApp(manager));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+
+      // A Drawer applies no inset of its own; without a SafeArea the brand
+      // header would paint under the status bar / notch.
+      expect(
+        tester.getTopLeft(find.byType(ServerSidebar)).dy,
+        greaterThanOrEqualTo(50.0),
       );
     });
 
