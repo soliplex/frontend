@@ -35,29 +35,37 @@ class UserProfile {
       );
 }
 
-sealed class ServerRooms {}
+sealed class ServerRooms {
+  const ServerRooms();
+}
 
-class RoomsLoading extends ServerRooms {}
+final class RoomsLoading extends ServerRooms {
+  const RoomsLoading();
+}
 
-class RoomsLoaded extends ServerRooms {
-  RoomsLoaded(this.rooms);
+final class RoomsLoaded extends ServerRooms {
+  const RoomsLoaded(this.rooms);
   final List<Room> rooms;
 }
 
-class RoomsFailed extends ServerRooms {
-  RoomsFailed(this.error);
+final class RoomsFailed extends ServerRooms {
+  const RoomsFailed(this.error);
   final Object error;
 }
 
 /// The server's session has expired. Tokens are preserved (for a silent
 /// refresh attempt later), but the user must re-authenticate to see
 /// rooms. The lobby renders an inline "sign in again" affordance.
-class RoomsExpired extends ServerRooms {}
+final class RoomsExpired extends ServerRooms {
+  const RoomsExpired();
+}
 
 /// The user has signed out of the server (no tokens remain). The server
 /// stays listed so the single-server lobby can offer an inline "sign in"
 /// affordance instead of a blank pane.
-class RoomsSignedOut extends ServerRooms {}
+final class RoomsSignedOut extends ServerRooms {
+  const RoomsSignedOut();
+}
 
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
@@ -288,7 +296,7 @@ class LobbyState {
         // name.
         _roomsByServer.value = {
           ..._roomsByServer.value,
-          serverId: RoomsExpired(),
+          serverId: const RoomsExpired(),
         };
         _userProfiles.value = {..._userProfiles.value, serverId: null};
       case NoSession():
@@ -298,7 +306,7 @@ class LobbyState {
         // identity does not briefly render the prior user's name.
         _roomsByServer.value = {
           ..._roomsByServer.value,
-          serverId: RoomsSignedOut(),
+          serverId: const RoomsSignedOut(),
         };
         _userProfiles.value = {..._userProfiles.value, serverId: null};
       case ActiveSession():
@@ -316,7 +324,7 @@ class LobbyState {
     // Mark as loading
     _roomsByServer.value = {
       ..._roomsByServer.value,
-      serverId: RoomsLoading(),
+      serverId: const RoomsLoading(),
     };
 
     _apiResolver(entry).getRooms(cancelToken: token).then((rooms) {
