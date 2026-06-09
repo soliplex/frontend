@@ -74,7 +74,7 @@ class ServerSidebar extends StatelessWidget {
 class _BrandHeader extends StatelessWidget {
   const _BrandHeader({required this.branding});
 
-  /// Logo box height. Kept close to the title + version block so the mark
+  /// Logo box size. Kept close to the title + version block so the mark
   /// reads as part of the header rather than dominating it; the flavor's
   /// logo is scaled to fit regardless of its intrinsic size.
   static const double _logoSize = 40;

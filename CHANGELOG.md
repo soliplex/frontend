@@ -13,6 +13,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Design: re-export `ClassificationTheme` and `ClassificationLevel` from the
   public API so adopters can configure classification without a direct
   `soliplex_design` dependency.
+- Lobby: branded header in the server sidebar (logo, app name, and version),
+  sourced from the flavor's `SoliplexBranding`.
 
 ### Changed
 
