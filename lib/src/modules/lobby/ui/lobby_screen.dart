@@ -670,9 +670,10 @@ class _ServerSection extends StatelessWidget {
 
 /// Responsive grid of [RoomGridCard]s for a single server's rooms.
 ///
-/// Lives inside the outer room `ListView`, so it lays out with a [Wrap]
-/// (fixed-width cells, intrinsic height) rather than a nested scrollable
-/// grid. Column count and cell width come from [roomGridLayout].
+/// Lives inside the outer room `ListView`, so it lays the cards out as a
+/// [Column] of [IntrinsicHeight] rows rather than a nested scrollable grid.
+/// Each row stretches its cells with [Expanded] so cards in a row share the
+/// tallest one's height. Only the column count comes from [roomGridLayout].
 class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,

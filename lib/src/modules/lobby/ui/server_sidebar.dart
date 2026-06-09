@@ -94,8 +94,8 @@ class _ServerList extends StatelessWidget {
                       ),
                 ),
               ),
-              // Server management (add/remove/reconnect) moved off the row
-              // tap, which now selects a server to view its rooms.
+              // Server management lives behind this gear so a row tap is free
+              // to select a server for viewing its rooms.
               IconButton(
                 icon: const Icon(Icons.settings_outlined, size: 18),
                 tooltip: 'Manage servers',
