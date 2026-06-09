@@ -78,7 +78,9 @@ void main() {
         state.dispose();
       });
 
-      test('skips servers that are not connected', () async {
+      test(
+          'does not fetch for a not-connected server, but marks it '
+          'RoomsSignedOut', () async {
         final manager = _createManager();
         // requiresAuth: true with no login → not connected
         manager.addServer(
@@ -97,7 +99,11 @@ void main() {
 
         await Future<void>.delayed(Duration.zero);
 
-        expect(state.roomsByServer.value, isEmpty);
+        // No fetch happens, but the row carries a sign-in affordance rather
+        // than being absent, so a selected not-connected server is
+        // recoverable instead of blank.
+        expect(state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
+        expect(fakeApi.getRoomsCallCount, 0);
 
         state.dispose();
       });
@@ -376,11 +382,14 @@ void main() {
       );
 
       test(
-        'NoSession (logout) prunes the section',
+        'NoSession (logout) marks the section RoomsSignedOut and drops '
+        'the profile',
         () async {
-          // A true sign-out should not leave a stale "session expired"
-          // row in the lobby. Pruning the section is the right disposition
-          // because there are no tokens to recover from.
+          // The single-server lobby shows the selected server's section
+          // alone, so a logged-out server keeps a RoomsSignedOut row with a
+          // sign-in affordance instead of a blank pane. The profile is
+          // dropped so a re-auth as a different identity does not flash the
+          // prior user's name.
           final manager = _createManager();
           final entry = manager.addServer(
             serverId: 'auth-server',
@@ -411,8 +420,9 @@ void main() {
           entry.auth.logout();
           await Future<void>.delayed(Duration.zero);
 
-          expect(state.roomsByServer.value.containsKey('auth-server'), isFalse);
-          expect(state.userProfiles.value.containsKey('auth-server'), isFalse);
+          expect(
+              state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
+          expect(state.userProfiles.value['auth-server'], isNull);
 
           state.dispose();
         },
@@ -550,8 +560,8 @@ void main() {
         );
         await Future<void>.delayed(Duration.zero);
 
-        // Not connected yet — no rooms fetched
-        expect(state.roomsByServer.value, isEmpty);
+        // Not connected yet — signed-out affordance shown, no rooms fetched.
+        expect(state.roomsByServer.value['auth-server'], isA<RoomsSignedOut>());
 
         // Simulate login
         entry.auth.login(

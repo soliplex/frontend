@@ -368,11 +368,29 @@ class _RoomContent extends StatelessWidget {
 
   Widget _buildSelectedServer(BuildContext context) {
     final id = selectedServerId;
-    // No selection yet (still resolving), or the selected server has no room
-    // data (not connected / not fetched). Render blank rather than an error.
-    if (id == null) return const SizedBox.shrink();
+    // No selection yet — the persisted choice loads asynchronously on launch.
+    // Show the same loading indicator the rooms-loading state uses so cold
+    // start reads as spinner -> rooms with no flash of a blank pane.
+    if (id == null) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+            child: LinearProgressIndicator(),
+          ),
+        ],
+      );
+    }
+    // A selected server always carries a room state once it has been seen by
+    // _onServersChanged (loading / loaded / failed / expired / signed-out), so
+    // a missing entry should not happen; assert in debug and fall back to a
+    // blank pane in release rather than throwing in front of the user.
     final serverRooms = roomsByServer[id];
-    if (serverRooms == null) return const SizedBox.shrink();
+    if (serverRooms == null) {
+      assert(false, 'Selected server "$id" has no room state');
+      return const SizedBox.shrink();
+    }
 
     return ListView(
       children: [
@@ -560,31 +578,43 @@ class _ServerSection extends StatelessWidget {
               }),
             ),
           RoomsLoaded(:final rooms) => _buildRooms(context, rooms),
-          RoomsExpired() => Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Session expired',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: SoliplexSpacing.s1),
-                  Text(
-                    'Sign in again to view rooms on this server.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: SoliplexSpacing.s3),
-                  SoliplexButton.filled(
-                    onPressed: () => onSignIn(serverId),
-                    child: const Text('Sign in'),
-                  ),
-                ],
-              ),
+          RoomsExpired() => _reauthPanel(
+              context,
+              title: 'Session expired',
+              body: 'Sign in again to view rooms on this server.',
+            ),
+          RoomsSignedOut() => _reauthPanel(
+              context,
+              title: 'Signed out',
+              body: 'Sign in to view rooms on this server.',
             ),
         },
       ],
+    );
+  }
+
+  /// Inline panel for a not-connected server: a heading, a one-line
+  /// explanation, and a button that routes to the server's sign-in flow.
+  Widget _reauthPanel(
+    BuildContext context, {
+    required String title,
+    required String body,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: SoliplexSpacing.s1),
+          Text(body, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: SoliplexSpacing.s3),
+          SoliplexButton.filled(
+            onPressed: () => onSignIn(serverId),
+            child: const Text('Sign in'),
+          ),
+        ],
+      ),
     );
   }
 

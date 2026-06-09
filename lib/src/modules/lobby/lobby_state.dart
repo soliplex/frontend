@@ -54,6 +54,11 @@ class RoomsFailed extends ServerRooms {
 /// rooms. The lobby renders an inline "sign in again" affordance.
 class RoomsExpired extends ServerRooms {}
 
+/// The user has signed out of the server (no tokens remain). The server
+/// stays listed so the single-server lobby can offer an inline "sign in"
+/// affordance instead of a blank pane.
+class RoomsSignedOut extends ServerRooms {}
+
 /// Manages per-server room lists, fetching from all connected servers.
 class LobbyState {
   LobbyState({
@@ -287,14 +292,15 @@ class LobbyState {
         };
         _userProfiles.value = {..._userProfiles.value, serverId: null};
       case NoSession():
-        // Signed out: prune the row.
-        final updatedRooms = Map<String, ServerRooms>.from(_roomsByServer.value)
-          ..remove(serverId);
-        final updatedProfiles =
-            Map<String, UserProfile?>.from(_userProfiles.value)
-              ..remove(serverId);
-        _roomsByServer.value = updatedRooms;
-        _userProfiles.value = updatedProfiles;
+        // Signed out: keep the row with an inline "sign in" affordance so
+        // the single-server lobby shows a recoverable state rather than a
+        // blank pane. The profile is dropped so a re-auth as a different
+        // identity does not briefly render the prior user's name.
+        _roomsByServer.value = {
+          ..._roomsByServer.value,
+          serverId: RoomsSignedOut(),
+        };
+        _userProfiles.value = {..._userProfiles.value, serverId: null};
       case ActiveSession():
         assert(false, 'ActiveSession reached the !isConnected branch');
     }

@@ -175,6 +175,62 @@ void main() {
       },
     );
 
+    testWidgets(
+      'signed-out row renders Sign in button that routes to '
+      'homeWithUrl with returnTo=lobby',
+      (tester) async {
+        // A logged-out (or inactivity-timed-out) server stays selected in
+        // the single-server lobby. Without a recoverable affordance the
+        // content pane is blank, stranding the user; the row must offer a
+        // sign-in path instead.
+        tester.view.physicalSize = const Size(900, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'auth-server',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+        entry.auth.logout();
+
+        Uri? homeLocation;
+        await tester.pumpWidget(
+          _buildApp(manager, onHomeRoute: (uri) => homeLocation = uri),
+        );
+        await tester.pump();
+
+        // Copy is unique to the RoomsSignedOut arm so it pins the panel
+        // without colliding with the RoomsExpired arm's "again" wording.
+        expect(
+          find.text('Sign in to view rooms on this server.'),
+          findsOneWidget,
+        );
+        expect(find.text('Sign in'), findsOneWidget);
+
+        await tester.tap(find.text('Sign in'));
+        await tester.pumpAndSettle();
+
+        expect(homeLocation, isNotNull);
+        expect(
+          homeLocation!.queryParameters['url'],
+          'https://api.example.com',
+        );
+        expect(homeLocation!.queryParameters['returnTo'], '/lobby');
+      },
+    );
+
     testWidgets('toggle switches loaded rooms from list to grid cards',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);
