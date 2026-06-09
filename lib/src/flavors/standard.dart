@@ -161,7 +161,7 @@ Future<ShellConfig> standard({
     modules: [
       DiagnosticsAppModule(inspector: inspector),
       authMod,
-      LobbyAppModule(serverManager: serverManager),
+      LobbyAppModule(serverManager: serverManager, branding: brand),
       RoomAppModule(
         serverManager: serverManager,
         runtimeManager: runtimeManager,

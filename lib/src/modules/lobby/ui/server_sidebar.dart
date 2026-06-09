@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
+import '../../../../version.dart';
+import '../../../core/branding.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../lobby_state.dart';
@@ -11,6 +13,7 @@ class ServerSidebar extends StatelessWidget {
     super.key,
     required this.servers,
     required this.profiles,
+    required this.branding,
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onServerTap,
@@ -21,6 +24,9 @@ class ServerSidebar extends StatelessWidget {
 
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
+
+  /// Brand identity shown in the header (logo + app name).
+  final SoliplexBranding branding;
 
   /// The currently-viewed server; its tile is highlighted.
   final String? selectedServerId;
@@ -39,6 +45,8 @@ class ServerSidebar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _BrandHeader(branding: branding),
+        const Divider(height: 1),
         Expanded(
           child: _ServerList(
             servers: servers,
@@ -56,6 +64,60 @@ class ServerSidebar extends StatelessWidget {
           onVersions: onVersions,
         ),
       ],
+    );
+  }
+}
+
+/// Branded sidebar header: the flavor's logo, app name, and the running
+/// library version. Whitelabel forks change the logo and name through the
+/// branding API; the version is the shipped `soliplexVersion` constant.
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader({required this.branding});
+
+  /// Logo box size. Kept close to the title + version block so the mark
+  /// reads as part of the header rather than dominating it; the flavor's
+  /// logo is scaled to fit regardless of its intrinsic size.
+  static const double _logoSize = 40;
+
+  final SoliplexBranding branding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(SoliplexSpacing.s4),
+      child: Row(
+        children: [
+          SizedBox.square(
+            dimension: _logoSize,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: BrandLogo(branding: branding),
+            ),
+          ),
+          const SizedBox(width: SoliplexSpacing.s4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  branding.appName,
+                  style: theme.textTheme.titleMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'v$soliplexVersion',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -112,7 +174,9 @@ class _ServerList extends StatelessWidget {
             onTap: () => onSelectServer(entry.key),
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s2),
+          // s3 above lifts the button off the last server tile.
+          padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s2,
+              SoliplexSpacing.s3, SoliplexSpacing.s2, SoliplexSpacing.s2),
           child: SoliplexButton.outlined(
             onPressed: onAddServer,
             icon: const Icon(Icons.add, size: 18),
