@@ -49,7 +49,7 @@ class ServerSidebar extends StatelessWidget {
     final selectedProfile =
         selectedServerId == null ? null : profiles[selectedServerId];
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -229,17 +229,20 @@ class _ServerTile extends StatelessWidget {
     return switch (session) {
       ExpiredSession() => 'Session expired',
       NoSession() => 'Not signed in',
-      ActiveSession() => _activeIdentityLabel(),
+      ActiveSession() => _signedInName(profile),
     };
   }
+}
 
-  String _activeIdentityLabel() {
-    if (profile == null) return 'Signed in';
-    final name = '${profile!.givenName} ${profile!.familyName}'.trim();
-    if (name.isNotEmpty) return name;
-    if (profile!.email.isNotEmpty) return profile!.email;
-    return 'Signed in';
-  }
+/// The signed-in user's display name from [profile], falling back through the
+/// preferred username and email to a generic label when no name is set.
+String _signedInName(UserProfile? profile) {
+  if (profile == null) return 'Signed in';
+  final full = '${profile.givenName} ${profile.familyName}'.trim();
+  if (full.isNotEmpty) return full;
+  if (profile.preferredUsername.isNotEmpty) return profile.preferredUsername;
+  if (profile.email.isNotEmpty) return profile.email;
+  return 'Signed in';
 }
 
 /// The actions collapsed behind the sidebar's "more" (⋮) menu. These are
@@ -342,7 +345,7 @@ class _AccountBlock extends StatelessWidget {
       final identity = _resolveIdentity();
       return Row(
         children: [
-          _Avatar(initial: identity.initial),
+          _Avatar(initial: identity.name.characters.first.toUpperCase()),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
             child: Column(
@@ -372,34 +375,23 @@ class _AccountBlock extends StatelessWidget {
     });
   }
 
-  ({String name, String? email, String initial}) _resolveIdentity() {
+  ({String name, String? email}) _resolveIdentity() {
     final isAuthenticated = entry != null &&
         entry!.requiresAuth &&
         entry!.auth.session.value is ActiveSession;
     if (!isAuthenticated) {
-      return (name: 'Guest', email: null, initial: 'G');
+      return (name: 'Guest', email: null);
     }
-    final name = _displayName(profile);
     final email = (profile?.email.isNotEmpty ?? false) ? profile!.email : null;
-    final initial = name.substring(0, 1).toUpperCase();
-    return (name: name, email: email, initial: initial);
-  }
-
-  String _displayName(UserProfile? profile) {
-    if (profile == null) return 'Signed in';
-    final full = '${profile.givenName} ${profile.familyName}'.trim();
-    if (full.isNotEmpty) return full;
-    if (profile.preferredUsername.isNotEmpty) return profile.preferredUsername;
-    if (profile.email.isNotEmpty) return profile.email;
-    return 'Signed in';
+    return (name: _signedInName(profile), email: email);
   }
 }
 
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.initial});
 
-  /// Avatar side. Sized to the two-line name/email block, not tokenised
-  /// (there is no avatar-size token), consistent with other icon sizes.
+  /// Avatar side, sized to the two-line name/email block. Not tokenised —
+  /// there is no avatar-size token.
   static const double _size = 36;
 
   final String initial;
