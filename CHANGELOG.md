@@ -18,6 +18,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: account block in the sidebar footer showing the selected server's
   signed-in identity (avatar, name, and email), with a ⋮ menu that collapses
   the Network Inspector and Versions actions.
+- Lobby: sort rooms by recent activity (a dropdown beside the view toggle),
+  grouping them under "Today"/"Yesterday"/… section headers, and show each
+  room's most-recent-thread time as a relative label ("3h ago") on its card.
 
 ### Changed
 

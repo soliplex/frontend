@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../room_activity_format.dart';
+
 class RoomCard extends StatelessWidget {
   const RoomCard({
     super.key,
     required this.room,
     required this.onTap,
     required this.onInfoTap,
+    this.activityTime,
   });
 
   final Room room;
   final VoidCallback onTap;
   final VoidCallback onInfoTap;
+
+  /// Most-recent-thread timestamp, shown as a muted relative label under the
+  /// title. Null while unknown (not yet fetched, or the room has no threads).
+  final DateTime? activityTime;
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +32,7 @@ class RoomCard extends StatelessWidget {
         // Match RoomGridCard's title/subtitle styles so the two views read
         // identically: titleMedium name, small muted description.
         title: Text(room.name, style: theme.textTheme.titleMedium),
-        subtitle: room.description.isNotEmpty
-            ? Text(
-                room.description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            : null,
+        subtitle: _buildSubtitle(theme),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -58,6 +58,28 @@ class RoomCard extends StatelessWidget {
         ),
         onTap: onTap,
       ),
+    );
+  }
+
+  /// Description and/or the relative activity time, stacked left-aligned below
+  /// the title (so the time reads at the row's bottom-left, opposite the
+  /// trailing info button). Null when there is neither.
+  Widget? _buildSubtitle(ThemeData theme) {
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final hasDescription = room.description.isNotEmpty;
+    final time = activityTime;
+    if (!hasDescription && time == null) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasDescription) Text(room.description, style: muted),
+        if (time != null) ...[
+          if (hasDescription) const SizedBox(height: SoliplexSpacing.s1),
+          Text(formatRelativeActivity(time), style: muted),
+        ],
+      ],
     );
   }
 }
