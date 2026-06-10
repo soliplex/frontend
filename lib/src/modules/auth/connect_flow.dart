@@ -10,6 +10,7 @@ import 'default_backend_url.dart';
 import 'inactivity_logout_storage.dart';
 import 'platform/auth_flow.dart';
 import 'pre_auth_state.dart';
+import 'selected_server_storage.dart';
 import 'server_entry.dart';
 import 'server_manager.dart';
 
@@ -129,7 +130,8 @@ class ConnectFlow {
           final resultId = serverIdFromUrl(result.serverUrl);
           final existing = serverManager.servers.value[resultId];
           if (existing != null && existing.isConnected) {
-            state.value = const Connected();
+            await SelectedServerStorage.save(resultId);
+            if (!_isCancelled(gen)) state.value = const Connected();
             return;
           }
           if (result.isInsecure) {
@@ -217,7 +219,8 @@ class ConnectFlow {
     }
   }
 
-  void _addServerNoAuth(ConnectionSuccess probeResult) {
+  Future<void> _addServerNoAuth(ConnectionSuccess probeResult) async {
+    final gen = _generation;
     final serverId = serverIdFromUrl(probeResult.serverUrl);
     serverManager.addServer(
       serverId: serverId,
@@ -225,7 +228,8 @@ class ConnectFlow {
       requiresAuth: false,
     );
     DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
-    state.value = const Connected();
+    await SelectedServerStorage.save(serverId);
+    if (!_isCancelled(gen)) state.value = const Connected();
   }
 
   Future<void> _authenticate(
@@ -295,7 +299,10 @@ class ConnectFlow {
       // also forces prompt=login.
       await inactivityLogoutFlags.clear(serverId);
       DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
-      if (!_isCancelled(gen)) state.value = const Connected();
+      if (!_isCancelled(gen)) {
+        await SelectedServerStorage.save(serverId);
+        if (!_isCancelled(gen)) state.value = const Connected();
+      }
     } on AuthRedirectInitiated {
       // Web: browser is redirecting to IdP. The flag stays set;
       // AuthCallbackScreen clears it after persisting the new tokens.

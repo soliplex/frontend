@@ -33,6 +33,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Lobby: adding and signing in to a new server now selects that server on
+  return, instead of restoring the previously viewed one. The connected server
+  is persisted as the active selection at each connect-success point.
 - Lobby: a signed-out or inactivity-timed-out server keeps an inline "Sign in"
   panel instead of blanking the content pane; show a loading indicator while
   the persisted selection resolves on launch.

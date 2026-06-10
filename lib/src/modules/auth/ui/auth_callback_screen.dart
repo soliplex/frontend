@@ -11,6 +11,7 @@ import '../auth_tokens.dart';
 import '../platform/auth_flow.dart';
 import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
+import '../selected_server_storage.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -89,6 +90,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
       // Web: the inactivity flag survived the redirect via storage.
       // Clear it now that a credential-challenged sign-in has completed.
       await ref.read(inactivityLogoutFlagsProvider).clear(serverId);
+
+      // Record the connected server as the active selection so the lobby
+      // restores it on its next boot (best-effort; never throws).
+      await SelectedServerStorage.save(serverId);
 
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
