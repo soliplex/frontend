@@ -11,6 +11,8 @@ import '../consent_notice.dart';
 import '../connection_probe.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
+import 'connect_flow_rail.dart';
+import 'home_shell.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -41,12 +43,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  static const _logoSize = 64.0;
   static const _maxCollapsedServers = 5;
-
-  /// Max width of the centered auth column on wide viewports, so the form
-  /// and buttons don't stretch edge-to-edge on desktop/web.
-  static const _maxContentWidth = 400.0;
 
   late final ConnectFlow _flow;
   late final void Function() _unsubscribeFlow;
@@ -129,14 +126,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(child: _buildBody(context)),
-            const _VersionFooter(),
+    final servers = widget.serverManager.servers.value;
+    final state = _flow.state.value;
+    final showRail =
+        MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.desktop;
+
+    return HomeShell(
+      appName: widget.appName,
+      logo: widget.logo,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showRail) ...[
+            ConnectFlowRail(current: stepForConnectState(state)),
+            const SizedBox(height: SoliplexSpacing.s6),
           ],
-        ),
+          ...switch (state) {
+            UrlInput() => _buildUrlInput(context),
+            Probing() => _buildProbing(context),
+            InsecureWarning(:final probeResult) =>
+              _buildInsecureWarning(context, probeResult),
+            Consent(:final notice, :final probeResult, :final providers) =>
+              _buildConsent(context, notice, probeResult, providers),
+            ProviderSelection(:final providers) =>
+              _buildProviderSelection(context, providers),
+            Authenticating() => _buildAuthenticating(context),
+            Connected() => _buildAuthenticating(context),
+          },
+          if (servers.isNotEmpty && state is UrlInput)
+            ..._buildServerSection(context, servers),
+        ],
       ),
     );
   }
@@ -149,78 +169,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return false;
   }
 
-  Widget _buildBody(BuildContext context) {
-    final servers = widget.serverManager.servers.value;
+  // -- Per-state heading --
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(SoliplexSpacing.s6),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ...switch (_flow.state.value) {
-                UrlInput() => _buildUrlInput(context),
-                Probing() => _buildProbing(context),
-                InsecureWarning(:final probeResult) =>
-                  _buildInsecureWarning(context, probeResult),
-                Consent(:final notice, :final probeResult, :final providers) =>
-                  _buildConsent(context, notice, probeResult, providers),
-                ProviderSelection(:final providers) =>
-                  _buildProviderSelection(context, providers),
-                Authenticating() => _buildAuthenticating(context),
-                Connected() => _buildAuthenticating(context),
-              },
-              if (servers.isNotEmpty && _flow.state.value is UrlInput)
-                ..._buildServerSection(context, servers),
-            ],
-          ),
-        ),
+  /// A single centered heading for a flow state. The persistent [HomeShell]
+  /// top bar now carries the brand mark and name, so each state only needs to
+  /// name itself. PR2 reshapes these into title + description blocks.
+  Widget _heading(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s6),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.titleLarge,
+        textAlign: TextAlign.center,
       ),
     );
-  }
-
-  // -- Header --
-
-  List<Widget> _buildHeader(BuildContext context, String subtitle) {
-    final theme = Theme.of(context);
-
-    return [
-      if (widget.logo != null)
-        // Centered so the fixed-size box survives the header Column's
-        // CrossAxisAlignment.stretch — otherwise the logo (and any glow
-        // backplate behind it) gets stretched to the full column width.
-        Center(
-          child: SizedBox(
-            width: _logoSize,
-            height: _logoSize,
-            child: widget.logo,
-          ),
-        )
-      else
-        Icon(
-          Icons.dns_outlined,
-          size: _logoSize,
-          color: theme.colorScheme.primary,
-        ),
-      const SizedBox(height: SoliplexSpacing.s4),
-      Text(
-        widget.appName,
-        style: theme.textTheme.headlineMedium,
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: SoliplexSpacing.s2),
-      Text(
-        subtitle,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: SoliplexSpacing.s6),
-    ];
   }
 
   // -- State UIs --
@@ -229,7 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final message = (_flow.state.value as UrlInput).message;
 
     return [
-      ..._buildHeader(context, 'Enter the URL of your backend server'),
+      _heading(context, 'Connect to a Soliplex server'),
       Form(
         key: _formKey,
         child: SoliplexInput(
@@ -267,7 +229,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<Widget> _buildProbing(BuildContext context) {
     return [
-      ..._buildHeader(context, 'Connecting...'),
+      _heading(context, 'Probing server…'),
       const Center(child: CircularProgressIndicator()),
     ];
   }
@@ -279,7 +241,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final theme = Theme.of(context);
 
     return [
-      ..._buildHeader(context, 'Insecure Connection'),
+      _heading(context, 'Insecure connection'),
       Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.warning),
       const SizedBox(height: SoliplexSpacing.s4),
       Text(
@@ -314,7 +276,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     List<AuthProviderConfig> providers,
   ) {
     return [
-      ..._buildHeader(context, 'Sign in to continue'),
+      _heading(context, 'Before you connect'),
       Text(notice.title, style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: SoliplexSpacing.s4),
       Text(notice.body, style: Theme.of(context).textTheme.bodyMedium),
@@ -341,7 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     List<AuthProviderConfig> providers,
   ) {
     return [
-      ..._buildHeader(context, 'Sign in to continue'),
+      _heading(context, 'Sign in to continue'),
       Text(
         'Choose authentication provider',
         style: Theme.of(context).textTheme.titleMedium,
@@ -365,7 +327,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<Widget> _buildAuthenticating(BuildContext context) {
     return [
-      ..._buildHeader(context, 'Signing in...'),
+      _heading(context, 'Finish signing in'),
       const Center(child: CircularProgressIndicator()),
     ];
   }
@@ -472,20 +434,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _flow.connect(
       _urlController.text.trim(),
       returnTo: widget.autoConnectReturnTo,
-    );
-  }
-}
-
-class _VersionFooter extends StatelessWidget {
-  const _VersionFooter();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SoliplexButton.text(
-        onPressed: () => context.push(AppRoutes.versions),
-        child: const Text('Versions'),
-      ),
     );
   }
 }

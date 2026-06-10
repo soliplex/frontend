@@ -13,7 +13,9 @@ import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/auth/ui/connect_flow_rail.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/home_screen.dart';
+import 'package:soliplex_frontend/version.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -156,7 +158,7 @@ void main() {
       expect(find.text('Connect'), findsOneWidget);
       expect(find.text('Soliplex'), findsOneWidget);
       expect(
-        find.text('Enter the URL of your backend server'),
+        find.text('Connect to a Soliplex server'),
         findsOneWidget,
       );
     });
@@ -171,6 +173,38 @@ void main() {
 
       expect(find.text('MyApp'), findsOneWidget);
       expect(find.text('Soliplex'), findsNothing);
+    });
+
+    testWidgets('shows the library version in the top bar', (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      expect(find.text(soliplexVersion), findsOneWidget);
+    });
+
+    testWidgets('hides the flow rail on narrow viewports', (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      // Default test viewport (800px) is below the desktop breakpoint.
+      expect(find.byType(ConnectFlowRail), findsNothing);
+    });
+
+    testWidgets('shows the flow rail on wide viewports', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConnectFlowRail), findsOneWidget);
+      // On the URL-input state, the URL node is current.
+      expect(find.text(ConnectStep.url.label), findsOneWidget);
     });
 
     testWidgets('shows logo when provided', (tester) async {
@@ -360,7 +394,7 @@ void main() {
       await tester.pump();
 
       // Inline insecure warning
-      expect(find.text('Insecure Connection'), findsOneWidget);
+      expect(find.text('Insecure connection'), findsOneWidget);
       expect(find.textContaining('not encrypted'), findsOneWidget);
     });
 
@@ -419,7 +453,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Sign in to continue'), findsOneWidget);
-      expect(find.text('Enter the URL of your backend server'), findsNothing);
+      expect(find.text('Connect to a Soliplex server'), findsNothing);
     });
 
     testWidgets('shows "Change server" button on provider selection phase',
@@ -443,7 +477,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsOneWidget);
-      expect(find.text('Enter the URL of your backend server'), findsOneWidget);
+      expect(find.text('Connect to a Soliplex server'), findsOneWidget);
     });
 
     testWidgets('hides server section on provider selection phase',
