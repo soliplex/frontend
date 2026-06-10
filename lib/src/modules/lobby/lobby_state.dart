@@ -7,11 +7,11 @@ import 'package:soliplex_client/soliplex_client.dart'
     show AuthException, PermissionDeniedException, SoliplexApi;
 
 import '../auth/auth_tokens.dart';
+import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
-import 'selected_server_storage.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -350,17 +350,7 @@ class LobbyState {
   }
 
   void _persistSelection(String? serverId) {
-    unawaited(
-      SelectedServerStorage.save(serverId)
-          .catchError((Object e, StackTrace st) {
-        dev.log(
-          'Failed to persist selected server',
-          error: e,
-          stackTrace: st,
-          level: 900,
-        );
-      }),
-    );
+    unawaited(SelectedServerStorage.save(serverId));
   }
 
   /// Cancel tokens keyed by serverId, one per in-flight fetch.

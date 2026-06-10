@@ -4,9 +4,11 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/connect_flow.dart';
+import 'package:soliplex_frontend/src/modules/auth/connection_probe.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
+import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 
 import '../../helpers/fakes.dart';
@@ -28,14 +30,22 @@ ServerManager _createManager() => ServerManager(
 ConnectFlow _createFlow({
   required FakeAuthFlow authFlow,
   InactivityLogoutFlagStorage? inactivityLogoutFlags,
+  ServerManager? serverManager,
+  DiscoverProviders? discover,
 }) =>
     ConnectFlow(
-      serverManager: _createManager(),
+      serverManager: serverManager ?? _createManager(),
       probeClient: FakeHttpClient(),
-      discover: (_, __) async => [_provider],
+      discover: discover ?? (_, __) async => [_provider],
       authFlow: authFlow,
       inactivityLogoutFlags:
           inactivityLogoutFlags ?? InMemoryInactivityLogoutFlagStorage(),
+    );
+
+AuthResult _successResult() => AuthResult(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
     );
 
 void main() {
@@ -89,12 +99,6 @@ void main() {
       SharedPreferences.setMockInitialValues({});
     });
 
-    AuthResult successResult() => AuthResult(
-          accessToken: 'access',
-          refreshToken: 'refresh',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        );
-
     test('passes forceLoginPrompt=true when the inactivity flag is marked',
         () async {
       final flags = InMemoryInactivityLogoutFlagStorage();
@@ -140,7 +144,7 @@ void main() {
 
     test('successful authentication clears the flag', () async {
       final flags = InMemoryInactivityLogoutFlagStorage();
-      final authFlow = FakeAuthFlow()..nextResult = successResult();
+      final authFlow = FakeAuthFlow()..nextResult = _successResult();
       final flow =
           _createFlow(authFlow: authFlow, inactivityLogoutFlags: flags);
 
@@ -173,6 +177,45 @@ void main() {
       // — otherwise an attacker could cancel once and then sign in via
       // silent SSO.
       expect(await flags.isMarked('https://server.example.com'), isTrue);
+    });
+  });
+
+  group('ConnectFlow — selected-server persistence', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('persists the connected server after OIDC success', () async {
+      final manager = _createManager();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        serverManager: manager,
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(
+        await SelectedServerStorage.load(),
+        manager.servers.value.keys.single,
+      );
+    });
+
+    test('persists the connected server when no auth is required', () async {
+      final manager = _createManager();
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow(),
+        serverManager: manager,
+        discover: (_, __) async => [],
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(
+        await SelectedServerStorage.load(),
+        manager.servers.value.keys.single,
+      );
     });
   });
 }

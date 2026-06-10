@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
+import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/auth_callback_screen.dart';
 
@@ -188,6 +189,25 @@ void main() {
 
       expect(serverManager.servers.value, isNotEmpty);
       expect(find.text('Lobby Screen'), findsOneWidget);
+    });
+
+    testWidgets('persists the connected server as the selection',
+        (tester) async {
+      const serverId = 'https://api.example.com';
+      final serverManager = _createServerManager();
+      await PreAuthStateStorage.save(_validPreAuthState());
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(await SelectedServerStorage.load(), serverId);
     });
 
     testWidgets('navigates to frontendReturnTo when set', (tester) async {
