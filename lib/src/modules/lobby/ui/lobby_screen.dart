@@ -853,7 +853,7 @@ class _ServerSection extends StatelessWidget {
 /// Lives inside the outer room `ListView`, so it lays the cards out as a
 /// [Column] of [IntrinsicHeight] rows rather than a nested scrollable grid.
 /// Each row stretches its cells with [Expanded] so cards in a row share the
-/// tallest one's height. Only the column count comes from [roomGridLayout].
+/// tallest one's height. Only the column count comes from [roomGridColumns].
 class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,
@@ -876,8 +876,7 @@ class _RoomGrid extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = SoliplexSpacing.s3;
-          final columns =
-              roomGridLayout(constraints.maxWidth, spacing: spacing).columns;
+          final columns = roomGridColumns(constraints.maxWidth);
           // Lay the cards out as explicit rows rather than a Wrap so each row
           // can be wrapped in an IntrinsicHeight: cards in the same row then
           // share the tallest one's height and read as a regular grid,
