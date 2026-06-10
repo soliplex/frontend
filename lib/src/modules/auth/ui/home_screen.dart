@@ -44,6 +44,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _logoSize = 64.0;
   static const _maxCollapsedServers = 5;
 
+  /// Max width of the centered auth column on wide viewports, so the form
+  /// and buttons don't stretch edge-to-edge on desktop/web.
+  static const _maxContentWidth = 400.0;
+
   late final ConnectFlow _flow;
   late final void Function() _unsubscribeFlow;
   late final void Function() _unsubscribeServers;
@@ -152,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(SoliplexSpacing.s6),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,12 +280,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return [
       ..._buildHeader(context, 'Insecure Connection'),
-      Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.error),
+      Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.warning),
       const SizedBox(height: SoliplexSpacing.s4),
       Text(
         'This connection to ${formatServerUrl(probeResult.serverUrl)} is not '
         'encrypted. Your data, including credentials, may be visible to '
         'others on the network.',
+        style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: SoliplexSpacing.s6),
@@ -312,7 +317,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..._buildHeader(context, 'Sign in to continue'),
       Text(notice.title, style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: SoliplexSpacing.s4),
-      Text(notice.body),
+      Text(notice.body, style: Theme.of(context).textTheme.bodyMedium),
       const SizedBox(height: SoliplexSpacing.s4),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -515,7 +520,7 @@ class UrlMessageBanner extends StatelessWidget {
               Expanded(
                 child: Text(
                   text,
-                  style: TextStyle(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onErrorContainer,
                   ),
                 ),

@@ -160,7 +160,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
                 color: Theme.of(context).colorScheme.error,
               ),
               const SizedBox(height: SoliplexSpacing.s4),
-              Text(_error ?? 'An error occurred'),
+              Text(
+                _error ?? 'An error occurred',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               const SizedBox(height: SoliplexSpacing.s4),
               SoliplexButton.filled(
                 onPressed: () => context.go(AppRoutes.home),
