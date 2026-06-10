@@ -50,9 +50,7 @@ class ConnectFlowRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final baseStyle = context
-        .monospaceOn(theme.textTheme.labelSmall)
-        .copyWith(color: colors.onSurfaceVariant);
+    final baseStyle = theme.textTheme.labelLarge;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -64,8 +62,10 @@ class ConnectFlowRail extends StatelessWidget {
         border: Border.all(color: colors.outlineVariant),
         borderRadius: BorderRadius.circular(soliplexRadii.md),
       ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
+      // The strip can be wider than its column on smaller desktop windows;
+      // scroll rather than shrink so every label stays legible.
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -78,7 +78,7 @@ class ConnectFlowRail extends StatelessWidget {
                   ),
                   child: Text(
                     '→',
-                    style: baseStyle.copyWith(color: colors.outline),
+                    style: baseStyle?.copyWith(color: colors.onSurfaceVariant),
                   ),
                 ),
             ],
@@ -98,7 +98,7 @@ class _RailNode extends StatelessWidget {
 
   final ConnectStep step;
   final ConnectStep current;
-  final TextStyle baseStyle;
+  final TextStyle? baseStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -107,17 +107,13 @@ class _RailNode extends StatelessWidget {
     final isDone = step.index < current.index;
     final dimOptional = step.optional && !isActive && !isDone;
 
-    final Color foreground;
-    if (isActive) {
-      foreground = colors.onPrimary;
-    } else if (isDone) {
-      foreground = colors.onSurface;
-    } else {
-      foreground = colors.onSurfaceVariant;
-    }
+    // Active reads on the primary fill; everything else sits at full
+    // on-surface contrast so the rail stays readable. Optional steps that
+    // haven't been reached are softened with opacity, not a dim color.
+    final foreground = isActive ? colors.onPrimary : colors.onSurface;
 
     return Opacity(
-      opacity: dimOptional ? 0.5 : 1,
+      opacity: dimOptional ? 0.6 : 1,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: SoliplexSpacing.s2,
@@ -133,12 +129,12 @@ class _RailNode extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isDone) ...[
-              Icon(Icons.check, size: 12, color: foreground),
+              Icon(Icons.check, size: 16, color: foreground),
               const SizedBox(width: SoliplexSpacing.s1),
             ],
             Text(
               step.label,
-              style: baseStyle.copyWith(
+              style: baseStyle?.copyWith(
                 color: foreground,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               ),
