@@ -208,6 +208,14 @@ class FakeSoliplexApi extends SoliplexApi {
   /// Per-room thread lists, consulted before [nextThreads]. Lets a test give
   /// different rooms different thread sets (e.g. for activity-based sorting).
   final Map<String, List<ThreadInfo>> threadsByRoom = {};
+
+  /// Per-room [getThreads] errors, consulted before [threadsByRoom]. Lets a
+  /// test fail one room's thread fetch while others succeed.
+  final Map<String, Exception> threadsErrorByRoom = {};
+
+  /// When set, [getThreads] awaits this before returning, letting a test hold a
+  /// sweep in flight (e.g. to trigger a cancellation mid-fetch).
+  Completer<void>? threadsGate;
   Exception? nextThreadsError;
   ThreadHistory? nextThreadHistory;
   Exception? nextThreadHistoryError;
@@ -247,6 +255,12 @@ class FakeSoliplexApi extends SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     if (nextThreadsError != null) throw nextThreadsError!;
+    if (threadsErrorByRoom.containsKey(roomId)) {
+      throw threadsErrorByRoom[roomId]!;
+    }
+    if (threadsGate != null) {
+      await threadsGate!.future;
+    }
     if (threadsByRoom.containsKey(roomId)) return threadsByRoom[roomId]!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');

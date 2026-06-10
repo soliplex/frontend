@@ -15,6 +15,11 @@ import 'selected_server_storage.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
+/// Identifies a room across servers for the activity cache. Named fields
+/// (rather than a positional `(String, String)`) so the two ids can't be
+/// transposed at a lookup or insertion site.
+typedef RoomActivityKey = ({String serverId, String roomId});
+
 class UserProfile {
   const UserProfile({
     required this.givenName,
@@ -141,7 +146,8 @@ class LobbyState {
   Future<void> _loadSortMode() async {
     try {
       _sortMode.value = await LobbySortModeStorage.load();
-      // A persisted "recent activity" choice needs its data fetched on launch.
+      // Kick off the activity sweep once the persisted mode is known. (The
+      // sweep is eager regardless of mode; this just runs it at launch.)
       _reconcileActivity();
     } catch (error, st) {
       dev.log(
@@ -154,8 +160,10 @@ class LobbyState {
   }
 
   /// Updates the room ordering and persists the choice for next launch.
-  /// Selecting [LobbySortMode.recentActivity] lazily fetches per-room
-  /// activity for the selected server (see [_reconcileActivity]).
+  /// Activity timestamps are already fetched eagerly on server selection (see
+  /// [_reconcileActivity]); this only changes the ordering. The
+  /// [_reconcileActivity] call is a safety net for the rare case where the
+  /// sweep has not run yet.
   void setSortMode(LobbySortMode mode) {
     if (mode == _sortMode.value) return;
     _sortMode.value = mode;
@@ -176,9 +184,9 @@ class LobbyState {
   /// A present-but-null value means "fetched, room has no threads"; an absent
   /// key means "not fetched yet". Used only to order [LobbySortMode]
   /// .recentActivity; rooms without a timestamp sort last.
-  final Signal<Map<(String, String), DateTime?>> _roomActivity =
-      Signal<Map<(String, String), DateTime?>>({});
-  ReadonlySignal<Map<(String, String), DateTime?>> get roomActivity =>
+  final Signal<Map<RoomActivityKey, DateTime?>> _roomActivity =
+      Signal<Map<RoomActivityKey, DateTime?>>({});
+  ReadonlySignal<Map<RoomActivityKey, DateTime?>> get roomActivity =>
       _roomActivity;
 
   /// True while per-room activity for the selected server is being fetched.
@@ -196,11 +204,15 @@ class LobbyState {
   /// Only uncached rooms are fetched; results are merged into [_roomActivity],
   /// so switching servers reuses prior fetches. The backend exposes no
   /// last-access field, so "recency" is the newest thread's `createdAt` (one
-  /// `getThreads` per room — the transport's concurrency limiter throttles
-  /// the burst).
+  /// `getThreads` per room — this relies on the standard transport's
+  /// concurrency limiter to throttle the burst).
   void _reconcileActivity() {
     _activityToken?.cancel('activity reconcile');
     _activityToken = null;
+    // Cancelling means nothing is in flight; the start path below sets this
+    // back to true only if a new sweep actually launches. Resetting here
+    // keeps every early return from leaving the spinner stuck on.
+    _activityLoading.value = false;
 
     final serverId = _selectedServerId.value;
     if (serverId == null) return;
@@ -210,12 +222,10 @@ class LobbyState {
     if (rooms is! RoomsLoaded) return;
 
     final missing = rooms.rooms
-        .where((r) => !_roomActivity.value.containsKey((serverId, r.id)))
+        .where((r) => !_roomActivity.value
+            .containsKey((serverId: serverId, roomId: r.id)))
         .toList();
-    if (missing.isEmpty) {
-      _activityLoading.value = false;
-      return;
-    }
+    if (missing.isEmpty) return;
 
     final token = CancelToken();
     _activityToken = token;
@@ -226,20 +236,30 @@ class LobbyState {
       missing.map((room) async {
         try {
           final threads = await api.getThreads(room.id, cancelToken: token);
-          return MapEntry((serverId, room.id), _latestCreatedAt(threads));
+          return MapEntry(
+            (serverId: serverId, roomId: room.id),
+            _latestCreatedAt(threads),
+          );
         } catch (error, st) {
           // A room whose threads can't be listed simply has no recency
-          // signal; it sorts last rather than failing the whole view.
+          // signal; it sorts last rather than failing the whole view. An
+          // AuthException still funnels to session expiry (as the room-list
+          // and profile fetches do), and a PermissionDeniedException is an
+          // expected per-room state — so neither is logged as a failure.
           if (!token.isCancelled) {
-            dev.log(
-              'Failed to fetch thread activity for ${room.id} on $serverId',
-              error: error,
-              stackTrace: st,
-              level: 900,
-            );
+            if (error is AuthException) {
+              entry.auth.markSessionExpired();
+            } else if (error is! PermissionDeniedException) {
+              dev.log(
+                'Failed to fetch thread activity for ${room.id} on $serverId',
+                error: error,
+                stackTrace: st,
+                level: 900,
+              );
+            }
           }
-          return MapEntry<(String, String), DateTime?>(
-            (serverId, room.id),
+          return MapEntry<RoomActivityKey, DateTime?>(
+            (serverId: serverId, roomId: room.id),
             null,
           );
         }
@@ -470,9 +490,9 @@ class LobbyState {
       };
       // A fresh room list invalidates cached activity for this server (rooms
       // may have been added); drop those entries so recency refetches.
-      if (_roomActivity.value.keys.any((k) => k.$1 == serverId)) {
+      if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
         _roomActivity.value = {..._roomActivity.value}
-          ..removeWhere((k, _) => k.$1 == serverId);
+          ..removeWhere((k, _) => k.serverId == serverId);
       }
       if (serverId == _selectedServerId.value) _reconcileActivity();
     }).catchError((Object error, StackTrace st) {

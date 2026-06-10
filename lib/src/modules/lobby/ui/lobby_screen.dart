@@ -21,6 +21,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 240;
 
+/// Fixed width of the sort dropdown on wide layouts, so it doesn't stretch to
+/// the full row and crowd the view-mode toggle beside it.
+const double _sortControlWidth = 184;
+
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({
     super.key,
@@ -198,7 +202,7 @@ class _WideLayout extends StatelessWidget {
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
-  final Map<(String, String), DateTime?> roomActivity;
+  final Map<RoomActivityKey, DateTime?> roomActivity;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
@@ -294,7 +298,7 @@ class _NarrowLayout extends StatelessWidget {
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
-  final Map<(String, String), DateTime?> roomActivity;
+  final Map<RoomActivityKey, DateTime?> roomActivity;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
@@ -389,7 +393,7 @@ class _RoomContent extends StatelessWidget {
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
-  final Map<(String, String), DateTime?> roomActivity;
+  final Map<RoomActivityKey, DateTime?> roomActivity;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId, String roomId) onRoomTap;
@@ -588,7 +592,7 @@ class _LobbyControlsState extends State<_LobbyControls> {
             children: [
               Expanded(child: search),
               const SizedBox(width: SoliplexSpacing.s3),
-              SizedBox(width: 184, child: sort),
+              SizedBox(width: _sortControlWidth, child: sort),
               busy,
               const SizedBox(width: SoliplexSpacing.s3),
               toggle,
@@ -663,7 +667,7 @@ class _ServerSection extends StatelessWidget {
   final LobbyViewMode viewMode;
   final String searchQuery;
   final LobbySortMode sortMode;
-  final Map<(String, String), DateTime?> roomActivity;
+  final Map<RoomActivityKey, DateTime?> roomActivity;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
@@ -787,7 +791,8 @@ class _ServerSection extends StatelessWidget {
     );
   }
 
-  DateTime? _activityFor(Room room) => roomActivity[(serverId, room.id)];
+  DateTime? _activityFor(Room room) =>
+      roomActivity[(serverId: serverId, roomId: room.id)];
 
   /// Renders [rooms] in the active view mode (no grouping).
   Widget _buildBlock(BuildContext context, List<Room> rooms) {
@@ -811,7 +816,7 @@ class _ServerSection extends StatelessWidget {
       LobbyViewMode.grid => _RoomGrid(
           serverId: serverId,
           rooms: rooms,
-          roomActivity: roomActivity,
+          activityFor: _activityFor,
           onRoomTap: onRoomTap,
           onInfoTap: onInfoTap,
         ),
@@ -820,22 +825,26 @@ class _ServerSection extends StatelessWidget {
 
   /// Orders rooms by most-recent-thread activity (descending) when that sort
   /// is active. Rooms without a known timestamp — none fetched, no threads,
-  /// or a failed lookup — keep their original relative order at the end. Does
-  /// not mutate the input list.
+  /// or a failed lookup — keep their original relative order at the end. Ties
+  /// break by original index so equal timestamps stay in their input order
+  /// (`List.sort` is not guaranteed stable). Does not mutate the input list.
   List<Room> _applySort(List<Room> rooms) {
     if (sortMode != LobbySortMode.recentActivity) return rooms;
-    final dated = <Room>[];
+    final dated = <(Room, DateTime, int)>[];
     final undated = <Room>[];
-    for (final room in rooms) {
-      if (roomActivity[(serverId, room.id)] != null) {
-        dated.add(room);
+    for (var i = 0; i < rooms.length; i++) {
+      final time = _activityFor(rooms[i]);
+      if (time != null) {
+        dated.add((rooms[i], time, i));
       } else {
-        undated.add(room);
+        undated.add(rooms[i]);
       }
     }
-    dated.sort((a, b) => roomActivity[(serverId, b.id)]!
-        .compareTo(roomActivity[(serverId, a.id)]!));
-    return [...dated, ...undated];
+    dated.sort((a, b) {
+      final byTime = b.$2.compareTo(a.$2);
+      return byTime != 0 ? byTime : a.$3.compareTo(b.$3);
+    });
+    return [...dated.map((e) => e.$1), ...undated];
   }
 }
 
@@ -849,14 +858,14 @@ class _RoomGrid extends StatelessWidget {
   const _RoomGrid({
     required this.serverId,
     required this.rooms,
-    required this.roomActivity,
+    required this.activityFor,
     required this.onRoomTap,
     required this.onInfoTap,
   });
 
   final String serverId;
   final List<Room> rooms;
-  final Map<(String, String), DateTime?> roomActivity;
+  final DateTime? Function(Room) activityFor;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
 
@@ -890,8 +899,7 @@ class _RoomGrid extends StatelessWidget {
                         child: i < rowRooms.length
                             ? RoomGridCard(
                                 room: rowRooms[i],
-                                activityTime:
-                                    roomActivity[(serverId, rowRooms[i].id)],
+                                activityTime: activityFor(rowRooms[i]),
                                 onTap: () =>
                                     onRoomTap(serverId, rowRooms[i].id),
                                 onInfoTap: () =>

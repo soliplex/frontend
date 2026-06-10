@@ -31,6 +31,23 @@ void main() {
         '1/15/2026',
       );
     });
+
+    test('switches label exactly at each threshold', () {
+      String at(Duration ago) =>
+          formatRelativeActivity(now.subtract(ago), now: now);
+      // minute boundary
+      expect(at(const Duration(seconds: 59)), 'Just now');
+      expect(at(const Duration(minutes: 1)), '1m ago');
+      // minute → hour
+      expect(at(const Duration(minutes: 59)), '59m ago');
+      expect(at(const Duration(hours: 1)), '1h ago');
+      // hour → day
+      expect(at(const Duration(hours: 23)), '23h ago');
+      expect(at(const Duration(hours: 24)), '1d ago');
+      // day → numeric date at exactly a week
+      expect(at(const Duration(days: 6)), '6d ago');
+      expect(at(const Duration(days: 7)), '6/2/2026');
+    });
   });
 
   group('bucketFor', () {
@@ -49,6 +66,18 @@ void main() {
       expect(
           bucketFor(DateTime(2026, 5, 25), now: now), ActivityBucket.thisMonth);
       expect(bucketFor(DateTime(2026, 1, 1), now: now), ActivityBucket.older);
+    });
+
+    test('places the week and month cusps on the older side', () {
+      // 6 vs 7 calendar days: still this week, then this month.
+      expect(
+          bucketFor(DateTime(2026, 6, 3), now: now), ActivityBucket.thisWeek);
+      expect(
+          bucketFor(DateTime(2026, 6, 2), now: now), ActivityBucket.thisMonth);
+      // 29 vs 30 calendar days: this month, then older.
+      expect(
+          bucketFor(DateTime(2026, 5, 11), now: now), ActivityBucket.thisMonth);
+      expect(bucketFor(DateTime(2026, 5, 10), now: now), ActivityBucket.older);
     });
   });
 }

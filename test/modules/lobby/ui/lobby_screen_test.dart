@@ -511,6 +511,56 @@ void main() {
       expect(find.text('This month'), findsOneWidget);
     });
 
+    testWidgets('recent-activity sort keeps undated rooms last in input order',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final older = DateTime.utc(2026, 1, 1);
+      final newer = DateTime.utc(2026, 6, 1);
+      // Alpha and Charlie have no threads (undated); Bravo/Delta are dated.
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'Alpha'),
+          Room(id: 'r2', name: 'Bravo'),
+          Room(id: 'r3', name: 'Charlie'),
+          Room(id: 'r4', name: 'Delta'),
+        ]
+        ..threadsByRoom['r1'] = const []
+        ..threadsByRoom['r2'] = [
+          ThreadInfo(id: 't2', roomId: 'r2', createdAt: newer),
+        ]
+        ..threadsByRoom['r3'] = const []
+        ..threadsByRoom['r4'] = [
+          ThreadInfo(id: 't4', roomId: 'r4', createdAt: older),
+        ];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      List<String> roomOrder() => tester
+          .widgetList<RoomCard>(find.byType(RoomCard))
+          .map((c) => c.room.name)
+          .toList();
+
+      expect(roomOrder(), ['Alpha', 'Bravo', 'Charlie', 'Delta']);
+
+      await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.pumpAndSettle();
+
+      // Dated rooms first (newest -> oldest), then undated in original order.
+      expect(roomOrder(), ['Bravo', 'Delta', 'Alpha', 'Charlie']);
+    });
+
     testWidgets(
         'shows only the selected server, and switching the sidebar '
         'selection swaps the shown rooms', (tester) async {
