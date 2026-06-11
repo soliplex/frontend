@@ -33,6 +33,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Auth: persist the last-connected backend URL after a web OIDC sign-in, so the
+  empty home screen prefills it the same way it does after a native sign-in.
 - Lobby: adding and signing in to a new server now selects that server on
   return, instead of restoring the previously viewed one. The connected server
   is persisted as the active selection at each connect-success point.

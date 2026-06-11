@@ -8,6 +8,7 @@ import '../../../core/routes.dart';
 import '../auth_failure_description.dart';
 import '../auth_providers.dart';
 import '../auth_tokens.dart';
+import '../default_backend_url.dart';
 import '../platform/auth_flow.dart';
 import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
@@ -94,6 +95,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
       // Record the connected server as the active selection so the lobby
       // restores it on its next boot (best-effort; never throws).
       await SelectedServerStorage.save(serverId);
+
+      // Mirror the native sign-in: persist the backend URL so the empty home
+      // screen prefills it (best-effort; never throws).
+      await DefaultBackendUrlStorage.save(preAuth.serverUrl.toString());
 
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {

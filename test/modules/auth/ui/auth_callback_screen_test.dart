@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/default_backend_url.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
@@ -208,6 +209,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(await SelectedServerStorage.load(), serverId);
+    });
+
+    testWidgets('persists the connected backend url as the default',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await PreAuthStateStorage.save(_validPreAuthState());
+
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        callbackParams: const WebCallbackSuccess(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresIn: 3600,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(await DefaultBackendUrlStorage.load(), 'https://api.example.com');
     });
 
     testWidgets('navigates to frontendReturnTo when set', (tester) async {
