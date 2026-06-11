@@ -59,29 +59,28 @@ void main() {
       );
     });
 
-    testWidgets('extent controls how far the backplate bleeds past the child',
+    testWidgets('extentFactor scales the backplate relative to the child',
         (tester) async {
       await tester.pumpWidget(
         wrap(
           const SoliplexGlow(
             color: Colors.white,
-            extent: 24,
+            extentFactor: 0.5,
             child: SizedBox(width: 32, height: 32),
           ),
         ),
       );
 
-      final positioned = tester.widget<Positioned>(
+      // The backplate fills the child's box, then scales past it: a 0.5
+      // factor bleeds half the child's size beyond every edge (scale 2.0).
+      final transform = tester.widget<Transform>(
         find.descendant(
           of: find.byType(SoliplexGlow),
-          matching: find.byType(Positioned),
+          matching: find.byType(Transform),
         ),
       );
 
-      expect(positioned.left, -24);
-      expect(positioned.top, -24);
-      expect(positioned.right, -24);
-      expect(positioned.bottom, -24);
+      expect(transform.transform.getMaxScaleOnAxis(), 2.0);
     });
   });
 }
