@@ -87,14 +87,14 @@ class _HomeShellHeader extends StatelessWidget {
                   color: colors.primary,
                 ),
           ),
-          const SizedBox(width: SoliplexSpacing.s2),
+          const SizedBox(width: SoliplexSpacing.s3),
           Text(appName, style: theme.textTheme.titleSmall),
           const SizedBox(width: SoliplexSpacing.s2),
           Text(
             soliplexVersion,
-            style: context
-                .monospaceOn(theme.textTheme.labelSmall)
-                .copyWith(color: colors.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
           ),
           const Spacer(),
           IconButton(
