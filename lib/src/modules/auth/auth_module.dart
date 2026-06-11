@@ -98,13 +98,21 @@ class AuthAppModule extends AppModule {
           GoRoute(
             path: AppRoutes.servers,
             pageBuilder: (_, __) => NoTransitionPage(
-              child: ServerListScreen(serverManager: _serverManager),
+              child: ServerListScreen(
+                serverManager: _serverManager,
+                appName: _appName,
+                logo: _logo,
+              ),
             ),
           ),
           GoRoute(
             path: AppRoutes.authCallback,
             pageBuilder: (_, __) => NoTransitionPage(
-              child: AuthCallbackScreen(serverManager: _serverManager),
+              child: AuthCallbackScreen(
+                serverManager: _serverManager,
+                appName: _appName,
+                logo: _logo,
+              ),
             ),
           ),
         ],

@@ -35,7 +35,7 @@ class HomeShell extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _HomeShellHeader(appName: appName, logo: logo),
+            HomeShellHeader(appName: appName, logo: logo),
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
@@ -54,11 +54,24 @@ class HomeShell extends StatelessWidget {
   }
 }
 
-class _HomeShellHeader extends StatelessWidget {
-  const _HomeShellHeader({required this.appName, this.logo});
+/// The branded top bar shared across the onboarding surfaces (home / connect
+/// flow, the OAuth callback, and the server list): logo, app name, library
+/// version, and trailing [actions] — defaulting to just an about/versions
+/// button so the bar reads the same everywhere.
+class HomeShellHeader extends StatelessWidget {
+  const HomeShellHeader({
+    super.key,
+    required this.appName,
+    this.logo,
+    this.actions,
+  });
 
   final String appName;
   final Widget? logo;
+
+  /// Trailing actions shown before the about/versions button. Screens like the
+  /// server list slot their navigation here.
+  final List<Widget>? actions;
 
   static const _logoSize = 24.0;
 
@@ -97,6 +110,7 @@ class _HomeShellHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          ...?actions,
           IconButton(
             tooltip: 'About & versions',
             icon: const Icon(Icons.info_outline),

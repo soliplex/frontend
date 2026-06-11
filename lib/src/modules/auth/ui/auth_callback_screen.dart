@@ -13,12 +13,20 @@ import '../platform/callback_params.dart';
 import '../pre_auth_state.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
+import 'home_shell.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class AuthCallbackScreen extends ConsumerStatefulWidget {
-  const AuthCallbackScreen({super.key, required this.serverManager});
+  const AuthCallbackScreen({
+    super.key,
+    required this.serverManager,
+    this.appName = 'Soliplex',
+    this.logo,
+  });
 
   final ServerManager serverManager;
+  final String appName;
+  final Widget? logo;
 
   @override
   ConsumerState<AuthCallbackScreen> createState() => _AuthCallbackScreenState();
@@ -142,36 +150,38 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
   @override
   Widget build(BuildContext context) {
     if (_processing && _error == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return HomeShell(
+        appName: widget.appName,
+        logo: widget.logo,
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(SoliplexSpacing.s4),
+            child: CircularProgressIndicator(),
+          ),
+        ),
       );
     }
 
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(SoliplexSpacing.s4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: SoliplexSpacing.s4),
-              Text(
-                _error ?? 'An error occurred',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: SoliplexSpacing.s4),
-              SoliplexButton.filled(
-                onPressed: () => context.go(AppRoutes.home),
-                child: const Text('Back to home'),
-              ),
-            ],
+    final theme = Theme.of(context);
+    return HomeShell(
+      appName: widget.appName,
+      logo: widget.logo,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+          const SizedBox(height: SoliplexSpacing.s4),
+          Text(
+            _error ?? 'An error occurred',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
           ),
-        ),
+          const SizedBox(height: SoliplexSpacing.s4),
+          SoliplexButton.filled(
+            onPressed: () => context.go(AppRoutes.home),
+            child: const Text('Back to home'),
+          ),
+        ],
       ),
     );
   }
