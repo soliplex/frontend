@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/relative_time.dart';
+
 enum _ThreadAction { rename, delete }
 
 class ThreadTile extends StatefulWidget {
@@ -58,7 +60,7 @@ class _ThreadTileState extends State<ThreadTile> {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          _formatRelativeTime(widget.thread.createdAt),
+          formatRelativeTime(widget.thread.createdAt),
           style: theme.textTheme.bodySmall,
         ),
         dense: true,
@@ -134,15 +136,5 @@ class _ThreadTileState extends State<ThreadTile> {
         ),
       ],
     );
-  }
-
-  static String _formatRelativeTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final diff = now.difference(dateTime);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
   }
 }

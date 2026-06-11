@@ -268,6 +268,39 @@ void main() {
       expect(find.text('2024-03-15 10:30'), findsOneWidget);
       expect(find.text('2024-06-20 14:45'), findsOneWidget);
     });
+
+    // Regression for issue #338: backend timestamps are UTC instants, so the
+    // rendered date+time must be the viewer's local clock, not raw UTC fields.
+    // Caveat: only fails on a runner whose zone differs from UTC.
+    testWidgets('renders a UTC timestamp in the viewer local zone',
+        (tester) async {
+      final utcCreated = DateTime.utc(2024, 3, 15, 2, 30);
+      final local = utcCreated.toLocal();
+      final expected = '${local.year}-${local.month.toString().padLeft(2, '0')}'
+          '-${local.day.toString().padLeft(2, '0')} '
+          '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+
+      final doc = RagDocument(
+        id: 'id-utc',
+        title: 'UTC Doc',
+        uri: '/files/utc.txt',
+        createdAt: utcCreated,
+      );
+
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value([doc]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('utc.txt'));
+      await tester.pump();
+
+      expect(find.text(expected), findsOneWidget);
+    });
   });
 
   group('metadata dialog', () {
