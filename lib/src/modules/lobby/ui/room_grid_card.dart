@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../room_activity_format.dart';
+import '../../../shared/relative_time.dart';
 
 /// Vertical card used for the lobby's grid layout: open on tap, info
 /// button, and a quiz indicator, in a shape that tiles cleanly into a
@@ -91,7 +91,7 @@ class RoomGridCard extends StatelessWidget {
                     child: activityTime == null
                         ? const SizedBox.shrink()
                         : Text(
-                            formatRelativeActivity(activityTime!),
+                            formatRelativeTime(activityTime!),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),

@@ -4,52 +4,6 @@ import 'package:soliplex_frontend/src/modules/lobby/room_activity_format.dart';
 void main() {
   final now = DateTime(2026, 6, 9, 12);
 
-  group('formatRelativeActivity', () {
-    test('renders minute/hour/day granularity then a numeric date', () {
-      expect(
-        formatRelativeActivity(now.subtract(const Duration(seconds: 30)),
-            now: now),
-        'Just now',
-      );
-      expect(
-        formatRelativeActivity(now.subtract(const Duration(minutes: 5)),
-            now: now),
-        '5m ago',
-      );
-      expect(
-        formatRelativeActivity(now.subtract(const Duration(hours: 3)),
-            now: now),
-        '3h ago',
-      );
-      expect(
-        formatRelativeActivity(now.subtract(const Duration(days: 2)), now: now),
-        '2d ago',
-      );
-      // Older than a week → numeric date (M/D/YYYY).
-      expect(
-        formatRelativeActivity(DateTime(2026, 1, 15), now: now),
-        '1/15/2026',
-      );
-    });
-
-    test('switches label exactly at each threshold', () {
-      String at(Duration ago) =>
-          formatRelativeActivity(now.subtract(ago), now: now);
-      // minute boundary
-      expect(at(const Duration(seconds: 59)), 'Just now');
-      expect(at(const Duration(minutes: 1)), '1m ago');
-      // minute → hour
-      expect(at(const Duration(minutes: 59)), '59m ago');
-      expect(at(const Duration(hours: 1)), '1h ago');
-      // hour → day
-      expect(at(const Duration(hours: 23)), '23h ago');
-      expect(at(const Duration(hours: 24)), '1d ago');
-      // day → numeric date at exactly a week
-      expect(at(const Duration(days: 6)), '6d ago');
-      expect(at(const Duration(days: 7)), '6/2/2026');
-    });
-  });
-
   group('bucketFor', () {
     test('null maps to the no-activity bucket', () {
       expect(bucketFor(null, now: now), ActivityBucket.none);

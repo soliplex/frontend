@@ -50,6 +50,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - soliplex_client: pin the `ag_ui` git dependency to a fixed ref for
   deterministic resolution; a floating HEAD pulled an incompatible release that
   broke web builds.
+- Room: render document and thread timestamps in the viewer's local time zone.
+  Backend timestamps are UTC, so the document card's date and time showed the
+  wrong time-of-day, and a week-old thread's date could be off by one, for any
+  viewer not in UTC.
 
 ## [0.88.0+58] - 2026-06-03
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
-import '../room_activity_format.dart';
+import '../../../shared/relative_time.dart';
 
 class RoomCard extends StatelessWidget {
   const RoomCard({
@@ -77,7 +77,7 @@ class RoomCard extends StatelessWidget {
         if (hasDescription) Text(room.description, style: muted),
         if (time != null) ...[
           if (hasDescription) const SizedBox(height: SoliplexSpacing.s1),
-          Text(formatRelativeActivity(time), style: muted),
+          Text(formatRelativeTime(time), style: muted),
         ],
       ],
     );
