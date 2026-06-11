@@ -55,6 +55,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _showAllServers = false;
   bool _hasUrlText = false;
 
+  /// Whether the user has ticked the agreement box on the consent screen.
+  /// Gates the "continue" action; reset whenever the flow leaves [Consent].
+  bool _consentAgreed = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +80,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context.go(AppRoutes.lobby);
         return;
       }
+      // Drop the agreement tick on the way out of consent so a later visit
+      // starts unchecked.
+      if (state is! Consent) _consentAgreed = false;
       if (mounted) setState(() {});
     });
 
@@ -149,8 +156,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _buildInsecureWarning(context, probeResult),
             Consent(:final notice, :final probeResult, :final providers) =>
               _buildConsent(context, notice, probeResult, providers),
-            ProviderSelection(:final providers) =>
-              _buildProviderSelection(context, providers),
+            ProviderSelection(:final probeResult, :final providers) =>
+              _buildProviderSelection(context, probeResult, providers),
             Authenticating() => _buildAuthenticating(context),
             Connected() => _buildAuthenticating(context),
           },
@@ -169,19 +176,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return false;
   }
 
-  // -- Per-state heading --
+  // -- Shared layout --
 
-  /// A single centered heading for a flow state. The persistent [HomeShell]
-  /// top bar now carries the brand mark and name, so each state only needs to
-  /// name itself. PR2 reshapes these into title + description blocks.
-  Widget _heading(BuildContext context, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s6),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.titleLarge,
-        textAlign: TextAlign.center,
-      ),
+  /// Left-aligned title with an optional supporting line — the lede for each
+  /// flow state. The persistent [HomeShell] top bar carries the brand mark and
+  /// name, so each state just introduces itself.
+  Widget _titleBlock(BuildContext context, String title,
+      [String? description]) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleLarge),
+        if (description != null) ...[
+          const SizedBox(height: SoliplexSpacing.s2),
+          Text(
+            description,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ],
     );
   }
 
@@ -191,7 +206,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final message = (_flow.state.value as UrlInput).message;
 
     return [
-      _heading(context, 'Connect to a Soliplex server'),
+      _titleBlock(
+        context,
+        'Connect to a Soliplex server',
+        "Enter the URL of the backend you want to connect to. If you're "
+            "self-hosting, that's usually a localhost address or your own "
+            'domain.',
+      ),
+      const SizedBox(height: SoliplexSpacing.s6),
       Form(
         key: _formKey,
         child: SoliplexInput(
@@ -202,7 +224,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           validator: _validateUrl,
           label: 'Backend URL',
           hintText: 'api.example.com',
-          leadingIcon: const Icon(Icons.link),
+          helperText: 'Include http:// or https://, or just the host.',
+          leadingIcon: const Icon(Icons.public),
           trailingIcon: _hasUrlText
               ? IconButton(
                   icon: const Icon(Icons.clear),
@@ -221,16 +244,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ],
       SoliplexButton.filled(
         onPressed: _connect,
-        icon: const Icon(Icons.login),
+        icon: const Icon(Icons.arrow_forward),
+        iconAlignment: IconAlignment.end,
         child: const Text('Connect'),
       ),
     ];
   }
 
   List<Widget> _buildProbing(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return [
-      _heading(context, 'Probing server…'),
-      const Center(child: CircularProgressIndicator()),
+      _titleBlock(
+        context,
+        'Probing server…',
+        'Discovering the sign-in options at the URL you entered.',
+      ),
+      const SizedBox(height: SoliplexSpacing.s6),
+      // The probe is a single discovery call — no fake DNS / TLS sub-steps.
+      _FlowCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.public, size: 16, color: colors.onSurfaceVariant),
+                const SizedBox(width: SoliplexSpacing.s2),
+                Expanded(
+                  child: Text(
+                    _urlController.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.monospaceOn(theme.textTheme.bodySmall),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SoliplexSpacing.s3),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: SoliplexSpacing.s3),
+                Text('Discovering providers…',
+                    style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: SoliplexSpacing.s4),
+      SoliplexButton.outlined(
+        onPressed: _flow.reset,
+        child: const Text('Cancel'),
+      ),
     ];
   }
 
@@ -239,30 +310,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ConnectionSuccess probeResult,
   ) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return [
-      _heading(context, 'Insecure connection'),
-      Icon(Icons.warning_amber, size: 48, color: theme.colorScheme.warning),
-      const SizedBox(height: SoliplexSpacing.s4),
-      Text(
-        'This connection to ${formatServerUrl(probeResult.serverUrl)} is not '
-        'encrypted. Your data, including credentials, may be visible to '
-        'others on the network.',
-        style: theme.textTheme.bodyMedium,
-        textAlign: TextAlign.center,
+      _FlowCard(
+        accentColor: colors.error,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.errorContainer,
+                    borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                  ),
+                  child: Icon(
+                    Icons.lock_outline,
+                    size: 16,
+                    color: colors.onErrorContainer,
+                  ),
+                ),
+                const SizedBox(width: SoliplexSpacing.s3),
+                Expanded(
+                  child: Text(
+                    'This connection is not encrypted',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SoliplexSpacing.s3),
+            Text(
+              "You're connecting over http://. Anyone on your network can read "
+              'the traffic between you and the server, including your auth '
+              'token.',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: SoliplexSpacing.s3),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(SoliplexSpacing.s2),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                border: Border.all(color: colors.outlineVariant),
+              ),
+              child: Text(
+                probeResult.serverUrl.toString(),
+                style: context.monospaceOn(theme.textTheme.bodySmall),
+              ),
+            ),
+          ],
+        ),
       ),
-      const SizedBox(height: SoliplexSpacing.s6),
+      const SizedBox(height: SoliplexSpacing.s4),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SoliplexButton.outlined(
-            onPressed: _flow.reset,
-            child: const Text('Cancel'),
+          Expanded(
+            child: SoliplexButton.outlined(
+              onPressed: _flow.reset,
+              child: const Text('Cancel'),
+            ),
           ),
-          const SizedBox(width: SoliplexSpacing.s4),
-          SoliplexButton.filled(
-            onPressed: _flow.acceptInsecure,
-            child: const Text('Connect anyway'),
+          const SizedBox(width: SoliplexSpacing.s3),
+          Expanded(
+            child: SoliplexButton.filled(
+              intent: ButtonIntent.danger,
+              onPressed: _flow.acceptInsecure,
+              child: const Text('Connect anyway'),
+            ),
           ),
         ],
       ),
@@ -275,23 +396,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ConnectionSuccess probeResult,
     List<AuthProviderConfig> providers,
   ) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return [
-      _heading(context, 'Before you connect'),
-      Text(notice.title, style: Theme.of(context).textTheme.titleLarge),
+      _titleBlock(
+        context,
+        'Before you connect',
+        'This server has a notice you need to acknowledge before signing in.',
+      ),
+      const SizedBox(height: SoliplexSpacing.s6),
+      _FlowCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(notice.title, style: theme.textTheme.titleSmall),
+            const SizedBox(height: SoliplexSpacing.s2),
+            Text(
+              notice.body,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: SoliplexSpacing.s4),
-      Text(notice.body, style: Theme.of(context).textTheme.bodyMedium),
+      // Pure-frontend agreement gate — the consent is the user ticking this,
+      // no extra backend round-trip.
+      Container(
+        padding: const EdgeInsets.all(SoliplexSpacing.s2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          border: Border.all(
+            color: _consentAgreed ? colors.primary : colors.outlineVariant,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Checkbox(
+              value: _consentAgreed,
+              onChanged: (v) => setState(() => _consentAgreed = v ?? false),
+            ),
+            const SizedBox(width: SoliplexSpacing.s1),
+            Expanded(
+              child: Text(
+                'I understand and agree to the usage terms.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: SoliplexSpacing.s4),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SoliplexButton.outlined(
-            onPressed: _flow.reset,
-            child: const Text('Cancel'),
+          Expanded(
+            child: SoliplexButton.outlined(
+              onPressed: _flow.reset,
+              child: const Text('Back'),
+            ),
           ),
-          const SizedBox(width: SoliplexSpacing.s4),
-          SoliplexButton.filled(
-            onPressed: _flow.acknowledgeConsent,
-            child: Text(notice.acknowledgmentLabel),
+          const SizedBox(width: SoliplexSpacing.s3),
+          Expanded(
+            child: SoliplexButton.filled(
+              onPressed: _consentAgreed ? _flow.acknowledgeConsent : null,
+              child: Text(notice.acknowledgmentLabel),
+            ),
           ),
         ],
       ),
@@ -300,23 +471,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<Widget> _buildProviderSelection(
     BuildContext context,
+    ConnectionSuccess probeResult,
     List<AuthProviderConfig> providers,
   ) {
     return [
-      _heading(context, 'Sign in to continue'),
-      Text(
-        'Choose authentication provider',
-        style: Theme.of(context).textTheme.titleMedium,
+      _titleBlock(
+        context,
+        'Sign in to ${probeResult.serverUrl.host}',
+        'Choose how you want to authenticate.',
       ),
-      const SizedBox(height: SoliplexSpacing.s4),
-      for (final provider in providers)
-        Padding(
-          padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
-          child: SoliplexButton.filled(
-            onPressed: () => _flow.selectProvider(provider),
-            child: Text(provider.name),
-          ),
+      const SizedBox(height: SoliplexSpacing.s6),
+      for (final provider in providers) ...[
+        _ProviderTile(
+          provider: provider,
+          onTap: () => _flow.selectProvider(provider),
         ),
+        const SizedBox(height: SoliplexSpacing.s2),
+      ],
       const SizedBox(height: SoliplexSpacing.s2),
       SoliplexButton.text(
         onPressed: _flow.reset,
@@ -326,9 +497,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   List<Widget> _buildAuthenticating(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return [
-      _heading(context, 'Finish signing in'),
-      const Center(child: CircularProgressIndicator()),
+      Center(
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(soliplexRadii.lg),
+              ),
+              child: const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+            ),
+            const SizedBox(height: SoliplexSpacing.s4),
+            Text('Finish signing in', style: theme.textTheme.titleLarge),
+            const SizedBox(height: SoliplexSpacing.s2),
+            Text(
+              "We've opened a secure browser window so you can sign in. Come "
+              'back here once you’re done.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: SoliplexSpacing.s6),
+      SoliplexButton.outlined(
+        onPressed: _flow.reset,
+        child: const Text('Cancel'),
+      ),
     ];
   }
 
@@ -483,5 +690,127 @@ class UrlMessageBanner extends StatelessWidget {
           ),
         ),
     };
+  }
+}
+
+/// A bordered surface card used by the connect-flow states (probing, insecure
+/// warning, consent). Pass [accentColor] for a coloured left edge — used to
+/// flag the insecure-connection warning.
+///
+/// Candidate for promotion to `soliplex_design` if other modules grow the same
+/// pattern; kept local while it's auth-only.
+class _FlowCard extends StatelessWidget {
+  const _FlowCard({required this.child, this.accentColor});
+
+  final Widget child;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    // A rounded border must be uniform, so the accent edge is a clipped bar
+    // rather than a coloured left border side.
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      // IntrinsicHeight gives the row a finite height (it lives in a vertical
+      // scroll view) so the accent bar can stretch to the card's height.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (accentColor != null) Container(width: 3, color: accentColor),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(SoliplexSpacing.s4),
+                child: child,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A tappable provider row on the sign-in screen: a derived initial avatar,
+/// the provider name, and its id.
+///
+/// [AuthProviderConfig] carries no brand icon or "recommended" flag, so the
+/// tile shows only what the discovery response actually provides.
+class _ProviderTile extends StatelessWidget {
+  const _ProviderTile({required this.provider, required this.onTap});
+
+  final AuthProviderConfig provider;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final name = provider.name.trim();
+    final initial = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(soliplexRadii.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        child: Container(
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                ),
+                child: Text(
+                  initial,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(color: colors.onPrimaryContainer),
+                ),
+              ),
+              const SizedBox(width: SoliplexSpacing.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    Text(
+                      provider.id,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context
+                          .monospaceOn(theme.textTheme.labelSmall)
+                          .copyWith(color: colors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

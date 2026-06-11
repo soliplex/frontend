@@ -154,7 +154,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsOneWidget);
-      expect(find.byIcon(Icons.link), findsOneWidget);
+      expect(find.byIcon(Icons.public), findsOneWidget);
       expect(find.text('Connect'), findsOneWidget);
       expect(find.text('Soliplex'), findsOneWidget);
       expect(
@@ -263,7 +263,10 @@ void main() {
 
       // Should go to lobby, not provider selection.
       expect(find.text('Lobby placeholder'), findsOneWidget);
-      expect(find.text('Choose authentication provider'), findsNothing);
+      expect(
+        find.text('Choose how you want to authenticate.'),
+        findsNothing,
+      );
     });
 
     testWidgets('different ports are treated as different servers',
@@ -394,7 +397,10 @@ void main() {
       await tester.pump();
 
       // Inline insecure warning
-      expect(find.text('Insecure connection'), findsOneWidget);
+      expect(
+        find.text('This connection is not encrypted'),
+        findsOneWidget,
+      );
       expect(find.textContaining('not encrypted'), findsOneWidget);
     });
 
@@ -438,7 +444,7 @@ void main() {
       );
     });
 
-    testWidgets('shows "Sign in to continue" on provider selection phase',
+    testWidgets('shows the sign-in heading on provider selection phase',
         (tester) async {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(
@@ -452,7 +458,7 @@ void main() {
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sign in to continue'), findsOneWidget);
+      expect(find.text('Sign in to api.example.com'), findsOneWidget);
       expect(find.text('Connect to a Soliplex server'), findsNothing);
     });
 
@@ -530,7 +536,10 @@ void main() {
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Choose authentication provider'), findsOneWidget);
+      expect(
+        find.text('Choose how you want to authenticate.'),
+        findsOneWidget,
+      );
 
       // Pick a provider to authenticate.
       await tester.tap(find.text('Authenticate with Keycloak'));
