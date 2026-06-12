@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/core/branding.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
@@ -19,27 +21,33 @@ ServerManager _createManager() => ServerManager(
 
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
+  ServerManager? serverManager,
   Map<String, UserProfile?> profiles = const {},
   SoliplexBranding? branding,
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
-  VoidCallback? onServerTap,
+  void Function(String serverId)? onSignIn,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
 }) {
-  return MaterialApp(
-    home: Scaffold(
-      body: ServerSidebar(
-        servers: servers,
-        profiles: profiles,
-        branding: branding ?? testBranding(),
-        selectedServerId: selectedServerId,
-        onSelectServer: onSelectServer ?? (_) {},
-        onServerTap: onServerTap ?? () {},
-        onAddServer: onAddServer ?? () {},
-        onNetworkInspector: onNetworkInspector ?? () {},
-        onVersions: onVersions ?? () {},
+  // The per-tile ⋮ menu is a ConsumerWidget, so the tree needs a ProviderScope;
+  // the auth providers are only read when a logout fires.
+  return ProviderScope(
+    child: MaterialApp(
+      home: Scaffold(
+        body: ServerSidebar(
+          servers: servers,
+          serverManager: serverManager ?? _createManager(),
+          profiles: profiles,
+          branding: branding ?? testBranding(),
+          selectedServerId: selectedServerId,
+          onSelectServer: onSelectServer ?? (_) {},
+          onSignIn: onSignIn ?? (_) {},
+          onAddServer: onAddServer ?? () {},
+          onNetworkInspector: onNetworkInspector ?? () {},
+          onVersions: onVersions ?? () {},
+        ),
       ),
     ),
   );
@@ -76,20 +84,6 @@ void main() {
       expect(find.text('http://srv2.test:9000'), findsOneWidget);
     });
 
-    testWidgets('shows no-auth label for servers without authentication',
-        (tester) async {
-      final manager = _createManager();
-      manager.addServer(
-        serverId: 'http://localhost:8000',
-        serverUrl: Uri.parse('http://localhost:8000'),
-        requiresAuth: false,
-      );
-
-      await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
-
-      expect(find.text('No authentication required'), findsOneWidget);
-    });
-
     testWidgets('the more menu routes Network Inspector / Versions',
         (tester) async {
       var inspector = 0;
@@ -117,49 +111,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(versions, 1);
     });
-
-    testWidgets(
-      'subtitle reacts to session flipping to ExpiredSession '
-      'without any server-map mutation',
-      (tester) async {
-        // The ServerSidebar receives a `servers` map snapshot from its
-        // parent. The parent only rebuilds when the map mutates (server
-        // added/removed). A pure session-state flip on an existing entry
-        // does not change the map. The subtitle reactivity therefore
-        // must come from the tile itself watching the per-entry session
-        // signal — without that, the subtitle would stale-display the
-        // pre-flip label until something else triggered a rebuild.
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'auth-server',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        entry.auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
-
-        // Snapshot the map once; we intentionally never refresh it.
-        final servers = manager.servers.value;
-
-        await tester.pumpWidget(_buildSidebar(servers: servers));
-        expect(find.text('Signed in'), findsOneWidget);
-        expect(find.text('Session expired'), findsNothing);
-
-        entry.auth.markSessionExpired();
-        await tester.pump();
-
-        expect(find.text('Session expired'), findsOneWidget);
-        expect(find.text('Signed in'), findsNothing);
-      },
-    );
 
     testWidgets('tapping a server tile fires onSelectServer with its id',
         (tester) async {
@@ -204,7 +155,8 @@ void main() {
       expect(tileFor('http://srv1.test').selected, isFalse);
     });
 
-    testWidgets('manage-servers button fires onServerTap', (tester) async {
+    testWidgets('server management lives in the tile menu, not a gear',
+        (tester) async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'http://srv1.test',
@@ -212,14 +164,136 @@ void main() {
         requiresAuth: false,
       );
 
-      var managed = false;
-      await tester.pumpWidget(_buildSidebar(
-        servers: manager.servers.value,
-        onServerTap: () => managed = true,
-      ));
+      await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      expect(managed, isTrue);
+      // No standalone "Manage servers" gear; each tile carries its own ⋮.
+      expect(find.byIcon(Icons.settings_outlined), findsNothing);
+      // One ⋮ on the tile plus the account bar's ⋮.
+      expect(find.byIcon(Icons.more_vert), findsNWidgets(2));
+    });
+
+    group('tile ⋮ menu', () {
+      testWidgets('a disconnected server offers Sign in and Remove',
+          (tester) async {
+        final manager = _createManager();
+        // requiresAuth + NoSession => not connected.
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+
+        String? signedIn;
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+          onSignIn: (id) => signedIn = id,
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Sign in'), findsOneWidget);
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Log out'), findsNothing);
+
+        await tester.tap(find.text('Sign in'));
+        await tester.pumpAndSettle();
+        expect(signedIn, 'srv');
+      });
+
+      testWidgets('a connected no-auth server offers only Remove',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Sign in'), findsNothing);
+        expect(find.text('Log out'), findsNothing);
+
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+
+      testWidgets('a connected authenticated server offers Log out and Remove',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Log out'), findsOneWidget);
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Sign in'), findsNothing);
+      });
+
+      testWidgets('the tile ⋮ is hidden until the tile is hovered',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        // Not hovered and not selected: the ⋮ is present but not interactive,
+        // so a tap where it sits falls through and opens no menu.
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first,
+            warnIfMissed: false);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsNothing);
+
+        // Hover the tile: the ⋮ reveals and now opens.
+        final gesture =
+            await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture
+            .moveTo(tester.getCenter(find.text('http://localhost:8000')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsOneWidget);
+      });
     });
 
     group('account block', () {
@@ -287,10 +361,9 @@ void main() {
           },
         ));
 
-        // The name renders in both the account block and the selected
-        // server's tile subtitle; the email and avatar initial are unique to
-        // the account block.
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        // Identity lives only in the account block now (the tile has no
+        // subtitle); name, email, and avatar initial each render once.
+        expect(find.text('Ada Lovelace'), findsOneWidget);
         expect(find.text('ada@example.com'), findsOneWidget);
         expect(find.text('A'), findsOneWidget); // avatar initial
       });
@@ -314,9 +387,9 @@ void main() {
           },
         ));
 
-        // Renders in both the account block and the tile subtitle (both
-        // resolve names through the same helper); the initial is block-only.
-        expect(find.text('ada99'), findsNWidgets(2));
+        // Block-only identity; the preferred_username and initial each
+        // render once.
+        expect(find.text('ada99'), findsOneWidget);
         expect(find.text('A'), findsOneWidget);
       });
 
@@ -334,9 +407,8 @@ void main() {
           selectedServerId: 'srv',
         ));
 
-        // Both the account block and the tile subtitle fall back to the
-        // generic label; the avatar initial is unique to the block.
-        expect(find.text('Signed in'), findsNWidgets(2));
+        // The block falls back to the generic label; initial is block-only.
+        expect(find.text('Signed in'), findsOneWidget);
         expect(find.text('S'), findsOneWidget);
       });
 
@@ -359,7 +431,7 @@ void main() {
           },
         ));
 
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        expect(find.text('Ada Lovelace'), findsOneWidget);
         expect(find.textContaining('@'), findsNothing);
       });
 
@@ -385,7 +457,7 @@ void main() {
             ),
           },
         ));
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        expect(find.text('Ada Lovelace'), findsOneWidget);
 
         entry.auth.markSessionExpired();
         await tester.pump();

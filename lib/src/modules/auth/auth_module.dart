@@ -14,11 +14,9 @@ import 'platform/callback_params.dart';
 import 'server_manager.dart';
 import 'ui/auth_callback_screen.dart';
 import 'ui/home_screen.dart';
-import 'ui/server_list_screen.dart';
 
 const _publicPaths = {
   AppRoutes.home,
-  AppRoutes.servers,
   AppRoutes.authCallback,
   AppRoutes.versions,
 };
@@ -94,16 +92,6 @@ class AuthAppModule extends AppModule {
                 ),
               );
             },
-          ),
-          GoRoute(
-            path: AppRoutes.servers,
-            pageBuilder: (_, __) => NoTransitionPage(
-              child: ServerListScreen(
-                serverManager: _serverManager,
-                appName: _appName,
-                logo: _logo,
-              ),
-            ),
           ),
           GoRoute(
             path: AppRoutes.authCallback,

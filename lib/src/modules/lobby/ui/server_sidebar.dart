@@ -1,10 +1,16 @@
+import 'dart:developer' as dev;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../version.dart';
 import '../../../core/branding.dart';
+import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
+import '../../auth/server_logout.dart';
+import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -12,17 +18,21 @@ class ServerSidebar extends StatelessWidget {
   const ServerSidebar({
     super.key,
     required this.servers,
+    required this.serverManager,
     required this.profiles,
     required this.branding,
     required this.selectedServerId,
     required this.onSelectServer,
-    required this.onServerTap,
+    required this.onSignIn,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
   });
 
   final Map<String, ServerEntry> servers;
+
+  /// Drives the per-tile destructive actions (log out / remove).
+  final ServerManager serverManager;
   final Map<String, UserProfile?> profiles;
 
   /// Brand identity shown in the header (logo + app name).
@@ -34,8 +44,8 @@ class ServerSidebar extends StatelessWidget {
   /// Selects a server to view its rooms in the main pane.
   final void Function(String serverId) onSelectServer;
 
-  /// Opens the server-management screen.
-  final VoidCallback onServerTap;
+  /// Routes a disconnected server to its sign-in flow.
+  final void Function(String serverId) onSignIn;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
@@ -58,10 +68,10 @@ class ServerSidebar extends StatelessWidget {
           Expanded(
             child: _ServerList(
               servers: servers,
-              profiles: profiles,
+              serverManager: serverManager,
               selectedServerId: selectedServerId,
               onSelectServer: onSelectServer,
-              onServerTap: onServerTap,
+              onSignIn: onSignIn,
               onAddServer: onAddServer,
             ),
           ),
@@ -135,18 +145,18 @@ class _BrandHeader extends StatelessWidget {
 class _ServerList extends StatelessWidget {
   const _ServerList({
     required this.servers,
-    required this.profiles,
+    required this.serverManager,
     required this.selectedServerId,
     required this.onSelectServer,
-    required this.onServerTap,
+    required this.onSignIn,
     required this.onAddServer,
   });
 
   final Map<String, ServerEntry> servers;
-  final Map<String, UserProfile?> profiles;
+  final ServerManager serverManager;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
-  final VoidCallback onServerTap;
+  final void Function(String serverId) onSignIn;
   final VoidCallback onAddServer;
 
   @override
@@ -154,34 +164,24 @@ class _ServerList extends StatelessWidget {
     return ListView(
       children: [
         Padding(
+          // Server management now lives in each tile's ⋮ menu, so the section
+          // header is just a label.
           padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-              SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s2),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Servers (${servers.length})',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+              SoliplexSpacing.s4, SoliplexSpacing.s4, SoliplexSpacing.s2),
+          child: Text(
+            'Servers (${servers.length})',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
-              // Server management lives behind this gear so a row tap is free
-              // to select a server for viewing its rooms.
-              IconButton(
-                icon: const Icon(Icons.settings_outlined, size: 18),
-                tooltip: 'Manage servers',
-                onPressed: onServerTap,
-              ),
-            ],
           ),
         ),
         for (final entry in servers.entries)
           _ServerTile(
             entry: entry.value,
-            profile: profiles[entry.key],
+            serverManager: serverManager,
             selected: entry.key == selectedServerId,
             onTap: () => onSelectServer(entry.key),
+            onSignIn: () => onSignIn(entry.key),
           ),
         Padding(
           padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
@@ -196,41 +196,59 @@ class _ServerList extends StatelessWidget {
   }
 }
 
-class _ServerTile extends StatelessWidget {
+class _ServerTile extends StatefulWidget {
   const _ServerTile({
     required this.entry,
-    required this.profile,
+    required this.serverManager,
     required this.selected,
     required this.onTap,
+    required this.onSignIn,
   });
 
   final ServerEntry entry;
-  final UserProfile? profile;
+  final ServerManager serverManager;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onSignIn;
+
+  @override
+  State<_ServerTile> createState() => _ServerTileState();
+}
+
+class _ServerTileState extends State<_ServerTile> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      selected: selected,
-      title: Text(formatServerUrl(entry.serverUrl)),
-      // The label depends on entry.auth.session, which the parent does
-      // not watch — Watch rebuilds the subtitle on session flips.
-      subtitle: Watch(
-        (context) => Text(_identityLabel(entry.auth.session.value)),
+    // No auth/identity subtitle: the account block shows who's signed in on the
+    // selected server, and the tile's ⋮ menu reflects connection state (Sign in
+    // vs Log out). The tile itself is just the server name.
+    //
+    // The ⋮ reveals on hover (desktop); the selected tile keeps it shown so the
+    // actions stay reachable without a mouse (touch, or the active server). The
+    // slot is always reserved (maintainSize) so the title doesn't shift.
+    final showMenu = _hovered || widget.selected;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: ListTile(
+        selected: widget.selected,
+        title: Text(formatServerUrl(widget.entry.serverUrl)),
+        trailing: Visibility(
+          visible: showMenu,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: _ServerTileMenu(
+            entry: widget.entry,
+            serverManager: widget.serverManager,
+            onSignIn: widget.onSignIn,
+          ),
+        ),
+        dense: true,
+        onTap: widget.onTap,
       ),
-      dense: true,
-      onTap: onTap,
     );
-  }
-
-  String _identityLabel(SessionState session) {
-    if (!entry.requiresAuth) return 'No authentication required';
-    return switch (session) {
-      ExpiredSession() => 'Session expired',
-      NoSession() => 'Not signed in',
-      ActiveSession() => _signedInName(profile),
-    };
   }
 }
 
@@ -243,6 +261,116 @@ String _signedInName(UserProfile? profile) {
   if (profile.preferredUsername.isNotEmpty) return profile.preferredUsername;
   if (profile.email.isNotEmpty) return profile.email;
   return 'Signed in';
+}
+
+/// Per-server actions behind a tile's trailing ⋮ menu. The available set
+/// depends on the server's connection state (see [_ServerTileMenu]).
+enum _ServerTileAction { signIn, logOut, remove }
+
+/// A server tile's ⋮ menu: sign in / log out / remove, scoped to one
+/// [ServerEntry]. Owns its own log-out in-flight state (a spinner replaces the
+/// ⋮ while the IdP round-trip runs) and reads the auth providers directly so
+/// the destructive actions don't have to be threaded as async callbacks up
+/// through the lobby. Log-out failures surface as a SnackBar; the local
+/// session is preserved (see [logoutServer]).
+class _ServerTileMenu extends ConsumerStatefulWidget {
+  const _ServerTileMenu({
+    required this.entry,
+    required this.serverManager,
+    required this.onSignIn,
+  });
+
+  final ServerEntry entry;
+  final ServerManager serverManager;
+  final VoidCallback onSignIn;
+
+  @override
+  ConsumerState<_ServerTileMenu> createState() => _ServerTileMenuState();
+}
+
+class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
+  bool _busy = false;
+
+  Future<void> _handle(_ServerTileAction action) async {
+    switch (action) {
+      case _ServerTileAction.signIn:
+        widget.onSignIn();
+      case _ServerTileAction.logOut:
+        await _runLogout(removeAfter: false);
+      case _ServerTileAction.remove:
+        // A connected, authenticated server logs out first so the IdP session
+        // doesn't outlive the removed entry; everything else removes outright.
+        if (widget.entry.isConnected && widget.entry.requiresAuth) {
+          await _runLogout(removeAfter: true);
+        } else {
+          widget.serverManager.removeServer(widget.entry.serverId);
+        }
+    }
+  }
+
+  Future<void> _runLogout({required bool removeAfter}) async {
+    // Capture the messenger before the await — removing the server rebuilds the
+    // list and may unmount this tile before the future completes.
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await logoutServer(
+        entry: widget.entry,
+        authFlow: ref.read(authFlowProvider),
+        probeClient: ref.read(probeClientProvider),
+      );
+      if (removeAfter) {
+        widget.serverManager.removeServer(widget.entry.serverId);
+      }
+    } catch (e, st) {
+      dev.log('Server logout failed', error: e, stackTrace: st);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Log out failed: ${friendlyLogoutError(e)}')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      return const SizedBox.square(
+        dimension: 24,
+        child: Padding(
+          padding: EdgeInsets.all(SoliplexSpacing.s1),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    final entry = widget.entry;
+    final connected = entry.isConnected;
+    return PopupMenuButton<_ServerTileAction>(
+      icon: const Icon(Icons.more_vert),
+      tooltip: 'Server actions',
+      onSelected: _handle,
+      itemBuilder: (context) => [
+        if (!connected)
+          const PopupMenuItem(
+            value: _ServerTileAction.signIn,
+            child: _MenuRow(icon: Icons.login, label: 'Sign in'),
+          ),
+        if (connected && entry.requiresAuth)
+          const PopupMenuItem(
+            value: _ServerTileAction.logOut,
+            child: _MenuRow(icon: Icons.logout, label: 'Log out'),
+          ),
+        PopupMenuItem(
+          value: _ServerTileAction.remove,
+          child: _MenuRow(
+            icon: Icons.delete_outline,
+            label: 'Remove',
+            destructive: true,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// The actions collapsed behind the sidebar's "more" (⋮) menu. These are
@@ -307,21 +435,35 @@ class _AccountBar extends StatelessWidget {
 }
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label});
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    this.destructive = false,
+  });
 
   final IconData icon;
   final String label;
 
+  /// Tints the row with `colorScheme.error` for a destructive action (Remove).
+  final bool destructive;
+
   @override
   Widget build(BuildContext context) {
+    final color = destructive ? Theme.of(context).colorScheme.error : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20),
+        Icon(icon, size: 20, color: color),
         const SizedBox(width: SoliplexSpacing.s3),
         // Flexible so a long label (e.g. "Network Inspector") can't overflow
         // the menu's width; the menu widens to fit when there's room.
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: color == null ? null : TextStyle(color: color),
+          ),
+        ),
       ],
     );
   }

@@ -101,12 +101,6 @@ Widget _buildApp({
         ),
       ),
       GoRoute(
-        path: '/servers',
-        builder: (_, __) => const Scaffold(
-          body: Text('Server list'),
-        ),
-      ),
-      GoRoute(
         path: '/lobby',
         builder: (_, __) => const Scaffold(
           body: Text('Lobby placeholder'),
@@ -624,30 +618,8 @@ void main() {
       expect(find.text('https://api.example.com'), findsNothing);
     });
 
-    testWidgets('shows connected count link when authenticated servers exist',
+    testWidgets('shows Go to Lobby when authenticated servers exist',
         (tester) async {
-      final serverManager = _createServerManager();
-      final entry1 = serverManager.addServer(
-        serverId: 'test1',
-        serverUrl: Uri.parse('https://one.example.com'),
-      );
-      _loginEntry(entry1);
-      final entry2 = serverManager.addServer(
-        serverId: 'test2',
-        serverUrl: Uri.parse('https://two.example.com'),
-      );
-      _loginEntry(entry2);
-
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('All servers (2 connected)'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('connected count link navigates to /servers', (tester) async {
       final serverManager = _createServerManager();
       final entry = serverManager.addServer(
         serverId: 'test',
@@ -658,27 +630,7 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('All servers (1 connected)'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Server list'), findsOneWidget);
-    });
-
-    testWidgets('shows All servers button when only disconnected servers exist',
-        (tester) async {
-      final serverManager = _createServerManager();
-      serverManager.addServer(
-        serverId: 'test',
-        serverUrl: Uri.parse('https://api.example.com'),
-      );
-
-      await tester.pumpWidget(_buildApp(serverManager: serverManager));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('All servers (0 connected)'),
-        findsOneWidget,
-      );
+      expect(find.text('Go to Lobby'), findsOneWidget);
     });
 
     testWidgets('tapping logged-out server connects and navigates to lobby',
@@ -805,7 +757,8 @@ void main() {
       await tester.pumpWidget(_buildApp(serverManager: serverManager));
       await tester.pumpAndSettle();
 
-      expect(find.text('All servers (1 connected)'), findsOneWidget);
+      // A no-auth server is connected, so the section offers "Go to Lobby".
+      expect(find.text('Go to Lobby'), findsOneWidget);
     });
 
     testWidgets('keystroke refocuses URL field when unfocused', (tester) async {

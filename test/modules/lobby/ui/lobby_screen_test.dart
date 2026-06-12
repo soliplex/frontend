@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,10 +39,6 @@ Widget _buildApp(
         ),
       ),
       GoRoute(
-        path: '/servers',
-        builder: (_, __) => const Scaffold(body: Text('Servers')),
-      ),
-      GoRoute(
         path: '/',
         builder: (_, state) {
           onHomeRoute?.call(state.uri);
@@ -50,7 +47,9 @@ Widget _buildApp(
       ),
     ],
   );
-  return MaterialApp.router(routerConfig: router);
+  // The sidebar's per-tile ⋮ menu is a ConsumerWidget, so the tree needs a
+  // ProviderScope; the auth providers are only read when a logout fires.
+  return ProviderScope(child: MaterialApp.router(routerConfig: router));
 }
 
 void main() {
@@ -199,9 +198,8 @@ void main() {
         );
         await tester.pump();
 
-        // The panel description is unique to the RoomsExpired arm
-        // (the sidebar tile also renders "Session expired", but only
-        // as a subtitle), so it pins the panel without ambiguity.
+        // The panel description is unique to the RoomsExpired arm, so it
+        // pins the panel without ambiguity.
         expect(
           find.text('Sign in again to view rooms on this server.'),
           findsOneWidget,
