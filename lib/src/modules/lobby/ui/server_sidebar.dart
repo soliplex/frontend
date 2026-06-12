@@ -222,7 +222,7 @@ class _ServerTileState extends State<_ServerTile> {
   Widget build(BuildContext context) {
     // No auth/identity subtitle: the account block shows who's signed in on the
     // selected server, and the tile's ⋮ menu reflects connection state (Sign in
-    // vs Log out). The tile itself is just the server name.
+    // vs Log out).
     //
     // The ⋮ reveals on hover (desktop); the selected tile keeps it shown so the
     // actions stay reachable without a mouse (touch, or the active server). The
@@ -310,13 +310,30 @@ String _signedInName(UserProfile? profile) {
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, remove }
 
+/// What happens to the entry after a log-out attempt. The third outcome
+/// (remove even when sign-out fails) is the error-menu escape hatch, so a
+/// boolean "remove after" no longer captures the choices.
+enum _AfterLogout {
+  /// Plain "Log out": clear the session, keep the entry.
+  keep,
+
+  /// Plain "Remove" on a connected, authenticated server: remove only after a
+  /// clean sign-out; a failure keeps the entry and surfaces the error.
+  removeOnSuccess,
+
+  /// "Remove server" from the error menu: attempt a sign-out but remove the
+  /// entry regardless of the outcome, so a server whose IdP logout keeps
+  /// failing can still be removed.
+  removeRegardless,
+}
+
 /// A server tile's ⋮ menu: sign in / log out / remove, scoped to one
 /// [ServerEntry]. Owns its own log-out in-flight state (a spinner replaces the
 /// ⋮ while the IdP round-trip runs) and reads the auth providers directly so
 /// the destructive actions don't have to be threaded as async callbacks up
 /// through the lobby. A log-out failure preserves the local session (see
 /// [logoutServer]) and swaps the ⋮ for a [_LogoutErrorButton] so the failure
-/// stays visible until the user retries or dismisses it.
+/// stays visible until the user retries or removes the server.
 class _ServerTileMenu extends ConsumerStatefulWidget {
   const _ServerTileMenu({
     required this.entry,
@@ -341,19 +358,19 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
       case _ServerTileAction.signIn:
         widget.onSignIn();
       case _ServerTileAction.logOut:
-        await _runLogout(removeAfter: false);
+        await _runLogout(_AfterLogout.keep);
       case _ServerTileAction.remove:
         // A connected, authenticated server logs out first so the IdP session
         // doesn't outlive the removed entry; everything else removes outright.
         if (widget.entry.isConnected && widget.entry.requiresAuth) {
-          await _runLogout(removeAfter: true);
+          await _runLogout(_AfterLogout.removeOnSuccess);
         } else {
           widget.serverManager.removeServer(widget.entry.serverId);
         }
     }
   }
 
-  Future<void> _runLogout({required bool removeAfter}) async {
+  Future<void> _runLogout(_AfterLogout then) async {
     setState(() {
       _busy = true;
       _failure = null;
@@ -364,22 +381,33 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         authFlow: ref.read(authFlowProvider),
         probeClient: ref.read(probeClientProvider),
       );
-      if (removeAfter) {
+      if (then != _AfterLogout.keep) {
         widget.serverManager.removeServer(widget.entry.serverId);
       }
     } catch (e, st) {
+      if (then == _AfterLogout.removeRegardless) {
+        // The user chose to remove despite a failing sign-out; honour it and
+        // drop the entry, logging the swallowed error (the IdP session may
+        // outlive the entry — the accepted cost of the escape hatch).
+        dev.log('Logout failed; removing server anyway',
+            error: e, stackTrace: st);
+        widget.serverManager.removeServer(widget.entry.serverId);
+        return;
+      }
       // On the remove path a failure means the server was kept (the entry is
       // removed only after a clean sign-out) — distinguish it in the log and,
       // via [_LogoutFailure.wasRemove], in the surfaced message.
       dev.log(
-        removeAfter ? 'Logout failed; server kept' : 'Logout failed',
+        then == _AfterLogout.removeOnSuccess
+            ? 'Logout failed; server kept'
+            : 'Logout failed',
         error: e,
         stackTrace: st,
       );
       if (mounted) {
         setState(() => _failure = _LogoutFailure(
               message: friendlyLogoutError(e),
-              wasRemove: removeAfter,
+              wasRemove: then == _AfterLogout.removeOnSuccess,
             ));
       }
     } finally {
@@ -402,8 +430,10 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
     if (failure != null) {
       return _LogoutErrorButton(
         failure: failure,
-        onRetry: () => _runLogout(removeAfter: failure.wasRemove),
-        onDismiss: () => setState(() => _failure = null),
+        onRetry: () => _runLogout(
+          failure.wasRemove ? _AfterLogout.removeOnSuccess : _AfterLogout.keep,
+        ),
+        onRemove: () => _runLogout(_AfterLogout.removeRegardless),
       );
     }
     final entry = widget.entry;
@@ -446,36 +476,69 @@ class _LogoutFailure {
   final bool wasRemove;
 }
 
-/// Replaces a tile's ⋮ after a failed log-out: a red error icon whose tooltip
-/// carries the message (a desktop hover read) and whose tap opens a dialog with
-/// the full text plus a retry. Unlike a transient toast it persists until the
-/// user acts, so a failure that leaves the session intact stays visible — and
-/// the dialog is the surface a touch user (no hover) reads the error on.
+/// The actions on a tile's error menu (see [_LogoutErrorButton]).
+enum _ErrorAction { retry, showDetail, remove }
+
+/// Replaces a tile's ⋮ after a failed log-out: a red error icon that opens the
+/// same kind of menu the tile normally carries, with **Try again** /
+/// **Show error detail** / **Remove server**. The icon tooltip carries the
+/// message for a desktop hover; "Show error detail" surfaces the full text for
+/// a touch user. Unlike a transient toast the affordance persists until the
+/// user retries successfully or removes the server, so a failure that leaves
+/// the session intact stays visible — and "Remove server" is the escape hatch
+/// for a sign-out that keeps failing (see [_AfterLogout.removeRegardless]).
 class _LogoutErrorButton extends StatelessWidget {
   const _LogoutErrorButton({
     required this.failure,
     required this.onRetry,
-    required this.onDismiss,
+    required this.onRemove,
   });
 
   final _LogoutFailure failure;
   final VoidCallback onRetry;
-  final VoidCallback onDismiss;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return PopupMenuButton<_ErrorAction>(
       icon: Icon(
         Icons.error_outline,
         color: Theme.of(context).colorScheme.error,
       ),
-      tooltip: '${failure.message} — tap the icon for details',
-      onPressed: () => _showDetails(context),
+      tooltip: failure.message,
+      onSelected: (action) {
+        switch (action) {
+          case _ErrorAction.retry:
+            onRetry();
+          case _ErrorAction.showDetail:
+            _showDetail(context);
+          case _ErrorAction.remove:
+            onRemove();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _ErrorAction.retry,
+          child: _MenuRow(icon: Icons.refresh, label: 'Try again'),
+        ),
+        PopupMenuItem(
+          value: _ErrorAction.showDetail,
+          child: _MenuRow(icon: Icons.info_outline, label: 'Show error detail'),
+        ),
+        PopupMenuItem(
+          value: _ErrorAction.remove,
+          child: _MenuRow(
+            icon: Icons.delete_outline,
+            label: 'Remove server',
+            destructive: true,
+          ),
+        ),
+      ],
     );
   }
 
-  Future<void> _showDetails(BuildContext context) async {
-    final action = await showDialog<_ErrorDialogAction>(
+  Future<void> _showDetail(BuildContext context) async {
+    await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
@@ -486,30 +549,14 @@ class _LogoutErrorButton extends StatelessWidget {
         content: Text(failure.message),
         actions: [
           SoliplexButton.text(
-            onPressed: () => Navigator.pop(context, _ErrorDialogAction.retry),
-            child: const Text('Try again'),
-          ),
-          SoliplexButton.text(
-            onPressed: () => Navigator.pop(context, _ErrorDialogAction.dismiss),
-            child: const Text('Dismiss'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
         ],
       ),
     );
-    // A barrier tap (null) leaves the error in place; only the explicit
-    // actions retry or clear it.
-    switch (action) {
-      case _ErrorDialogAction.retry:
-        onRetry();
-      case _ErrorDialogAction.dismiss:
-        onDismiss();
-      case null:
-        break;
-    }
   }
 }
-
-enum _ErrorDialogAction { retry, dismiss }
 
 /// The actions collapsed behind the sidebar's "more" (⋮) menu. These are
 /// developer/utility destinations, deliberately de-emphasised vs. the account

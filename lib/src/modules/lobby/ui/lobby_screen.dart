@@ -478,8 +478,8 @@ class _RoomContent extends StatelessWidget {
     }
 
     return ListView(
-      // The selected server is named in the sidebar, so the pane no longer
-      // repeats its address; a little top breathing room replaces the heading.
+      // The sidebar names the selected server, so the pane omits an address
+      // heading; the top padding stands in for it.
       padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       children: [
         _ServerSection(

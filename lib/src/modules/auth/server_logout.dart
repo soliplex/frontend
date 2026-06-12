@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:soliplex_agent/soliplex_agent.dart'
@@ -28,9 +30,9 @@ import 'server_entry.dart';
 /// storage in time. On restoreServers(), the SPA would pick up a stale
 /// `ActiveSession` and the user would appear signed in with dead tokens until
 /// the next 401 → refresh → ExpiredSession cycle. So on web we clear local
-/// BEFORE navigating, accepting the weaker invariant that if the user dismisses
-/// the IdP logout sheet, local will be cleared even though the IdP session is
-/// still alive. This drift self-corrects on the next sign-in (the IdP's SSO
+/// BEFORE navigating, accepting the weaker invariant that if the user abandons
+/// the IdP logout page (closes the tab or navigates back), local will be
+/// cleared even though the IdP session is still alive. This drift self-corrects on the next sign-in (the IdP's SSO
 /// cookie typically auto-issues fresh tokens for the same user without a
 /// prompt).
 ///
@@ -65,10 +67,21 @@ Future<void> logoutServer({
       Uri.parse(session.provider.discoveryUrl),
       probeClient,
     );
+    final endSessionEndpoint = discovery.endSessionEndpoint?.toString();
     entry.auth.logout();
+    if (endSessionEndpoint == null) {
+      // The provider publishes no `end_session_endpoint`, so RP-initiated
+      // logout is impossible — local state is cleared but the IdP's SSO
+      // session stays alive. Make that partial logout observable instead of a
+      // silent no-op.
+      dev.log(
+        'Web logout: provider has no end_session_endpoint; cleared local '
+        'session only, IdP session not ended.',
+      );
+    }
     await authFlow.endSession(
       discoveryUrl: session.provider.discoveryUrl,
-      endSessionEndpoint: discovery.endSessionEndpoint?.toString(),
+      endSessionEndpoint: endSessionEndpoint,
       idToken: session.tokens.idToken ?? '',
       clientId: session.provider.clientId,
     );
