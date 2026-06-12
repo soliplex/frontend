@@ -178,6 +178,35 @@ void main() {
       expect(flow.lastEndSessionEndpoint, 'https://sso.example.com/logout');
     });
 
+    test('clears local even when the provider has no end_session_endpoint',
+        () async {
+      final manager = _manager();
+      final entry = _signedInEntry(manager);
+      // Discovery succeeds but publishes no end_session_endpoint.
+      final probeClient = FakeHttpClient()
+        ..onRequest = (method, uri) async => HttpResponse(
+              statusCode: 200,
+              bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode({
+                'token_endpoint': 'https://sso.example.com/token',
+              }))),
+            );
+      final flow = RecordingAuthFlow();
+
+      await logoutServer(
+        entry: entry,
+        authFlow: flow,
+        probeClient: probeClient,
+        web: true,
+      );
+
+      // RP-initiated logout can't end the IdP session without an endpoint, but
+      // web still clears local (the documented weaker invariant) and still
+      // drives endSession with a null endpoint.
+      expect(flow.endSessionCalled, isTrue);
+      expect(flow.lastEndSessionEndpoint, isNull);
+      expect(entry.auth.isAuthenticated, isFalse);
+    });
+
     test('a discovery-fetch failure preserves the session and skips endSession',
         () async {
       final manager = _manager();

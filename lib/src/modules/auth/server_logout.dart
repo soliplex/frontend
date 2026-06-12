@@ -56,6 +56,19 @@ Future<void> logoutServer({
     return;
   }
 
+  final idToken = session.tokens.idToken;
+  if (idToken == null) {
+    // Without an `id_token_hint` the IdP can't tie the RP-initiated logout to a
+    // specific session and may ignore it, leaving the IdP session alive. Make
+    // that degraded outcome observable rather than passing an empty hint
+    // silently.
+    dev.log(
+      'Logout: active session has no id_token; RP-initiated logout omits '
+      'id_token_hint and the IdP may not end its session.',
+      level: 900,
+    );
+  }
+
   if (web) {
     // Web needs the IdP's `end_session_endpoint` (extracted from the discovery
     // document) to navigate to. `WebAuthFlow.endSession` is a full-page
@@ -83,7 +96,7 @@ Future<void> logoutServer({
     await authFlow.endSession(
       discoveryUrl: session.provider.discoveryUrl,
       endSessionEndpoint: endSessionEndpoint,
-      idToken: session.tokens.idToken ?? '',
+      idToken: idToken ?? '',
       clientId: session.provider.clientId,
     );
     return;
@@ -95,7 +108,7 @@ Future<void> logoutServer({
   await authFlow.endSession(
     discoveryUrl: session.provider.discoveryUrl,
     endSessionEndpoint: null,
-    idToken: session.tokens.idToken ?? '',
+    idToken: idToken ?? '',
     clientId: session.provider.clientId,
   );
   entry.auth.logout();
