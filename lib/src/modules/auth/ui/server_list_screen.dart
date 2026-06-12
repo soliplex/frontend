@@ -14,12 +14,20 @@ import '../auth_providers.dart';
 import '../auth_tokens.dart';
 import '../server_entry.dart';
 import '../server_manager.dart';
+import 'home_shell.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class ServerListScreen extends ConsumerStatefulWidget {
-  const ServerListScreen({super.key, required this.serverManager});
+  const ServerListScreen({
+    super.key,
+    required this.serverManager,
+    this.appName = 'Soliplex',
+    this.logo,
+  });
 
   final ServerManager serverManager;
+  final String appName;
+  final Widget? logo;
 
   @override
   ConsumerState<ServerListScreen> createState() => _ServerListScreenState();
@@ -58,32 +66,42 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Servers'),
-        automaticallyImplyLeading: false,
-        actions: [
-          SoliplexButton.text(
-            onPressed: () => context.go(AppRoutes.home),
-            child: const Text('Home'),
-          ),
-          if (connected.isNotEmpty)
-            SoliplexButton.text(
-              onPressed: () => context.go(AppRoutes.lobby),
-              child: const Text('Lobby'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            HomeShellHeader(
+              appName: widget.appName,
+              logo: widget.logo,
+              actions: [
+                SoliplexButton.text(
+                  onPressed: () => context.go(AppRoutes.home),
+                  child: const Text('Home'),
+                ),
+                if (connected.isNotEmpty)
+                  SoliplexButton.text(
+                    onPressed: () => context.go(AppRoutes.lobby),
+                    child: const Text('Lobby'),
+                  ),
+              ],
             ),
-        ],
-      ),
-      body: ListView(
-        children: [
-          if (connected.isNotEmpty) ...[
-            _sectionHeader(theme, 'Connected (${connected.length})'),
-            for (final entry in connected) _connectedTile(theme, entry),
+            Expanded(
+              child: ListView(
+                children: [
+                  if (connected.isNotEmpty) ...[
+                    _sectionHeader(theme, 'Connected (${connected.length})'),
+                    for (final entry in connected) _connectedTile(theme, entry),
+                  ],
+                  if (disconnected.isNotEmpty) ...[
+                    _sectionHeader(
+                        theme, 'Disconnected (${disconnected.length})'),
+                    for (final entry in disconnected)
+                      _disconnectedTile(theme, entry),
+                  ],
+                ],
+              ),
+            ),
           ],
-          if (disconnected.isNotEmpty) ...[
-            _sectionHeader(theme, 'Disconnected (${disconnected.length})'),
-            for (final entry in disconnected) _disconnectedTile(theme, entry),
-          ],
-        ],
+        ),
       ),
     );
   }

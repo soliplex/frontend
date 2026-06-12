@@ -9,11 +9,14 @@ import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/connection_probe.dart';
+import 'package:soliplex_frontend/src/modules/auth/consent_notice.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/auth/ui/connect_flow_rail.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/home_screen.dart';
+import 'package:soliplex_frontend/version.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -80,6 +83,7 @@ Widget _buildApp({
   DiscoverProviders? discover,
   String? defaultBackendUrl,
   String? initialLocation,
+  ConsentNotice? consentNotice,
 }) {
   final fakeAuthFlow = authFlow ?? FakeAuthFlow();
 
@@ -121,6 +125,8 @@ Widget _buildApp({
       discoverProvidersProvider.overrideWithValue(
         discover ?? _noAuthDiscover,
       ),
+      if (consentNotice != null)
+        consentNoticeProvider.overrideWithValue(consentNotice),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
@@ -152,11 +158,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsOneWidget);
-      expect(find.byIcon(Icons.link), findsOneWidget);
+      expect(find.byIcon(Icons.public), findsOneWidget);
       expect(find.text('Connect'), findsOneWidget);
       expect(find.text('Soliplex'), findsOneWidget);
       expect(
-        find.text('Enter the URL of your backend server'),
+        find.text('Connect to a Soliplex server'),
         findsOneWidget,
       );
     });
@@ -171,6 +177,38 @@ void main() {
 
       expect(find.text('MyApp'), findsOneWidget);
       expect(find.text('Soliplex'), findsNothing);
+    });
+
+    testWidgets('shows the library version in the top bar', (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      expect(find.text(soliplexVersion), findsOneWidget);
+    });
+
+    testWidgets('hides the flow rail on narrow viewports', (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      // Default test viewport (800px) is below the desktop breakpoint.
+      expect(find.byType(ConnectFlowRail), findsNothing);
+    });
+
+    testWidgets('shows the flow rail on wide viewports', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConnectFlowRail), findsOneWidget);
+      // On the URL-input state, the URL node is current.
+      expect(find.text(ConnectStep.url.label), findsOneWidget);
     });
 
     testWidgets('shows logo when provided', (tester) async {
@@ -229,7 +267,10 @@ void main() {
 
       // Should go to lobby, not provider selection.
       expect(find.text('Lobby placeholder'), findsOneWidget);
-      expect(find.text('Choose authentication provider'), findsNothing);
+      expect(
+        find.text('Choose how you want to authenticate.'),
+        findsNothing,
+      );
     });
 
     testWidgets('different ports are treated as different servers',
@@ -360,7 +401,10 @@ void main() {
       await tester.pump();
 
       // Inline insecure warning
-      expect(find.text('Insecure Connection'), findsOneWidget);
+      expect(
+        find.text('This connection is not encrypted'),
+        findsOneWidget,
+      );
       expect(find.textContaining('not encrypted'), findsOneWidget);
     });
 
@@ -404,7 +448,7 @@ void main() {
       );
     });
 
-    testWidgets('shows "Sign in to continue" on provider selection phase',
+    testWidgets('shows the sign-in heading on provider selection phase',
         (tester) async {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(
@@ -418,8 +462,8 @@ void main() {
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sign in to continue'), findsOneWidget);
-      expect(find.text('Enter the URL of your backend server'), findsNothing);
+      expect(find.text('Sign in to api.example.com'), findsOneWidget);
+      expect(find.text('Connect to a Soliplex server'), findsNothing);
     });
 
     testWidgets('shows "Change server" button on provider selection phase',
@@ -443,7 +487,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsOneWidget);
-      expect(find.text('Enter the URL of your backend server'), findsOneWidget);
+      expect(find.text('Connect to a Soliplex server'), findsOneWidget);
     });
 
     testWidgets('hides server section on provider selection phase',
@@ -496,7 +540,10 @@ void main() {
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Choose authentication provider'), findsOneWidget);
+      expect(
+        find.text('Choose how you want to authenticate.'),
+        findsOneWidget,
+      );
 
       // Pick a provider to authenticate.
       await tester.tap(find.text('Authenticate with Keycloak'));
@@ -899,6 +946,92 @@ void main() {
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
       expect(field.controller!.text, 'https://api.example.com');
+    });
+  });
+
+  group('HomeScreen consent gate', () {
+    const notice = ConsentNotice(
+      title: 'Usage notice',
+      body: 'You agree to the terms.',
+      acknowledgmentLabel: 'Agree & continue',
+    );
+
+    Future<void> reachConsent(WidgetTester tester) async {
+      await tester.enterText(
+          find.byType(TextFormField), 'https://api.example.com');
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a server with a consent notice lands on the consent gate',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      expect(find.text('Before you connect'), findsOneWidget);
+      expect(find.text('Usage notice'), findsOneWidget);
+      expect(find.text('You agree to the terms.'), findsOneWidget);
+    });
+
+    testWidgets('continue is gated until the agreement box is ticked',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      // Unticked: tapping the acknowledge button does nothing.
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Before you connect'), findsOneWidget);
+
+      // Tick the box, then the button advances to provider selection.
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose how you want to authenticate.'), findsOneWidget);
+      expect(find.text('Before you connect'), findsNothing);
+    });
+
+    testWidgets('leaving and re-entering consent re-arms the gate',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      // Tick the box, then back out of consent.
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // Re-enter consent: the box starts unticked again, and the gate is
+      // closed — tapping continue leaves us on the consent screen.
+      await reachConsent(tester);
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Before you connect'), findsOneWidget);
     });
   });
 }
