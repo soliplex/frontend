@@ -1,8 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/core/branding.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -30,10 +32,12 @@ Widget _buildSidebar({
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
+  List<Override> overrides = const [],
 }) {
   // The per-tile ⋮ menu is a ConsumerWidget, so the tree needs a ProviderScope;
   // the auth providers are only read when a logout fires.
   return ProviderScope(
+    overrides: overrides,
     child: MaterialApp(
       home: Scaffold(
         body: ServerSidebar(
@@ -293,6 +297,131 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
         expect(find.text('Remove'), findsOneWidget);
+      });
+    });
+
+    group('log-out failure', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      // A connected, authenticated server selected so its ⋮ is shown, wired to
+      // a FakeAuthFlow whose endSession fails — the native log-out path then
+      // preserves the session and surfaces the error.
+      (ServerManager, ServerEntry, FakeAuthFlow) failingLogout() {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = FakeAuthFlow()
+          ..endSessionError = Exception('network down');
+        return (manager, entry, flow);
+      }
+
+      List<Override> overridesFor(FakeAuthFlow flow) => [
+            authFlowProvider.overrideWithValue(flow),
+            probeClientProvider.overrideWithValue(FakeHttpClient()),
+          ];
+
+      Future<void> tapLogOut(WidgetTester tester) async {
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('surfaces an error affordance and preserves the session',
+          (tester) async {
+        final (manager, entry, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        // The ⋮ is replaced by an error icon; the session is intact (the IdP
+        // round-trip failed, so the local session was not cleared).
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(entry.auth.isAuthenticated, isTrue);
+      });
+
+      testWidgets('tapping the error icon opens a dialog with the message',
+          (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Log out failed'), findsOneWidget);
+        expect(find.textContaining('network down'), findsWidgets);
+        expect(find.text('Try again'), findsOneWidget);
+        expect(find.text('Dismiss'), findsOneWidget);
+      });
+
+      testWidgets('Try again retries and clears the error once it succeeds',
+          (tester) async {
+        final (manager, entry, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        // The IdP recovers; the retry now signs out cleanly.
+        flow.endSessionError = null;
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Try again'));
+        await tester.pumpAndSettle();
+
+        expect(entry.auth.isAuthenticated, isFalse);
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+      });
+
+      testWidgets('Dismiss clears the error without retrying', (tester) async {
+        final (manager, entry, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Dismiss'));
+        await tester.pumpAndSettle();
+
+        // The error icon clears back to the ⋮ and no retry was attempted.
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+        expect(entry.auth.isAuthenticated, isTrue);
+        expect(flow.endSessionCalled, isTrue);
       });
     });
 
