@@ -7,7 +7,6 @@
 class AppRoutes {
   static const home = '/';
   static const lobby = '/lobby';
-  static const servers = '/servers';
   static const versions = '/versions';
   static const networkInspector = '/diagnostics/network';
   static const authCallback = '/auth/callback';

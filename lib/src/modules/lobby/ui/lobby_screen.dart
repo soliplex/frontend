@@ -67,8 +67,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onAddServer() => context.go(AppRoutes.home);
 
-  void _onServerTap() => context.push(AppRoutes.servers);
-
   void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
 
   void _onVersions() => context.push(AppRoutes.versions);
@@ -131,7 +129,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
-                onServerTap: _onServerTap,
+                serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
                 onVersions: _onVersions,
@@ -154,7 +152,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
-                onServerTap: _onServerTap,
+                serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
                 onVersions: _onVersions,
@@ -183,7 +181,7 @@ class _WideLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
-    required this.onServerTap,
+    required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
@@ -206,7 +204,7 @@ class _WideLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
-  final VoidCallback onServerTap;
+  final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
@@ -226,11 +224,12 @@ class _WideLayout extends StatelessWidget {
               width: _sidebarWidth,
               child: ServerSidebar(
                 servers: servers,
+                serverManager: serverManager,
                 profiles: profiles,
                 branding: branding,
                 selectedServerId: selectedServerId,
                 onSelectServer: onSelectServer,
-                onServerTap: onServerTap,
+                onSignIn: onSignIn,
                 onAddServer: onAddServer,
                 onNetworkInspector: onNetworkInspector,
                 onVersions: onVersions,
@@ -279,7 +278,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
-    required this.onServerTap,
+    required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
@@ -302,7 +301,7 @@ class _NarrowLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
-  final VoidCallback onServerTap;
+  final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
@@ -330,6 +329,7 @@ class _NarrowLayout extends StatelessWidget {
           child: Builder(
             builder: (drawerContext) => ServerSidebar(
               servers: servers,
+              serverManager: serverManager,
               profiles: profiles,
               branding: branding,
               selectedServerId: selectedServerId,
@@ -337,7 +337,7 @@ class _NarrowLayout extends StatelessWidget {
                 onSelectServer(id);
                 Scaffold.of(drawerContext).closeDrawer();
               },
-              onServerTap: onServerTap,
+              onSignIn: onSignIn,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
               onVersions: onVersions,
@@ -419,27 +419,37 @@ class _RoomContent extends StatelessWidget {
       );
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              SoliplexSpacing.s4, SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
-          child: _LobbyControls(
-            viewMode: viewMode,
-            onViewModeChanged: onViewModeChanged,
-            searchQuery: searchQuery,
-            onSearchChanged: onSearchChanged,
-            sortMode: sortMode,
-            onSortModeChanged: onSortModeChanged,
-            sortLoading: activityLoading,
-          ),
-        ),
-        Expanded(child: _buildSelectedServer(context)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Grid view is a tablet+/desktop affordance; below the tablet
+        // breakpoint (phones) we force list and hide the view-mode toggle, so
+        // the persisted choice is honoured again once the pane is wide enough.
+        final allowGrid = constraints.maxWidth >= SoliplexBreakpoints.tablet;
+        final effectiveViewMode = allowGrid ? viewMode : LobbyViewMode.list;
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
+                  SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
+              child: _LobbyControls(
+                viewMode: viewMode,
+                onViewModeChanged: onViewModeChanged,
+                showViewModeToggle: allowGrid,
+                searchQuery: searchQuery,
+                onSearchChanged: onSearchChanged,
+                sortMode: sortMode,
+                onSortModeChanged: onSortModeChanged,
+                sortLoading: activityLoading,
+              ),
+            ),
+            Expanded(child: _buildSelectedServer(context, effectiveViewMode)),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildSelectedServer(BuildContext context) {
+  Widget _buildSelectedServer(BuildContext context, LobbyViewMode viewMode) {
     final id = selectedServerId;
     // No selection yet — the persisted choice loads asynchronously on launch.
     // Show the same loading indicator the rooms-loading state uses so cold
@@ -468,10 +478,12 @@ class _RoomContent extends StatelessWidget {
     }
 
     return ListView(
+      // The sidebar names the selected server, so the pane omits an address
+      // heading; the top padding stands in for it.
+      padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       children: [
         _ServerSection(
           serverId: id,
-          serverUrl: servers[id]?.serverUrl,
           serverRooms: serverRooms,
           viewMode: viewMode,
           searchQuery: searchQuery,
@@ -496,6 +508,7 @@ class _LobbyControls extends StatefulWidget {
   const _LobbyControls({
     required this.viewMode,
     required this.onViewModeChanged,
+    required this.showViewModeToggle,
     required this.searchQuery,
     required this.onSearchChanged,
     required this.sortMode,
@@ -505,6 +518,10 @@ class _LobbyControls extends StatefulWidget {
 
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
+
+  /// Whether to show the list/grid toggle. Hidden on phones, where the view
+  /// is forced to list.
+  final bool showViewModeToggle;
   final String searchQuery;
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
@@ -553,10 +570,12 @@ class _LobbyControlsState extends State<_LobbyControls> {
               onPressed: _controller.clear,
             ),
     );
-    final toggle = _ViewModeToggle(
-      viewMode: widget.viewMode,
-      onChanged: widget.onViewModeChanged,
-    );
+    final toggle = widget.showViewModeToggle
+        ? _ViewModeToggle(
+            viewMode: widget.viewMode,
+            onChanged: widget.onViewModeChanged,
+          )
+        : null;
     // "Recent activity" is derived from each room's newest thread (the backend
     // has no last-access field), so it can take a moment to populate; the
     // dropdown stays live (so the user can switch back) and a small spinner
@@ -594,8 +613,10 @@ class _LobbyControlsState extends State<_LobbyControls> {
               const SizedBox(width: SoliplexSpacing.s3),
               SizedBox(width: _sortControlWidth, child: sort),
               busy,
-              const SizedBox(width: SoliplexSpacing.s3),
-              toggle,
+              if (toggle != null) ...[
+                const SizedBox(width: SoliplexSpacing.s3),
+                toggle,
+              ],
             ],
           );
         }
@@ -608,8 +629,10 @@ class _LobbyControlsState extends State<_LobbyControls> {
               children: [
                 Expanded(child: sort),
                 busy,
-                const SizedBox(width: SoliplexSpacing.s3),
-                toggle,
+                if (toggle != null) ...[
+                  const SizedBox(width: SoliplexSpacing.s3),
+                  toggle,
+                ],
               ],
             ),
           ],
@@ -650,7 +673,6 @@ class _ViewModeToggle extends StatelessWidget {
 class _ServerSection extends StatelessWidget {
   const _ServerSection({
     required this.serverId,
-    required this.serverUrl,
     required this.serverRooms,
     required this.viewMode,
     required this.searchQuery,
@@ -662,7 +684,6 @@ class _ServerSection extends StatelessWidget {
   });
 
   final String serverId;
-  final Uri? serverUrl;
   final ServerRooms serverRooms;
   final LobbyViewMode viewMode;
   final String searchQuery;
@@ -674,19 +695,9 @@ class _ServerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final heading = serverUrl != null ? formatServerUrl(serverUrl!) : serverId;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-              SoliplexSpacing.s4, SoliplexSpacing.s4, SoliplexSpacing.s2),
-          child: Text(
-            heading,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
         switch (serverRooms) {
           RoomsLoading() => const Padding(
               padding: EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),

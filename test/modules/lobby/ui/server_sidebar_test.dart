@@ -1,6 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/core/branding.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -19,27 +25,35 @@ ServerManager _createManager() => ServerManager(
 
 Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
+  ServerManager? serverManager,
   Map<String, UserProfile?> profiles = const {},
   SoliplexBranding? branding,
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
-  VoidCallback? onServerTap,
+  void Function(String serverId)? onSignIn,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
+  List<Override> overrides = const [],
 }) {
-  return MaterialApp(
-    home: Scaffold(
-      body: ServerSidebar(
-        servers: servers,
-        profiles: profiles,
-        branding: branding ?? testBranding(),
-        selectedServerId: selectedServerId,
-        onSelectServer: onSelectServer ?? (_) {},
-        onServerTap: onServerTap ?? () {},
-        onAddServer: onAddServer ?? () {},
-        onNetworkInspector: onNetworkInspector ?? () {},
-        onVersions: onVersions ?? () {},
+  // The per-tile ⋮ menu is a ConsumerWidget, so the tree needs a ProviderScope;
+  // the auth providers are only read when a logout fires.
+  return ProviderScope(
+    overrides: overrides,
+    child: MaterialApp(
+      home: Scaffold(
+        body: ServerSidebar(
+          servers: servers,
+          serverManager: serverManager ?? _createManager(),
+          profiles: profiles,
+          branding: branding ?? testBranding(),
+          selectedServerId: selectedServerId,
+          onSelectServer: onSelectServer ?? (_) {},
+          onSignIn: onSignIn ?? (_) {},
+          onAddServer: onAddServer ?? () {},
+          onNetworkInspector: onNetworkInspector ?? () {},
+          onVersions: onVersions ?? () {},
+        ),
       ),
     ),
   );
@@ -76,20 +90,6 @@ void main() {
       expect(find.text('http://srv2.test:9000'), findsOneWidget);
     });
 
-    testWidgets('shows no-auth label for servers without authentication',
-        (tester) async {
-      final manager = _createManager();
-      manager.addServer(
-        serverId: 'http://localhost:8000',
-        serverUrl: Uri.parse('http://localhost:8000'),
-        requiresAuth: false,
-      );
-
-      await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
-
-      expect(find.text('No authentication required'), findsOneWidget);
-    });
-
     testWidgets('the more menu routes Network Inspector / Versions',
         (tester) async {
       var inspector = 0;
@@ -117,49 +117,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(versions, 1);
     });
-
-    testWidgets(
-      'subtitle reacts to session flipping to ExpiredSession '
-      'without any server-map mutation',
-      (tester) async {
-        // The ServerSidebar receives a `servers` map snapshot from its
-        // parent. The parent only rebuilds when the map mutates (server
-        // added/removed). A pure session-state flip on an existing entry
-        // does not change the map. The subtitle reactivity therefore
-        // must come from the tile itself watching the per-entry session
-        // signal — without that, the subtitle would stale-display the
-        // pre-flip label until something else triggered a rebuild.
-        final manager = _createManager();
-        final entry = manager.addServer(
-          serverId: 'auth-server',
-          serverUrl: Uri.parse('https://api.example.com'),
-        );
-        entry.auth.login(
-          provider: const OidcProvider(
-            discoveryUrl: 'https://sso/.well-known/openid-configuration',
-            clientId: 'c',
-          ),
-          tokens: AuthTokens(
-            accessToken: 'a',
-            refreshToken: 'r',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        );
-
-        // Snapshot the map once; we intentionally never refresh it.
-        final servers = manager.servers.value;
-
-        await tester.pumpWidget(_buildSidebar(servers: servers));
-        expect(find.text('Signed in'), findsOneWidget);
-        expect(find.text('Session expired'), findsNothing);
-
-        entry.auth.markSessionExpired();
-        await tester.pump();
-
-        expect(find.text('Session expired'), findsOneWidget);
-        expect(find.text('Signed in'), findsNothing);
-      },
-    );
 
     testWidgets('tapping a server tile fires onSelectServer with its id',
         (tester) async {
@@ -204,7 +161,8 @@ void main() {
       expect(tileFor('http://srv1.test').selected, isFalse);
     });
 
-    testWidgets('manage-servers button fires onServerTap', (tester) async {
+    testWidgets('server management lives in the tile menu, not a gear',
+        (tester) async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'http://srv1.test',
@@ -212,14 +170,472 @@ void main() {
         requiresAuth: false,
       );
 
-      var managed = false;
-      await tester.pumpWidget(_buildSidebar(
-        servers: manager.servers.value,
-        onServerTap: () => managed = true,
-      ));
+      await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      expect(managed, isTrue);
+      // No standalone "Manage servers" gear; each tile carries its own ⋮.
+      expect(find.byIcon(Icons.settings_outlined), findsNothing);
+      // One ⋮ on the tile plus the account bar's ⋮.
+      expect(find.byIcon(Icons.more_vert), findsNWidgets(2));
+    });
+
+    group('tile ⋮ menu', () {
+      testWidgets('a disconnected server offers Sign in and Remove',
+          (tester) async {
+        final manager = _createManager();
+        // requiresAuth + NoSession => not connected.
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+
+        String? signedIn;
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+          onSignIn: (id) => signedIn = id,
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Sign in'), findsOneWidget);
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Log out'), findsNothing);
+
+        await tester.tap(find.text('Sign in'));
+        await tester.pumpAndSettle();
+        expect(signedIn, 'srv');
+      });
+
+      testWidgets('a connected no-auth server offers only Remove',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Sign in'), findsNothing);
+        expect(find.text('Log out'), findsNothing);
+
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+
+      testWidgets('a connected authenticated server offers Log out and Remove',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        entry.auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: 'a',
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Log out'), findsOneWidget);
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Sign in'), findsNothing);
+      });
+
+      testWidgets('the tile ⋮ is hidden until the tile is hovered',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        // Not hovered and not selected: the ⋮ is present but not interactive,
+        // so a tap where it sits falls through and opens no menu.
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first,
+            warnIfMissed: false);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsNothing);
+
+        // Hover the tile: the ⋮ reveals and now opens.
+        final gesture =
+            await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture
+            .moveTo(tester.getCenter(find.text('http://localhost:8000')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Remove'), findsOneWidget);
+      });
+    });
+
+    group('log-out failure', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      // A connected, authenticated server selected so its ⋮ is shown, wired to
+      // a FakeAuthFlow whose endSession fails — the native log-out path then
+      // preserves the session and surfaces the error.
+      (ServerManager, ServerEntry, FakeAuthFlow) failingLogout() {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = FakeAuthFlow()
+          ..endSessionError = Exception('network down');
+        return (manager, entry, flow);
+      }
+
+      List<Override> overridesFor(FakeAuthFlow flow) => [
+            authFlowProvider.overrideWithValue(flow),
+            probeClientProvider.overrideWithValue(FakeHttpClient()),
+          ];
+
+      Future<void> tapLogOut(WidgetTester tester) async {
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pumpAndSettle();
+      }
+
+      // Opens the menu that replaces the ⋮ after a failed log-out.
+      Future<void> openErrorMenu(WidgetTester tester) async {
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('surfaces an error affordance and preserves the session',
+          (tester) async {
+        final (manager, entry, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        // The ⋮ is replaced by an error icon; the session is intact (the IdP
+        // round-trip failed, so the local session was not cleared).
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(entry.auth.isAuthenticated, isTrue);
+      });
+
+      testWidgets('the error menu offers retry, detail, and remove',
+          (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+        await openErrorMenu(tester);
+
+        expect(find.text('Try again'), findsOneWidget);
+        expect(find.text('Show error detail'), findsOneWidget);
+        expect(find.text('Remove server'), findsOneWidget);
+      });
+
+      testWidgets('Show error detail opens a dialog with the message',
+          (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+        await openErrorMenu(tester);
+        await tester.tap(find.text('Show error detail'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Log out failed'), findsOneWidget);
+        expect(find.textContaining('network down'), findsWidgets);
+
+        // Closing the dialog leaves the persistent error affordance in place.
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      });
+
+      testWidgets('Try again retries and clears the error once it succeeds',
+          (tester) async {
+        final (manager, entry, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        // The IdP recovers; the retry now signs out cleanly.
+        flow.endSessionError = null;
+        await openErrorMenu(tester);
+        await tester.tap(find.text('Try again'));
+        await tester.pumpAndSettle();
+
+        expect(entry.auth.isAuthenticated, isFalse);
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+      });
+
+      testWidgets(
+          'Remove server drops the entry even when sign-out keeps '
+          'failing', (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+
+        // endSessionError stays set, so the escape hatch's best-effort
+        // sign-out fails again — the server must still be removed.
+        await openErrorMenu(tester);
+        await tester.tap(find.text('Remove server'));
+        await tester.pumpAndSettle();
+
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+
+      testWidgets(
+          'an in-flight log-out replaces the tile menu so it can not '
+          'be re-triggered', (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final completer = Completer<void>();
+        final flow = FakeAuthFlow()..endSessionCompleter = completer;
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pump(); // start the round-trip; the completer is pending
+
+        // The tile's ⋮ is gone (only the account bar's remains), so a second
+        // log-out/remove can't be fired while the first is outstanding.
+        expect(find.byIcon(Icons.more_vert), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        completer.complete();
+        await tester.pumpAndSettle();
+        expect(entry.auth.isAuthenticated, isFalse);
+      });
+    });
+
+    group('log out and remove', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      List<Override> overridesFor(RecordingAuthFlow flow) => [
+            authFlowProvider.overrideWithValue(flow),
+            probeClientProvider.overrideWithValue(FakeHttpClient()),
+          ];
+
+      testWidgets('logging out clears the session and restores the ⋮',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = RecordingAuthFlow();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pumpAndSettle();
+
+        expect(flow.endSessionCalled, isTrue);
+        expect(entry.auth.isAuthenticated, isFalse);
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+      });
+
+      testWidgets('removing a connected authenticated server logs out first',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = RecordingAuthFlow();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+
+        // The IdP session is ended before the entry is dropped, so it can't
+        // outlive the removed server.
+        expect(flow.endSessionCalled, isTrue);
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+    });
+
+    group('status dot', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      Color dotColor(WidgetTester tester, String tooltip) {
+        final container = tester.widget<Container>(
+          find.descendant(
+            of: find.byTooltip(tooltip),
+            matching: find.byType(Container),
+          ),
+        );
+        return (container.decoration! as BoxDecoration).color!;
+      }
+
+      testWidgets('maps the three auth states to distinct colored dots',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'noauth',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        manager.addServer(
+          serverId: 'signedout',
+          serverUrl: Uri.parse('https://out.example.com'),
+        );
+        final signedIn = manager.addServer(
+          serverId: 'signedin',
+          serverUrl: Uri.parse('https://in.example.com'),
+        );
+        signIn(signedIn);
+
+        await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
+
+        // Each state has a labelled dot...
+        expect(find.byTooltip('No authentication required'), findsOneWidget);
+        expect(find.byTooltip('Not signed in'), findsOneWidget);
+        expect(find.byTooltip('Signed in'), findsOneWidget);
+
+        // ...and the three colors are all different.
+        final colors = {
+          dotColor(tester, 'No authentication required'),
+          dotColor(tester, 'Not signed in'),
+          dotColor(tester, 'Signed in'),
+        };
+        expect(colors.length, 3);
+      });
+
+      testWidgets('flips from signed-in to signed-out on session expiry',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+
+        // Snapshot the map once; the dot must update from the per-entry
+        // session signal, not a map mutation.
+        await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
+        expect(find.byTooltip('Signed in'), findsOneWidget);
+        expect(find.byTooltip('Not signed in'), findsNothing);
+
+        entry.auth.markSessionExpired();
+        await tester.pump();
+
+        expect(find.byTooltip('Not signed in'), findsOneWidget);
+        expect(find.byTooltip('Signed in'), findsNothing);
+      });
     });
 
     group('account block', () {
@@ -287,10 +703,9 @@ void main() {
           },
         ));
 
-        // The name renders in both the account block and the selected
-        // server's tile subtitle; the email and avatar initial are unique to
-        // the account block.
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        // Identity lives only in the account block now (the tile has no
+        // subtitle); name, email, and avatar initial each render once.
+        expect(find.text('Ada Lovelace'), findsOneWidget);
         expect(find.text('ada@example.com'), findsOneWidget);
         expect(find.text('A'), findsOneWidget); // avatar initial
       });
@@ -314,9 +729,9 @@ void main() {
           },
         ));
 
-        // Renders in both the account block and the tile subtitle (both
-        // resolve names through the same helper); the initial is block-only.
-        expect(find.text('ada99'), findsNWidgets(2));
+        // Block-only identity; the preferred_username and initial each
+        // render once.
+        expect(find.text('ada99'), findsOneWidget);
         expect(find.text('A'), findsOneWidget);
       });
 
@@ -334,9 +749,8 @@ void main() {
           selectedServerId: 'srv',
         ));
 
-        // Both the account block and the tile subtitle fall back to the
-        // generic label; the avatar initial is unique to the block.
-        expect(find.text('Signed in'), findsNWidgets(2));
+        // The block falls back to the generic label; initial is block-only.
+        expect(find.text('Signed in'), findsOneWidget);
         expect(find.text('S'), findsOneWidget);
       });
 
@@ -359,7 +773,7 @@ void main() {
           },
         ));
 
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        expect(find.text('Ada Lovelace'), findsOneWidget);
         expect(find.textContaining('@'), findsNothing);
       });
 
@@ -385,7 +799,7 @@ void main() {
             ),
           },
         ));
-        expect(find.text('Ada Lovelace'), findsNWidgets(2));
+        expect(find.text('Ada Lovelace'), findsOneWidget);
 
         entry.auth.markSessionExpired();
         await tester.pump();

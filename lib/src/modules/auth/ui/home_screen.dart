@@ -580,13 +580,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: const Text('Go to Lobby'),
           ),
         ),
-      Align(
-        alignment: Alignment.centerRight,
-        child: SoliplexButton.text(
-          onPressed: () => context.push(AppRoutes.servers),
-          child: Text('All servers ($connectedCount connected)'),
-        ),
-      ),
       for (final entry in visibleServers)
         ListTile(
           title: Text(formatServerUrl(entry.serverUrl)),

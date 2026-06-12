@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,10 +39,6 @@ Widget _buildApp(
         ),
       ),
       GoRoute(
-        path: '/servers',
-        builder: (_, __) => const Scaffold(body: Text('Servers')),
-      ),
-      GoRoute(
         path: '/',
         builder: (_, state) {
           onHomeRoute?.call(state.uri);
@@ -50,7 +47,9 @@ Widget _buildApp(
       ),
     ],
   );
-  return MaterialApp.router(routerConfig: router);
+  // The sidebar's per-tile ⋮ menu is a ConsumerWidget, so the tree needs a
+  // ProviderScope; the auth providers are only read when a logout fires.
+  return ProviderScope(child: MaterialApp.router(routerConfig: router));
 }
 
 void main() {
@@ -199,9 +198,8 @@ void main() {
         );
         await tester.pump();
 
-        // The panel description is unique to the RoomsExpired arm
-        // (the sidebar tile also renders "Session expired", but only
-        // as a subtitle), so it pins the panel without ambiguity.
+        // The panel description is unique to the RoomsExpired arm, so it
+        // pins the panel without ambiguity.
         expect(
           find.text('Sign in again to view rooms on this server.'),
           findsOneWidget,
@@ -327,6 +325,34 @@ void main() {
 
       expect(find.byType(RoomGridCard), findsOneWidget);
       expect(find.byType(RoomCard), findsNothing);
+    });
+
+    testWidgets('forces list and hides the toggle below the tablet breakpoint',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(
+        {'soliplex_lobby_view_mode': 'grid'},
+      );
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'room-1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // Phone width forces list even though 'grid' is persisted, and the
+      // view-mode toggle is hidden so the choice can't be changed here.
+      expect(find.byType(RoomCard), findsOneWidget);
+      expect(find.byType(RoomGridCard), findsNothing);
+      expect(find.byIcon(Icons.grid_view), findsNothing);
     });
 
     testWidgets('search filters rooms by name within the section',

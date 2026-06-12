@@ -28,11 +28,12 @@ AuthAppModule _createModule({ServerManager? serverManager}) => AuthAppModule(
 
 void main() {
   group('AuthAppModule', () {
-    test('contributes routes for /, /servers, /auth/callback', () {
+    test('contributes routes for /, /auth/callback', () {
       final contribution = _createModule().build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
-      expect(paths, containsAll(['/', '/servers', '/auth/callback']));
+      expect(paths, containsAll(['/', '/auth/callback']));
+      expect(paths, isNot(contains('/servers')));
     });
 
     test('contributes a redirect', () {

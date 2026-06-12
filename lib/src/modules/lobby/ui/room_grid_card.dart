@@ -90,13 +90,30 @@ class RoomGridCard extends StatelessWidget {
                   Expanded(
                     child: activityTime == null
                         ? const SizedBox.shrink()
-                        : Text(
-                            formatRelativeTime(activityTime!),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                        : Tooltip(
+                            // Clock-fronted relative time; the tooltip names
+                            // it so the label needn't crowd the compact card.
+                            message: 'Last activity',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.schedule,
+                                  size: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: SoliplexSpacing.s1),
+                                Flexible(
+                                  child: Text(
+                                    formatRelativeTime(activityTime!),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                   ),
                   const SoliplexClassificationBadge(),
