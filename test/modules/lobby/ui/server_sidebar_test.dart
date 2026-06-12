@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -340,6 +342,12 @@ void main() {
         await tester.pumpAndSettle();
       }
 
+      // Opens the menu that replaces the ⋮ after a failed log-out.
+      Future<void> openErrorMenu(WidgetTester tester) async {
+        await tester.tap(find.byIcon(Icons.error_outline));
+        await tester.pumpAndSettle();
+      }
+
       testWidgets('surfaces an error affordance and preserves the session',
           (tester) async {
         final (manager, entry, flow) = failingLogout();
@@ -358,7 +366,7 @@ void main() {
         expect(entry.auth.isAuthenticated, isTrue);
       });
 
-      testWidgets('tapping the error icon opens a dialog with the message',
+      testWidgets('the error menu offers retry, detail, and remove',
           (tester) async {
         final (manager, _, flow) = failingLogout();
 
@@ -369,14 +377,35 @@ void main() {
           overrides: overridesFor(flow),
         ));
         await tapLogOut(tester);
+        await openErrorMenu(tester);
 
-        await tester.tap(find.byIcon(Icons.error_outline));
+        expect(find.text('Try again'), findsOneWidget);
+        expect(find.text('Show error detail'), findsOneWidget);
+        expect(find.text('Remove server'), findsOneWidget);
+      });
+
+      testWidgets('Show error detail opens a dialog with the message',
+          (tester) async {
+        final (manager, _, flow) = failingLogout();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tapLogOut(tester);
+        await openErrorMenu(tester);
+        await tester.tap(find.text('Show error detail'));
         await tester.pumpAndSettle();
 
         expect(find.text('Log out failed'), findsOneWidget);
         expect(find.textContaining('network down'), findsWidgets);
-        expect(find.text('Try again'), findsOneWidget);
-        expect(find.text('Dismiss'), findsOneWidget);
+
+        // Closing the dialog leaves the persistent error affordance in place.
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
       });
 
       testWidgets('Try again retries and clears the error once it succeeds',
@@ -393,8 +422,7 @@ void main() {
 
         // The IdP recovers; the retry now signs out cleanly.
         flow.endSessionError = null;
-        await tester.tap(find.byIcon(Icons.error_outline));
-        await tester.pumpAndSettle();
+        await openErrorMenu(tester);
         await tester.tap(find.text('Try again'));
         await tester.pumpAndSettle();
 
@@ -402,8 +430,10 @@ void main() {
         expect(find.byIcon(Icons.error_outline), findsNothing);
       });
 
-      testWidgets('Dismiss clears the error without retrying', (tester) async {
-        final (manager, entry, flow) = failingLogout();
+      testWidgets(
+          'Remove server drops the entry even when sign-out keeps '
+          'failing', (tester) async {
+        final (manager, _, flow) = failingLogout();
 
         await tester.pumpWidget(_buildSidebar(
           servers: manager.servers.value,
@@ -413,15 +443,46 @@ void main() {
         ));
         await tapLogOut(tester);
 
-        await tester.tap(find.byIcon(Icons.error_outline));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Dismiss'));
+        // endSessionError stays set, so the escape hatch's best-effort
+        // sign-out fails again — the server must still be removed.
+        await openErrorMenu(tester);
+        await tester.tap(find.text('Remove server'));
         await tester.pumpAndSettle();
 
-        // The error icon clears back to the ⋮ and no retry was attempted.
-        expect(find.byIcon(Icons.error_outline), findsNothing);
-        expect(entry.auth.isAuthenticated, isTrue);
-        expect(flow.endSessionCalled, isTrue);
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+
+      testWidgets(
+          'an in-flight log-out replaces the tile menu so it can not '
+          'be re-triggered', (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final completer = Completer<void>();
+        final flow = FakeAuthFlow()..endSessionCompleter = completer;
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pump(); // start the round-trip; the completer is pending
+
+        // The tile's ⋮ is gone (only the account bar's remains), so a second
+        // log-out/remove can't be fired while the first is outstanding.
+        expect(find.byIcon(Icons.more_vert), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        completer.complete();
+        await tester.pumpAndSettle();
+        expect(entry.auth.isAuthenticated, isFalse);
       });
     });
 

@@ -327,6 +327,34 @@ void main() {
       expect(find.byType(RoomCard), findsNothing);
     });
 
+    testWidgets('forces list and hides the toggle below the tablet breakpoint',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(
+        {'soliplex_lobby_view_mode': 'grid'},
+      );
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'room-1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // Phone width forces list even though 'grid' is persisted, and the
+      // view-mode toggle is hidden so the choice can't be changed here.
+      expect(find.byType(RoomCard), findsOneWidget);
+      expect(find.byType(RoomGridCard), findsNothing);
+      expect(find.byIcon(Icons.grid_view), findsNothing);
+    });
+
     testWidgets('search filters rooms by name within the section',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);
