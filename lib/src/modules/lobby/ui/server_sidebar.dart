@@ -232,6 +232,12 @@ class _ServerTileState extends State<_ServerTile> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ListTile(
+        // Status dot (green signed in / red signed out / neutral no-auth) in
+        // place of the old text subtitle; tighten the leading slot so it reads
+        // as a marker beside the name rather than a far-left icon.
+        leading: _StatusDot(entry: widget.entry),
+        minLeadingWidth: 0,
+        horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,
         title: Text(formatServerUrl(widget.entry.serverUrl)),
         trailing: Visibility(
@@ -249,6 +255,44 @@ class _ServerTileState extends State<_ServerTile> {
         onTap: widget.onTap,
       ),
     );
+  }
+}
+
+/// A small status dot for a server tile:
+///
+/// - **neutral** (`onSurfaceVariant`) — no authentication required;
+/// - **green** (`success`) — auth required and signed in;
+/// - **red** (`danger`) — auth required but not signed in (or expired).
+///
+/// Reads the per-entry session signal, so the dot lives in a [Watch] and
+/// updates on sign-in / expiry without a server-map mutation. The tooltip
+/// carries the same status as text for accessibility.
+class _StatusDot extends StatelessWidget {
+  const _StatusDot({required this.entry});
+
+  static const double _size = 8;
+
+  final ServerEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Watch((context) {
+      final colors = Theme.of(context).colorScheme;
+      final session = entry.auth.session.value;
+      final (Color color, String label) = !entry.requiresAuth
+          ? (colors.onSurfaceVariant, 'No authentication required')
+          : session is ActiveSession
+              ? (colors.success, 'Signed in')
+              : (colors.danger, 'Not signed in');
+      return Tooltip(
+        message: label,
+        child: Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      );
+    });
   }
 }
 

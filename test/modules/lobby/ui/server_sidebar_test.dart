@@ -296,6 +296,86 @@ void main() {
       });
     });
 
+    group('status dot', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      Color dotColor(WidgetTester tester, String tooltip) {
+        final container = tester.widget<Container>(
+          find.descendant(
+            of: find.byTooltip(tooltip),
+            matching: find.byType(Container),
+          ),
+        );
+        return (container.decoration! as BoxDecoration).color!;
+      }
+
+      testWidgets('maps the three auth states to distinct colored dots',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'noauth',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        manager.addServer(
+          serverId: 'signedout',
+          serverUrl: Uri.parse('https://out.example.com'),
+        );
+        final signedIn = manager.addServer(
+          serverId: 'signedin',
+          serverUrl: Uri.parse('https://in.example.com'),
+        );
+        signIn(signedIn);
+
+        await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
+
+        // Each state has a labelled dot...
+        expect(find.byTooltip('No authentication required'), findsOneWidget);
+        expect(find.byTooltip('Not signed in'), findsOneWidget);
+        expect(find.byTooltip('Signed in'), findsOneWidget);
+
+        // ...and the three colors are all different.
+        final colors = {
+          dotColor(tester, 'No authentication required'),
+          dotColor(tester, 'Not signed in'),
+          dotColor(tester, 'Signed in'),
+        };
+        expect(colors.length, 3);
+      });
+
+      testWidgets('flips from signed-in to signed-out on session expiry',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+
+        // Snapshot the map once; the dot must update from the per-entry
+        // session signal, not a map mutation.
+        await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
+        expect(find.byTooltip('Signed in'), findsOneWidget);
+        expect(find.byTooltip('Not signed in'), findsNothing);
+
+        entry.auth.markSessionExpired();
+        await tester.pump();
+
+        expect(find.byTooltip('Not signed in'), findsOneWidget);
+        expect(find.byTooltip('Signed in'), findsNothing);
+      });
+    });
+
     group('account block', () {
       ServerEntry addServer(ServerManager m, {required bool requiresAuth}) =>
           m.addServer(
