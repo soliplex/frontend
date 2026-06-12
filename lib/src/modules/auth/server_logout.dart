@@ -77,6 +77,7 @@ Future<void> logoutServer({
       dev.log(
         'Web logout: provider has no end_session_endpoint; cleared local '
         'session only, IdP session not ended.',
+        level: 900,
       );
     }
     await authFlow.endSession(

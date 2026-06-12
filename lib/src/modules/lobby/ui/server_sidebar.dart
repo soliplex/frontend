@@ -310,9 +310,10 @@ String _signedInName(UserProfile? profile) {
 /// depends on the server's connection state (see [_ServerTileMenu]).
 enum _ServerTileAction { signIn, logOut, remove }
 
-/// What happens to the entry after a log-out attempt. The third outcome
-/// (remove even when sign-out fails) is the error-menu escape hatch, so a
-/// boolean "remove after" no longer captures the choices.
+/// What happens to the entry after a log-out attempt. The error-menu escape
+/// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
+/// and "remove on a clean sign-out", so the disposition needs an enum, not a
+/// boolean.
 enum _AfterLogout {
   /// Plain "Log out": clear the session, keep the entry.
   keep,
@@ -381,34 +382,40 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         authFlow: ref.read(authFlowProvider),
         probeClient: ref.read(probeClientProvider),
       );
-      if (then != _AfterLogout.keep) {
-        widget.serverManager.removeServer(widget.entry.serverId);
+      switch (then) {
+        case _AfterLogout.keep:
+          break;
+        case _AfterLogout.removeOnSuccess:
+        case _AfterLogout.removeRegardless:
+          widget.serverManager.removeServer(widget.entry.serverId);
       }
     } catch (e, st) {
-      if (then == _AfterLogout.removeRegardless) {
-        // The user chose to remove despite a failing sign-out; honour it and
-        // drop the entry, logging the swallowed error (the IdP session may
-        // outlive the entry — the accepted cost of the escape hatch).
-        dev.log('Logout failed; removing server anyway',
-            error: e, stackTrace: st);
-        widget.serverManager.removeServer(widget.entry.serverId);
-        return;
-      }
-      // On the remove path a failure means the server was kept (the entry is
-      // removed only after a clean sign-out) — distinguish it in the log and,
-      // via [_LogoutFailure.wasRemove], in the surfaced message.
-      dev.log(
-        then == _AfterLogout.removeOnSuccess
-            ? 'Logout failed; server kept'
-            : 'Logout failed',
-        error: e,
-        stackTrace: st,
-      );
-      if (mounted) {
-        setState(() => _failure = _LogoutFailure(
-              message: friendlyLogoutError(e),
-              wasRemove: then == _AfterLogout.removeOnSuccess,
-            ));
+      switch (then) {
+        case _AfterLogout.removeRegardless:
+          // The user chose to remove despite a failing sign-out; honour it and
+          // drop the entry, logging the swallowed error (the IdP session may
+          // outlive the entry — the accepted cost of the escape hatch).
+          dev.log('Logout failed; removing server anyway',
+              error: e, stackTrace: st);
+          widget.serverManager.removeServer(widget.entry.serverId);
+          return;
+        case _AfterLogout.keep:
+        case _AfterLogout.removeOnSuccess:
+          // On the remove path a failure means the server was kept (the entry
+          // is removed only after a clean sign-out) — distinguish it in the log
+          // and, via [_LogoutFailure.wasRemove], in the surfaced message.
+          final wasRemove = then == _AfterLogout.removeOnSuccess;
+          dev.log(
+            wasRemove ? 'Logout failed; server kept' : 'Logout failed',
+            error: e,
+            stackTrace: st,
+          );
+          if (mounted) {
+            setState(() => _failure = _LogoutFailure(
+                  message: friendlyLogoutError(e),
+                  wasRemove: wasRemove,
+                ));
+          }
       }
     } finally {
       if (mounted) setState(() => _busy = false);
