@@ -43,6 +43,10 @@ Future<void> logoutServer({
   required ServerEntry entry,
   required AuthFlow authFlow,
   required SoliplexHttpClient probeClient,
+  // The platform branch is a seam so the web and native orderings — the
+  // invariant this function exists to protect — are both reachable in a VM
+  // test. Production always uses the real `kIsWeb`.
+  bool web = kIsWeb,
 }) async {
   final session = entry.auth.session.value;
   if (session is! ActiveSession) {
@@ -50,7 +54,7 @@ Future<void> logoutServer({
     return;
   }
 
-  if (kIsWeb) {
+  if (web) {
     // Web needs the IdP's `end_session_endpoint` (extracted from the discovery
     // document) to navigate to. `WebAuthFlow.endSession` is a full-page
     // navigation, so local state is cleared first per the ordering note above.

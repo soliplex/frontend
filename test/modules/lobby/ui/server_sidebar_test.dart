@@ -425,6 +425,78 @@ void main() {
       });
     });
 
+    group('log out and remove', () {
+      void signIn(ServerEntry entry) => entry.auth.login(
+            provider: const OidcProvider(
+              discoveryUrl: 'https://sso/.well-known/openid-configuration',
+              clientId: 'c',
+            ),
+            tokens: AuthTokens(
+              accessToken: 'a',
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      List<Override> overridesFor(RecordingAuthFlow flow) => [
+            authFlowProvider.overrideWithValue(flow),
+            probeClientProvider.overrideWithValue(FakeHttpClient()),
+          ];
+
+      testWidgets('logging out clears the session and restores the ⋮',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = RecordingAuthFlow();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Log out'));
+        await tester.pumpAndSettle();
+
+        expect(flow.endSessionCalled, isTrue);
+        expect(entry.auth.isAuthenticated, isFalse);
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+      });
+
+      testWidgets('removing a connected authenticated server logs out first',
+          (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = RecordingAuthFlow();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+
+        // The IdP session is ended before the entry is dropped, so it can't
+        // outlive the removed server.
+        expect(flow.endSessionCalled, isTrue);
+        expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+    });
+
     group('status dot', () {
       void signIn(ServerEntry entry) => entry.auth.login(
             provider: const OidcProvider(
