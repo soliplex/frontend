@@ -77,7 +77,24 @@ class RoomCard extends StatelessWidget {
         if (hasDescription) Text(room.description, style: muted),
         if (time != null) ...[
           if (hasDescription) const SizedBox(height: SoliplexSpacing.s1),
-          Text(formatRelativeTime(time), style: muted),
+          // A small clock fronts the relative time so the row reads as
+          // "last activity" without spelling it out on every card; the
+          // tooltip carries the full meaning for anyone who needs it.
+          Tooltip(
+            message: 'Last activity',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.schedule,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: SoliplexSpacing.s1),
+                Text(formatRelativeTime(time), style: muted),
+              ],
+            ),
+          ),
         ],
       ],
     );
