@@ -39,8 +39,9 @@ ConnectStep stepForConnectState(ConnectState state) => switch (state) {
 ///
 /// Shown only on wide viewports (the caller gates on
 /// [SoliplexBreakpoints.desktop]); on narrow screens the per-state heading
-/// carries the context instead. The strip scales down to fit its column so
-/// it never overflows.
+/// carries the context instead. The strip scrolls horizontally when it's
+/// wider than its column, so every label stays legible rather than being
+/// squeezed.
 class ConnectFlowRail extends StatelessWidget {
   const ConnectFlowRail({super.key, required this.current});
 
@@ -50,7 +51,10 @@ class ConnectFlowRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final baseStyle = theme.textTheme.labelLarge;
+    // The brand type ramp ships only labelMedium / labelSmall for labels, so
+    // labelMedium keeps the rail on-token; a larger label style would fall
+    // through to Material's off-brand default.
+    final baseStyle = theme.textTheme.labelMedium;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -104,6 +108,11 @@ class _RailNode extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isActive = step == current;
+    // A step is done once the flow is past its position. The branch-only
+    // insecure / consent steps are marked done this way too, even on a run
+    // that skipped them: the rail only knows `current`, and a stray check on
+    // a step the user may not have seen is preferable to leaving a step they
+    // did complete unchecked.
     final isDone = step.index < current.index;
     final dimOptional = step.optional && !isActive && !isDone;
 

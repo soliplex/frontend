@@ -9,6 +9,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/connection_probe.dart';
+import 'package:soliplex_frontend/src/modules/auth/consent_notice.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
 import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -82,6 +83,7 @@ Widget _buildApp({
   DiscoverProviders? discover,
   String? defaultBackendUrl,
   String? initialLocation,
+  ConsentNotice? consentNotice,
 }) {
   final fakeAuthFlow = authFlow ?? FakeAuthFlow();
 
@@ -123,6 +125,8 @@ Widget _buildApp({
       discoverProvidersProvider.overrideWithValue(
         discover ?? _noAuthDiscover,
       ),
+      if (consentNotice != null)
+        consentNoticeProvider.overrideWithValue(consentNotice),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
@@ -942,6 +946,92 @@ void main() {
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
       expect(field.controller!.text, 'https://api.example.com');
+    });
+  });
+
+  group('HomeScreen consent gate', () {
+    const notice = ConsentNotice(
+      title: 'Usage notice',
+      body: 'You agree to the terms.',
+      acknowledgmentLabel: 'Agree & continue',
+    );
+
+    Future<void> reachConsent(WidgetTester tester) async {
+      await tester.enterText(
+          find.byType(TextFormField), 'https://api.example.com');
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a server with a consent notice lands on the consent gate',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      expect(find.text('Before you connect'), findsOneWidget);
+      expect(find.text('Usage notice'), findsOneWidget);
+      expect(find.text('You agree to the terms.'), findsOneWidget);
+    });
+
+    testWidgets('continue is gated until the agreement box is ticked',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      // Unticked: tapping the acknowledge button does nothing.
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Before you connect'), findsOneWidget);
+
+      // Tick the box, then the button advances to provider selection.
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose how you want to authenticate.'), findsOneWidget);
+      expect(find.text('Before you connect'), findsNothing);
+    });
+
+    testWidgets('leaving and re-entering consent re-arms the gate',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      // Tick the box, then back out of consent.
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // Re-enter consent: the box starts unticked again, and the gate is
+      // closed — tapping continue leaves us on the consent screen.
+      await reachConsent(tester);
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Before you connect'), findsOneWidget);
     });
   });
 }

@@ -56,13 +56,25 @@ void main() {
       }
     });
 
-    testWidgets('marks every preceding step with a check', (tester) async {
-      // At the provider step, url/probe/insecure/consent precede it.
+    testWidgets('marks every preceding step done, optional ones included',
+        (tester) async {
+      // Done-ness is purely positional: every node before `current` shows a
+      // check. This documents a deliberate choice for the two branch-only
+      // steps (insecure / consent) — the rail is handed only `current`, so it
+      // cannot tell whether an optional branch was actually taken. A run takes
+      // at most one of insecure/consent, yet at `provider` BOTH show a check.
+      // We accept a stray check on a possibly-skipped step rather than leave a
+      // genuinely-completed step unchecked.
       await tester.pumpWidget(host(ConnectStep.provider));
+
+      // url, probe, insecure, consent all precede provider → four checks,
+      // including both optional nodes.
       expect(
         find.byIcon(Icons.check),
         findsNWidgets(ConnectStep.provider.index),
       );
+      expect(find.text(ConnectStep.insecure.label), findsOneWidget);
+      expect(find.text(ConnectStep.consent.label), findsOneWidget);
     });
 
     testWidgets('shows no checks at the first step', (tester) async {
