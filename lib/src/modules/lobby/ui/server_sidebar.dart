@@ -164,8 +164,8 @@ class _ServerList extends StatelessWidget {
     return ListView(
       children: [
         Padding(
-          // Server management now lives in each tile's ⋮ menu, so the section
-          // header is just a label.
+          // Per-server actions live in each tile's ⋮ menu, so this is just a
+          // section label.
           padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
               SoliplexSpacing.s4, SoliplexSpacing.s4, SoliplexSpacing.s2),
           child: Text(
@@ -232,9 +232,8 @@ class _ServerTileState extends State<_ServerTile> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ListTile(
-        // Status dot (green signed in / red signed out / neutral no-auth) in
-        // place of the old text subtitle; tighten the leading slot so it reads
-        // as a marker beside the name rather than a far-left icon.
+        // Tighten the leading slot so the status dot reads as a marker beside
+        // the name rather than a far-left icon.
         leading: _StatusDot(entry: widget.entry),
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,

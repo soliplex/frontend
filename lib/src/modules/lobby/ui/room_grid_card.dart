@@ -91,8 +91,8 @@ class RoomGridCard extends StatelessWidget {
                     child: activityTime == null
                         ? const SizedBox.shrink()
                         : Tooltip(
-                            // Clock-fronted relative time; the tooltip names it
-                            // so the cards don't repeat "Last activity" inline.
+                            // Clock-fronted relative time; the tooltip names
+                            // it so the label needn't crowd the compact card.
                             message: 'Last activity',
                             child: Row(
                               children: [

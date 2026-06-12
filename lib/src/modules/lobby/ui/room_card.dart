@@ -78,8 +78,8 @@ class RoomCard extends StatelessWidget {
         if (time != null) ...[
           if (hasDescription) const SizedBox(height: SoliplexSpacing.s1),
           // A small clock fronts the relative time so the row reads as
-          // "last activity" without spelling it out on every card; the
-          // tooltip carries the full meaning for anyone who needs it.
+          // "last activity"; the tooltip names it for anyone who needs the
+          // label spelled out.
           Tooltip(
             message: 'Last activity',
             child: Row(
