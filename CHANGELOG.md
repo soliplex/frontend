@@ -8,8 +8,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.89.0+59] - 2026-06-12
+
 ### Added
 
+- Auth: redesigned the onboarding/connect flow to the mockup — a persistent
+  branded top bar (`HomeShellHeader`: logo, app name, version, and an
+  about/versions action) wrapping a width-capped content column, a
+  `ConnectFlowRail` breadcrumb that mirrors the connect state machine,
+  connect-flow bodies reshaped per state, and the same top bar on the OAuth
+  callback and server-list screens.
 - Design: re-export `ClassificationTheme` and `ClassificationLevel` from the
   public API so adopters can configure classification without a direct
   `soliplex_design` dependency.
@@ -18,18 +26,26 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: account block in the sidebar footer showing the selected server's
   signed-in identity (avatar, name, and email), with a ⋮ menu that collapses
   the Network Inspector and Versions actions.
+- Lobby: an auth-status dot on each sidebar server tile — signed in, signed
+  out/expired, or no authentication required.
 - Lobby: sort rooms by recent activity (a dropdown beside the view toggle),
   grouping them under "Today"/"Yesterday"/… section headers, and show each
-  room's most-recent-thread time as a relative label ("3h ago") on its card.
+  room's most-recent-thread time as a relative label ("3h ago") fronted by a
+  muted clock icon on its card.
 
 ### Changed
 
 - Lobby: select a single server in the sidebar to view its rooms, replacing the
   multi-server show/hide model; the last selection persists across launches,
-  and server management moves to a settings icon in the list header.
+  and server actions (Sign in / Log out / Remove) live in a per-tile ⋮ menu
+  rather than a separate server-list screen.
 - Lobby: switch the two-pane layout at the desktop breakpoint (840) instead of
   a hardcoded width.
+- Auth: the insecure-connection screen reads as a warning rather than an error
+  (it doesn't block "Connect anyway"); free-standing body text is themed
+  through `textTheme`.
 - Room: hide the document filter button in rooms with no filterable documents.
+- Bumped `go_router` to 17.3.0.
 
 ### Fixed
 
@@ -47,6 +63,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: keep the sidebar's brand header and account bar clear of the status
   bar, notch, and home indicator by wrapping the two-pane body and the drawer
   in a safe area.
+- Lobby: surface a failed server log-out as a persistent per-tile error menu
+  (Try again / Show error detail / Remove server) instead of a transient
+  message, so the preserved local session stays visible and a server whose IdP
+  log-out keeps failing can still be removed.
+- Design: scale the `SoliplexGlow` halo with its child so the brand mark reads
+  correctly at any size.
+- Design: round `SegmentedButton` to the `md` radius (the lobby view-mode and
+  diagnostics stream toggles) instead of Material's full-pill default.
 - soliplex_client: pin the `ag_ui` git dependency to a fixed ref for
   deterministic resolution; a floating HEAD pulled an incompatible release that
   broke web builds.
