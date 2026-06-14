@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
+import 'unread_dot.dart';
 
 class RoomCard extends StatelessWidget {
   const RoomCard({
@@ -11,6 +12,7 @@ class RoomCard extends StatelessWidget {
     required this.onTap,
     required this.onInfoTap,
     this.activityTime,
+    this.isUnread = false,
   });
 
   final Room room;
@@ -20,6 +22,10 @@ class RoomCard extends StatelessWidget {
   /// Most-recent-thread timestamp, shown as a muted relative label under the
   /// title. Null while unknown (not yet fetched, or the room has no threads).
   final DateTime? activityTime;
+
+  /// Whether the room has activity newer than the user last saw, surfaced as
+  /// a small dot. A boolean affordance only — there is no unread count.
+  final bool isUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +42,10 @@ class RoomCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isUnread) ...[
+              const UnreadDot(),
+              const SizedBox(width: SoliplexSpacing.s2),
+            ],
             // Leading marking; renders nothing until a deployment
             // configures classifications. Backend per-room value wires in
             // here later via `classification:`.
