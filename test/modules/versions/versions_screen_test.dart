@@ -19,6 +19,23 @@ Widget _buildApp(Widget child) => MaterialApp(home: child);
 
 void main() {
   group('VersionsScreen', () {
+    testWidgets('shows the branded bar without the about button',
+        (tester) async {
+      await tester.pumpWidget(_buildApp(VersionsScreen(
+        appName: 'Acme',
+        serverManager: _serverManager(),
+        versionLoader: () async => '0.0.46+48',
+        versionFetcher: (_) async => throw StateError('not called'),
+      )));
+      await tester.pumpAndSettle();
+
+      // Branded app name shows in the bar; the about/versions button is
+      // dropped because we are already on the versions destination.
+      expect(find.text('Acme'), findsOneWidget);
+      expect(find.byTooltip('About & versions'), findsNothing);
+      expect(find.byTooltip('Back'), findsOneWidget);
+    });
+
     testWidgets('shows app and framework rows in Frontend section',
         (tester) async {
       await tester.pumpWidget(_buildApp(VersionsScreen(

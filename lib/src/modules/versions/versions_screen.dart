@@ -10,6 +10,7 @@ import '../../core/routes.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import '../auth/ui/home_shell.dart';
 import 'app_version_loader.dart';
 import 'backend_version_fetcher.dart';
 
@@ -22,9 +23,11 @@ class VersionsScreen extends StatefulWidget {
     required this.serverManager,
     required this.versionLoader,
     required this.versionFetcher,
+    this.logo,
   });
 
   final String appName;
+  final Widget? logo;
   final ServerManager serverManager;
   final AppVersionLoader versionLoader;
   final BackendVersionFetcher versionFetcher;
@@ -59,40 +62,54 @@ class _VersionsScreenState extends State<VersionsScreen> {
   Widget build(BuildContext context) {
     final servers = widget.serverManager.servers.watch(context);
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.adaptive.arrow_back),
-          tooltip: 'Back',
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoutes.home),
+      body: SafeArea(
+        child: Column(
+          children: [
+            HomeShellHeader(
+              appName: widget.appName,
+              logo: widget.logo,
+              showAbout: false,
+              leading: IconButton(
+                icon: Icon(Icons.adaptive.arrow_back),
+                tooltip: 'Back',
+                onPressed: () => context.canPop()
+                    ? context.pop()
+                    : context.go(AppRoutes.home),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  _SectionHeader(label: 'Frontend'),
+                  _AppRow(
+                    appName: widget.appName,
+                    versionFuture: _flavorVersion,
+                  ),
+                  const _FrameworkRow(),
+                  const Divider(height: 1),
+                  _SectionHeader(
+                    label: 'Servers (${servers.length})',
+                  ),
+                  if (servers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(SoliplexSpacing.s4),
+                      child: Text(
+                        'No servers connected. Connect to a server to see its '
+                        'backend version.',
+                      ),
+                    )
+                  else
+                    for (final entry in servers.values)
+                      _ServerVersionTile(
+                        key: ValueKey(entry.serverId),
+                        entry: entry,
+                        versionFetcher: widget.versionFetcher,
+                      ),
+                ],
+              ),
+            ),
+          ],
         ),
-        title: const Text('Versions'),
-      ),
-      body: ListView(
-        children: [
-          _SectionHeader(label: 'Frontend'),
-          _AppRow(appName: widget.appName, versionFuture: _flavorVersion),
-          const _FrameworkRow(),
-          const Divider(height: 1),
-          _SectionHeader(
-            label: 'Servers (${servers.length})',
-          ),
-          if (servers.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(SoliplexSpacing.s4),
-              child: Text(
-                'No servers connected. Connect to a server to see its '
-                'backend version.',
-              ),
-            )
-          else
-            for (final entry in servers.values)
-              _ServerVersionTile(
-                key: ValueKey(entry.serverId),
-                entry: entry,
-                versionFetcher: widget.versionFetcher,
-              ),
-        ],
       ),
     );
   }

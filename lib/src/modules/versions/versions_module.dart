@@ -14,12 +14,14 @@ class VersionsAppModule extends AppModule {
   VersionsAppModule({
     required this.appName,
     required this.serverManager,
+    this.logo,
     AppVersionLoader? versionLoader,
     BackendVersionFetcher? versionFetcher,
   })  : _versionLoader = versionLoader ?? loadFlavorVersion,
         _versionFetcher = versionFetcher ?? fetchBackendVersionInfo;
 
   final String appName;
+  final Widget? logo;
   final ServerManager serverManager;
   final AppVersionLoader _versionLoader;
   final BackendVersionFetcher _versionFetcher;
@@ -35,6 +37,7 @@ class VersionsAppModule extends AppModule {
             pageBuilder: (context, state) => NoTransitionPage(
               child: VersionsScreen(
                 appName: appName,
+                logo: logo,
                 serverManager: serverManager,
                 versionLoader: _versionLoader,
                 versionFetcher: _versionFetcher,
@@ -60,6 +63,8 @@ class VersionsAppModule extends AppModule {
               }
               return NoTransitionPage(
                 child: ServerVersionsScreen(
+                  appName: appName,
+                  logo: logo,
                   serverEntry: entry,
                   versionFetcher: _versionFetcher,
                 ),
