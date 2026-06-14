@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 
 // RoomGridCard fills the height of its grid cell (footer pinned to bottom),
 // so it must be given a bounded height — mirror that here with a sized cell.
@@ -28,6 +29,25 @@ ClassificationTheme _classifications() => ClassificationTheme(
 
 void main() {
   group('RoomGridCard', () {
+    testWidgets('shows the unread dot only when isUnread', (tester) async {
+      const room = Room(id: 'r1', name: 'General');
+
+      await tester.pumpWidget(_harness(
+        RoomGridCard(room: room, onTap: () {}, onInfoTap: () {}),
+      ));
+      expect(find.byType(UnreadDot), findsNothing);
+
+      await tester.pumpWidget(_harness(
+        RoomGridCard(
+          room: room,
+          onTap: () {},
+          onInfoTap: () {},
+          isUnread: true,
+        ),
+      ));
+      expect(find.byType(UnreadDot), findsOneWidget);
+    });
+
     testWidgets('renders name and description', (tester) async {
       await tester.pumpWidget(_harness(
         RoomGridCard(

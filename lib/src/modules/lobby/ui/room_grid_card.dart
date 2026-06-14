@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
+import 'unread_dot.dart';
 
 /// Vertical card used for the lobby's grid layout: open on tap, info
 /// button, and a quiz indicator, in a shape that tiles cleanly into a
@@ -14,6 +15,7 @@ class RoomGridCard extends StatelessWidget {
     required this.onTap,
     required this.onInfoTap,
     this.activityTime,
+    this.isUnread = false,
   });
 
   final Room room;
@@ -23,6 +25,10 @@ class RoomGridCard extends StatelessWidget {
   /// Most-recent-thread timestamp, shown as a muted relative label in the
   /// footer's bottom-left. Null while unknown (not yet fetched, or no threads).
   final DateTime? activityTime;
+
+  /// Whether the room has activity newer than the user last saw, surfaced as
+  /// a small dot beside the name. A boolean affordance only — no count.
+  final bool isUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +53,10 @@ class RoomGridCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (isUnread) ...[
+                    const UnreadDot(),
+                    const SizedBox(width: SoliplexSpacing.s2),
+                  ],
                   Expanded(
                     child: Text(
                       room.name,
