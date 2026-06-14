@@ -232,9 +232,12 @@ class _ServerTileState extends State<_ServerTile> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ListTile(
-        // Tighten the leading slot so the status dot reads as a marker beside
-        // the name rather than a far-left icon.
-        leading: _StatusDot(entry: widget.entry),
+        // The status dot only signals sign-in state, which is meaningless for
+        // a no-auth server (it's always ready) — so those carry no leading
+        // dot at all. Tighten the slot so the dot reads as a marker beside the
+        // name rather than a far-left icon.
+        leading:
+            widget.entry.requiresAuth ? _StatusDot(entry: widget.entry) : null,
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,
@@ -257,15 +260,16 @@ class _ServerTileState extends State<_ServerTile> {
   }
 }
 
-/// A small status dot for a server tile:
+/// A small sign-in status dot for an auth-required server tile:
 ///
-/// - **neutral** (`onSurfaceVariant`) — no authentication required;
-/// - **green** (`success`) — auth required and signed in;
-/// - **red** (`danger`) — auth required but not signed in (or expired).
+/// - **green** (`success`) — signed in;
+/// - **red** (`danger`) — not signed in (or expired).
 ///
-/// Reads the per-entry session signal, so the dot lives in a [Watch] and
-/// updates on sign-in / expiry without a server-map mutation. The tooltip
-/// carries the same status as text for accessibility.
+/// Only rendered for servers where `requiresAuth` is true: a no-auth server
+/// is always ready, so it carries no dot (see [_ServerTile]). Reads the
+/// per-entry session signal, so the dot lives in a [Watch] and updates on
+/// sign-in / expiry without a server-map mutation. The tooltip carries the
+/// same status as text for accessibility.
 class _StatusDot extends StatelessWidget {
   const _StatusDot({required this.entry});
 
@@ -277,12 +281,9 @@ class _StatusDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Watch((context) {
       final colors = Theme.of(context).colorScheme;
-      final session = entry.auth.session.value;
-      final (Color color, String label) = !entry.requiresAuth
-          ? (colors.onSurfaceVariant, 'No authentication required')
-          : session is ActiveSession
-              ? (colors.success, 'Signed in')
-              : (colors.danger, 'Not signed in');
+      final signedIn = entry.auth.session.value is ActiveSession;
+      final color = signedIn ? colors.success : colors.danger;
+      final label = signedIn ? 'Signed in' : 'Not signed in';
       return Tooltip(
         message: label,
         child: Container(
