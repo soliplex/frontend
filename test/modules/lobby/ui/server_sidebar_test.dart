@@ -581,8 +581,9 @@ void main() {
         return (container.decoration! as BoxDecoration).color!;
       }
 
-      testWidgets('maps the three auth states to distinct colored dots',
-          (tester) async {
+      testWidgets(
+          'shows a distinct dot per sign-in state, and none for a no-auth '
+          'server', (tester) async {
         final manager = _createManager();
         manager.addServer(
           serverId: 'noauth',
@@ -601,18 +602,18 @@ void main() {
 
         await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
 
-        // Each state has a labelled dot...
-        expect(find.byTooltip('No authentication required'), findsOneWidget);
+        // A no-auth server is always ready, so it carries no status dot.
+        expect(find.byTooltip('No authentication required'), findsNothing);
+
+        // The two sign-in states each get a labelled dot...
         expect(find.byTooltip('Not signed in'), findsOneWidget);
         expect(find.byTooltip('Signed in'), findsOneWidget);
 
-        // ...and the three colors are all different.
-        final colors = {
-          dotColor(tester, 'No authentication required'),
+        // ...in different colors.
+        expect(
           dotColor(tester, 'Not signed in'),
-          dotColor(tester, 'Signed in'),
-        };
-        expect(colors.length, 3);
+          isNot(dotColor(tester, 'Signed in')),
+        );
       });
 
       testWidgets('flips from signed-in to signed-out on session expiry',
