@@ -202,10 +202,11 @@ class LobbyState {
   /// order), and reused for [LobbySortMode.recentActivity] ordering. No-op
   /// before a server is selected or before that server's rooms have loaded.
   /// Only uncached rooms are fetched; results are merged into [_roomActivity],
-  /// so switching servers reuses prior fetches. The backend exposes no
-  /// last-access field, so "recency" is the newest thread's `createdAt` (one
-  /// `getThreads` per room — this relies on the standard transport's
-  /// concurrency limiter to throttle the burst).
+  /// so switching servers reuses prior fetches. "Recency" is the room's
+  /// `lastMessageAt` from the stats endpoint (the time of the newest message
+  /// turn — not a thread's creation time), one `getRoomStats` per room. This
+  /// relies on the standard transport's concurrency limiter to throttle the
+  /// burst.
   void _reconcileActivity() {
     _activityToken?.cancel('activity reconcile');
     _activityToken = null;
@@ -235,13 +236,13 @@ class LobbyState {
     Future.wait(
       missing.map((room) async {
         try {
-          final threads = await api.getThreads(room.id, cancelToken: token);
+          final stats = await api.getRoomStats(room.id, cancelToken: token);
           return MapEntry(
             (serverId: serverId, roomId: room.id),
-            _latestCreatedAt(threads),
+            stats.lastMessageAt,
           );
         } catch (error, st) {
-          // A room whose threads can't be listed simply has no recency
+          // A room whose stats can't be fetched simply has no recency
           // signal; it sorts last rather than failing the whole view. An
           // AuthException still funnels to session expiry (as the room-list
           // and profile fetches do), and a PermissionDeniedException is an
@@ -251,7 +252,7 @@ class LobbyState {
               entry.auth.markSessionExpired();
             } else if (error is! PermissionDeniedException) {
               dev.log(
-                'Failed to fetch thread activity for ${room.id} on $serverId',
+                'Failed to fetch room activity for ${room.id} on $serverId',
                 error: error,
                 stackTrace: st,
                 level: 900,
@@ -270,14 +271,6 @@ class LobbyState {
       _activityLoading.value = false;
       _roomActivity.value = {..._roomActivity.value}..addEntries(entries);
     });
-  }
-
-  static DateTime? _latestCreatedAt(List<ThreadInfo> threads) {
-    DateTime? latest;
-    for (final t in threads) {
-      if (latest == null || t.createdAt.isAfter(latest)) latest = t.createdAt;
-    }
-    return latest;
   }
 
   /// Free-text room-name filter. Ephemeral — intentionally not persisted,

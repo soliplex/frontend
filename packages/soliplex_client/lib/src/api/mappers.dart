@@ -8,6 +8,7 @@ import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
+import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
@@ -439,6 +440,22 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   return WorkdirFile(
     filename: filename,
     url: Uri.parse(_requireString(json, 'url', 'workdir file')),
+  );
+}
+
+// ============================================================
+// RoomStats mappers
+// ============================================================
+
+/// Creates a [RoomStats] from JSON.
+///
+/// `last_message_at` is optional and tolerant of malformed timestamps
+/// (a bad value is treated as "no activity" rather than failing the
+/// whole lobby view).
+RoomStats roomStatsFromJson(String roomId, Map<String, dynamic> json) {
+  return RoomStats(
+    roomId: json['room_id'] as String? ?? roomId,
+    lastMessageAt: _tryParseTimestamp(json['last_message_at'] as String?),
   );
 }
 

@@ -494,6 +494,109 @@ void main() {
       });
     });
 
+    group('getRoomStats', () {
+      test('parses room_id and last_message_at', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'last_message_at': '2026-06-01T12:00:00',
+          },
+        );
+
+        final stats = await api.getRoomStats('room-123');
+
+        expect(stats.roomId, equals('room-123'));
+        expect(stats.lastMessageAt, equals(DateTime.utc(2026, 6, 1, 12)));
+      });
+
+      test('tolerates a null last_message_at', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {'room_id': 'room-123', 'last_message_at': null},
+        );
+
+        final stats = await api.getRoomStats('room-123');
+
+        expect(stats.roomId, equals('room-123'));
+        expect(stats.lastMessageAt, isNull);
+      });
+
+      test('validates non-empty roomId', () {
+        expect(() => api.getRoomStats(''), throwsA(isA<ArgumentError>()));
+      });
+
+      test('supports cancellation', () async {
+        final cancelToken = CancelToken();
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: cancelToken,
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'room_id': 'room-123'});
+
+        await api.getRoomStats('room-123', cancelToken: cancelToken);
+
+        verify(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: cancelToken,
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).called(1);
+      });
+
+      test('uses correct URL', () async {
+        Uri? capturedUri;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return {'room_id': 'room-123'};
+        });
+
+        await api.getRoomStats('room-123');
+
+        expect(capturedUri?.path, equals('/api/v1/rooms/room-123/stats'));
+      });
+    });
+
     group('getThread', () {
       test('returns thread by ID', () async {
         when(
