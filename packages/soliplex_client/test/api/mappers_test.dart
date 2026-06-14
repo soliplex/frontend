@@ -610,6 +610,51 @@ void main() {
     });
   });
 
+  group('RoomStats mappers', () {
+    group('roomStatsFromJson', () {
+      test('parses room_id and last_message_at', () {
+        final stats = roomStatsFromJson('fallback', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_message_at': '2026-06-01T12:00:00',
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(
+          stats.lastMessageAt,
+          equals(DateTime.utc(2026, 6, 1, 12)),
+        );
+        expect(stats.lastMessageAt!.isUtc, isTrue);
+      });
+
+      test('null last_message_at means no activity', () {
+        final stats = roomStatsFromJson('room-1', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_message_at': null,
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(stats.lastMessageAt, isNull);
+      });
+
+      test('falls back to the passed roomId when room_id is absent', () {
+        final stats = roomStatsFromJson('fallback', <String, dynamic>{});
+
+        expect(stats.roomId, equals('fallback'));
+        expect(stats.lastMessageAt, isNull);
+      });
+
+      test('a malformed timestamp is tolerated as no activity', () {
+        final stats = roomStatsFromJson('room-1', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_message_at': 'not-a-date',
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(stats.lastMessageAt, isNull);
+      });
+    });
+  });
+
   group('ThreadInfo mappers', () {
     group('threadInfoFromJson', () {
       test('parses correctly with all fields', () {
