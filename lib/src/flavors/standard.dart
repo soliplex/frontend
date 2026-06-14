@@ -171,6 +171,7 @@ Future<ShellConfig> standard({
       QuizAppModule(serverManager: serverManager),
       VersionsAppModule(
         appName: brand.appName,
+        logo: brandLogo,
         serverManager: serverManager,
       ),
     ],

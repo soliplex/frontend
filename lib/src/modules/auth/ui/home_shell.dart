@@ -55,23 +55,33 @@ class HomeShell extends StatelessWidget {
 }
 
 /// The branded top bar shared across the onboarding surfaces (home / connect
-/// flow, the OAuth callback, and the server list): logo, app name, library
-/// version, and trailing [actions] — defaulting to just an about/versions
-/// button so the bar reads the same everywhere.
+/// flow, the OAuth callback, and the server list) and the versions screens:
+/// logo, app name, library version, and trailing [actions] — followed by an
+/// about/versions button so the bar reads the same everywhere.
 class HomeShellHeader extends StatelessWidget {
   const HomeShellHeader({
     super.key,
     required this.appName,
     this.logo,
+    this.leading,
     this.actions,
+    this.showAbout = true,
   });
 
   final String appName;
   final Widget? logo;
 
+  /// Optional leading widget shown before the logo — e.g. a back button on
+  /// pushed sub-pages like the versions screens.
+  final Widget? leading;
+
   /// Trailing actions shown before the about/versions button. Screens like the
   /// server list slot their navigation here.
   final List<Widget>? actions;
+
+  /// Whether to show the trailing about/versions button. Off on the versions
+  /// screens themselves, which are already the about destination.
+  final bool showAbout;
 
   static const _logoSize = 24.0;
 
@@ -90,6 +100,10 @@ class HomeShellHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: SoliplexSpacing.s2),
+          ],
           SizedBox(
             width: _logoSize,
             height: _logoSize,
@@ -111,11 +125,12 @@ class HomeShellHeader extends StatelessWidget {
           ),
           const Spacer(),
           ...?actions,
-          IconButton(
-            tooltip: 'About & versions',
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => context.push(AppRoutes.versions),
-          ),
+          if (showAbout)
+            IconButton(
+              tooltip: 'About & versions',
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => context.push(AppRoutes.versions),
+            ),
         ],
       ),
     );

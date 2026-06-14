@@ -20,8 +20,27 @@ Widget _wrap(Widget child) => MaterialApp(home: child);
 
 void main() {
   group('ServerVersionsScreen', () {
+    testWidgets('shows the branded bar (no about button) and URL heading',
+        (tester) async {
+      await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Acme',
+        serverEntry: createTestServerEntry(),
+        versionFetcher: (_) async => _info,
+      )));
+      await tester.pumpAndSettle();
+
+      // Branded app name in the bar; the about/versions button is dropped
+      // because this screen is itself part of the about destination.
+      expect(find.text('Acme'), findsOneWidget);
+      expect(find.byTooltip('About & versions'), findsNothing);
+      // Back affordance and the server URL surfaced in the body.
+      expect(find.byTooltip('Back to versions'), findsOneWidget);
+      expect(find.text('http://test-server:8000'), findsOneWidget);
+    });
+
     testWidgets('renders all packages by default, sorted', (tester) async {
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) async => _info,
       )));
@@ -35,6 +54,7 @@ void main() {
 
     testWidgets('filters packages by search query', (tester) async {
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) async => _info,
       )));
@@ -51,6 +71,7 @@ void main() {
 
     testWidgets('search is case-insensitive', (tester) async {
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) async => _info,
       )));
@@ -67,6 +88,7 @@ void main() {
       'shows distinct empty state when backend reports zero packages',
       (tester) async {
         await tester.pumpWidget(_wrap(ServerVersionsScreen(
+          appName: 'Soliplex',
           serverEntry: createTestServerEntry(),
           versionFetcher: (_) async => const BackendVersionInfo(
             soliplexVersion: '0.36.dev0',
@@ -83,6 +105,7 @@ void main() {
 
     testWidgets('shows empty-search state', (tester) async {
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) async => _info,
       )));
@@ -97,6 +120,7 @@ void main() {
     testWidgets('shows progress while loading', (tester) async {
       final completer = Completer<BackendVersionInfo>();
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) => completer.future,
       )));
@@ -110,6 +134,7 @@ void main() {
 
     testWidgets('shows error state when fetch fails', (tester) async {
       await tester.pumpWidget(_wrap(ServerVersionsScreen(
+        appName: 'Soliplex',
         serverEntry: createTestServerEntry(),
         versionFetcher: (_) async => throw Exception('boom'),
       )));
