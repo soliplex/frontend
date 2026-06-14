@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/server_sidebar.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 
 import '../../../helpers/fakes.dart';
 
@@ -488,6 +489,30 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(roomOrder(), ['Random', 'General']);
+    });
+
+    testWidgets('shows an unread dot for a room with unseen activity',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..statsByRoom['r1'] =
+            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // The room has activity and no read marker, so it reads as unread.
+      expect(find.byType(UnreadDot), findsOneWidget);
     });
 
     testWidgets('recent-activity sort groups rooms under date-bucket headers',
