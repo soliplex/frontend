@@ -115,24 +115,31 @@ class HomeShellHeader extends StatelessWidget {
                 ),
           ),
           const SizedBox(width: SoliplexSpacing.s3),
-          // Flexible so a long app name ellipsizes rather than overflowing
-          // when the bar also carries a leading back button and a trailing
-          // action on a narrow viewport.
-          Flexible(
-            child: Text(
-              appName,
-              style: theme.textTheme.titleSmall,
-              overflow: TextOverflow.ellipsis,
+          // Expanded so the name/version group consumes the free space and
+          // the trailing actions sit flush at the end. The app name is
+          // Flexible within the group so it ellipsizes (rather than
+          // overflowing) when the bar also carries a leading back button and
+          // a trailing action on a narrow viewport.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    appName,
+                    style: theme.textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: SoliplexSpacing.s2),
+                Text(
+                  soliplexVersion,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Text(
-            soliplexVersion,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          const Spacer(),
           ...?actions,
           if (showAbout)
             IconButton(
