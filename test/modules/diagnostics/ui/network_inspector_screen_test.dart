@@ -20,9 +20,46 @@ void main() {
     testWidgets('shows empty state when inspector has no events',
         (tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
       expect(find.text('No HTTP requests yet'), findsOneWidget);
+    });
+
+    testWidgets('shows the branded bar (no about button) and back affordance',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NetworkInspectorScreen(appName: 'Acme', inspector: inspector),
+        ),
+      );
+
+      // Branded app name in the bar; the about/versions button is dropped.
+      expect(find.text('Acme'), findsOneWidget);
+      expect(find.byTooltip('About & versions'), findsNothing);
+      expect(find.byTooltip('Back'), findsOneWidget);
+      // The request-count heading stays hidden while the list is empty so it
+      // doesn't compete with the empty state.
+      expect(find.text('Requests (0)'), findsNothing);
+    });
+
+    testWidgets('surfaces the request-count heading in the body when non-empty',
+        (tester) async {
+      inspector.onRequest(createRequestEvent(requestId: 'req-1'));
+      inspector.onResponse(createResponseEvent(requestId: 'req-1'));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NetworkInspectorScreen(appName: 'Acme', inspector: inspector),
+        ),
+      );
+
+      expect(find.text('Requests (1)'), findsOneWidget);
     });
 
     testWidgets('shows event tiles when events exist', (tester) async {
@@ -41,27 +78,33 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
       expect(find.text('GET'), findsOneWidget);
     });
 
     testWidgets('clear button is disabled when no events', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
       final button = tester.widget<IconButton>(
-          find.widgetWithIcon(IconButton, Icons.delete_outline));
+          find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
       expect(button.onPressed, isNull);
     });
 
     testWidgets('clear button is enabled when events exist', (tester) async {
       inspector.onRequest(createRequestEvent());
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
       final button = tester.widget<IconButton>(
-          find.widgetWithIcon(IconButton, Icons.delete_outline));
+          find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
       expect(button.onPressed, isNotNull);
     });
 
@@ -74,10 +117,13 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
 
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.delete_outline));
+      await tester
+          .tap(find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
       await tester.pump();
 
       expect(find.text('No HTTP requests yet'), findsOneWidget);
@@ -88,11 +134,13 @@ void main() {
       inspector.onConcurrencyWait(createConcurrencyWaitEvent());
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
 
       final button = tester.widget<IconButton>(
-          find.widgetWithIcon(IconButton, Icons.delete_outline));
+          find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
       expect(
         button.onPressed,
         isNotNull,
@@ -115,13 +163,16 @@ void main() {
         );
 
       await tester.pumpWidget(
-        MaterialApp(home: NetworkInspectorScreen(inspector: inspector)),
+        MaterialApp(
+            home: NetworkInspectorScreen(
+                appName: 'Soliplex', inspector: inspector)),
       );
 
       // Panel is visible when concurrency events exist.
       expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
 
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.delete_outline));
+      await tester
+          .tap(find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
       await tester.pump();
 
       // Panel hides itself when the list is empty.

@@ -115,7 +115,16 @@ class HomeShellHeader extends StatelessWidget {
                 ),
           ),
           const SizedBox(width: SoliplexSpacing.s3),
-          Text(appName, style: theme.textTheme.titleSmall),
+          // Flexible so a long app name ellipsizes rather than overflowing
+          // when the bar also carries a leading back button and a trailing
+          // action on a narrow viewport.
+          Flexible(
+            child: Text(
+              appName,
+              style: theme.textTheme.titleSmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const SizedBox(width: SoliplexSpacing.s2),
           Text(
             soliplexVersion,
