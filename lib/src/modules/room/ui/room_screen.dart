@@ -776,7 +776,11 @@ class _RoomScreenState extends State<RoomScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Flexible(
+          // Expanded (not Flexible + Spacer): the title eats the leading
+          // space and pins the trailing buttons to the right edge. A Flexible
+          // beside a Spacer would split the free space and leave the buttons
+          // stranded mid-row.
+          Expanded(
             child: Text(
               roomName,
               style: theme.textTheme.titleMedium,
@@ -784,7 +788,6 @@ class _RoomScreenState extends State<RoomScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
           // Documents + room info sit in the top-right corner — the anchor
           // for the future right-hand side panel (documents / info).
           if (documentsButton != null) documentsButton,
