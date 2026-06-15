@@ -7,6 +7,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../core/routes.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../auth/server_entry.dart';
+import '../auth/ui/home_shell.dart';
 import 'backend_version_fetcher.dart';
 
 final _logger = LogManager.instance.getLogger('versions');
@@ -14,10 +15,14 @@ final _logger = LogManager.instance.getLogger('versions');
 class ServerVersionsScreen extends StatefulWidget {
   const ServerVersionsScreen({
     super.key,
+    required this.appName,
     required this.serverEntry,
     required this.versionFetcher,
+    this.logo,
   });
 
+  final String appName;
+  final Widget? logo;
   final ServerEntry serverEntry;
   final BackendVersionFetcher versionFetcher;
 
@@ -59,39 +64,65 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
   Widget build(BuildContext context) {
     final url = formatServerUrl(widget.serverEntry.serverUrl);
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.adaptive.arrow_back),
-          tooltip: 'Back to versions',
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoutes.versions),
+      body: SafeArea(
+        child: Column(
+          children: [
+            HomeShellHeader(
+              appName: widget.appName,
+              logo: widget.logo,
+              showAbout: false,
+              leading: IconButton(
+                icon: Icon(Icons.adaptive.arrow_back),
+                tooltip: 'Back to versions',
+                onPressed: () => context.canPop()
+                    ? context.pop()
+                    : context.go(AppRoutes.versions),
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<BackendVersionInfo>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Text('Failed to load version information'),
+                    );
+                  }
+                  return _buildContent(url, snapshot.data!);
+                },
+              ),
+            ),
+          ],
         ),
-        title: Text(url),
-      ),
-      body: FutureBuilder<BackendVersionInfo>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(
-              child: Text('Failed to load version information'),
-            );
-          }
-          return _buildContent(snapshot.data!);
-        },
       ),
     );
   }
 
-  Widget _buildContent(BackendVersionInfo info) {
+  Widget _buildContent(String url, BackendVersionInfo info) {
     final filtered = _filterPackages(info.packageVersions);
     final sortedKeys = filtered.keys.toList()..sort();
     final total = info.packageVersions.length;
 
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s4,
+            0,
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SelectableText(
+              url,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.all(SoliplexSpacing.s4),
           child: SoliplexInput(
