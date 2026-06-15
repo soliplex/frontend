@@ -341,9 +341,12 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         return Icon(
           Icons.check_circle,
           size: 12,
+          // A completed action is a success result → SymbolicColors.success.
+          // Thinking keeps a tertiary accent to read as reflection, not a
+          // pass/fail outcome.
           color: step.type == StepType.thinking
               ? theme.colorScheme.tertiary
-              : theme.colorScheme.primary,
+              : theme.colorScheme.success,
         );
     }
   }
@@ -365,7 +368,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         return Icon(
           Icons.check_circle,
           size: 12,
-          color: theme.colorScheme.primary,
+          color: theme.colorScheme.success,
         );
       case SkillToolCallStatus.unknown:
         return Icon(
