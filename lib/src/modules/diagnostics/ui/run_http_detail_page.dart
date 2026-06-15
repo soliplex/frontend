@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 import '../models/http_event_group.dart';
-import 'http_event_tile.dart';
-import 'request_detail_view.dart';
+import 'http_exchange_tile.dart';
 
+/// Shows the HTTP traffic captured for a single agent run as a list of
+/// expandable exchange tiles. A single exchange opens expanded.
 class RunHttpDetailPage extends StatelessWidget {
   const RunHttpDetailPage({
     required this.groups,
@@ -22,14 +23,29 @@ class RunHttpDetailPage extends StatelessWidget {
       );
     }
 
-    if (groups.length == 1) {
-      return Scaffold(
-        appBar: AppBar(title: Text(groups[0].pathWithQuery)),
-        body: RequestDetailView(group: groups[0]),
-      );
-    }
-
-    return _MultiGroupView(groups: groups);
+    final single = groups.length == 1;
+    return Scaffold(
+      appBar: AppBar(
+        title:
+            Text(single ? 'HTTP Traffic' : 'HTTP Traffic (${groups.length})'),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabular = constraints.maxWidth >= SoliplexBreakpoints.tablet;
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
+            itemCount: groups.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) => HttpExchangeTile(
+              key: ValueKey(groups[index].requestId),
+              group: groups[index],
+              tabular: tabular,
+              initiallyExpanded: single,
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -51,38 +67,6 @@ class RunHttpDetailPage extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MultiGroupView extends StatelessWidget {
-  const _MultiGroupView({required this.groups});
-
-  final List<HttpEventGroup> groups;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('HTTP Traffic (${groups.length})')),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-        itemCount: groups.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final group = groups[index];
-          return HttpEventTile(
-            group: group,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => Scaffold(
-                  appBar: AppBar(title: Text(group.pathWithQuery)),
-                  body: RequestDetailView(group: group),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

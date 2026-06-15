@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/models/http_event_group.dart';
-import 'package:soliplex_frontend/src/modules/diagnostics/ui/request_detail_view.dart';
+import 'package:soliplex_frontend/src/modules/diagnostics/ui/http_exchange_tile.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/ui/run_http_detail_page.dart';
 
 import '../../../helpers/http_event_factories.dart';
@@ -15,8 +15,7 @@ void main() {
       expect(find.text('No HTTP traffic found for this run'), findsOneWidget);
     });
 
-    testWidgets('shows RequestDetailView directly when single group',
-        (tester) async {
+    testWidgets('opens the single group expanded', (tester) async {
       final group = HttpEventGroup(
         requestId: 'req-1',
         request: createRequestEvent(),
@@ -25,10 +24,15 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: RunHttpDetailPage(groups: [group])),
       );
-      expect(find.byType(RequestDetailView), findsOneWidget);
+
+      expect(find.byType(HttpExchangeTile), findsOneWidget);
+      // initiallyExpanded → detail sections are visible without tapping.
+      expect(find.text('Summary'), findsOneWidget);
+      expect(find.text('Request'), findsOneWidget);
+      expect(find.text('Response'), findsOneWidget);
     });
 
-    testWidgets('shows list of tiles when multiple groups', (tester) async {
+    testWidgets('shows a tile per group when multiple groups', (tester) async {
       final groups = [
         HttpEventGroup(
           requestId: 'req-1',
@@ -50,9 +54,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: RunHttpDetailPage(groups: groups)),
       );
-      // AppBar shows count
+
       expect(find.text('HTTP Traffic (2)'), findsOneWidget);
-      // Both paths listed
+      expect(find.byType(HttpExchangeTile), findsNWidgets(2));
       expect(find.text('/api/v1/rooms'), findsOneWidget);
       expect(find.text('/api/v1/users'), findsOneWidget);
     });

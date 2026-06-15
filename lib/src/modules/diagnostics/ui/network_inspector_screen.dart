@@ -4,12 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../core/routes.dart';
 import '../../auth/ui/home_shell.dart';
-import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
 import '../network_inspector.dart';
 import 'concurrency_summary_panel.dart';
-import 'http_event_tile.dart';
-import 'request_detail_view.dart';
+import 'http_exchange_tile.dart';
 
 class NetworkInspectorScreen extends StatefulWidget {
   const NetworkInspectorScreen({
@@ -28,8 +26,6 @@ class NetworkInspectorScreen extends StatefulWidget {
 }
 
 class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
-  String? _selectedRequestId;
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -59,10 +55,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                       onPressed: widget.inspector.events.isEmpty &&
                               widget.inspector.concurrencyEvents.isEmpty
                           ? null
-                          : () {
-                              widget.inspector.clear();
-                              setState(() => _selectedRequestId = null);
-                            },
+                          : widget.inspector.clear,
                       tooltip: 'Clear all requests',
                     ),
                   ],
@@ -87,19 +80,27 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                     ),
                   ),
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (sortedGroups.isEmpty) {
-                        return _buildEmptyState(context);
-                      }
-                      final isWide =
-                          constraints.maxWidth >= SoliplexBreakpoints.tablet;
-                      if (isWide) {
-                        return _buildMasterDetailLayout(context, sortedGroups);
-                      }
-                      return _buildListLayout(context, sortedGroups);
-                    },
-                  ),
+                  child: sortedGroups.isEmpty
+                      ? _buildEmptyState(context)
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final tabular = constraints.maxWidth >=
+                                SoliplexBreakpoints.tablet;
+                            return ListView.separated(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: SoliplexSpacing.s2,
+                              ),
+                              itemCount: sortedGroups.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) => HttpExchangeTile(
+                                key: ValueKey(sortedGroups[index].requestId),
+                                group: sortedGroups[index],
+                                tabular: tabular,
+                              ),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -135,89 +136,6 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildListLayout(BuildContext context, List<HttpEventGroup> groups) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-      itemCount: groups.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final group = groups[index];
-        return HttpEventTile(
-          group: group,
-          onTap: () => _navigateToDetail(context, group),
-        );
-      },
-    );
-  }
-
-  Widget _buildMasterDetailLayout(
-    BuildContext context,
-    List<HttpEventGroup> groups,
-  ) {
-    final theme = Theme.of(context);
-    final selectedGroup = _selectedRequestId != null
-        ? groups.where((g) => g.requestId == _selectedRequestId).firstOrNull
-        : null;
-    final effectiveGroup = selectedGroup ?? groups.firstOrNull;
-    final effectiveId = effectiveGroup?.requestId;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 360,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                right: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
-            ),
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-              itemCount: groups.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final group = groups[index];
-                final isSelected = group.requestId == effectiveId;
-                return InkWell(
-                  onTap: () =>
-                      setState(() => _selectedRequestId = group.requestId),
-                  child: Container(
-                    color:
-                        isSelected ? theme.colorScheme.primaryContainer : null,
-                    child: HttpEventTile(group: group, isSelected: isSelected),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        Expanded(
-          child: effectiveGroup != null
-              ? RequestDetailView(group: effectiveGroup)
-              : Center(
-                  child: Text(
-                    'Select a request to view details',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  void _navigateToDetail(BuildContext context, HttpEventGroup group) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(group.pathWithQuery)),
-          body: RequestDetailView(group: group),
-        ),
       ),
     );
   }

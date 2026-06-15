@@ -85,6 +85,39 @@ void main() {
       expect(find.text('GET'), findsOneWidget);
     });
 
+    testWidgets('tapping a row expands its detail sections inline',
+        (tester) async {
+      inspector.onRequest(
+        createRequestEvent(
+          requestId: 'req-1',
+          method: 'GET',
+          uri: Uri.parse('http://localhost/api/v1/rooms'),
+        ),
+      );
+      inspector.onResponse(createResponseEvent(requestId: 'req-1'));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home:
+              NetworkInspectorScreen(appName: 'Soliplex', inspector: inspector),
+        ),
+      );
+
+      // Collapsed: no detail sections yet.
+      expect(find.text('Summary'), findsNothing);
+
+      await tester.tap(find.text('GET'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Summary'), findsOneWidget);
+      expect(find.text('Request'), findsOneWidget);
+      expect(find.text('Response'), findsOneWidget);
+    });
+
     testWidgets('clear button is disabled when no events', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
