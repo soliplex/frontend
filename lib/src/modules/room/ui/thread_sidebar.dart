@@ -130,9 +130,7 @@ class ThreadSidebar extends StatelessWidget {
               : Watch((context) {
                   final running = runningThreadIds.value;
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: SoliplexSpacing.s2,
-                    ),
+                    padding: const EdgeInsets.all(SoliplexSpacing.s2),
                     itemCount: threads.length,
                     itemBuilder: (context, index) {
                       final thread = threads[index];
