@@ -14,10 +14,6 @@ class ThreadSidebar extends StatelessWidget {
     required this.onThreadSelected,
     required this.onBackToLobby,
     required this.onCreateThread,
-    required this.onNetworkInspector,
-    required this.onVersions,
-    required this.onRoomInfo,
-    required this.roomName,
     required this.runningThreadIds,
     this.onRetryThreads,
     this.onReauthenticate,
@@ -32,10 +28,6 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String threadId) onThreadSelected;
   final VoidCallback onBackToLobby;
   final VoidCallback onCreateThread;
-  final VoidCallback onNetworkInspector;
-  final VoidCallback onVersions;
-  final VoidCallback onRoomInfo;
-  final String roomName;
   final Future<void> Function()? onRetryThreads;
   final VoidCallback? onReauthenticate;
   final Map<String, String> quizzes;
@@ -81,25 +73,6 @@ class ThreadSidebar extends StatelessWidget {
           const Divider(height: 1),
         ],
         Expanded(child: _buildContent(context)),
-        const Divider(height: 1),
-        SoliplexButton.text(
-          onPressed: onRoomInfo,
-          isCompact: true,
-          icon: const Icon(Icons.info_outline, size: 16),
-          child: Text(roomName),
-        ),
-        SoliplexButton.text(
-          onPressed: onNetworkInspector,
-          isCompact: true,
-          icon: const Icon(Icons.http, size: 16),
-          child: const Text('Network Inspector'),
-        ),
-        SoliplexButton.text(
-          onPressed: onVersions,
-          isCompact: true,
-          icon: const Icon(Icons.info_outline, size: 16),
-          child: const Text('Versions'),
-        ),
       ],
     );
   }

@@ -98,6 +98,11 @@ void main() {
 
   setUp(() {
     api = FakeSoliplexApi();
+    // The room rail lists the server's rooms; give it something to load so it
+    // doesn't sit in its error state during room-screen tests.
+    api.nextRooms = [
+      Room(id: 'room-1', name: 'Test Room'),
+    ];
     api.nextThreads = [
       ThreadInfo(
         id: 'thread-1',
