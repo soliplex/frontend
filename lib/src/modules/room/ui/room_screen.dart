@@ -767,7 +767,8 @@ class _RoomScreenState extends State<RoomScreen> {
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
-    final chip = _buildChipSegment(roomStatus, threadStatus, theme);
+    final documentsButton =
+        _buildDocumentsButton(roomStatus, threadStatus, theme);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -783,28 +784,26 @@ class _RoomScreenState extends State<RoomScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          const Spacer(),
+          // Documents + room info sit in the top-right corner — the anchor
+          // for the future right-hand side panel (documents / info).
+          if (documentsButton != null) documentsButton,
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: 'Room info',
             onPressed: _onRoomInfo,
             visualDensity: VisualDensity.compact,
           ),
-          const Spacer(),
-          if (chip != null)
-            Material(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(soliplexRadii.lg),
-              clipBehavior: Clip.antiAlias,
-              child: chip,
-            ),
         ],
       ),
     );
   }
 
-  /// Returns the chip segment, or null to hide it when both scopes
-  /// are Loaded-empty.
-  Widget? _buildChipSegment(
+  /// The top-right documents button: a simple icon toggle for the attached-
+  /// files panel. Returns null to hide it when both scopes are Loaded-empty.
+  /// The icon reflects upload state (spinner while in flight, error glyph on
+  /// failure); the count is surfaced through the tooltip rather than a label.
+  Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     ThemeData theme,
@@ -827,50 +826,29 @@ class _RoomScreenState extends State<RoomScreen> {
     final all = [...?roomFiles, ...?threadFiles];
     final anyPending = all.any((e) => e is PendingUpload);
     final anyUploadFailed = all.any((e) => e is FailedUpload);
-    final color = (anyFailed || anyUploadFailed)
-        ? theme.colorScheme.error
-        : theme.colorScheme.onSecondaryContainer;
+    final isError = anyFailed || anyUploadFailed;
 
-    final Widget leading;
+    final Widget icon;
     if (anyLoading || anyPending) {
-      leading = SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+      icon = const SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
       );
-    } else if (anyFailed || anyUploadFailed) {
-      leading = Icon(Icons.error_outline, size: 16, color: color);
+    } else if (isError) {
+      icon = Icon(Icons.error_outline, color: theme.colorScheme.error);
     } else {
-      leading = Icon(Icons.attach_file, size: 16, color: color);
+      icon = const Icon(Icons.folder_outlined);
     }
 
     final label = (roomFiles != null && threadFiles != null)
         ? uploadChipLabel(roomFiles.length, threadFiles.length)
-        : 'Files';
+        : 'Attached files';
 
-    return InkWell(
-      onTap: () => setState(() => _filesExpanded = !_filesExpanded),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            leading,
-            const SizedBox(width: SoliplexSpacing.s2),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(color: color),
-            ),
-            const SizedBox(width: SoliplexSpacing.s1),
-            Icon(
-              _filesExpanded ? Icons.expand_less : Icons.expand_more,
-              size: 16,
-              color: color,
-            ),
-          ],
-        ),
-      ),
+    return IconButton(
+      icon: icon,
+      isSelected: _filesExpanded,
+      tooltip: label,
+      onPressed: () => setState(() => _filesExpanded = !_filesExpanded),
     );
   }
 
