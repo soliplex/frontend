@@ -50,8 +50,7 @@ class ThreadSidebar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
+          padding: const EdgeInsets.all(SoliplexSpacing.s2),
           child: Row(
             children: [
               SoliplexButton.text(
@@ -60,12 +59,15 @@ class ThreadSidebar extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back, size: 16),
                 child: const Text('Lobby'),
               ),
-              const Spacer(),
-              SoliplexButton.text(
-                onPressed: onCreateThread,
-                isCompact: true,
-                icon: const Icon(Icons.add, size: 16),
-                child: const Text('New Thread'),
+              const SizedBox(width: SoliplexSpacing.s2),
+              // Filled primary CTA fills the remaining width so the
+              // thread-creation action carries the emphasis it deserves.
+              Expanded(
+                child: SoliplexButton.filled(
+                  onPressed: onCreateThread,
+                  icon: const Icon(Icons.add, size: 16),
+                  child: const Text('New Thread'),
+                ),
               ),
             ],
           ),
@@ -128,6 +130,9 @@ class ThreadSidebar extends StatelessWidget {
               : Watch((context) {
                   final running = runningThreadIds.value;
                   return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: SoliplexSpacing.s2,
+                    ),
                     itemCount: threads.length,
                     itemBuilder: (context, index) {
                       final thread = threads[index];

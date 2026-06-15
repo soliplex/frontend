@@ -49,7 +49,11 @@ import '../upload_tracker_registry.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 300;
-const double _wideBreakpoint = 600;
+
+/// Caps the conversation column (message timeline + chat input) so it stays
+/// readable and centered on ultrawide displays instead of stretching edge to
+/// edge. Below this width the content fills the available space.
+const double _maxContentWidth = SoliplexBreakpoints.desktop;
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -499,7 +503,7 @@ class _RoomScreenState extends State<RoomScreen> {
       autofocus: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= _wideBreakpoint;
+          final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
           final sidebar = ThreadSidebar(
             threadListStatus: threadListStatus,
             selectedThreadId: selectedThreadId,
@@ -627,11 +631,21 @@ class _RoomScreenState extends State<RoomScreen> {
       children: [
         _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(child: body),
-        _buildChatInput(threadView, room, messagesStatus),
+        Expanded(child: _capWidth(body)),
+        _capWidth(_buildChatInput(threadView, room, messagesStatus)),
       ],
     );
   }
+
+  /// Centers [child] within [_maxContentWidth] so the conversation column does
+  /// not stretch across ultrawide displays. A no-op on narrower viewports,
+  /// where the child already fits inside the cap.
+  Widget _capWidth(Widget child) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+          child: child,
+        ),
+      );
 
   Widget _buildRoomHeader(
     Room? room,
