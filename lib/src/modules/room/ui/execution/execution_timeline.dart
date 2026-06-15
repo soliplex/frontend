@@ -116,7 +116,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          // Match the message bubble's base corner (md); the events card keeps
+          // uniform rounding on every corner (no speech-bubble tail).
+          borderRadius: BorderRadius.circular(soliplexRadii.md),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

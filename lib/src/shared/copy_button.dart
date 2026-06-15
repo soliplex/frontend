@@ -78,7 +78,10 @@ class _CopyButtonState extends State<CopyButton> {
         child: InkWell(
           onTap: _feedback == _CopyFeedback.idle ? _copy : null,
           borderRadius: BorderRadius.circular(soliplexRadii.sm),
-          child: Icon(icon, size: widget.iconSize, color: color),
+          child: Padding(
+            padding: const EdgeInsets.all(SoliplexSpacing.s1),
+            child: Icon(icon, size: widget.iconSize, color: color),
+          ),
         ),
       ),
     );

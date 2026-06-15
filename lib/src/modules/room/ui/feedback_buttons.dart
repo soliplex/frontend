@@ -192,7 +192,10 @@ class _ThumbButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(soliplexRadii.sm),
-          child: Icon(icon, size: 20, color: color),
+          child: Padding(
+            padding: const EdgeInsets.all(SoliplexSpacing.s1),
+            child: Icon(icon, size: 20, color: color),
+          ),
         ),
       ),
     );
