@@ -174,7 +174,7 @@ class _RoomAvatarTile extends StatelessWidget {
                     Positioned.fill(
                       child: Material(
                         color: bg,
-                        // A selected avatar squares off (larger radius) so the
+                        // A selected avatar squares off (smaller radius) so the
                         // shape shift reinforces the leading bar.
                         borderRadius: BorderRadius.circular(
                             selected ? soliplexRadii.md : _avatar / 2),

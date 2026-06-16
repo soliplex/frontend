@@ -131,6 +131,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// resolved (or when the server is unauthenticated / the fetch fails).
   RoomAccount? _account;
 
+  /// Bumped on each account fetch so a slow in-flight request for a previous
+  /// server can't write its identity onto the current one. The raw
+  /// `/api/user_info` request can't be cancelled, so we guard the result
+  /// against the latest generation instead.
+  int _accountFetchGeneration = 0;
+
   bool get _filterEnabled => widget.enableDocumentFilter;
 
   /// Whether the room exposes any filterable documents/datasets. Resolved
@@ -379,14 +385,22 @@ class _RoomScreenState extends State<RoomScreen> {
   /// a failure leaves the generic "Signed in" label in place.
   void _fetchAccount() {
     final entry = widget.serverEntry;
+    // Direct assignments here (not setState): this may run from initState
+    // before the first build, and the async callbacks below trigger the
+    // rebuild once a result lands. Clearing eagerly drops the previous
+    // server's identity instead of letting it linger through the switch.
+    _account = null;
+    final generation = ++_accountFetchGeneration;
     if (!entry.requiresAuth || entry.auth.session.value is! ActiveSession) {
-      // Direct assignment: may run from initState before the first build.
-      _account = null;
       return;
     }
     final url = entry.serverUrl.resolve('/api/user_info');
     Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      if (!mounted || response.statusCode != 200) return;
+      if (!mounted ||
+          generation != _accountFetchGeneration ||
+          response.statusCode != 200) {
+        return;
+      }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       setState(() => _account = _accountFromJson(json));
     }).catchError((Object error, StackTrace stackTrace) {
