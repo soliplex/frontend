@@ -253,8 +253,14 @@ class _RoomScreenState extends State<RoomScreen> {
       // A PermissionDeniedException (403) is an expected steady state — the
       // server denies access and re-auth won't help — and the rail surfaces it
       // inline, so keep it below the severe channel reserved for genuine
-      // failures.
-      if (error is! PermissionDeniedException) {
+      // failures. Still log it at debug so a misconfigured ACL leaves a trace.
+      if (error is PermissionDeniedException) {
+        dev.log(
+          'Rooms fetch denied (403)',
+          name: 'RoomScreen',
+          level: 500,
+        );
+      } else {
         dev.log(
           'Failed to load server rooms',
           error: error,

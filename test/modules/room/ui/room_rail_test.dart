@@ -122,6 +122,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(inspector, isTrue);
       expect(versions, isFalse);
+
+      // Each item carries its own onTap, so verify Versions is wired to its
+      // own callback and not to the inspector's.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Versions'));
+      await tester.pumpAndSettle();
+      expect(versions, isTrue);
     });
   });
 
