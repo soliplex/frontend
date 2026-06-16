@@ -18,6 +18,7 @@ RoomRail _rail({
   ],
   Object? roomsError,
   String selectedRoomId = 'r1',
+  Set<String> unreadRoomIds = const {},
   void Function(String)? onSelectRoom,
   VoidCallback? onRetryRooms,
   RoomAccount? account,
@@ -28,6 +29,7 @@ RoomRail _rail({
       rooms: rooms,
       roomsError: roomsError,
       onRetryRooms: onRetryRooms,
+      unreadRoomIds: unreadRoomIds,
       selectedRoomId: selectedRoomId,
       onSelectRoom: onSelectRoom ?? (_) {},
       entry: createTestServerEntry(),
@@ -54,6 +56,16 @@ void main() {
     testWidgets('shows a spinner while rooms are loading', (tester) async {
       await tester.pumpWidget(_wrap(_rail(rooms: null)));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('marks only unread rooms with a dot', (tester) async {
+      await tester.pumpWidget(_wrap(_rail(unreadRoomIds: const {'r2'})));
+      expect(find.byTooltip('Unread activity'), findsOneWidget);
+    });
+
+    testWidgets('shows no dots when nothing is unread', (tester) async {
+      await tester.pumpWidget(_wrap(_rail()));
+      expect(find.byTooltip('Unread activity'), findsNothing);
     });
 
     testWidgets('shows an error affordance that retries', (tester) async {
