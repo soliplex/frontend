@@ -288,8 +288,7 @@ void main() {
         ..onRequest(createRequestEvent(
             requestId: 'req-1',
             method: 'POST',
-            uri: Uri.parse(
-                'http://localhost/api/v1/threads/t1/runs/run-xyz')))
+            uri: Uri.parse('http://localhost/api/v1/threads/t1/runs/run-xyz')))
         ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
         ..onRequest(createRequestEvent(
             requestId: 'req-2',
@@ -320,6 +319,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('/api/v1/rooms'), findsOneWidget);
       expect(find.text('/api/v1/threads'), findsOneWidget);
+    });
+
+    testWidgets('the category filter narrows to LLM (AG-UI) traffic',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/rooms/r1/agui/t1/run-1')))
+        ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-2', statusCode: 200));
+      await pumpWide(tester);
+
+      await tester.tap(find.text('LLM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('/api/v1/rooms/r1/agui/t1/run-1'), findsOneWidget);
+      expect(find.text('/api/v1/rooms'), findsNothing);
     });
   });
 }

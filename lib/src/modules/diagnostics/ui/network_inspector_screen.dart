@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../core/routes.dart';
 import '../../auth/ui/home_shell.dart';
+import '../models/http_category.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
 import '../models/run_event_filter.dart';
@@ -14,6 +15,9 @@ import 'http_exchange_tile.dart';
 /// Status buckets for the inspector's quick filter. `pending`/`streaming`
 /// in-flight exchanges only show under [all].
 enum _StatusFilter { all, success, errors }
+
+/// Category buckets, mapped onto [HttpCategory] (with an `all` passthrough).
+enum _CategoryFilter { all, llm, auth, system }
 
 class NetworkInspectorScreen extends StatefulWidget {
   const NetworkInspectorScreen({
@@ -40,6 +44,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   _StatusFilter _statusFilter = _StatusFilter.all;
+  _CategoryFilter _categoryFilter = _CategoryFilter.all;
   String? _runId;
 
   @override
@@ -57,6 +62,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
   bool get _filterActive =>
       _searchQuery.isNotEmpty ||
       _statusFilter != _StatusFilter.all ||
+      _categoryFilter != _CategoryFilter.all ||
       _runId != null;
 
   List<HttpEventGroup> _applyFilters(List<HttpEventGroup> groups) {
@@ -65,6 +71,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     return groups.where((g) {
       if (runId != null && !groupMatchesRun(g, runId)) return false;
       if (!_statusMatches(g)) return false;
+      if (!_categoryMatches(g)) return false;
       if (query.isNotEmpty &&
           !g.methodLabel.toLowerCase().contains(query) &&
           !g.pathWithQuery.toLowerCase().contains(query)) {
@@ -89,11 +96,25 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     }
   }
 
+  bool _categoryMatches(HttpEventGroup g) {
+    switch (_categoryFilter) {
+      case _CategoryFilter.all:
+        return true;
+      case _CategoryFilter.llm:
+        return categoryOf(g) == HttpCategory.llm;
+      case _CategoryFilter.auth:
+        return categoryOf(g) == HttpCategory.auth;
+      case _CategoryFilter.system:
+        return categoryOf(g) == HttpCategory.system;
+    }
+  }
+
   void _clearFilters() {
     setState(() {
       _searchController.clear();
       _searchQuery = '';
       _statusFilter = _StatusFilter.all;
+      _categoryFilter = _CategoryFilter.all;
       _runId = null;
     });
   }
@@ -191,21 +212,38 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
             onChanged: (value) => setState(() => _searchQuery = value),
           ),
           const SizedBox(height: SoliplexSpacing.s2),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<_StatusFilter>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: _StatusFilter.all, label: Text('All')),
-                ButtonSegment(
-                    value: _StatusFilter.success, label: Text('Success')),
-                ButtonSegment(
-                    value: _StatusFilter.errors, label: Text('Errors')),
-              ],
-              selected: {_statusFilter},
-              onSelectionChanged: (selection) =>
-                  setState(() => _statusFilter = selection.first),
-            ),
+          Wrap(
+            spacing: SoliplexSpacing.s4,
+            runSpacing: SoliplexSpacing.s2,
+            children: [
+              SegmentedButton<_StatusFilter>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: _StatusFilter.all, label: Text('All')),
+                  ButtonSegment(
+                      value: _StatusFilter.success, label: Text('Success')),
+                  ButtonSegment(
+                      value: _StatusFilter.errors, label: Text('Errors')),
+                ],
+                selected: {_statusFilter},
+                onSelectionChanged: (selection) =>
+                    setState(() => _statusFilter = selection.first),
+              ),
+              SegmentedButton<_CategoryFilter>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: _CategoryFilter.all, label: Text('All')),
+                  ButtonSegment(value: _CategoryFilter.llm, label: Text('LLM')),
+                  ButtonSegment(
+                      value: _CategoryFilter.auth, label: Text('Auth')),
+                  ButtonSegment(
+                      value: _CategoryFilter.system, label: Text('System')),
+                ],
+                selected: {_categoryFilter},
+                onSelectionChanged: (selection) =>
+                    setState(() => _categoryFilter = selection.first),
+              ),
+            ],
           ),
           if (runId != null) ...[
             const SizedBox(height: SoliplexSpacing.s2),
