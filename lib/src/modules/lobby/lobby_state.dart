@@ -216,7 +216,13 @@ class LobbyState {
 
   Future<void> _loadReadMarkers() async {
     try {
-      _readMarkers.value = await LobbyReadMarkerStorage.load();
+      // Merge persisted markers under any set in-memory while the load was in
+      // flight (an early markRoomRead on cold start), so a just-opened room
+      // isn't clobbered back to unread by the slower disk read.
+      _readMarkers.value = {
+        ...await LobbyReadMarkerStorage.load(),
+        ..._readMarkers.value,
+      };
     } catch (error, st) {
       dev.log(
         'Failed to load lobby read markers',

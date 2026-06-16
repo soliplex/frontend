@@ -22,8 +22,8 @@ class RoomGridCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onInfoTap;
 
-  /// Most-recent-thread timestamp, shown as a muted relative label in the
-  /// footer's bottom-left. Null while unknown (not yet fetched, or no threads).
+  /// The room's last-activity time, shown as a muted relative label in the
+  /// footer's bottom-left. Null while unknown (not yet fetched, or no activity).
   final DateTime? activityTime;
 
   /// Whether the room has activity newer than the user last saw, surfaced as
