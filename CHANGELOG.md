@@ -20,6 +20,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   that room (served by the backend stats API), not the newest thread's
   creation time — so a long-lived thread used minutes ago no longer reads as
   stale. Activity loads in one batched request per server.
+- Room rail: a permission-denied (403) room list shows a distinct,
+  non-retryable lock affordance instead of a generic "try again" error, and an
+  expired session during the rail's room or identity fetch redirects to login
+  rather than flashing an error.
+- Room rail: the account menu's signed-in identity resolves more robustly —
+  whitespace-only profile fields are ignored, a malformed claim no longer
+  discards its valid siblings, and an email standing in for a missing name no
+  longer renders twice.
 
 ## [0.89.0+59] - 2026-06-12
 
