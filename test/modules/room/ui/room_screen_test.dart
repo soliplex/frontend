@@ -98,6 +98,11 @@ void main() {
 
   setUp(() {
     api = FakeSoliplexApi();
+    // The room rail lists the server's rooms; give it something to load so it
+    // doesn't sit in its error state during room-screen tests.
+    api.nextRooms = [
+      Room(id: 'room-1', name: 'Test Room'),
+    ];
     api.nextThreads = [
       ThreadInfo(
         id: 'thread-1',
@@ -409,10 +414,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The chip always renders an expand_more/less icon; its absence
-    // confirms the chip itself isn't present.
-    expect(find.byIcon(Icons.expand_more), findsNothing);
-    expect(find.byIcon(Icons.expand_less), findsNothing);
+    // The documents toggle only appears when a scope has files; its
+    // absence confirms the empty-scope case hides it.
+    expect(find.byIcon(Icons.folder_outlined), findsNothing);
   });
 
   testWidgets(
@@ -448,8 +452,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Tap the chip to expand the file panel.
-    await tester.tap(find.byIcon(Icons.expand_more));
+    // Tap the documents button to expand the file panel.
+    await tester.tap(find.byIcon(Icons.folder_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('ROOM'), findsOneWidget);
@@ -489,8 +493,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.expand_more), findsOneWidget);
-    expect(find.text('1 room'), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+    // The count moved from a chip label to the button's tooltip.
+    expect(find.byTooltip('1 room'), findsOneWidget);
   });
 
   testWidgets('chip shows error_outline when room uploads refresh fails',

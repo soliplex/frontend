@@ -177,8 +177,8 @@ class _ChatInputState extends State<ChatInput> {
                           constraints: const BoxConstraints(maxHeight: 160),
                           child: SingleChildScrollView(
                             child: Wrap(
-                              spacing: 4,
-                              runSpacing: 4,
+                              spacing: SoliplexSpacing.s1,
+                              runSpacing: SoliplexSpacing.s1,
                               children: [
                                 for (final doc in widget.selectedDocuments)
                                   SoliplexChip(

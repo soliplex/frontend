@@ -51,7 +51,8 @@ class TextMessageTile extends StatelessWidget {
     final hasTracker = executionTracker != null;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
         if (hasTracker)
@@ -80,27 +81,31 @@ class TextMessageTile extends StatelessWidget {
         ),
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(message: message),
-        const SizedBox(height: SoliplexSpacing.s1),
+        const SizedBox(height: SoliplexSpacing.s2),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             CopyButton(text: message.text),
             if (isUser && onInspect != null) ...[
-              const SizedBox(width: SoliplexSpacing.s2),
+              const SizedBox(width: SoliplexSpacing.s1),
               Tooltip(
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
                   onTap: onInspect,
                   borderRadius: BorderRadius.circular(soliplexRadii.sm),
-                  child: Icon(
-                    Icons.bug_report_outlined,
-                    size: 20,
-                    color: theme.colorScheme.onSurfaceVariant,
+                  child: Padding(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s1),
+                    child: Icon(
+                      Icons.bug_report_outlined,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
             ],
             if (showFeedback) ...[
-              const SizedBox(width: SoliplexSpacing.s2),
+              const SizedBox(width: SoliplexSpacing.s1),
               FeedbackButtons(onFeedbackSubmit: onFeedbackSubmit!),
             ],
           ],
@@ -138,6 +143,12 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final isUser = message.user == ChatUser.user;
 
+    // Speech-bubble corners: both top corners and the leading bottom corner
+    // are fully rounded; the trailing bottom corner (toward the sender's edge)
+    // is tightened to point at its author — bottom-right for the user (right
+    // aligned), bottom-left for the assistant (left aligned).
+    final rounded = Radius.circular(soliplexRadii.md);
+    final tight = Radius.circular(soliplexRadii.sm);
     return Container(
       // design-system exception: 14/10 is the documented chat-bubble padding
       // (see design_system/README.md "the only 14 in the system").
@@ -146,7 +157,12 @@ class _MessageBubble extends StatelessWidget {
         color: isUser
             ? theme.colorScheme.primaryContainer
             : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.only(
+          topLeft: rounded,
+          topRight: rounded,
+          bottomLeft: isUser ? rounded : tight,
+          bottomRight: isUser ? tight : rounded,
+        ),
       ),
       child: isUser
           ? SelectableText(

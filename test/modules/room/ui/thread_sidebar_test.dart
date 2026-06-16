@@ -17,10 +17,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
@@ -53,10 +49,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
@@ -86,10 +78,6 @@ void main() {
           onThreadSelected: (id) => selectedId = id,
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
@@ -111,10 +99,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
@@ -123,57 +107,6 @@ void main() {
 
     await tester.tap(find.text('Lobby'));
     expect(backCalled, isTrue);
-  });
-
-  testWidgets('shows Network Inspector button that fires callback',
-      (tester) async {
-    bool inspectorCalled = false;
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadSidebar(
-          threadListStatus: ThreadsLoaded(const []),
-          selectedThreadId: null,
-          onThreadSelected: (_) {},
-          onBackToLobby: () {},
-          onCreateThread: () {},
-          onNetworkInspector: () => inspectorCalled = true,
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
-          runningThreadIds: _emptyRunning,
-          onRetryThreads: () async {},
-        ),
-      ),
-    ));
-
-    await tester.tap(find.text('Network Inspector'));
-    expect(inspectorCalled, isTrue);
-  });
-
-  testWidgets('shows room name button that fires onRoomInfo', (tester) async {
-    bool infoCalled = false;
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ThreadSidebar(
-          threadListStatus: ThreadsLoaded(const []),
-          selectedThreadId: null,
-          onThreadSelected: (_) {},
-          onBackToLobby: () {},
-          onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () => infoCalled = true,
-          roomName: 'My Room',
-          runningThreadIds: _emptyRunning,
-          onRetryThreads: () async {},
-        ),
-      ),
-    ));
-
-    await tester.tap(find.text('My Room'));
-    expect(infoCalled, isTrue);
   });
 
   testWidgets('wraps thread list with RefreshIndicator when callback provided',
@@ -195,10 +128,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
         ),
@@ -218,10 +147,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
         ),
       ),
@@ -249,10 +174,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (id, name) => renamedId = id,
@@ -289,10 +210,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: running.readonly(),
         ),
       ),
@@ -335,10 +252,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: running.readonly(),
         ),
       ),
@@ -376,10 +289,6 @@ void main() {
           onThreadSelected: (_) {},
           onBackToLobby: () {},
           onCreateThread: () {},
-          onNetworkInspector: () {},
-          onVersions: () {},
-          onRoomInfo: () {},
-          roomName: 'Test Room',
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
           onRenameThread: (_, __) {},

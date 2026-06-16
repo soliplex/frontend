@@ -14,10 +14,6 @@ class ThreadSidebar extends StatelessWidget {
     required this.onThreadSelected,
     required this.onBackToLobby,
     required this.onCreateThread,
-    required this.onNetworkInspector,
-    required this.onVersions,
-    required this.onRoomInfo,
-    required this.roomName,
     required this.runningThreadIds,
     this.onRetryThreads,
     this.onReauthenticate,
@@ -32,10 +28,6 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String threadId) onThreadSelected;
   final VoidCallback onBackToLobby;
   final VoidCallback onCreateThread;
-  final VoidCallback onNetworkInspector;
-  final VoidCallback onVersions;
-  final VoidCallback onRoomInfo;
-  final String roomName;
   final Future<void> Function()? onRetryThreads;
   final VoidCallback? onReauthenticate;
   final Map<String, String> quizzes;
@@ -50,8 +42,7 @@ class ThreadSidebar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: SoliplexSpacing.s1, vertical: SoliplexSpacing.s1),
+          padding: const EdgeInsets.all(SoliplexSpacing.s2),
           child: Row(
             children: [
               SoliplexButton.text(
@@ -60,12 +51,15 @@ class ThreadSidebar extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back, size: 16),
                 child: const Text('Lobby'),
               ),
-              const Spacer(),
-              SoliplexButton.text(
-                onPressed: onCreateThread,
-                isCompact: true,
-                icon: const Icon(Icons.add, size: 16),
-                child: const Text('New Thread'),
+              const SizedBox(width: SoliplexSpacing.s2),
+              // Filled primary CTA fills the remaining width so the
+              // thread-creation action carries the emphasis it deserves.
+              Expanded(
+                child: SoliplexButton.filled(
+                  onPressed: onCreateThread,
+                  icon: const Icon(Icons.add, size: 16),
+                  child: const Text('New Thread'),
+                ),
               ),
             ],
           ),
@@ -79,25 +73,6 @@ class ThreadSidebar extends StatelessWidget {
           const Divider(height: 1),
         ],
         Expanded(child: _buildContent(context)),
-        const Divider(height: 1),
-        SoliplexButton.text(
-          onPressed: onRoomInfo,
-          isCompact: true,
-          icon: const Icon(Icons.info_outline, size: 16),
-          child: Text(roomName),
-        ),
-        SoliplexButton.text(
-          onPressed: onNetworkInspector,
-          isCompact: true,
-          icon: const Icon(Icons.http, size: 16),
-          child: const Text('Network Inspector'),
-        ),
-        SoliplexButton.text(
-          onPressed: onVersions,
-          isCompact: true,
-          icon: const Icon(Icons.info_outline, size: 16),
-          child: const Text('Versions'),
-        ),
       ],
     );
   }
@@ -128,6 +103,7 @@ class ThreadSidebar extends StatelessWidget {
               : Watch((context) {
                   final running = runningThreadIds.value;
                   return ListView.builder(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s2),
                     itemCount: threads.length,
                     itemBuilder: (context, index) {
                       final thread = threads[index];

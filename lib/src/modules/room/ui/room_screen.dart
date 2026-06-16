@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
@@ -36,15 +37,21 @@ import 'document_picker.dart';
 import 'error_retry_panel.dart';
 import 'message_timeline.dart';
 import 'async_action_dialog.dart';
+import 'room_rail.dart';
 import 'room_welcome.dart';
 import 'thread_sidebar.dart';
+import '../../auth/auth_tokens.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 const double _sidebarWidth = 300;
-const double _wideBreakpoint = 600;
+
+/// Caps the conversation column (message timeline + chat input) so it stays
+/// readable and centered on ultrawide displays instead of stretching edge to
+/// edge. Below this width the content fills the available space.
+const double _maxContentWidth = SoliplexBreakpoints.desktop;
 
 /// Builds the label for the file indicator chip in the room header.
 ///
@@ -92,6 +99,15 @@ class _RoomScreenState extends State<RoomScreen> {
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   bool _filesExpanded = false;
+
+  /// The current server's rooms for the rail; `null` while loading.
+  List<Room>? _serverRooms;
+  Object? _serverRoomsError;
+  CancelToken? _roomsCancelToken;
+
+  /// Best-effort account identity for the rail's footer menu; `null` until
+  /// resolved (or when the server is unauthenticated / the fetch fails).
+  RoomAccount? _account;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -155,6 +171,76 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// Fetches the current server's room list for the rail. Cancels any
+  /// in-flight fetch so a server switch can't apply a stale result.
+  void _fetchServerRooms() {
+    _roomsCancelToken?.cancel('refresh');
+    final token = CancelToken();
+    _roomsCancelToken = token;
+    // Assigned directly (not via setState): this runs from initState too, and
+    // the async callbacks below trigger the rebuild once a result lands.
+    _serverRooms = null;
+    _serverRoomsError = null;
+    widget.serverEntry.connection.api
+        .getRooms(cancelToken: token)
+        .then((rooms) {
+      if (!mounted || token != _roomsCancelToken) return;
+      setState(() => _serverRooms = rooms);
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!mounted || token != _roomsCancelToken) return;
+      dev.log(
+        'Failed to load server rooms',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 1000,
+      );
+      setState(() => _serverRoomsError = error);
+    });
+  }
+
+  /// Best-effort fetch of the signed-in identity for the rail's account menu.
+  /// No-op (and clears the cached account) when the server is unauthenticated;
+  /// a failure leaves the generic "Signed in" label in place.
+  void _fetchAccount() {
+    final entry = widget.serverEntry;
+    if (!entry.requiresAuth || entry.auth.session.value is! ActiveSession) {
+      // Direct assignment: may run from initState before the first build.
+      _account = null;
+      return;
+    }
+    final url = entry.serverUrl.resolve('/api/user_info');
+    Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
+      if (!mounted || response.statusCode != 200) return;
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      setState(() => _account = _accountFromJson(json));
+    }).catchError((Object error, StackTrace stackTrace) {
+      dev.log(
+        'Failed to load account profile',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 900,
+      );
+    });
+  }
+
+  RoomAccount _accountFromJson(Map<String, dynamic> json) {
+    final given = json['given_name'] as String? ?? '';
+    final family = json['family_name'] as String? ?? '';
+    final preferred = json['preferred_username'] as String? ?? '';
+    final email = json['email'] as String? ?? '';
+    final full = '$given $family'.trim();
+    final name = full.isNotEmpty
+        ? full
+        : preferred.isNotEmpty
+            ? preferred
+            : email.isNotEmpty
+                ? email
+                : 'Signed in';
+    return (name: name, email: email.isNotEmpty ? email : null);
+  }
+
   Future<void> _openDocumentPicker() async {
     final roomId = widget.roomId;
     final threadId = widget.threadId;
@@ -192,6 +278,8 @@ class _RoomScreenState extends State<RoomScreen> {
     _state = _createRoomState();
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
+    _fetchServerRooms();
+    _fetchAccount();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
     } else {
@@ -247,6 +335,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
+      _fetchServerRooms();
+      _fetchAccount();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -322,6 +412,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void dispose() {
     _cancelAutoSelect();
     _filterDocsCancelToken?.cancel('disposed');
+    _roomsCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
     _chatController.dispose();
@@ -494,17 +585,13 @@ class _RoomScreenState extends State<RoomScreen> {
       autofocus: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= _wideBreakpoint;
+          final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
           final sidebar = ThreadSidebar(
             threadListStatus: threadListStatus,
             selectedThreadId: selectedThreadId,
             onThreadSelected: _onThreadSelected,
             onBackToLobby: _onBackToLobby,
             onCreateThread: _state.createThread,
-            onNetworkInspector: _onNetworkInspector,
-            onVersions: _onVersions,
-            onRoomInfo: _onRoomInfo,
-            roomName: roomName,
             onRetryThreads: () => _state.threadList.refresh(),
             onReauthenticate: _onReauthenticate,
             quizzes: room?.quizzes ?? const {},
@@ -519,6 +606,8 @@ class _RoomScreenState extends State<RoomScreen> {
             return Scaffold(
               body: Row(
                 children: [
+                  SizedBox(width: RoomRail.width, child: _buildRail()),
+                  const VerticalDivider(width: 1),
                   SizedBox(width: _sidebarWidth, child: sidebar),
                   const VerticalDivider(width: 1),
                   Expanded(child: content),
@@ -540,44 +629,46 @@ class _RoomScreenState extends State<RoomScreen> {
             drawer: Drawer(
               child: Builder(
                 builder: (drawerContext) => SafeArea(
-                  child: ThreadSidebar(
-                    threadListStatus: threadListStatus,
-                    selectedThreadId: selectedThreadId,
-                    onThreadSelected: (threadId) {
-                      Navigator.pop(drawerContext);
-                      _onThreadSelected(threadId);
-                    },
-                    onBackToLobby: _onBackToLobby,
-                    onCreateThread: () {
-                      Navigator.pop(drawerContext);
-                      _state.createThread();
-                    },
-                    onNetworkInspector: () {
-                      Navigator.pop(drawerContext);
-                      _onNetworkInspector();
-                    },
-                    onVersions: () {
-                      Navigator.pop(drawerContext);
-                      _onVersions();
-                    },
-                    onRoomInfo: () {
-                      Navigator.pop(drawerContext);
-                      _onRoomInfo();
-                    },
-                    roomName: roomName,
-                    runningThreadIds: _state.runningThreadIds,
-                    onRetryThreads: () => _state.threadList.refresh(),
-                    onReauthenticate: _onReauthenticate,
-                    quizzes: room?.quizzes ?? const {},
-                    onQuizTapped: _onQuizTapped,
-                    onRenameThread: (id, name) {
-                      Navigator.pop(drawerContext);
-                      _showRenameDialog(id, name);
-                    },
-                    onDeleteThread: (id) {
-                      Navigator.pop(drawerContext);
-                      _showDeleteDialog(id);
-                    },
+                  // Both panels fold into the drawer on narrow viewports: the
+                  // rooms rail on the left, the thread list filling the rest.
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: RoomRail.width,
+                        child: _buildRail(
+                          onNavigate: () => Navigator.pop(drawerContext),
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: ThreadSidebar(
+                          threadListStatus: threadListStatus,
+                          selectedThreadId: selectedThreadId,
+                          onThreadSelected: (threadId) {
+                            Navigator.pop(drawerContext);
+                            _onThreadSelected(threadId);
+                          },
+                          onBackToLobby: _onBackToLobby,
+                          onCreateThread: () {
+                            Navigator.pop(drawerContext);
+                            _state.createThread();
+                          },
+                          runningThreadIds: _state.runningThreadIds,
+                          onRetryThreads: () => _state.threadList.refresh(),
+                          onReauthenticate: _onReauthenticate,
+                          quizzes: room?.quizzes ?? const {},
+                          onQuizTapped: _onQuizTapped,
+                          onRenameThread: (id, name) {
+                            Navigator.pop(drawerContext);
+                            _showRenameDialog(id, name);
+                          },
+                          onDeleteThread: (id) {
+                            Navigator.pop(drawerContext);
+                            _showDeleteDialog(id);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -586,6 +677,32 @@ class _RoomScreenState extends State<RoomScreen> {
           );
         },
       ),
+    );
+  }
+
+  /// Builds the always-visible rooms rail. [onNavigate] (the drawer pop) runs
+  /// before any navigation when the rail lives inside the narrow drawer.
+  Widget _buildRail({VoidCallback? onNavigate}) {
+    return RoomRail(
+      rooms: _serverRooms,
+      roomsError: _serverRoomsError,
+      onRetryRooms: () => setState(_fetchServerRooms),
+      selectedRoomId: widget.roomId,
+      onSelectRoom: (roomId) {
+        onNavigate?.call();
+        if (roomId == widget.roomId) return;
+        context.go(AppRoutes.room(widget.serverEntry.alias, roomId));
+      },
+      entry: widget.serverEntry,
+      account: _account,
+      onNetworkInspector: () {
+        onNavigate?.call();
+        _onNetworkInspector();
+      },
+      onVersions: () {
+        onNavigate?.call();
+        _onVersions();
+      },
     );
   }
 
@@ -622,11 +739,21 @@ class _RoomScreenState extends State<RoomScreen> {
       children: [
         _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(child: body),
-        _buildChatInput(threadView, room, messagesStatus),
+        Expanded(child: _capWidth(body)),
+        _capWidth(_buildChatInput(threadView, room, messagesStatus)),
       ],
     );
   }
+
+  /// Centers [child] within [_maxContentWidth] so the conversation column does
+  /// not stretch across ultrawide displays. A no-op on narrower viewports,
+  /// where the child already fits inside the cap.
+  Widget _capWidth(Widget child) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+          child: child,
+        ),
+      );
 
   Widget _buildRoomHeader(
     Room? room,
@@ -635,7 +762,8 @@ class _RoomScreenState extends State<RoomScreen> {
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
-    final chip = _buildChipSegment(roomStatus, threadStatus, theme);
+    final documentsButton =
+        _buildDocumentsButton(roomStatus, threadStatus, theme);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -643,27 +771,37 @@ class _RoomScreenState extends State<RoomScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Expanded (not Flexible + Spacer): the title eats the leading
+          // space and pins the trailing buttons to the right edge. A Flexible
+          // beside a Spacer would split the free space and leave the buttons
+          // stranded mid-row.
           Expanded(
             child: Text(
               roomName,
               style: theme.textTheme.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (chip != null)
-            Material(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(soliplexRadii.lg),
-              clipBehavior: Clip.antiAlias,
-              child: chip,
-            ),
+          // Documents + room info sit in the top-right corner — the anchor
+          // for the future right-hand side panel (documents / info).
+          if (documentsButton != null) documentsButton,
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Room info',
+            onPressed: _onRoomInfo,
+            visualDensity: VisualDensity.compact,
+          ),
         ],
       ),
     );
   }
 
-  /// Returns the chip segment, or null to hide it when both scopes
-  /// are Loaded-empty.
-  Widget? _buildChipSegment(
+  /// The top-right documents button: a simple icon toggle for the attached-
+  /// files panel. Returns null to hide it when both scopes are Loaded-empty.
+  /// The icon reflects upload state (spinner while in flight, error glyph on
+  /// failure); the count is surfaced through the tooltip rather than a label.
+  Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
     ThemeData theme,
@@ -686,50 +824,29 @@ class _RoomScreenState extends State<RoomScreen> {
     final all = [...?roomFiles, ...?threadFiles];
     final anyPending = all.any((e) => e is PendingUpload);
     final anyUploadFailed = all.any((e) => e is FailedUpload);
-    final color = (anyFailed || anyUploadFailed)
-        ? theme.colorScheme.error
-        : theme.colorScheme.onSecondaryContainer;
+    final isError = anyFailed || anyUploadFailed;
 
-    final Widget leading;
+    final Widget icon;
     if (anyLoading || anyPending) {
-      leading = SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+      icon = const SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
       );
-    } else if (anyFailed || anyUploadFailed) {
-      leading = Icon(Icons.error_outline, size: 16, color: color);
+    } else if (isError) {
+      icon = Icon(Icons.error_outline, color: theme.colorScheme.error);
     } else {
-      leading = Icon(Icons.attach_file, size: 16, color: color);
+      icon = const Icon(Icons.folder_outlined);
     }
 
     final label = (roomFiles != null && threadFiles != null)
         ? uploadChipLabel(roomFiles.length, threadFiles.length)
-        : 'Files';
+        : 'Attached files';
 
-    return InkWell(
-      onTap: () => setState(() => _filesExpanded = !_filesExpanded),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            leading,
-            const SizedBox(width: SoliplexSpacing.s2),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(color: color),
-            ),
-            const SizedBox(width: SoliplexSpacing.s1),
-            Icon(
-              _filesExpanded ? Icons.expand_less : Icons.expand_more,
-              size: 16,
-              color: color,
-            ),
-          ],
-        ),
-      ),
+    return IconButton(
+      icon: icon,
+      isSelected: _filesExpanded,
+      tooltip: label,
+      onPressed: () => setState(() => _filesExpanded = !_filesExpanded),
     );
   }
 
@@ -867,7 +984,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
-          theme.colorScheme.primary,
+          theme.colorScheme.success,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),
