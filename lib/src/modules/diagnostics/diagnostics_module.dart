@@ -32,6 +32,7 @@ class DiagnosticsAppModule extends AppModule {
             builder: (context, state) => NetworkInspectorScreen(
               appName: appName,
               logo: logo,
+              initialRunId: state.uri.queryParameters['run'],
               inspector: inspector,
             ),
           ),

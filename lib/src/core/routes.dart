@@ -11,6 +11,11 @@ class AppRoutes {
   static const networkInspector = '/diagnostics/network';
   static const authCallback = '/auth/callback';
 
+  /// The network inspector pre-scoped to a single agent run — used by the
+  /// per-message "inspect HTTP traffic" affordance.
+  static String networkInspectorForRun(String runId) =>
+      '$networkInspector?run=${Uri.encodeComponent(runId)}';
+
   static String homeWithUrl(String url, {String? returnTo}) {
     final base = '/?url=${Uri.encodeComponent(url)}';
     if (returnTo == null) return base;
