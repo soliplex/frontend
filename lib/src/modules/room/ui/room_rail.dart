@@ -138,9 +138,7 @@ class _RoomAvatarTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bg = roomAvatarColor(room.name, theme.brightness);
-    final fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark
-        ? Colors.white
-        : Colors.black;
+    final fg = contrastingForeground(bg);
 
     return Tooltip(
       message: room.name,
