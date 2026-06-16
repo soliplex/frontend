@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 
 ClassificationTheme _classifications() => ClassificationTheme(
       defaultId: 'internal',
@@ -20,6 +21,7 @@ Widget _buildCard({
   required Room room,
   VoidCallback? onTap,
   VoidCallback? onInfoTap,
+  bool isUnread = false,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -27,6 +29,7 @@ Widget _buildCard({
         room: room,
         onTap: onTap ?? () {},
         onInfoTap: onInfoTap ?? () {},
+        isUnread: isUnread,
       ),
     ),
   );
@@ -41,6 +44,16 @@ void main() {
 
       expect(find.text('Test Room'), findsOneWidget);
       expect(find.text('A room'), findsOneWidget);
+    });
+
+    testWidgets('shows the unread dot only when isUnread', (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room');
+
+      await tester.pumpWidget(_buildCard(room: room));
+      expect(find.byType(UnreadDot), findsNothing);
+
+      await tester.pumpWidget(_buildCard(room: room, isUnread: true));
+      expect(find.byType(UnreadDot), findsOneWidget);
     });
 
     testWidgets('hides description when empty', (tester) async {

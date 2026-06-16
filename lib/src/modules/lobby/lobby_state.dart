@@ -10,6 +10,7 @@ import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
 
@@ -83,6 +84,7 @@ class LobbyState {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
+    unawaited(_loadReadMarkers());
     unawaited(_loadSelectedServer());
   }
 
@@ -188,6 +190,62 @@ class LobbyState {
       Signal<Map<RoomActivityKey, DateTime?>>({});
   ReadonlySignal<Map<RoomActivityKey, DateTime?>> get roomActivity =>
       _roomActivity;
+
+  /// Per-room "last seen" timestamps, keyed by (serverId, roomId). A room is
+  /// *unread* when [roomActivity] reports a `lastMessageAt` newer than its
+  /// marker here (or newer than the epoch, when never opened). Persisted
+  /// per-device; there is no server-side read state and no unread count.
+  final Signal<Map<RoomActivityKey, DateTime>> _readMarkers =
+      Signal<Map<RoomActivityKey, DateTime>>({});
+  ReadonlySignal<Map<RoomActivityKey, DateTime>> get readMarkers =>
+      _readMarkers;
+
+  Future<void> _loadReadMarkers() async {
+    try {
+      _readMarkers.value = await LobbyReadMarkerStorage.load();
+    } catch (error, st) {
+      dev.log(
+        'Failed to load lobby read markers',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+  }
+
+  /// Marks [roomId] on [serverId] as read as of now, clearing its unread
+  /// affordance until a later message arrives. Called when the user opens a
+  /// room. Uses "now" rather than the cached activity time so a room is read
+  /// the moment it is opened, even if the activity sweep is stale or still in
+  /// flight.
+  void markRoomRead(String serverId, String roomId) {
+    final key = (serverId: serverId, roomId: roomId);
+    _readMarkers.value = {
+      ..._readMarkers.value,
+      key: DateTime.now().toUtc(),
+    };
+    unawaited(
+      LobbyReadMarkerStorage.save(_readMarkers.value)
+          .catchError((Object e, StackTrace st) {
+        dev.log(
+          'Failed to persist lobby read markers',
+          error: e,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  /// Whether [room] on [serverId] has activity newer than the user last saw.
+  /// False when there is no known activity (nothing to be unread about).
+  bool isRoomUnread(String serverId, String roomId) {
+    final key = (serverId: serverId, roomId: roomId);
+    final lastMessageAt = _roomActivity.value[key];
+    if (lastMessageAt == null) return false;
+    final seen = _readMarkers.value[key];
+    return seen == null || lastMessageAt.isAfter(seen);
+  }
 
   /// True while per-room activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
