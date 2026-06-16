@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
+import '../../lobby/ui/unread_dot.dart';
 
 enum _ThreadAction { rename, delete }
 
@@ -17,6 +18,7 @@ class ThreadTile extends StatefulWidget {
     required this.onRename,
     required this.onDelete,
     this.isRunning = false,
+    this.unread = false,
   });
 
   final ThreadInfo thread;
@@ -25,6 +27,10 @@ class ThreadTile extends StatefulWidget {
   final VoidCallback onRename;
   final VoidCallback onDelete;
   final bool isRunning;
+
+  /// Whether the thread has activity newer than the user last saw — shows a
+  /// leading [UnreadDot]. The selected thread is never marked unread.
+  final bool unread;
 
   @override
   State<ThreadTile> createState() => _ThreadTileState();
@@ -54,10 +60,20 @@ class _ThreadTileState extends State<ThreadTile> {
       child: ListTile(
         selected: widget.isSelected,
         selectedTileColor: theme.colorScheme.primaryContainer,
-        title: Text(
-          widget.thread.hasName ? widget.thread.name : 'New Thread',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        title: Row(
+          children: [
+            if (widget.unread) ...[
+              const UnreadDot(),
+              const SizedBox(width: SoliplexSpacing.s2),
+            ],
+            Expanded(
+              child: Text(
+                widget.thread.hasName ? widget.thread.name : 'New Thread',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         subtitle: Text(
           formatRelativeTime(widget.thread.createdAt),

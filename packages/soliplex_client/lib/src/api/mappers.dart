@@ -504,6 +504,14 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
       (metadata['description'] as String?) ??
       '';
 
+  // Optional: absent on a pre-stats backend, null when the thread has no
+  // runs. A malformed value degrades to null rather than failing the whole
+  // listing (mirrors roomStatsFromJson).
+  final rawActivity = json['last_activity'];
+  final lastActivity = rawActivity is String
+      ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
+      : null;
+
   return ThreadInfo(
     id: json['id'] as String? ?? json['thread_id'] as String,
     roomId: json['room_id'] as String? ?? '',
@@ -512,6 +520,7 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
     description: description,
     createdAt: createdAt,
     metadata: metadata,
+    lastActivity: lastActivity,
   );
 }
 
@@ -524,6 +533,8 @@ Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
     if (thread.name.isNotEmpty) 'name': thread.name,
     if (thread.description.isNotEmpty) 'description': thread.description,
     'created': formatTimestamp(thread.createdAt),
+    if (thread.lastActivity != null)
+      'last_activity': formatTimestamp(thread.lastActivity!),
     if (thread.metadata.isNotEmpty) 'metadata': thread.metadata,
   };
 }

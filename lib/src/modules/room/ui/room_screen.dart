@@ -23,6 +23,7 @@ import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
 import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
+import '../thread_read_markers.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
@@ -119,6 +120,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// last-activity is newer than its marker; opening a room here stamps "now",
   /// clearing its dot here and in the lobby.
   Map<RoomActivityKey, DateTime> _readMarkers = const {};
+
+  /// Per-`(serverId, roomId, threadId)` "last seen" markers for threads,
+  /// device-local. A thread is unread when its [ThreadInfo.lastActivity] is
+  /// newer than its marker; opening a thread stamps "now". Distinct store from
+  /// the room markers (different granularity), but the same pattern.
+  Map<ThreadActivityKey, DateTime> _threadReadMarkers = const {};
 
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
@@ -298,6 +305,75 @@ class _RoomScreenState extends State<RoomScreen> {
     };
   }
 
+  /// Loads the thread read markers from disk, merging under any already set
+  /// in-memory (an early [_markThreadRead] on mount).
+  Future<void> _loadThreadReadMarkers() async {
+    try {
+      final loaded = await ThreadReadMarkerStorage.load();
+      if (!mounted) return;
+      setState(() => _threadReadMarkers = {...loaded, ..._threadReadMarkers});
+    } catch (error, stackTrace) {
+      dev.log(
+        'Failed to load thread read markers',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 900,
+      );
+    }
+  }
+
+  /// Marks [threadId] on the current room as read as of now, clearing its
+  /// unread dot. No-op when [threadId] is null (no thread open yet).
+  void _markThreadRead(String? threadId) {
+    if (threadId == null) return;
+    final key = (
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      threadId: threadId,
+    );
+    setState(() {
+      _threadReadMarkers = {..._threadReadMarkers, key: DateTime.now().toUtc()};
+    });
+    unawaited(
+      ThreadReadMarkerStorage.save(_threadReadMarkers)
+          .catchError((Object error, StackTrace stackTrace) {
+        dev.log(
+          'Failed to persist thread read markers',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'RoomScreen',
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  /// Ids of the room's threads with activity newer than the user last saw.
+  /// The selected thread is excluded — you're looking at it, so it reads as
+  /// read even if its activity advances while open.
+  Set<String> _unreadThreadIds(
+    ThreadListStatus status,
+    String? selectedThreadId,
+  ) {
+    if (status is! ThreadsLoaded) return const {};
+    final serverId = widget.serverEntry.serverId;
+    final roomId = widget.roomId;
+    return {
+      for (final thread in status.threads)
+        if (thread.id != selectedThreadId &&
+            isActivityUnread(
+              thread.lastActivity,
+              _threadReadMarkers[(
+                serverId: serverId,
+                roomId: roomId,
+                threadId: thread.id,
+              )],
+            ))
+          thread.id,
+    };
+  }
+
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
   /// No-op (and clears the cached account) when the server is unauthenticated;
   /// a failure leaves the generic "Signed in" label in place.
@@ -380,9 +456,11 @@ class _RoomScreenState extends State<RoomScreen> {
     _fetchServerRooms();
     _fetchRoomActivity();
     unawaited(_loadReadMarkers());
-    // Viewing a room reads it: stamp now so its dot clears here and in the
-    // lobby (the marker merges with any persisted markers as they load).
+    unawaited(_loadThreadReadMarkers());
+    // Viewing a room/thread reads it: stamp now so the dot clears here and in
+    // the lobby (the marker merges with any persisted markers as they load).
     _markRoomRead(widget.roomId);
+    _markThreadRead(widget.threadId);
     _fetchAccount();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
@@ -442,6 +520,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _fetchServerRooms();
       _fetchRoomActivity();
       _markRoomRead(widget.roomId);
+      _markThreadRead(widget.threadId);
       _fetchAccount();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
@@ -453,6 +532,7 @@ class _RoomScreenState extends State<RoomScreen> {
         _cancelAutoSelect();
         _chatController.clear();
         _workdirs.clearCache();
+        _markThreadRead(widget.threadId);
         if (_filterEnabled && oldWidget.threadId == null) {
           _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
         }
@@ -684,6 +764,8 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
+    final unreadThreadIds =
+        _unreadThreadIds(threadListStatus, selectedThreadId);
     final roomStatus = _state.room.watch(context);
     final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final roomName = room?.name ?? widget.roomId;
@@ -706,6 +788,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onRenameThread: _showRenameDialog,
             onDeleteThread: _showDeleteDialog,
             runningThreadIds: _state.runningThreadIds,
+            unreadThreadIds: unreadThreadIds,
           );
           final content = _buildContent(room);
 
@@ -761,6 +844,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             _state.createThread();
                           },
                           runningThreadIds: _state.runningThreadIds,
+                          unreadThreadIds: unreadThreadIds,
                           onRetryThreads: () => _state.threadList.refresh(),
                           onReauthenticate: _onReauthenticate,
                           quizzes: room?.quizzes ?? const {},

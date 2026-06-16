@@ -12,6 +12,7 @@ class ThreadInfo {
     this.name = '',
     this.description = '',
     this.metadata = const {},
+    this.lastActivity,
   });
 
   /// Unique identifier for the thread.
@@ -31,6 +32,13 @@ class ThreadInfo {
 
   /// When the thread was created.
   final DateTime createdAt;
+
+  /// Most recent message turn (AG-UI run) in the thread, in UTC, or `null`
+  /// when the thread has no runs or the backend did not report it (e.g. a
+  /// pre-stats backend). Distinct from [createdAt] — the thread's birth — this
+  /// tracks its latest activity, letting clients mark threads with unseen
+  /// messages.
+  final DateTime? lastActivity;
 
   /// Metadata for the thread (empty map if not provided).
   final Map<String, dynamic> metadata;
@@ -53,6 +61,7 @@ class ThreadInfo {
     String? description,
     DateTime? createdAt,
     Map<String, dynamic>? metadata,
+    DateTime? lastActivity,
   }) {
     return ThreadInfo(
       id: id ?? this.id,
@@ -62,6 +71,7 @@ class ThreadInfo {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       metadata: metadata ?? this.metadata,
+      lastActivity: lastActivity ?? this.lastActivity,
     );
   }
 

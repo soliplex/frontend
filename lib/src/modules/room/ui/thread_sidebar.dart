@@ -15,6 +15,7 @@ class ThreadSidebar extends StatelessWidget {
     required this.onBackToLobby,
     required this.onCreateThread,
     required this.runningThreadIds,
+    this.unreadThreadIds = const {},
     this.onRetryThreads,
     this.onReauthenticate,
     this.quizzes = const {},
@@ -35,6 +36,11 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String threadId, String currentName)? onRenameThread;
   final void Function(String threadId)? onDeleteThread;
   final ReadonlySignal<Set<String>> runningThreadIds;
+
+  /// Ids of threads with activity newer than the user last saw — each gets an
+  /// [UnreadDot]. Empty when activity is unavailable. The selected thread is
+  /// excluded by the caller (you're looking at it).
+  final Set<String> unreadThreadIds;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +117,7 @@ class ThreadSidebar extends StatelessWidget {
                         thread: thread,
                         isSelected: thread.id == selectedThreadId,
                         isRunning: running.contains(thread.id),
+                        unread: unreadThreadIds.contains(thread.id),
                         onTap: () => onThreadSelected(thread.id),
                         onRename: () =>
                             onRenameThread?.call(thread.id, thread.name),
