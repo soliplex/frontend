@@ -24,6 +24,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   room. The width is now a single shared constant (`formColumnMaxWidth`).
   Narrower viewports are unaffected — the column still fills the available
   width.
+- Auth: the connect-flow rail now scrolls to keep the active step centered as
+  the flow advances. Early and final steps that can't be centered stay pinned
+  to the start/end.
 
 ### Fixed
 

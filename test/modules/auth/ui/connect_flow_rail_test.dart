@@ -82,23 +82,50 @@ void main() {
       expect(find.byIcon(Icons.check), findsNothing);
     });
 
-    // Confirms the rail actually scrolls once its content is wider than the
-    // visible space, rather than overflowing or shrinking to fit.
-    testWidgets('scrolls horizontally when wider than its column',
-        (tester) async {
-      // A column far narrower than the seven-node strip's intrinsic width.
-      await tester.pumpWidget(
-        const MaterialApp(
+    Widget narrowHost(ConnectStep current) => MaterialApp(
           home: Scaffold(
             body: Center(
               child: SizedBox(
                 width: 120,
-                child: ConnectFlowRail(current: ConnectStep.connected),
+                child: ConnectFlowRail(current: current),
               ),
             ),
           ),
-        ),
-      );
+        );
+
+    ScrollPosition railPosition(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(ConnectFlowRail),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+
+    testWidgets('scrolls to center the active step as the flow advances',
+        (tester) async {
+      await tester.pumpWidget(narrowHost(ConnectStep.url));
+      await tester.pumpAndSettle();
+      // The first step can't be centered (nothing to its left), so it stays
+      // pinned at the start.
+      expect(railPosition(tester).pixels, 0);
+
+      // Advancing rebuilds the rail with a later `current`; it should scroll
+      // to bring the now-active step into view.
+      await tester.pumpWidget(narrowHost(ConnectStep.connected));
+      await tester.pumpAndSettle();
+      expect(railPosition(tester).pixels, greaterThan(0));
+    });
+
+    // Confirms the rail actually scrolls once its content is wider than the
+    // visible space, rather than overflowing or shrinking to fit.
+    testWidgets('scrolls horizontally when wider than its column',
+        (tester) async {
+      // A column far narrower than the seven-node strip's intrinsic width. Uses
+      // the first step so the auto-centring leaves it pinned at the start —
+      // this test is about scrollability, not the centring behaviour.
+      await tester.pumpWidget(narrowHost(ConnectStep.url));
+      await tester.pumpAndSettle();
 
       // No RenderFlex overflow was thrown while laying the strip out.
       expect(tester.takeException(), isNull);

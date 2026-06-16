@@ -41,11 +41,45 @@ ConnectStep stepForConnectState(ConnectState state) => switch (state) {
 /// [SoliplexBreakpoints.desktop]); on narrow screens the per-state heading
 /// carries the context instead. The strip scrolls horizontally when it's
 /// wider than its column, so every label stays legible rather than being
-/// squeezed.
-class ConnectFlowRail extends StatelessWidget {
+/// squeezed. As the flow advances the active node is scrolled to the centre of
+/// the strip; early steps that can't be centred stay pinned at the start (the
+/// scroll clamps to its bounds).
+class ConnectFlowRail extends StatefulWidget {
   const ConnectFlowRail({super.key, required this.current});
 
   final ConnectStep current;
+
+  @override
+  State<ConnectFlowRail> createState() => _ConnectFlowRailState();
+}
+
+class _ConnectFlowRailState extends State<ConnectFlowRail> {
+  final GlobalKey _activeKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _centerActiveAfterFrame();
+  }
+
+  @override
+  void didUpdateWidget(ConnectFlowRail old) {
+    super.didUpdateWidget(old);
+    if (old.current != widget.current) _centerActiveAfterFrame();
+  }
+
+  void _centerActiveAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _activeKey.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +108,12 @@ class ConnectFlowRail extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final step in ConnectStep.values) ...[
-              _RailNode(step: step, current: current, baseStyle: baseStyle),
+              _RailNode(
+                key: step == widget.current ? _activeKey : null,
+                step: step,
+                current: widget.current,
+                baseStyle: baseStyle,
+              ),
               if (step != ConnectStep.values.last)
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -98,6 +137,7 @@ class _RailNode extends StatelessWidget {
     required this.step,
     required this.current,
     required this.baseStyle,
+    super.key,
   });
 
   final ConnectStep step;
