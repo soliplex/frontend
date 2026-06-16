@@ -4,18 +4,27 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../core/routes.dart';
 import '../../auth/ui/home_shell.dart';
+import '../models/http_category.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
+import '../models/run_event_filter.dart';
 import '../network_inspector.dart';
 import 'concurrency_summary_panel.dart';
-import 'http_event_tile.dart';
-import 'request_detail_view.dart';
+import 'http_exchange_tile.dart';
+
+/// Status buckets for the inspector's quick filter. `pending`/`streaming`
+/// in-flight exchanges only show under [all].
+enum _StatusFilter { all, success, errors }
+
+/// Category buckets, mapped onto [HttpCategory] (with an `all` passthrough).
+enum _CategoryFilter { all, llm, auth, system }
 
 class NetworkInspectorScreen extends StatefulWidget {
   const NetworkInspectorScreen({
     required this.appName,
     required this.inspector,
     this.logo,
+    this.initialRunId,
     super.key,
   });
 
@@ -23,20 +32,101 @@ class NetworkInspectorScreen extends StatefulWidget {
   final Widget? logo;
   final NetworkInspector inspector;
 
+  /// When set (via the per-message deep link), the list opens scoped to this
+  /// agent run, shown as a removable chip. Null for the plain inspector.
+  final String? initialRunId;
+
   @override
   State<NetworkInspectorScreen> createState() => _NetworkInspectorScreenState();
 }
 
 class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
-  String? _selectedRequestId;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  _StatusFilter _statusFilter = _StatusFilter.all;
+  _CategoryFilter _categoryFilter = _CategoryFilter.all;
+  String? _runId;
+
+  @override
+  void initState() {
+    super.initState();
+    _runId = widget.initialRunId;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool get _filterActive =>
+      _searchQuery.isNotEmpty ||
+      _statusFilter != _StatusFilter.all ||
+      _categoryFilter != _CategoryFilter.all ||
+      _runId != null;
+
+  List<HttpEventGroup> _applyFilters(List<HttpEventGroup> groups) {
+    final query = _searchQuery.trim().toLowerCase();
+    final runId = _runId;
+    return groups.where((g) {
+      if (runId != null && !groupMatchesRun(g, runId)) return false;
+      if (!_statusMatches(g)) return false;
+      if (!_categoryMatches(g)) return false;
+      if (query.isNotEmpty &&
+          !g.methodLabel.toLowerCase().contains(query) &&
+          !g.pathWithQuery.toLowerCase().contains(query)) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  bool _statusMatches(HttpEventGroup g) {
+    switch (_statusFilter) {
+      case _StatusFilter.all:
+        return true;
+      case _StatusFilter.success:
+        return g.status == HttpEventStatus.success ||
+            g.status == HttpEventStatus.streamComplete;
+      case _StatusFilter.errors:
+        return g.status == HttpEventStatus.networkError ||
+            g.status == HttpEventStatus.serverError ||
+            g.status == HttpEventStatus.clientError ||
+            g.status == HttpEventStatus.streamError;
+    }
+  }
+
+  bool _categoryMatches(HttpEventGroup g) {
+    switch (_categoryFilter) {
+      case _CategoryFilter.all:
+        return true;
+      case _CategoryFilter.llm:
+        return categoryOf(g) == HttpCategory.llm;
+      case _CategoryFilter.auth:
+        return categoryOf(g) == HttpCategory.auth;
+      case _CategoryFilter.system:
+        return categoryOf(g) == HttpCategory.system;
+    }
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _statusFilter = _StatusFilter.all;
+      _categoryFilter = _CategoryFilter.all;
+      _runId = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.inspector,
       builder: (context, _) {
-        final groups = groupHttpEvents(widget.inspector.events);
-        final sortedGroups = groups.reversed.toList();
+        final allGroups =
+            groupHttpEvents(widget.inspector.events).reversed.toList();
+        final groups = _applyFilters(allGroups);
 
         return Scaffold(
           body: SafeArea(
@@ -59,10 +149,7 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                       onPressed: widget.inspector.events.isEmpty &&
                               widget.inspector.concurrencyEvents.isEmpty
                           ? null
-                          : () {
-                              widget.inspector.clear();
-                              setState(() => _selectedRequestId = null);
-                            },
+                          : widget.inspector.clear,
                       tooltip: 'Clear all requests',
                     ),
                   ],
@@ -70,39 +157,131 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
                 ConcurrencySummaryPanel(
                   events: widget.inspector.concurrencyEvents,
                 ),
-                if (sortedGroups.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      SoliplexSpacing.s4,
-                      SoliplexSpacing.s4,
-                      SoliplexSpacing.s4,
-                      SoliplexSpacing.s2,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Requests (${sortedGroups.length})',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                  ),
+                if (allGroups.isNotEmpty)
+                  _buildToolbar(context, allGroups.length, groups.length),
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (sortedGroups.isEmpty) {
-                        return _buildEmptyState(context);
-                      }
-                      final isWide =
-                          constraints.maxWidth >= SoliplexBreakpoints.tablet;
-                      if (isWide) {
-                        return _buildMasterDetailLayout(context, sortedGroups);
-                      }
-                      return _buildListLayout(context, sortedGroups);
-                    },
-                  ),
+                  child: allGroups.isEmpty
+                      ? _buildEmptyState(context)
+                      : groups.isEmpty
+                          ? _buildNoMatchState(context)
+                          : _buildList(context, groups),
                 ),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildToolbar(BuildContext context, int total, int visible) {
+    final theme = Theme.of(context);
+    final runId = _runId;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s2,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _filterActive
+                ? 'Requests ($visible / $total)'
+                : 'Requests ($total)',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: SoliplexSpacing.s2),
+          SoliplexInput(
+            controller: _searchController,
+            hintText: 'Filter by method or path…',
+            leadingIcon: const Icon(Icons.search),
+            trailingIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear search',
+                    onPressed: () => setState(() {
+                      _searchController.clear();
+                      _searchQuery = '';
+                    }),
+                  )
+                : null,
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: SoliplexSpacing.s2),
+          Wrap(
+            spacing: SoliplexSpacing.s4,
+            runSpacing: SoliplexSpacing.s2,
+            children: [
+              SegmentedButton<_StatusFilter>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: _StatusFilter.all, label: Text('All')),
+                  ButtonSegment(
+                      value: _StatusFilter.success, label: Text('Success')),
+                  ButtonSegment(
+                      value: _StatusFilter.errors, label: Text('Errors')),
+                ],
+                selected: {_statusFilter},
+                onSelectionChanged: (selection) =>
+                    setState(() => _statusFilter = selection.first),
+              ),
+              SegmentedButton<_CategoryFilter>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: _CategoryFilter.all, label: Text('All')),
+                  ButtonSegment(value: _CategoryFilter.llm, label: Text('LLM')),
+                  ButtonSegment(
+                      value: _CategoryFilter.auth, label: Text('Auth')),
+                  ButtonSegment(
+                      value: _CategoryFilter.system, label: Text('System')),
+                ],
+                selected: {_categoryFilter},
+                onSelectionChanged: (selection) =>
+                    setState(() => _categoryFilter = selection.first),
+              ),
+            ],
+          ),
+          if (runId != null) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.tag, size: 16, color: theme.colorScheme.primary),
+                const SizedBox(width: SoliplexSpacing.s1),
+                Text(
+                  'Run · ${_shortRun(runId)}',
+                  style: theme.textTheme.labelMedium,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16),
+                  tooltip: 'Clear run filter',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => setState(() => _runId = null),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList(BuildContext context, List<HttpEventGroup> groups) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tabular = constraints.maxWidth >= SoliplexBreakpoints.tablet;
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
+          itemCount: groups.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) => HttpExchangeTile(
+            key: ValueKey(groups[index].requestId),
+            group: groups[index],
+            tabular: tabular,
           ),
         );
       },
@@ -139,86 +318,34 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
     );
   }
 
-  Widget _buildListLayout(BuildContext context, List<HttpEventGroup> groups) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-      itemCount: groups.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final group = groups[index];
-        return HttpEventTile(
-          group: group,
-          onTap: () => _navigateToDetail(context, group),
-        );
-      },
-    );
-  }
-
-  Widget _buildMasterDetailLayout(
-    BuildContext context,
-    List<HttpEventGroup> groups,
-  ) {
+  Widget _buildNoMatchState(BuildContext context) {
     final theme = Theme.of(context);
-    final selectedGroup = _selectedRequestId != null
-        ? groups.where((g) => g.requestId == _selectedRequestId).firstOrNull
-        : null;
-    final effectiveGroup = selectedGroup ?? groups.firstOrNull;
-    final effectiveId = effectiveGroup?.requestId;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 360,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                right: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
-            ),
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-              itemCount: groups.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final group = groups[index];
-                final isSelected = group.requestId == effectiveId;
-                return InkWell(
-                  onTap: () =>
-                      setState(() => _selectedRequestId = group.requestId),
-                  child: Container(
-                    color:
-                        isSelected ? theme.colorScheme.primaryContainer : null,
-                    child: HttpEventTile(group: group, isSelected: isSelected),
-                  ),
-                );
-              },
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.filter_alt_off_outlined,
+            size: 64,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: SoliplexSpacing.s4),
+          Text(
+            'No requests match these filters',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ),
-        Expanded(
-          child: effectiveGroup != null
-              ? RequestDetailView(group: effectiveGroup)
-              : Center(
-                  child: Text(
-                    'Select a request to view details',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  void _navigateToDetail(BuildContext context, HttpEventGroup group) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(group.pathWithQuery)),
-          body: RequestDetailView(group: group),
-        ),
+          const SizedBox(height: SoliplexSpacing.s2),
+          SoliplexButton.text(
+            onPressed: _clearFilters,
+            child: const Text('Clear filters'),
+          ),
+        ],
       ),
     );
   }
+
+  static String _shortRun(String runId) =>
+      runId.length <= 10 ? runId : '${runId.substring(0, 8)}…';
 }

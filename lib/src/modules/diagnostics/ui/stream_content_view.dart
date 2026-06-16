@@ -1,104 +1,51 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 import '../models/event_accumulator.dart';
-import '../models/http_event_group.dart';
 import '../models/json_tree_model.dart';
 import '../models/sse_event_parser.dart';
 import 'json_tree_view.dart';
 
-/// Structured overview of an [HttpEventGroup]: request body as a JSON tree,
-/// and for SSE streams a conversation/events toggle.
-class OverviewTab extends StatefulWidget {
-  const OverviewTab({required this.group, super.key});
+/// How the parsed SSE stream is rendered.
+enum StreamView {
+  /// Accumulated, human-readable conversation (messages, tool calls, …).
+  conversation('Conversation'),
 
-  final HttpEventGroup group;
+  /// The raw list of individual SSE events.
+  events('Events'),
 
-  @override
-  State<OverviewTab> createState() => _OverviewTabState();
+  /// The unparsed stream payload.
+  raw('Raw');
+
+  const StreamView(this.label);
+
+  final String label;
 }
 
-class _OverviewTabState extends State<OverviewTab> {
-  _StreamView _streamView = _StreamView.conversation;
+/// Renders an SSE stream body as a conversation, an event list, or the raw
+/// payload, with a segmented switch between them.
+///
+/// Extracted from the old Overview tab so the Response section of an HTTP
+/// exchange can host the structured stream views inline.
+class StreamContentView extends StatefulWidget {
+  const StreamContentView({required this.body, super.key});
+
+  /// The raw SSE stream payload.
+  final String body;
+
+  @override
+  State<StreamContentView> createState() => _StreamContentViewState();
+}
+
+class _StreamContentViewState extends State<StreamContentView> {
+  StreamView _view = StreamView.conversation;
   SseParseResult? _parseResult;
   AccumulatedRun? _accumulatedRun;
 
-  SseParseResult _getParsed() {
-    return _parseResult ??= parseSseEvents(widget.group.streamEnd?.body ?? '');
-  }
+  SseParseResult get _parsed => _parseResult ??= parseSseEvents(widget.body);
 
-  AccumulatedRun _getAccumulated() {
-    return _accumulatedRun ??= accumulateEvents(_getParsed().events);
-  }
-
-  dynamic get _responseBody {
-    final response = widget.group.response;
-    if (response != null && response.body != null) return response.body;
-    final streamEnd = widget.group.streamEnd;
-    if (streamEnd != null && streamEnd.body != null) return streamEnd.body;
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final group = widget.group;
-    final body = group.requestBody;
-    final hasRequestBody = body != null && body.toString().isNotEmpty;
-
-    if (!hasRequestBody && !group.isStream && _responseBody == null) {
-      return _emptyState(context);
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(SoliplexSpacing.s4),
-      children: [
-        if (hasRequestBody) ...[
-          _JsonSection(title: 'Request Body', body: body),
-          const SizedBox(height: SoliplexSpacing.s4),
-        ],
-        if (group.isStream)
-          _StreamSection(
-            parseResult: _getParsed(),
-            accumulatedRun: _getAccumulated(),
-            view: _streamView,
-            onViewChanged: (v) => setState(() => _streamView = v),
-          )
-        else if (_responseBody != null) ...[
-          _JsonSection(title: 'Response Body', body: _responseBody),
-        ],
-      ],
-    );
-  }
-
-  Widget _emptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Text(
-        'No structured content available',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
-
-enum _StreamView { conversation, events }
-
-class _StreamSection extends StatelessWidget {
-  const _StreamSection({
-    required this.parseResult,
-    required this.accumulatedRun,
-    required this.view,
-    required this.onViewChanged,
-  });
-
-  final SseParseResult parseResult;
-  final AccumulatedRun accumulatedRun;
-  final _StreamView view;
-  final ValueChanged<_StreamView> onViewChanged;
+  AccumulatedRun get _accumulated =>
+      _accumulatedRun ??= accumulateEvents(_parsed.events);
 
   @override
   Widget build(BuildContext context) {
@@ -111,19 +58,13 @@ class _StreamSection extends StatelessWidget {
           children: [
             Text('Stream', style: theme.textTheme.titleSmall),
             const Spacer(),
-            SegmentedButton<_StreamView>(
-              segments: const [
-                ButtonSegment(
-                  value: _StreamView.conversation,
-                  label: Text('Conversation'),
-                ),
-                ButtonSegment(
-                  value: _StreamView.events,
-                  label: Text('Events'),
-                ),
+            SegmentedButton<StreamView>(
+              segments: [
+                for (final v in StreamView.values)
+                  ButtonSegment(value: v, label: Text(v.label)),
               ],
-              selected: {view},
-              onSelectionChanged: (s) => onViewChanged(s.first),
+              selected: {_view},
+              onSelectionChanged: (s) => setState(() => _view = s.first),
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
               ),
@@ -131,17 +72,43 @@ class _StreamSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: SoliplexSpacing.s2),
-        if (parseResult.wasTruncated) _TruncationBanner(),
-        if (view == _StreamView.conversation)
-          _ConversationView(run: accumulatedRun)
-        else
-          _EventsView(events: parseResult.events),
+        if (_parsed.wasTruncated) const _TruncationBanner(),
+        switch (_view) {
+          StreamView.conversation => _ConversationView(run: _accumulated),
+          StreamView.events => _EventsView(events: _parsed.events),
+          StreamView.raw => _RawStreamView(body: widget.body),
+        },
       ],
     );
   }
 }
 
+class _RawStreamView extends StatelessWidget {
+  const _RawStreamView({required this.body});
+
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(SoliplexSpacing.s3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+      ),
+      child: SelectableText(
+        body.isEmpty ? '(empty)' : body,
+        style: context.monospaceOn(theme.textTheme.bodySmall),
+      ),
+    );
+  }
+}
+
 class _TruncationBanner extends StatelessWidget {
+  const _TruncationBanner();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -269,13 +236,13 @@ class _RunEntryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _RoleBadge(
-                label: label, color: badgeColor, textColor: badgeTextColor),
+              label: label,
+              color: badgeColor,
+              textColor: badgeTextColor,
+            ),
             if (content.isNotEmpty) ...[
               const SizedBox(height: SoliplexSpacing.s2),
-              SelectableText(
-                content,
-                style: theme.textTheme.bodySmall,
-              ),
+              SelectableText(content, style: theme.textTheme.bodySmall),
             ],
           ],
         ),
@@ -440,54 +407,6 @@ class _EventTypeBadge extends StatelessWidget {
             .monospaceOn(theme.textTheme.labelSmall)
             .copyWith(color: colorScheme.onSurfaceVariant),
       ),
-    );
-  }
-}
-
-/// Renders [body] as a JSON tree if parseable, otherwise as plain text.
-class _JsonSection extends StatelessWidget {
-  const _JsonSection({required this.title, required this.body});
-
-  final String title;
-  final dynamic body;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    dynamic parsed;
-    String? plainText;
-
-    if (body is String) {
-      try {
-        parsed = jsonDecode(body as String);
-      } on FormatException {
-        plainText = body as String;
-      }
-    } else {
-      parsed = body;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: SoliplexSpacing.s2),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(SoliplexSpacing.s3),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(soliplexRadii.sm),
-          ),
-          child: plainText != null
-              ? SelectableText(
-                  plainText,
-                  style: context.monospaceOn(theme.textTheme.bodySmall),
-                )
-              : JsonTreeView(nodes: buildJsonTree(parsed)),
-        ),
-      ],
     );
   }
 }

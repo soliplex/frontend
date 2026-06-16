@@ -85,6 +85,39 @@ void main() {
       expect(find.text('GET'), findsOneWidget);
     });
 
+    testWidgets('tapping a row expands its detail sections inline',
+        (tester) async {
+      inspector.onRequest(
+        createRequestEvent(
+          requestId: 'req-1',
+          method: 'GET',
+          uri: Uri.parse('http://localhost/api/v1/rooms'),
+        ),
+      );
+      inspector.onResponse(createResponseEvent(requestId: 'req-1'));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home:
+              NetworkInspectorScreen(appName: 'Soliplex', inspector: inspector),
+        ),
+      );
+
+      // Collapsed: no detail sections yet.
+      expect(find.text('Summary'), findsNothing);
+
+      await tester.tap(find.text('GET'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Summary'), findsOneWidget);
+      expect(find.text('Request'), findsOneWidget);
+      expect(find.text('Response'), findsOneWidget);
+    });
+
     testWidgets('clear button is disabled when no events', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -178,6 +211,136 @@ void main() {
       // Panel hides itself when the list is empty.
       expect(find.byIcon(Icons.hourglass_empty), findsNothing);
       expect(inspector.concurrencyEvents, isEmpty);
+    });
+
+    // --- Filtering (the deferred toolbar, folded in) ---
+
+    void seedRoomsAndThreads() {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/threads')))
+        ..onResponse(createResponseEvent(requestId: 'req-2', statusCode: 200));
+    }
+
+    // Wide viewport → tabular tiles, which render the endpoint path as a
+    // discrete Text the filters can be asserted against.
+    Future<void> pumpWide(WidgetTester tester, {String? initialRunId}) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NetworkInspectorScreen(
+            appName: 'Soliplex',
+            inspector: inspector,
+            initialRunId: initialRunId,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('search narrows the list to matching paths', (tester) async {
+      seedRoomsAndThreads();
+      await pumpWide(tester);
+      expect(find.text('/api/v1/rooms'), findsOneWidget);
+      expect(find.text('/api/v1/threads'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'threads');
+      await tester.pump();
+
+      expect(find.text('/api/v1/threads'), findsOneWidget);
+      expect(find.text('/api/v1/rooms'), findsNothing);
+      expect(find.text('Requests (1 / 2)'), findsOneWidget);
+    });
+
+    testWidgets('the Errors status filter hides successful exchanges',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/threads')))
+        ..onResponse(createResponseEvent(requestId: 'req-2', statusCode: 500));
+      await pumpWide(tester);
+
+      await tester.tap(find.text('Errors'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('/api/v1/threads'), findsOneWidget); // 500 → error
+      expect(find.text('/api/v1/rooms'), findsNothing); // 200 → hidden
+    });
+
+    testWidgets('initialRunId scopes the list and shows a removable run chip',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/threads/t1/runs/run-xyz')))
+        ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-2', statusCode: 200));
+      await pumpWide(tester, initialRunId: 'run-xyz');
+
+      expect(find.text('Run · run-xyz'), findsOneWidget);
+      expect(find.text('/api/v1/threads/t1/runs/run-xyz'), findsOneWidget);
+      expect(find.text('/api/v1/rooms'), findsNothing);
+
+      // Removing the run filter restores the full list.
+      await tester.tap(find.byTooltip('Clear run filter'));
+      await tester.pumpAndSettle();
+      expect(find.text('/api/v1/rooms'), findsOneWidget);
+    });
+
+    testWidgets('shows the no-match state and clears filters', (tester) async {
+      seedRoomsAndThreads();
+      await pumpWide(tester);
+
+      await tester.enterText(find.byType(TextField), 'zzz-no-match');
+      await tester.pump();
+      expect(find.text('No requests match these filters'), findsOneWidget);
+
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      expect(find.text('/api/v1/rooms'), findsOneWidget);
+      expect(find.text('/api/v1/threads'), findsOneWidget);
+    });
+
+    testWidgets('the category filter narrows to LLM (AG-UI) traffic',
+        (tester) async {
+      inspector
+        ..onRequest(createRequestEvent(
+            requestId: 'req-1',
+            method: 'POST',
+            uri: Uri.parse('http://localhost/api/v1/rooms/r1/agui/t1/run-1')))
+        ..onResponse(createResponseEvent(requestId: 'req-1', statusCode: 200))
+        ..onRequest(createRequestEvent(
+            requestId: 'req-2',
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api/v1/rooms')))
+        ..onResponse(createResponseEvent(requestId: 'req-2', statusCode: 200));
+      await pumpWide(tester);
+
+      await tester.tap(find.text('LLM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('/api/v1/rooms/r1/agui/t1/run-1'), findsOneWidget);
+      expect(find.text('/api/v1/rooms'), findsNothing);
     });
   });
 }
