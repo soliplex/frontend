@@ -49,9 +49,23 @@ void main() {
       expect(account.name, 'ada');
     });
 
+    test('treats a whitespace-only preferred_username as absent', () {
+      final account = accountFromJson({
+        'preferred_username': '  ',
+        'email': 'ada@example.com',
+      });
+      expect(account.name, 'ada@example.com');
+    });
+
     test('reports a blank email as null', () {
       final account =
           accountFromJson({'preferred_username': 'ada', 'email': ''});
+      expect(account.email, isNull);
+    });
+
+    test('treats a whitespace-only email as null', () {
+      final account =
+          accountFromJson({'preferred_username': 'ada', 'email': '  '});
       expect(account.email, isNull);
     });
   });

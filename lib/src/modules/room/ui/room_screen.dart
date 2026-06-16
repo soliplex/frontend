@@ -78,8 +78,8 @@ String uploadChipLabel(int roomCount, int threadCount) {
 RoomAccount accountFromJson(Map<String, dynamic> json) {
   final given = json['given_name'] as String? ?? '';
   final family = json['family_name'] as String? ?? '';
-  final preferred = json['preferred_username'] as String? ?? '';
-  final email = json['email'] as String? ?? '';
+  final preferred = (json['preferred_username'] as String? ?? '').trim();
+  final email = (json['email'] as String? ?? '').trim();
   final full = '$given $family'.trim();
   final hasName = full.isNotEmpty || preferred.isNotEmpty;
   final name = [full, preferred, email]
