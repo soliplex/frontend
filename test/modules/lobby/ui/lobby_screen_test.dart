@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
+import 'package:soliplex_agent/soliplex_agent.dart' show Room, RoomStats;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -444,7 +444,7 @@ void main() {
     });
 
     testWidgets(
-        'sorting by recent activity reorders rooms by their newest thread',
+        'sorting by recent activity reorders rooms by their last message',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);
       tester.view.devicePixelRatio = 1.0;
@@ -456,19 +456,17 @@ void main() {
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
       );
-      // 'General' is listed first but has the older thread; 'Random' has the
+      // 'General' is listed first but has the older message; 'Random' has the
       // newer one, so recent-activity sorting must put 'Random' on top.
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [
           Room(id: 'r1', name: 'General'),
           Room(id: 'r2', name: 'Random'),
         ]
-        ..threadsByRoom['r1'] = [
-          ThreadInfo(id: 't1', roomId: 'r1', createdAt: DateTime.utc(2026, 1)),
-        ]
-        ..threadsByRoom['r2'] = [
-          ThreadInfo(id: 't2', roomId: 'r2', createdAt: DateTime.utc(2026, 6)),
-        ];
+        ..statsByRoom['r1'] =
+            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 1))
+        ..statsByRoom['r2'] =
+            RoomStats(roomId: 'r2', lastMessageAt: DateTime.utc(2026, 6));
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
@@ -510,16 +508,11 @@ void main() {
           Room(id: 'r1', name: 'Fresh'),
           Room(id: 'r2', name: 'Stale'),
         ]
-        ..threadsByRoom['r1'] = [
-          ThreadInfo(id: 't1', roomId: 'r1', createdAt: now),
-        ]
-        ..threadsByRoom['r2'] = [
-          ThreadInfo(
-            id: 't2',
-            roomId: 'r2',
-            createdAt: now.subtract(const Duration(days: 10)),
-          ),
-        ];
+        ..statsByRoom['r1'] = RoomStats(roomId: 'r1', lastMessageAt: now)
+        ..statsByRoom['r2'] = RoomStats(
+          roomId: 'r2',
+          lastMessageAt: now.subtract(const Duration(days: 10)),
+        );
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
@@ -551,7 +544,7 @@ void main() {
       );
       final older = DateTime.utc(2026, 1, 1);
       final newer = DateTime.utc(2026, 6, 1);
-      // Alpha and Charlie have no threads (undated); Bravo/Delta are dated.
+      // Alpha and Charlie have no activity (undated); Bravo/Delta are dated.
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [
           Room(id: 'r1', name: 'Alpha'),
@@ -559,14 +552,10 @@ void main() {
           Room(id: 'r3', name: 'Charlie'),
           Room(id: 'r4', name: 'Delta'),
         ]
-        ..threadsByRoom['r1'] = const []
-        ..threadsByRoom['r2'] = [
-          ThreadInfo(id: 't2', roomId: 'r2', createdAt: newer),
-        ]
-        ..threadsByRoom['r3'] = const []
-        ..threadsByRoom['r4'] = [
-          ThreadInfo(id: 't4', roomId: 'r4', createdAt: older),
-        ];
+        ..statsByRoom['r1'] = const RoomStats(roomId: 'r1')
+        ..statsByRoom['r2'] = RoomStats(roomId: 'r2', lastMessageAt: newer)
+        ..statsByRoom['r3'] = const RoomStats(roomId: 'r3')
+        ..statsByRoom['r4'] = RoomStats(roomId: 'r4', lastMessageAt: older);
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();

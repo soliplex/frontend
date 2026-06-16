@@ -8,6 +8,7 @@ import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
+import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
@@ -17,14 +18,17 @@ import 'package:soliplex_client/src/domain/workdir_file.dart';
 // Timestamp helpers
 // ============================================================
 
-/// Parses a UTC timestamp from the backend.
+final _hasTimezone = RegExp(r'(Z|[+-]\d{2}:\d{2})$');
+
+/// Parses an ISO 8601 timestamp from the backend into UTC.
 ///
-/// Backend sends ISO 8601 timestamps without 'Z' suffix. This normalizes
-/// the format and ensures UTC parsing.
+/// Accepts both timezone-aware values (a trailing `Z` or a `±HH:MM`
+/// offset) and naive values; a naive value is assumed UTC. The result
+/// is always normalized to UTC.
 ///
 /// Throws [FormatException] if [raw] is malformed.
 DateTime parseTimestamp(String raw) {
-  final normalized = raw.endsWith('Z') ? raw : '${raw}Z';
+  final normalized = _hasTimezone.hasMatch(raw) ? raw : '${raw}Z';
   return DateTime.parse(normalized).toUtc();
 }
 
@@ -439,6 +443,22 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
   return WorkdirFile(
     filename: filename,
     url: Uri.parse(_requireString(json, 'url', 'workdir file')),
+  );
+}
+
+// ============================================================
+// RoomStats mappers
+// ============================================================
+
+/// Creates a [RoomStats] from JSON.
+///
+/// `last_activity` is optional and tolerant of malformed timestamps
+/// (a bad value is treated as "no activity" rather than failing the
+/// whole lobby view).
+RoomStats roomStatsFromJson(String roomId, Map<String, dynamic> json) {
+  return RoomStats(
+    roomId: json['room_id'] as String? ?? roomId,
+    lastMessageAt: _tryParseTimestamp(json['last_activity'] as String?),
   );
 }
 

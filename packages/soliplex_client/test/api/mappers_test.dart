@@ -10,6 +10,34 @@ import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('parseTimestamp', () {
+    test('appends Z when no timezone is present', () {
+      expect(
+        parseTimestamp('2026-06-01T12:00:00'),
+        equals(DateTime.utc(2026, 6, 1, 12)),
+      );
+    });
+
+    test('accepts a trailing Z', () {
+      expect(
+        parseTimestamp('2026-06-01T12:00:00Z'),
+        equals(DateTime.utc(2026, 6, 1, 12)),
+      );
+    });
+
+    test('accepts an explicit +00:00 offset', () {
+      final parsed = parseTimestamp('2026-06-01T12:00:00+00:00');
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 12)));
+      expect(parsed.isUtc, isTrue);
+    });
+
+    test('normalizes a non-UTC offset to UTC', () {
+      final parsed = parseTimestamp('2026-06-01T12:00:00+02:00');
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 10)));
+      expect(parsed.isUtc, isTrue);
+    });
+  });
+
   group('BackendVersionInfo mappers', () {
     group('backendVersionInfoFromJson', () {
       test('parses correctly with all fields', () {
@@ -607,6 +635,51 @@ void main() {
       expect(restored.metadata, equals(original.metadata));
       expect(restored.createdAt, equals(original.createdAt));
       expect(restored.updatedAt, equals(original.updatedAt));
+    });
+  });
+
+  group('RoomStats mappers', () {
+    group('roomStatsFromJson', () {
+      test('parses room_id and last_activity', () {
+        final stats = roomStatsFromJson('fallback', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_activity': '2026-06-01T12:00:00+00:00',
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(
+          stats.lastMessageAt,
+          equals(DateTime.utc(2026, 6, 1, 12)),
+        );
+        expect(stats.lastMessageAt!.isUtc, isTrue);
+      });
+
+      test('null last_activity means no activity', () {
+        final stats = roomStatsFromJson('room-1', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_activity': null,
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(stats.lastMessageAt, isNull);
+      });
+
+      test('falls back to the passed roomId when room_id is absent', () {
+        final stats = roomStatsFromJson('fallback', <String, dynamic>{});
+
+        expect(stats.roomId, equals('fallback'));
+        expect(stats.lastMessageAt, isNull);
+      });
+
+      test('a malformed timestamp is tolerated as no activity', () {
+        final stats = roomStatsFromJson('room-1', <String, dynamic>{
+          'room_id': 'room-1',
+          'last_activity': 'not-a-date',
+        });
+
+        expect(stats.roomId, equals('room-1'));
+        expect(stats.lastMessageAt, isNull);
+      });
     });
   });
 

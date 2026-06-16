@@ -17,6 +17,7 @@ import 'package:soliplex_client/src/domain/message_state.dart';
 import 'package:soliplex_client/src/domain/quiz.dart';
 import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
+import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
@@ -288,6 +289,37 @@ class SoliplexApi {
     return threads
         .map((e) => threadInfoFromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Gets aggregate activity stats for a room.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  ///
+  /// Returns a [RoomStats] for the room, scoped to the requesting user's
+  /// own threads. Notably carries `lastMessageAt` — the time of the most
+  /// recent message turn, the authoritative "last activity" signal (a
+  /// thread's `createdAt` only marks when it was opened).
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [roomId] is empty
+  /// - [NotFoundException] if room not found (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<RoomStats> getRoomStats(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) async {
+    _requireNonEmpty(roomId, 'roomId');
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(pathSegments: ['stats', 'rooms', roomId]),
+      cancelToken: cancelToken,
+    );
+    return roomStatsFromJson(roomId, response);
   }
 
   /// Gets a thread by ID.

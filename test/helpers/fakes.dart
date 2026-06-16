@@ -217,6 +217,22 @@ class FakeSoliplexApi extends SoliplexApi {
   /// sweep in flight (e.g. to trigger a cancellation mid-fetch).
   Completer<void>? threadsGate;
   Exception? nextThreadsError;
+
+  /// Per-room [getRoomStats] results, consulted before [nextStats]. Lets a
+  /// test give rooms distinct last-activity timestamps (e.g. for activity
+  /// sorting).
+  final Map<String, RoomStats> statsByRoom = {};
+
+  /// Per-room [getRoomStats] errors, consulted before [statsByRoom]. Lets a
+  /// test fail one room's stats fetch while others succeed.
+  final Map<String, Exception> statsErrorByRoom = {};
+
+  /// When set, [getRoomStats] awaits this before returning, letting a test
+  /// hold an activity sweep in flight (e.g. to trigger a cancellation
+  /// mid-fetch).
+  Completer<void>? statsGate;
+  RoomStats? nextStats;
+  Exception? nextStatsError;
   ThreadHistory? nextThreadHistory;
   Exception? nextThreadHistoryError;
   (ThreadInfo, Map<String, dynamic>)? nextCreateThread;
@@ -264,6 +280,24 @@ class FakeSoliplexApi extends SoliplexApi {
     if (threadsByRoom.containsKey(roomId)) return threadsByRoom[roomId]!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');
+  }
+
+  @override
+  Future<RoomStats> getRoomStats(
+    String roomId, {
+    CancelToken? cancelToken,
+  }) async {
+    if (nextStatsError != null) throw nextStatsError!;
+    if (statsErrorByRoom.containsKey(roomId)) {
+      throw statsErrorByRoom[roomId]!;
+    }
+    if (statsGate != null) {
+      await statsGate!.future;
+    }
+    if (statsByRoom.containsKey(roomId)) return statsByRoom[roomId]!;
+    if (nextStats != null) return nextStats!;
+    throw StateError('FakeSoliplexApi: set statsByRoom, nextStats or '
+        'nextStatsError');
   }
 
   @override

@@ -18,8 +18,8 @@ ServerManager _createManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-ThreadInfo _thread(String id, DateTime createdAt) =>
-    ThreadInfo(id: id, roomId: 'room', createdAt: createdAt);
+RoomStats _stats(String roomId, DateTime? lastMessageAt) =>
+    RoomStats(roomId: roomId, lastMessageAt: lastMessageAt);
 
 /// Drains pending microtasks. Over-pumps rather than coupling to the exact
 /// number of async hops the state machine takes to settle.
@@ -80,7 +80,7 @@ void main() {
     });
 
     test(
-        'fetches each room\'s newest thread timestamp eagerly (so cards can '
+        'fetches each room\'s last-message timestamp eagerly (so cards can '
         'show it), even with sorting at none', () async {
       final manager = _createManager();
       manager.addServer(
@@ -97,18 +97,17 @@ void main() {
           Room(id: 'r2', name: 'Random'),
           Room(id: 'r3', name: 'Empty'),
         ]
-        ..threadsByRoom['r1'] = [_thread('t1', older)]
-        // Newest of several should win.
-        ..threadsByRoom['r2'] = [_thread('t2', older), _thread('t3', newer)]
-        // No threads → null timestamp.
-        ..threadsByRoom['r3'] = const [];
+        ..statsByRoom['r1'] = _stats('r1', older)
+        ..statsByRoom['r2'] = _stats('r2', newer)
+        // No activity → null timestamp.
+        ..statsByRoom['r3'] = _stats('r3', null);
 
       // Sorting stays at the default (none); activity is still fetched.
       final state = LobbyState(
         serverManager: manager,
         apiResolver: (_) => fakeApi,
       );
-      // Two turns: one for getRooms, one for the getThreads sweep it triggers.
+      // Two turns: one for getRooms, one for the getRoomStats sweep it triggers.
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
@@ -137,8 +136,8 @@ void main() {
       final gate = Completer<void>();
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..threadsByRoom['r1'] = [_thread('t1', DateTime.utc(2026))]
-        ..threadsGate = gate;
+        ..statsByRoom['r1'] = _stats('r1', DateTime.utc(2026))
+        ..statsGate = gate;
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
@@ -180,10 +179,10 @@ void main() {
       final fresh = DateTime.utc(2026, 6, 1);
       final apiA = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'ra', name: 'A-Room')]
-        ..threadsByRoom['ra'] = [_thread('t', stale)];
+        ..statsByRoom['ra'] = _stats('ra', stale);
       final apiB = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'rb', name: 'B-Room')]
-        ..threadsByRoom['rb'] = [_thread('t', other)];
+        ..statsByRoom['rb'] = _stats('rb', other);
 
       final state = LobbyState(
         serverManager: manager,
@@ -199,8 +198,8 @@ void main() {
       expect(state.roomActivity.value[(serverId: 'a', roomId: 'ra')], stale);
       expect(state.roomActivity.value[(serverId: 'b', roomId: 'rb')], other);
 
-      // Change 'a's newest thread and refetch only 'a'.
-      apiA.threadsByRoom['ra'] = [_thread('t2', fresh)];
+      // Change 'a's last-message time and refetch only 'a'.
+      apiA.statsByRoom['ra'] = _stats('ra', fresh);
       state.refresh('a');
       await _settle();
 
@@ -211,7 +210,7 @@ void main() {
       state.dispose();
     });
 
-    test('a room whose thread fetch fails records a null timestamp', () async {
+    test('a room whose stats fetch fails records a null timestamp', () async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'local',
@@ -224,8 +223,8 @@ void main() {
           Room(id: 'ok', name: 'Ok'),
           Room(id: 'bad', name: 'Bad'),
         ]
-        ..threadsByRoom['ok'] = [_thread('t', ok)]
-        ..threadsErrorByRoom['bad'] = Exception('thread fetch boom');
+        ..statsByRoom['ok'] = _stats('ok', ok)
+        ..statsErrorByRoom['bad'] = Exception('stats fetch boom');
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
@@ -234,7 +233,7 @@ void main() {
       final activity = state.roomActivity.value;
       expect(activity[(serverId: 'local', roomId: 'ok')], ok);
       expect(activity[(serverId: 'local', roomId: 'bad')], isNull,
-          reason: 'a failed thread fetch maps to a null timestamp');
+          reason: 'a failed stats fetch maps to a null timestamp');
       expect(activity.containsKey((serverId: 'local', roomId: 'bad')), isTrue,
           reason: 'the failed room is recorded as fetched, so it is not '
               're-swept');
@@ -262,7 +261,7 @@ void main() {
       );
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..threadsErrorByRoom['r1'] = const AuthException(message: 'expired');
+        ..statsErrorByRoom['r1'] = const AuthException(message: 'expired');
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
@@ -290,11 +289,11 @@ void main() {
       final gateA = Completer<void>();
       final apiA = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'ra', name: 'A-Room')]
-        ..threadsByRoom['ra'] = [_thread('ta', DateTime.utc(2026, 1))]
-        ..threadsGate = gateA;
+        ..statsByRoom['ra'] = _stats('ra', DateTime.utc(2026, 1))
+        ..statsGate = gateA;
       final apiB = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'rb', name: 'B-Room')]
-        ..threadsByRoom['rb'] = [_thread('tb', DateTime.utc(2026, 6))];
+        ..statsByRoom['rb'] = _stats('rb', DateTime.utc(2026, 6));
 
       final state = LobbyState(
         serverManager: manager,
