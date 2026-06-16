@@ -454,8 +454,8 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
         Align(
           alignment: Alignment.centerLeft,
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: SoliplexSpacing.s2,
+            runSpacing: SoliplexSpacing.s2,
             children: [
               SoliplexButton.filled(
                 onPressed: () => _pickAndUpload(pickFiles),
@@ -530,7 +530,7 @@ class _UploadEntryRow extends StatelessWidget {
     final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
-          theme.colorScheme.primary,
+          theme.colorScheme.success,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),

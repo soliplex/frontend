@@ -68,7 +68,8 @@ class _DocumentsCardState extends State<DocumentsCard> {
                 Expanded(
                   child: Text(
                     'Failed to load documents',
-                    style: TextStyle(color: theme.colorScheme.error),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: theme.colorScheme.error),
                   ),
                 ),
                 SoliplexButton.filled(
