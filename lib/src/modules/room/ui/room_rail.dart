@@ -5,6 +5,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
+import '../../lobby/ui/unread_dot.dart';
 
 /// A signed-in identity for the rail's account menu: a display [name] and an
 /// optional [email]. Resolved by the room screen from `/api/user_info`.
@@ -30,10 +31,17 @@ class RoomRail extends StatelessWidget {
     required this.onVersions,
     this.roomsError,
     this.onRetryRooms,
+    this.unreadRoomIds = const {},
   });
 
   /// The server's rooms, or `null` while loading.
   final List<Room>? rooms;
+
+  /// Ids of rooms with activity newer than the user last saw — each gets an
+  /// [UnreadDot]. Shares the lobby's per-device read model, so a room read in
+  /// the lobby reads here too (and vice versa). Empty when stats are
+  /// unavailable (e.g. a pre-stats backend), which simply shows no dots.
+  final Set<String> unreadRoomIds;
 
   /// Non-null when the room list failed to load.
   final Object? roomsError;
@@ -101,6 +109,7 @@ class RoomRail extends StatelessWidget {
         return _RoomAvatarTile(
           room: room,
           selected: room.id == selectedRoomId,
+          unread: unreadRoomIds.contains(room.id),
           onTap: () => onSelectRoom(room.id),
         );
       },
@@ -114,11 +123,13 @@ class _RoomAvatarTile extends StatelessWidget {
   const _RoomAvatarTile({
     required this.room,
     required this.selected,
+    required this.unread,
     required this.onTap,
   });
 
   final Room room;
   final bool selected;
+  final bool unread;
   final VoidCallback onTap;
 
   static const double _avatar = 44;
@@ -153,24 +164,36 @@ class _RoomAvatarTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              Material(
-                color: bg,
-                // A selected avatar squares off (larger radius) so the shape
-                // shift reinforces the leading bar.
-                borderRadius: BorderRadius.circular(
-                    selected ? soliplexRadii.md : _avatar / 2),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onTap,
-                  child: SizedBox.square(
-                    dimension: _avatar,
-                    child: Center(
-                      child: Text(
-                        _initial(room.name),
-                        style: theme.textTheme.titleMedium?.copyWith(color: fg),
+              // Fixed-size box so the unread badge anchors to the avatar's
+              // corner rather than the wider rail column.
+              SizedBox.square(
+                dimension: _avatar,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: Material(
+                        color: bg,
+                        // A selected avatar squares off (larger radius) so the
+                        // shape shift reinforces the leading bar.
+                        borderRadius: BorderRadius.circular(
+                            selected ? soliplexRadii.md : _avatar / 2),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: onTap,
+                          child: Center(
+                            child: Text(
+                              _initial(room.name),
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(color: fg),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    if (unread)
+                      const Positioned(top: 0, right: 0, child: _UnreadBadge()),
+                  ],
                 ),
               ),
             ],
@@ -184,6 +207,27 @@ class _RoomAvatarTile extends StatelessWidget {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return '?';
     return trimmed.characters.first.toUpperCase();
+  }
+}
+
+/// The shared [UnreadDot] ringed by a surface-colored circle so the marker
+/// stays legible where it overlaps the colored avatar at its corner. The
+/// 12px ring around the 8px dot yields an even 2px border on the scale.
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: SoliplexSpacing.s3,
+      height: SoliplexSpacing.s3,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        shape: BoxShape.circle,
+      ),
+      child: const UnreadDot(),
+    );
   }
 }
 

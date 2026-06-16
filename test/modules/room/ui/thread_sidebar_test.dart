@@ -59,6 +59,42 @@ void main() {
     expect(find.text('Second thread'), findsOneWidget);
   });
 
+  testWidgets('marks listed threads in unreadThreadIds with a dot',
+      (tester) async {
+    final threads = [
+      ThreadInfo(
+        id: 't-1',
+        roomId: 'room-1',
+        name: 'First thread',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+      ThreadInfo(
+        id: 't-2',
+        roomId: 'room-1',
+        name: 'Second thread',
+        createdAt: DateTime(2026, 3, 2),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoaded(threads),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          runningThreadIds: _emptyRunning,
+          unreadThreadIds: const {'t-2'},
+          onRetryThreads: () async {},
+        ),
+      ),
+    ));
+
+    // Exactly one of the two threads is unread.
+    expect(find.byTooltip('Unread activity'), findsOneWidget);
+  });
+
   testWidgets('calls onThreadSelected on tap', (tester) async {
     String? selectedId;
     final threads = [

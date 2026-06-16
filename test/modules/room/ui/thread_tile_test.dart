@@ -35,6 +35,27 @@ void main() {
     expect(find.text('New Thread'), findsOneWidget);
   });
 
+  testWidgets('shows an unread dot only when unread', (tester) async {
+    Widget tile({required bool unread}) => MaterialApp(
+          home: Scaffold(
+            body: ThreadTile(
+              thread: thread,
+              isSelected: false,
+              unread: unread,
+              onTap: () {},
+              onRename: () {},
+              onDelete: () {},
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(tile(unread: false));
+    expect(find.byTooltip('Unread activity'), findsNothing);
+
+    await tester.pumpWidget(tile(unread: true));
+    expect(find.byTooltip('Unread activity'), findsOneWidget);
+  });
+
   testWidgets('overflow menu shows Rename and Delete options', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(

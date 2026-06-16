@@ -699,6 +699,7 @@ void main() {
           'name': 'Test Thread',
           'description': 'A test thread',
           'created': '2025-01-01T00:00:00.000',
+          'last_activity': '2025-01-02T03:04:00.000',
           'metadata': {'key': 'value'},
         };
 
@@ -710,7 +711,23 @@ void main() {
         expect(thread.name, equals('Test Thread'));
         expect(thread.description, equals('A test thread'));
         expect(thread.createdAt, equals(DateTime.utc(2025)));
+        expect(thread.lastActivity, equals(DateTime.utc(2025, 1, 2, 3, 4)));
         expect(thread.metadata, equals({'key': 'value'}));
+      });
+
+      test('last_activity is null when absent, malformed, or null', () {
+        ThreadInfo parse(Object? value) => threadInfoFromJson({
+              'id': 'thread-1',
+              'room_id': 'room-1',
+              'created': '2025-01-15T10:30:00.000',
+              if (value != #absent) 'last_activity': value,
+            });
+
+        expect(parse(#absent).lastActivity, isNull);
+        expect(parse(null).lastActivity, isNull);
+        expect(parse('not-a-date').lastActivity, isNull);
+        // A present, valid value is UTC-normalized.
+        expect(parse('2026-06-01T12:00:00+02:00').lastActivity!.isUtc, isTrue);
       });
 
       test('parses correctly with only required fields', () {
@@ -853,6 +870,7 @@ void main() {
           description: 'A test thread',
           createdAt: createdAt,
           metadata: const {'key': 'value'},
+          lastActivity: DateTime.utc(2025, 1, 2, 3, 4),
         );
 
         final json = threadInfoToJson(thread);
@@ -863,6 +881,7 @@ void main() {
         expect(json['name'], equals('Test Thread'));
         expect(json['description'], equals('A test thread'));
         expect(json['created'], equals('2025-01-01T00:00:00.000'));
+        expect(json['last_activity'], equals('2025-01-02T03:04:00.000'));
         expect(json['metadata'], equals({'key': 'value'}));
       });
 
@@ -881,6 +900,7 @@ void main() {
         expect(json.containsKey('initial_run_id'), isFalse);
         expect(json.containsKey('name'), isFalse);
         expect(json.containsKey('description'), isFalse);
+        expect(json.containsKey('last_activity'), isFalse);
         expect(json.containsKey('metadata'), isFalse);
       });
     });
@@ -895,6 +915,7 @@ void main() {
         description: 'A test thread',
         createdAt: createdAt,
         metadata: const {'key': 'value'},
+        lastActivity: DateTime.utc(2025, 2, 3, 4, 5),
       );
 
       final json = threadInfoToJson(original);
@@ -906,6 +927,7 @@ void main() {
       expect(restored.name, equals(original.name));
       expect(restored.description, equals(original.description));
       expect(restored.createdAt, equals(original.createdAt));
+      expect(restored.lastActivity, equals(original.lastActivity));
       expect(restored.metadata, equals(original.metadata));
     });
   });

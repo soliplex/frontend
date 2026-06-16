@@ -21,6 +21,9 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
+import '../../lobby/lobby_read_markers.dart';
+import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
+import '../thread_read_markers.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
@@ -104,6 +107,25 @@ class _RoomScreenState extends State<RoomScreen> {
   List<Room>? _serverRooms;
   Object? _serverRoomsError;
   CancelToken? _roomsCancelToken;
+
+  /// Last-activity per room id for the current server (from the room stats
+  /// batch). Absent/empty when stats are unavailable — which simply shows no
+  /// unread dots (graceful on a pre-stats backend). Drives [_unreadRoomIds]
+  /// together with [_readMarkers].
+  Map<String, DateTime?> _roomActivity = const {};
+  CancelToken? _activityCancelToken;
+
+  /// Per-`(serverId, roomId)` "last seen" markers, shared with the lobby's
+  /// device-local read model (same storage). A room is unread when its
+  /// last-activity is newer than its marker; opening a room here stamps "now",
+  /// clearing its dot here and in the lobby.
+  Map<RoomActivityKey, DateTime> _readMarkers = const {};
+
+  /// Per-`(serverId, roomId, threadId)` "last seen" markers for threads,
+  /// device-local. A thread is unread when its [ThreadInfo.lastActivity] is
+  /// newer than its marker; opening a thread stamps "now". Distinct store from
+  /// the room markers (different granularity), but the same pattern.
+  Map<ThreadActivityKey, DateTime> _threadReadMarkers = const {};
 
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
@@ -199,6 +221,159 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// Fetches last-activity for the current server's rooms in one batch so the
+  /// rail can mark rooms with unseen activity as unread. Mirrors the lobby's
+  /// fetch. Degrades to no dots on any failure (e.g. a pre-stats backend 404).
+  void _fetchRoomActivity() {
+    _activityCancelToken?.cancel('refresh');
+    final token = CancelToken();
+    _activityCancelToken = token;
+    widget.serverEntry.connection.api
+        .getRoomsStats(cancelToken: token)
+        .then((stats) {
+      if (!mounted || token != _activityCancelToken) return;
+      setState(() {
+        _roomActivity = {
+          for (final entry in stats.entries)
+            entry.key: entry.value.lastActivity,
+        };
+      });
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!mounted || token != _activityCancelToken) return;
+      dev.log(
+        'Failed to load room activity; unread dots disabled',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 900,
+      );
+      setState(() => _roomActivity = const {});
+    });
+  }
+
+  /// Loads the shared read markers from disk, merging under any already set
+  /// in-memory (an early [_markRoomRead] on mount) so a just-opened room isn't
+  /// clobbered back to unread by the slower disk read.
+  Future<void> _loadReadMarkers() async {
+    try {
+      final loaded = await LobbyReadMarkerStorage.load();
+      if (!mounted) return;
+      setState(() => _readMarkers = {...loaded, ..._readMarkers});
+    } catch (error, stackTrace) {
+      dev.log(
+        'Failed to load room read markers',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 900,
+      );
+    }
+  }
+
+  /// Marks [roomId] on the current server as read as of now, clearing its
+  /// unread dot until later activity arrives. Persisted to the shared store so
+  /// the lobby agrees. Uses "now" (not the cached activity time) so an open
+  /// room is read immediately, even if the activity batch is stale or pending.
+  void _markRoomRead(String roomId) {
+    final key = (serverId: widget.serverEntry.serverId, roomId: roomId);
+    setState(() {
+      _readMarkers = {..._readMarkers, key: DateTime.now().toUtc()};
+    });
+    unawaited(
+      LobbyReadMarkerStorage.save(_readMarkers)
+          .catchError((Object error, StackTrace stackTrace) {
+        dev.log(
+          'Failed to persist room read markers',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'RoomScreen',
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  /// Ids of the current server's rooms with activity newer than the user last
+  /// saw. Empty when activity is unavailable.
+  Set<String> get _unreadRoomIds {
+    final serverId = widget.serverEntry.serverId;
+    return {
+      for (final entry in _roomActivity.entries)
+        if (isActivityUnread(
+            entry.value, _readMarkers[(serverId: serverId, roomId: entry.key)]))
+          entry.key,
+    };
+  }
+
+  /// Loads the thread read markers from disk, merging under any already set
+  /// in-memory (an early [_markThreadRead] on mount).
+  Future<void> _loadThreadReadMarkers() async {
+    try {
+      final loaded = await ThreadReadMarkerStorage.load();
+      if (!mounted) return;
+      setState(() => _threadReadMarkers = {...loaded, ..._threadReadMarkers});
+    } catch (error, stackTrace) {
+      dev.log(
+        'Failed to load thread read markers',
+        error: error,
+        stackTrace: stackTrace,
+        name: 'RoomScreen',
+        level: 900,
+      );
+    }
+  }
+
+  /// Marks [threadId] on the current room as read as of now, clearing its
+  /// unread dot. No-op when [threadId] is null (no thread open yet).
+  void _markThreadRead(String? threadId) {
+    if (threadId == null) return;
+    final key = (
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      threadId: threadId,
+    );
+    setState(() {
+      _threadReadMarkers = {..._threadReadMarkers, key: DateTime.now().toUtc()};
+    });
+    unawaited(
+      ThreadReadMarkerStorage.save(_threadReadMarkers)
+          .catchError((Object error, StackTrace stackTrace) {
+        dev.log(
+          'Failed to persist thread read markers',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'RoomScreen',
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  /// Ids of the room's threads with activity newer than the user last saw.
+  /// The selected thread is excluded — you're looking at it, so it reads as
+  /// read even if its activity advances while open.
+  Set<String> _unreadThreadIds(
+    ThreadListStatus status,
+    String? selectedThreadId,
+  ) {
+    if (status is! ThreadsLoaded) return const {};
+    final serverId = widget.serverEntry.serverId;
+    final roomId = widget.roomId;
+    return {
+      for (final thread in status.threads)
+        if (thread.id != selectedThreadId &&
+            isActivityUnread(
+              thread.lastActivity,
+              _threadReadMarkers[(
+                serverId: serverId,
+                roomId: roomId,
+                threadId: thread.id,
+              )],
+            ))
+          thread.id,
+    };
+  }
+
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
   /// No-op (and clears the cached account) when the server is unauthenticated;
   /// a failure leaves the generic "Signed in" label in place.
@@ -279,6 +454,13 @@ class _RoomScreenState extends State<RoomScreen> {
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
     _fetchServerRooms();
+    _fetchRoomActivity();
+    unawaited(_loadReadMarkers());
+    unawaited(_loadThreadReadMarkers());
+    // Viewing a room/thread reads it: stamp now so the dot clears here and in
+    // the lobby (the marker merges with any persisted markers as they load).
+    _markRoomRead(widget.roomId);
+    _markThreadRead(widget.threadId);
     _fetchAccount();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
@@ -336,6 +518,9 @@ class _RoomScreenState extends State<RoomScreen> {
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
       _fetchServerRooms();
+      _fetchRoomActivity();
+      _markRoomRead(widget.roomId);
+      _markThreadRead(widget.threadId);
       _fetchAccount();
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
@@ -347,6 +532,7 @@ class _RoomScreenState extends State<RoomScreen> {
         _cancelAutoSelect();
         _chatController.clear();
         _workdirs.clearCache();
+        _markThreadRead(widget.threadId);
         if (_filterEnabled && oldWidget.threadId == null) {
           _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
         }
@@ -413,6 +599,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _cancelAutoSelect();
     _filterDocsCancelToken?.cancel('disposed');
     _roomsCancelToken?.cancel('disposed');
+    _activityCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
     _chatController.dispose();
@@ -577,6 +764,8 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget build(BuildContext context) {
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
+    final unreadThreadIds =
+        _unreadThreadIds(threadListStatus, selectedThreadId);
     final roomStatus = _state.room.watch(context);
     final room = roomStatus is RoomLoaded ? roomStatus.room : null;
     final roomName = room?.name ?? widget.roomId;
@@ -599,6 +788,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onRenameThread: _showRenameDialog,
             onDeleteThread: _showDeleteDialog,
             runningThreadIds: _state.runningThreadIds,
+            unreadThreadIds: unreadThreadIds,
           );
           final content = _buildContent(room);
 
@@ -654,6 +844,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             _state.createThread();
                           },
                           runningThreadIds: _state.runningThreadIds,
+                          unreadThreadIds: unreadThreadIds,
                           onRetryThreads: () => _state.threadList.refresh(),
                           onReauthenticate: _onReauthenticate,
                           quizzes: room?.quizzes ?? const {},
@@ -687,6 +878,7 @@ class _RoomScreenState extends State<RoomScreen> {
       rooms: _serverRooms,
       roomsError: _serverRoomsError,
       onRetryRooms: () => setState(_fetchServerRooms),
+      unreadRoomIds: _unreadRoomIds,
       selectedRoomId: widget.roomId,
       onSelectRoom: (roomId) {
         onNavigate?.call();

@@ -33,6 +33,7 @@ void main() {
         description: 'A test thread',
         createdAt: createdAt,
         metadata: const {'key': 'value'},
+        lastActivity: DateTime.utc(2025, 2),
       );
 
       expect(thread.id, equals('thread-1'));
@@ -41,6 +42,7 @@ void main() {
       expect(thread.name, equals('Test Thread'));
       expect(thread.description, equals('A test thread'));
       expect(thread.createdAt, equals(createdAt));
+      expect(thread.lastActivity, equals(DateTime.utc(2025, 2)));
       expect(thread.metadata, equals({'key': 'value'}));
       expect(thread.hasInitialRun, isTrue);
       expect(thread.hasName, isTrue);
@@ -69,6 +71,7 @@ void main() {
           createdAt: DateTime(2025),
         );
         final newCreated = DateTime(2025, 6);
+        final newActivity = DateTime.utc(2025, 7);
         final modified = thread.copyWith(
           id: 'thread-2',
           roomId: 'room-2',
@@ -77,6 +80,7 @@ void main() {
           description: 'New description',
           createdAt: newCreated,
           metadata: {'new': 'data'},
+          lastActivity: newActivity,
         );
 
         expect(modified.id, equals('thread-2'));
@@ -85,6 +89,7 @@ void main() {
         expect(modified.name, equals('New Name'));
         expect(modified.description, equals('New description'));
         expect(modified.createdAt, equals(newCreated));
+        expect(modified.lastActivity, equals(newActivity));
         expect(modified.metadata, equals({'new': 'data'}));
       });
 
