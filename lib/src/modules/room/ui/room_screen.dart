@@ -83,7 +83,7 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   final full = '$given $family'.trim();
   final hasName = full.isNotEmpty || preferred.isNotEmpty;
   final name = [full, preferred, email]
-      .firstWhere((s) => s.isNotEmpty, orElse: () => 'Signed in');
+      .firstWhere((s) => s.isNotEmpty, orElse: () => signedInLabel);
   // Omit the email line when the email is doubling as the name, so the header
   // doesn't render the same string twice.
   return (name: name, email: hasName && email.isNotEmpty ? email : null);
@@ -409,11 +409,11 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
   /// No-op (and clears the cached account) when the server is unauthenticated;
   /// a failure leaves the generic "Signed in" label in place.
-  ///
-  /// The fetch + parse here duplicate the lobby's `_fetchUserProfile` /
-  /// `UserProfile.fromJson` against the same `/api/user_info` endpoint. They
-  /// should collapse into one shared `fetchUserInfo(ServerEntry)` helper; the
-  /// room can't reuse the lobby's cache because `LobbyState` is screen-scoped.
+  //
+  // TODO: The fetch + parse here duplicate the lobby's `_fetchUserProfile` /
+  // `UserProfile.fromJson` against the same `/api/user_info` endpoint. Collapse
+  // them into one shared `fetchUserInfo(ServerEntry)` helper. The room can't
+  // reuse the lobby's cache because `LobbyState` is screen-scoped.
   void _fetchAccount() {
     final entry = widget.serverEntry;
     // Direct assignments here (not setState): this may run from initState
@@ -438,10 +438,13 @@ class _RoomScreenState extends State<RoomScreen> {
       }
       if (!mounted || generation != _accountFetchGeneration) return;
       if (response.statusCode != 200) {
+        // A 403 is the expected steady state for a permission-restricted
+        // profile endpoint, so log it below the warning channel reserved for
+        // genuine 5xx / decode failures — debuggable without crying wolf.
         dev.log(
           'Account profile fetch returned ${response.statusCode}',
           name: 'RoomScreen',
-          level: 900,
+          level: response.statusCode == 403 ? 500 : 900,
         );
         return;
       }

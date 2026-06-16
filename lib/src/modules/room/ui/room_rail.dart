@@ -11,6 +11,11 @@ import '../../lobby/ui/unread_dot.dart';
 /// optional [email]. Resolved by the room screen from `/api/user_info`.
 typedef RoomAccount = ({String name, String? email});
 
+/// Fallback display name for an authenticated user whose profile carries no
+/// usable label. Shared so the room screen's parse and the rail's resolution
+/// agree on the same string.
+const String signedInLabel = 'Signed in';
+
 /// The compact, always-visible rail of rooms for the current server.
 ///
 /// Discord-style: each room is a small initial avatar tinted by a hash of its
@@ -274,7 +279,7 @@ class _RailAccountMenu extends StatelessWidget {
     final isAuthenticated =
         entry.requiresAuth && entry.auth.session.value is ActiveSession;
     if (!isAuthenticated) return (name: 'Guest', email: null);
-    return account ?? (name: 'Signed in', email: null);
+    return account ?? (name: signedInLabel, email: null);
   }
 }
 
