@@ -82,13 +82,8 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   final email = json['email'] as String? ?? '';
   final full = '$given $family'.trim();
   final hasName = full.isNotEmpty || preferred.isNotEmpty;
-  final name = full.isNotEmpty
-      ? full
-      : preferred.isNotEmpty
-          ? preferred
-          : email.isNotEmpty
-              ? email
-              : 'Signed in';
+  final name = [full, preferred, email]
+      .firstWhere((s) => s.isNotEmpty, orElse: () => 'Signed in');
   // Omit the email line when the email is doubling as the name, so the header
   // doesn't render the same string twice.
   return (name: name, email: hasName && email.isNotEmpty ? email : null);
@@ -227,6 +222,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Fetches the current server's room list for the rail. Cancels any
   /// in-flight fetch so a server switch can't apply a stale result.
   void _fetchServerRooms() {
+    final entry = widget.serverEntry;
     _roomsCancelToken?.cancel('refresh');
     final token = CancelToken();
     _roomsCancelToken = token;
@@ -234,12 +230,17 @@ class _RoomScreenState extends State<RoomScreen> {
     // the async callbacks below trigger the rebuild once a result lands.
     _serverRooms = null;
     _serverRoomsError = null;
-    widget.serverEntry.connection.api
-        .getRooms(cancelToken: token)
-        .then((rooms) {
+    entry.connection.api.getRooms(cancelToken: token).then((rooms) {
       if (!mounted || token != _roomsCancelToken) return;
       setState(() => _serverRooms = rooms);
     }).catchError((Object error, StackTrace stackTrace) {
+      if (error is AuthException) {
+        // The captured entry's session has expired; funnel it so the route
+        // guard redirects to login even if we have since switched servers.
+        // Leaving the loading state means no error banner flashes first.
+        entry.auth.markSessionExpired();
+        return;
+      }
       if (!mounted || token != _roomsCancelToken) return;
       dev.log(
         'Failed to load server rooms',

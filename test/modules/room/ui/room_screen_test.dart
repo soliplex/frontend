@@ -818,6 +818,30 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.getRoomsCallCount, 1);
     });
+
+    testWidgets('are refetched when the server changes', (tester) async {
+      Widget roomScreenFor(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await tester.pumpWidget(roomScreenFor(
+          createTestServerEntry(api: api, serverId: 'http://server-a:8000')));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+
+      await tester.pumpWidget(roomScreenFor(
+          createTestServerEntry(api: api, serverId: 'http://server-b:8000')));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 2);
+    });
   });
 
   testWidgets('the room-info button navigates to the room info route',

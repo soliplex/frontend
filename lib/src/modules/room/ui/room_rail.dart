@@ -86,11 +86,13 @@ class RoomRail extends StatelessWidget {
   Widget _buildList(BuildContext context) {
     final rooms = this.rooms;
     if (roomsError != null) {
-      return _RailMessage(
-        icon: Icons.error_outline,
-        tooltip: 'Failed to load rooms',
-        onTap: onRetryRooms,
-        color: Theme.of(context).colorScheme.error,
+      return Center(
+        child: IconButton(
+          icon: Icon(Icons.error_outline,
+              color: Theme.of(context).colorScheme.error),
+          tooltip: 'Failed to load rooms',
+          onPressed: onRetryRooms,
+        ),
       );
     }
     if (rooms == null) {
@@ -229,36 +231,6 @@ class _UnreadBadge extends StatelessWidget {
   }
 }
 
-/// A centered status glyph for the rail body (loading-failed / retry).
-class _RailMessage extends StatelessWidget {
-  const _RailMessage({
-    required this.icon,
-    required this.tooltip,
-    required this.color,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: IconButton(
-        icon: Icon(icon, color: color),
-        tooltip: tooltip,
-        onPressed: onTap,
-      ),
-    );
-  }
-}
-
-/// The actions folded behind the rail's footer ⋮ menu. Account identity is a
-/// non-interactive header above these.
-enum _RailMenuAction { networkInspector, versions }
-
 /// The rail footer: a single ⋮ that opens the account identity (as a header)
 /// plus the developer utilities. The identity folds inside the menu since the
 /// rail is too narrow for a block beside the button.
@@ -275,39 +247,29 @@ class _RailAccountMenu extends StatelessWidget {
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
 
-  void _onSelected(_RailMenuAction action) {
-    switch (action) {
-      case _RailMenuAction.networkInspector:
-        onNetworkInspector();
-      case _RailMenuAction.versions:
-        onVersions();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Session is a per-entry signal; Watch refreshes the identity label on
     // sign-in / expiry without a parent rebuild.
     return Watch((context) {
       final identity = _resolveIdentity();
-      return PopupMenuButton<_RailMenuAction>(
+      return PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),
         tooltip: 'Account & more',
-        onSelected: _onSelected,
         itemBuilder: (context) => [
-          PopupMenuItem<_RailMenuAction>(
+          PopupMenuItem(
             enabled: false,
             child: _AccountHeader(name: identity.name, email: identity.email),
           ),
           const PopupMenuDivider(),
-          const PopupMenuItem(
-            value: _RailMenuAction.networkInspector,
-            child:
-                _MenuRow(icon: Icons.lan_outlined, label: 'Network Inspector'),
+          PopupMenuItem(
+            onTap: onNetworkInspector,
+            child: const _MenuRow(
+                icon: Icons.lan_outlined, label: 'Network Inspector'),
           ),
-          const PopupMenuItem(
-            value: _RailMenuAction.versions,
-            child: _MenuRow(icon: Icons.info_outline, label: 'Versions'),
+          PopupMenuItem(
+            onTap: onVersions,
+            child: const _MenuRow(icon: Icons.info_outline, label: 'Versions'),
           ),
         ],
       );
