@@ -83,6 +83,11 @@ Widget _buildRouted({
               documentSelections: DocumentSelections(),
             ),
           ),
+          GoRoute(
+            path: 'info',
+            builder: (ctx, state) =>
+                const Scaffold(body: Text('room info page')),
+          ),
         ],
       ),
     ],
@@ -713,11 +718,125 @@ void main() {
       expect(find.text('ada@example.com'), findsOneWidget);
     });
 
-    testWidgets('falls back to "Signed in" when the profile fetch fails',
+    testWidgets('falls back to "Signed in" when the profile fetch errors',
         (tester) async {
-      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 401));
+      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 500));
 
       expect(find.text('Signed in'), findsOneWidget);
     });
+
+    testWidgets('marks the session expired (Guest) on a 401', (tester) async {
+      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 401));
+
+      expect(find.text('Guest'), findsOneWidget);
+    });
+
+    testWidgets(
+        'a slow identity fetch from the previous server cannot overwrite '
+        'the current server identity', (tester) async {
+      HttpResponse profileResponse(Map<String, dynamic> profile) =>
+          HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode(profile))),
+          );
+
+      final heldA = Completer<HttpResponse>();
+      final entryA = createTestServerEntry(
+        api: api,
+        serverId: 'http://server-a:8000',
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: FakeHttpClient()..onRequest = (_, __) => heldA.future,
+      );
+      final entryB = createTestServerEntry(
+        api: api,
+        serverId: 'http://server-b:8000',
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async =>
+              profileResponse({'given_name': 'Bob', 'family_name': 'Beta'}),
+      );
+
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      Widget roomScreen(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      // Server A's identity fetch is in flight, held open.
+      await tester.pumpWidget(roomScreen(entryA));
+      await tester.pumpAndSettle();
+
+      // Switch to server B, whose identity resolves immediately.
+      await tester.pumpWidget(roomScreen(entryB));
+      await tester.pumpAndSettle();
+
+      // Server A's now-stale fetch resolves; it must not overwrite B's
+      // identity.
+      heldA.complete(
+          profileResponse({'given_name': 'Alice', 'family_name': 'Alpha'}));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Account & more'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bob Beta'), findsOneWidget);
+      expect(find.text('Alice Alpha'), findsNothing);
+    });
+  });
+
+  group('rail rooms', () {
+    Widget roomScreen(String roomId) => MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: roomId,
+            threadId: null,
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        );
+
+    testWidgets('are not refetched on an in-server room switch',
+        (tester) async {
+      await tester.pumpWidget(roomScreen('room-1'));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+
+      await tester.pumpWidget(roomScreen('room-2'));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+    });
+  });
+
+  testWidgets('the room-info button navigates to the room info route',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(_buildRouted(
+      entry: entry,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Room info'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('room info page'), findsOneWidget);
   });
 }

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
+        AuthException,
         CancelToken,
         MalformedResponseException,
         RagDocument,
@@ -425,14 +426,31 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     final url = entry.serverUrl.resolve('/api/user_info');
     Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      if (!mounted ||
-          generation != _accountFetchGeneration ||
-          response.statusCode != 200) {
+      // entry.httpClient is the raw decorator chain (no HttpTransport), so a
+      // 401 arrives as a response rather than a thrown AuthException — funnel
+      // it to the session explicitly. The captured entry's session is expired
+      // even if we have since switched servers, so this fires regardless of
+      // the staleness guard below.
+      if (response.statusCode == 401) {
+        entry.auth.markSessionExpired();
+        return;
+      }
+      if (!mounted || generation != _accountFetchGeneration) return;
+      if (response.statusCode != 200) {
+        dev.log(
+          'Account profile fetch returned ${response.statusCode}',
+          name: 'RoomScreen',
+          level: 900,
+        );
         return;
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       setState(() => _account = accountFromJson(json));
     }).catchError((Object error, StackTrace stackTrace) {
+      if (error is AuthException) {
+        entry.auth.markSessionExpired();
+        return;
+      }
       dev.log(
         'Failed to load account profile',
         error: error,
@@ -534,8 +552,9 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void didUpdateWidget(RoomScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.roomId != oldWidget.roomId ||
-        widget.serverEntry.serverId != oldWidget.serverEntry.serverId) {
+    final serverChanged =
+        widget.serverEntry.serverId != oldWidget.serverEntry.serverId;
+    if (widget.roomId != oldWidget.roomId || serverChanged) {
       _cancelAutoSelect();
       _state.dispose();
       _chatController.clear();
@@ -544,11 +563,18 @@ class _RoomScreenState extends State<RoomScreen> {
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
-      _fetchServerRooms();
-      _fetchRoomActivity();
       _markRoomRead(widget.roomId);
       _markThreadRead(widget.threadId);
-      _fetchAccount();
+      // Room list, account identity, and room-activity stats are all
+      // server-scoped: refetch only on a server change, not on every in-server
+      // room switch (which would otherwise flash the rail back to a spinner and
+      // fire redundant requests). The switch still clears the read dot locally
+      // via _markRoomRead above.
+      if (serverChanged) {
+        _fetchServerRooms();
+        _fetchRoomActivity();
+        _fetchAccount();
+      }
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
