@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show
+        AuthException,
         CancelToken,
         MalformedResponseException,
+        PermissionDeniedException,
         RagDocument,
         ReconnectFailed,
         ReconnectStatus,
@@ -67,6 +69,32 @@ String uploadChipLabel(int roomCount, int threadCount) {
   }
   if (roomCount > 0) return '$roomCount room';
   return '$threadCount thread';
+}
+
+/// Resolves a display identity from an OIDC `/api/user_info` payload, trying
+/// the most specific label first: the full name (`given_name` + `family_name`),
+/// then `preferred_username`, then `email`, falling back to a generic
+/// "Signed in" when the payload carries no usable label. The returned email is
+/// null when absent so the rail's account header can omit the secondary line.
+RoomAccount accountFromJson(Map<String, dynamic> json) {
+  // Read each claim independently: a non-string value is treated as absent so
+  // one malformed field can't discard its valid siblings.
+  String claim(String key) {
+    final value = json[key];
+    return value is String ? value : '';
+  }
+
+  final given = claim('given_name');
+  final family = claim('family_name');
+  final preferred = claim('preferred_username').trim();
+  final email = claim('email').trim();
+  final full = '$given $family'.trim();
+  final hasName = full.isNotEmpty || preferred.isNotEmpty;
+  final name = [full, preferred, email]
+      .firstWhere((s) => s.isNotEmpty, orElse: () => signedInLabel);
+  // Omit the email line when the email is doubling as the name, so the header
+  // doesn't render the same string twice.
+  return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
 
 class RoomScreen extends StatefulWidget {
@@ -130,6 +158,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
   RoomAccount? _account;
+
+  /// Bumped on each account fetch so a slow in-flight request for a previous
+  /// server can't write its identity onto the current one. The raw
+  /// `/api/user_info` request can't be cancelled, so we guard the result
+  /// against the latest generation instead.
+  int _accountFetchGeneration = 0;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -196,6 +230,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Fetches the current server's room list for the rail. Cancels any
   /// in-flight fetch so a server switch can't apply a stale result.
   void _fetchServerRooms() {
+    final entry = widget.serverEntry;
     _roomsCancelToken?.cancel('refresh');
     final token = CancelToken();
     _roomsCancelToken = token;
@@ -203,20 +238,37 @@ class _RoomScreenState extends State<RoomScreen> {
     // the async callbacks below trigger the rebuild once a result lands.
     _serverRooms = null;
     _serverRoomsError = null;
-    widget.serverEntry.connection.api
-        .getRooms(cancelToken: token)
-        .then((rooms) {
+    entry.connection.api.getRooms(cancelToken: token).then((rooms) {
       if (!mounted || token != _roomsCancelToken) return;
       setState(() => _serverRooms = rooms);
     }).catchError((Object error, StackTrace stackTrace) {
+      if (error is AuthException) {
+        // The captured entry's session has expired; funnel it so the route
+        // guard redirects to login even if we have since switched servers.
+        // Leaving the loading state means no error banner flashes first.
+        entry.auth.markSessionExpired();
+        return;
+      }
       if (!mounted || token != _roomsCancelToken) return;
-      dev.log(
-        'Failed to load server rooms',
-        error: error,
-        stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 1000,
-      );
+      // A PermissionDeniedException (403) is an expected steady state — the
+      // server denies access and re-auth won't help — and the rail surfaces it
+      // inline, so keep it below the severe channel reserved for genuine
+      // failures. Still log it at debug so a misconfigured ACL leaves a trace.
+      if (error is PermissionDeniedException) {
+        dev.log(
+          'Rooms fetch denied (403)',
+          name: 'RoomScreen',
+          level: 500,
+        );
+      } else {
+        dev.log(
+          'Failed to load server rooms',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'RoomScreen',
+          level: 1000,
+        );
+      }
       setState(() => _serverRoomsError = error);
     });
   }
@@ -376,20 +428,53 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
   /// No-op (and clears the cached account) when the server is unauthenticated;
-  /// a failure leaves the generic "Signed in" label in place.
+  /// a failure falls back to the generic "Signed in" label.
+  //
+  // TODO: The fetch + parse here duplicate the lobby's `_fetchUserProfile` /
+  // `UserProfile.fromJson` against the same `/api/user_info` endpoint. Collapse
+  // them into one shared `fetchUserInfo(ServerEntry)` helper. The room can't
+  // reuse the lobby's cache because `LobbyState` is screen-scoped.
   void _fetchAccount() {
     final entry = widget.serverEntry;
+    // Direct assignments here (not setState): this may run from initState
+    // before the first build, and the async callbacks below trigger the
+    // rebuild once a result lands. Clearing eagerly drops the previous
+    // server's identity instead of letting it linger through the switch.
+    _account = null;
+    final generation = ++_accountFetchGeneration;
     if (!entry.requiresAuth || entry.auth.session.value is! ActiveSession) {
-      // Direct assignment: may run from initState before the first build.
-      _account = null;
       return;
     }
     final url = entry.serverUrl.resolve('/api/user_info');
     Future.sync(() => entry.httpClient.request('GET', url)).then((response) {
-      if (!mounted || response.statusCode != 200) return;
+      // entry.httpClient is the raw decorator chain (no HttpTransport), so a
+      // 401 arrives as a response rather than a thrown AuthException — funnel
+      // it to the session explicitly. The captured entry's session is expired
+      // even if we have since switched servers, so this fires regardless of
+      // the staleness guard below.
+      if (response.statusCode == 401) {
+        entry.auth.markSessionExpired();
+        return;
+      }
+      if (!mounted || generation != _accountFetchGeneration) return;
+      if (response.statusCode != 200) {
+        // A 403 is the expected steady state for a permission-restricted
+        // profile endpoint, so log it below the warning channel reserved for
+        // genuine 5xx / decode failures — debuggable without crying wolf.
+        dev.log(
+          'Account profile fetch returned ${response.statusCode}',
+          name: 'RoomScreen',
+          level: response.statusCode == 403 ? 500 : 900,
+        );
+        return;
+      }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      setState(() => _account = _accountFromJson(json));
+      setState(() => _account = accountFromJson(json));
     }).catchError((Object error, StackTrace stackTrace) {
+      if (error is AuthException) {
+        entry.auth.markSessionExpired();
+        return;
+      }
       dev.log(
         'Failed to load account profile',
         error: error,
@@ -398,22 +483,6 @@ class _RoomScreenState extends State<RoomScreen> {
         level: 900,
       );
     });
-  }
-
-  RoomAccount _accountFromJson(Map<String, dynamic> json) {
-    final given = json['given_name'] as String? ?? '';
-    final family = json['family_name'] as String? ?? '';
-    final preferred = json['preferred_username'] as String? ?? '';
-    final email = json['email'] as String? ?? '';
-    final full = '$given $family'.trim();
-    final name = full.isNotEmpty
-        ? full
-        : preferred.isNotEmpty
-            ? preferred
-            : email.isNotEmpty
-                ? email
-                : 'Signed in';
-    return (name: name, email: email.isNotEmpty ? email : null);
   }
 
   Future<void> _openDocumentPicker() async {
@@ -507,8 +576,9 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void didUpdateWidget(RoomScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.roomId != oldWidget.roomId ||
-        widget.serverEntry.serverId != oldWidget.serverEntry.serverId) {
+    final serverChanged =
+        widget.serverEntry.serverId != oldWidget.serverEntry.serverId;
+    if (widget.roomId != oldWidget.roomId || serverChanged) {
       _cancelAutoSelect();
       _state.dispose();
       _chatController.clear();
@@ -517,11 +587,18 @@ class _RoomScreenState extends State<RoomScreen> {
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
-      _fetchServerRooms();
-      _fetchRoomActivity();
       _markRoomRead(widget.roomId);
       _markThreadRead(widget.threadId);
-      _fetchAccount();
+      // Room list, account identity, and room-activity stats are all
+      // server-scoped: refetch only on a server change, not on every in-server
+      // room switch (which would otherwise flash the rail back to a spinner and
+      // fire redundant requests). The switch still clears the read dot locally
+      // via _markRoomRead above.
+      if (serverChanged) {
+        _fetchServerRooms();
+        _fetchRoomActivity();
+        _fetchAccount();
+      }
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
       } else {
@@ -975,8 +1052,6 @@ class _RoomScreenState extends State<RoomScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          // Documents + room info sit in the top-right corner — the anchor
-          // for the future right-hand side panel (documents / info).
           if (documentsButton != null) documentsButton,
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -992,7 +1067,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// The top-right documents button: a simple icon toggle for the attached-
   /// files panel. Returns null to hide it when both scopes are Loaded-empty.
   /// The icon reflects upload state (spinner while in flight, error glyph on
-  /// failure); the count is surfaced through the tooltip rather than a label.
+  /// failure); the file count appears in the tooltip once both scopes load.
   Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,

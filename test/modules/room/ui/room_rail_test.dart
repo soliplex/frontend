@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_client/soliplex_client.dart' show Room;
+import 'package:soliplex_client/soliplex_client.dart'
+    show PermissionDeniedException, Room;
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 
 import '../../../helpers/test_server_entry.dart';
@@ -80,6 +81,24 @@ void main() {
       expect(retried, isTrue);
     });
 
+    testWidgets('shows a non-retryable affordance for a permission denial',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_rail(
+        rooms: null,
+        roomsError:
+            const PermissionDeniedException(statusCode: 403, message: 'no'),
+        onRetryRooms: () {},
+      )));
+
+      // A 403 is a steady state — re-trying won't help — so the lock glyph
+      // replaces the retry error glyph and the button is disabled.
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline), findsNothing);
+      final button = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.lock_outline));
+      expect(button.onPressed, isNull);
+    });
+
     testWidgets('footer menu exposes the account, inspector, and versions',
         (tester) async {
       var inspector = false;
@@ -103,6 +122,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(inspector, isTrue);
       expect(versions, isFalse);
+
+      // Each item carries its own onTap, so verify Versions is wired to its
+      // own callback and not to the inspector's.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Versions'));
+      await tester.pumpAndSettle();
+      expect(versions, isTrue);
     });
   });
 

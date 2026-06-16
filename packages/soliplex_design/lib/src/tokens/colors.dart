@@ -55,7 +55,7 @@ class SoliplexColors {
         : darkSoliplexColors;
     return base.copyWith(
       primary: accent,
-      onPrimary: _contrastingForeground(accent),
+      onPrimary: contrastingForeground(accent),
     );
   }
 
@@ -168,7 +168,9 @@ class SoliplexColors {
   }
 }
 
-Color _contrastingForeground(Color background) =>
+/// The legible foreground (near-white or near-black) for text or icons drawn
+/// on top of an arbitrary [background] — e.g. a hashed avatar tint.
+Color contrastingForeground(Color background) =>
     ThemeData.estimateBrightnessForColor(background) == Brightness.dark
         ? const Color(0xFFFFFFFF)
         : const Color(0xFF0A0A0A);

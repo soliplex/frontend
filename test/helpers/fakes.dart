@@ -198,6 +198,10 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextError;
   int getRoomsCallCount = 0;
 
+  /// When set, [getRooms] awaits this before returning, letting a test hold a
+  /// rooms fetch in flight (e.g. to exercise the rail's staleness guard).
+  Completer<void>? roomsGate;
+
   List<RagDocument>? nextDocuments;
   Exception? nextDocumentsError;
   String? nextMcpToken;
@@ -238,6 +242,7 @@ class FakeSoliplexApi extends SoliplexApi {
   @override
   Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
     getRoomsCallCount++;
+    if (roomsGate != null) await roomsGate!.future;
     if (nextError != null) throw nextError!;
     if (nextRooms != null) return nextRooms!;
     throw StateError(

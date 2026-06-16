@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_client/soliplex_client.dart' show Room;
+import 'package:soliplex_client/soliplex_client.dart'
+    show PermissionDeniedException, Room;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../auth/auth_tokens.dart';
@@ -10,6 +11,11 @@ import '../../lobby/ui/unread_dot.dart';
 /// A signed-in identity for the rail's account menu: a display [name] and an
 /// optional [email]. Resolved by the room screen from `/api/user_info`.
 typedef RoomAccount = ({String name, String? email});
+
+/// Fallback display name for an authenticated user whose profile carries no
+/// usable label. Shared so the room screen's parse and the rail's resolution
+/// agree on the same string.
+const String signedInLabel = 'Signed in';
 
 /// The compact, always-visible rail of rooms for the current server.
 ///
@@ -86,11 +92,22 @@ class RoomRail extends StatelessWidget {
   Widget _buildList(BuildContext context) {
     final rooms = this.rooms;
     if (roomsError != null) {
-      return _RailMessage(
-        icon: Icons.error_outline,
-        tooltip: 'Failed to load rooms',
-        onTap: onRetryRooms,
-        color: Theme.of(context).colorScheme.error,
+      // A permission denial is a steady state — re-trying can't resolve it —
+      // so it gets a muted lock glyph and a disabled button, distinct from the
+      // error glyph that retries a genuine (transient) load failure.
+      final denied = roomsError is PermissionDeniedException;
+      final scheme = Theme.of(context).colorScheme;
+      return Center(
+        child: IconButton(
+          icon: Icon(
+            denied ? Icons.lock_outline : Icons.error_outline,
+            color: denied ? scheme.onSurfaceVariant : scheme.error,
+          ),
+          tooltip: denied
+              ? "You don't have permission to view rooms"
+              : 'Failed to load rooms',
+          onPressed: denied ? null : onRetryRooms,
+        ),
       );
     }
     if (rooms == null) {
@@ -118,7 +135,7 @@ class RoomRail extends StatelessWidget {
 }
 
 /// One room in the rail: an initial avatar tinted by [roomAvatarColor], with a
-/// leading selection bar and the room name in a tooltip.
+/// leading selection bar when selected and the room name in a tooltip.
 class _RoomAvatarTile extends StatelessWidget {
   const _RoomAvatarTile({
     required this.room,
@@ -138,9 +155,7 @@ class _RoomAvatarTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bg = roomAvatarColor(room.name, theme.brightness);
-    final fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark
-        ? Colors.white
-        : Colors.black;
+    final fg = contrastingForeground(bg);
 
     return Tooltip(
       message: room.name,
@@ -174,7 +189,7 @@ class _RoomAvatarTile extends StatelessWidget {
                     Positioned.fill(
                       child: Material(
                         color: bg,
-                        // A selected avatar squares off (larger radius) so the
+                        // A selected avatar squares off (smaller radius) so the
                         // shape shift reinforces the leading bar.
                         borderRadius: BorderRadius.circular(
                             selected ? soliplexRadii.md : _avatar / 2),
@@ -183,7 +198,7 @@ class _RoomAvatarTile extends StatelessWidget {
                           onTap: onTap,
                           child: Center(
                             child: Text(
-                              _initial(room.name),
+                              _avatarInitial(room.name),
                               style: theme.textTheme.titleMedium
                                   ?.copyWith(color: fg),
                             ),
@@ -201,12 +216,6 @@ class _RoomAvatarTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _initial(String name) {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return '?';
-    return trimmed.characters.first.toUpperCase();
   }
 }
 
@@ -231,40 +240,9 @@ class _UnreadBadge extends StatelessWidget {
   }
 }
 
-/// A centered status glyph for the rail body (loading-failed / retry).
-class _RailMessage extends StatelessWidget {
-  const _RailMessage({
-    required this.icon,
-    required this.tooltip,
-    required this.color,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: IconButton(
-        icon: Icon(icon, color: color),
-        tooltip: tooltip,
-        onPressed: onTap,
-      ),
-    );
-  }
-}
-
-/// The actions folded behind the rail's footer ⋮ menu. Account identity is a
-/// non-interactive header above these.
-enum _RailMenuAction { networkInspector, versions }
-
 /// The rail footer: a single ⋮ that opens the account identity (as a header)
-/// plus the developer utilities. Mirrors the lobby's account "more" menu, but
-/// folds the identity inside since the rail is too narrow for a block beside
-/// the button.
+/// plus the developer utilities. The identity folds inside the menu since the
+/// rail is too narrow for a block beside the button.
 class _RailAccountMenu extends StatelessWidget {
   const _RailAccountMenu({
     required this.entry,
@@ -278,39 +256,29 @@ class _RailAccountMenu extends StatelessWidget {
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
 
-  void _onSelected(_RailMenuAction action) {
-    switch (action) {
-      case _RailMenuAction.networkInspector:
-        onNetworkInspector();
-      case _RailMenuAction.versions:
-        onVersions();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Session is a per-entry signal; Watch refreshes the identity label on
     // sign-in / expiry without a parent rebuild.
     return Watch((context) {
       final identity = _resolveIdentity();
-      return PopupMenuButton<_RailMenuAction>(
+      return PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),
         tooltip: 'Account & more',
-        onSelected: _onSelected,
         itemBuilder: (context) => [
-          PopupMenuItem<_RailMenuAction>(
+          PopupMenuItem(
             enabled: false,
             child: _AccountHeader(name: identity.name, email: identity.email),
           ),
           const PopupMenuDivider(),
-          const PopupMenuItem(
-            value: _RailMenuAction.networkInspector,
-            child:
-                _MenuRow(icon: Icons.lan_outlined, label: 'Network Inspector'),
+          PopupMenuItem(
+            onTap: onNetworkInspector,
+            child: const _MenuRow(
+                icon: Icons.lan_outlined, label: 'Network Inspector'),
           ),
-          const PopupMenuItem(
-            value: _RailMenuAction.versions,
-            child: _MenuRow(icon: Icons.info_outline, label: 'Versions'),
+          PopupMenuItem(
+            onTap: onVersions,
+            child: const _MenuRow(icon: Icons.info_outline, label: 'Versions'),
           ),
         ],
       );
@@ -321,7 +289,7 @@ class _RailAccountMenu extends StatelessWidget {
     final isAuthenticated =
         entry.requiresAuth && entry.auth.session.value is ActiveSession;
     if (!isAuthenticated) return (name: 'Guest', email: null);
-    return account ?? (name: 'Signed in', email: null);
+    return account ?? (name: signedInLabel, email: null);
   }
 }
 
@@ -350,7 +318,7 @@ class _AccountHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(soliplexRadii.sm),
           ),
           child: Text(
-            name.characters.first.toUpperCase(),
+            _avatarInitial(name),
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.w600,
@@ -386,7 +354,7 @@ class _AccountHeader extends StatelessWidget {
   }
 }
 
-/// An icon + label row for a ⋮ menu item. Mirrors the lobby sidebar's row.
+/// An icon + label row for a ⋮ menu item.
 class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.icon, required this.label});
 
@@ -404,6 +372,13 @@ class _MenuRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The single uppercase initial for an avatar, or '?' when the name is blank.
+String _avatarInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '?';
+  return trimmed.characters.first.toUpperCase();
 }
 
 /// A deterministic, theme-aware accent color for a room's avatar, derived from

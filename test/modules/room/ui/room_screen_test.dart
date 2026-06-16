@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
@@ -42,6 +45,25 @@ class _StaleDocumentsApi extends FakeSoliplexApi {
     CancelToken? cancelToken,
   }) =>
       roomId == 'room-1' ? firstRoomDocuments.future : Future.value(const []);
+}
+
+/// A [FakeSoliplexApi] whose room-list fetch fails with an [AuthException],
+/// exercising the rail's session-expiry funnel.
+class _RoomsAuthErrorApi extends FakeSoliplexApi {
+  @override
+  Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    throw const AuthException(message: 'expired');
+  }
+}
+
+/// A [FakeSoliplexApi] whose room-list fetch is denied with a 403, exercising
+/// the rail's inline permission affordance (not a re-auth funnel or a retry).
+class _RoomsPermissionDeniedApi extends FakeSoliplexApi {
+  @override
+  Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    throw const PermissionDeniedException(
+        statusCode: 403, message: 'forbidden');
+  }
 }
 
 Widget _buildRouted({
@@ -80,6 +102,11 @@ Widget _buildRouted({
               uploadRegistry: uploadRegistry,
               documentSelections: DocumentSelections(),
             ),
+          ),
+          GoRoute(
+            path: 'info',
+            builder: (ctx, state) =>
+                const Scaffold(body: Text('room info page')),
           ),
         ],
       ),
@@ -653,5 +680,372 @@ void main() {
 
       expect(find.byTooltip('Filter documents'), findsNothing);
     });
+  });
+
+  group('rail account menu', () {
+    FakeHttpClient profileClient(
+      Map<String, dynamic> profile, {
+      int statusCode = 200,
+    }) =>
+        FakeHttpClient()
+          ..onRequest = (method, uri) async => HttpResponse(
+                statusCode: statusCode,
+                bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode(profile))),
+              );
+
+    Future<void> pumpAuthedRoom(
+      WidgetTester tester,
+      FakeHttpClient httpClient,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final authedEntry = createTestServerEntry(
+        api: api,
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: httpClient,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: authedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Account & more'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows the resolved name and email for a signed-in user',
+        (tester) async {
+      await pumpAuthedRoom(
+        tester,
+        profileClient({
+          'given_name': 'Ada',
+          'family_name': 'Lovelace',
+          'email': 'ada@example.com',
+        }),
+      );
+
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text('ada@example.com'), findsOneWidget);
+    });
+
+    testWidgets('falls back to "Signed in" when the profile fetch errors',
+        (tester) async {
+      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 500));
+
+      expect(find.text('Signed in'), findsOneWidget);
+    });
+
+    testWidgets('marks the session expired (Guest) on a 401', (tester) async {
+      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 401));
+
+      expect(find.text('Guest'), findsOneWidget);
+    });
+
+    testWidgets('marks the session expired (Guest) on a thrown AuthException',
+        (tester) async {
+      // The raw decorator chain usually surfaces a 401 as a response, but a
+      // thrown AuthException must funnel to the same session-expiry outcome.
+      await pumpAuthedRoom(
+        tester,
+        FakeHttpClient()
+          ..onRequest =
+              (_, __) async => throw const AuthException(message: 'expired'),
+      );
+
+      expect(find.text('Guest'), findsOneWidget);
+    });
+
+    testWidgets('falls back to "Signed in" on a malformed 200 body',
+        (tester) async {
+      // A 200 whose body isn't a JSON object trips the decode/cast; it must be
+      // caught and degrade to the generic label rather than crash the screen.
+      await pumpAuthedRoom(
+        tester,
+        FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('[1, 2, 3]')),
+              ),
+      );
+
+      expect(find.text('Signed in'), findsOneWidget);
+    });
+
+    testWidgets(
+        'a slow identity fetch from the previous server cannot overwrite '
+        'the current server identity', (tester) async {
+      HttpResponse profileResponse(Map<String, dynamic> profile) =>
+          HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode(profile))),
+          );
+
+      final heldA = Completer<HttpResponse>();
+      final entryA = createTestServerEntry(
+        api: api,
+        serverId: 'http://server-a:8000',
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: FakeHttpClient()..onRequest = (_, __) => heldA.future,
+      );
+      final entryB = createTestServerEntry(
+        api: api,
+        serverId: 'http://server-b:8000',
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async =>
+              profileResponse({'given_name': 'Bob', 'family_name': 'Beta'}),
+      );
+
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      Widget roomScreen(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      // Server A's identity fetch is in flight, held open.
+      await tester.pumpWidget(roomScreen(entryA));
+      await tester.pumpAndSettle();
+
+      // Switch to server B, whose identity resolves immediately.
+      await tester.pumpWidget(roomScreen(entryB));
+      await tester.pumpAndSettle();
+
+      // Server A's now-stale fetch resolves; it must not overwrite B's
+      // identity.
+      heldA.complete(
+          profileResponse({'given_name': 'Alice', 'family_name': 'Alpha'}));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Account & more'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bob Beta'), findsOneWidget);
+      expect(find.text('Alice Alpha'), findsNothing);
+    });
+  });
+
+  group('rail rooms', () {
+    Widget roomScreen(String roomId) => MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: roomId,
+            threadId: null,
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        );
+
+    testWidgets('are not refetched on an in-server room switch',
+        (tester) async {
+      await tester.pumpWidget(roomScreen('room-1'));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+
+      await tester.pumpWidget(roomScreen('room-2'));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+    });
+
+    testWidgets('are refetched when the server changes', (tester) async {
+      Widget roomScreenFor(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await tester.pumpWidget(roomScreenFor(
+          createTestServerEntry(api: api, serverId: 'http://server-a:8000')));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 1);
+
+      await tester.pumpWidget(roomScreenFor(
+          createTestServerEntry(api: api, serverId: 'http://server-b:8000')));
+      await tester.pumpAndSettle();
+      expect(api.getRoomsCallCount, 2);
+    });
+
+    testWidgets(
+        'an auth failure funnels to the session without an error affordance',
+        (tester) async {
+      final auth = authInActiveSession();
+      final authedEntry = createTestServerEntry(
+        api: _RoomsAuthErrorApi()
+          ..nextThreads = []
+          ..nextThreadHistory = ThreadHistory(messages: const []),
+        requiresAuth: true,
+        auth: auth,
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('{}')),
+              ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: authedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      // Not pumpAndSettle: the rail's loading spinner never stops, since the
+      // auth funnel deliberately leaves the rooms fetch in its loading state.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      // The rail leaves the loading state in place rather than surfacing its
+      // own retry affordance, so the route guard's redirect isn't pre-empted.
+      expect(find.byTooltip('Failed to load rooms'), findsNothing);
+    });
+
+    testWidgets(
+        'a permission denial surfaces inline without funneling to re-auth',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final auth = authInActiveSession();
+      final deniedEntry = createTestServerEntry(
+        api: _RoomsPermissionDeniedApi()
+          ..nextThreads = []
+          ..nextThreadHistory = ThreadHistory(messages: const []),
+        requiresAuth: true,
+        auth: auth,
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('{}')),
+              ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: deniedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // A 403 is not an auth failure: the session stays active (no re-auth
+      // funnel) and the rail shows a distinct, non-retryable affordance
+      // rather than the generic "try again" error.
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(
+        find.byTooltip("You don't have permission to view rooms"),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Failed to load rooms'), findsNothing);
+    });
+
+    testWidgets(
+        'a slow rooms fetch from the previous server cannot overwrite the '
+        'current server rooms', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final gateA = Completer<void>();
+      final apiA = FakeSoliplexApi()
+        ..nextRooms = [Room(id: 'a1', name: 'Xenon')]
+        ..nextThreads = []
+        ..nextThreadHistory = ThreadHistory(messages: const [])
+        ..roomsGate = gateA;
+      final apiB = FakeSoliplexApi()
+        ..nextRooms = [Room(id: 'b1', name: 'Yttrium')]
+        ..nextThreads = []
+        ..nextThreadHistory = ThreadHistory(messages: const []);
+
+      final entryA =
+          createTestServerEntry(api: apiA, serverId: 'http://server-a:8000');
+      final entryB =
+          createTestServerEntry(api: apiB, serverId: 'http://server-b:8000');
+
+      Widget roomScreenFor(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      // Server A's rooms fetch is in flight, held open.
+      await tester.pumpWidget(roomScreenFor(entryA));
+      await tester.pump();
+
+      // Switch to server B, whose rooms resolve immediately.
+      await tester.pumpWidget(roomScreenFor(entryB));
+      await tester.pumpAndSettle();
+
+      // Server A's now-stale fetch resolves; it must not overwrite B's rooms.
+      gateA.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Y'), findsOneWidget); // Yttrium
+      expect(find.text('X'), findsNothing); // Xenon must not appear
+    });
+  });
+
+  testWidgets('the room-info button navigates to the room info route',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(_buildRouted(
+      entry: entry,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Room info'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('room info page'), findsOneWidget);
   });
 }
