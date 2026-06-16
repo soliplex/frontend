@@ -13,9 +13,27 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: an unread dot on each room card when the room has activity newer than
   the last time the user opened it. Read state is tracked per-device; there is
   no server-side read state or unread count.
+- Room: workdir file image previews are now zoomable and rotatable, with a
+  reset-to-original control that appears while zoomed. Zoom/rotate now share a
+  single viewer with the citation chunk visualization.
+
+### Changed
+
+- Auth/Quiz: widened the centered form/content column from 400 to 600 on
+  wide viewports so server URLs, the server list, and quiz content have more
+  room. The width is now a single shared constant (`formColumnMaxWidth`).
+  Narrower viewports are unaffected — the column still fills the available
+  width.
+- Auth: the connect-flow rail now scrolls to keep the active step centered as
+  the flow advances. Early and final steps that can't be centered stay pinned
+  to the start/end.
 
 ### Fixed
 
+- Room: image previews can be zoomed with a trackpad two-finger scroll, not
+  only mouse wheel and pinch (`InteractiveViewer.trackpadScrollCausesScale`).
+  Zoom is sized to the image's exact aspect ratio for every format, so scaling
+  no longer magnifies surrounding whitespace.
 - Lobby: a room's "last activity" now reflects the user's most recent run in
   that room (served by the backend stats API), not the newest thread's
   creation time — so a long-lived thread used minutes ago no longer reads as

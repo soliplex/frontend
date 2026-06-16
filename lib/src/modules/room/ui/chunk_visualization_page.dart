@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' show min;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/failed_image.dart';
+import '../../../shared/zoomable_image.dart';
 import 'pager_dots.dart';
 
 final _logger =
@@ -18,23 +18,14 @@ sealed class PageImage {
   const PageImage();
 }
 
-/// A successfully decoded page image with its raw PNG bytes and dimensions.
-/// [hasDimensions] is false when [readPngDimensions] could not parse an IHDR
-/// chunk — the bytes are still valid base64 but may not be a PNG; rendering
-/// uses [InteractiveViewer] without computed sizing from IHDR.
+/// A page whose base64 payload decoded to bytes. Codec-time failures (bytes
+/// were valid base64 but not a valid image) are not represented here — they
+/// happen during paint and are surfaced by [ZoomableImage]'s decode fallback.
 @visibleForTesting
 final class PageImageDecoded extends PageImage {
-  const PageImageDecoded({
-    required this.bytes,
-    required this.width,
-    required this.height,
-  });
+  const PageImageDecoded({required this.bytes});
 
   final Uint8List bytes;
-  final int width;
-  final int height;
-
-  bool get hasDimensions => width > 0 && height > 0;
 }
 
 /// A page whose base64 payload could not be decoded. Codec-time failures
@@ -45,32 +36,6 @@ final class PageImageBroken extends PageImage {
   const PageImageBroken({required this.reason});
 
   final String reason;
-}
-
-/// Reads dimensions from a PNG IHDR chunk (bytes 16–23).
-/// Returns (0, 0) for non-PNG, missing IHDR, or truncated data.
-@visibleForTesting
-(int, int) readPngDimensions(Uint8List bytes) {
-  // Full 8-byte PNG signature + 4-byte chunk length + 4-byte "IHDR" + 8 bytes
-  // for width and height = 24 bytes minimum.
-  if (bytes.length < 24) return (0, 0);
-
-  // PNG signature: 137 80 78 71 13 10 26 10
-  const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-  for (var i = 0; i < sig.length; i++) {
-    if (bytes[i] != sig[i]) return (0, 0);
-  }
-
-  // First chunk must be IHDR (bytes 12–15: 0x49 0x48 0x44 0x52).
-  if (bytes[12] != 0x49 ||
-      bytes[13] != 0x48 ||
-      bytes[14] != 0x44 ||
-      bytes[15] != 0x52) {
-    return (0, 0);
-  }
-
-  final data = ByteData.sublistView(bytes);
-  return (data.getUint32(16), data.getUint32(20));
 }
 
 class ChunkVisualizationPage extends StatefulWidget {
@@ -180,9 +145,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   /// image doesn't collapse the entire visualization.
   static PageImage _decodePageImage(String b64) {
     try {
-      final bytes = base64Decode(b64);
-      final (w, h) = readPngDimensions(bytes);
-      return PageImageDecoded(bytes: bytes, width: w, height: h);
+      return PageImageDecoded(bytes: base64Decode(b64));
     } on FormatException catch (error, stack) {
       _logger.warning(
         'chunk image base64 decode failed',
@@ -316,7 +279,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  Widget _buildPageImage(PageImage page, int rotation) {
+  Widget _buildPageImage(PageImage page, int index) {
     return switch (page) {
       PageImageBroken(:final reason) => Center(
           // FormatException messages are usually short but uncapped; bound
@@ -327,59 +290,15 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
                 '${reason.length <= 80 ? reason : '${reason.substring(0, 80)}…'}',
           ),
         ),
-      PageImageDecoded() => _buildDecodedPageImage(page, rotation),
-    };
-  }
-
-  Widget _buildDecodedPageImage(PageImageDecoded page, int rotation) {
-    final image = RotatedBox(
-      quarterTurns: rotation,
-      child: Image.memory(
-        page.bytes,
-        fit: BoxFit.contain,
-        errorBuilder: (_, error, stack) {
-          _logger.warning(
-            'chunk image bytes failed to render',
-            error: error,
-            stackTrace: stack,
-          );
-          return const FailedImage(label: 'Page image failed to render');
-        },
-      ),
-    );
-
-    if (!page.hasDimensions) {
-      return Center(
-        child: InteractiveViewer(
-          minScale: 1.0,
-          maxScale: 4.0,
-          child: image,
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final effW = rotation.isOdd ? page.height : page.width;
-        final effH = rotation.isOdd ? page.width : page.height;
-        final scale = min(
-          constraints.maxWidth / effW,
-          constraints.maxHeight / effH,
-        );
-        return Center(
-          child: InteractiveViewer(
-            constrained: false,
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: SizedBox(
-              width: effW * scale,
-              height: effH * scale,
-              child: image,
-            ),
+      PageImageDecoded(:final bytes) => ZoomableImage(
+          bytes: bytes,
+          rotationQuarterTurns: _rotations[index] ?? 0,
+          onRotate: () => _rotate(index),
+          decodeFailureChild: const Center(
+            child: FailedImage(label: 'Page image failed to render'),
           ),
-        );
-      },
-    );
+        ),
+    };
   }
 
   Widget _buildImages(BuildContext context, List<PageImage> pages) {
@@ -394,24 +313,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             controller: _pageController,
             itemCount: pages.length,
             onPageChanged: (index) => setState(() => _currentPage = index),
-            itemBuilder: (context, index) {
-              final page = pages[index];
-              final rotation = _rotations[index] ?? 0;
-              return Stack(
-                children: [
-                  _buildPageImage(page, rotation),
-                  Positioned(
-                    right: SoliplexSpacing.s2,
-                    top: SoliplexSpacing.s2,
-                    child: IconButton.filledTonal(
-                      onPressed: () => _rotate(index),
-                      icon: const Icon(Icons.rotate_right),
-                      tooltip: 'Rotate',
-                    ),
-                  ),
-                ],
-              );
-            },
+            itemBuilder: (context, index) =>
+                _buildPageImage(pages[index], index),
           ),
         ),
         Padding(
