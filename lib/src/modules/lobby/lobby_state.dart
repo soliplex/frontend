@@ -237,7 +237,9 @@ class LobbyState {
   /// affordance until a later message arrives. Called when the user opens a
   /// room. Uses "now" rather than the cached activity time so a room is read
   /// the moment it is opened, even if the activity fetch is stale or still in
-  /// flight.
+  /// flight. This stamps the device clock against server-sourced activity
+  /// times, so a device clock running well ahead of the server can transiently
+  /// suppress the unread affordance until activity catches up to the marker.
   void markRoomRead(String serverId, String roomId) {
     final key = (serverId: serverId, roomId: roomId);
     _readMarkers.value = {
@@ -342,9 +344,9 @@ class LobbyState {
       _activityFetchServerId = null;
       _activityLoading.value = false;
       if (error is AuthException) {
-        // Funnel to the per-server auth funnel (as the room-list and profile
-        // fetches do); _onAuthChanged paints RoomsExpired and re-auth refetches
-        // via _fetchRooms. Nothing to cache here.
+        // Funnel to the per-server auth funnel; _onAuthChanged paints
+        // RoomsExpired and re-auth refetches via _fetchRooms. Nothing to cache
+        // here.
         entry.auth.markSessionExpired();
         return;
       }
@@ -363,9 +365,9 @@ class LobbyState {
         return;
       }
       // A genuine, possibly-transient failure (network, 5xx, decode, programmer
-      // error). Log at error level (matching the room-list fetch) and leave the
-      // rooms absent so the next reconcile retries, rather than freezing the
-      // lobby on "no activity" with no recovery cue.
+      // error). Log at error level and leave the rooms absent so the next
+      // reconcile retries, rather than freezing the lobby on "no activity" with
+      // no recovery cue.
       dev.log(
         'Failed to fetch room activity for $serverId',
         error: error,

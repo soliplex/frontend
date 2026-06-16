@@ -1179,6 +1179,29 @@ void main() {
           reason: 'the persisted marker survives a new LobbyState');
       reloaded.dispose();
     });
+
+    test('an early markRoomRead survives a slower cold-start load', () async {
+      // Regression (64aaf09): the cold-start load must MERGE persisted markers
+      // *under* any set in-memory while it was in flight, not overwrite them. A
+      // room opened before the disk read lands must stay read. markRoomRead
+      // runs synchronously here, before _loadReadMarkers' await resolves, so a
+      // plain assignment would clobber it back to unread.
+      final api = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
+      final state = LobbyState(
+        serverManager: managerWithLocal(),
+        apiResolver: (_) => api,
+      );
+      state.markRoomRead('local', 'r1');
+      for (var i = 0; i < 12; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.isRoomUnread('local', 'r1'), isFalse,
+          reason: 'a room opened before the disk read lands stays read');
+      state.dispose();
+    });
   });
 
   group('isActivityUnread', () {

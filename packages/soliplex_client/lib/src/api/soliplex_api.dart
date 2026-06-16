@@ -315,7 +315,7 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
     // Skip malformed entries so one bad room doesn't drop the whole server's
-    // activity (mirrors getRooms).
+    // activity.
     final stats = <String, RoomStats>{};
     var skipped = 0;
     for (final entry in response.entries) {

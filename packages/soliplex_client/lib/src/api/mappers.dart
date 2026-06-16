@@ -465,6 +465,17 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
 /// activity rather than throwing, so one bad field never drops the entry.
 RoomStats roomStatsFromJson(Map<String, dynamic> json) {
   final rawActivity = json['last_activity'];
+  if (rawActivity != null && rawActivity is! String) {
+    // Present but wrong-typed (e.g. a backend switch to an epoch int): degrade
+    // to null like a malformed string, but log it — an absent/null field is a
+    // legitimate "no activity", a wrong type is a contract drift worth a trace.
+    developer.log(
+      'Non-string last_activity ignored: '
+      '$rawActivity (${rawActivity.runtimeType})',
+      name: 'soliplex_client.api',
+      level: 900,
+    );
+  }
   return RoomStats(
     lastActivity: rawActivity is String
         ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
