@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -652,6 +654,70 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Filter documents'), findsNothing);
+    });
+  });
+
+  group('rail account menu', () {
+    FakeHttpClient profileClient(
+      Map<String, dynamic> profile, {
+      int statusCode = 200,
+    }) =>
+        FakeHttpClient()
+          ..onRequest = (method, uri) async => HttpResponse(
+                statusCode: statusCode,
+                bodyBytes: Uint8List.fromList(utf8.encode(jsonEncode(profile))),
+              );
+
+    Future<void> pumpAuthedRoom(
+      WidgetTester tester,
+      FakeHttpClient httpClient,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final authedEntry = createTestServerEntry(
+        api: api,
+        requiresAuth: true,
+        auth: authInActiveSession(),
+        httpClient: httpClient,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: authedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Account & more'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows the resolved name and email for a signed-in user',
+        (tester) async {
+      await pumpAuthedRoom(
+        tester,
+        profileClient({
+          'given_name': 'Ada',
+          'family_name': 'Lovelace',
+          'email': 'ada@example.com',
+        }),
+      );
+
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text('ada@example.com'), findsOneWidget);
+    });
+
+    testWidgets('falls back to "Signed in" when the profile fetch fails',
+        (tester) async {
+      await pumpAuthedRoom(tester, profileClient(const {}, statusCode: 401));
+
+      expect(find.text('Signed in'), findsOneWidget);
     });
   });
 }
