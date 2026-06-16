@@ -21,9 +21,9 @@ class QuizResultsView extends StatelessWidget {
     final percent = session.scorePercent;
 
     final (scoreColor, scoreIcon) = switch (percent) {
-      >= 70 => (theme.colorScheme.primary, Icons.emoji_events),
-      >= 40 => (theme.colorScheme.tertiary, Icons.thumb_up),
-      _ => (theme.colorScheme.error, Icons.refresh),
+      >= 70 => (theme.colorScheme.success, Icons.emoji_events),
+      >= 40 => (theme.colorScheme.warning, Icons.thumb_up),
+      _ => (theme.colorScheme.danger, Icons.refresh),
     };
 
     return Center(
@@ -55,8 +55,8 @@ class QuizResultsView extends StatelessWidget {
               const SizedBox(height: SoliplexSpacing.s6),
               Wrap(
                 alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
+                spacing: SoliplexSpacing.s2,
+                runSpacing: SoliplexSpacing.s2,
                 children: [
                   SoliplexButton.outlined(
                     onPressed: onBack,

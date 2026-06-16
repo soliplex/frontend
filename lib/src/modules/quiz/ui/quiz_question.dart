@@ -63,7 +63,7 @@ class QuizQuestionView extends StatelessWidget {
                     Text(
                       'Question ${session.currentIndex + 1} of '
                       '${session.quiz.questionCount}',
-                      style: theme.textTheme.labelLarge?.copyWith(
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),

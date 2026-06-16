@@ -24,7 +24,7 @@ class QuizAnswerFeedback extends StatelessWidget {
         children: [
           Icon(
             isCorrect ? Icons.check_circle : Icons.cancel,
-            color: isCorrect ? colorScheme.primary : colorScheme.error,
+            color: isCorrect ? colorScheme.success : colorScheme.error,
           ),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
@@ -89,6 +89,7 @@ class QuizErrorFeedback extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: SoliplexSpacing.s2),
           SoliplexButton.text(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),

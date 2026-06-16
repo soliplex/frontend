@@ -107,10 +107,16 @@ class _OptionTile extends StatelessWidget {
                           ? colorScheme.primary
                           : colorScheme.onSurfaceVariant,
                 ),
+                const SizedBox(width: SoliplexSpacing.s3),
                 Expanded(child: Text(option)),
-                if (isCorrect)
-                  Icon(Icons.check_circle, color: colorScheme.primary),
-                if (isWrong) Icon(Icons.cancel, color: colorScheme.error),
+                if (isCorrect) ...[
+                  const SizedBox(width: SoliplexSpacing.s2),
+                  Icon(Icons.check_circle, color: colorScheme.success),
+                ],
+                if (isWrong) ...[
+                  const SizedBox(width: SoliplexSpacing.s2),
+                  Icon(Icons.cancel, color: colorScheme.error),
+                ],
               ],
             ),
           ),
