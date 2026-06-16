@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
@@ -17,6 +18,8 @@ class RoomAppModule extends AppModule {
     required this.serverManager,
     required this.runtimeManager,
     required this.registry,
+    required this.appName,
+    this.logo,
     this.enableDocumentFilter = false,
   })  : _documentSelections = DocumentSelections(),
         _messageExpansions = MessageExpansions(),
@@ -25,6 +28,10 @@ class RoomAppModule extends AppModule {
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
+
+  /// Brand identity for the room-info screen's branded header.
+  final String appName;
+  final Widget? logo;
   final bool enableDocumentFilter;
 
   final DocumentSelections _documentSelections;
@@ -55,6 +62,8 @@ class RoomAppModule extends AppModule {
                   roomId: state.pathParameters['roomId']!,
                   toolRegistryResolver: runtimeManager.toolRegistryResolver,
                   uploadRegistry: _uploadRegistry,
+                  appName: appName,
+                  logo: logo,
                 ),
               );
             },

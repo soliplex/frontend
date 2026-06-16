@@ -54,6 +54,7 @@ Widget _buildScreen({
       toolRegistryResolver:
           toolRegistryResolver ?? (_) async => const ToolRegistry(),
       uploadRegistry: uploadRegistry,
+      appName: 'Soliplex',
     ),
   );
 }
@@ -84,6 +85,7 @@ Widget _buildScreen({
         toolRegistryResolver:
             toolRegistryResolver ?? (_) async => const ToolRegistry(),
         uploadRegistry: registry,
+        appName: 'Soliplex',
       ),
     ),
     entry: entry,

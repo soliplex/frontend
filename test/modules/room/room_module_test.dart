@@ -34,6 +34,7 @@ void main() {
       serverManager: _createManager(),
       runtimeManager: runtimeManager,
       registry: registry,
+      appName: 'Soliplex',
     );
   });
 

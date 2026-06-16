@@ -11,6 +11,7 @@ import '../pick_file.dart';
 
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
+import '../../auth/ui/home_shell.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 import 'room_info/client_tools_card.dart';
@@ -30,12 +31,16 @@ class RoomInfoScreen extends StatefulWidget {
     required this.roomId,
     required this.toolRegistryResolver,
     required this.uploadRegistry,
+    required this.appName,
+    this.logo,
   });
 
   final ServerEntry serverEntry;
   final String roomId;
   final Future<ToolRegistry> Function(String roomId) toolRegistryResolver;
   final UploadTrackerRegistry uploadRegistry;
+  final String appName;
+  final Widget? logo;
 
   @override
   State<RoomInfoScreen> createState() => _RoomInfoScreenState();
@@ -79,47 +84,57 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.adaptive.arrow_back),
-          tooltip: 'Back',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(
-                AppRoutes.room(widget.serverEntry.alias, widget.roomId),
-              );
-            }
-          },
+      body: SafeArea(
+        child: Column(
+          children: [
+            HomeShellHeader(
+              appName: widget.appName,
+              logo: widget.logo,
+              showAbout: false,
+              leading: IconButton(
+                icon: Icon(Icons.adaptive.arrow_back),
+                tooltip: 'Back to room',
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(
+                      AppRoutes.room(widget.serverEntry.alias, widget.roomId),
+                    );
+                  }
+                },
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<Room>(
+                future: _roomFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return const Center(child: Text('Failed to load room'));
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: Text('Room not found'));
+                  }
+                  return _RoomInfoBody(
+                    room: snapshot.data!,
+                    serverUrl: widget.serverEntry.serverUrl,
+                    serverEntry: widget.serverEntry,
+                    api: widget.serverEntry.connection.api,
+                    serverAlias: widget.serverEntry.alias,
+                    roomId: widget.roomId,
+                    documentsFuture: _documentsFuture,
+                    clientToolsFuture: _clientToolsFuture,
+                    onRetryDocuments: _retryDocuments,
+                    uploadRegistry: widget.uploadRegistry,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-        title: const Text('Room Information'),
-      ),
-      body: FutureBuilder<Room>(
-        future: _roomFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(child: Text('Failed to load room'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: Text('Room not found'));
-          }
-          return _RoomInfoBody(
-            room: snapshot.data!,
-            serverUrl: widget.serverEntry.serverUrl,
-            serverEntry: widget.serverEntry,
-            api: widget.serverEntry.connection.api,
-            serverAlias: widget.serverEntry.alias,
-            roomId: widget.roomId,
-            documentsFuture: _documentsFuture,
-            clientToolsFuture: _clientToolsFuture,
-            onRetryDocuments: _retryDocuments,
-            uploadRegistry: widget.uploadRegistry,
-          );
-        },
       ),
     );
   }
@@ -157,43 +172,27 @@ class _RoomInfoBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Server',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: SoliplexSpacing.s1),
-                Text(
-                  formatServerUrl(serverUrl),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
+          SectionCard(
+            title: 'SERVER',
+            children: [
+              Text(
+                formatServerUrl(serverUrl),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Room',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: SoliplexSpacing.s1),
-                Text(
-                  room.name,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
+          SectionCard(
+            title: 'ROOM',
+            children: [
+              Text(
+                room.name,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
           ),
           if (room.hasDescription)
             Padding(
