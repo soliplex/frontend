@@ -69,6 +69,27 @@ String uploadChipLabel(int roomCount, int threadCount) {
   return '$threadCount thread';
 }
 
+/// Resolves a display identity from an OIDC `/api/user_info` payload, trying
+/// the most specific label first: the full name (`given_name` + `family_name`),
+/// then `preferred_username`, then `email`, falling back to a generic
+/// "Signed in" when the payload carries no usable label. The returned email is
+/// null when absent so the rail's account header can omit the secondary line.
+RoomAccount accountFromJson(Map<String, dynamic> json) {
+  final given = json['given_name'] as String? ?? '';
+  final family = json['family_name'] as String? ?? '';
+  final preferred = json['preferred_username'] as String? ?? '';
+  final email = json['email'] as String? ?? '';
+  final full = '$given $family'.trim();
+  final name = full.isNotEmpty
+      ? full
+      : preferred.isNotEmpty
+          ? preferred
+          : email.isNotEmpty
+              ? email
+              : 'Signed in';
+  return (name: name, email: email.isNotEmpty ? email : null);
+}
+
 class RoomScreen extends StatefulWidget {
   const RoomScreen({
     super.key,
@@ -402,7 +423,7 @@ class _RoomScreenState extends State<RoomScreen> {
         return;
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      setState(() => _account = _accountFromJson(json));
+      setState(() => _account = accountFromJson(json));
     }).catchError((Object error, StackTrace stackTrace) {
       dev.log(
         'Failed to load account profile',
@@ -412,22 +433,6 @@ class _RoomScreenState extends State<RoomScreen> {
         level: 900,
       );
     });
-  }
-
-  RoomAccount _accountFromJson(Map<String, dynamic> json) {
-    final given = json['given_name'] as String? ?? '';
-    final family = json['family_name'] as String? ?? '';
-    final preferred = json['preferred_username'] as String? ?? '';
-    final email = json['email'] as String? ?? '';
-    final full = '$given $family'.trim();
-    final name = full.isNotEmpty
-        ? full
-        : preferred.isNotEmpty
-            ? preferred
-            : email.isNotEmpty
-                ? email
-                : 'Signed in';
-    return (name: name, email: email.isNotEmpty ? email : null);
   }
 
   Future<void> _openDocumentPicker() async {
