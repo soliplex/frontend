@@ -28,10 +28,10 @@ void main() {
       expect(account.name, 'ada');
     });
 
-    test('falls back to email when only an email is present', () {
+    test('uses email as the name but drops the duplicate email line', () {
       final account = accountFromJson({'email': 'ada@example.com'});
       expect(account.name, 'ada@example.com');
-      expect(account.email, 'ada@example.com');
+      expect(account.email, isNull);
     });
 
     test('falls back to "Signed in" when the payload carries no label', () {

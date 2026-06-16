@@ -80,6 +80,7 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
   final preferred = json['preferred_username'] as String? ?? '';
   final email = json['email'] as String? ?? '';
   final full = '$given $family'.trim();
+  final hasName = full.isNotEmpty || preferred.isNotEmpty;
   final name = full.isNotEmpty
       ? full
       : preferred.isNotEmpty
@@ -87,7 +88,9 @@ RoomAccount accountFromJson(Map<String, dynamic> json) {
           : email.isNotEmpty
               ? email
               : 'Signed in';
-  return (name: name, email: email.isNotEmpty ? email : null);
+  // Omit the email line when the email is doubling as the name, so the header
+  // doesn't render the same string twice.
+  return (name: name, email: hasName && email.isNotEmpty ? email : null);
 }
 
 class RoomScreen extends StatefulWidget {
@@ -404,6 +407,11 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
   /// No-op (and clears the cached account) when the server is unauthenticated;
   /// a failure leaves the generic "Signed in" label in place.
+  ///
+  /// The fetch + parse here duplicate the lobby's `_fetchUserProfile` /
+  /// `UserProfile.fromJson` against the same `/api/user_info` endpoint. They
+  /// should collapse into one shared `fetchUserInfo(ServerEntry)` helper; the
+  /// room can't reuse the lobby's cache because `LobbyState` is screen-scoped.
   void _fetchAccount() {
     final entry = widget.serverEntry;
     // Direct assignments here (not setState): this may run from initState
@@ -994,8 +1002,6 @@ class _RoomScreenState extends State<RoomScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          // Documents + room info sit in the top-right corner — the anchor
-          // for the future right-hand side panel (documents / info).
           if (documentsButton != null) documentsButton,
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -1011,7 +1017,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// The top-right documents button: a simple icon toggle for the attached-
   /// files panel. Returns null to hide it when both scopes are Loaded-empty.
   /// The icon reflects upload state (spinner while in flight, error glyph on
-  /// failure); the count is surfaced through the tooltip rather than a label.
+  /// failure); the file count appears in the tooltip once both scopes load.
   Widget? _buildDocumentsButton(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,

@@ -118,7 +118,7 @@ class RoomRail extends StatelessWidget {
 }
 
 /// One room in the rail: an initial avatar tinted by [roomAvatarColor], with a
-/// leading selection bar and the room name in a tooltip.
+/// leading selection bar when selected and the room name in a tooltip.
 class _RoomAvatarTile extends StatelessWidget {
   const _RoomAvatarTile({
     required this.room,
@@ -262,9 +262,8 @@ class _RailMessage extends StatelessWidget {
 enum _RailMenuAction { networkInspector, versions }
 
 /// The rail footer: a single ⋮ that opens the account identity (as a header)
-/// plus the developer utilities. Mirrors the lobby's account "more" menu, but
-/// folds the identity inside since the rail is too narrow for a block beside
-/// the button.
+/// plus the developer utilities. The identity folds inside the menu since the
+/// rail is too narrow for a block beside the button.
 class _RailAccountMenu extends StatelessWidget {
   const _RailAccountMenu({
     required this.entry,
@@ -386,7 +385,7 @@ class _AccountHeader extends StatelessWidget {
   }
 }
 
-/// An icon + label row for a ⋮ menu item. Mirrors the lobby sidebar's row.
+/// An icon + label row for a ⋮ menu item.
 class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.icon, required this.label});
 
