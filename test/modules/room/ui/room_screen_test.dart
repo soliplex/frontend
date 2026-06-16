@@ -13,6 +13,7 @@ import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
+import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
 import '../../../helpers/fakes.dart';
@@ -44,6 +45,15 @@ class _StaleDocumentsApi extends FakeSoliplexApi {
     CancelToken? cancelToken,
   }) =>
       roomId == 'room-1' ? firstRoomDocuments.future : Future.value(const []);
+}
+
+/// A [FakeSoliplexApi] whose room-list fetch fails with an [AuthException],
+/// exercising the rail's session-expiry funnel.
+class _RoomsAuthErrorApi extends FakeSoliplexApi {
+  @override
+  Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    throw const AuthException(message: 'expired');
+  }
 }
 
 Widget _buildRouted({
@@ -841,6 +851,45 @@ void main() {
           createTestServerEntry(api: api, serverId: 'http://server-b:8000')));
       await tester.pumpAndSettle();
       expect(api.getRoomsCallCount, 2);
+    });
+
+    testWidgets(
+        'an auth failure funnels to the session without an error affordance',
+        (tester) async {
+      final auth = authInActiveSession();
+      final authedEntry = createTestServerEntry(
+        api: _RoomsAuthErrorApi()
+          ..nextThreads = []
+          ..nextThreadHistory = ThreadHistory(messages: const []),
+        requiresAuth: true,
+        auth: auth,
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('{}')),
+              ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: authedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      // Not pumpAndSettle: the rail's loading spinner never stops, since the
+      // auth funnel deliberately leaves the rooms fetch in its loading state.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(auth.session.value, isA<ExpiredSession>());
+      // The rail leaves the loading state in place rather than surfacing its
+      // own retry affordance, so the route guard's redirect isn't pre-empted.
+      expect(find.byTooltip('Failed to load rooms'), findsNothing);
     });
   });
 
