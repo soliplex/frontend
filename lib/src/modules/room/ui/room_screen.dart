@@ -989,7 +989,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
-          theme.colorScheme.primary,
+          theme.colorScheme.success,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),
