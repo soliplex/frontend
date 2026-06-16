@@ -56,6 +56,16 @@ class _RoomsAuthErrorApi extends FakeSoliplexApi {
   }
 }
 
+/// A [FakeSoliplexApi] whose room-list fetch is denied with a 403, exercising
+/// the rail's inline permission affordance (not a re-auth funnel or a retry).
+class _RoomsPermissionDeniedApi extends FakeSoliplexApi {
+  @override
+  Future<List<Room>> getRooms({CancelToken? cancelToken}) async {
+    throw const PermissionDeniedException(
+        statusCode: 403, message: 'forbidden');
+  }
+}
+
 Widget _buildRouted({
   required ServerEntry entry,
   required AgentRuntimeManager runtimeManager,
@@ -890,6 +900,102 @@ void main() {
       // The rail leaves the loading state in place rather than surfacing its
       // own retry affordance, so the route guard's redirect isn't pre-empted.
       expect(find.byTooltip('Failed to load rooms'), findsNothing);
+    });
+
+    testWidgets(
+        'a permission denial surfaces inline without funneling to re-auth',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final auth = authInActiveSession();
+      final deniedEntry = createTestServerEntry(
+        api: _RoomsPermissionDeniedApi()
+          ..nextThreads = []
+          ..nextThreadHistory = ThreadHistory(messages: const []),
+        requiresAuth: true,
+        auth: auth,
+        httpClient: FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('{}')),
+              ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: deniedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // A 403 is not an auth failure: the session stays active (no re-auth
+      // funnel) and the rail shows a distinct, non-retryable affordance
+      // rather than the generic "try again" error.
+      expect(auth.session.value, isA<ActiveSession>());
+      expect(
+        find.byTooltip("You don't have permission to view rooms"),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Failed to load rooms'), findsNothing);
+    });
+
+    testWidgets(
+        'a slow rooms fetch from the previous server cannot overwrite the '
+        'current server rooms', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final gateA = Completer<void>();
+      final apiA = FakeSoliplexApi()
+        ..nextRooms = [Room(id: 'a1', name: 'Xenon')]
+        ..nextThreads = []
+        ..nextThreadHistory = ThreadHistory(messages: const [])
+        ..roomsGate = gateA;
+      final apiB = FakeSoliplexApi()
+        ..nextRooms = [Room(id: 'b1', name: 'Yttrium')]
+        ..nextThreads = []
+        ..nextThreadHistory = ThreadHistory(messages: const []);
+
+      final entryA =
+          createTestServerEntry(api: apiA, serverId: 'http://server-a:8000');
+      final entryB =
+          createTestServerEntry(api: apiB, serverId: 'http://server-b:8000');
+
+      Widget roomScreenFor(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      // Server A's rooms fetch is in flight, held open.
+      await tester.pumpWidget(roomScreenFor(entryA));
+      await tester.pump();
+
+      // Switch to server B, whose rooms resolve immediately.
+      await tester.pumpWidget(roomScreenFor(entryB));
+      await tester.pumpAndSettle();
+
+      // Server A's now-stale fetch resolves; it must not overwrite B's rooms.
+      gateA.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Y'), findsOneWidget); // Yttrium
+      expect(find.text('X'), findsNothing); // Xenon must not appear
     });
   });
 

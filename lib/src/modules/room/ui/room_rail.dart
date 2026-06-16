@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_client/soliplex_client.dart' show Room;
+import 'package:soliplex_client/soliplex_client.dart'
+    show PermissionDeniedException, Room;
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../auth/auth_tokens.dart';
@@ -91,12 +92,21 @@ class RoomRail extends StatelessWidget {
   Widget _buildList(BuildContext context) {
     final rooms = this.rooms;
     if (roomsError != null) {
+      // A permission denial is a steady state — re-trying can't resolve it —
+      // so it gets a muted lock glyph and a disabled button, distinct from the
+      // error glyph that retries a genuine (transient) load failure.
+      final denied = roomsError is PermissionDeniedException;
+      final scheme = Theme.of(context).colorScheme;
       return Center(
         child: IconButton(
-          icon: Icon(Icons.error_outline,
-              color: Theme.of(context).colorScheme.error),
-          tooltip: 'Failed to load rooms',
-          onPressed: onRetryRooms,
+          icon: Icon(
+            denied ? Icons.lock_outline : Icons.error_outline,
+            color: denied ? scheme.onSurfaceVariant : scheme.error,
+          ),
+          tooltip: denied
+              ? "You don't have permission to view rooms"
+              : 'Failed to load rooms',
+          onPressed: denied ? null : onRetryRooms,
         ),
       );
     }

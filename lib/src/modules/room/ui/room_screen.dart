@@ -11,6 +11,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         AuthException,
         CancelToken,
         MalformedResponseException,
+        PermissionDeniedException,
         RagDocument,
         ReconnectFailed,
         ReconnectStatus,
@@ -242,13 +243,19 @@ class _RoomScreenState extends State<RoomScreen> {
         return;
       }
       if (!mounted || token != _roomsCancelToken) return;
-      dev.log(
-        'Failed to load server rooms',
-        error: error,
-        stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 1000,
-      );
+      // A PermissionDeniedException (403) is an expected steady state — the
+      // server denies access and re-auth won't help — and the rail surfaces it
+      // inline, so keep it below the severe channel reserved for genuine
+      // failures.
+      if (error is! PermissionDeniedException) {
+        dev.log(
+          'Failed to load server rooms',
+          error: error,
+          stackTrace: stackTrace,
+          name: 'RoomScreen',
+          level: 1000,
+        );
+      }
       setState(() => _serverRoomsError = error);
     });
   }
