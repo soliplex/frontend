@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.90.0+60] - 2026-06-16
+
 ### Added
 
 - Lobby: an unread dot on each room card when the room has activity newer than
@@ -16,6 +18,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Room: workdir file image previews are now zoomable and rotatable, with a
   reset-to-original control that appears while zoomed. Zoom/rotate now share a
   single viewer with the citation chunk visualization.
+- Diagnostics: the network inspector gains a category filter
+  (LLM / Auth / System) and can deep-link straight to a single run's HTTP
+  exchanges.
 
 ### Changed
 
@@ -27,6 +32,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Auth: the connect-flow rail now scrolls to keep the active step centered as
   the flow advances. Early and final steps that can't be centered stay pinned
   to the start/end.
+- Diagnostics: the network inspector is redesigned — expandable HTTP exchange
+  tiles with one de-duplicated detail view (replacing the separate run-detail
+  page) under the branded top bar.
+- Room info: redesigned with a branded header and Server/Room section cards;
+  the room-info and documents actions now live in the header's top-right.
+- Versions/about screens now use the branded top bar.
 
 ### Fixed
 
@@ -46,6 +57,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   whitespace-only profile fields are ignored, a malformed claim no longer
   discards its valid siblings, and an email standing in for a missing name no
   longer renders twice.
+- Lobby: server tiles no longer show an auth status dot for no-auth servers.
 
 ## [0.89.0+59] - 2026-06-12
 
