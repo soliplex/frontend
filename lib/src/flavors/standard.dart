@@ -170,6 +170,8 @@ Future<ShellConfig> standard({
         serverManager: serverManager,
         runtimeManager: runtimeManager,
         registry: registry,
+        appName: brand.appName,
+        logo: brandLogo,
         enableDocumentFilter: true,
       ),
       QuizAppModule(serverManager: serverManager),
