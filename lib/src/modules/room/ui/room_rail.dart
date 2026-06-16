@@ -183,7 +183,7 @@ class _RoomAvatarTile extends StatelessWidget {
                           onTap: onTap,
                           child: Center(
                             child: Text(
-                              _initial(room.name),
+                              _avatarInitial(room.name),
                               style: theme.textTheme.titleMedium
                                   ?.copyWith(color: fg),
                             ),
@@ -201,12 +201,6 @@ class _RoomAvatarTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _initial(String name) {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return '?';
-    return trimmed.characters.first.toUpperCase();
   }
 }
 
@@ -309,7 +303,7 @@ class _AccountHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(soliplexRadii.sm),
           ),
           child: Text(
-            name.characters.first.toUpperCase(),
+            _avatarInitial(name),
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.w600,
@@ -363,6 +357,13 @@ class _MenuRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The single uppercase initial for an avatar, or '?' when the name is blank.
+String _avatarInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '?';
+  return trimmed.characters.first.toUpperCase();
 }
 
 /// A deterministic, theme-aware accent color for a room's avatar, derived from
