@@ -159,7 +159,11 @@ Future<ShellConfig> standard({
       graceDuration: inactivityGraceDuration,
     ),
     modules: [
-      DiagnosticsAppModule(inspector: inspector),
+      DiagnosticsAppModule(
+        appName: brand.appName,
+        logo: brandLogo,
+        inspector: inspector,
+      ),
       authMod,
       LobbyAppModule(serverManager: serverManager, branding: brand),
       RoomAppModule(

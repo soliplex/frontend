@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../core/routes.dart';
+import '../../auth/ui/home_shell.dart';
 import '../models/http_event_group.dart';
 import '../models/http_event_grouper.dart';
 import '../network_inspector.dart';
@@ -9,8 +12,15 @@ import 'http_event_tile.dart';
 import 'request_detail_view.dart';
 
 class NetworkInspectorScreen extends StatefulWidget {
-  const NetworkInspectorScreen({required this.inspector, super.key});
+  const NetworkInspectorScreen({
+    required this.appName,
+    required this.inspector,
+    this.logo,
+    super.key,
+  });
 
+  final String appName;
+  final Widget? logo;
   final NetworkInspector inspector;
 
   @override
@@ -29,43 +39,70 @@ class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
         final sortedGroups = groups.reversed.toList();
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text('Requests (${sortedGroups.length})'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: widget.inspector.events.isEmpty &&
-                        widget.inspector.concurrencyEvents.isEmpty
-                    ? null
-                    : () {
-                        widget.inspector.clear();
-                        setState(() => _selectedRequestId = null);
-                      },
-                tooltip: 'Clear all requests',
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              ConcurrencySummaryPanel(
-                events: widget.inspector.concurrencyEvents,
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (sortedGroups.isEmpty) {
-                      return _buildEmptyState(context);
-                    }
-                    final isWide =
-                        constraints.maxWidth >= SoliplexBreakpoints.tablet;
-                    if (isWide) {
-                      return _buildMasterDetailLayout(context, sortedGroups);
-                    }
-                    return _buildListLayout(context, sortedGroups);
-                  },
+          body: SafeArea(
+            child: Column(
+              children: [
+                HomeShellHeader(
+                  appName: widget.appName,
+                  logo: widget.logo,
+                  showAbout: false,
+                  leading: IconButton(
+                    icon: Icon(Icons.adaptive.arrow_back),
+                    tooltip: 'Back',
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : context.go(AppRoutes.lobby),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_sweep_outlined),
+                      onPressed: widget.inspector.events.isEmpty &&
+                              widget.inspector.concurrencyEvents.isEmpty
+                          ? null
+                          : () {
+                              widget.inspector.clear();
+                              setState(() => _selectedRequestId = null);
+                            },
+                      tooltip: 'Clear all requests',
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                ConcurrencySummaryPanel(
+                  events: widget.inspector.concurrencyEvents,
+                ),
+                if (sortedGroups.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s2,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Requests (${sortedGroups.length})',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (sortedGroups.isEmpty) {
+                        return _buildEmptyState(context);
+                      }
+                      final isWide =
+                          constraints.maxWidth >= SoliplexBreakpoints.tablet;
+                      if (isWide) {
+                        return _buildMasterDetailLayout(context, sortedGroups);
+                      }
+                      return _buildListLayout(context, sortedGroups);
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

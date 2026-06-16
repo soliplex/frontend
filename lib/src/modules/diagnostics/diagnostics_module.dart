@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
@@ -7,8 +8,14 @@ import 'network_inspector.dart';
 import 'ui/network_inspector_screen.dart';
 
 class DiagnosticsAppModule extends AppModule {
-  DiagnosticsAppModule({required this.inspector});
+  DiagnosticsAppModule({
+    required this.appName,
+    required this.inspector,
+    this.logo,
+  });
 
+  final String appName;
+  final Widget? logo;
   final NetworkInspector inspector;
 
   @override
@@ -22,8 +29,11 @@ class DiagnosticsAppModule extends AppModule {
         routes: [
           GoRoute(
             path: AppRoutes.networkInspector,
-            builder: (context, state) =>
-                NetworkInspectorScreen(inspector: inspector),
+            builder: (context, state) => NetworkInspectorScreen(
+              appName: appName,
+              logo: logo,
+              inspector: inspector,
+            ),
           ),
         ],
       );
