@@ -8,6 +8,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Lobby: an unread dot on each room card when the room has activity newer than
+  the last time the user opened it. Read state is tracked per-device; there is
+  no server-side read state or unread count.
+
+### Fixed
+
+- Lobby: a room's "last activity" now reflects the user's most recent run in
+  that room (served by the backend stats API), not the newest thread's
+  creation time — so a long-lived thread used minutes ago no longer reads as
+  stale. Activity loads in one batched request per server.
+
 ## [0.89.0+59] - 2026-06-12
 
 ### Added

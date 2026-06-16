@@ -4,7 +4,11 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show AuthException, PermissionDeniedException, SoliplexApi;
+    show
+        AuthException,
+        NotFoundException,
+        PermissionDeniedException,
+        SoliplexApi;
 
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
@@ -148,8 +152,8 @@ class LobbyState {
   Future<void> _loadSortMode() async {
     try {
       _sortMode.value = await LobbySortModeStorage.load();
-      // Kick off the activity sweep once the persisted mode is known. (The
-      // sweep is eager regardless of mode; this just runs it at launch.)
+      // Kick off the activity fetch once the persisted mode is known. (The
+      // fetch is eager regardless of mode; this just runs it at launch.)
       _reconcileActivity();
     } catch (error, st) {
       dev.log(
@@ -165,7 +169,7 @@ class LobbyState {
   /// Activity timestamps are already fetched eagerly on server selection (see
   /// [_reconcileActivity]); this only changes the ordering. The
   /// [_reconcileActivity] call is a safety net for the rare case where the
-  /// sweep has not run yet.
+  /// fetch has not run yet.
   void setSortMode(LobbySortMode mode) {
     if (mode == _sortMode.value) return;
     _sortMode.value = mode;
@@ -182,8 +186,8 @@ class LobbyState {
     );
   }
 
-  /// Most-recent-thread timestamp per room, keyed by (serverId, roomId).
-  /// A present-but-null value means "fetched, room has no threads"; an absent
+  /// Last-activity timestamp per room, keyed by (serverId, roomId).
+  /// A present-but-null value means "fetched, room has no activity"; an absent
   /// key means "not fetched yet". Used only to order [LobbySortMode]
   /// .recentActivity; rooms without a timestamp sort last.
   final Signal<Map<RoomActivityKey, DateTime?>> _roomActivity =
@@ -192,7 +196,7 @@ class LobbyState {
       _roomActivity;
 
   /// Per-room "last seen" timestamps, keyed by (serverId, roomId). A room is
-  /// *unread* when [roomActivity] reports a `lastMessageAt` newer than its
+  /// *unread* when [roomActivity] reports a last-activity time newer than its
   /// marker here (or newer than the epoch, when never opened). Persisted
   /// per-device; there is no server-side read state and no unread count.
   final Signal<Map<RoomActivityKey, DateTime>> _readMarkers =
@@ -216,7 +220,7 @@ class LobbyState {
   /// Marks [roomId] on [serverId] as read as of now, clearing its unread
   /// affordance until a later message arrives. Called when the user opens a
   /// room. Uses "now" rather than the cached activity time so a room is read
-  /// the moment it is opened, even if the activity sweep is stale or still in
+  /// the moment it is opened, even if the activity fetch is stale or still in
   /// flight.
   void markRoomRead(String serverId, String roomId) {
     final key = (serverId: serverId, roomId: roomId);
@@ -237,43 +241,55 @@ class LobbyState {
     );
   }
 
-  /// Whether [room] on [serverId] has activity newer than the user last saw.
+  /// Whether [roomId] on [serverId] has activity newer than the user last saw.
   /// False when there is no known activity (nothing to be unread about).
   bool isRoomUnread(String serverId, String roomId) {
     final key = (serverId: serverId, roomId: roomId);
-    final lastMessageAt = _roomActivity.value[key];
-    if (lastMessageAt == null) return false;
+    final lastActivity = _roomActivity.value[key];
+    if (lastActivity == null) return false;
     final seen = _readMarkers.value[key];
-    return seen == null || lastMessageAt.isAfter(seen);
+    return seen == null || lastActivity.isAfter(seen);
   }
 
-  /// True while per-room activity for the selected server is being fetched.
+  /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
   ReadonlySignal<bool> get activityLoading => _activityLoading;
 
-  /// Cancels an in-flight activity sweep when the selection changes or the
+  /// Cancels an in-flight activity fetch when the selection changes or the
   /// state is disposed.
   CancelToken? _activityToken;
 
-  /// Loads activity timestamps for the selected server's rooms. Fetched
-  /// eagerly (the room cards display the relative time regardless of sort
-  /// order), and reused for [LobbySortMode.recentActivity] ordering. No-op
-  /// before a server is selected or before that server's rooms have loaded.
-  /// Only uncached rooms are fetched; results are merged into [_roomActivity],
-  /// so switching servers reuses prior fetches. "Recency" is the room's
-  /// `lastMessageAt` from the stats endpoint (the time of the newest message
-  /// turn — not a thread's creation time), one `getRoomStats` per room. This
-  /// relies on the standard transport's concurrency limiter to throttle the
-  /// burst.
-  void _reconcileActivity() {
+  /// Server whose activity batch is currently in flight, or `null` when none
+  /// is. Lets [_reconcileActivity] coalesce repeat calls for the same server
+  /// instead of cancelling and restarting the request.
+  String? _activityFetchServerId;
+
+  /// Resets activity-fetch state to a clean idle baseline: cancels any in-flight
+  /// request and clears the loading flag.
+  void _cancelActivityFetch() {
     _activityToken?.cancel('activity reconcile');
     _activityToken = null;
-    // Cancelling means nothing is in flight; the start path below sets this
-    // back to true only if a new sweep actually launches. Resetting here
-    // keeps every early return from leaving the spinner stuck on.
+    _activityFetchServerId = null;
     _activityLoading.value = false;
+  }
 
+  /// Loads activity timestamps for the selected server's rooms in a single
+  /// batch request. Fetched eagerly (the room cards display the relative time
+  /// regardless of sort order) and reused for [LobbySortMode.recentActivity]
+  /// ordering. No-op before a server is selected or before that server's rooms
+  /// have loaded. Results are merged into [_roomActivity] keyed by
+  /// (serverId, roomId), so switching servers reuses prior fetches.
+  void _reconcileActivity() {
     final serverId = _selectedServerId.value;
+
+    // A batch for this server is already in flight: it owns the token and the
+    // spinner, so coalesce — return without touching either.
+    if (serverId != null && _activityFetchServerId == serverId) return;
+
+    // Otherwise we're (re)deciding. Cancel any stale fetch (a different server,
+    // or none) and reset to a clean baseline.
+    _cancelActivityFetch();
+
     if (serverId == null) return;
     final entry = _serverManager.servers.value[serverId];
     if (entry == null) return;
@@ -288,46 +304,57 @@ class LobbyState {
 
     final token = CancelToken();
     _activityToken = token;
+    _activityFetchServerId = serverId;
     _activityLoading.value = true;
-    final api = _apiResolver(entry);
 
-    Future.wait(
-      missing.map((room) async {
-        try {
-          final stats = await api.getRoomStats(room.id, cancelToken: token);
-          return MapEntry(
-            (serverId: serverId, roomId: room.id),
-            stats.lastMessageAt,
-          );
-        } catch (error, st) {
-          // A room whose stats can't be fetched simply has no recency
-          // signal; it sorts last rather than failing the whole view. An
-          // AuthException still funnels to session expiry (as the room-list
-          // and profile fetches do), and a PermissionDeniedException is an
-          // expected per-room state — so neither is logged as a failure.
-          if (!token.isCancelled) {
-            if (error is AuthException) {
-              entry.auth.markSessionExpired();
-            } else if (error is! PermissionDeniedException) {
-              dev.log(
-                'Failed to fetch room activity for ${room.id} on $serverId',
-                error: error,
-                stackTrace: st,
-                level: 900,
-              );
-            }
-          }
-          return MapEntry<RoomActivityKey, DateTime?>(
-            (serverId: serverId, roomId: room.id),
-            null,
-          );
-        }
-      }),
-    ).then((entries) {
+    _apiResolver(entry).getRoomsStats(cancelToken: token).then((stats) {
       if (token.isCancelled) return;
       _activityToken = null;
+      _activityFetchServerId = null;
       _activityLoading.value = false;
-      _roomActivity.value = {..._roomActivity.value}..addEntries(entries);
+      // Null-fill the requested rooms, then overlay the batch — in one update,
+      // after the network yield (seeding nulls before the await would flash
+      // every room to "no activity" and re-sort when results land). A room the
+      // batch omits (authz skew) keeps a null entry rather than staying absent;
+      // otherwise it would re-trigger the batch on every reconcile.
+      final next = {..._roomActivity.value};
+      for (final room in missing) {
+        next[(serverId: serverId, roomId: room.id)] =
+            stats[room.id]?.lastActivity;
+      }
+      _roomActivity.value = next;
+    }).catchError((Object error, StackTrace st) {
+      if (token.isCancelled) return;
+      _activityToken = null;
+      _activityFetchServerId = null;
+      _activityLoading.value = false;
+      if (error is AuthException) {
+        // Funnel to the per-server auth funnel (as the room-list and profile
+        // fetches do); _onAuthChanged paints RoomsExpired.
+        entry.auth.markSessionExpired();
+      } else if (error is! PermissionDeniedException &&
+          error is! NotFoundException) {
+        // PermissionDeniedException (per-server authz) and NotFoundException
+        // (a pre-stats backend, 404) are expected states that degrade to "no
+        // activity" — not failures, so they aren't logged. Everything else
+        // (network, 5xx, decode, programmer errors) is a genuine failure;
+        // log it at error level, matching the room-list fetch.
+        dev.log(
+          'Failed to fetch room activity for $serverId',
+          error: error,
+          stackTrace: st,
+          level: 1000,
+        );
+      }
+      // Degrade to no activity: null-fill the requested rooms so a persistent
+      // failure (e.g. a pre-stats backend's 404) is not retried on every
+      // subsequent reconcile. Recovery comes via refresh()/re-auth, which
+      // invalidates this server's slice in _fetchRooms.
+      final next = {..._roomActivity.value};
+      for (final room in missing) {
+        next[(serverId: serverId, roomId: room.id)] = null;
+      }
+      _roomActivity.value = next;
     });
   }
 
@@ -434,9 +461,16 @@ class LobbyState {
         _cancelTokens.remove(id)?.cancel('server removed');
         _authSubscriptions.remove(id)?.call();
         _lastSessionState.remove(id);
+        // Drop a stuck in-flight activity fetch for a removed server; otherwise
+        // _activityFetchServerId would block a future fetch if the id returns.
+        if (_activityFetchServerId == id) _cancelActivityFetch();
       }
       _roomsByServer.value = updatedRooms;
       _userProfiles.value = updatedProfiles;
+      if (_roomActivity.value.keys.any((k) => removed.contains(k.serverId))) {
+        _roomActivity.value = {..._roomActivity.value}
+          ..removeWhere((k, _) => removed.contains(k.serverId));
+      }
     }
 
     // Subscribe to auth changes for new servers and fetch if already connected
@@ -530,7 +564,11 @@ class LobbyState {
         serverId: RoomsLoaded(rooms),
       };
       // A fresh room list invalidates cached activity for this server (rooms
-      // may have been added); drop those entries so recency refetches.
+      // may have been added); drop those entries so recency refetches. Cancel
+      // an in-flight activity fetch for this server too, so the reconcile below
+      // starts one clean fetch instead of being short-circuited by the coalesce
+      // guard.
+      if (_activityFetchServerId == serverId) _cancelActivityFetch();
       if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
         _roomActivity.value = {..._roomActivity.value}
           ..removeWhere((k, _) => k.serverId == serverId);
@@ -624,7 +662,7 @@ class LobbyState {
 
   void dispose() {
     _unsubscribe();
-    _activityToken?.cancel('disposed');
+    _cancelActivityFetch();
     for (final unsub in _authSubscriptions.values) {
       unsub();
     }

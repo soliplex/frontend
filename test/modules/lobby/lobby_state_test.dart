@@ -1105,8 +1105,7 @@ void main() {
         () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isTrue,
@@ -1125,7 +1124,7 @@ void main() {
     test('a room with no known activity is never unread', () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'Quiet')]
-        ..statsByRoom['r1'] = const RoomStats(roomId: 'r1');
+        ..roomsStats = {'r1': RoomStats()};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isFalse);
@@ -1139,8 +1138,7 @@ void main() {
       });
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isFalse,
@@ -1155,8 +1153,7 @@ void main() {
       });
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isTrue,
@@ -1167,8 +1164,7 @@ void main() {
     test('markRoomRead persists so a fresh LobbyState stays read', () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final manager = managerWithLocal();
       final state = await startWith(api, manager);
       state.markRoomRead('local', 'r1');

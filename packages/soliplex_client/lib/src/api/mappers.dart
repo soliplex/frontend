@@ -18,13 +18,17 @@ import 'package:soliplex_client/src/domain/workdir_file.dart';
 // Timestamp helpers
 // ============================================================
 
+/// Trailing timezone designator: a 'Z' or a numeric offset like '+00:00' /
+/// '-05:00'. Anchored to the tail so the hyphens in the date (`2026-06-01`) and
+/// the colons in a naive time (`12:30:45`) don't false-match.
 final _hasTimezone = RegExp(r'(Z|[+-]\d{2}:\d{2})$');
 
-/// Parses an ISO 8601 timestamp from the backend into UTC.
+/// Parses a backend timestamp into a UTC instant.
 ///
-/// Accepts both timezone-aware values (a trailing `Z` or a `±HH:MM`
-/// offset) and naive values; a naive value is assumed UTC. The result
-/// is always normalized to UTC.
+/// Naive ISO 8601 timestamps (no designator) are UTC-but-unmarked, so they get
+/// a 'Z'. Offset-tagged values (aware datetimes such as the stats API's
+/// `last_activity`, or Postgres-backed fields) already pin the instant and are
+/// parsed as-is. The result is always in UTC.
 ///
 /// Throws [FormatException] if [raw] is malformed.
 DateTime parseTimestamp(String raw) {
@@ -183,14 +187,19 @@ Map<String, dynamic> roomSkillToJson(RoomSkill skill) {
 }
 
 /// Parses a timestamp string, returning null on failure.
-DateTime? _tryParseTimestamp(String? raw) {
+///
+/// [logName] attributes a malformed-timestamp log to the calling subsystem.
+DateTime? _tryParseTimestamp(
+  String? raw, {
+  String logName = 'soliplex_client.document',
+}) {
   if (raw == null) return null;
   try {
     return parseTimestamp(raw);
   } on FormatException catch (e) {
     developer.log(
       'Malformed timestamp ignored: $e',
-      name: 'soliplex_client.document',
+      name: logName,
       level: 900,
     );
     return null;
@@ -452,13 +461,14 @@ WorkdirFile workdirFileFromJson(Map<String, dynamic> json) {
 
 /// Creates a [RoomStats] from JSON.
 ///
-/// `last_activity` is optional and tolerant of malformed timestamps
-/// (a bad value is treated as "no activity" rather than failing the
-/// whole lobby view).
-RoomStats roomStatsFromJson(String roomId, Map<String, dynamic> json) {
+/// An absent, null, non-string, or malformed `last_activity` yields a null
+/// activity rather than throwing, so one bad field never drops the entry.
+RoomStats roomStatsFromJson(Map<String, dynamic> json) {
+  final rawActivity = json['last_activity'];
   return RoomStats(
-    roomId: json['room_id'] as String? ?? roomId,
-    lastMessageAt: _tryParseTimestamp(json['last_activity'] as String?),
+    lastActivity: rawActivity is String
+        ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
+        : null,
   );
 }
 

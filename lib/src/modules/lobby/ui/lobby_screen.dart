@@ -590,10 +590,10 @@ class _LobbyControlsState extends State<_LobbyControls> {
             onChanged: widget.onViewModeChanged,
           )
         : null;
-    // "Recent activity" is derived from each room's newest thread (the backend
-    // has no last-access field), so it can take a moment to populate; the
-    // dropdown stays live (so the user can switch back) and a small spinner
-    // sits beside it while the sweep runs.
+    // "Recent activity" orders rooms by their last activity, which the backend
+    // reports via a stats fetch that may still be in flight, so the ordering
+    // can take a moment to populate; the dropdown stays live (so the user can
+    // switch back) and a small spinner sits beside it while that fetch runs.
     final sort = SoliplexDropdown<LobbySortMode>(
       leadingIcon: const Icon(Icons.sort),
       initialValue: widget.sortMode,
@@ -821,15 +821,15 @@ class _ServerSection extends StatelessWidget {
   DateTime? _activityFor(Room room) =>
       roomActivity[(serverId: serverId, roomId: room.id)];
 
-  /// A room is unread when its last-message time is newer than the user's
+  /// A room is unread when its last-activity time is newer than the user's
   /// stored read marker (or it was never opened). No known activity → not
   /// unread (nothing to surface).
   bool _isUnread(Room room) {
     final key = (serverId: serverId, roomId: room.id);
-    final lastMessageAt = roomActivity[key];
-    if (lastMessageAt == null) return false;
+    final lastActivity = roomActivity[key];
+    if (lastActivity == null) return false;
     final seen = readMarkers[key];
-    return seen == null || lastMessageAt.isAfter(seen);
+    return seen == null || lastActivity.isAfter(seen);
   }
 
   /// Renders [rooms] in the active view mode (no grouping).

@@ -10,34 +10,6 @@ import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('parseTimestamp', () {
-    test('appends Z when no timezone is present', () {
-      expect(
-        parseTimestamp('2026-06-01T12:00:00'),
-        equals(DateTime.utc(2026, 6, 1, 12)),
-      );
-    });
-
-    test('accepts a trailing Z', () {
-      expect(
-        parseTimestamp('2026-06-01T12:00:00Z'),
-        equals(DateTime.utc(2026, 6, 1, 12)),
-      );
-    });
-
-    test('accepts an explicit +00:00 offset', () {
-      final parsed = parseTimestamp('2026-06-01T12:00:00+00:00');
-      expect(parsed, equals(DateTime.utc(2026, 6, 1, 12)));
-      expect(parsed.isUtc, isTrue);
-    });
-
-    test('normalizes a non-UTC offset to UTC', () {
-      final parsed = parseTimestamp('2026-06-01T12:00:00+02:00');
-      expect(parsed, equals(DateTime.utc(2026, 6, 1, 10)));
-      expect(parsed.isUtc, isTrue);
-    });
-  });
-
   group('BackendVersionInfo mappers', () {
     group('backendVersionInfoFromJson', () {
       test('parses correctly with all fields', () {
@@ -638,47 +610,81 @@ void main() {
     });
   });
 
+  group('parseTimestamp', () {
+    test('appends Z to a naive timestamp and parses it as UTC', () {
+      final parsed = parseTimestamp('2026-06-01T12:30:45');
+
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 12, 30, 45)));
+      expect(parsed.isUtc, isTrue);
+    });
+
+    test('parses a Z-suffixed timestamp as UTC', () {
+      final parsed = parseTimestamp('2026-06-01T12:30:45Z');
+
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 12, 30, 45)));
+      expect(parsed.isUtc, isTrue);
+    });
+
+    test('does not double-suffix an offset-tagged UTC timestamp', () {
+      // The old endsWith('Z') logic appended 'Z' to '+00:00', yielding
+      // '...+00:00Z', which DateTime.parse rejects.
+      final parsed = parseTimestamp('2026-06-01T12:30:45+00:00');
+
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 12, 30, 45)));
+      expect(parsed.isUtc, isTrue);
+    });
+
+    test('converts a non-UTC offset to the right UTC instant', () {
+      final parsed = parseTimestamp('2026-06-01T12:00:00-05:00');
+
+      expect(parsed, equals(DateTime.utc(2026, 6, 1, 17)));
+      expect(parsed.isUtc, isTrue);
+    });
+
+    test('throws FormatException on a malformed value', () {
+      expect(() => parseTimestamp('not-a-date'), throwsFormatException);
+    });
+  });
+
   group('RoomStats mappers', () {
     group('roomStatsFromJson', () {
-      test('parses room_id and last_activity', () {
-        final stats = roomStatsFromJson('fallback', <String, dynamic>{
-          'room_id': 'room-1',
+      test('parses an offset-tagged last_activity to the right instant', () {
+        // #1074 serializes last_activity as an aware datetime ('...+00:00').
+        // The shared parseTimestamp must NOT append 'Z' to an offset-tagged
+        // value (that would yield '...+00:00Z', which DateTime.parse rejects
+        // with a FormatException — surfacing as null activity).
+        final stats = roomStatsFromJson(<String, dynamic>{
           'last_activity': '2026-06-01T12:00:00+00:00',
         });
 
-        expect(stats.roomId, equals('room-1'));
-        expect(
-          stats.lastMessageAt,
-          equals(DateTime.utc(2026, 6, 1, 12)),
-        );
-        expect(stats.lastMessageAt!.isUtc, isTrue);
+        expect(stats.lastActivity, equals(DateTime.utc(2026, 6, 1, 12)));
+        expect(stats.lastActivity!.isUtc, isTrue);
       });
 
       test('null last_activity means no activity', () {
-        final stats = roomStatsFromJson('room-1', <String, dynamic>{
-          'room_id': 'room-1',
+        final stats = roomStatsFromJson(<String, dynamic>{
           'last_activity': null,
         });
 
-        expect(stats.roomId, equals('room-1'));
-        expect(stats.lastMessageAt, isNull);
-      });
-
-      test('falls back to the passed roomId when room_id is absent', () {
-        final stats = roomStatsFromJson('fallback', <String, dynamic>{});
-
-        expect(stats.roomId, equals('fallback'));
-        expect(stats.lastMessageAt, isNull);
+        expect(stats.lastActivity, isNull);
       });
 
       test('a malformed timestamp is tolerated as no activity', () {
-        final stats = roomStatsFromJson('room-1', <String, dynamic>{
-          'room_id': 'room-1',
+        final stats = roomStatsFromJson(<String, dynamic>{
           'last_activity': 'not-a-date',
         });
 
-        expect(stats.roomId, equals('room-1'));
-        expect(stats.lastMessageAt, isNull);
+        expect(stats.lastActivity, isNull);
+      });
+
+      test('a non-string last_activity is tolerated as no activity', () {
+        // A wrong-typed field degrades like a malformed string (null activity)
+        // rather than throwing and dropping the whole entry.
+        final stats = roomStatsFromJson(<String, dynamic>{
+          'last_activity': 1717243200,
+        });
+
+        expect(stats.lastActivity, isNull);
       });
     });
   });

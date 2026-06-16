@@ -464,10 +464,10 @@ void main() {
           Room(id: 'r1', name: 'General'),
           Room(id: 'r2', name: 'Random'),
         ]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 1))
-        ..statsByRoom['r2'] =
-            RoomStats(roomId: 'r2', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {
+          'r1': RoomStats(lastActivity: DateTime.utc(2026, 1)),
+          'r2': RoomStats(lastActivity: DateTime.utc(2026, 6)),
+        };
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
@@ -505,8 +505,7 @@ void main() {
       );
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
@@ -527,17 +526,18 @@ void main() {
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
       );
-      final now = DateTime.now();
+      final now = DateTime.now().toUtc();
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [
           Room(id: 'r1', name: 'Fresh'),
           Room(id: 'r2', name: 'Stale'),
         ]
-        ..statsByRoom['r1'] = RoomStats(roomId: 'r1', lastMessageAt: now)
-        ..statsByRoom['r2'] = RoomStats(
-          roomId: 'r2',
-          lastMessageAt: now.subtract(const Duration(days: 10)),
-        );
+        ..roomsStats = {
+          'r1': RoomStats(lastActivity: now),
+          'r2': RoomStats(
+            lastActivity: now.subtract(const Duration(days: 10)),
+          ),
+        };
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
@@ -577,10 +577,12 @@ void main() {
           Room(id: 'r3', name: 'Charlie'),
           Room(id: 'r4', name: 'Delta'),
         ]
-        ..statsByRoom['r1'] = const RoomStats(roomId: 'r1')
-        ..statsByRoom['r2'] = RoomStats(roomId: 'r2', lastMessageAt: newer)
-        ..statsByRoom['r3'] = const RoomStats(roomId: 'r3')
-        ..statsByRoom['r4'] = RoomStats(roomId: 'r4', lastMessageAt: older);
+        ..roomsStats = {
+          'r1': RoomStats(),
+          'r2': RoomStats(lastActivity: newer),
+          'r3': RoomStats(),
+          'r4': RoomStats(lastActivity: older),
+        };
 
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
