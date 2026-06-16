@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +35,14 @@ class _ChunkVizApi extends FakeSoliplexApi {
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
+  // Decoded page bytes are a shared imageCache key; clear it between tests so a
+  // decode result from one test can't poison the next.
+  tearDown(() {
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+  });
+
   testWidgets('shows loading indicator while fetching', (tester) async {
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
@@ -232,59 +239,6 @@ void main() {
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.text('My Report'), findsOneWidget);
     expect(find.byIcon(Icons.close), findsOneWidget);
-  });
-
-  group('readPngDimensions', () {
-    test('reads width and height from valid PNG', () {
-      final (w, h) = readPngDimensions(_pngBytes);
-      expect(w, 1);
-      expect(h, 1);
-    });
-
-    test('returns (0, 0) for non-PNG bytes', () {
-      final bytes = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0]);
-      final (w, h) = readPngDimensions(bytes);
-      expect(w, 0);
-      expect(h, 0);
-    });
-
-    test('returns (0, 0) for truncated data', () {
-      final (w, h) = readPngDimensions(Uint8List.fromList([0x89, 0x50]));
-      expect(w, 0);
-      expect(h, 0);
-    });
-
-    test('returns (0, 0) for empty bytes', () {
-      final (w, h) = readPngDimensions(Uint8List(0));
-      expect(w, 0);
-      expect(h, 0);
-    });
-  });
-
-  group('PageImageDecoded.hasDimensions', () {
-    test('true when both dimensions are positive', () {
-      expect(
-        PageImageDecoded(bytes: Uint8List(0), width: 100, height: 200)
-            .hasDimensions,
-        isTrue,
-      );
-    });
-
-    test('false when width is zero', () {
-      expect(
-        PageImageDecoded(bytes: Uint8List(0), width: 0, height: 200)
-            .hasDimensions,
-        isFalse,
-      );
-    });
-
-    test('false when both are zero', () {
-      expect(
-        PageImageDecoded(bytes: Uint8List(0), width: 0, height: 0)
-            .hasDimensions,
-        isFalse,
-      );
-    });
   });
 
   testWidgets(

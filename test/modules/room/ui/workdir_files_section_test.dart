@@ -388,6 +388,27 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
+  testWidgets('tapping rotate turns the previewed image a quarter turn',
+      (tester) async {
+    await tester.pumpWidget(_wrap(WorkdirFilesSection(
+      runId: 'run-1',
+      fetchFiles: (_) async => [_file('plot.png')],
+      onDownload: (_, __) async => DownloadOutcome.success,
+      onPreview: (_, __) async => _tinyPng,
+    )));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 0);
+
+    await tester.tap(find.byTooltip('Rotate'));
+    await tester.pump();
+
+    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
+  });
+
   testWidgets('preview shows generic error + Retry when fetch fails',
       (tester) async {
     var fetchCalls = 0;

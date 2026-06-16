@@ -8,6 +8,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/preview_icon_button.dart';
+import '../../../shared/zoomable_image.dart';
 import 'pager_dots.dart';
 import 'workdir_preview/code_preview.dart';
 import 'workdir_preview/download_feedback_button.dart';
@@ -383,6 +384,10 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
   /// future when the user hits Retry on a failed slide.
   final _retryTokens = <WorkdirFile, int>{};
 
+  /// Per-file image rotation in quarter turns. Keyed by [WorkdirFile] so
+  /// rotation persists while paging between files.
+  final _rotations = <WorkdirFile, int>{};
+
   @override
   void dispose() {
     _controller.dispose();
@@ -398,6 +403,12 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
     setState(() {
       _bytesCache.remove(file);
       _retryTokens[file] = (_retryTokens[file] ?? 0) + 1;
+    });
+  }
+
+  void _rotate(WorkdirFile file) {
+    setState(() {
+      _rotations[file] = ((_rotations[file] ?? 0) + 1) % 4;
     });
   }
 
@@ -485,6 +496,8 @@ class _WorkdirPreviewPageState extends State<WorkdirPreviewPage> {
           kind: kind,
           filename: file.filename,
           onDownload: () => widget.onDownload(file),
+          rotationQuarterTurns: _rotations[file] ?? 0,
+          onRotate: () => _rotate(file),
         );
       },
     );
@@ -687,12 +700,16 @@ class _PreviewBody extends StatelessWidget {
     required this.kind,
     required this.filename,
     required this.onDownload,
+    required this.rotationQuarterTurns,
+    required this.onRotate,
   }) : assert(kind.canRender, 'pdf/unknown must be guarded before this point');
 
   final Uint8List bytes;
   final PreviewKind kind;
   final String filename;
   final Future<DownloadOutcome> Function() onDownload;
+  final int rotationQuarterTurns;
+  final VoidCallback onRotate;
 
   Widget _fallback({required IconData icon, required String message}) =>
       _CannotPreview(
@@ -705,9 +722,11 @@ class _PreviewBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (kind == PreviewKind.image) {
-      return _ImageOrFallback(
+      return ZoomableImage(
         bytes: bytes,
-        fallback: _fallback(
+        rotationQuarterTurns: rotationQuarterTurns,
+        onRotate: onRotate,
+        decodeFailureChild: _fallback(
           icon: Icons.broken_image_outlined,
           message: 'This image looks corrupt',
         ),
@@ -751,66 +770,6 @@ class _PreviewBody extends StatelessWidget {
           message: "Can't preview this file",
         ),
     };
-  }
-}
-
-/// Renders [bytes] in an [InteractiveViewer]. If [Image.memory]'s
-/// decoder rejects the bytes, swaps in [fallback] as a peer of (not a
-/// descendant of) the viewer so its controls aren't pannable/zoomable.
-///
-/// Decode-failure state is owned here, not on the parent, so that a
-/// fresh widget instance (different bytes) starts clean.
-class _ImageOrFallback extends StatefulWidget {
-  const _ImageOrFallback({required this.bytes, required this.fallback});
-
-  final Uint8List bytes;
-  final Widget fallback;
-
-  @override
-  State<_ImageOrFallback> createState() => _ImageOrFallbackState();
-}
-
-class _ImageOrFallbackState extends State<_ImageOrFallback> {
-  bool _failed = false;
-
-  @override
-  void didUpdateWidget(_ImageOrFallback old) {
-    super.didUpdateWidget(old);
-    if (!identical(old.bytes, widget.bytes)) {
-      _failed = false;
-    }
-  }
-
-  void _markFailed(Object? error, StackTrace? stackTrace) {
-    if (_failed) return;
-    _logger.warning(
-      'image bytes failed to decode',
-      error: error,
-      stackTrace: stackTrace,
-      attributes: {'byteLength': widget.bytes.length},
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _failed = true);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_failed) return widget.fallback;
-    return Center(
-      child: InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 4.0,
-        child: Image.memory(
-          widget.bytes,
-          fit: BoxFit.contain,
-          errorBuilder: (_, error, stack) {
-            _markFailed(error, stack);
-            return const SizedBox.shrink();
-          },
-        ),
-      ),
-    );
   }
 }
 
