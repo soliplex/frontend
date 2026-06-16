@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../version.dart';
+import '../../../core/layout.dart';
 import '../../../core/routes.dart';
 
 /// Shared chrome for the unauthenticated onboarding surfaces (home /
@@ -18,7 +19,7 @@ class HomeShell extends StatelessWidget {
     required this.appName,
     required this.child,
     this.logo,
-    this.maxContentWidth = 400,
+    this.maxContentWidth = formColumnMaxWidth,
   });
 
   final String appName;

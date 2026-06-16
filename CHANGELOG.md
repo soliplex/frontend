@@ -17,6 +17,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   reset-to-original control that appears while zoomed. Zoom/rotate now share a
   single viewer with the citation chunk visualization.
 
+### Changed
+
+- Auth/Quiz: widened the centered form/content column from 400 to 600 on
+  wide viewports so server URLs, the server list, and quiz content have more
+  room. The width is now a single shared constant (`formColumnMaxWidth`).
+  Narrower viewports are unaffected — the column still fills the available
+  width.
+
 ### Fixed
 
 - Room: image previews can be zoomed with a trackpad two-finger scroll, not
