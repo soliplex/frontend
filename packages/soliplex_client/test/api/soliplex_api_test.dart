@@ -495,7 +495,7 @@ void main() {
     });
 
     group('getRoomStats', () {
-      test('parses room_id and last_message_at', () async {
+      test('parses room_id and last_activity', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -509,7 +509,7 @@ void main() {
         ).thenAnswer(
           (_) async => {
             'room_id': 'room-123',
-            'last_message_at': '2026-06-01T12:00:00',
+            'last_activity': '2026-06-01T12:00:00+00:00',
           },
         );
 
@@ -519,7 +519,7 @@ void main() {
         expect(stats.lastMessageAt, equals(DateTime.utc(2026, 6, 1, 12)));
       });
 
-      test('tolerates a null last_message_at', () async {
+      test('tolerates a null last_activity', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -531,7 +531,7 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).thenAnswer(
-          (_) async => {'room_id': 'room-123', 'last_message_at': null},
+          (_) async => {'room_id': 'room-123', 'last_activity': null},
         );
 
         final stats = await api.getRoomStats('room-123');
@@ -593,7 +593,7 @@ void main() {
 
         await api.getRoomStats('room-123');
 
-        expect(capturedUri?.path, equals('/api/v1/rooms/room-123/stats'));
+        expect(capturedUri?.path, equals('/api/v1/stats/rooms/room-123'));
       });
     });
 

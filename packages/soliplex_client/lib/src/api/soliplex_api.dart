@@ -316,7 +316,7 @@ class SoliplexApi {
 
     final response = await _transport.request<Map<String, dynamic>>(
       'GET',
-      _urlBuilder.build(pathSegments: ['rooms', roomId, 'stats']),
+      _urlBuilder.build(pathSegments: ['stats', 'rooms', roomId]),
       cancelToken: cancelToken,
     );
     return roomStatsFromJson(roomId, response);
