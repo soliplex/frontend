@@ -25,6 +25,16 @@ typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 /// transposed at a lookup or insertion site.
 typedef RoomActivityKey = ({String serverId, String roomId});
 
+/// Whether a room is unread: it has a known [lastActivity] strictly newer than
+/// the user's last-[seen] marker (or it has never been opened). No known
+/// activity means there is nothing to be unread about. The tie case
+/// ([lastActivity] equal to [seen]) reads as seen — [LobbyState.markRoomRead]
+/// stamps "now", which is at or after any activity it has observed.
+bool isActivityUnread(DateTime? lastActivity, DateTime? seen) {
+  if (lastActivity == null) return false;
+  return seen == null || lastActivity.isAfter(seen);
+}
+
 class UserProfile {
   const UserProfile({
     required this.givenName,
@@ -245,10 +255,7 @@ class LobbyState {
   /// False when there is no known activity (nothing to be unread about).
   bool isRoomUnread(String serverId, String roomId) {
     final key = (serverId: serverId, roomId: roomId);
-    final lastActivity = _roomActivity.value[key];
-    if (lastActivity == null) return false;
-    final seen = _readMarkers.value[key];
-    return seen == null || lastActivity.isAfter(seen);
+    return isActivityUnread(_roomActivity.value[key], _readMarkers.value[key]);
   }
 
   /// True while activity for the selected server is being fetched.
@@ -330,31 +337,35 @@ class LobbyState {
       _activityLoading.value = false;
       if (error is AuthException) {
         // Funnel to the per-server auth funnel (as the room-list and profile
-        // fetches do); _onAuthChanged paints RoomsExpired.
+        // fetches do); _onAuthChanged paints RoomsExpired and re-auth refetches
+        // via _fetchRooms. Nothing to cache here.
         entry.auth.markSessionExpired();
-      } else if (error is! PermissionDeniedException &&
-          error is! NotFoundException) {
-        // PermissionDeniedException (per-server authz) and NotFoundException
-        // (a pre-stats backend, 404) are expected states that degrade to "no
-        // activity" — not failures, so they aren't logged. Everything else
-        // (network, 5xx, decode, programmer errors) is a genuine failure;
-        // log it at error level, matching the room-list fetch.
-        dev.log(
-          'Failed to fetch room activity for $serverId',
-          error: error,
-          stackTrace: st,
-          level: 1000,
-        );
+        return;
       }
-      // Degrade to no activity: null-fill the requested rooms so a persistent
-      // failure (e.g. a pre-stats backend's 404) is not retried on every
-      // subsequent reconcile. Recovery comes via refresh()/re-auth, which
-      // invalidates this server's slice in _fetchRooms.
-      final next = {..._roomActivity.value};
-      for (final room in missing) {
-        next[(serverId: serverId, roomId: room.id)] = null;
+      if (error is PermissionDeniedException || error is NotFoundException) {
+        // Stable per-server states — denied authz (403), or a pre-stats backend
+        // (404). They won't change between reconciles, so degrade to "no
+        // activity" by null-filling the requested rooms; this also keeps them
+        // out of the "missing" set so a later reconcile doesn't re-fire a
+        // request that can't succeed. Recovery comes via refresh()/re-auth,
+        // which invalidates this server's slice in _fetchRooms.
+        final next = {..._roomActivity.value};
+        for (final room in missing) {
+          next[(serverId: serverId, roomId: room.id)] = null;
+        }
+        _roomActivity.value = next;
+        return;
       }
-      _roomActivity.value = next;
+      // A genuine, possibly-transient failure (network, 5xx, decode, programmer
+      // error). Log at error level (matching the room-list fetch) and leave the
+      // rooms absent so the next reconcile retries, rather than freezing the
+      // lobby on "no activity" with no recovery cue.
+      dev.log(
+        'Failed to fetch room activity for $serverId',
+        error: error,
+        stackTrace: st,
+        level: 1000,
+      );
     });
   }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,7 +27,13 @@ abstract final class LobbyReadMarkerStorage {
     final result = <RoomActivityKey, DateTime>{};
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return {};
+      if (decoded is! List) {
+        dev.log(
+          'Discarding corrupt lobby read markers (not a JSON array)',
+          level: 900,
+        );
+        return {};
+      }
       for (final entry in decoded) {
         if (entry is! Map) continue;
         final s = entry['s'];
@@ -37,8 +44,14 @@ abstract final class LobbyReadMarkerStorage {
         if (at == null) continue;
         result[(serverId: s, roomId: r)] = at.toUtc();
       }
-    } on FormatException {
+    } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the lobby.
+      dev.log(
+        'Discarding corrupt lobby read markers',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
       return {};
     }
     return result;

@@ -626,8 +626,8 @@ void main() {
     });
 
     test('does not double-suffix an offset-tagged UTC timestamp', () {
-      // The old endsWith('Z') logic appended 'Z' to '+00:00', yielding
-      // '...+00:00Z', which DateTime.parse rejects.
+      // An offset-tagged value must not get a trailing 'Z' — '...+00:00Z' is
+      // rejected by DateTime.parse.
       final parsed = parseTimestamp('2026-06-01T12:30:45+00:00');
 
       expect(parsed, equals(DateTime.utc(2026, 6, 1, 12, 30, 45)));
@@ -649,10 +649,10 @@ void main() {
   group('RoomStats mappers', () {
     group('roomStatsFromJson', () {
       test('parses an offset-tagged last_activity to the right instant', () {
-        // #1074 serializes last_activity as an aware datetime ('...+00:00').
-        // The shared parseTimestamp must NOT append 'Z' to an offset-tagged
-        // value (that would yield '...+00:00Z', which DateTime.parse rejects
-        // with a FormatException — surfacing as null activity).
+        // The backend serializes last_activity as an aware datetime
+        // ('...+00:00'). An offset-tagged value must parse to the right UTC
+        // instant rather than failing — a FormatException would surface as
+        // null activity.
         final stats = roomStatsFromJson(<String, dynamic>{
           'last_activity': '2026-06-01T12:00:00+00:00',
         });

@@ -1180,6 +1180,40 @@ void main() {
       reloaded.dispose();
     });
   });
+
+  group('isActivityUnread', () {
+    final seen = DateTime.utc(2026, 6, 1, 12);
+
+    test('no known activity is never unread', () {
+      expect(isActivityUnread(null, null), isFalse);
+      expect(isActivityUnread(null, seen), isFalse);
+    });
+
+    test('activity with no read marker is unread', () {
+      expect(isActivityUnread(seen, null), isTrue);
+    });
+
+    test('activity newer than the marker is unread', () {
+      expect(
+        isActivityUnread(seen.add(const Duration(seconds: 1)), seen),
+        isTrue,
+      );
+    });
+
+    test('activity older than the marker is read', () {
+      expect(
+        isActivityUnread(seen.subtract(const Duration(seconds: 1)), seen),
+        isFalse,
+      );
+    });
+
+    test('activity exactly at the marker is read (strict isAfter boundary)',
+        () {
+      // markRoomRead stamps "now", which is >= any activity it has seen, so an
+      // exact tie must read as seen, not unread.
+      expect(isActivityUnread(seen, seen), isFalse);
+    });
+  });
 }
 
 /// A [SoliplexApi] backed by a [Completer] for controlling fetch timing.

@@ -821,15 +821,9 @@ class _ServerSection extends StatelessWidget {
   DateTime? _activityFor(Room room) =>
       roomActivity[(serverId: serverId, roomId: room.id)];
 
-  /// A room is unread when its last-activity time is newer than the user's
-  /// stored read marker (or it was never opened). No known activity → not
-  /// unread (nothing to surface).
   bool _isUnread(Room room) {
     final key = (serverId: serverId, roomId: room.id);
-    final lastActivity = roomActivity[key];
-    if (lastActivity == null) return false;
-    final seen = readMarkers[key];
-    return seen == null || lastActivity.isAfter(seen);
+    return isActivityUnread(roomActivity[key], readMarkers[key]);
   }
 
   /// Renders [rooms] in the active view mode (no grouping).

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show AuthException, PermissionDeniedException;
+    show AuthException, NotFoundException, PermissionDeniedException;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -256,8 +256,9 @@ void main() {
       state.dispose();
     });
 
-    test('a failed activity batch records a null timestamp for every room',
-        () async {
+    test(
+        'a persistent failure (pre-stats 404) null-fills every room and is '
+        'not retried', () async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'local',
@@ -269,7 +270,7 @@ void main() {
           Room(id: 'r1', name: 'One'),
           Room(id: 'r2', name: 'Two'),
         ]
-        ..nextRoomsStatsError = Exception('stats batch boom');
+        ..nextRoomsStatsError = const NotFoundException(message: 'no stats');
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
@@ -279,18 +280,59 @@ void main() {
       expect(activity[(serverId: 'local', roomId: 'r1')], isNull);
       expect(activity[(serverId: 'local', roomId: 'r2')], isNull);
       expect(activity.containsKey((serverId: 'local', roomId: 'r1')), isTrue,
-          reason: 'a failed batch records rooms as fetched (null), so it is '
-              'not re-swept');
+          reason: 'a 404 records rooms as fetched (null), so it is not '
+              're-swept');
       expect(activity.containsKey((serverId: 'local', roomId: 'r2')), isTrue);
 
-      // The null-fill must keep a persistently-failing batch (e.g. a pre-stats
+      // The null-fill must keep a persistently-failing batch (a pre-stats
       // backend's 404) out of the "missing" set, so a later reconcile does not
       // re-fire it.
       final callsAfterFirst = fakeApi.getRoomsStatsCallCount;
       state.setSortMode(LobbySortMode.recentActivity);
       await _settle();
       expect(fakeApi.getRoomsStatsCallCount, callsAfterFirst,
-          reason: 'a failed batch must not be retried on every reconcile');
+          reason: 'a stable failure must not be retried on every reconcile');
+      state.dispose();
+    });
+
+    test(
+        'a transient failure leaves rooms unfetched so the next reconcile '
+        'retries', () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'One')]
+        ..nextRoomsStatsError = Exception('network blip');
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      await _settle();
+
+      // A transient failure (network/5xx/decode) must not be cached as "no
+      // activity": leaving the room absent lets a later reconcile retry,
+      // rather than freezing the lobby on no activity with no recovery cue.
+      expect(
+        state.roomActivity.value.containsKey((serverId: 'local', roomId: 'r1')),
+        isFalse,
+        reason: 'a transient failure leaves the room unfetched',
+      );
+
+      // Recover, then trigger a reconcile: the still-missing room is refetched.
+      fakeApi
+        ..nextRoomsStatsError = null
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))};
+      final callsAfterFirst = fakeApi.getRoomsStatsCallCount;
+      state.setSortMode(LobbySortMode.recentActivity);
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, greaterThan(callsAfterFirst),
+          reason: 'a transient failure must be retried on the next reconcile');
+      expect(state.roomActivity.value[(serverId: 'local', roomId: 'r1')],
+          DateTime.utc(2026, 6),
+          reason: 'the retry populates the recovered activity');
       state.dispose();
     });
 
