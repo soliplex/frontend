@@ -751,6 +751,36 @@ void main() {
       expect(find.text('Guest'), findsOneWidget);
     });
 
+    testWidgets('marks the session expired (Guest) on a thrown AuthException',
+        (tester) async {
+      // The raw decorator chain usually surfaces a 401 as a response, but a
+      // thrown AuthException must funnel to the same session-expiry outcome.
+      await pumpAuthedRoom(
+        tester,
+        FakeHttpClient()
+          ..onRequest =
+              (_, __) async => throw const AuthException(message: 'expired'),
+      );
+
+      expect(find.text('Guest'), findsOneWidget);
+    });
+
+    testWidgets('falls back to "Signed in" on a malformed 200 body',
+        (tester) async {
+      // A 200 whose body isn't a JSON object trips the decode/cast; it must be
+      // caught and degrade to the generic label rather than crash the screen.
+      await pumpAuthedRoom(
+        tester,
+        FakeHttpClient()
+          ..onRequest = (_, __) async => HttpResponse(
+                statusCode: 200,
+                bodyBytes: Uint8List.fromList(utf8.encode('[1, 2, 3]')),
+              ),
+      );
+
+      expect(find.text('Signed in'), findsOneWidget);
+    });
+
     testWidgets(
         'a slow identity fetch from the previous server cannot overwrite '
         'the current server identity', (tester) async {

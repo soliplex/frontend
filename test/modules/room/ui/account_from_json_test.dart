@@ -68,5 +68,28 @@ void main() {
           accountFromJson({'preferred_username': 'ada', 'email': '  '});
       expect(account.email, isNull);
     });
+
+    test('treats a non-string field as absent without discarding siblings', () {
+      // A malformed claim (here a numeric given_name) must not take down the
+      // valid preferred_username and email alongside it.
+      final account = accountFromJson({
+        'given_name': 123,
+        'preferred_username': 'ada',
+        'email': 'ada@example.com',
+      });
+      expect(account.name, 'ada');
+      expect(account.email, 'ada@example.com');
+    });
+
+    test('falls back to "Signed in" when every claim is non-string', () {
+      final account = accountFromJson({
+        'given_name': 1,
+        'family_name': true,
+        'preferred_username': ['ada'],
+        'email': {'value': 'ada@example.com'},
+      });
+      expect(account.name, 'Signed in');
+      expect(account.email, isNull);
+    });
   });
 }
