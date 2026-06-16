@@ -494,8 +494,8 @@ void main() {
       });
     });
 
-    group('getRoomStats', () {
-      test('parses room_id and last_activity', () async {
+    group('getRoomsStats', () {
+      test('parses the dict[room_id, RoomStats] collection', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -508,18 +508,27 @@ void main() {
           ),
         ).thenAnswer(
           (_) async => {
-            'room_id': 'room-123',
-            'last_activity': '2026-06-01T12:00:00+00:00',
+            'room-1': {
+              'last_activity': '2026-06-01T12:00:00+00:00',
+            },
+            'room-2': {
+              'last_activity': null,
+            },
           },
         );
 
-        final stats = await api.getRoomStats('room-123');
+        final stats = await api.getRoomsStats();
 
-        expect(stats.roomId, equals('room-123'));
-        expect(stats.lastMessageAt, equals(DateTime.utc(2026, 6, 1, 12)));
+        expect(stats.keys, containsAll(<String>['room-1', 'room-2']));
+        expect(
+          stats['room-1']!.lastActivity,
+          equals(DateTime.utc(2026, 6, 1, 12)),
+        );
+        expect(stats['room-2']!.lastActivity, isNull);
       });
 
-      test('tolerates a null last_activity', () async {
+      test('skips a malformed entry instead of failing the whole batch',
+          () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -531,47 +540,67 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).thenAnswer(
-          (_) async => {'room_id': 'room-123', 'last_activity': null},
+          (_) async => {
+            'room-1': {
+              'last_activity': '2026-06-01T12:00:00+00:00',
+            },
+            // Not a JSON object — must not abort the other rooms.
+            'room-2': null,
+          },
         );
 
-        final stats = await api.getRoomStats('room-123');
+        final stats = await api.getRoomsStats();
 
-        expect(stats.roomId, equals('room-123'));
-        expect(stats.lastMessageAt, isNull);
+        expect(stats.keys, equals(<String>['room-1']));
+        expect(
+          stats['room-1']!.lastActivity,
+          equals(DateTime.utc(2026, 6, 1, 12)),
+        );
       });
 
-      test('validates non-empty roomId', () {
-        expect(() => api.getRoomStats(''), throwsA(isA<ArgumentError>()));
-      });
-
-      test('supports cancellation', () async {
-        final cancelToken = CancelToken();
-
+      test('returns an empty map when every entry is malformed', () async {
+        // Distinct from a single bad room: a non-empty response where nothing
+        // parses is a systemic break (the payload shape changed). The method
+        // must still degrade to "no activity" rather than throwing, since the
+        // caller can't tell this apart from a server with no activity.
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
             any(),
-            cancelToken: cancelToken,
+            cancelToken: any(named: 'cancelToken'),
             fromJson: any(named: 'fromJson'),
             body: any(named: 'body'),
             headers: any(named: 'headers'),
             timeout: any(named: 'timeout'),
           ),
-        ).thenAnswer((_) async => {'room_id': 'room-123'});
+        ).thenAnswer(
+          (_) async => <String, dynamic>{
+            'room-1': null,
+            'room-2': 42,
+          },
+        );
 
-        await api.getRoomStats('room-123', cancelToken: cancelToken);
+        final stats = await api.getRoomsStats();
 
-        verify(
+        expect(stats, isEmpty);
+      });
+
+      test('returns an empty map for an empty collection', () async {
+        when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
             any(),
-            cancelToken: cancelToken,
+            cancelToken: any(named: 'cancelToken'),
             fromJson: any(named: 'fromJson'),
             body: any(named: 'body'),
             headers: any(named: 'headers'),
             timeout: any(named: 'timeout'),
           ),
-        ).called(1);
+        ).thenAnswer((_) async => <String, dynamic>{});
+
+        final stats = await api.getRoomsStats();
+
+        expect(stats, isEmpty);
       });
 
       test('uses correct URL', () async {
@@ -588,12 +617,12 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           capturedUri = invocation.positionalArguments[1] as Uri;
-          return {'room_id': 'room-123'};
+          return <String, dynamic>{};
         });
 
-        await api.getRoomStats('room-123');
+        await api.getRoomsStats();
 
-        expect(capturedUri?.path, equals('/api/v1/stats/rooms/room-123'));
+        expect(capturedUri?.path, equals('/api/v1/stats/rooms'));
       });
     });
 

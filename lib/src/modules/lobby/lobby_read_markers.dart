@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,19 +27,55 @@ abstract final class LobbyReadMarkerStorage {
     final result = <RoomActivityKey, DateTime>{};
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return {};
+      if (decoded is! List) {
+        dev.log(
+          'Discarding corrupt lobby read markers (not a JSON array)',
+          level: 900,
+        );
+        return {};
+      }
+      var skipped = 0;
       for (final entry in decoded) {
-        if (entry is! Map) continue;
+        if (entry is! Map) {
+          skipped++;
+          continue;
+        }
         final s = entry['s'];
         final r = entry['r'];
         final t = entry['t'];
-        if (s is! String || r is! String || t is! String) continue;
+        if (s is! String || r is! String || t is! String) {
+          skipped++;
+          continue;
+        }
         final at = DateTime.tryParse(t);
-        if (at == null) continue;
+        if (at == null) {
+          skipped++;
+          continue;
+        }
         result[(serverId: s, roomId: r)] = at.toUtc();
       }
-    } on FormatException {
+      if (skipped > 0 && result.isEmpty) {
+        // Every row dropped on a non-empty payload is a systemic serialization
+        // break, not one stale row, and it silently resets the read model
+        // (every room flips to unread). Surface it loudly.
+        dev.log(
+          'Discarding all $skipped lobby read markers; none parsed',
+          level: 1000,
+        );
+      } else if (skipped > 0) {
+        dev.log(
+          'Skipped $skipped malformed lobby read marker(s)',
+          level: 900,
+        );
+      }
+    } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the lobby.
+      dev.log(
+        'Discarding corrupt lobby read markers',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
       return {};
     }
     return result;

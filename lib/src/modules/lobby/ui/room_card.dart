@@ -19,8 +19,8 @@ class RoomCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onInfoTap;
 
-  /// Most-recent-thread timestamp, shown as a muted relative label under the
-  /// title. Null while unknown (not yet fetched, or the room has no threads).
+  /// The room's last-activity time, shown as a muted relative label under the
+  /// title. Null while unknown (not yet fetched, or the room has no activity).
   final DateTime? activityTime;
 
   /// Whether the room has activity newer than the user last saw, surfaced as
@@ -31,8 +31,8 @@ class RoomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      // The list owns the horizontal gutter; the card owns only the 12px
-      // (s3) inter-row gap, matching the design mockup's list tiles.
+      // The list owns the horizontal gutter; the card owns only the s3
+      // inter-row gap, matching the design mockup's list tiles.
       margin: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
       child: ListTile(
         // Match RoomGridCard's title/subtitle styles so the two views read

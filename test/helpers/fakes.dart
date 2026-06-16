@@ -204,35 +204,22 @@ class FakeSoliplexApi extends SoliplexApi {
   Exception? nextMcpTokenError;
 
   List<ThreadInfo>? nextThreads;
-
-  /// Per-room thread lists, consulted before [nextThreads]. Lets a test give
-  /// different rooms different thread sets (e.g. for activity-based sorting).
-  final Map<String, List<ThreadInfo>> threadsByRoom = {};
-
-  /// Per-room [getThreads] errors, consulted before [threadsByRoom]. Lets a
-  /// test fail one room's thread fetch while others succeed.
-  final Map<String, Exception> threadsErrorByRoom = {};
-
-  /// When set, [getThreads] awaits this before returning, letting a test hold a
-  /// sweep in flight (e.g. to trigger a cancellation mid-fetch).
-  Completer<void>? threadsGate;
   Exception? nextThreadsError;
 
-  /// Per-room [getRoomStats] results, consulted before [nextStats]. Lets a
-  /// test give rooms distinct last-activity timestamps (e.g. for activity
-  /// sorting).
-  final Map<String, RoomStats> statsByRoom = {};
+  /// [getRoomsStats] result: the activity batch keyed by room id. Lets a test
+  /// give rooms distinct last-activity timestamps (e.g. for activity sorting).
+  Map<String, RoomStats> roomsStats = {};
 
-  /// Per-room [getRoomStats] errors, consulted before [statsByRoom]. Lets a
-  /// test fail one room's stats fetch while others succeed.
-  final Map<String, Exception> statsErrorByRoom = {};
+  /// When set, [getRoomsStats] throws it (e.g. a 404 from a pre-stats backend).
+  Exception? nextRoomsStatsError;
 
-  /// When set, [getRoomStats] awaits this before returning, letting a test
-  /// hold an activity sweep in flight (e.g. to trigger a cancellation
-  /// mid-fetch).
-  Completer<void>? statsGate;
-  RoomStats? nextStats;
-  Exception? nextStatsError;
+  /// When set, [getRoomsStats] awaits this before returning, letting a test
+  /// hold the activity batch in flight (to trigger a cancellation mid-fetch,
+  /// or fire repeat reconciles while one request is pending).
+  Completer<void>? roomsStatsGate;
+
+  /// How many times [getRoomsStats] was invoked, for coalesce assertions.
+  int getRoomsStatsCallCount = 0;
   ThreadHistory? nextThreadHistory;
   Exception? nextThreadHistoryError;
   (ThreadInfo, Map<String, dynamic>)? nextCreateThread;
@@ -271,33 +258,20 @@ class FakeSoliplexApi extends SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     if (nextThreadsError != null) throw nextThreadsError!;
-    if (threadsErrorByRoom.containsKey(roomId)) {
-      throw threadsErrorByRoom[roomId]!;
-    }
-    if (threadsGate != null) {
-      await threadsGate!.future;
-    }
-    if (threadsByRoom.containsKey(roomId)) return threadsByRoom[roomId]!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');
   }
 
   @override
-  Future<RoomStats> getRoomStats(
-    String roomId, {
+  Future<Map<String, RoomStats>> getRoomsStats({
     CancelToken? cancelToken,
   }) async {
-    if (nextStatsError != null) throw nextStatsError!;
-    if (statsErrorByRoom.containsKey(roomId)) {
-      throw statsErrorByRoom[roomId]!;
+    getRoomsStatsCallCount++;
+    if (roomsStatsGate != null) {
+      await roomsStatsGate!.future;
     }
-    if (statsGate != null) {
-      await statsGate!.future;
-    }
-    if (statsByRoom.containsKey(roomId)) return statsByRoom[roomId]!;
-    if (nextStats != null) return nextStats!;
-    throw StateError('FakeSoliplexApi: set statsByRoom, nextStats or '
-        'nextStatsError');
+    if (nextRoomsStatsError != null) throw nextRoomsStatsError!;
+    return roomsStats;
   }
 
   @override

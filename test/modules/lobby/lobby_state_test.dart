@@ -1105,8 +1105,7 @@ void main() {
         () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isTrue,
@@ -1125,7 +1124,7 @@ void main() {
     test('a room with no known activity is never unread', () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'Quiet')]
-        ..statsByRoom['r1'] = const RoomStats(roomId: 'r1');
+        ..roomsStats = {'r1': RoomStats()};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isFalse);
@@ -1139,8 +1138,7 @@ void main() {
       });
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isFalse,
@@ -1155,8 +1153,7 @@ void main() {
       });
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final state = await startWith(api, managerWithLocal());
 
       expect(state.isRoomUnread('local', 'r1'), isTrue,
@@ -1167,8 +1164,7 @@ void main() {
     test('markRoomRead persists so a fresh LobbyState stays read', () async {
       final api = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] =
-            RoomStats(roomId: 'r1', lastMessageAt: DateTime.utc(2026, 6));
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
       final manager = managerWithLocal();
       final state = await startWith(api, manager);
       state.markRoomRead('local', 'r1');
@@ -1182,6 +1178,63 @@ void main() {
       expect(reloaded.isRoomUnread('local', 'r1'), isFalse,
           reason: 'the persisted marker survives a new LobbyState');
       reloaded.dispose();
+    });
+
+    test('an early markRoomRead survives a slower cold-start load', () async {
+      // Regression (64aaf09): the cold-start load must MERGE persisted markers
+      // *under* any set in-memory while it was in flight, not overwrite them. A
+      // room opened before the disk read lands must stay read. markRoomRead
+      // runs synchronously here, before _loadReadMarkers' await resolves, so a
+      // plain assignment would clobber it back to unread.
+      final api = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
+      final state = LobbyState(
+        serverManager: managerWithLocal(),
+        apiResolver: (_) => api,
+      );
+      state.markRoomRead('local', 'r1');
+      for (var i = 0; i < 12; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(state.isRoomUnread('local', 'r1'), isFalse,
+          reason: 'a room opened before the disk read lands stays read');
+      state.dispose();
+    });
+  });
+
+  group('isActivityUnread', () {
+    final seen = DateTime.utc(2026, 6, 1, 12);
+
+    test('no known activity is never unread', () {
+      expect(isActivityUnread(null, null), isFalse);
+      expect(isActivityUnread(null, seen), isFalse);
+    });
+
+    test('activity with no read marker is unread', () {
+      expect(isActivityUnread(seen, null), isTrue);
+    });
+
+    test('activity newer than the marker is unread', () {
+      expect(
+        isActivityUnread(seen.add(const Duration(seconds: 1)), seen),
+        isTrue,
+      );
+    });
+
+    test('activity older than the marker is read', () {
+      expect(
+        isActivityUnread(seen.subtract(const Duration(seconds: 1)), seen),
+        isFalse,
+      );
+    });
+
+    test('activity exactly at the marker is read (strict isAfter boundary)',
+        () {
+      // markRoomRead stamps "now", which is >= any activity it has seen, so an
+      // exact tie must read as seen, not unread.
+      expect(isActivityUnread(seen, seen), isFalse);
     });
   });
 }

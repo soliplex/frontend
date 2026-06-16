@@ -291,35 +291,69 @@ class SoliplexApi {
         .toList();
   }
 
-  /// Gets aggregate activity stats for a room.
+  /// Gets last-activity stats for the user's accessible rooms in one request.
   ///
-  /// Parameters:
-  /// - [roomId]: The room ID (must not be empty)
-  ///
-  /// Returns a [RoomStats] for the room, scoped to the requesting user's
-  /// own threads. Notably carries `lastMessageAt` — the time of the most
-  /// recent message turn, the authoritative "last activity" signal (a
-  /// thread's `createdAt` only marks when it was opened).
+  /// Returns a map keyed by room ID, holding what the stats endpoint reports
+  /// for the requesting user. The map may omit rooms — callers should treat an
+  /// absent room the same as one with no activity. Malformed entries are
+  /// skipped rather than failing the batch. A present entry with a `null`
+  /// [RoomStats.lastActivity] means the room has no activity for this user.
   ///
   /// Throws:
-  /// - [ArgumentError] if [roomId] is empty
-  /// - [NotFoundException] if room not found (404)
-  /// - [AuthException] if not authenticated (401/403)
+  /// - [AuthException] if unauthenticated (401)
+  /// - [PermissionDeniedException] if the authorization policy forbids it (403)
+  /// - [NotFoundException] if the endpoint is absent (pre-stats backend, 404)
   /// - [NetworkException] if connection fails
   /// - [ApiException] for other server errors
   /// - [CancelledException] if cancelled via [cancelToken]
-  Future<RoomStats> getRoomStats(
-    String roomId, {
+  Future<Map<String, RoomStats>> getRoomsStats({
     CancelToken? cancelToken,
   }) async {
-    _requireNonEmpty(roomId, 'roomId');
-
     final response = await _transport.request<Map<String, dynamic>>(
       'GET',
-      _urlBuilder.build(pathSegments: ['stats', 'rooms', roomId]),
+      _urlBuilder.build(pathSegments: ['stats', 'rooms']),
       cancelToken: cancelToken,
     );
-    return roomStatsFromJson(roomId, response);
+    // Skip malformed entries so one bad room doesn't drop the whole server's
+    // activity.
+    final stats = <String, RoomStats>{};
+    var skipped = 0;
+    for (final entry in response.entries) {
+      try {
+        stats[entry.key] = roomStatsFromJson(
+          entry.value as Map<String, dynamic>,
+        );
+      } catch (e) {
+        skipped++;
+        developer.log(
+          'Malformed room stats ignored (${entry.key}): $e',
+          name: 'soliplex_client.api',
+          level: 900,
+        );
+      }
+    }
+    if (skipped > 0 && stats.isEmpty) {
+      // Every entry failing on a non-empty response is a systemic break (the
+      // payload shape changed), not a single bad room — surface it loudly. The
+      // caller can't tell this apart from "no activity", so it would otherwise
+      // be invisible.
+      developer.log(
+        'All $skipped room stats entries were malformed; '
+        'returning no activity',
+        name: 'soliplex_client.api',
+        level: 1000,
+      );
+    } else if (skipped > 0) {
+      // Partial failure: tie the scattered per-entry warnings together so a
+      // subset regression (e.g. a renamed field on some rooms) reads as one
+      // signal rather than isolated noise.
+      developer.log(
+        '$skipped of ${response.length} room stats entries were malformed',
+        name: 'soliplex_client.api',
+        level: 900,
+      );
+    }
+    return stats;
   }
 
   /// Gets a thread by ID.

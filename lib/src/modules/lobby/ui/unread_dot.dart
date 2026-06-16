@@ -5,8 +5,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 ///
 /// A boolean affordance only — the lobby tracks *whether* a room has newer
 /// activity than the user last saw, not how many messages. Shared by the
-/// list ([RoomCard]) and grid ([RoomGridCard]) views so the marker reads
-/// identically in both.
+/// list and grid room cards so the marker reads identically in both.
 class UnreadDot extends StatelessWidget {
   const UnreadDot({super.key});
 

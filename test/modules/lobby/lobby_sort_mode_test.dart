@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
-import 'package:soliplex_client/soliplex_client.dart' show AuthException;
+import 'package:soliplex_client/soliplex_client.dart'
+    show AuthException, NotFoundException, PermissionDeniedException;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -18,8 +19,8 @@ ServerManager _createManager() => ServerManager(
       storage: InMemoryServerStorage(),
     );
 
-RoomStats _stats(String roomId, DateTime? lastMessageAt) =>
-    RoomStats(roomId: roomId, lastMessageAt: lastMessageAt);
+RoomStats _stats(DateTime? lastActivity) =>
+    RoomStats(lastActivity: lastActivity);
 
 /// Drains pending microtasks. Over-pumps rather than coupling to the exact
 /// number of async hops the state machine takes to settle.
@@ -80,7 +81,7 @@ void main() {
     });
 
     test(
-        'fetches each room\'s last-message timestamp eagerly (so cards can '
+        'fetches each room\'s last-activity timestamp eagerly (so cards can '
         'show it), even with sorting at none', () async {
       final manager = _createManager();
       manager.addServer(
@@ -97,17 +98,19 @@ void main() {
           Room(id: 'r2', name: 'Random'),
           Room(id: 'r3', name: 'Empty'),
         ]
-        ..statsByRoom['r1'] = _stats('r1', older)
-        ..statsByRoom['r2'] = _stats('r2', newer)
-        // No activity → null timestamp.
-        ..statsByRoom['r3'] = _stats('r3', null);
+        ..roomsStats = {
+          'r1': _stats(older),
+          'r2': _stats(newer),
+          // No activity → null timestamp.
+          'r3': _stats(null),
+        };
 
       // Sorting stays at the default (none); activity is still fetched.
       final state = LobbyState(
         serverManager: manager,
         apiResolver: (_) => fakeApi,
       );
-      // Two turns: one for getRooms, one for the getRoomStats sweep it triggers.
+      // Two turns: one for getRooms, one for the activity batch it triggers.
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
@@ -136,17 +139,17 @@ void main() {
       final gate = Completer<void>();
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsByRoom['r1'] = _stats('r1', DateTime.utc(2026))
-        ..statsGate = gate;
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026))}
+        ..roomsStatsGate = gate;
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
-      // Let rooms load and the sweep start; it then parks on the gate.
+      // Let rooms load and the batch start; it then parks on the gate.
       for (var i = 0; i < 12 && !state.activityLoading.value; i++) {
         await Future<void>.delayed(Duration.zero);
       }
       expect(state.activityLoading.value, isTrue,
-          reason: 'the sweep should be in flight, held open by the gate');
+          reason: 'the batch should be in flight, held open by the gate');
 
       // Removing the only server drops the selection to null, so the reconcile
       // it triggers hits an early return. The flag must still clear.
@@ -179,10 +182,10 @@ void main() {
       final fresh = DateTime.utc(2026, 6, 1);
       final apiA = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'ra', name: 'A-Room')]
-        ..statsByRoom['ra'] = _stats('ra', stale);
+        ..roomsStats = {'ra': _stats(stale)};
       final apiB = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'rb', name: 'B-Room')]
-        ..statsByRoom['rb'] = _stats('rb', other);
+        ..roomsStats = {'rb': _stats(other)};
 
       final state = LobbyState(
         serverManager: manager,
@@ -198,8 +201,8 @@ void main() {
       expect(state.roomActivity.value[(serverId: 'a', roomId: 'ra')], stale);
       expect(state.roomActivity.value[(serverId: 'b', roomId: 'rb')], other);
 
-      // Change 'a's last-message time and refetch only 'a'.
-      apiA.statsByRoom['ra'] = _stats('ra', fresh);
+      // Change 'a's last-activity time and refetch only 'a'.
+      apiA.roomsStats = {'ra': _stats(fresh)};
       state.refresh('a');
       await _settle();
 
@@ -210,38 +213,250 @@ void main() {
       state.dispose();
     });
 
-    test('a room whose stats fetch fails records a null timestamp', () async {
+    test(
+        'refreshing while the activity batch is in flight cancels it and '
+        'starts a fresh fetch (does not coalesce onto the stale batch)',
+        () async {
       final manager = _createManager();
       manager.addServer(
         serverId: 'local',
         serverUrl: Uri.parse('http://localhost:8000'),
         requiresAuth: false,
       );
-      final ok = DateTime.utc(2026, 6, 1);
+      final gate = Completer<void>();
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'One')]
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))}
+        ..roomsStatsGate = gate;
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      // Let the first activity batch start and park on the gate.
+      for (var i = 0; i < 12 && !state.activityLoading.value; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(state.activityLoading.value, isTrue);
+      expect(fakeApi.getRoomsStatsCallCount, 1);
+
+      // Refresh while the batch is still in flight. _fetchRooms must cancel the
+      // in-flight batch so the post-refresh reconcile starts a fresh fetch
+      // rather than being short-circuited by the coalesce guard.
+      state.refresh('local');
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, 2,
+          reason: 'a mid-batch refresh must start a new fetch, not coalesce '
+              'onto the stale one');
+
+      // Release both batches; the first (cancelled) is dropped, the second
+      // writes the activity.
+      gate.complete();
+      await _settle();
+      expect(state.roomActivity.value[(serverId: 'local', roomId: 'r1')],
+          DateTime.utc(2026, 6));
+      state.dispose();
+    });
+
+    test(
+        'a persistent failure (pre-stats 404) null-fills every room and is '
+        'not retried', () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [
-          Room(id: 'ok', name: 'Ok'),
-          Room(id: 'bad', name: 'Bad'),
+          Room(id: 'r1', name: 'One'),
+          Room(id: 'r2', name: 'Two'),
         ]
-        ..statsByRoom['ok'] = _stats('ok', ok)
-        ..statsErrorByRoom['bad'] = Exception('stats fetch boom');
+        ..nextRoomsStatsError = const NotFoundException(message: 'no stats');
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
       await _settle();
 
       final activity = state.roomActivity.value;
-      expect(activity[(serverId: 'local', roomId: 'ok')], ok);
-      expect(activity[(serverId: 'local', roomId: 'bad')], isNull,
-          reason: 'a failed stats fetch maps to a null timestamp');
-      expect(activity.containsKey((serverId: 'local', roomId: 'bad')), isTrue,
-          reason: 'the failed room is recorded as fetched, so it is not '
+      expect(activity[(serverId: 'local', roomId: 'r1')], isNull);
+      expect(activity[(serverId: 'local', roomId: 'r2')], isNull);
+      expect(activity.containsKey((serverId: 'local', roomId: 'r1')), isTrue,
+          reason: 'a 404 records rooms as fetched (null), so it is not '
               're-swept');
+      expect(activity.containsKey((serverId: 'local', roomId: 'r2')), isTrue);
+
+      // The null-fill must keep a persistently-failing batch (a pre-stats
+      // backend's 404) out of the "missing" set, so a later reconcile does not
+      // re-fire it.
+      final callsAfterFirst = fakeApi.getRoomsStatsCallCount;
+      state.setSortMode(LobbySortMode.recentActivity);
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, callsAfterFirst,
+          reason: 'a stable failure must not be retried on every reconcile');
       state.dispose();
     });
 
     test(
-        'an AuthException during the sweep funnels to session expiry, like the '
+        'a transient failure leaves rooms unfetched so the next reconcile '
+        'retries', () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'One')]
+        ..nextRoomsStatsError = Exception('network blip');
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      await _settle();
+
+      // A transient failure (network/5xx/decode) must not be cached as "no
+      // activity": leaving the room absent lets a later reconcile retry,
+      // rather than freezing the lobby on no activity with no recovery cue.
+      expect(
+        state.roomActivity.value.containsKey((serverId: 'local', roomId: 'r1')),
+        isFalse,
+        reason: 'a transient failure leaves the room unfetched',
+      );
+
+      // Recover, then trigger a reconcile: the still-missing room is refetched.
+      fakeApi
+        ..nextRoomsStatsError = null
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))};
+      final callsAfterFirst = fakeApi.getRoomsStatsCallCount;
+      state.setSortMode(LobbySortMode.recentActivity);
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, greaterThan(callsAfterFirst),
+          reason: 'a transient failure must be retried on the next reconcile');
+      expect(state.roomActivity.value[(serverId: 'local', roomId: 'r1')],
+          DateTime.utc(2026, 6),
+          reason: 'the retry populates the recovered activity');
+      state.dispose();
+    });
+
+    test('a displayed room the batch omits caches null and is not re-fetched',
+        () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'One'),
+          Room(id: 'r2', name: 'Two'),
+        ]
+        // Authz skew: the batch omits r2 (it's displayed but not returned).
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))};
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      await _settle();
+
+      expect(
+          state.roomActivity.value[(serverId: 'local', roomId: 'r2')], isNull);
+      expect(
+        state.roomActivity.value.containsKey((serverId: 'local', roomId: 'r2')),
+        isTrue,
+        reason: 'an omitted room is recorded as fetched-with-no-activity',
+      );
+      final callsAfterFirst = fakeApi.getRoomsStatsCallCount;
+
+      // Toggling sort triggers a reconcile; the omitted room must not re-fire
+      // the batch (the null-fill keeps it out of the "missing" set).
+      state.setSortMode(LobbySortMode.recentActivity);
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, callsAfterFirst,
+          reason: 'an omitted room must not re-trigger the batch');
+      state.dispose();
+    });
+
+    test(
+        'repeat reconciles while a batch is in flight issue exactly one '
+        'request and keep the spinner on', () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final gate = Completer<void>();
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'One')]
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))}
+        ..roomsStatsGate = gate;
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      for (var i = 0; i < 12 && !state.activityLoading.value; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(state.activityLoading.value, isTrue);
+      expect(fakeApi.getRoomsStatsCallCount, 1);
+
+      // Fire repeat reconciles for the same server while the batch is gated.
+      state.setSortMode(LobbySortMode.recentActivity);
+      state.setSortMode(LobbySortMode.none);
+      await _settle();
+      expect(fakeApi.getRoomsStatsCallCount, 1,
+          reason: 'an in-flight batch must coalesce repeat reconciles');
+      expect(state.activityLoading.value, isTrue,
+          reason: 'the coalesce guard must not kill the spinner mid-fetch');
+
+      gate.complete();
+      await _settle();
+      expect(state.activityLoading.value, isFalse);
+      state.dispose();
+    });
+
+    test('removing the in-flight server then re-adding it re-fetches activity',
+        () async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final gate = Completer<void>();
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'One')]
+        ..roomsStats = {'r1': _stats(DateTime.utc(2026, 6))}
+        ..roomsStatsGate = gate;
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      for (var i = 0; i < 12 && !state.activityLoading.value; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(state.activityLoading.value, isTrue);
+
+      // Remove the server whose batch is in flight, then release the now-orphan
+      // request (its cancelled token must drop the result).
+      manager.removeServer('local');
+      gate.complete();
+      await _settle();
+
+      // Re-add the same id; its activity must fetch again rather than being
+      // blocked forever by a stuck _activityFetchServerId.
+      fakeApi.roomsStatsGate = null;
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      await _settle();
+
+      expect(state.roomActivity.value[(serverId: 'local', roomId: 'r1')],
+          DateTime.utc(2026, 6),
+          reason: 're-added server must re-fetch activity');
+      state.dispose();
+    });
+
+    test(
+        'an AuthException during the batch funnels to session expiry, like the '
         'room-list and profile fetches', () async {
       final manager = _createManager();
       final entry = manager.addServer(
@@ -261,19 +476,61 @@ void main() {
       );
       final fakeApi = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..statsErrorByRoom['r1'] = const AuthException(message: 'expired');
+        ..nextRoomsStatsError = const AuthException(message: 'expired');
 
       final state =
           LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
       await _settle();
 
       expect(entry.auth.session.value, isA<ExpiredSession>(),
-          reason: 'a swept-room AuthException must drive session expiry rather '
-              'than being swallowed as a per-room warning');
+          reason: 'a batch AuthException must drive session expiry rather '
+              'than being swallowed as a warning');
       state.dispose();
     });
 
-    test('a sweep superseded by a selection change discards its stale results',
+    test(
+        'a PermissionDeniedException during the batch null-fills without '
+        'expiring the session', () async {
+      final manager = _createManager();
+      final entry = manager.addServer(
+        serverId: 'authz',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      entry.auth.login(
+        provider: const OidcProvider(
+          discoveryUrl: 'https://sso/.well-known/openid-configuration',
+          clientId: 'c',
+        ),
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..nextRoomsStatsError =
+            const PermissionDeniedException(message: 'forbidden');
+
+      final state =
+          LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+      await _settle();
+
+      expect(entry.auth.session.value, isNot(isA<ExpiredSession>()),
+          reason: 'a denied stats fetch is an expected per-server state, not '
+              'a session expiry');
+      expect(
+          state.roomActivity.value[(serverId: 'authz', roomId: 'r1')], isNull);
+      expect(
+          state.roomActivity.value
+              .containsKey((serverId: 'authz', roomId: 'r1')),
+          isTrue,
+          reason: 'a denied batch records rooms as fetched (null) so it is not '
+              'retried on every reconcile');
+      state.dispose();
+    });
+
+    test('a batch superseded by a selection change discards its stale results',
         () async {
       final manager = _createManager();
       manager.addServer(
@@ -289,37 +546,37 @@ void main() {
       final gateA = Completer<void>();
       final apiA = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'ra', name: 'A-Room')]
-        ..statsByRoom['ra'] = _stats('ra', DateTime.utc(2026, 1))
-        ..statsGate = gateA;
+        ..roomsStats = {'ra': _stats(DateTime.utc(2026, 1))}
+        ..roomsStatsGate = gateA;
       final apiB = FakeSoliplexApi()
         ..nextRooms = const [Room(id: 'rb', name: 'B-Room')]
-        ..statsByRoom['rb'] = _stats('rb', DateTime.utc(2026, 6));
+        ..roomsStats = {'rb': _stats(DateTime.utc(2026, 6))};
 
       final state = LobbyState(
         serverManager: manager,
         apiResolver: (entry) => entry.serverUrl.host == 'a' ? apiA : apiB,
       );
-      // 'a' is the initial selection; let its sweep start and park on the gate.
+      // 'a' is the initial selection; let its batch start and park on the gate.
       for (var i = 0; i < 12 && !state.activityLoading.value; i++) {
         await Future<void>.delayed(Duration.zero);
       }
       expect(state.activityLoading.value, isTrue,
-          reason: "'a's sweep should be in flight, held open by the gate");
+          reason: "'a's batch should be in flight, held open by the gate");
 
-      // Switching to 'b' cancels 'a's token and runs 'b's sweep to completion.
+      // Switching to 'b' cancels 'a's token and runs 'b's batch to completion.
       state.selectServer('b');
       await _settle();
       expect(state.roomActivity.value[(serverId: 'b', roomId: 'rb')],
           DateTime.utc(2026, 6));
 
-      // Release 'a's now-cancelled sweep; the isCancelled guard must drop its
+      // Release 'a's now-cancelled batch; the isCancelled guard must drop its
       // result rather than writing it over the current selection's state.
       gateA.complete();
       await _settle();
       expect(
         state.roomActivity.value.containsKey((serverId: 'a', roomId: 'ra')),
         isFalse,
-        reason: 'a sweep cancelled by a selection change must not write its '
+        reason: 'a batch cancelled by a selection change must not write its '
             'stale results',
       );
       state.dispose();
