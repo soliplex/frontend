@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
+import '../../../shared/markdown/prose_markdown.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
 import '../consent_notice.dart';
@@ -412,9 +413,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Text(notice.title, style: theme.textTheme.titleSmall),
             const SizedBox(height: SoliplexSpacing.s2),
-            Text(
-              notice.body,
-              style: theme.textTheme.bodyMedium
+            ProseMarkdown(
+              data: notice.body,
+              textStyle: theme.textTheme.bodyMedium
                   ?.copyWith(color: colors.onSurfaceVariant),
             ),
           ],

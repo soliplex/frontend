@@ -16,6 +16,7 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/connect_flow_rail.dart';
 import 'package:soliplex_frontend/src/modules/auth/ui/home_screen.dart';
+import 'package:soliplex_frontend/src/shared/markdown/prose_markdown.dart';
 import 'package:soliplex_frontend/version.dart';
 
 import '../../../helpers/fakes.dart';
@@ -931,6 +932,29 @@ void main() {
       expect(find.text('Before you connect'), findsOneWidget);
       expect(find.text('Usage notice'), findsOneWidget);
       expect(find.text('You agree to the terms.'), findsOneWidget);
+    });
+
+    testWidgets('renders the notice body as markdown, not a bare Text',
+        (tester) async {
+      const markdownNotice = ConsentNotice(
+        title: 'Usage notice',
+        body: 'Agree to the **terms** and the [policy](https://example.com).',
+        acknowledgmentLabel: 'Agree & continue',
+      );
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: markdownNotice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      final prose = tester.widget<ProseMarkdown>(find.byType(ProseMarkdown));
+      expect(prose.data, markdownNotice.body);
+      // Markup is parsed away — a bare Text(notice.body) would still show it.
+      expect(find.textContaining('**terms**'), findsNothing);
     });
 
     testWidgets('continue is gated until the agreement box is ticked',

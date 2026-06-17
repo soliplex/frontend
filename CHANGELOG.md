@@ -8,6 +8,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- Auth: the pre-sign-in consent notice body now renders as markdown
+  (paragraphs, lists, emphasis, and external links) instead of literal text.
+  Flavors can structure the notice; the body is treated as trusted,
+  flavor-provided input.
+
 ## [0.90.0+60] - 2026-06-16
 
 ### Added

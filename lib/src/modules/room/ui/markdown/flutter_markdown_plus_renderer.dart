@@ -6,22 +6,19 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../shared/failed_image.dart';
+import '../../../../shared/markdown/launch_markdown_link.dart';
+import '../../../../shared/markdown/markdown_renderer.dart';
+import '../../../../shared/markdown/markdown_style_sheet.dart';
+import '../../../../shared/markdown/sanitize_markdown.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
 import 'file_image_loader.dart'
     if (dart.library.io) 'file_image_loader_io.dart';
 import 'inline_code_builder.dart';
-import 'launch_markdown_link.dart';
-import 'markdown_style_sheet.dart';
 import 'log_source.dart';
-import 'markdown_renderer.dart';
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.markdown_image');
-
-final _brTag = RegExp(r'<br\s*/?>');
-
-String sanitizeMarkdown(String markdown) => markdown.replaceAll(_brTag, '\n');
 
 class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
   const FlutterMarkdownPlusRenderer({
