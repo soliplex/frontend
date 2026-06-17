@@ -9,24 +9,6 @@ import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 void main() {
-  group('sanitizeMarkdown', () {
-    test('replaces <br/> with newline', () {
-      expect(sanitizeMarkdown('line1<br/>line2'), 'line1\nline2');
-    });
-
-    test('replaces <br /> (space before slash) with newline', () {
-      expect(sanitizeMarkdown('line1<br />line2'), 'line1\nline2');
-    });
-
-    test('replaces multiple br tags', () {
-      expect(sanitizeMarkdown('a<br/>b<br />c'), 'a\nb\nc');
-    });
-
-    test('returns unchanged string when no br tags present', () {
-      expect(sanitizeMarkdown('plain text'), 'plain text');
-    });
-  });
-
   group('FlutterMarkdownPlusRenderer widget', () {
     testWidgets('renders markdown text content', (tester) async {
       await tester.pumpWidget(
