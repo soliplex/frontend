@@ -48,6 +48,9 @@ abstract final class ThreadAnchorStorage {
         }
         result[(serverId: s, roomId: r, threadId: th)] = id;
       }
+      // Every row dropped on a non-empty payload is a systemic serialization
+      // break, not one stale row, and it silently resets the read model. Surface
+      // it loudly.
       if (skipped > 0 && result.isEmpty) {
         dev.log('Discarding all $skipped thread anchors; none parsed',
             level: 1000);
@@ -55,6 +58,7 @@ abstract final class ThreadAnchorStorage {
         dev.log('Skipped $skipped malformed thread anchor(s)', level: 900);
       }
     } on FormatException catch (e, st) {
+      // Corrupt payload: start fresh rather than wedging the room.
       dev.log(
         'Discarding corrupt thread anchors',
         error: e,

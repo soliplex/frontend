@@ -4,9 +4,9 @@ import 'compute_display_messages.dart';
 
 /// The id of the first unread message, given [boundaryAnchorId] — the id of the
 /// last message the user had already seen. Returns null when there is no line
-/// to draw: no anchor, the anchor is the last message, or the anchor is absent
+/// to draw: no anchor, the anchor is the last message, the anchor is absent
 /// from [displayMessages] (e.g. it belonged to a run that is no longer
-/// replayed).
+/// replayed), or the only message after the anchor is the streaming/loading placeholder.
 String? firstUnreadMessageId(
   List<ChatMessage> displayMessages,
   String? boundaryAnchorId,
