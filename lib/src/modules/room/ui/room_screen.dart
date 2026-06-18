@@ -26,6 +26,7 @@ import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
 import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
 import '../anchor_tracker.dart';
+import '../room_unread.dart';
 import '../thread_read_markers.dart';
 import '../unread_boundary.dart';
 import '../document_selections.dart';
@@ -440,21 +441,13 @@ class _RoomScreenState extends State<RoomScreen> {
     String? selectedThreadId,
   ) {
     if (status is! ThreadsLoaded) return const {};
-    final serverId = widget.serverEntry.serverId;
-    final roomId = widget.roomId;
-    return {
-      for (final thread in status.threads)
-        if (thread.id != selectedThreadId &&
-            isActivityUnread(
-              thread.lastActivity,
-              _threadReadMarkers[(
-                serverId: serverId,
-                roomId: roomId,
-                threadId: thread.id,
-              )],
-            ))
-          thread.id,
-    };
+    return unreadThreadIds(
+      status.threads,
+      _threadReadMarkers,
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      selectedThreadId: selectedThreadId,
+    );
   }
 
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
