@@ -7,9 +7,11 @@ import '../execution_tracker.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
+import '../unread_boundary.dart';
 import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
+import 'unread_divider.dart';
 import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -19,6 +21,8 @@ class MessageTimeline extends StatefulWidget {
     required this.roomId,
     required this.messages,
     required this.messageStates,
+    this.unreadBoundaryId,
+    this.unreadBoundaryResolved = false,
     this.streamingState,
     this.executionTrackers = const {},
     this.onFeedbackSubmit,
@@ -32,6 +36,12 @@ class MessageTimeline extends StatefulWidget {
   final String roomId;
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+  final String? unreadBoundaryId;
+
+  /// Whether [unreadBoundaryId] reflects a resolved read state (vs. the anchor
+  /// not having loaded yet). The divider/scroll wait for this so a not-yet-
+  /// loaded null is not mistaken for "caught up".
+  final bool unreadBoundaryResolved;
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
@@ -53,6 +63,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
   final Map<String, GlobalKey> _messageKeys = {};
   String? _lastUserMessageId;
   bool _needsInitialScroll = true;
+
+  /// The frozen first-unread message id, computed once when the boundary
+  /// resolves. Drives both the divider and the one-time unread scroll. Stays
+  /// fixed for the life of this timeline so live messages don't move it.
+  String? _frozenFirstUnreadId;
+  bool _unreadEvaluated = false;
 
   Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
@@ -84,6 +100,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     final activeIds = widget.messages.map((m) => m.id).toSet();
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
+
+    _evaluateUnread(
+      computeDisplayMessages(widget.messages, widget.streamingState),
+    );
   }
 
   void _recomputeMaps() {
@@ -126,7 +146,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final key = _messageKeys[messageId];
     if (key?.currentContext == null) return false;
 
-    final renderObject = key!.currentContext!.findRenderObject()!;
+    final renderObject = key!.currentContext!.findRenderObject();
+    if (renderObject == null) return false;
     final viewport = RenderAbstractViewport.of(renderObject);
     final target = viewport.getOffsetToReveal(renderObject, 0.0).offset - 8;
 
@@ -144,6 +165,45 @@ class _MessageTimelineState extends State<MessageTimeline> {
       if (!_scrollController.hasClients) return;
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
+  }
+
+  void _scrollToUnread(String messageId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      if (_tryRevealAtTop(messageId)) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        _tryRevealAtTop(messageId);
+      });
+    });
+  }
+
+  /// Freezes the unread boundary and performs the one-time unread scroll the
+  /// first time the boundary is resolved. Idempotent: once evaluated it never
+  /// re-fires, so live-arriving messages neither move the divider nor yank the
+  /// viewport.
+  void _evaluateUnread(List<ChatMessage> displayMessages) {
+    if (_unreadEvaluated || !widget.unreadBoundaryResolved) return;
+    _unreadEvaluated = true;
+    _frozenFirstUnreadId =
+        firstUnreadMessageId(displayMessages, widget.unreadBoundaryId);
+    if (widget.streamingState == null && _frozenFirstUnreadId != null) {
+      _scrollToUnread(_frozenFirstUnreadId!);
+    }
+  }
+
+  bool _tryRevealAtTop(String messageId) {
+    final key = _messageKeys[messageId];
+    if (key?.currentContext == null) return false;
+
+    final renderObject = key!.currentContext!.findRenderObject();
+    if (renderObject == null) return false;
+    final viewport = RenderAbstractViewport.of(renderObject);
+    final target = (viewport.getOffsetToReveal(renderObject, 0.0).offset - 8)
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.jumpTo(target);
+    return true;
   }
 
   void _onScroll() {
@@ -171,10 +231,17 @@ class _MessageTimelineState extends State<MessageTimeline> {
       widget.streamingState,
     );
 
+    _evaluateUnread(displayMessages);
+
     if (_needsInitialScroll) {
       _needsInitialScroll = false;
       _lastUserMessageId = _findLastUserMessage(widget.messages)?.id;
-      _scrollToBottom();
+      // _evaluateUnread scrolls to the divider only when one is resolved AND no
+      // run is streaming; otherwise (caught up, not yet resolved, or an active
+      // run we should follow) land at the bottom.
+      if (_frozenFirstUnreadId == null || widget.streamingState != null) {
+        _scrollToBottom();
+      }
     }
 
     final streamingPhase = widget.streamingState != null
@@ -202,32 +269,38 @@ class _MessageTimelineState extends State<MessageTimeline> {
                   // initState; without the remount they would stay bound to
                   // loadingMessageId (which forMessage rejects) and never
                   // acquire a handle under the real messageId.
+                  final tile = MessageTile(
+                    roomId: widget.roomId,
+                    message: message,
+                    runId: _runIdMap[message.id] ??
+                        (message is TextMessage && message.user == ChatUser.user
+                            ? widget.messageStates[message.id]?.runId
+                            : null),
+                    sourceReferences: _sourceReferencesMap[message.id],
+                    onFeedbackSubmit: widget.onFeedbackSubmit,
+                    onInspect: widget.onInspect,
+                    onShowChunkVisualization: widget.onShowChunkVisualization,
+                    onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
+                    onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
+                    onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
+                    executionTracker: widget.executionTrackers[message.id] ??
+                        (message is LoadingMessage
+                            ? widget.executionTrackers[awaitingTrackerKey]
+                            : null),
+                    streamingPhase: isLastItem ? streamingPhase : null,
+                  );
                   return Padding(
                     key: message is LoadingMessage
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-                    child: MessageTile(
-                      roomId: widget.roomId,
-                      message: message,
-                      runId: _runIdMap[message.id] ??
-                          (message is TextMessage &&
-                                  message.user == ChatUser.user
-                              ? widget.messageStates[message.id]?.runId
-                              : null),
-                      sourceReferences: _sourceReferencesMap[message.id],
-                      onFeedbackSubmit: widget.onFeedbackSubmit,
-                      onInspect: widget.onInspect,
-                      onShowChunkVisualization: widget.onShowChunkVisualization,
-                      onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
-                      onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
-                      onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
-                      executionTracker: widget.executionTrackers[message.id] ??
-                          (message is LoadingMessage
-                              ? widget.executionTrackers[awaitingTrackerKey]
-                              : null),
-                      streamingPhase: isLastItem ? streamingPhase : null,
-                    ),
+                    child: message.id == _frozenFirstUnreadId
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [const UnreadDivider(), tile],
+                          )
+                        : tile,
                   );
                 },
               ),
