@@ -984,6 +984,30 @@ void main() {
       expect(find.text('Before you connect'), findsNothing);
     });
 
+    testWidgets('tapping the label text ticks the agreement gate',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        discover: _multiProviderDiscover,
+        consentNotice: notice,
+      ));
+      await tester.pumpAndSettle();
+
+      await reachConsent(tester);
+
+      // Tap the label text, not the checkbox box itself.
+      await tester.tap(find.text('I understand and agree to the usage terms.'));
+      await tester.pumpAndSettle();
+
+      // The box is now ticked and the gate opens.
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+      await tester.tap(find.text('Agree & continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose how you want to authenticate.'), findsOneWidget);
+    });
+
     testWidgets('leaving and re-entering consent re-arms the gate',
         (tester) async {
       final serverManager = _createServerManager();

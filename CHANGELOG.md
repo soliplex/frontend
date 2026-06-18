@@ -14,6 +14,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   (paragraphs, lists, emphasis, and external links) instead of literal text.
   Flavors can structure the notice; the body is treated as trusted,
   flavor-provided input.
+- Auth: the consent agreement is now toggled by tapping anywhere on its row,
+  not just the checkbox, giving it a full-width tap target.
 
 ## [0.90.0+60] - 2026-06-16
 

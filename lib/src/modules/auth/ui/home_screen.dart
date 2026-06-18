@@ -425,28 +425,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // Pure-frontend agreement gate — the consent is the user ticking this,
       // no extra backend round-trip.
       Container(
-        padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(soliplexRadii.md),
           border: Border.all(
             color: _consentAgreed ? colors.primary : colors.outlineVariant,
           ),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Checkbox(
-              value: _consentAgreed,
-              onChanged: (v) => setState(() => _consentAgreed = v ?? false),
-            ),
-            const SizedBox(width: SoliplexSpacing.s1),
-            Expanded(
-              child: Text(
-                'I understand and agree to the usage terms.',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-          ],
+        child: CheckboxListTile(
+          value: _consentAgreed,
+          onChanged: (v) => setState(() => _consentAgreed = v ?? false),
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s2,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(soliplexRadii.md),
+          ),
+          title: Text(
+            'I understand and agree to the usage terms.',
+            style: theme.textTheme.bodyMedium,
+          ),
         ),
       ),
       const SizedBox(height: SoliplexSpacing.s4),
