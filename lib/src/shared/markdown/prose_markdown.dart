@@ -10,9 +10,10 @@ import 'sanitize_markdown.dart';
 
 /// Renders trusted, author-provided prose markdown — paragraphs, lists,
 /// emphasis, and external links — for static copy surfaces such as the consent
-/// notice. Deliberately excludes the chat renderer's LaTeX, code, and image
-/// builders; `onImageTap` (inherited from [MarkdownRenderer]) is unused because
-/// prose renders no images.
+/// notice. The text is selectable so it can be copied. Deliberately excludes
+/// the chat renderer's LaTeX, code, and image builders; `onImageTap`
+/// (inherited from [MarkdownRenderer]) is unused because prose renders no
+/// images.
 class ProseMarkdown extends MarkdownRenderer {
   const ProseMarkdown({
     required super.data,
@@ -34,7 +35,7 @@ class ProseMarkdown extends MarkdownRenderer {
 
     return MarkdownBody(
       data: sanitizeMarkdown(data),
-      selectable: false,
+      selectable: true,
       styleSheet: styleSheet,
       extensionSet: md.ExtensionSet.gitHubFlavored,
       onTapLink: (_, href, title) {
