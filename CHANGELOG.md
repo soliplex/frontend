@@ -16,6 +16,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   flavor-provided input.
 - Auth: the consent agreement is now toggled by tapping anywhere on its row,
   not just the checkbox, giving it a full-width tap target.
+- Auth: the consent notice terms are now selectable, so users can copy the
+  text they're agreeing to.
 
 ## [0.90.0+60] - 2026-06-16
 

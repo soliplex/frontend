@@ -57,6 +57,20 @@ void main() {
       expect(body.styleSheet?.p?.color, Colors.purple);
     });
 
+    testWidgets('renders selectable text so the prose can be copied',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ProseMarkdown(data: 'selectable paragraph'),
+          ),
+        ),
+      );
+
+      final body = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
+      expect(body.selectable, isTrue);
+    });
+
     testWidgets('does not render LaTeX (no math builder wired)',
         (tester) async {
       await tester.pumpWidget(
