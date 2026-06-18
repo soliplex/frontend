@@ -37,6 +37,19 @@ void main() {
       expect(saves.last[_key('a')], 'm3');
     });
 
+    test('cold load of a caught-up thread does not re-save on first advance',
+        () async {
+      disk = {_key('a'): 'm3'};
+      final t = make();
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      // loadFromDisk flushes once. The thread is caught up: the first advance
+      // carries the same id that was just loaded, so it must NOT write again.
+      saves.clear();
+      t.advance('m3');
+      expect(saves, isEmpty);
+    });
+
     test('advance before load does not persist and does not wipe other threads',
         () async {
       disk = {_key('a'): 'm1', _key('b'): 'x'};

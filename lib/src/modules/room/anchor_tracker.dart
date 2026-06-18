@@ -75,6 +75,9 @@ class AnchorTracker {
     if (key != null && !_boundaryResolved) {
       _frozenBoundaryId = loaded[key];
       _boundaryResolved = true;
+      // The flush below persists _anchors[key]; record it so the first advance
+      // carrying that same id does not trigger a redundant write.
+      _lastPersistedAnchorId ??= _anchors[key];
     }
     // Persist the merged map so a value advanced before the load completed is
     // written without dropping the other threads' anchors.
