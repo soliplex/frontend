@@ -70,6 +70,9 @@ class _MessageTimelineState extends State<MessageTimeline> {
   String? _frozenFirstUnreadId;
   bool _unreadEvaluated = false;
 
+  /// Gap left above a message when it is revealed at the top of the viewport.
+  static const _revealTopGap = 8.0;
+
   Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
 
@@ -142,15 +145,20 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  bool _tryPinAtTop(String messageId) {
+  /// Scroll offset that places [messageId]'s tile at the top of the viewport,
+  /// or null if the tile is not laid out yet.
+  double? _revealTopOffset(String messageId) {
     final key = _messageKeys[messageId];
-    if (key?.currentContext == null) return false;
-
+    if (key?.currentContext == null) return null;
     final renderObject = key!.currentContext!.findRenderObject();
-    if (renderObject == null) return false;
+    if (renderObject == null) return null;
     final viewport = RenderAbstractViewport.of(renderObject);
-    final target = viewport.getOffsetToReveal(renderObject, 0.0).offset - 8;
+    return viewport.getOffsetToReveal(renderObject, 0.0).offset - _revealTopGap;
+  }
 
+  bool _tryPinAtTop(String messageId) {
+    final target = _revealTopOffset(messageId);
+    if (target == null) return false;
     _scrollController.setAnchor(target);
     _scrollController.animateTo(
       target,
@@ -194,15 +202,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
   }
 
   bool _tryRevealAtTop(String messageId) {
-    final key = _messageKeys[messageId];
-    if (key?.currentContext == null) return false;
-
-    final renderObject = key!.currentContext!.findRenderObject();
-    if (renderObject == null) return false;
-    final viewport = RenderAbstractViewport.of(renderObject);
-    final target = (viewport.getOffsetToReveal(renderObject, 0.0).offset - 8)
-        .clamp(0.0, _scrollController.position.maxScrollExtent);
-    _scrollController.jumpTo(target);
+    final target = _revealTopOffset(messageId);
+    if (target == null) return false;
+    _scrollController
+        .jumpTo(target.clamp(0.0, _scrollController.position.maxScrollExtent));
     return true;
   }
 
