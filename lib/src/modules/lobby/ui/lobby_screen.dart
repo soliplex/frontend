@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' show Room;
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException;
 
+import '../../../core/activity_read.dart';
 import '../../../core/branding.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';

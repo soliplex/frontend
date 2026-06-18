@@ -10,6 +10,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         PermissionDeniedException,
         SoliplexApi;
 
+import '../../core/activity_read.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
@@ -19,21 +20,6 @@ import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
-
-/// Identifies a room across servers for the activity cache. Named fields
-/// (rather than a positional `(String, String)`) so the two ids can't be
-/// transposed at a lookup or insertion site.
-typedef RoomActivityKey = ({String serverId, String roomId});
-
-/// Whether a room is unread: it has a known [lastActivity] strictly newer than
-/// the user's last-[seen] marker (or it has never been opened). No known
-/// activity means there is nothing to be unread about. The tie case
-/// ([lastActivity] equal to [seen]) reads as seen — [LobbyState.markRoomRead]
-/// stamps "now", which is at or after any activity it has observed.
-bool isActivityUnread(DateTime? lastActivity, DateTime? seen) {
-  if (lastActivity == null) return false;
-  return seen == null || lastActivity.isAfter(seen);
-}
 
 class UserProfile {
   const UserProfile({

@@ -3,7 +3,7 @@ import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'lobby_state.dart' show RoomActivityKey;
+import '../../core/activity_read.dart' show RoomActivityKey;
 
 /// Persists per-room "last seen" timestamps so the lobby can mark rooms with
 /// newer activity as unread.

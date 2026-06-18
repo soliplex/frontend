@@ -1,6 +1,6 @@
 import 'package:soliplex_client/soliplex_client.dart';
 
-import '../lobby/lobby_state.dart' show isActivityUnread;
+import '../../core/activity_read.dart' show isActivityUnread;
 import 'thread_read_markers.dart' show ThreadActivityKey;
 
 export 'thread_read_markers.dart' show ThreadActivityKey;

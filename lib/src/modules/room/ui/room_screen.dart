@@ -20,11 +20,11 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         SourceReferenceFormatting,
         buildDocumentFilter;
+import '../../../core/activity_read.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
-import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
 import '../anchor_tracker.dart';
 import '../room_unread.dart';
 import '../thread_read_markers.dart';
