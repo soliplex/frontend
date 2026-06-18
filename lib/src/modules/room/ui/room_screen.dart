@@ -25,7 +25,7 @@ import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
 import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
-import '../thread_anchor_storage.dart';
+import '../anchor_tracker.dart';
 import '../thread_read_markers.dart';
 import '../unread_boundary.dart';
 import '../document_selections.dart';
@@ -157,20 +157,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// the room markers (different granularity), but the same pattern.
   Map<ThreadActivityKey, DateTime> _threadReadMarkers = const {};
 
-  /// Per-`(serverId, roomId, threadId)` last-read message id, device-local.
-  /// Seeds the "New messages" divider. In-memory map is authoritative for warm
-  /// re-entry; hydrated from disk at mount. Separate from [_threadReadMarkers]
-  /// (the dot's timestamp store) because the two advance on different events.
-  Map<ThreadActivityKey, String> _threadAnchors = const {};
-  bool _anchorsLoaded = false;
-
-  /// The frozen unread boundary for the currently open thread (the previous
-  /// anchor, captured before this visit advances it). Passed to the timeline.
-  String? _frozenBoundaryId;
-  bool _boundaryResolved = false;
-
-  /// Guards redundant anchor writes; holds the last id we persisted.
-  String? _lastPersistedAnchorId;
+  final _anchorTracker = AnchorTracker();
 
   /// Disposer for the active thread's message subscription that advances the
   /// anchor. Re-wired on thread switch, cancelled on dispose.
@@ -422,52 +409,6 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// Loads the thread anchors from disk, merging under any already advanced
-  /// in-memory this session, and resolves the frozen boundary for the open
-  /// thread from the disk value (the in-memory entry may already be advanced).
-  Future<void> _loadThreadAnchors() async {
-    try {
-      final loaded = await ThreadAnchorStorage.load();
-      if (!mounted) return;
-      final tid = widget.threadId;
-      setState(() {
-        _threadAnchors = {...loaded, ..._threadAnchors};
-        _anchorsLoaded = true;
-        if (tid != null && !_boundaryResolved) {
-          final key = (
-            serverId: widget.serverEntry.serverId,
-            roomId: widget.roomId,
-            threadId: tid,
-          );
-          _frozenBoundaryId = loaded[key];
-          _boundaryResolved = true;
-        }
-      });
-      // Persist the merged map so a value advanced before the load completed
-      // is written without dropping the other threads' anchors.
-      unawaited(
-        ThreadAnchorStorage.save(_threadAnchors)
-            .catchError((Object error, StackTrace stackTrace) {
-          dev.log(
-            'Failed to persist thread anchors',
-            error: error,
-            stackTrace: stackTrace,
-            name: 'RoomScreen',
-            level: 900,
-          );
-        }),
-      );
-    } catch (error, stackTrace) {
-      dev.log(
-        'Failed to load thread anchors',
-        error: error,
-        stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
-      );
-    }
-  }
-
   /// Snapshots the previous anchor for [threadId] (frozen for the divider) and
   /// wires a subscription that advances the stored anchor to the last real
   /// message id as messages arrive. Must run after `selectThread([threadId])`.
@@ -475,23 +416,11 @@ class _RoomScreenState extends State<RoomScreen> {
     _anchorAdvanceUnsub?.call();
     _anchorAdvanceUnsub = null;
 
-    final key = (
+    _anchorTracker.beginThread((
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
       threadId: threadId,
-    );
-
-    // Snapshot BEFORE wiring the advance. Warm: in-memory is authoritative.
-    // Cold (anchors not loaded yet): defer to _loadThreadAnchors, which reads
-    // the disk value.
-    if (_anchorsLoaded) {
-      _frozenBoundaryId = _threadAnchors[key];
-      _boundaryResolved = true;
-    } else {
-      _frozenBoundaryId = null;
-      _boundaryResolved = false;
-    }
-    _lastPersistedAnchorId = _threadAnchors[key];
+    ));
 
     final view = _state.activeThreadView;
     if (view == null || view.threadId != threadId) return;
@@ -499,27 +428,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _anchorAdvanceUnsub = view.messages.subscribe((status) {
       if (!mounted) return;
       if (status is! MessagesLoaded) return;
-      final lastId = lastRealMessageId(status.messages);
-      if (lastId == null || lastId == _lastPersistedAnchorId) return;
-      _lastPersistedAnchorId = lastId;
-      _threadAnchors = {..._threadAnchors, key: lastId};
-      // Don't persist until the disk load has merged in the other threads'
-      // anchors, or this 1-entry map would clobber them. _loadThreadAnchors
-      // flushes the accumulated value once it completes.
-      if (_anchorsLoaded) {
-        unawaited(
-          ThreadAnchorStorage.save(_threadAnchors)
-              .catchError((Object error, StackTrace stackTrace) {
-            dev.log(
-              'Failed to persist thread anchor',
-              error: error,
-              stackTrace: stackTrace,
-              name: 'RoomScreen',
-              level: 900,
-            );
-          }),
-        );
-      }
+      _anchorTracker.advance(lastRealMessageId(status.messages));
     });
   }
 
@@ -648,7 +557,11 @@ class _RoomScreenState extends State<RoomScreen> {
     _fetchRoomActivity();
     unawaited(_loadReadMarkers());
     unawaited(_loadThreadReadMarkers());
-    unawaited(_loadThreadAnchors());
+    unawaited(
+      _anchorTracker.loadFromDisk().then((_) {
+        if (mounted) setState(() {});
+      }),
+    );
     // Viewing a room/thread reads it: stamp now so the dot clears here and in
     // the lobby (the marker merges with any persisted markers as they load).
     _markRoomRead(widget.roomId);
@@ -1570,8 +1483,9 @@ class _RoomScreenState extends State<RoomScreen> {
                           messages: messages,
                           messageStates: messageStates,
                           streamingState: streaming,
-                          unreadBoundaryId: _frozenBoundaryId,
-                          unreadBoundaryResolved: _boundaryResolved,
+                          unreadBoundaryId: _anchorTracker.frozenBoundaryId,
+                          unreadBoundaryResolved:
+                              _anchorTracker.boundaryResolved,
                           executionTrackers: threadView.executionTrackers,
                           onFeedbackSubmit: threadView.submitFeedback,
                           onInspect: (runId) => context.push(
