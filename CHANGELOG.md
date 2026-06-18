@@ -8,6 +8,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Room: threads now show a "New messages" divider at the first unread message
+  and auto-scroll to it on open. Read state is tracked per-device, by message
+  id; there is no server-side read state or unread count.
+
 ### Changed
 
 - Auth: the pre-sign-in consent notice body now renders as markdown
