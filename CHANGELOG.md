@@ -16,6 +16,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- Room: a room now keeps its unread dot while any of its threads is unread,
+  instead of clearing the moment the room is opened. Read state stays
+  per-device; the room marker is derived from thread-read state.
 - Auth: the pre-sign-in consent notice body now renders as markdown
   (paragraphs, lists, emphasis, and external links) instead of literal text.
   Flavors can structure the notice; the body is treated as trusted,
