@@ -58,5 +58,21 @@ void main() {
     test('empty for an empty thread list', () {
       expect(call(const [], const {}), isEmpty);
     });
+
+    test('rolls a mixed list up to only the unread threads', () {
+      final tie = DateTime.utc(2026, 6, 1);
+      final threads = [
+        _thread('unread', lastActivity: DateTime.utc(2026, 6, 2)),
+        _thread('read', lastActivity: tie),
+        _thread('quiet'),
+        _thread('selected', lastActivity: DateTime.utc(2026, 6, 3)),
+      ];
+      final markers = {
+        (serverId: 's1', roomId: 'r1', threadId: 'unread'):
+            DateTime.utc(2026, 6, 1),
+        (serverId: 's1', roomId: 'r1', threadId: 'read'): tie,
+      };
+      expect(call(threads, markers, selectedThreadId: 'selected'), {'unread'});
+    });
   });
 }

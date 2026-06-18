@@ -1,4 +1,6 @@
-/// Identifies a room across servers for the device-local read model.
+/// Identifies a room across servers for the device-local read model. Named
+/// fields (rather than a positional `(String, String)`) so the two ids can't
+/// be transposed at a lookup or insertion site.
 typedef RoomActivityKey = ({String serverId, String roomId});
 
 /// Whether activity is unread: a known [lastActivity] strictly newer than the

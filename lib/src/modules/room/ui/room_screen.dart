@@ -304,6 +304,9 @@ class _RoomScreenState extends State<RoomScreen> {
             entry.key: entry.value.lastActivity,
         };
       });
+      // Room activity is a recompute input that arrives on its own schedule;
+      // re-evaluate the room read state now that the stamp guard has it.
+      _recomputeRoomRead();
     }).catchError((Object error, StackTrace stackTrace) {
       if (!mounted || token != _activityCancelToken) return;
       dev.log(
