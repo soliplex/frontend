@@ -164,6 +164,11 @@ class _RoomScreenState extends State<RoomScreen> {
   /// anchor. Re-wired on thread switch, cancelled on dispose.
   void Function()? _anchorAdvanceUnsub;
 
+  /// Disposer for the thread-list subscription that keeps the room read marker
+  /// in sync with thread-unread state. Re-wired on room change, cancelled on
+  /// dispose.
+  void Function()? _roomReadUnsub;
+
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
   RoomAccount? _account;
@@ -354,6 +359,37 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  /// Marks the room read only when no thread is unread. While any thread is
+  /// unread, the marker is left untouched so the room stays unread (the lobby
+  /// comparison `roomActivity > roomMarker` then reports it). Stamps only on a
+  /// genuine unread→read transition to avoid re-persisting on every update.
+  void _recomputeRoomRead() {
+    final status = _state.threadList.threads.value;
+    if (status is! ThreadsLoaded) return;
+    final hasUnread = unreadThreadIds(
+      status.threads,
+      _threadReadMarkers,
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      selectedThreadId: widget.threadId,
+    ).isNotEmpty;
+    if (hasUnread) return;
+    final key = (serverId: widget.serverEntry.serverId, roomId: widget.roomId);
+    if (isActivityUnread(_roomActivity[widget.roomId], _readMarkers[key])) {
+      _markRoomRead(widget.roomId);
+    }
+  }
+
+  /// Subscribes the room read marker to thread-list changes. The subscription
+  /// fires immediately with the current value, so this also performs the
+  /// initial recompute.
+  void _watchRoomRead() {
+    _roomReadUnsub?.call();
+    _roomReadUnsub = _state.threadList.threads.subscribe((_) {
+      if (mounted) _recomputeRoomRead();
+    });
+  }
+
   /// Ids of the current server's rooms with activity newer than the user last
   /// saw. Empty when activity is unavailable.
   Set<String> get _unreadRoomIds {
@@ -373,6 +409,9 @@ class _RoomScreenState extends State<RoomScreen> {
       final loaded = await ThreadReadMarkerStorage.load();
       if (!mounted) return;
       setState(() => _threadReadMarkers = {...loaded, ..._threadReadMarkers});
+      // Markers just loaded; re-evaluate the room read state in case the thread
+      // list arrived before them.
+      _recomputeRoomRead();
     } catch (error, stackTrace) {
       dev.log(
         'Failed to load thread read markers',
@@ -408,6 +447,7 @@ class _RoomScreenState extends State<RoomScreen> {
         );
       }),
     );
+    _recomputeRoomRead();
   }
 
   /// Snapshots the previous anchor for [threadId] (frozen for the divider) and
@@ -555,9 +595,9 @@ class _RoomScreenState extends State<RoomScreen> {
         if (mounted) setState(() {});
       }),
     );
-    // Viewing a room/thread reads it: stamp now so the dot clears here and in
-    // the lobby (the marker merges with any persisted markers as they load).
-    _markRoomRead(widget.roomId);
+    // Keep the room's unread dot derived from its threads: watch the thread
+    // list and mark the room read only once no thread is unread.
+    _watchRoomRead();
     _markThreadRead(widget.threadId);
     _fetchAccount();
     if (widget.threadId != null) {
@@ -610,6 +650,8 @@ class _RoomScreenState extends State<RoomScreen> {
         widget.serverEntry.serverId != oldWidget.serverEntry.serverId;
     if (widget.roomId != oldWidget.roomId || serverChanged) {
       _cancelAutoSelect();
+      _roomReadUnsub?.call();
+      _roomReadUnsub = null;
       _state.dispose();
       _chatController.clear();
       _state = _createRoomState();
@@ -617,13 +659,13 @@ class _RoomScreenState extends State<RoomScreen> {
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
-      _markRoomRead(widget.roomId);
+      _watchRoomRead();
       _markThreadRead(widget.threadId);
       // Room list, account identity, and room-activity stats are all
       // server-scoped: refetch only on a server change, not on every in-server
       // room switch (which would otherwise flash the rail back to a spinner and
-      // fire redundant requests). The switch still clears the read dot locally
-      // via _markRoomRead above.
+      // fire redundant requests). The room's unread dot is kept in sync by
+      // _watchRoomRead above, which re-subscribes to the new room's thread list.
       if (serverChanged) {
         _fetchServerRooms();
         _fetchRoomActivity();
@@ -707,6 +749,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void dispose() {
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
+    _roomReadUnsub?.call();
     _filterDocsCancelToken?.cancel('disposed');
     _roomsCancelToken?.cancel('disposed');
     _activityCancelToken?.cancel('disposed');
