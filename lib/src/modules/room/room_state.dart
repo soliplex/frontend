@@ -7,6 +7,7 @@ import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
 import 'composer_persistence.dart';
+import 'room_run_activity.dart';
 import 'run_registry.dart';
 import 'session_spawner.dart';
 import 'thread_list_state.dart';
@@ -55,6 +56,25 @@ class RoomState {
     // state from other devices and self-heals any pending record that
     // got stuck behind a transient refresh failure.
     unawaited(uploadTracker.refreshRoom(_roomId));
+    // A run that finishes for a thread in this room advances that thread's
+    // server-side last_activity, but a non-selected thread's list metadata is
+    // only refreshed by a full fetch. Watch the registry: when a run for this
+    // room reaches a terminal state, refetch the list so a background reply
+    // lights the thread's unread dot.
+    _previousActiveKeys = _registry.activeKeys.value;
+    _activeKeysUnsub = _registry.activeKeys.subscribe((keys) {
+      final completed = completedRoomThreadKeys(
+        _previousActiveKeys,
+        keys,
+        serverId: _connection.serverId,
+        roomId: _roomId,
+        excludeThreadId: _activeThreadView?.threadId,
+      );
+      _previousActiveKeys = keys;
+      if (completed.isNotEmpty) {
+        unawaited(threadList.refresh());
+      }
+    });
   }
 
   final ServerConnection _connection;
@@ -63,6 +83,15 @@ class RoomState {
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
   final void Function(String? threadId)? onNavigateToThread;
+
+  /// Snapshot of the registry's active keys, to detect active→terminal
+  /// transitions. Seeded before subscribing so the immediate first emission is
+  /// a no-op diff.
+  Set<ThreadKey> _previousActiveKeys = const {};
+
+  /// Disposer for the [_registry] activeKeys subscription that refreshes the
+  /// thread list when a run in this room finishes. Cancelled in [dispose].
+  void Function()? _activeKeysUnsub;
 
   final ThreadListState threadList;
 
@@ -297,6 +326,7 @@ class RoomState {
   void dispose() {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
+    _activeKeysUnsub?.call();
     threadList.dispose();
     _activeThreadView?.dispose();
     _sessionState.dispose();
