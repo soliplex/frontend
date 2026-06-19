@@ -3,6 +3,7 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import '../../core/debouncer.dart';
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
@@ -72,7 +73,10 @@ class RoomState {
       );
       _previousActiveKeys = keys;
       if (completed.isNotEmpty) {
-        unawaited(threadList.refresh());
+        // Debounce: a burst of runs finishing close together collapses to one
+        // fetch, fired after the last completion so it sees every thread's
+        // final state.
+        _threadRefresh.run(() => unawaited(threadList.refresh()));
       }
     });
   }
@@ -92,6 +96,10 @@ class RoomState {
   /// Disposer for the [_registry] activeKeys subscription that refreshes the
   /// thread list when a run in this room finishes. Cancelled in [dispose].
   void Function()? _activeKeysUnsub;
+
+  /// Coalesces bursts of run completions into a single trailing thread-list
+  /// refresh. Cancelled in [dispose].
+  final Debouncer _threadRefresh = Debouncer(const Duration(milliseconds: 300));
 
   final ThreadListState threadList;
 
@@ -327,6 +335,7 @@ class RoomState {
     _isDisposed = true;
     _roomFetchToken?.cancel('disposed');
     _activeKeysUnsub?.call();
+    _threadRefresh.cancel();
     threadList.dispose();
     _activeThreadView?.dispose();
     _sessionState.dispose();
