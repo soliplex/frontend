@@ -9,14 +9,14 @@ sealed class UnreadBoundary {
 
 /// The read state hasn't loaded from disk yet; the divider must wait rather
 /// than treat a not-yet-loaded null as "caught up".
-class BoundaryPending extends UnreadBoundary {
+final class BoundaryPending extends UnreadBoundary {
   const BoundaryPending();
 }
 
 /// The read state is known. [anchorId] is the last message the user had already
 /// seen (null when there is no prior anchor, so no line is drawn); the divider
 /// sits just after it.
-class BoundaryResolved extends UnreadBoundary {
+final class BoundaryResolved extends UnreadBoundary {
   const BoundaryResolved(this.anchorId);
 
   final String? anchorId;

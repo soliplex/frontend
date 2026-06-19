@@ -1,9 +1,12 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'thread_read_markers.dart' show ThreadActivityKey;
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.thread_anchor_storage');
 
 /// Persists per-thread "last read message id" so the room can draw a
 /// "New messages" divider at the first unread message.
@@ -17,6 +20,8 @@ import 'thread_read_markers.dart' show ThreadActivityKey;
 abstract final class ThreadAnchorStorage {
   static const _key = 'soliplex_thread_unread_anchors';
 
+  /// Returns the stored anchors, dropping corrupt rows. Throws on an
+  /// underlying storage I/O failure; callers must handle it.
   static Future<Map<ThreadActivityKey, String>> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -26,10 +31,7 @@ abstract final class ThreadAnchorStorage {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) {
-        dev.log(
-          'Discarding corrupt thread anchors (not a JSON array)',
-          level: 900,
-        );
+        _logger.warning('Discarding corrupt thread anchors (not a JSON array)');
         return {};
       }
       var skipped = 0;
@@ -52,24 +54,23 @@ abstract final class ThreadAnchorStorage {
       // break, not one stale row, and it silently resets the read model. Surface
       // it loudly.
       if (skipped > 0 && result.isEmpty) {
-        dev.log('Discarding all $skipped thread anchors; none parsed',
-            level: 1000);
+        _logger.error('Discarding all $skipped thread anchors; none parsed');
       } else if (skipped > 0) {
-        dev.log('Skipped $skipped malformed thread anchor(s)', level: 900);
+        _logger.warning('Skipped $skipped malformed thread anchor(s)');
       }
     } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the room.
-      dev.log(
+      _logger.warning(
         'Discarding corrupt thread anchors',
         error: e,
         stackTrace: st,
-        level: 900,
       );
       return {};
     }
     return result;
   }
 
+  /// Throws on an underlying storage I/O failure; callers must handle it.
   static Future<void> save(Map<ThreadActivityKey, String> anchors) async {
     final prefs = await SharedPreferences.getInstance();
     final list = [

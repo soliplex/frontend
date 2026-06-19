@@ -4,6 +4,9 @@ import 'dart:async';
 /// cancels the pending action and reschedules, so [action] fires once,
 /// [duration] after the most recent call. The latest call always wins, which
 /// guarantees the final state is the one acted on.
+///
+/// Holds no liveness guard of its own: a scheduled [action] still fires after
+/// its owner is gone unless [cancel] is called from the owner's dispose.
 class Debouncer {
   Debouncer(this.duration);
 

@@ -213,8 +213,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// Revealing the divider at the top is also what makes the *preceding* anchor
   /// message measurable: it then sits within the leading cache extent, so
   /// [_nudgeToShowAnchor] (next frame) can read its offset. Measuring the anchor
-  /// from the bottom (where it is off-screen above a tall reply) returns null —
-  /// that was the bug.
+  /// from the bottom, where it is off-screen above a tall reply, returns null.
   bool _revealDividerAtTop(String firstUnreadId) {
     final dividerTop = _revealTopOffset(firstUnreadId);
     if (dividerTop == null) return false;
@@ -229,8 +228,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// [unreadScrollOffset]). Keeps the divider at the top if the anchor still
   /// can't be measured.
   void _nudgeToShowAnchor(String firstUnreadId) {
-    final boundary = widget.unreadBoundary;
-    final anchorId = boundary is BoundaryResolved ? boundary.anchorId : null;
+    final anchorId = switch (widget.unreadBoundary) {
+      BoundaryResolved(:final anchorId) => anchorId,
+      BoundaryPending() => null,
+    };
     if (anchorId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;

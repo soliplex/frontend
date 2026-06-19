@@ -53,5 +53,14 @@ void main() {
       expect(loaded, hasLength(1));
       expect(loaded[(serverId: 'a', roomId: 'r1', threadId: 't1')], 'm1');
     });
+
+    test('degrades to empty when every row of a non-empty payload is malformed',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_thread_unread_anchors':
+            '[{"s":"a","r":"r1"},{"th":"t2","id":123}]',
+      });
+      expect(await ThreadAnchorStorage.load(), isEmpty);
+    });
   });
 }

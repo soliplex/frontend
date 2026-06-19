@@ -14,6 +14,7 @@ import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
@@ -1234,6 +1235,68 @@ void main() {
           )],
           leave,
         );
+      });
+    });
+  });
+
+  group('room unread rollup', () {
+    Finder railUnreadDots() => find.descendant(
+          of: find.byType(RoomRail),
+          matching: find.byType(UnreadDot),
+        );
+
+    testWidgets(
+        'a room stays unread while a thread is unread, then clears once every '
+        'thread is read', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final activity = DateTime.utc(2026, 6, 1, 10, 0, 30);
+
+      // thread-1 is the open thread (old, read). thread-2 has fresh activity
+      // and no marker, so it is unread; the room must stay unread while it is.
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 5, 1),
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second thread',
+          createdAt: DateTime(2026, 3, 1),
+          lastActivity: activity,
+        ),
+      ];
+      // The server's room-activity batch lights room-1's rail dot.
+      api.roomsStats = {'room-1': RoomStats(lastActivity: activity)};
+
+      // Stamp reads "now", past the activity, so opening the unread thread
+      // resolves it.
+      await withClock(Clock(() => DateTime.utc(2026, 6, 1, 11)), () async {
+        await tester.pumpWidget(_buildRouted(
+          entry: entry,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          threadId: 'thread-1',
+        ));
+        await tester.pumpAndSettle();
+
+        // thread-2 is unread, so the room rolls up to unread: its rail dot lit.
+        expect(railUnreadDots(), findsOneWidget);
+
+        // Open thread-2 — the last unread thread. It reads as read, the rollup
+        // recomputes, and the room is stamped read.
+        await tester.tap(find.text('Second thread'));
+        await tester.pumpAndSettle();
+
+        expect(railUnreadDots(), findsNothing);
       });
     });
   });

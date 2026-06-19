@@ -162,7 +162,11 @@ class _RoomScreenState extends State<RoomScreen> {
   /// the room markers (different granularity), but the same pattern.
   Map<ThreadActivityKey, DateTime> _threadReadMarkers = const {};
 
-  final _anchorTracker = AnchorTracker();
+  /// Recreated on room change so a fresh room starts with no frozen boundary
+  /// (the divider never carries over from the previous room) and a transient
+  /// disk-load failure is retried on the next room rather than disabling the
+  /// divider for the rest of the screen's life.
+  late AnchorTracker _anchorTracker;
 
   /// Disposer for the active thread's message subscription that advances the
   /// anchor. Re-wired on thread switch, cancelled on dispose.
@@ -357,14 +361,15 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  /// Marks [roomId] on the current server as read as of now, clearing its
-  /// unread dot until later activity arrives. Persisted to the shared store so
-  /// the lobby agrees. Uses "now" (not the cached activity time) so an open
-  /// room is read immediately, even if the activity batch is stale or pending.
+  /// Stamps [roomId] on the current server read as of now and persists to the
+  /// shared store so the lobby agrees. Uses "now" (not the cached activity
+  /// time) so the marker is at or after any observed activity, even if the
+  /// activity batch is stale or pending. Only [_recomputeRoomRead] calls this,
+  /// and only once no thread is unread.
   void _markRoomRead(String roomId) {
     final key = (serverId: widget.serverEntry.serverId, roomId: roomId);
     setState(() {
-      _readMarkers = {..._readMarkers, key: DateTime.now().toUtc()};
+      _readMarkers = {..._readMarkers, key: clock.now().toUtc()};
     });
     unawaited(
       LobbyReadMarkerStorage.save(_readMarkers)
@@ -670,11 +675,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _fetchRoomActivity();
     unawaited(_loadReadMarkers());
     unawaited(_loadThreadReadMarkers());
-    unawaited(
-      _anchorTracker.loadFromDisk().then((_) {
-        if (mounted) setState(() {});
-      }),
-    );
+    _anchorTracker = _createAnchorTracker();
     // Keep the room's unread dot derived from its threads: watch the thread
     // list and mark the room read only once no thread is unread.
     _watchRoomRead();
@@ -740,10 +741,13 @@ class _RoomScreenState extends State<RoomScreen> {
       _cancelAutoSelect();
       _roomReadUnsub?.call();
       _roomReadUnsub = null;
+      _anchorAdvanceUnsub?.call();
+      _anchorAdvanceUnsub = null;
       _state.dispose();
       _chatController.clear();
       _state = _createRoomState();
       _workdirs = _createWorkdirController();
+      _anchorTracker = _createAnchorTracker();
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
@@ -814,6 +818,14 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
       );
 
+  AnchorTracker _createAnchorTracker() {
+    final tracker = AnchorTracker();
+    unawaited(tracker.loadFromDisk().then((_) {
+      if (mounted) setState(() {});
+    }));
+    return tracker;
+  }
+
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
     final alias = widget.serverEntry.alias;
@@ -835,7 +847,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   void dispose() {
-    // Stamp the open thread read on the way out, mirroring the deselect path:
+    // Stamp the open thread read on the way out, as the deselect path does:
     // the user has seen this thread's activity, so it must not surface a false
     // unread dot when they return. Save-only — no setState while disposing.
     final threadId = widget.threadId;

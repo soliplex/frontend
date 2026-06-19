@@ -126,6 +126,33 @@ void main() {
       expect(saves, isEmpty);
     });
 
+    test('a failed persist is retried on the next advance', () async {
+      disk = {_key('a'): 'm1'};
+      var failSave = false;
+      final t = AnchorTracker(
+        load: () async => Map.of(disk),
+        save: (m) async {
+          if (failSave) throw StateError('write failed');
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      saves.clear();
+
+      failSave = true;
+      t.advance('m5');
+      await pumpEventQueue();
+      expect(saves, isEmpty, reason: 'the persist threw');
+
+      // The same id must retry: a failed write rolls back the dedup marker, so
+      // it is not suppressed as already-persisted.
+      failSave = false;
+      t.advance('m5');
+      await pumpEventQueue();
+      expect(saves.last[_key('a')], 'm5');
+    });
+
     test('a thread opened after a failed load resolves to no line, no persist',
         () async {
       final t = AnchorTracker(
