@@ -97,7 +97,10 @@ class AnchorTracker {
       );
       // Boundary now derives to a resolved "no line" so the timeline stops
       // waiting; persistence stays disabled because we read nothing and would
-      // clobber the unread threads.
+      // clobber the unread threads. A pre-load advance leaves [_dirty] true with
+      // no path to flush — that is intentional, not a lost write: the in-memory
+      // advance genuinely differs from disk, but writing it without the other
+      // threads' anchors is the clobber we are avoiding.
       _loadState = _LoadState.failed;
       return;
     }
