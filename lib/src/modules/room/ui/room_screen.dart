@@ -385,16 +385,19 @@ class _RoomScreenState extends State<RoomScreen> {
   void _recomputeRoomRead() {
     final status = _state.threadList.threads.value;
     if (status is! ThreadsLoaded) return;
-    final hasUnread = unreadThreadIds(
+    final key = (serverId: widget.serverEntry.serverId, roomId: widget.roomId);
+    // Judge "mark read" from the thread list's own latest activity, not the
+    // separately-fetched room-activity batch: when the batch refreshes before
+    // the thread list does, a stale list must not mark the room read over a
+    // thread about to surface as unread.
+    if (shouldMarkRoomRead(
       status.threads,
       _threadReadMarkers,
+      _readMarkers[key],
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
       selectedThreadId: widget.threadId,
-    ).isNotEmpty;
-    if (hasUnread) return;
-    final key = (serverId: widget.serverEntry.serverId, roomId: widget.roomId);
-    if (isActivityUnread(_roomActivity[widget.roomId], _readMarkers[key])) {
+    )) {
       _markRoomRead(widget.roomId);
     }
   }

@@ -33,3 +33,46 @@ Set<String> unreadThreadIds(
         thread.id,
   };
 }
+
+/// Whether to stamp the room read now: true only when no thread is unread AND
+/// the room still has activity newer than [roomSeen] (an unread→read transition
+/// worth persisting). Returns false when already caught up, so we don't re-stamp
+/// on every update.
+///
+/// "Activity newer than [roomSeen]" is the room-level dot signal, not the truth
+/// of unread — the room marker and the per-thread markers are separate, so it
+/// can be a stale false positive (dot lit, yet every thread read). The unread
+/// truth is the first clause; we stamp only when the dot is lit but no thread is
+/// genuinely unread.
+///
+/// "Newer activity" is the latest [ThreadInfo.lastActivity] across [threads] —
+/// the same source as the unread check — so a thread list that hasn't caught up
+/// to new activity can't mark the room read over a thread about to surface (the
+/// two inputs can never disagree).
+bool shouldMarkRoomRead(
+  List<ThreadInfo> threads,
+  Map<ThreadActivityKey, DateTime> threadMarkers,
+  DateTime? roomSeen, {
+  required String serverId,
+  required String roomId,
+  String? selectedThreadId,
+}) {
+  final hasUnread = unreadThreadIds(
+    threads,
+    threadMarkers,
+    serverId: serverId,
+    roomId: roomId,
+    selectedThreadId: selectedThreadId,
+  ).isNotEmpty;
+  if (hasUnread) return false;
+
+  DateTime? latestActivity;
+  for (final thread in threads) {
+    final activity = thread.lastActivity;
+    if (activity != null &&
+        (latestActivity == null || activity.isAfter(latestActivity))) {
+      latestActivity = activity;
+    }
+  }
+  return isActivityUnread(latestActivity, roomSeen);
+}

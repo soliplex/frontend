@@ -46,6 +46,10 @@ Widget _buildApp(
           return const Scaffold(body: Text('Home'));
         },
       ),
+      GoRoute(
+        path: '/room/:alias/:roomId',
+        builder: (_, __) => const Scaffold(body: Text('Room')),
+      ),
     ],
   );
   // The sidebar's per-tile ⋮ menu is a ConsumerWidget, so the tree needs a
@@ -302,6 +306,36 @@ void main() {
 
       expect(find.byType(RoomGridCard), findsOneWidget);
       expect(find.byType(RoomCard), findsNothing);
+    });
+
+    testWidgets(
+        'tapping a room does not mark it read '
+        '(room-screen rollup owns room read state)', (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'room-1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(RoomCard));
+      await tester.pumpAndSettle();
+
+      // Reached the room route, but persisted NO room read marker: opening a
+      // room must not stamp it read — the room screen's per-thread rollup owns
+      // that, so a genuinely-unread thread isn't hidden.
+      expect(find.text('Room'), findsOneWidget);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('soliplex_lobby_read_markers'), isNull);
     });
 
     testWidgets('honors the persisted grid mode on load', (tester) async {

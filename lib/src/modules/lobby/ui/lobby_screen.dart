@@ -76,8 +76,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final entry = widget.serverManager.servers.value[serverId];
     assert(entry != null, 'Room tap for unknown serverId: $serverId');
     if (entry == null) return;
-    // Opening a room clears its unread affordance until a later message.
-    _state.markRoomRead(serverId, roomId);
+    // Opening a room does NOT mark it read: the room screen's per-thread rollup
+    // owns room read state (a room stays unread while any thread is unread).
+    // Marking read here would clobber that and hide genuinely-unread threads.
     context.go(AppRoutes.room(entry.alias, roomId));
   }
 
