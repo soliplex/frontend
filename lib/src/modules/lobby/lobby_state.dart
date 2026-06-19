@@ -202,13 +202,7 @@ class LobbyState {
 
   Future<void> _loadReadMarkers() async {
     try {
-      // Merge persisted markers under any set in-memory while the load was in
-      // flight (an early markRoomRead on cold start), so a just-opened room
-      // isn't clobbered back to unread by the slower disk read.
-      _readMarkers.value = {
-        ...await LobbyReadMarkerStorage.load(),
-        ..._readMarkers.value,
-      };
+      _readMarkers.value = await LobbyReadMarkerStorage.load();
     } catch (error, st) {
       dev.log(
         'Failed to load lobby read markers',
@@ -217,39 +211,6 @@ class LobbyState {
         level: 900,
       );
     }
-  }
-
-  /// Marks [roomId] on [serverId] as read as of now, clearing its unread
-  /// affordance until a later message arrives. Called when the user opens a
-  /// room. Uses "now" rather than the cached activity time so a room is read
-  /// the moment it is opened, even if the activity fetch is stale or still in
-  /// flight. This stamps the device clock against server-sourced activity
-  /// times, so a device clock running well ahead of the server can transiently
-  /// suppress the unread affordance until activity catches up to the marker.
-  void markRoomRead(String serverId, String roomId) {
-    final key = (serverId: serverId, roomId: roomId);
-    _readMarkers.value = {
-      ..._readMarkers.value,
-      key: DateTime.now().toUtc(),
-    };
-    unawaited(
-      LobbyReadMarkerStorage.save(_readMarkers.value)
-          .catchError((Object e, StackTrace st) {
-        dev.log(
-          'Failed to persist lobby read markers',
-          error: e,
-          stackTrace: st,
-          level: 900,
-        );
-      }),
-    );
-  }
-
-  /// Whether [roomId] on [serverId] has activity newer than the user last saw.
-  /// False when there is no known activity (nothing to be unread about).
-  bool isRoomUnread(String serverId, String roomId) {
-    final key = (serverId: serverId, roomId: roomId);
-    return isActivityUnread(_roomActivity.value[key], _readMarkers.value[key]);
   }
 
   /// True while activity for the selected server is being fetched.

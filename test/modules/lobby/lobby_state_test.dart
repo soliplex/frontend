@@ -10,7 +10,6 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
-import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 
 import '../../helpers/fakes.dart';
@@ -1082,129 +1081,6 @@ void main() {
     });
   });
 
-  group('LobbyState unread markers', () {
-    Future<LobbyState> startWith(FakeSoliplexApi api, ServerManager mgr) async {
-      final state = LobbyState(serverManager: mgr, apiResolver: (_) => api);
-      // Let rooms load and the activity sweep populate roomActivity.
-      for (var i = 0; i < 12; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
-      return state;
-    }
-
-    ServerManager managerWithLocal() {
-      final manager = _createManager();
-      manager.addServer(
-        serverId: 'local',
-        serverUrl: Uri.parse('http://localhost:8000'),
-        requiresAuth: false,
-      );
-      return manager;
-    }
-
-    test('a room with activity and no marker is unread; opening it clears it',
-        () async {
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
-      final state = await startWith(api, managerWithLocal());
-
-      expect(state.isRoomUnread('local', 'r1'), isTrue,
-          reason: 'never-opened room with activity is unread');
-
-      state.markRoomRead('local', 'r1');
-      expect(state.isRoomUnread('local', 'r1'), isFalse,
-          reason: 'opening the room clears the unread affordance');
-      expect(
-        state.readMarkers.value[(serverId: 'local', roomId: 'r1')],
-        isNotNull,
-      );
-      state.dispose();
-    });
-
-    test('a room with no known activity is never unread', () async {
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'Quiet')]
-        ..roomsStats = {'r1': RoomStats()};
-      final state = await startWith(api, managerWithLocal());
-
-      expect(state.isRoomUnread('local', 'r1'), isFalse);
-      state.dispose();
-    });
-
-    test('a persisted marker newer than the activity keeps the room read',
-        () async {
-      await LobbyReadMarkerStorage.save({
-        (serverId: 'local', roomId: 'r1'): DateTime.utc(2027),
-      });
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
-      final state = await startWith(api, managerWithLocal());
-
-      expect(state.isRoomUnread('local', 'r1'), isFalse,
-          reason: 'a read marker after the last message means nothing new');
-      state.dispose();
-    });
-
-    test('a persisted marker older than the activity leaves the room unread',
-        () async {
-      await LobbyReadMarkerStorage.save({
-        (serverId: 'local', roomId: 'r1'): DateTime.utc(2025),
-      });
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
-      final state = await startWith(api, managerWithLocal());
-
-      expect(state.isRoomUnread('local', 'r1'), isTrue,
-          reason: 'a message after the last-seen time is unread');
-      state.dispose();
-    });
-
-    test('markRoomRead persists so a fresh LobbyState stays read', () async {
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
-      final manager = managerWithLocal();
-      final state = await startWith(api, manager);
-      state.markRoomRead('local', 'r1');
-      // Let the async persist complete.
-      for (var i = 0; i < 4; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
-      state.dispose();
-
-      final reloaded = await startWith(api, manager);
-      expect(reloaded.isRoomUnread('local', 'r1'), isFalse,
-          reason: 'the persisted marker survives a new LobbyState');
-      reloaded.dispose();
-    });
-
-    test('an early markRoomRead survives a slower cold-start load', () async {
-      // Regression (64aaf09): the cold-start load must MERGE persisted markers
-      // *under* any set in-memory while it was in flight, not overwrite them. A
-      // room opened before the disk read lands must stay read. markRoomRead
-      // runs synchronously here, before _loadReadMarkers' await resolves, so a
-      // plain assignment would clobber it back to unread.
-      final api = FakeSoliplexApi()
-        ..nextRooms = const [Room(id: 'r1', name: 'General')]
-        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
-      final state = LobbyState(
-        serverManager: managerWithLocal(),
-        apiResolver: (_) => api,
-      );
-      state.markRoomRead('local', 'r1');
-      for (var i = 0; i < 12; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
-
-      expect(state.isRoomUnread('local', 'r1'), isFalse,
-          reason: 'a room opened before the disk read lands stays read');
-      state.dispose();
-    });
-  });
-
   group('isActivityUnread', () {
     final seen = DateTime.utc(2026, 6, 1, 12);
 
@@ -1233,8 +1109,8 @@ void main() {
 
     test('activity exactly at the marker is read (strict isAfter boundary)',
         () {
-      // markRoomRead stamps "now", which is >= any activity it has seen, so an
-      // exact tie must read as seen, not unread.
+      // A read marker is stamped at "now", which is >= any activity it has
+      // seen, so an exact tie must read as seen, not unread.
       expect(isActivityUnread(seen, seen), isFalse);
     });
   });
