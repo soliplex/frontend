@@ -1274,10 +1274,8 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyFailed =
         roomStatus is UploadsFailed || threadStatus is UploadsFailed;
 
-    if (!anyLoading &&
-        !anyFailed &&
-        (roomFiles == null || roomFiles.isEmpty) &&
-        (threadFiles == null || threadFiles.isEmpty)) {
+    if (!_scopeRendersContent(roomStatus) &&
+        !_scopeRendersContent(threadStatus)) {
       return null;
     }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/anchor_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart'
@@ -151,6 +153,39 @@ void main() {
       t.advance('m5');
       await pumpEventQueue();
       expect(saves.last[_key('a')], 'm5');
+    });
+
+    test('serializes overlapping writes so the latest advance wins', () async {
+      disk = {_key('a'): 'm1'};
+      final gates = <Completer<void>>[];
+      final t = AnchorTracker(
+        load: () async => Map.of(disk),
+        save: (m) async {
+          final gate = Completer<void>();
+          gates.add(gate);
+          await gate.future;
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+
+      t.advance('m2'); // starts a save; held open by its gate.
+      t.advance('m3'); // must not open a second concurrent save.
+      expect(gates, hasLength(1), reason: 'only one write in flight');
+
+      gates[0].complete(); // first write finishes...
+      await pumpEventQueue();
+      expect(gates, hasLength(2), reason: 'the pending change re-flushes');
+
+      gates[1].complete();
+      await pumpEventQueue();
+      expect(saves.last[_key('a')], 'm3');
+    });
+
+    test('advancing before a thread is opened asserts', () {
+      final t = make();
+      expect(() => t.advance('m1'), throwsA(isA<AssertionError>()));
     });
 
     test('a thread opened after a failed load resolves to no line, no persist',

@@ -25,19 +25,40 @@ class AnchorTracker {
   final Future<Map<ThreadActivityKey, String>> Function() _load;
   final Future<void> Function(Map<ThreadActivityKey, String>) _save;
 
+  /// Escalates anchor-persistence logging from warning to error once this many
+  /// consecutive writes have failed, so a systemic storage break (disk full,
+  /// platform channel down) surfaces instead of degrading silently.
+  static const _failureEscalationThreshold = 3;
+
   Map<ThreadActivityKey, String> _anchors = const {};
   _LoadState _loadState = _LoadState.pending;
   ThreadActivityKey? _currentKey;
-  UnreadBoundary _boundary = const BoundaryPending();
 
-  /// The current thread's last id whose write succeeded (or is in flight),
-  /// used to skip redundant saves. Rolled back when a write fails so the next
-  /// advance retries it instead of treating it as already persisted.
-  String? _lastPersistedAnchorId;
+  /// The anchor frozen for the open thread's divider, captured the moment its
+  /// boundary resolves and left untouched as the thread advances. Null means
+  /// "caught up" (no line). Only meaningful once [_loadState] leaves pending.
+  String? _frozenAnchorId;
 
-  /// The frozen read boundary for the open thread, captured before this visit
-  /// advances it. Drives the divider.
-  UnreadBoundary get boundary => _boundary;
+  /// Whether [_anchors] holds changes not yet written to disk. Survives a
+  /// failed write so the pending change is retried on the next flush instead
+  /// of being lost, and decouples "needs persisting" from the open thread's id.
+  bool _dirty = false;
+
+  /// Guards [_flush] so only one write is ever in flight: overlapping saves
+  /// against the shared [_anchors] map could otherwise persist a stale snapshot
+  /// after a newer one.
+  bool _flushing = false;
+
+  int _consecutiveFailures = 0;
+
+  /// The frozen read boundary for the open thread, derived from the load state
+  /// so the pending-vs-resolved distinction has a single source of truth.
+  UnreadBoundary get boundary => switch (_loadState) {
+        _LoadState.pending => const BoundaryPending(),
+        _LoadState.loaded ||
+        _LoadState.failed =>
+          BoundaryResolved(_frozenAnchorId),
+      };
 
   /// Snapshots the previous anchor for [key] BEFORE any advance. Loaded: the
   /// in-memory value is authoritative. Failed: degrade to "no line" so the
@@ -45,12 +66,14 @@ class AnchorTracker {
   /// [loadFromDisk] resolves it from the disk value.
   void beginThread(ThreadActivityKey key) {
     _currentKey = key;
-    _boundary = switch (_loadState) {
-      _LoadState.loaded => BoundaryResolved(_anchors[key]),
-      _LoadState.failed => const BoundaryResolved(null),
-      _LoadState.pending => const BoundaryPending(),
-    };
-    _lastPersistedAnchorId = _anchors[key];
+    switch (_loadState) {
+      case _LoadState.loaded:
+        _frozenAnchorId = _anchors[key];
+      case _LoadState.failed:
+        _frozenAnchorId = null;
+      case _LoadState.pending:
+        break; // loadFromDisk resolves the boundary from the disk value.
+    }
   }
 
   /// Loads anchors from storage, merging under any value advanced in-memory
@@ -72,66 +95,85 @@ class AnchorTracker {
         error: error,
         stackTrace: stackTrace,
       );
+      // Boundary now derives to a resolved "no line" so the timeline stops
+      // waiting; persistence stays disabled because we read nothing and would
+      // clobber the unread threads.
       _loadState = _LoadState.failed;
-      if (_boundary is BoundaryPending) {
-        _boundary = const BoundaryResolved(null);
-      }
       return;
     }
     _anchors = {...loaded, ..._anchors};
+    final wasPending = _loadState == _LoadState.pending;
     _loadState = _LoadState.loaded;
     final key = _currentKey;
-    if (key != null && _boundary is BoundaryPending) {
-      _boundary = BoundaryResolved(loaded[key]);
+    if (key != null && wasPending) {
+      // Freeze the DISK value for the divider: a pre-load advance may have
+      // moved the in-memory value, but the line marks where the user left off.
+      _frozenAnchorId = loaded[key];
     }
-    // Persist the merged map so a value advanced before the load completed is
-    // written without dropping the other threads' anchors. Record the flushed
-    // id only on success so the first advance carrying that same id does not
-    // trigger a redundant write, while a failed flush stays retryable.
-    final flushed =
-        await _persist('Failed to flush merged thread anchors after load');
-    if (flushed && key != null) {
-      _lastPersistedAnchorId = _anchors[key];
-    }
+    // A value advanced before the load completed left us dirty; flush the
+    // merged map now so it is written without dropping the other threads.
+    if (_dirty) unawaited(_flush());
   }
 
   /// Advances the open thread's anchor to [lastRealId] (already filtered for
   /// the ephemeral loading sentinel by the caller). No-op when there is no
-  /// open thread, the id is null, or it is unchanged. Persists only once
-  /// anchors are loaded — a partial map written earlier would clobber the
-  /// other threads' anchors.
+  /// open thread or the id is null/unchanged. Persists only once anchors are
+  /// loaded — a partial map written earlier would clobber the other threads'
+  /// anchors — and re-flushes any change a prior write failed to persist.
   void advance(String? lastRealId) {
     final key = _currentKey;
+    assert(key != null, 'advance called before beginThread');
     if (key == null) return;
-    if (lastRealId == null || lastRealId == _lastPersistedAnchorId) return;
-    _anchors = {..._anchors, key: lastRealId};
+    if (lastRealId != null && _anchors[key] != lastRealId) {
+      _anchors = {..._anchors, key: lastRealId};
+      _dirty = true;
+    }
     // Until the disk load completes, [loadFromDisk]'s flush owns persistence; a
     // write here would clobber the threads we haven't read yet.
     if (_loadState != _LoadState.loaded) return;
-    final previousPersistedId = _lastPersistedAnchorId;
-    _lastPersistedAnchorId = lastRealId;
-    unawaited(
-      _persist('Failed to persist advanced thread anchor').then((persisted) {
-        // Roll back so the next advance retries, unless a later advance already
-        // moved the marker past this id.
-        if (!persisted && _lastPersistedAnchorId == lastRealId) {
-          _lastPersistedAnchorId = previousPersistedId;
-        }
-      }),
-    );
+    if (_dirty) unawaited(_flush());
   }
 
-  Future<bool> _persist(String failureMessage) async {
+  /// Writes [_anchors] while any change is pending, one write at a time. Keeps
+  /// [_dirty] set on failure so the change is retried by the next flush rather
+  /// than lost, and escalates the log once failures persist.
+  Future<void> _flush() async {
+    if (_flushing) return;
+    _flushing = true;
     try {
-      await _save(_anchors);
-      return true;
-    } catch (error, stackTrace) {
-      _logger.warning(
-        failureMessage,
+      while (_dirty) {
+        _dirty = false;
+        final snapshot = Map.of(_anchors);
+        try {
+          await _save(snapshot);
+          _consecutiveFailures = 0;
+        } catch (error, stackTrace) {
+          _dirty = true;
+          _consecutiveFailures++;
+          _logPersistFailure(error, stackTrace);
+          return;
+        }
+      }
+    } finally {
+      _flushing = false;
+    }
+  }
+
+  void _logPersistFailure(Object error, StackTrace stackTrace) {
+    if (_consecutiveFailures >= _failureEscalationThreshold) {
+      _logger.error(
+        'Failed to persist thread anchors '
+        '($_consecutiveFailures consecutive failures; unread dividers may be '
+        'stale until a write succeeds)',
         error: error,
         stackTrace: stackTrace,
       );
-      return false;
+    } else {
+      _logger.warning(
+        'Failed to persist thread anchors',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

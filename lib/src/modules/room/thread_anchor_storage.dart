@@ -20,6 +20,13 @@ final Logger _logger =
 abstract final class ThreadAnchorStorage {
   static const _key = 'soliplex_thread_unread_anchors';
 
+  // Row field names, shared by load and save so the read/write contract can't
+  // drift: a typo in one half alone would silently drop every row.
+  static const _fieldServer = 's';
+  static const _fieldRoom = 'r';
+  static const _fieldThread = 'th';
+  static const _fieldId = 'id';
+
   /// Returns the stored anchors, dropping corrupt rows. Throws on an
   /// underlying storage I/O failure; callers must handle it.
   static Future<Map<ThreadActivityKey, String>> load() async {
@@ -40,10 +47,10 @@ abstract final class ThreadAnchorStorage {
           skipped++;
           continue;
         }
-        final s = entry['s'];
-        final r = entry['r'];
-        final th = entry['th'];
-        final id = entry['id'];
+        final s = entry[_fieldServer];
+        final r = entry[_fieldRoom];
+        final th = entry[_fieldThread];
+        final id = entry[_fieldId];
         if (s is! String || r is! String || th is! String || id is! String) {
           skipped++;
           continue;
@@ -76,10 +83,10 @@ abstract final class ThreadAnchorStorage {
     final list = [
       for (final entry in anchors.entries)
         {
-          's': entry.key.serverId,
-          'r': entry.key.roomId,
-          'th': entry.key.threadId,
-          'id': entry.value,
+          _fieldServer: entry.key.serverId,
+          _fieldRoom: entry.key.roomId,
+          _fieldThread: entry.key.threadId,
+          _fieldId: entry.value,
         },
     ];
     await prefs.setString(_key, jsonEncode(list));

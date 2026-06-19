@@ -172,11 +172,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  void _scrollToUnread(String firstUnreadId) {
+  void _scrollToUnread(String firstUnreadId, String? anchorId) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       if (_revealDividerAtTop(firstUnreadId)) {
-        _nudgeToShowAnchor(firstUnreadId);
+        _nudgeToShowAnchor(firstUnreadId, anchorId);
         return;
       }
       // Divider off-screen: jump to the bottom to lay out the (recent) reply,
@@ -185,7 +185,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_scrollController.hasClients) return;
         if (_revealDividerAtTop(firstUnreadId)) {
-          _nudgeToShowAnchor(firstUnreadId);
+          _nudgeToShowAnchor(firstUnreadId, anchorId);
         }
       });
     });
@@ -203,7 +203,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
     _frozenFirstUnreadId =
         firstUnreadMessageId(displayMessages, boundary.anchorId);
     if (widget.streamingState == null && _frozenFirstUnreadId != null) {
-      _scrollToUnread(_frozenFirstUnreadId!);
+      _scrollToUnread(_frozenFirstUnreadId!, boundary.anchorId);
     }
   }
 
@@ -227,11 +227,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// so the divider stays visible even for a tall anchor (see
   /// [unreadScrollOffset]). Keeps the divider at the top if the anchor still
   /// can't be measured.
-  void _nudgeToShowAnchor(String firstUnreadId) {
-    final anchorId = switch (widget.unreadBoundary) {
-      BoundaryResolved(:final anchorId) => anchorId,
-      BoundaryPending() => null,
-    };
+  void _nudgeToShowAnchor(String firstUnreadId, String? anchorId) {
     if (anchorId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
