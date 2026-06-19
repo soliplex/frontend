@@ -37,6 +37,46 @@ void main() {
     });
   });
 
+  group('unreadScrollOffset', () {
+    // anchorTop <= dividerTop always (the anchor sits above the divider, so a
+    // smaller scroll offset brings it to the top). contextBudget caps how far
+    // the divider may sit below the top.
+    test('short anchor fits in the budget -> reveal the anchor at the top', () {
+      // gap (dividerTop - anchorTop) = 100 <= budget 200.
+      expect(
+        unreadScrollOffset(
+            anchorTop: 900, dividerTop: 1000, contextBudget: 200),
+        900,
+      );
+    });
+
+    test(
+        'tall anchor exceeds the budget -> pin the divider one budget '
+        'below the top so it stays visible', () {
+      // gap = 500 > budget 200; divider pinned at dividerTop - budget.
+      expect(
+        unreadScrollOffset(
+            anchorTop: 500, dividerTop: 1000, contextBudget: 200),
+        800,
+      );
+    });
+
+    test('anchor exactly fills the budget -> both rules agree', () {
+      expect(
+        unreadScrollOffset(
+            anchorTop: 800, dividerTop: 1000, contextBudget: 200),
+        800,
+      );
+    });
+
+    test('anchor at the list top stays at the top (no negative offset)', () {
+      expect(
+        unreadScrollOffset(anchorTop: 0, dividerTop: 50, contextBudget: 200),
+        0,
+      );
+    });
+  });
+
   group('lastRealMessageId', () {
     test('returns the last id', () {
       expect(lastRealMessageId([_msg('a'), _msg('b')]), 'b');

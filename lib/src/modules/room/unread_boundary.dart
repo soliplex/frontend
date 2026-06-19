@@ -18,6 +18,33 @@ String? firstUnreadMessageId(
   return next == loadingMessageId ? null : next;
 }
 
+/// The scroll offset that reveals the "New messages" divider near the top of
+/// the viewport while showing as much of the preceding (already-read) anchor
+/// message as fits in [contextBudget].
+///
+/// [dividerTop] is the offset that puts the divider at the viewport top;
+/// [anchorTop] puts the anchor (the read message just above the divider) at the
+/// top. The anchor sits above the divider, so `anchorTop <= dividerTop`.
+///
+/// - When the anchor is short (`dividerTop - anchorTop <= contextBudget`) the
+///   result is [anchorTop]: the whole anchor shows at the top with the divider
+///   just below it.
+/// - When the anchor is taller than [contextBudget] the result pins the divider
+///   exactly [contextBudget] below the top (`dividerTop - contextBudget`), so
+///   the divider stays visible and the anchor's tail peeks above it. This
+///   guarantees the divider is never pushed off-screen by a long anchor
+///   message — its visibility takes priority over showing full context.
+///
+/// The caller clamps the result to the scrollable range.
+double unreadScrollOffset({
+  required double anchorTop,
+  required double dividerTop,
+  required double contextBudget,
+}) {
+  final pinnedDivider = dividerTop - contextBudget;
+  return anchorTop > pinnedDivider ? anchorTop : pinnedDivider;
+}
+
 /// The id of the last non-ephemeral message, used to advance the read anchor.
 /// Skips the loading sentinel so a transient [LoadingMessage] is never
 /// persisted — it would not resolve on reload and would silently lose the line.

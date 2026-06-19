@@ -175,14 +175,21 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  void _scrollToUnread(String messageId) {
+  void _scrollToUnread(String firstUnreadId) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      if (_tryRevealAtTop(messageId)) return;
+      if (_revealDividerAtTop(firstUnreadId)) {
+        _nudgeToShowAnchor(firstUnreadId);
+        return;
+      }
+      // Divider off-screen: jump to the bottom to lay out the (recent) reply,
+      // then retry.
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_scrollController.hasClients) return;
-        _tryRevealAtTop(messageId);
+        if (_revealDividerAtTop(firstUnreadId)) {
+          _nudgeToShowAnchor(firstUnreadId);
+        }
       });
     });
   }
@@ -201,12 +208,43 @@ class _MessageTimelineState extends State<MessageTimeline> {
     }
   }
 
-  bool _tryRevealAtTop(String messageId) {
-    final target = _revealTopOffset(messageId);
-    if (target == null) return false;
-    _scrollController
-        .jumpTo(target.clamp(0.0, _scrollController.position.maxScrollExtent));
+  /// Jumps so the divider sits at the top of the viewport. Returns false if the
+  /// divider tile isn't laid out yet (caller retries after a layout pass).
+  ///
+  /// Revealing the divider at the top is also what makes the *preceding* anchor
+  /// message measurable: it then sits within the leading cache extent, so
+  /// [_nudgeToShowAnchor] (next frame) can read its offset. Measuring the anchor
+  /// from the bottom (where it is off-screen above a tall reply) returns null —
+  /// that was the bug.
+  bool _revealDividerAtTop(String firstUnreadId) {
+    final dividerTop = _revealTopOffset(firstUnreadId);
+    if (dividerTop == null) return false;
+    _scrollController.jumpTo(
+        dividerTop.clamp(0.0, _scrollController.position.maxScrollExtent));
     return true;
+  }
+
+  /// With the divider at the top, the preceding anchor message is laid out, so
+  /// nudge up to show it above the divider — bounded to a third of the viewport
+  /// so the divider stays visible even for a tall anchor (see
+  /// [unreadScrollOffset]). Keeps the divider at the top if the anchor still
+  /// can't be measured.
+  void _nudgeToShowAnchor(String firstUnreadId) {
+    final anchorId = widget.unreadBoundaryId;
+    if (anchorId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final dividerTop = _revealTopOffset(firstUnreadId);
+      final anchorTop = _revealTopOffset(anchorId);
+      if (dividerTop == null || anchorTop == null) return;
+      final target = unreadScrollOffset(
+        anchorTop: anchorTop,
+        dividerTop: dividerTop,
+        contextBudget: _scrollController.position.viewportDimension / 3,
+      );
+      _scrollController.jumpTo(
+          target.clamp(0.0, _scrollController.position.maxScrollExtent));
+    });
   }
 
   void _onScroll() {
