@@ -371,6 +371,10 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() {
       _readMarkers = {..._readMarkers, key: clock.now().toUtc()};
     });
+    _persistReadMarkers();
+  }
+
+  void _persistReadMarkers() {
     unawaited(
       LobbyReadMarkerStorage.save(_readMarkers)
           .catchError((Object error, StackTrace stackTrace) {
@@ -383,6 +387,36 @@ class _RoomScreenState extends State<RoomScreen> {
         );
       }),
     );
+  }
+
+  /// Marks the room being left read when none of its threads remains unread,
+  /// stamping the room-level marker the lobby reads (it has no per-thread
+  /// data). The per-thread leave stamp doesn't reach the lobby: only this
+  /// marker does, and the in-room recompute can leave it behind activity the
+  /// thread list hasn't surfaced yet — a message the user just sent, or a reply
+  /// that landed as they left. Skips the stamp while any other thread is still
+  /// unread so the room correctly stays unread. Mutates without setState: the
+  /// dispose path forbids it and the room-switch path rebuilds immediately.
+  void _markRoomReadOnLeave({
+    required String serverId,
+    required String roomId,
+    required String? leavingThreadId,
+  }) {
+    final status = _state.threadList.threads.value;
+    if (status is! ThreadsLoaded) return;
+    final stillUnread = unreadThreadIds(
+      status.threads,
+      _threadReadMarkers,
+      serverId: serverId,
+      roomId: roomId,
+      selectedThreadId: leavingThreadId,
+    ).isNotEmpty;
+    if (stillUnread) return;
+    _readMarkers = {
+      ..._readMarkers,
+      (serverId: serverId, roomId: roomId): clock.now().toUtc(),
+    };
+    _persistReadMarkers();
   }
 
   /// Marks the room read only when no thread is unread. While any thread is
@@ -738,6 +772,13 @@ class _RoomScreenState extends State<RoomScreen> {
       _markPreviousThreadRead(oldWidget);
     }
     if (roomChanged) {
+      // Mark the room being left read (under its own coordinates) before its
+      // _state is torn down, so the lobby agrees the user caught up there.
+      _markRoomReadOnLeave(
+        serverId: oldWidget.serverEntry.serverId,
+        roomId: oldWidget.roomId,
+        leavingThreadId: oldWidget.threadId,
+      );
       _cancelAutoSelect();
       _roomReadUnsub?.call();
       _roomReadUnsub = null;
@@ -862,6 +903,13 @@ class _RoomScreenState extends State<RoomScreen> {
       };
       _persistThreadReadMarkers();
     }
+    // Bring the room-level marker up to now too, so the lobby reflects that the
+    // user caught up here. Reads _state before it is disposed below.
+    _markRoomReadOnLeave(
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      leavingThreadId: threadId,
+    );
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
     _roomReadUnsub?.call();

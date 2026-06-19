@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
@@ -1297,6 +1298,149 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(railUnreadDots(), findsNothing);
+      });
+    });
+
+    testWidgets(
+        'leaving the room marks it read so the lobby agrees the user caught up',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      // A single thread whose activity (e.g. a message the user just sent) is
+      // newer than the room was first marked read. The lobby reads the
+      // room-level marker, so leaving must advance it past that activity.
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Leave to the lobby — the screen disposes.
+        now = leave;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+
+        final markers = await LobbyReadMarkerStorage.load();
+        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
+      });
+    });
+
+    testWidgets(
+        'leaving the room does not mark it read while a thread is unread',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      // thread-1 is open (old, read). thread-2 has fresh activity and no
+      // marker, so it is unread; leaving must not mark the room read over it.
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 5, 1),
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second thread',
+          createdAt: DateTime(2026, 3, 1),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        now = leave;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+
+        final markers = await LobbyReadMarkerStorage.load();
+        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], isNull);
+      });
+    });
+
+    testWidgets('switching rooms marks the left room read when caught up',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      Widget roomScreen(String roomId) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: entry,
+              roomId: roomId,
+              threadId: roomId == 'room-1' ? 'thread-1' : null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(roomScreen('room-1'));
+        await tester.pumpAndSettle();
+
+        now = leave;
+        await tester.pumpWidget(roomScreen('room-2'));
+        await tester.pumpAndSettle();
+
+        final markers = await LobbyReadMarkerStorage.load();
+        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
       });
     });
   });
