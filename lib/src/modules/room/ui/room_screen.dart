@@ -338,8 +338,9 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   /// Loads the shared read markers from disk, merging under any already set
-  /// in-memory (an early [_markRoomRead] on mount) so a just-opened room isn't
-  /// clobbered back to unread by the slower disk read.
+  /// in-memory (a [_recomputeRoomRead] may stamp a marker before the disk read
+  /// returns) so a just-opened room isn't clobbered back to unread by the
+  /// slower disk read.
   Future<void> _loadReadMarkers() async {
     try {
       final loaded = await LobbyReadMarkerStorage.load();
@@ -1623,9 +1624,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           messages: messages,
                           messageStates: messageStates,
                           streamingState: streaming,
-                          unreadBoundaryId: _anchorTracker.frozenBoundaryId,
-                          unreadBoundaryResolved:
-                              _anchorTracker.boundaryResolved,
+                          unreadBoundary: _anchorTracker.boundary,
                           executionTrackers: threadView.executionTrackers,
                           onFeedbackSubmit: threadView.submitFeedback,
                           onInspect: (runId) => context.push(

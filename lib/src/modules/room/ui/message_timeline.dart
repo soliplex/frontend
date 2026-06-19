@@ -21,8 +21,7 @@ class MessageTimeline extends StatefulWidget {
     required this.roomId,
     required this.messages,
     required this.messageStates,
-    this.unreadBoundaryId,
-    this.unreadBoundaryResolved = false,
+    this.unreadBoundary = const BoundaryPending(),
     this.streamingState,
     this.executionTrackers = const {},
     this.onFeedbackSubmit,
@@ -36,12 +35,10 @@ class MessageTimeline extends StatefulWidget {
   final String roomId;
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
-  final String? unreadBoundaryId;
 
-  /// Whether [unreadBoundaryId] reflects a resolved read state (vs. the anchor
-  /// not having loaded yet). The divider/scroll wait for this so a not-yet-
-  /// loaded null is not mistaken for "caught up".
-  final bool unreadBoundaryResolved;
+  /// The read boundary for the open thread. The divider/scroll wait until it
+  /// resolves so a not-yet-loaded null is not mistaken for "caught up".
+  final UnreadBoundary unreadBoundary;
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
@@ -199,10 +196,12 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// re-fires, so live-arriving messages neither move the divider nor yank the
   /// viewport.
   void _evaluateUnread(List<ChatMessage> displayMessages) {
-    if (_unreadEvaluated || !widget.unreadBoundaryResolved) return;
+    if (_unreadEvaluated) return;
+    final boundary = widget.unreadBoundary;
+    if (boundary is! BoundaryResolved) return;
     _unreadEvaluated = true;
     _frozenFirstUnreadId =
-        firstUnreadMessageId(displayMessages, widget.unreadBoundaryId);
+        firstUnreadMessageId(displayMessages, boundary.anchorId);
     if (widget.streamingState == null && _frozenFirstUnreadId != null) {
       _scrollToUnread(_frozenFirstUnreadId!);
     }
@@ -230,7 +229,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// [unreadScrollOffset]). Keeps the divider at the top if the anchor still
   /// can't be measured.
   void _nudgeToShowAnchor(String firstUnreadId) {
-    final anchorId = widget.unreadBoundaryId;
+    final boundary = widget.unreadBoundary;
+    final anchorId = boundary is BoundaryResolved ? boundary.anchorId : null;
     if (anchorId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;

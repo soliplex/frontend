@@ -432,6 +432,67 @@ void main() {
     state.dispose();
   });
 
+  test('a finished run for a non-selected thread refreshes the thread list',
+      () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    await Future<void>.delayed(Duration.zero);
+    final before = api.getThreadsCallCount;
+
+    final key =
+        (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-A');
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+    session.completeAsCancelled();
+
+    // The refresh is debounced (300ms); wait past the window for the fetch.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+
+    expect(api.getThreadsCallCount, before + 1);
+
+    state.dispose();
+  });
+
+  test('a finished run for the selected thread does not refresh the list',
+      () async {
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+    api.nextThreadHistory = ThreadHistory(messages: const []);
+
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+    state.selectThread('thread-A');
+    await Future<void>.delayed(Duration.zero);
+    final before = api.getThreadsCallCount;
+
+    final key =
+        (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-A');
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+    session.completeAsCancelled();
+
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+
+    // You're looking at the thread, so its completion must not trigger a fetch.
+    expect(api.getThreadsCallCount, before);
+
+    state.dispose();
+  });
+
   test('runningThreadIds excludes runs from other rooms and other servers',
       () async {
     api.nextRoom = Room(id: 'room-1', name: 'Test');

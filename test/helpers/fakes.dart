@@ -210,6 +210,9 @@ class FakeSoliplexApi extends SoliplexApi {
   List<ThreadInfo>? nextThreads;
   Exception? nextThreadsError;
 
+  /// How many times [getThreads] was invoked, for refresh/coalesce assertions.
+  int getThreadsCallCount = 0;
+
   /// [getRoomsStats] result: the activity batch keyed by room id. Lets a test
   /// give rooms distinct last-activity timestamps (e.g. for activity sorting).
   Map<String, RoomStats> roomsStats = {};
@@ -262,6 +265,7 @@ class FakeSoliplexApi extends SoliplexApi {
     String roomId, {
     CancelToken? cancelToken,
   }) async {
+    getThreadsCallCount++;
     if (nextThreadsError != null) throw nextThreadsError!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');

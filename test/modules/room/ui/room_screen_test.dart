@@ -324,6 +324,44 @@ void main() {
     expect(spinnerInSidebar, findsNothing);
   });
 
+  testWidgets('a finished run elsewhere on the server refetches room activity',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RoomScreen(
+        serverEntry: entry,
+        roomId: 'room-1',
+        threadId: null,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        documentSelections: DocumentSelections(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final before = api.getRoomsStatsCallCount;
+
+    // A run finishes in another room on this server (a background reply). It
+    // must refetch the activity batch so that room's rail dot lights even
+    // though you've stayed in room-1.
+    final key = (
+      serverId: entry.serverId,
+      roomId: 'room-2',
+      threadId: 'thread-bg',
+    );
+    final session = ManualAgentSession(key);
+    registry.register(key, session);
+    session.completeAsCancelled();
+
+    // The refetch is debounced; advance past the window.
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(api.getRoomsStatsCallCount, before + 1);
+  });
+
   testWidgets('shows RoomWelcome fallback when no thread selected',
       (tester) async {
     // No threads → auto-select never fires → no-thread content shown

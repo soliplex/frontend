@@ -2,8 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/anchor_tracker.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart'
     show ThreadActivityKey;
+import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 
 ThreadActivityKey _key(String t) => (serverId: 's', roomId: 'r', threadId: t);
+
+String? _anchorOf(UnreadBoundary boundary) =>
+    (boundary as BoundaryResolved).anchorId;
 
 void main() {
   group('AnchorTracker', () {
@@ -26,12 +30,10 @@ void main() {
         () async {
       final t = make();
       t.beginThread(_key('a'));
-      expect(t.boundaryResolved, isFalse);
-      expect(t.frozenBoundaryId, isNull);
+      expect(t.boundary, isA<BoundaryPending>());
 
       await t.loadFromDisk();
-      expect(t.boundaryResolved, isTrue);
-      expect(t.frozenBoundaryId, isNull);
+      expect(_anchorOf(t.boundary), isNull);
 
       t.advance('m3');
       expect(saves.last[_key('a')], 'm3');
@@ -62,7 +64,7 @@ void main() {
 
       await t.loadFromDisk();
       // Frozen boundary is the previous DISK value, for the divider.
-      expect(t.frozenBoundaryId, 'm1');
+      expect(_anchorOf(t.boundary), 'm1');
       // The flush contains the in-memory advance AND the other thread.
       expect(saves, isNotEmpty);
       expect(saves.last[_key('a')], 'm3');
@@ -77,8 +79,7 @@ void main() {
       t.advance('m5');
 
       t.beginThread(_key('a'));
-      expect(t.boundaryResolved, isTrue);
-      expect(t.frozenBoundaryId, 'm5');
+      expect(_anchorOf(t.boundary), 'm5');
     });
 
     test('frozen boundary does not move when the anchor advances', () async {
@@ -86,9 +87,9 @@ void main() {
       final t = make();
       t.beginThread(_key('a'));
       await t.loadFromDisk();
-      final frozen = t.frozenBoundaryId;
+      final frozen = _anchorOf(t.boundary);
       t.advance('m9');
-      expect(t.frozenBoundaryId, frozen);
+      expect(_anchorOf(t.boundary), frozen);
     });
 
     test('advance ignores null and unchanged ids', () async {
@@ -103,6 +104,44 @@ void main() {
       expect(saves, hasLength(1));
       t.advance('m1'); // unchanged
       expect(saves, hasLength(1));
+    });
+
+    test('load failure resolves to no line and never persists (no clobber)',
+        () async {
+      disk = {_key('a'): 'm1', _key('b'): 'x'};
+      final t = AnchorTracker(
+        load: () async => throw StateError('disk unavailable'),
+        save: (m) async {
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      // Degrades to a resolved "no line" so the timeline stops waiting on a
+      // load that will never arrive.
+      expect(_anchorOf(t.boundary), isNull);
+      // A failed load read nothing, so writing our partial in-memory map would
+      // clobber the threads we never read. It must stay silent.
+      t.advance('m3');
+      expect(saves, isEmpty);
+    });
+
+    test('a thread opened after a failed load resolves to no line, no persist',
+        () async {
+      final t = AnchorTracker(
+        load: () async => throw StateError('disk unavailable'),
+        save: (m) async {
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      saves.clear();
+
+      t.beginThread(_key('b'));
+      expect(_anchorOf(t.boundary), isNull);
+      t.advance('m9');
+      expect(saves, isEmpty);
     });
   });
 }

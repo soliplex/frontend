@@ -2,14 +2,15 @@ import 'dart:developer' as dev;
 
 import 'thread_anchor_storage.dart';
 import 'thread_read_markers.dart' show ThreadActivityKey;
+import 'unread_boundary.dart';
 
 /// Owns the per-thread "last read message id" state behind the unread
 /// "New messages" divider: loads it, snapshots the previous value when a
 /// thread opens (frozen for the divider), and advances it as messages arrive.
 ///
-/// Extracted from the room screen so the load/advance ordering — which must
-/// never persist a partial map before the disk load merges other threads'
-/// anchors — is unit-testable.
+/// Isolates the load/advance ordering — which must never persist a partial map
+/// before the disk load merges other threads' anchors — so it can be unit-
+/// tested independently of the room screen.
 class AnchorTracker {
   AnchorTracker({
     Future<Map<ThreadActivityKey, String>> Function()? load,
@@ -21,32 +22,26 @@ class AnchorTracker {
   final Future<void> Function(Map<ThreadActivityKey, String>) _save;
 
   Map<ThreadActivityKey, String> _anchors = const {};
-  bool _anchorsLoaded = false;
+  _LoadState _loadState = _LoadState.pending;
   ThreadActivityKey? _currentKey;
-  String? _frozenBoundaryId;
-  bool _boundaryResolved = false;
+  UnreadBoundary _boundary = const BoundaryPending();
   String? _lastPersistedAnchorId;
 
-  /// The frozen first-seen anchor for the open thread (the previous value,
-  /// captured before this visit advances it). Drives the divider.
-  String? get frozenBoundaryId => _frozenBoundaryId;
+  /// The frozen read boundary for the open thread, captured before this visit
+  /// advances it. Drives the divider.
+  UnreadBoundary get boundary => _boundary;
 
-  /// Whether [frozenBoundaryId] reflects a resolved read state (vs. the anchor
-  /// not having loaded yet).
-  bool get boundaryResolved => _boundaryResolved;
-
-  /// Snapshots the previous anchor for [key] BEFORE any advance. Warm
-  /// (anchors loaded): the in-memory value is authoritative and resolved.
-  /// Cold: leave unresolved; [loadFromDisk] resolves it from the disk value.
+  /// Snapshots the previous anchor for [key] BEFORE any advance. Loaded: the
+  /// in-memory value is authoritative. Failed: degrade to "no line" so the
+  /// divider doesn't wait on a load that will never arrive. Pending:
+  /// [loadFromDisk] resolves it from the disk value.
   void beginThread(ThreadActivityKey key) {
     _currentKey = key;
-    if (_anchorsLoaded) {
-      _frozenBoundaryId = _anchors[key];
-      _boundaryResolved = true;
-    } else {
-      _frozenBoundaryId = null;
-      _boundaryResolved = false;
-    }
+    _boundary = switch (_loadState) {
+      _LoadState.loaded => BoundaryResolved(_anchors[key]),
+      _LoadState.failed => const BoundaryResolved(null),
+      _LoadState.pending => const BoundaryPending(),
+    };
     _lastPersistedAnchorId = _anchors[key];
   }
 
@@ -55,6 +50,10 @@ class AnchorTracker {
   /// resolves the frozen boundary for the open thread from the DISK value.
   /// Flushes the merged map so a pre-load advance is persisted without
   /// dropping the other threads.
+  ///
+  /// On a load failure the boundary degrades to a resolved "no line" so the
+  /// timeline stops waiting, but persistence stays disabled: we read nothing,
+  /// so writing the partial in-memory map would clobber the unread threads.
   Future<void> loadFromDisk() async {
     final Map<ThreadActivityKey, String> loaded;
     try {
@@ -67,14 +66,17 @@ class AnchorTracker {
         name: 'AnchorTracker',
         level: 900,
       );
+      _loadState = _LoadState.failed;
+      if (_boundary is BoundaryPending) {
+        _boundary = const BoundaryResolved(null);
+      }
       return;
     }
     _anchors = {...loaded, ..._anchors};
-    _anchorsLoaded = true;
+    _loadState = _LoadState.loaded;
     final key = _currentKey;
-    if (key != null && !_boundaryResolved) {
-      _frozenBoundaryId = loaded[key];
-      _boundaryResolved = true;
+    if (key != null && _boundary is BoundaryPending) {
+      _boundary = BoundaryResolved(loaded[key]);
       // The flush below persists _anchors[key]; record it so the first advance
       // carrying that same id does not trigger a redundant write.
       _lastPersistedAnchorId ??= _anchors[key];
@@ -95,7 +97,7 @@ class AnchorTracker {
     if (lastRealId == null || lastRealId == _lastPersistedAnchorId) return;
     _lastPersistedAnchorId = lastRealId;
     _anchors = {..._anchors, key: lastRealId};
-    if (_anchorsLoaded) {
+    if (_loadState == _LoadState.loaded) {
       _persist('Failed to persist advanced thread anchor');
     }
   }
@@ -112,3 +114,5 @@ class AnchorTracker {
     });
   }
 }
+
+enum _LoadState { pending, loaded, failed }

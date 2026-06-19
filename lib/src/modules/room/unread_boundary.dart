@@ -2,11 +2,31 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'compute_display_messages.dart';
 
+/// The read state behind the unread "New messages" divider for an open thread.
+sealed class UnreadBoundary {
+  const UnreadBoundary();
+}
+
+/// The read state hasn't loaded from disk yet; the divider must wait rather
+/// than treat a not-yet-loaded null as "caught up".
+class BoundaryPending extends UnreadBoundary {
+  const BoundaryPending();
+}
+
+/// The read state is known. [anchorId] is the last message the user had already
+/// seen (null when there is no prior anchor, so no line is drawn); the divider
+/// sits just after it.
+class BoundaryResolved extends UnreadBoundary {
+  const BoundaryResolved(this.anchorId);
+
+  final String? anchorId;
+}
+
 /// The id of the first unread message, given [boundaryAnchorId] — the id of the
 /// last message the user had already seen. Returns null when there is no line
 /// to draw: no anchor, the anchor is the last message, the anchor is absent
 /// from [displayMessages] (e.g. it belonged to a run that is no longer
-/// replayed), or the only message after the anchor is the streaming/loading placeholder.
+/// replayed), or the only message after the anchor is the loading placeholder.
 String? firstUnreadMessageId(
   List<ChatMessage> displayMessages,
   String? boundaryAnchorId,

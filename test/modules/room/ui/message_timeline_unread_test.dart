@@ -4,6 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_timeline.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/unread_divider.dart';
+import 'package:soliplex_frontend/src/modules/room/unread_boundary.dart';
 
 TextMessage _msg(String id) =>
     TextMessage.create(id: id, user: ChatUser.assistant, text: 'body-$id');
@@ -20,8 +21,8 @@ void main() {
             roomId: 'room-1',
             messages: messages,
             messageStates: const {},
-            unreadBoundaryId: boundary,
-            unreadBoundaryResolved: resolved,
+            unreadBoundary:
+                resolved ? BoundaryResolved(boundary) : const BoundaryPending(),
           ),
         ),
       );
