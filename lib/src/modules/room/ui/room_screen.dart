@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -21,11 +22,13 @@ import 'package:soliplex_client/soliplex_client.dart'
         SourceReferenceFormatting,
         buildDocumentFilter;
 import '../../../core/activity_read.dart';
+import '../../../core/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
 import '../anchor_tracker.dart';
+import '../room_run_activity.dart';
 import '../room_unread.dart';
 import '../thread_read_markers.dart';
 import '../unread_boundary.dart';
@@ -168,6 +171,19 @@ class _RoomScreenState extends State<RoomScreen> {
   /// in sync with thread-unread state. Re-wired on room change, cancelled on
   /// dispose.
   void Function()? _roomReadUnsub;
+
+  /// Snapshot of the registry's active run keys, to detect active→terminal
+  /// transitions for the rail's room-activity dots. Seeded before subscribing.
+  Set<ThreadKey> _previousActiveKeys = const {};
+
+  /// Disposer for the registry subscription that refetches room activity when a
+  /// run on this server finishes (so a background reply lights another room's
+  /// rail dot). Cancelled on dispose.
+  void Function()? _serverActivityUnsub;
+
+  /// Coalesces bursts of run completions into a single room-activity refetch.
+  final Debouncer _roomActivityRefresh =
+      Debouncer(const Duration(milliseconds: 300));
 
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
@@ -393,6 +409,29 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  /// Refetches the server's room-activity batch whenever a run on this server
+  /// reaches a terminal state. The room-activity stats are otherwise only
+  /// fetched on mount and server change, so a background run finishing in a
+  /// room you've left would not surface on the rail until you re-entered it or
+  /// opened the lobby. Debounced so a burst of completions makes one request.
+  /// Survives in-server room switches (subscribed once, reads the current
+  /// server id on each emission).
+  void _watchServerActivity() {
+    _previousActiveKeys = widget.registry.activeKeys.value;
+    _serverActivityUnsub = widget.registry.activeKeys.subscribe((keys) {
+      if (!mounted) return;
+      final completed = serverRunCompleted(
+        _previousActiveKeys,
+        keys,
+        serverId: widget.serverEntry.serverId,
+      );
+      _previousActiveKeys = keys;
+      if (completed) {
+        _roomActivityRefresh.run(_fetchRoomActivity);
+      }
+    });
+  }
+
   /// Ids of the current server's rooms with activity newer than the user last
   /// saw. Empty when activity is unavailable.
   Set<String> get _unreadRoomIds {
@@ -601,6 +640,10 @@ class _RoomScreenState extends State<RoomScreen> {
     // Keep the room's unread dot derived from its threads: watch the thread
     // list and mark the room read only once no thread is unread.
     _watchRoomRead();
+    // Refetch the server's room-activity batch when any run on this server
+    // finishes, so a background reply lights another room's rail dot even while
+    // you stay in the current room.
+    _watchServerActivity();
     _markThreadRead(widget.threadId);
     _fetchAccount();
     if (widget.threadId != null) {
@@ -753,6 +796,8 @@ class _RoomScreenState extends State<RoomScreen> {
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
     _roomReadUnsub?.call();
+    _serverActivityUnsub?.call();
+    _roomActivityRefresh.cancel();
     _filterDocsCancelToken?.cancel('disposed');
     _roomsCancelToken?.cancel('disposed');
     _activityCancelToken?.cancel('disposed');

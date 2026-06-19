@@ -25,3 +25,15 @@ Set<ThreadKey> completedRoomThreadKeys(
           k.threadId != excludeThreadId)
       .toSet();
 }
+
+/// Whether any run on [serverId] (in any room) was active in [previous] but is
+/// no longer active in [current] — i.e. a run on this server just reached a
+/// terminal state. A true result means the server's room-activity batch should
+/// be refetched so the rail reflects a room whose background run finished.
+bool serverRunCompleted(
+  Set<ThreadKey> previous,
+  Set<ThreadKey> current, {
+  required String serverId,
+}) {
+  return previous.difference(current).any((k) => k.serverId == serverId);
+}

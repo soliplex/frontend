@@ -66,4 +66,39 @@ void main() {
       {_key(s, r, 't2')},
     );
   });
+
+  group('serverRunCompleted', () {
+    test('true when a run on this server (any room) reached a terminal state',
+        () {
+      final previous = {_key(s, 'other-room', 't1')};
+      expect(
+        serverRunCompleted(previous, <ThreadKey>{}, serverId: s),
+        isTrue,
+      );
+    });
+
+    test('false when the completed run is on another server', () {
+      final previous = {_key('other-server', r, 't1')};
+      expect(
+        serverRunCompleted(previous, <ThreadKey>{}, serverId: s),
+        isFalse,
+      );
+    });
+
+    test('false when the run is still active (not completed)', () {
+      final previous = {_key(s, r, 't1')};
+      final current = {_key(s, r, 't1')};
+      expect(
+        serverRunCompleted(previous, current, serverId: s),
+        isFalse,
+      );
+    });
+
+    test('false for a newly-activated run (entered, did not complete)', () {
+      expect(
+        serverRunCompleted(<ThreadKey>{}, {_key(s, r, 't1')}, serverId: s),
+        isFalse,
+      );
+    });
+  });
 }
