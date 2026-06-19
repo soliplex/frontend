@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
@@ -1026,6 +1030,173 @@ void main() {
 
       expect(find.text('Y'), findsOneWidget); // Yttrium
       expect(find.text('X'), findsNothing); // Xenon must not appear
+    });
+  });
+
+  group('thread unread dot', () {
+    Finder threadUnreadDots() => find.descendant(
+          of: find.byType(ThreadSidebar),
+          matching: find.byType(UnreadDot),
+        );
+
+    testWidgets(
+        'leaving a thread clears the false unread dot for activity seen '
+        'while it was open', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final activity = DateTime.utc(2026, 6, 1, 10, 0, 30);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      // thread-1's last activity is newer than the moment it is opened — a
+      // reply that streamed in while it was the open thread.
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: activity,
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(_buildRouted(
+          entry: entry,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          threadId: 'thread-1',
+        ));
+        await tester.pumpAndSettle();
+
+        // While thread-1 is open it is excluded from the unread set, so its
+        // newer activity does not light a dot.
+        expect(threadUnreadDots(), findsNothing);
+
+        // Leave thread-1 for thread-2.
+        now = leave;
+        await tester.tap(find.text('Second thread'));
+        await tester.pumpAndSettle();
+
+        // thread-1 was read up to the activity that arrived while it was open,
+        // so leaving it must not surface a false unread dot.
+        expect(threadUnreadDots(), findsNothing);
+      });
+    });
+
+    testWidgets('disposing stamps the open thread read as of now',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Leave the room entirely (back to the lobby) — the screen disposes.
+        now = leave;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+
+        final markers = await ThreadReadMarkerStorage.load();
+        expect(
+          markers[(
+            serverId: entry.serverId,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          )],
+          leave,
+        );
+      });
+    });
+
+    testWidgets('switching rooms stamps the left room\'s open thread read',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      Widget roomScreen(String roomId) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: entry,
+              roomId: roomId,
+              threadId: roomId == 'room-1' ? 'thread-1' : null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(roomScreen('room-1'));
+        await tester.pumpAndSettle();
+
+        // Switch to room-2 — the left room's open thread must be stamped under
+        // room-1's coordinates, not the room we're entering.
+        now = leave;
+        await tester.pumpWidget(roomScreen('room-2'));
+        await tester.pumpAndSettle();
+
+        final markers = await ThreadReadMarkerStorage.load();
+        expect(
+          markers[(
+            serverId: entry.serverId,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+          )],
+          leave,
+        );
+      });
     });
   });
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -472,14 +473,26 @@ class _RoomScreenState extends State<RoomScreen> {
   /// unread dot. No-op when [threadId] is null (no thread open yet).
   void _markThreadRead(String? threadId) {
     if (threadId == null) return;
-    final key = (
+    _stampThreadRead((
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
       threadId: threadId,
-    );
+    ));
+  }
+
+  /// Stamps [key]'s read marker to now and rebuilds for the cleared dot. When
+  /// [recompute] is true (the default) it also re-evaluates the room rollup;
+  /// callers that stamp before the room's thread list and coordinates line up
+  /// pass false and let a later recompute on matching state do the rollup.
+  void _stampThreadRead(ThreadActivityKey key, {bool recompute = true}) {
     setState(() {
-      _threadReadMarkers = {..._threadReadMarkers, key: DateTime.now().toUtc()};
+      _threadReadMarkers = {..._threadReadMarkers, key: clock.now().toUtc()};
     });
+    _persistThreadReadMarkers();
+    if (recompute) _recomputeRoomRead();
+  }
+
+  void _persistThreadReadMarkers() {
     unawaited(
       ThreadReadMarkerStorage.save(_threadReadMarkers)
           .catchError((Object error, StackTrace stackTrace) {
@@ -492,7 +505,28 @@ class _RoomScreenState extends State<RoomScreen> {
         );
       }),
     );
-    _recomputeRoomRead();
+  }
+
+  /// Stamps the thread that was open before this update as read. Activity that
+  /// arrives while a thread is open advances its `lastActivity` past the
+  /// open-time marker; without this the thread would surface a false unread dot
+  /// the moment it's deselected. Uses [oldWidget]'s coordinates because [widget]
+  /// has already advanced to the new thread or room before this runs.
+  ///
+  /// Skips the room rollup: on a thread switch the incoming thread's open-stamp
+  /// recomputes it, and on a room switch `_state` is rebuilt and `_watchRoomRead`
+  /// recomputes it — both against a thread list whose coordinates match.
+  void _markPreviousThreadRead(RoomScreen oldWidget) {
+    final threadId = oldWidget.threadId;
+    if (threadId == null) return;
+    _stampThreadRead(
+      (
+        serverId: oldWidget.serverEntry.serverId,
+        roomId: oldWidget.roomId,
+        threadId: threadId,
+      ),
+      recompute: false,
+    );
   }
 
   /// Snapshots the previous anchor for [threadId] (frozen for the divider) and
@@ -697,7 +731,11 @@ class _RoomScreenState extends State<RoomScreen> {
     super.didUpdateWidget(oldWidget);
     final serverChanged =
         widget.serverEntry.serverId != oldWidget.serverEntry.serverId;
-    if (widget.roomId != oldWidget.roomId || serverChanged) {
+    final roomChanged = widget.roomId != oldWidget.roomId || serverChanged;
+    if (roomChanged || widget.threadId != oldWidget.threadId) {
+      _markPreviousThreadRead(oldWidget);
+    }
+    if (roomChanged) {
       _cancelAutoSelect();
       _roomReadUnsub?.call();
       _roomReadUnsub = null;
@@ -796,6 +834,21 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   void dispose() {
+    // Stamp the open thread read on the way out, mirroring the deselect path:
+    // the user has seen this thread's activity, so it must not surface a false
+    // unread dot when they return. Save-only — no setState while disposing.
+    final threadId = widget.threadId;
+    if (threadId != null) {
+      _threadReadMarkers = {
+        ..._threadReadMarkers,
+        (
+          serverId: widget.serverEntry.serverId,
+          roomId: widget.roomId,
+          threadId: threadId,
+        ): clock.now().toUtc(),
+      };
+      _persistThreadReadMarkers();
+    }
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
     _roomReadUnsub?.call();
