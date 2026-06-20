@@ -165,7 +165,11 @@ Future<ShellConfig> standard({
         inspector: inspector,
       ),
       authMod,
-      LobbyAppModule(serverManager: serverManager, branding: brand),
+      LobbyAppModule(
+        serverManager: serverManager,
+        branding: brand,
+        registry: registry,
+      ),
       RoomAppModule(
         serverManager: serverManager,
         runtimeManager: runtimeManager,

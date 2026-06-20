@@ -11,10 +11,12 @@ import 'package:soliplex_client/soliplex_client.dart'
         SoliplexApi;
 
 import '../../core/activity_read.dart';
+import '../../core/debouncer.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import '../room/run_registry.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
@@ -79,18 +81,34 @@ class LobbyState {
   LobbyState({
     required ServerManager serverManager,
     ApiResolver? apiResolver,
+    RunRegistry? registry,
   })  : _serverManager = serverManager,
-        _apiResolver = apiResolver ?? _defaultResolver {
+        _apiResolver = apiResolver ?? _defaultResolver,
+        _registry = registry {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
     unawaited(_loadReadMarkers());
     unawaited(_loadSelectedServer());
+    _watchRunCompletions();
   }
 
   final ServerManager _serverManager;
   final ApiResolver _apiResolver;
+  final RunRegistry? _registry;
   late final void Function() _unsubscribe;
+
+  /// Snapshot of the registry's active run keys, to detect active→terminal
+  /// transitions. Seeded before subscribing so the immediate first emission is
+  /// a no-op diff.
+  Set<ThreadKey> _previousActiveKeys = const {};
+
+  /// Disposer for the run-completion subscription that refreshes room activity.
+  void Function()? _runCompletionUnsub;
+
+  /// Coalesces a burst of run completions into a single activity refresh.
+  final Debouncer _activityRefresh =
+      Debouncer(const Duration(milliseconds: 300));
 
   final Signal<Map<String, ServerRooms>> _roomsByServer =
       Signal<Map<String, ServerRooms>>({});
@@ -324,6 +342,50 @@ class LobbyState {
     });
   }
 
+  /// Drops the cached activity slice for [serverId] (cancelling an in-flight
+  /// fetch for it) so the next [_reconcileActivity] re-fetches instead of being
+  /// short-circuited by the "already fetched" guard.
+  void _invalidateActivity(String serverId) {
+    if (_activityFetchServerId == serverId) _cancelActivityFetch();
+    if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
+      _roomActivity.value = {..._roomActivity.value}
+        ..removeWhere((k, _) => k.serverId == serverId);
+    }
+  }
+
+  /// Forces a re-fetch of the selected server's room-activity batch, bypassing
+  /// the [_reconcileActivity] "already fetched" cache so a room whose activity
+  /// advanced (e.g. a background run just finished) can light its unread dot.
+  /// No-op before a server is selected.
+  void refreshActivity() {
+    final serverId = _selectedServerId.value;
+    if (serverId == null) return;
+    _invalidateActivity(serverId);
+    _reconcileActivity();
+  }
+
+  /// Refreshes the selected server's activity whenever a run on it finishes, so
+  /// a background reply that lands while the user sits in the lobby lights the
+  /// room's unread dot. The lobby otherwise fetches activity only on load and
+  /// selection, so a completion here would go unnoticed until re-entry.
+  /// Debounced so a burst of completions makes one request; reads the current
+  /// selected server on each emission so it survives server switches. No-op
+  /// without a registry (tests omit it).
+  void _watchRunCompletions() {
+    final registry = _registry;
+    if (registry == null) return;
+    _previousActiveKeys = registry.activeKeys.value;
+    _runCompletionUnsub = registry.activeKeys.subscribe((keys) {
+      final serverId = _selectedServerId.value;
+      final completed = serverId != null &&
+          _previousActiveKeys
+              .difference(keys)
+              .any((k) => k.serverId == serverId);
+      _previousActiveKeys = keys;
+      if (completed) _activityRefresh.run(refreshActivity);
+    });
+  }
+
   /// Free-text room-name filter. Ephemeral — intentionally not persisted,
   /// so each lobby visit starts unfiltered.
   final Signal<String> _searchQuery = Signal('');
@@ -530,15 +592,8 @@ class LobbyState {
         serverId: RoomsLoaded(rooms),
       };
       // A fresh room list invalidates cached activity for this server (rooms
-      // may have been added); drop those entries so recency refetches. Cancel
-      // an in-flight activity fetch for this server too, so the reconcile below
-      // starts one clean fetch instead of being short-circuited by the coalesce
-      // guard.
-      if (_activityFetchServerId == serverId) _cancelActivityFetch();
-      if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
-        _roomActivity.value = {..._roomActivity.value}
-          ..removeWhere((k, _) => k.serverId == serverId);
-      }
+      // may have been added); drop those entries so recency refetches.
+      _invalidateActivity(serverId);
       if (serverId == _selectedServerId.value) _reconcileActivity();
     }).catchError((Object error, StackTrace st) {
       if (token.isCancelled) return;
@@ -628,6 +683,8 @@ class LobbyState {
 
   void dispose() {
     _unsubscribe();
+    _runCompletionUnsub?.call();
+    _activityRefresh.cancel();
     _cancelActivityFetch();
     for (final unsub in _authSubscriptions.values) {
       unsub();

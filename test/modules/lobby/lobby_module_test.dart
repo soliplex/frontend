@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
+import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -18,6 +19,7 @@ void main() {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
         branding: testBranding(),
+        registry: RunRegistry(),
       ).build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -28,6 +30,7 @@ void main() {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
         branding: testBranding(),
+        registry: RunRegistry(),
       ).build();
       expect(contribution.redirect, isNull);
     });

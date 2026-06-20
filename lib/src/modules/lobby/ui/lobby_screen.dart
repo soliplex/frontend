@@ -10,6 +10,7 @@ import '../../../core/branding.dart';
 import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
+import '../../room/run_registry.dart';
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
@@ -31,6 +32,7 @@ class LobbyScreen extends StatefulWidget {
     super.key,
     required this.serverManager,
     required this.branding,
+    this.registry,
     this.apiResolver,
   });
 
@@ -38,6 +40,11 @@ class LobbyScreen extends StatefulWidget {
 
   /// Brand identity for the sidebar header (logo + app name).
   final SoliplexBranding branding;
+
+  /// Shared run registry, forwarded to [LobbyState] so a background run
+  /// finishing while the user sits in the lobby refreshes the room's unread
+  /// dot. Null in tests, where run-completion refresh is not exercised.
+  final RunRegistry? registry;
 
   /// Test seam forwarded to [LobbyState]; production uses the default
   /// per-entry API resolver.
@@ -57,6 +64,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _state = LobbyState(
       serverManager: widget.serverManager,
       apiResolver: widget.apiResolver,
+      registry: widget.registry,
     );
   }
 

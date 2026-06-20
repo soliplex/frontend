@@ -1079,6 +1079,51 @@ void main() {
         state.dispose();
       });
     });
+
+    group('refreshActivity', () {
+      test('re-fetches the selected server\'s activity even when cached',
+          () async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        final fakeApi = FakeSoliplexApi()
+          ..nextRooms = [const Room(id: 'room-1', name: 'Test Room')]
+          ..roomsStats = {
+            'room-1': RoomStats(lastActivity: DateTime.utc(2026, 6, 1)),
+          };
+
+        final state = LobbyState(
+          serverManager: manager,
+          apiResolver: (_) => fakeApi,
+        );
+        await pumpEventQueue();
+
+        // Activity is fetched once on load and cached.
+        expect(fakeApi.getRoomsStatsCallCount, 1);
+        const key = (serverId: 'local', roomId: 'room-1');
+        expect(state.roomActivity.value[key], DateTime.utc(2026, 6, 1));
+
+        // A background run advances the room's activity server-side.
+        fakeApi.roomsStats = {
+          'room-1': RoomStats(lastActivity: DateTime.utc(2026, 6, 2)),
+        };
+
+        // A plain reconcile would no-op because the activity is already
+        // cached; refreshActivity forces the re-fetch so the lobby learns of
+        // the new activity and can light the unread dot.
+        state.refreshActivity();
+        await pumpEventQueue();
+
+        expect(fakeApi.getRoomsStatsCallCount, 2);
+        expect(state.roomActivity.value[key], DateTime.utc(2026, 6, 2));
+
+        state.dispose();
+      });
+    });
   });
 
   group('isActivityUnread', () {
