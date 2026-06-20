@@ -1,9 +1,31 @@
 import 'package:soliplex_client/soliplex_client.dart';
 
-import '../../core/activity_read.dart' show isActivityUnread;
+import '../../core/activity_read.dart' show RoomActivityKey, isActivityUnread;
 import 'thread_read_markers.dart' show ThreadActivityKey;
 
 export 'thread_read_markers.dart' show ThreadActivityKey;
+
+/// The ids of rooms with activity newer than the device's last-seen marker, for
+/// the room rail. [currentRoomId] is excluded — the open room reads as read, so
+/// activity arriving while the user views it (e.g. their own reply) does not
+/// light its own rail dot. Mirrors the selected-thread exclusion in
+/// [unreadThreadIds].
+Set<String> unreadRoomIds(
+  Map<String, DateTime?> roomActivity,
+  Map<RoomActivityKey, DateTime> markers, {
+  required String serverId,
+  String? currentRoomId,
+}) {
+  return {
+    for (final entry in roomActivity.entries)
+      if (entry.key != currentRoomId &&
+          isActivityUnread(
+            entry.value,
+            markers[(serverId: serverId, roomId: entry.key)],
+          ))
+        entry.key,
+  };
+}
 
 /// The ids of [threads] that are unread for this device: a thread is unread
 /// when its [ThreadInfo.lastActivity] is newer than the device's last-seen

@@ -1302,6 +1302,45 @@ void main() {
     });
 
     testWidgets(
+        'the open room does not light its own rail dot when only its own '
+        'activity is newer than the marker', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      // A single open thread. The room-activity batch reports newer activity
+      // than the room was stamped read from the thread list — the reply the
+      // user just sent and is watching land. With no unread sibling thread,
+      // the open room must not light its own rail dot.
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10),
+        ),
+      ];
+      api.roomsStats = {
+        'room-1': RoomStats(lastActivity: DateTime.utc(2026, 6, 1, 12)),
+      };
+
+      await withClock(Clock(() => DateTime.utc(2026, 6, 1, 11)), () async {
+        await tester.pumpWidget(_buildRouted(
+          entry: entry,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          threadId: 'thread-1',
+        ));
+        await tester.pumpAndSettle();
+
+        expect(railUnreadDots(), findsNothing);
+      });
+    });
+
+    testWidgets(
         'leaving the room marks it read so the lobby agrees the user caught up',
         (tester) async {
       SharedPreferences.setMockInitialValues(const {});

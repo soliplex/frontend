@@ -141,4 +141,45 @@ void main() {
       expect(call(threads, markers, DateTime.utc(2026, 6, 2)), isFalse);
     });
   });
+
+  group('unreadRoomIds', () {
+    test('includes a room with activity newer than its marker', () {
+      final activity = {'r1': DateTime.utc(2026, 6, 2)};
+      final markers = {
+        (serverId: 's1', roomId: 'r1'): DateTime.utc(2026, 6, 1),
+      };
+      expect(
+        unreadRoomIds(activity, markers, serverId: 's1'),
+        {'r1'},
+      );
+    });
+
+    test('excludes the current room even when its activity is newer', () {
+      // The open room reads as read: activity arriving while you view it (e.g.
+      // your own reply) must not light its own rail dot.
+      final activity = {'r1': DateTime.utc(2026, 6, 2)};
+      final markers = {
+        (serverId: 's1', roomId: 'r1'): DateTime.utc(2026, 6, 1),
+      };
+      expect(
+        unreadRoomIds(activity, markers, serverId: 's1', currentRoomId: 'r1'),
+        isEmpty,
+      );
+    });
+
+    test('still flags other rooms while one is open', () {
+      final activity = {
+        'r1': DateTime.utc(2026, 6, 2),
+        'r2': DateTime.utc(2026, 6, 2),
+      };
+      final markers = {
+        (serverId: 's1', roomId: 'r1'): DateTime.utc(2026, 6, 1),
+        (serverId: 's1', roomId: 'r2'): DateTime.utc(2026, 6, 1),
+      };
+      expect(
+        unreadRoomIds(activity, markers, serverId: 's1', currentRoomId: 'r1'),
+        {'r2'},
+      );
+    });
+  });
 }

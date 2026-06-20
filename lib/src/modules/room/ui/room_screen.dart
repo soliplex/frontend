@@ -22,7 +22,6 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         SourceReferenceFormatting,
         buildDocumentFilter;
-import '../../../core/activity_read.dart';
 import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
@@ -452,17 +451,25 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  /// Ids of the current server's rooms with activity newer than the user last
-  /// saw. Empty when activity is unavailable.
+  /// Ids of the current server's rooms with unread activity, for the rail.
+  ///
+  /// Other rooms come from the room-activity batch. The open room is judged
+  /// from its own thread-unread set instead: the batch counts the user's own
+  /// just-seen reply (lighting a false dot for the room they're sitting in),
+  /// whereas the thread-unread set excludes the open thread and surfaces only a
+  /// genuinely unread sibling thread. Empty when activity is unavailable.
   Set<String> get _unreadRoomIds {
-    final serverId = widget.serverEntry.serverId;
-    final markers = _readMarkers.value;
-    return {
-      for (final entry in _roomActivity.entries)
-        if (isActivityUnread(
-            entry.value, markers[(serverId: serverId, roomId: entry.key)]))
-          entry.key,
-    };
+    final ids = unreadRoomIds(
+      _roomActivity,
+      _readMarkers.value,
+      serverId: widget.serverEntry.serverId,
+      currentRoomId: widget.roomId,
+    );
+    final openRoomUnread = _unreadThreadIds(
+      _state.threadList.threads.value,
+      _state.activeThreadView?.threadId,
+    ).isNotEmpty;
+    return openRoomUnread ? {...ids, widget.roomId} : ids;
   }
 
   /// Loads the thread read markers from disk, merging under any already set
