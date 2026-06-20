@@ -1,6 +1,6 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/core/debouncer.dart';
+import 'package:soliplex_frontend/src/core/util/debouncer.dart';
 
 void main() {
   test('coalesces a burst within the window into one trailing call', () {

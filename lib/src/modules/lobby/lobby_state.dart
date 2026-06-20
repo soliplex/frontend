@@ -11,7 +11,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         SoliplexApi;
 
 import '../../core/activity_read.dart';
-import '../../core/debouncer.dart';
+import '../../core/util/debouncer.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
@@ -82,13 +82,15 @@ class LobbyState {
     required ServerManager serverManager,
     ApiResolver? apiResolver,
     RunRegistry? registry,
+    RoomReadMarkers? readMarkers,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
-        _registry = registry {
+        _registry = registry,
+        _readMarkers = readMarkers ?? RoomReadMarkers() {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    unawaited(_loadReadMarkers());
+    unawaited(_readMarkers.ensureLoaded());
     unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
@@ -96,6 +98,12 @@ class LobbyState {
   final ServerManager _serverManager;
   final ApiResolver _apiResolver;
   final RunRegistry? _registry;
+
+  /// Shared in-memory read-marker model. A room is unread when [roomActivity]
+  /// reports activity newer than this marker. Stamped by the room screen on
+  /// leave; the lobby watches it so a just-read room clears immediately.
+  final RoomReadMarkers _readMarkers;
+
   late final void Function() _unsubscribe;
 
   /// Snapshot of the registry's active run keys, to detect active→terminal
@@ -211,25 +219,10 @@ class LobbyState {
 
   /// Per-room "last seen" timestamps, keyed by (serverId, roomId). A room is
   /// *unread* when [roomActivity] reports a last-activity time newer than its
-  /// marker here (or newer than the epoch, when never opened). Persisted
-  /// per-device; there is no server-side read state and no unread count.
-  final Signal<Map<RoomActivityKey, DateTime>> _readMarkers =
-      Signal<Map<RoomActivityKey, DateTime>>({});
+  /// marker (or newer than the epoch, when never opened). Persisted per-device;
+  /// there is no server-side read state and no unread count.
   ReadonlySignal<Map<RoomActivityKey, DateTime>> get readMarkers =>
-      _readMarkers;
-
-  Future<void> _loadReadMarkers() async {
-    try {
-      _readMarkers.value = await LobbyReadMarkerStorage.load();
-    } catch (error, st) {
-      dev.log(
-        'Failed to load lobby read markers',
-        error: error,
-        stackTrace: st,
-        level: 900,
-      );
-    }
-  }
+      _readMarkers.markers;
 
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);

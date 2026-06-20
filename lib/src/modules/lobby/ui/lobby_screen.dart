@@ -11,6 +11,7 @@ import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
+import '../lobby_read_markers.dart' show RoomReadMarkers;
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
@@ -33,6 +34,7 @@ class LobbyScreen extends StatefulWidget {
     required this.serverManager,
     required this.branding,
     this.registry,
+    this.readMarkers,
     this.apiResolver,
   });
 
@@ -45,6 +47,10 @@ class LobbyScreen extends StatefulWidget {
   /// finishing while the user sits in the lobby refreshes the room's unread
   /// dot. Null in tests, where run-completion refresh is not exercised.
   final RunRegistry? registry;
+
+  /// Shared room read markers, forwarded to [LobbyState]. Null in tests, where
+  /// each screen gets its own isolated store.
+  final RoomReadMarkers? readMarkers;
 
   /// Test seam forwarded to [LobbyState]; production uses the default
   /// per-entry API resolver.
@@ -65,6 +71,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       serverManager: widget.serverManager,
       apiResolver: widget.apiResolver,
       registry: widget.registry,
+      readMarkers: widget.readMarkers,
     );
   }
 

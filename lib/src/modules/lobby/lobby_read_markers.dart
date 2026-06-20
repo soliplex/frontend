@@ -1,7 +1,9 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show ReadonlySignal, Signal;
 
 import '../../core/activity_read.dart' show RoomActivityKey;
 
@@ -93,4 +95,58 @@ abstract final class LobbyReadMarkerStorage {
     ];
     await prefs.setString(_key, jsonEncode(list));
   }
+}
+
+/// In-memory, reactive source of truth for per-room read markers, shared by the
+/// lobby and the room screen. A marker stamped in one screen is visible to the
+/// other immediately, because both watch the same [markers] signal — there is
+/// no [LobbyReadMarkerStorage] round-trip to race the screens' mount/dispose
+/// ordering (which is what let a just-read room show a stale unread dot in the
+/// lobby). Backed by [LobbyReadMarkerStorage] for persistence across launches.
+class RoomReadMarkers {
+  final Signal<Map<RoomActivityKey, DateTime>> _markers = Signal(const {});
+  ReadonlySignal<Map<RoomActivityKey, DateTime>> get markers => _markers;
+
+  bool _loaded = false;
+
+  /// The current markers, for a non-reactive read.
+  Map<RoomActivityKey, DateTime> get value => _markers.value;
+
+  /// Loads persisted markers once, merging them under any already stamped
+  /// in-memory (an early [markRead] before the disk read returned) so a
+  /// just-read room isn't clobbered back to unread by the slower load.
+  Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    try {
+      final loaded = await LobbyReadMarkerStorage.load();
+      _markers.value = {...loaded, ..._markers.value};
+    } catch (error, st) {
+      dev.log(
+        'Failed to load room read markers',
+        error: error,
+        stackTrace: st,
+        level: 900,
+      );
+    }
+  }
+
+  /// Stamps [key] read as of [at] and persists. The [markers] update is
+  /// synchronous, so a screen watching it reacts with no storage round-trip.
+  void markRead(RoomActivityKey key, DateTime at) {
+    _markers.value = {..._markers.value, key: at};
+    unawaited(
+      LobbyReadMarkerStorage.save(_markers.value)
+          .catchError((Object error, StackTrace st) {
+        dev.log(
+          'Failed to persist room read markers',
+          error: error,
+          stackTrace: st,
+          level: 900,
+        );
+      }),
+    );
+  }
+
+  void dispose() => _markers.dispose();
 }

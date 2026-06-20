@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import 'package:soliplex_frontend/src/core/signal_listenable.dart';
+import 'package:soliplex_frontend/src/core/util/signal_listenable.dart';
 
 void main() {
   group('SignalListenable', () {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_module.dart';
 import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
+import '../lobby/lobby_read_markers.dart' show RoomReadMarkers;
 import 'agent_runtime_manager.dart';
 import 'document_selections.dart';
 import 'message_expansions.dart';
@@ -18,6 +19,7 @@ class RoomAppModule extends AppModule {
     required this.serverManager,
     required this.runtimeManager,
     required this.registry,
+    required this.readMarkers,
     required this.appName,
     this.logo,
     this.enableDocumentFilter = false,
@@ -28,6 +30,10 @@ class RoomAppModule extends AppModule {
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
   final RunRegistry registry;
+
+  /// Shared room read markers, also watched by the lobby so a room stamped read
+  /// here clears its lobby unread dot immediately.
+  final RoomReadMarkers readMarkers;
 
   /// Brand identity for the room-info screen's branded header.
   final String appName;
@@ -93,6 +99,7 @@ class RoomAppModule extends AppModule {
             uploadRegistry: _uploadRegistry,
             enableDocumentFilter: enableDocumentFilter,
             documentSelections: _documentSelections,
+            readMarkers: readMarkers,
           ),
         );
       },

@@ -3,7 +3,7 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-import '../../core/debouncer.dart';
+import '../../core/util/debouncer.dart';
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';

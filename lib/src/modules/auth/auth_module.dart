@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../core/app_module.dart';
 import '../../core/routes.dart';
-import '../../core/signal_listenable.dart';
+import '../../core/util/signal_listenable.dart';
 import '../../interfaces/auth_state.dart';
 import 'auth_providers.dart';
 import 'consent_notice.dart';

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
@@ -34,6 +35,7 @@ void main() {
       serverManager: _createManager(),
       runtimeManager: runtimeManager,
       registry: registry,
+      readMarkers: RoomReadMarkers(),
       appName: 'Soliplex',
     );
   });
