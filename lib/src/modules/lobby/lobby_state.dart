@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
@@ -9,31 +8,23 @@ import 'package:soliplex_client/soliplex_client.dart'
         NotFoundException,
         PermissionDeniedException,
         SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../core/activity_read.dart';
+import '../../core/util/debouncer.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import '../room/room_run_activity.dart';
+import '../room/run_registry.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
 
+final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
+
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
-
-/// Identifies a room across servers for the activity cache. Named fields
-/// (rather than a positional `(String, String)`) so the two ids can't be
-/// transposed at a lookup or insertion site.
-typedef RoomActivityKey = ({String serverId, String roomId});
-
-/// Whether a room is unread: it has a known [lastActivity] strictly newer than
-/// the user's last-[seen] marker (or it has never been opened). No known
-/// activity means there is nothing to be unread about. The tie case
-/// ([lastActivity] equal to [seen]) reads as seen — [LobbyState.markRoomRead]
-/// stamps "now", which is at or after any activity it has observed.
-bool isActivityUnread(DateTime? lastActivity, DateTime? seen) {
-  if (lastActivity == null) return false;
-  return seen == null || lastActivity.isAfter(seen);
-}
 
 class UserProfile {
   const UserProfile({
@@ -93,18 +84,42 @@ class LobbyState {
   LobbyState({
     required ServerManager serverManager,
     ApiResolver? apiResolver,
+    RunRegistry? registry,
+    RoomReadMarkers? readMarkers,
   })  : _serverManager = serverManager,
-        _apiResolver = apiResolver ?? _defaultResolver {
+        _apiResolver = apiResolver ?? _defaultResolver,
+        _registry = registry,
+        _readMarkers = readMarkers ?? RoomReadMarkers() {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    unawaited(_loadReadMarkers());
+    unawaited(_readMarkers.ensureLoaded());
     unawaited(_loadSelectedServer());
+    _watchRunCompletions();
   }
 
   final ServerManager _serverManager;
   final ApiResolver _apiResolver;
+  final RunRegistry? _registry;
+
+  /// Shared in-memory read-marker model. A room is unread when [roomActivity]
+  /// reports activity newer than this marker. Stamped by the room screen on
+  /// leave; the lobby watches it so a just-read room clears immediately.
+  final RoomReadMarkers _readMarkers;
+
   late final void Function() _unsubscribe;
+
+  /// Snapshot of the registry's active run keys, to detect active→terminal
+  /// transitions. Seeded before subscribing so the immediate first emission is
+  /// a no-op diff.
+  Set<ThreadKey> _previousActiveKeys = const {};
+
+  /// Disposer for the run-completion subscription that refreshes room activity.
+  void Function()? _runCompletionUnsub;
+
+  /// Coalesces a burst of run completions into a single activity refresh.
+  final Debouncer _activityRefresh =
+      Debouncer(const Duration(milliseconds: 300));
 
   final Signal<Map<String, ServerRooms>> _roomsByServer =
       Signal<Map<String, ServerRooms>>({});
@@ -126,11 +141,10 @@ class LobbyState {
     } catch (error, st) {
       // Keep the default; a missing preference is not worth blocking on, but
       // a systematic storage failure should still leave a trace.
-      dev.log(
+      _logger.warning(
         'Failed to load lobby view mode',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
   }
@@ -144,11 +158,10 @@ class LobbyState {
         // The in-memory choice already took effect; only persistence failed.
         // The next launch falls back to the default, which the user can
         // re-select — but log so a silent storage failure is debuggable.
-        dev.log(
+        _logger.warning(
           'Failed to persist lobby view mode',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }),
     );
@@ -166,11 +179,10 @@ class LobbyState {
       // fetch is eager regardless of mode; this just runs it at launch.)
       _reconcileActivity();
     } catch (error, st) {
-      dev.log(
+      _logger.warning(
         'Failed to load lobby sort mode',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
   }
@@ -186,11 +198,10 @@ class LobbyState {
     _reconcileActivity();
     unawaited(
       LobbySortModeStorage.save(mode).catchError((Object error, StackTrace st) {
-        dev.log(
+        _logger.warning(
           'Failed to persist lobby sort mode',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }),
     );
@@ -207,64 +218,10 @@ class LobbyState {
 
   /// Per-room "last seen" timestamps, keyed by (serverId, roomId). A room is
   /// *unread* when [roomActivity] reports a last-activity time newer than its
-  /// marker here (or newer than the epoch, when never opened). Persisted
-  /// per-device; there is no server-side read state and no unread count.
-  final Signal<Map<RoomActivityKey, DateTime>> _readMarkers =
-      Signal<Map<RoomActivityKey, DateTime>>({});
+  /// marker (or newer than the epoch, when never opened). Persisted per-device;
+  /// there is no server-side read state and no unread count.
   ReadonlySignal<Map<RoomActivityKey, DateTime>> get readMarkers =>
-      _readMarkers;
-
-  Future<void> _loadReadMarkers() async {
-    try {
-      // Merge persisted markers under any set in-memory while the load was in
-      // flight (an early markRoomRead on cold start), so a just-opened room
-      // isn't clobbered back to unread by the slower disk read.
-      _readMarkers.value = {
-        ...await LobbyReadMarkerStorage.load(),
-        ..._readMarkers.value,
-      };
-    } catch (error, st) {
-      dev.log(
-        'Failed to load lobby read markers',
-        error: error,
-        stackTrace: st,
-        level: 900,
-      );
-    }
-  }
-
-  /// Marks [roomId] on [serverId] as read as of now, clearing its unread
-  /// affordance until a later message arrives. Called when the user opens a
-  /// room. Uses "now" rather than the cached activity time so a room is read
-  /// the moment it is opened, even if the activity fetch is stale or still in
-  /// flight. This stamps the device clock against server-sourced activity
-  /// times, so a device clock running well ahead of the server can transiently
-  /// suppress the unread affordance until activity catches up to the marker.
-  void markRoomRead(String serverId, String roomId) {
-    final key = (serverId: serverId, roomId: roomId);
-    _readMarkers.value = {
-      ..._readMarkers.value,
-      key: DateTime.now().toUtc(),
-    };
-    unawaited(
-      LobbyReadMarkerStorage.save(_readMarkers.value)
-          .catchError((Object e, StackTrace st) {
-        dev.log(
-          'Failed to persist lobby read markers',
-          error: e,
-          stackTrace: st,
-          level: 900,
-        );
-      }),
-    );
-  }
-
-  /// Whether [roomId] on [serverId] has activity newer than the user last saw.
-  /// False when there is no known activity (nothing to be unread about).
-  bool isRoomUnread(String serverId, String roomId) {
-    final key = (serverId: serverId, roomId: roomId);
-    return isActivityUnread(_roomActivity.value[key], _readMarkers.value[key]);
-  }
+      _readMarkers.markers;
 
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
@@ -368,12 +325,53 @@ class LobbyState {
       // error). Log at error level and leave the rooms absent so the next
       // reconcile retries, rather than freezing the lobby on "no activity" with
       // no recovery cue.
-      dev.log(
+      _logger.error(
         'Failed to fetch room activity for $serverId',
         error: error,
         stackTrace: st,
-        level: 1000,
       );
+    });
+  }
+
+  /// Drops the cached activity slice for [serverId] (cancelling an in-flight
+  /// fetch for it) so the next [_reconcileActivity] re-fetches instead of being
+  /// short-circuited by the "already fetched" guard.
+  void _invalidateActivity(String serverId) {
+    if (_activityFetchServerId == serverId) _cancelActivityFetch();
+    if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
+      _roomActivity.value = {..._roomActivity.value}
+        ..removeWhere((k, _) => k.serverId == serverId);
+    }
+  }
+
+  /// Forces a re-fetch of the selected server's room-activity batch, bypassing
+  /// the [_reconcileActivity] "already fetched" cache so a room whose activity
+  /// advanced (e.g. a background run just finished) can light its unread dot.
+  /// No-op before a server is selected.
+  void refreshActivity() {
+    final serverId = _selectedServerId.value;
+    if (serverId == null) return;
+    _invalidateActivity(serverId);
+    _reconcileActivity();
+  }
+
+  /// Refreshes the selected server's activity whenever a run on it finishes, so
+  /// a background reply that lands while the user sits in the lobby lights the
+  /// room's unread dot. The lobby otherwise fetches activity only on load and
+  /// selection, so a completion here would go unnoticed until re-entry.
+  /// Debounced so a burst of completions makes one request; reads the current
+  /// selected server on each emission so it survives server switches. No-op
+  /// without a registry (tests omit it).
+  void _watchRunCompletions() {
+    final registry = _registry;
+    if (registry == null) return;
+    _previousActiveKeys = registry.activeKeys.value;
+    _runCompletionUnsub = registry.activeKeys.subscribe((keys) {
+      final serverId = _selectedServerId.value;
+      final completed = serverId != null &&
+          serverRunCompleted(_previousActiveKeys, keys, serverId: serverId);
+      _previousActiveKeys = keys;
+      if (completed) _activityRefresh.run(refreshActivity);
     });
   }
 
@@ -405,11 +403,10 @@ class LobbyState {
     try {
       persisted = await SelectedServerStorage.load();
     } catch (error, st) {
-      dev.log(
+      _logger.warning(
         'Failed to load selected server',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
     final servers = _serverManager.servers.value;
@@ -583,15 +580,8 @@ class LobbyState {
         serverId: RoomsLoaded(rooms),
       };
       // A fresh room list invalidates cached activity for this server (rooms
-      // may have been added); drop those entries so recency refetches. Cancel
-      // an in-flight activity fetch for this server too, so the reconcile below
-      // starts one clean fetch instead of being short-circuited by the coalesce
-      // guard.
-      if (_activityFetchServerId == serverId) _cancelActivityFetch();
-      if (_roomActivity.value.keys.any((k) => k.serverId == serverId)) {
-        _roomActivity.value = {..._roomActivity.value}
-          ..removeWhere((k, _) => k.serverId == serverId);
-      }
+      // may have been added); drop those entries so recency refetches.
+      _invalidateActivity(serverId);
       if (serverId == _selectedServerId.value) _reconcileActivity();
     }).catchError((Object error, StackTrace st) {
       if (token.isCancelled) return;
@@ -608,11 +598,10 @@ class LobbyState {
         // section; everything else (network, 5xx, decode, programmer
         // errors) would otherwise be stringified into the UI with no
         // backing log.
-        dev.log(
+        _logger.error(
           'Failed to fetch rooms for $serverId',
           error: error,
           stackTrace: st,
-          level: 1000,
         );
       }
       _roomsByServer.value = {
@@ -636,12 +625,21 @@ class LobbyState {
       }
       final UserProfile? profile;
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        profile = UserProfile.fromJson(json);
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          // A 200 whose body isn't a JSON object is a backend/proxy contract
+          // break (an HTML error page, a bare array), not a missing profile —
+          // log it distinctly and degrade to null.
+          _logger.warning(
+            'Profile response was not a JSON object (status 200) for $serverId',
+          );
+          profile = null;
+        } else {
+          profile = UserProfile.fromJson(decoded);
+        }
       } else {
-        dev.log(
+        _logger.warning(
           'Profile fetch returned ${response.statusCode} for $serverId',
-          level: 900,
         );
         profile = null;
       }
@@ -657,11 +655,10 @@ class LobbyState {
       // Log everything else so 5xx / decode / programmer errors stay
       // debuggable — there is no surface in the UI for them otherwise.
       if (error is! PermissionDeniedException) {
-        dev.log(
+        _logger.warning(
           'Failed to fetch user profile for $serverId',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }
       _userProfiles.value = {..._userProfiles.value, serverId: null};
@@ -681,6 +678,8 @@ class LobbyState {
 
   void dispose() {
     _unsubscribe();
+    _runCompletionUnsub?.call();
+    _activityRefresh.cancel();
     _cancelActivityFetch();
     for (final unsub in _authSubscriptions.values) {
       unsub();

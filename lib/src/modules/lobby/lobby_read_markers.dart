@@ -1,9 +1,14 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show ReadonlySignal, Signal;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'lobby_state.dart' show RoomActivityKey;
+import '../../core/activity_read.dart' show RoomActivityKey;
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.lobby_read_markers');
 
 /// Persists per-room "last seen" timestamps so the lobby can mark rooms with
 /// newer activity as unread.
@@ -19,6 +24,12 @@ import 'lobby_state.dart' show RoomActivityKey;
 abstract final class LobbyReadMarkerStorage {
   static const _key = 'soliplex_lobby_read_markers';
 
+  // Row field names, shared by load and save so the read/write contract can't
+  // drift: a typo in one half alone would silently drop every row.
+  static const _fieldServer = 's';
+  static const _fieldRoom = 'r';
+  static const _fieldTime = 't';
+
   static Future<Map<RoomActivityKey, DateTime>> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -28,10 +39,8 @@ abstract final class LobbyReadMarkerStorage {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) {
-        dev.log(
-          'Discarding corrupt lobby read markers (not a JSON array)',
-          level: 900,
-        );
+        _logger.warning(
+            'Discarding corrupt lobby read markers (not a JSON array)');
         return {};
       }
       var skipped = 0;
@@ -40,9 +49,9 @@ abstract final class LobbyReadMarkerStorage {
           skipped++;
           continue;
         }
-        final s = entry['s'];
-        final r = entry['r'];
-        final t = entry['t'];
+        final s = entry[_fieldServer];
+        final r = entry[_fieldRoom];
+        final t = entry[_fieldTime];
         if (s is! String || r is! String || t is! String) {
           skipped++;
           continue;
@@ -54,27 +63,21 @@ abstract final class LobbyReadMarkerStorage {
         }
         result[(serverId: s, roomId: r)] = at.toUtc();
       }
+      // Every row dropped on a non-empty payload is a systemic serialization
+      // break, not one stale row, and it silently resets the read model (every
+      // room flips to unread). Surface it loudly.
       if (skipped > 0 && result.isEmpty) {
-        // Every row dropped on a non-empty payload is a systemic serialization
-        // break, not one stale row, and it silently resets the read model
-        // (every room flips to unread). Surface it loudly.
-        dev.log(
-          'Discarding all $skipped lobby read markers; none parsed',
-          level: 1000,
-        );
+        _logger
+            .error('Discarding all $skipped lobby read markers; none parsed');
       } else if (skipped > 0) {
-        dev.log(
-          'Skipped $skipped malformed lobby read marker(s)',
-          level: 900,
-        );
+        _logger.warning('Skipped $skipped malformed lobby read marker(s)');
       }
     } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the lobby.
-      dev.log(
+      _logger.warning(
         'Discarding corrupt lobby read markers',
         error: e,
         stackTrace: st,
-        level: 900,
       );
       return {};
     }
@@ -86,11 +89,63 @@ abstract final class LobbyReadMarkerStorage {
     final list = [
       for (final entry in markers.entries)
         {
-          's': entry.key.serverId,
-          'r': entry.key.roomId,
-          't': entry.value.toUtc().toIso8601String(),
+          _fieldServer: entry.key.serverId,
+          _fieldRoom: entry.key.roomId,
+          _fieldTime: entry.value.toUtc().toIso8601String(),
         },
     ];
     await prefs.setString(_key, jsonEncode(list));
   }
+}
+
+/// In-memory, reactive source of truth for per-room read markers, shared by the
+/// lobby and the room screen. A marker stamped in one screen is visible to the
+/// other immediately, because both watch the same [markers] signal — there is
+/// no [LobbyReadMarkerStorage] round-trip to race the screens' mount/dispose
+/// ordering (which is what let a just-read room show a stale unread dot in the
+/// lobby). Backed by [LobbyReadMarkerStorage] for persistence across launches.
+class RoomReadMarkers {
+  final Signal<Map<RoomActivityKey, DateTime>> _markers = Signal(const {});
+  ReadonlySignal<Map<RoomActivityKey, DateTime>> get markers => _markers;
+
+  bool _loaded = false;
+
+  /// The current markers, for a non-reactive read.
+  Map<RoomActivityKey, DateTime> get value => _markers.value;
+
+  /// Loads persisted markers once, merging them under any already stamped
+  /// in-memory (an early [markRead] before the disk read returned) so a
+  /// just-read room isn't clobbered back to unread by the slower load.
+  Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    try {
+      final loaded = await LobbyReadMarkerStorage.load();
+      _markers.value = {...loaded, ..._markers.value};
+    } catch (error, st) {
+      _logger.warning(
+        'Failed to load room read markers',
+        error: error,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// Stamps [key] read as of [at] and persists. The [markers] update is
+  /// synchronous, so a screen watching it reacts with no storage round-trip.
+  void markRead(RoomActivityKey key, DateTime at) {
+    _markers.value = {..._markers.value, key: at};
+    unawaited(
+      LobbyReadMarkerStorage.save(_markers.value)
+          .catchError((Object error, StackTrace st) {
+        _logger.warning(
+          'Failed to persist room read markers',
+          error: error,
+          stackTrace: st,
+        );
+      }),
+    );
+  }
+
+  void dispose() => _markers.dispose();
 }

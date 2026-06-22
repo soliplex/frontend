@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as dev;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_agent/soliplex_agent.dart' show ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -20,12 +21,18 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         SourceReferenceFormatting,
         buildDocumentFilter;
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
-import '../../lobby/lobby_state.dart' show RoomActivityKey, isActivityUnread;
+import '../anchor_tracker.dart';
+import '../room_run_activity.dart';
+import '../room_unread.dart';
 import '../thread_read_markers.dart';
+import '../unread_boundary.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
@@ -50,6 +57,9 @@ import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.room_screen');
 
 const double _sidebarWidth = 300;
 
@@ -108,6 +118,7 @@ class RoomScreen extends StatefulWidget {
     required this.uploadRegistry,
     this.enableDocumentFilter = false,
     required this.documentSelections,
+    this.readMarkers,
   });
 
   final ServerEntry serverEntry;
@@ -118,6 +129,11 @@ class RoomScreen extends StatefulWidget {
   final UploadTrackerRegistry uploadRegistry;
   final bool enableDocumentFilter;
   final DocumentSelections documentSelections;
+
+  /// Shared in-memory room read markers, also watched by the lobby. Stamping a
+  /// room read here is visible to the lobby immediately, with no storage race.
+  /// Null in tests, where each screen gets its own isolated store.
+  final RoomReadMarkers? readMarkers;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -143,17 +159,45 @@ class _RoomScreenState extends State<RoomScreen> {
   Map<String, DateTime?> _roomActivity = const {};
   CancelToken? _activityCancelToken;
 
-  /// Per-`(serverId, roomId)` "last seen" markers, shared with the lobby's
-  /// device-local read model (same storage). A room is unread when its
-  /// last-activity is newer than its marker; opening a room here stamps "now",
-  /// clearing its dot here and in the lobby.
-  Map<RoomActivityKey, DateTime> _readMarkers = const {};
+  /// Shared in-memory model of per-`(serverId, roomId)` "last seen" markers,
+  /// also watched by the lobby. A room is unread when its last-activity is
+  /// newer than its marker; opening a room here stamps "now", clearing its dot
+  /// here and — immediately, no storage race — in the lobby.
+  late final RoomReadMarkers _readMarkers;
 
   /// Per-`(serverId, roomId, threadId)` "last seen" markers for threads,
   /// device-local. A thread is unread when its [ThreadInfo.lastActivity] is
   /// newer than its marker; opening a thread stamps "now". Distinct store from
   /// the room markers (different granularity), but the same pattern.
   Map<ThreadActivityKey, DateTime> _threadReadMarkers = const {};
+
+  /// Recreated on room change so a fresh room starts with no frozen boundary
+  /// (the divider never carries over from the previous room) and a transient
+  /// disk-load failure is retried on the next room rather than disabling the
+  /// divider for the rest of the screen's life.
+  late AnchorTracker _anchorTracker;
+
+  /// Disposer for the active thread's message subscription that advances the
+  /// anchor. Re-wired on thread switch, cancelled on dispose.
+  void Function()? _anchorAdvanceUnsub;
+
+  /// Disposer for the thread-list subscription that keeps the room read marker
+  /// in sync with thread-unread state. Re-wired on room change, cancelled on
+  /// dispose.
+  void Function()? _roomReadUnsub;
+
+  /// Snapshot of the registry's active run keys, to detect active→terminal
+  /// transitions for the rail's room-activity dots. Seeded before subscribing.
+  Set<ThreadKey> _previousActiveKeys = const {};
+
+  /// Disposer for the registry subscription that refetches room activity when a
+  /// run on this server finishes (so a background reply lights another room's
+  /// rail dot). Cancelled on dispose.
+  void Function()? _serverActivityUnsub;
+
+  /// Coalesces bursts of run completions into a single room-activity refetch.
+  final Debouncer _roomActivityRefresh =
+      Debouncer(const Duration(milliseconds: 300));
 
   /// Best-effort account identity for the rail's footer menu; `null` until
   /// resolved (or when the server is unauthenticated / the fetch fails).
@@ -164,6 +208,13 @@ class _RoomScreenState extends State<RoomScreen> {
   /// `/api/user_info` request can't be cancelled, so we guard the result
   /// against the latest generation instead.
   int _accountFetchGeneration = 0;
+
+  /// Whether [_threadReadMarkers] holds a change not yet written to disk.
+  /// Survives a failed write so the next stamp retries it instead of losing it.
+  bool _threadMarkersDirty = false;
+
+  /// Guards [_flushThreadReadMarkers] so only one write runs at a time.
+  bool _flushingThreadMarkers = false;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -216,12 +267,10 @@ class _RoomScreenState extends State<RoomScreen> {
       });
     }).catchError((Object error, StackTrace stackTrace) {
       if (!mounted || token != _filterDocsCancelToken) return;
-      dev.log(
+      _logger.error(
         'Failed to load filterable documents',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 1000,
       );
       setState(() => _filterDocsLoadFailed = true);
     });
@@ -255,18 +304,12 @@ class _RoomScreenState extends State<RoomScreen> {
       // inline, so keep it below the severe channel reserved for genuine
       // failures. Still log it at debug so a misconfigured ACL leaves a trace.
       if (error is PermissionDeniedException) {
-        dev.log(
-          'Rooms fetch denied (403)',
-          name: 'RoomScreen',
-          level: 500,
-        );
+        _logger.debug('Rooms fetch denied (403)');
       } else {
-        dev.log(
+        _logger.error(
           'Failed to load server rooms',
           error: error,
           stackTrace: stackTrace,
-          name: 'RoomScreen',
-          level: 1000,
         );
       }
       setState(() => _serverRoomsError = error);
@@ -290,71 +333,144 @@ class _RoomScreenState extends State<RoomScreen> {
             entry.key: entry.value.lastActivity,
         };
       });
+      // Room activity is a recompute input that arrives on its own schedule;
+      // re-evaluate the room read state now that the stamp guard has it.
+      _recomputeRoomRead();
     }).catchError((Object error, StackTrace stackTrace) {
       if (!mounted || token != _activityCancelToken) return;
-      dev.log(
+      _logger.warning(
         'Failed to load room activity; unread dots disabled',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
       setState(() => _roomActivity = const {});
     });
   }
 
-  /// Loads the shared read markers from disk, merging under any already set
-  /// in-memory (an early [_markRoomRead] on mount) so a just-opened room isn't
-  /// clobbered back to unread by the slower disk read.
+  /// Loads the shared read markers once, then re-evaluates the room read state
+  /// in case the thread list arrived before them.
   Future<void> _loadReadMarkers() async {
-    try {
-      final loaded = await LobbyReadMarkerStorage.load();
-      if (!mounted) return;
-      setState(() => _readMarkers = {...loaded, ..._readMarkers});
-    } catch (error, stackTrace) {
-      dev.log(
-        'Failed to load room read markers',
-        error: error,
-        stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
-      );
-    }
+    await _readMarkers.ensureLoaded();
+    if (mounted) _recomputeRoomRead();
   }
 
-  /// Marks [roomId] on the current server as read as of now, clearing its
-  /// unread dot until later activity arrives. Persisted to the shared store so
-  /// the lobby agrees. Uses "now" (not the cached activity time) so an open
-  /// room is read immediately, even if the activity batch is stale or pending.
+  /// Stamps [roomId] on the current server read as of now. Uses "now" (not the
+  /// cached activity time) so the marker is at or after any observed activity,
+  /// even if the activity batch is stale or pending. Only [_recomputeRoomRead]
+  /// calls this, and only once no thread is unread. The shared store both
+  /// persists and notifies its watchers (this build and the lobby's).
   void _markRoomRead(String roomId) {
-    final key = (serverId: widget.serverEntry.serverId, roomId: roomId);
-    setState(() {
-      _readMarkers = {..._readMarkers, key: DateTime.now().toUtc()};
-    });
-    unawaited(
-      LobbyReadMarkerStorage.save(_readMarkers)
-          .catchError((Object error, StackTrace stackTrace) {
-        dev.log(
-          'Failed to persist room read markers',
-          error: error,
-          stackTrace: stackTrace,
-          name: 'RoomScreen',
-          level: 900,
-        );
-      }),
+    _readMarkers.markRead(
+      (serverId: widget.serverEntry.serverId, roomId: roomId),
+      clock.now().toUtc(),
     );
   }
 
-  /// Ids of the current server's rooms with activity newer than the user last
-  /// saw. Empty when activity is unavailable.
+  /// Marks the room being left read when none of its threads remains unread,
+  /// stamping the room-level marker the lobby reads (it has no per-thread
+  /// data). The per-thread leave stamp doesn't reach the lobby: only this
+  /// marker does, and the in-room recompute can leave it behind activity the
+  /// thread list hasn't surfaced yet — a message the user just sent, or a reply
+  /// that landed as they left. Skips the stamp while any other thread is still
+  /// unread so the room correctly stays unread. Safe from the dispose path: the
+  /// store update is just a signal write, not setState.
+  void _markRoomReadOnLeave({
+    required String serverId,
+    required String roomId,
+    required String? leavingThreadId,
+  }) {
+    final status = _state.threadList.threads.value;
+    if (status is! ThreadsLoaded) return;
+    final stillUnread = unreadThreadIds(
+      status.threads,
+      _threadReadMarkers,
+      serverId: serverId,
+      roomId: roomId,
+      selectedThreadId: leavingThreadId,
+    ).isNotEmpty;
+    if (stillUnread) return;
+    _readMarkers.markRead(
+      (serverId: serverId, roomId: roomId),
+      clock.now().toUtc(),
+    );
+  }
+
+  /// Marks the room read only when no thread is unread. While any thread is
+  /// unread, the marker is left untouched so the room stays unread (the lobby
+  /// comparison `roomActivity > roomMarker` then reports it). Stamps only on a
+  /// genuine unread→read transition to avoid re-persisting on every update.
+  void _recomputeRoomRead() {
+    final status = _state.threadList.threads.value;
+    if (status is! ThreadsLoaded) return;
+    final key = (serverId: widget.serverEntry.serverId, roomId: widget.roomId);
+    // Judge "mark read" from the thread list's own latest activity, not the
+    // separately-fetched room-activity batch: when the batch refreshes before
+    // the thread list does, a stale list must not mark the room read over a
+    // thread about to surface as unread.
+    if (shouldMarkRoomRead(
+      status.threads,
+      _threadReadMarkers,
+      _readMarkers.value[key],
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      selectedThreadId: widget.threadId,
+    )) {
+      _markRoomRead(widget.roomId);
+    }
+  }
+
+  /// Subscribes the room read marker to thread-list changes. The subscription
+  /// fires immediately with the current value, so this also performs the
+  /// initial recompute.
+  void _watchRoomRead() {
+    _roomReadUnsub?.call();
+    _roomReadUnsub = _state.threadList.threads.subscribe((_) {
+      if (mounted) _recomputeRoomRead();
+    });
+  }
+
+  /// Refetches the server's room-activity batch whenever a run on this server
+  /// reaches a terminal state. The room-activity stats are otherwise only
+  /// fetched on mount and server change, so a background run finishing in a
+  /// room you've left would not surface on the rail until you re-entered it or
+  /// opened the lobby. Debounced so a burst of completions makes one request.
+  /// Survives in-server room switches (subscribed once, reads the current
+  /// server id on each emission).
+  void _watchServerActivity() {
+    _previousActiveKeys = widget.registry.activeKeys.value;
+    _serverActivityUnsub = widget.registry.activeKeys.subscribe((keys) {
+      if (!mounted) return;
+      final completed = serverRunCompleted(
+        _previousActiveKeys,
+        keys,
+        serverId: widget.serverEntry.serverId,
+      );
+      _previousActiveKeys = keys;
+      if (completed) {
+        _roomActivityRefresh.run(_fetchRoomActivity);
+      }
+    });
+  }
+
+  /// Ids of the current server's rooms with unread activity, for the rail.
+  ///
+  /// Other rooms come from the room-activity batch. The open room is judged
+  /// from its own thread-unread set instead: the batch counts the user's own
+  /// just-seen reply (lighting a false dot for the room they're sitting in),
+  /// whereas the thread-unread set excludes the open thread and surfaces only a
+  /// genuinely unread sibling thread. Empty when activity is unavailable.
   Set<String> get _unreadRoomIds {
-    final serverId = widget.serverEntry.serverId;
-    return {
-      for (final entry in _roomActivity.entries)
-        if (isActivityUnread(
-            entry.value, _readMarkers[(serverId: serverId, roomId: entry.key)]))
-          entry.key,
-    };
+    final ids = unreadRoomIds(
+      _roomActivity,
+      _readMarkers.value,
+      serverId: widget.serverEntry.serverId,
+      currentRoomId: widget.roomId,
+    );
+    final openRoomUnread = _unreadThreadIds(
+      _state.threadList.threads.value,
+      _state.activeThreadView?.threadId,
+    ).isNotEmpty;
+    return openRoomUnread ? {...ids, widget.roomId} : ids;
   }
 
   /// Loads the thread read markers from disk, merging under any already set
@@ -364,13 +480,14 @@ class _RoomScreenState extends State<RoomScreen> {
       final loaded = await ThreadReadMarkerStorage.load();
       if (!mounted) return;
       setState(() => _threadReadMarkers = {...loaded, ..._threadReadMarkers});
+      // Markers just loaded; re-evaluate the room read state in case the thread
+      // list arrived before them.
+      _recomputeRoomRead();
     } catch (error, stackTrace) {
-      dev.log(
+      _logger.warning(
         'Failed to load thread read markers',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
     }
   }
@@ -379,26 +496,103 @@ class _RoomScreenState extends State<RoomScreen> {
   /// unread dot. No-op when [threadId] is null (no thread open yet).
   void _markThreadRead(String? threadId) {
     if (threadId == null) return;
-    final key = (
+    _stampThreadRead((
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
       threadId: threadId,
-    );
+    ));
+  }
+
+  /// Stamps [key]'s read marker to now and rebuilds for the cleared dot. When
+  /// [recompute] is true (the default) it also re-evaluates the room rollup;
+  /// callers that stamp before the room's thread list and coordinates line up
+  /// pass false and let a later recompute on matching state do the rollup.
+  void _stampThreadRead(ThreadActivityKey key, {bool recompute = true}) {
     setState(() {
-      _threadReadMarkers = {..._threadReadMarkers, key: DateTime.now().toUtc()};
+      _threadReadMarkers = {..._threadReadMarkers, key: clock.now().toUtc()};
     });
-    unawaited(
-      ThreadReadMarkerStorage.save(_threadReadMarkers)
-          .catchError((Object error, StackTrace stackTrace) {
-        dev.log(
-          'Failed to persist thread read markers',
-          error: error,
-          stackTrace: stackTrace,
-          name: 'RoomScreen',
-          level: 900,
-        );
-      }),
+    _persistThreadReadMarkers();
+    if (recompute) _recomputeRoomRead();
+  }
+
+  /// Serializes thread-read-marker writes so only one is ever in flight:
+  /// overlapping saves (rapid thread switches, or a switch immediately followed
+  /// by dispose) race on the shared store, and a stale snapshot could otherwise
+  /// land last and drop a just-stamped marker. Mirrors [AnchorTracker]'s flush.
+  void _persistThreadReadMarkers() {
+    _threadMarkersDirty = true;
+    unawaited(_flushThreadReadMarkers());
+  }
+
+  Future<void> _flushThreadReadMarkers() async {
+    if (_flushingThreadMarkers) return;
+    _flushingThreadMarkers = true;
+    try {
+      while (_threadMarkersDirty) {
+        _threadMarkersDirty = false;
+        try {
+          // Reads the latest map each pass; stamps replace [_threadReadMarkers]
+          // rather than mutating it, so the newest snapshot always wins.
+          await ThreadReadMarkerStorage.save(_threadReadMarkers);
+        } catch (error, stackTrace) {
+          // Keep the change pending so the next stamp retries it.
+          _threadMarkersDirty = true;
+          _logger.warning(
+            'Failed to persist thread read markers',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          return;
+        }
+      }
+    } finally {
+      _flushingThreadMarkers = false;
+    }
+  }
+
+  /// Stamps the thread that was open before this update as read. Activity that
+  /// arrives while a thread is open advances its `lastActivity` past the
+  /// open-time marker; without this the thread would surface a false unread dot
+  /// the moment it's deselected. Uses [oldWidget]'s coordinates because [widget]
+  /// has already advanced to the new thread or room before this runs.
+  ///
+  /// Skips the room rollup: on a thread switch the incoming thread's open-stamp
+  /// recomputes it, and on a room switch `_state` is rebuilt and `_watchRoomRead`
+  /// recomputes it — both against a thread list whose coordinates match.
+  void _markPreviousThreadRead(RoomScreen oldWidget) {
+    final threadId = oldWidget.threadId;
+    if (threadId == null) return;
+    _stampThreadRead(
+      (
+        serverId: oldWidget.serverEntry.serverId,
+        roomId: oldWidget.roomId,
+        threadId: threadId,
+      ),
+      recompute: false,
     );
+  }
+
+  /// Snapshots the previous anchor for [threadId] (frozen for the divider) and
+  /// wires a subscription that advances the stored anchor to the last real
+  /// message id as messages arrive. Must run after `selectThread([threadId])`.
+  void _beginUnreadTracking(String threadId) {
+    _anchorAdvanceUnsub?.call();
+    _anchorAdvanceUnsub = null;
+
+    _anchorTracker.beginThread((
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      threadId: threadId,
+    ));
+
+    final view = _state.activeThreadView;
+    if (view == null || view.threadId != threadId) return;
+
+    _anchorAdvanceUnsub = view.messages.subscribe((status) {
+      if (!mounted) return;
+      if (status is! MessagesLoaded) return;
+      _anchorTracker.advance(lastRealMessageId(status.messages));
+    });
   }
 
   /// Ids of the room's threads with activity newer than the user last saw.
@@ -409,21 +603,13 @@ class _RoomScreenState extends State<RoomScreen> {
     String? selectedThreadId,
   ) {
     if (status is! ThreadsLoaded) return const {};
-    final serverId = widget.serverEntry.serverId;
-    final roomId = widget.roomId;
-    return {
-      for (final thread in status.threads)
-        if (thread.id != selectedThreadId &&
-            isActivityUnread(
-              thread.lastActivity,
-              _threadReadMarkers[(
-                serverId: serverId,
-                roomId: roomId,
-                threadId: thread.id,
-              )],
-            ))
-          thread.id,
-    };
+    return unreadThreadIds(
+      status.threads,
+      _threadReadMarkers,
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      selectedThreadId: selectedThreadId,
+    );
   }
 
   /// Best-effort fetch of the signed-in identity for the rail's account menu.
@@ -461,26 +647,34 @@ class _RoomScreenState extends State<RoomScreen> {
         // A 403 is the expected steady state for a permission-restricted
         // profile endpoint, so log it below the warning channel reserved for
         // genuine 5xx / decode failures — debuggable without crying wolf.
-        dev.log(
-          'Account profile fetch returned ${response.statusCode}',
-          name: 'RoomScreen',
-          level: response.statusCode == 403 ? 500 : 900,
+        final message = 'Account profile fetch returned ${response.statusCode}';
+        if (response.statusCode == 403) {
+          _logger.debug(message);
+        } else {
+          _logger.warning(message);
+        }
+        return;
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        // A 200 whose body isn't a JSON object is a backend/proxy contract
+        // break (an HTML error page, a bare array), distinct from a network
+        // drop — log it on its own so it isn't read as "no profile".
+        _logger.warning(
+          'Account profile response was not a JSON object (status 200)',
         );
         return;
       }
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      setState(() => _account = accountFromJson(json));
+      setState(() => _account = accountFromJson(decoded));
     }).catchError((Object error, StackTrace stackTrace) {
       if (error is AuthException) {
         entry.auth.markSessionExpired();
         return;
       }
-      dev.log(
+      _logger.warning(
         'Failed to load account profile',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
     });
   }
@@ -519,6 +713,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    _readMarkers = widget.readMarkers ?? RoomReadMarkers();
     _state = _createRoomState();
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
@@ -526,13 +721,19 @@ class _RoomScreenState extends State<RoomScreen> {
     _fetchRoomActivity();
     unawaited(_loadReadMarkers());
     unawaited(_loadThreadReadMarkers());
-    // Viewing a room/thread reads it: stamp now so the dot clears here and in
-    // the lobby (the marker merges with any persisted markers as they load).
-    _markRoomRead(widget.roomId);
+    _anchorTracker = _createAnchorTracker();
+    // Keep the room's unread dot derived from its threads: watch the thread
+    // list and mark the room read only once no thread is unread.
+    _watchRoomRead();
+    // Refetch the server's room-activity batch when any run on this server
+    // finishes, so a background reply lights another room's rail dot even while
+    // you stay in the current room.
+    _watchServerActivity();
     _markThreadRead(widget.threadId);
     _fetchAccount();
     if (widget.threadId != null) {
       _state.selectThread(widget.threadId!);
+      _beginUnreadTracking(widget.threadId!);
     } else {
       _autoSelectFirstThread();
     }
@@ -564,11 +765,10 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
       );
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Failed to restore persisted composer draft',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
     }
   }
@@ -578,22 +778,39 @@ class _RoomScreenState extends State<RoomScreen> {
     super.didUpdateWidget(oldWidget);
     final serverChanged =
         widget.serverEntry.serverId != oldWidget.serverEntry.serverId;
-    if (widget.roomId != oldWidget.roomId || serverChanged) {
+    final roomChanged = widget.roomId != oldWidget.roomId || serverChanged;
+    if (roomChanged || widget.threadId != oldWidget.threadId) {
+      _markPreviousThreadRead(oldWidget);
+    }
+    if (roomChanged) {
+      // Mark the room being left read (under its own coordinates) before its
+      // _state is torn down, so the lobby agrees the user caught up there.
+      _markRoomReadOnLeave(
+        serverId: oldWidget.serverEntry.serverId,
+        roomId: oldWidget.roomId,
+        leavingThreadId: oldWidget.threadId,
+      );
       _cancelAutoSelect();
+      _roomReadUnsub?.call();
+      _roomReadUnsub = null;
+      _anchorAdvanceUnsub?.call();
+      _anchorAdvanceUnsub = null;
       _state.dispose();
+      unawaited(_anchorTracker.dispose());
       _chatController.clear();
       _state = _createRoomState();
       _workdirs = _createWorkdirController();
+      _anchorTracker = _createAnchorTracker();
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
       _refreshFilterableDocuments();
-      _markRoomRead(widget.roomId);
+      _watchRoomRead();
       _markThreadRead(widget.threadId);
       // Room list, account identity, and room-activity stats are all
       // server-scoped: refetch only on a server change, not on every in-server
       // room switch (which would otherwise flash the rail back to a spinner and
-      // fire redundant requests). The switch still clears the read dot locally
-      // via _markRoomRead above.
+      // fire redundant requests). The room's unread dot is kept in sync by
+      // _watchRoomRead above, which re-subscribes to the new room's thread list.
       if (serverChanged) {
         _fetchServerRooms();
         _fetchRoomActivity();
@@ -601,6 +818,7 @@ class _RoomScreenState extends State<RoomScreen> {
       }
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
+        _beginUnreadTracking(widget.threadId!);
       } else {
         _autoSelectFirstThread();
       }
@@ -614,6 +832,7 @@ class _RoomScreenState extends State<RoomScreen> {
           _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
         }
         _state.selectThread(widget.threadId!);
+        _beginUnreadTracking(widget.threadId!);
         setState(() {});
       } else {
         _autoSelectFirstThread();
@@ -652,6 +871,14 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
       );
 
+  AnchorTracker _createAnchorTracker() {
+    final tracker = AnchorTracker();
+    unawaited(tracker.loadFromDisk().then((_) {
+      if (mounted) setState(() {});
+    }));
+    return tracker;
+  }
+
   void _navigateToThread(String? threadId, {bool replace = false}) {
     if (!mounted) return;
     final alias = widget.serverEntry.alias;
@@ -673,12 +900,39 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   void dispose() {
+    // Stamp the open thread read on the way out, as the deselect path does:
+    // the user has seen this thread's activity, so it must not surface a false
+    // unread dot when they return. Save-only — no setState while disposing.
+    final threadId = widget.threadId;
+    if (threadId != null) {
+      _threadReadMarkers = {
+        ..._threadReadMarkers,
+        (
+          serverId: widget.serverEntry.serverId,
+          roomId: widget.roomId,
+          threadId: threadId,
+        ): clock.now().toUtc(),
+      };
+      _persistThreadReadMarkers();
+    }
+    // Bring the room-level marker up to now too, so the lobby reflects that the
+    // user caught up here. Reads _state before it is disposed below.
+    _markRoomReadOnLeave(
+      serverId: widget.serverEntry.serverId,
+      roomId: widget.roomId,
+      leavingThreadId: threadId,
+    );
     _cancelAutoSelect();
+    _anchorAdvanceUnsub?.call();
+    _roomReadUnsub?.call();
+    _serverActivityUnsub?.call();
+    _roomActivityRefresh.cancel();
     _filterDocsCancelToken?.cancel('disposed');
     _roomsCancelToken?.cancel('disposed');
     _activityCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
+    unawaited(_anchorTracker.dispose());
     _chatController.dispose();
     _chatFocusNode.dispose();
     super.dispose();
@@ -731,12 +985,10 @@ class _RoomScreenState extends State<RoomScreen> {
       result = await pick();
     } on PickFilePickerException catch (e, st) {
       if (!mounted) return const [];
-      dev.log(
+      _logger.error(
         'Pick failed',
         error: e.cause,
         stackTrace: st,
-        name: 'RoomScreen',
-        level: 1000,
       );
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
@@ -748,11 +1000,9 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     if (result == null || !mounted) return const [];
     for (final itemError in result.errors) {
-      dev.log(
+      _logger.error(
         'Pick failed for ${itemError.filename}',
         error: itemError.cause,
-        name: 'RoomScreen',
-        level: 1000,
       );
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
@@ -839,6 +1089,9 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild the rail's room dots when a read marker is stamped (here or by
+    // the lobby). Marker writes go through the shared store, not setState.
+    _readMarkers.markers.watch(context);
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
     final unreadThreadIds =
@@ -1081,10 +1334,8 @@ class _RoomScreenState extends State<RoomScreen> {
     final anyFailed =
         roomStatus is UploadsFailed || threadStatus is UploadsFailed;
 
-    if (!anyLoading &&
-        !anyFailed &&
-        (roomFiles == null || roomFiles.isEmpty) &&
-        (threadFiles == null || threadFiles.isEmpty)) {
+    if (!_scopeRendersContent(roomStatus) &&
+        !_scopeRendersContent(threadStatus)) {
       return null;
     }
 
@@ -1443,6 +1694,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           messages: messages,
                           messageStates: messageStates,
                           streamingState: streaming,
+                          unreadBoundary: _anchorTracker.boundary,
                           executionTrackers: threadView.executionTrackers,
                           onFeedbackSubmit: threadView.submitFeedback,
                           onInspect: (runId) => context.push(

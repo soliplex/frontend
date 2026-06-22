@@ -7,9 +7,11 @@ import '../execution_tracker.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
+import '../unread_boundary.dart';
 import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
+import 'unread_divider.dart';
 import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -19,6 +21,7 @@ class MessageTimeline extends StatefulWidget {
     required this.roomId,
     required this.messages,
     required this.messageStates,
+    this.unreadBoundary = const BoundaryPending(),
     this.streamingState,
     this.executionTrackers = const {},
     this.onFeedbackSubmit,
@@ -32,6 +35,10 @@ class MessageTimeline extends StatefulWidget {
   final String roomId;
   final List<ChatMessage> messages;
   final Map<String, MessageState> messageStates;
+
+  /// The read boundary for the open thread. The divider/scroll wait until it
+  /// resolves so a not-yet-loaded null is not mistaken for "caught up".
+  final UnreadBoundary unreadBoundary;
   final StreamingState? streamingState;
   final Map<String, ExecutionTracker> executionTrackers;
   final void Function(String runId, FeedbackType feedback, String? reason)?
@@ -53,6 +60,15 @@ class _MessageTimelineState extends State<MessageTimeline> {
   final Map<String, GlobalKey> _messageKeys = {};
   String? _lastUserMessageId;
   bool _needsInitialScroll = true;
+
+  /// The frozen first-unread message id, computed once when the boundary
+  /// resolves. Drives both the divider and the one-time unread scroll. Stays
+  /// fixed for the life of this timeline so live messages don't move it.
+  String? _frozenFirstUnreadId;
+  bool _unreadEvaluated = false;
+
+  /// Gap left above a message when it is revealed at the top of the viewport.
+  static const _revealTopGap = 8.0;
 
   Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
@@ -84,6 +100,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     final activeIds = widget.messages.map((m) => m.id).toSet();
     _messageKeys.removeWhere((id, _) => !activeIds.contains(id));
+
+    _evaluateUnread(
+      computeDisplayMessages(widget.messages, widget.streamingState),
+    );
   }
 
   void _recomputeMaps() {
@@ -122,14 +142,20 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  bool _tryPinAtTop(String messageId) {
+  /// Scroll offset that places [messageId]'s tile at the top of the viewport,
+  /// or null if the tile is not laid out yet.
+  double? _revealTopOffset(String messageId) {
     final key = _messageKeys[messageId];
-    if (key?.currentContext == null) return false;
-
-    final renderObject = key!.currentContext!.findRenderObject()!;
+    if (key?.currentContext == null) return null;
+    final renderObject = key!.currentContext!.findRenderObject();
+    if (renderObject == null) return null;
     final viewport = RenderAbstractViewport.of(renderObject);
-    final target = viewport.getOffsetToReveal(renderObject, 0.0).offset - 8;
+    return viewport.getOffsetToReveal(renderObject, 0.0).offset - _revealTopGap;
+  }
 
+  bool _tryPinAtTop(String messageId) {
+    final target = _revealTopOffset(messageId);
+    if (target == null) return false;
     _scrollController.setAnchor(target);
     _scrollController.animateTo(
       target,
@@ -143,6 +169,78 @@ class _MessageTimelineState extends State<MessageTimeline> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  void _scrollToUnread(String firstUnreadId, String? anchorId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      if (_revealDividerAtTop(firstUnreadId)) {
+        _nudgeToShowAnchor(firstUnreadId, anchorId);
+        return;
+      }
+      // Divider off-screen: jump to the bottom to lay out the (recent) reply,
+      // then retry.
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        if (_revealDividerAtTop(firstUnreadId)) {
+          _nudgeToShowAnchor(firstUnreadId, anchorId);
+        }
+      });
+    });
+  }
+
+  /// Freezes the unread boundary and performs the one-time unread scroll the
+  /// first time the boundary is resolved. Idempotent: once evaluated it never
+  /// re-fires, so live-arriving messages neither move the divider nor yank the
+  /// viewport.
+  void _evaluateUnread(List<ChatMessage> displayMessages) {
+    if (_unreadEvaluated) return;
+    final boundary = widget.unreadBoundary;
+    if (boundary is! BoundaryResolved) return;
+    _unreadEvaluated = true;
+    _frozenFirstUnreadId =
+        firstUnreadMessageId(displayMessages, boundary.anchorId);
+    if (widget.streamingState == null && _frozenFirstUnreadId != null) {
+      _scrollToUnread(_frozenFirstUnreadId!, boundary.anchorId);
+    }
+  }
+
+  /// Jumps so the divider sits at the top of the viewport. Returns false if the
+  /// divider tile isn't laid out yet (caller retries after a layout pass).
+  ///
+  /// Revealing the divider at the top is also what makes the *preceding* anchor
+  /// message measurable: it then sits within the leading cache extent, so
+  /// [_nudgeToShowAnchor] (next frame) can read its offset. Measuring the anchor
+  /// from the bottom, where it is off-screen above a tall reply, returns null.
+  bool _revealDividerAtTop(String firstUnreadId) {
+    final dividerTop = _revealTopOffset(firstUnreadId);
+    if (dividerTop == null) return false;
+    _scrollController.jumpTo(
+        dividerTop.clamp(0.0, _scrollController.position.maxScrollExtent));
+    return true;
+  }
+
+  /// With the divider at the top, the preceding anchor message is laid out, so
+  /// nudge up to show it above the divider — bounded to a third of the viewport
+  /// so the divider stays visible even for a tall anchor (see
+  /// [unreadScrollOffset]). Keeps the divider at the top if the anchor still
+  /// can't be measured.
+  void _nudgeToShowAnchor(String firstUnreadId, String? anchorId) {
+    if (anchorId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final dividerTop = _revealTopOffset(firstUnreadId);
+      final anchorTop = _revealTopOffset(anchorId);
+      if (dividerTop == null || anchorTop == null) return;
+      final target = unreadScrollOffset(
+        anchorTop: anchorTop,
+        dividerTop: dividerTop,
+        contextBudget: _scrollController.position.viewportDimension / 3,
+      );
+      _scrollController.jumpTo(
+          target.clamp(0.0, _scrollController.position.maxScrollExtent));
     });
   }
 
@@ -171,10 +269,23 @@ class _MessageTimelineState extends State<MessageTimeline> {
       widget.streamingState,
     );
 
+    _evaluateUnread(displayMessages);
+
     if (_needsInitialScroll) {
-      _needsInitialScroll = false;
       _lastUserMessageId = _findLastUserMessage(widget.messages)?.id;
-      _scrollToBottom();
+      // Defer the one-time initial scroll until we know where to land: follow a
+      // streaming run to the bottom right away, otherwise wait for the unread
+      // boundary to resolve so a caught-up thread lands at the bottom and an
+      // unread one is taken to its divider by _evaluateUnread. Acting before the
+      // boundary resolves would land at the bottom and then jump once the disk
+      // load resolves after the first build.
+      if (widget.streamingState != null) {
+        _needsInitialScroll = false;
+        _scrollToBottom();
+      } else if (widget.unreadBoundary is BoundaryResolved) {
+        _needsInitialScroll = false;
+        if (_frozenFirstUnreadId == null) _scrollToBottom();
+      }
     }
 
     final streamingPhase = widget.streamingState != null
@@ -202,32 +313,38 @@ class _MessageTimelineState extends State<MessageTimeline> {
                   // initState; without the remount they would stay bound to
                   // loadingMessageId (which forMessage rejects) and never
                   // acquire a handle under the real messageId.
+                  final tile = MessageTile(
+                    roomId: widget.roomId,
+                    message: message,
+                    runId: _runIdMap[message.id] ??
+                        (message is TextMessage && message.user == ChatUser.user
+                            ? widget.messageStates[message.id]?.runId
+                            : null),
+                    sourceReferences: _sourceReferencesMap[message.id],
+                    onFeedbackSubmit: widget.onFeedbackSubmit,
+                    onInspect: widget.onInspect,
+                    onShowChunkVisualization: widget.onShowChunkVisualization,
+                    onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
+                    onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
+                    onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
+                    executionTracker: widget.executionTrackers[message.id] ??
+                        (message is LoadingMessage
+                            ? widget.executionTrackers[awaitingTrackerKey]
+                            : null),
+                    streamingPhase: isLastItem ? streamingPhase : null,
+                  );
                   return Padding(
                     key: message is LoadingMessage
                         ? const ValueKey('loading')
                         : _keyFor(message.id),
                     padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-                    child: MessageTile(
-                      roomId: widget.roomId,
-                      message: message,
-                      runId: _runIdMap[message.id] ??
-                          (message is TextMessage &&
-                                  message.user == ChatUser.user
-                              ? widget.messageStates[message.id]?.runId
-                              : null),
-                      sourceReferences: _sourceReferencesMap[message.id],
-                      onFeedbackSubmit: widget.onFeedbackSubmit,
-                      onInspect: widget.onInspect,
-                      onShowChunkVisualization: widget.onShowChunkVisualization,
-                      onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
-                      onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
-                      onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
-                      executionTracker: widget.executionTrackers[message.id] ??
-                          (message is LoadingMessage
-                              ? widget.executionTrackers[awaitingTrackerKey]
-                              : null),
-                      streamingPhase: isLastItem ? streamingPhase : null,
-                    ),
+                    child: message.id == _frozenFirstUnreadId
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [const UnreadDivider(), tile],
+                          )
+                        : tile,
                   );
                 },
               ),

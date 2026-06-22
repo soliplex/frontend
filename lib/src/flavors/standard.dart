@@ -23,6 +23,7 @@ import '../modules/auth/server_storage.dart';
 import '../modules/diagnostics/diagnostics_module.dart';
 import '../modules/diagnostics/network_inspector.dart';
 import '../modules/lobby/lobby_module.dart';
+import '../modules/lobby/lobby_read_markers.dart' show RoomReadMarkers;
 import '../modules/quiz/quiz_module.dart';
 import '../modules/room/agent_runtime_manager.dart';
 import '../modules/room/execution_tracker_extension.dart';
@@ -129,6 +130,10 @@ Future<ShellConfig> standard({
 
   final registry = RunRegistry();
 
+  // Shared in-memory read-marker model so a room stamped read in the room
+  // screen clears its lobby unread dot immediately, with no storage race.
+  final readMarkers = RoomReadMarkers();
+
   final inactivityLogoutFlags = LocalInactivityLogoutFlagStorage();
 
   final authMod = AuthAppModule(
@@ -165,11 +170,17 @@ Future<ShellConfig> standard({
         inspector: inspector,
       ),
       authMod,
-      LobbyAppModule(serverManager: serverManager, branding: brand),
+      LobbyAppModule(
+        serverManager: serverManager,
+        branding: brand,
+        registry: registry,
+        readMarkers: readMarkers,
+      ),
       RoomAppModule(
         serverManager: serverManager,
         runtimeManager: runtimeManager,
         registry: registry,
+        readMarkers: readMarkers,
         appName: brand.appName,
         logo: brandLogo,
         enableDocumentFilter: true,
