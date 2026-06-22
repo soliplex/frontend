@@ -1,9 +1,12 @@
 import 'dart:async';
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/auth_session.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.thread_list_state');
 
 sealed class ThreadListStatus {}
 
@@ -101,6 +104,17 @@ class ThreadListState {
     if (_isDisposed) return;
     try {
       await _connection.api.deleteThread(_roomId, threadId);
+    } on NotFoundException catch (error) {
+      // DELETE is idempotent: a 404 means the thread is already gone
+      // server-side, so the desired end state is reached. Fall through to
+      // the local cleanup that drops the stale entry from the sidebar.
+      // A 404 is mapped purely by status code, so log the resource details
+      // in case the route (not the thread) is what's missing.
+      _logger.info(
+        'deleteThread got 404; treating as already-deleted and dropping '
+        'stale entry',
+        error: error,
+      );
     } on AuthException catch (error) {
       _funnelAuthException(error, op: 'deleteThread');
       return;
@@ -196,13 +210,11 @@ class ThreadListState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      dev.log(
+      _logger.warning(
         _threads.value is ThreadsLoaded
             ? 'Thread refresh forbidden (403), keeping stale list'
             : 'Thread fetch forbidden (403)',
         error: error,
-        name: 'ThreadListState',
-        level: 900,
       );
       if (_threads.value is! ThreadsLoaded) {
         _threads.value = ThreadsFailed(error);
@@ -210,11 +222,9 @@ class ThreadListState {
     } on AuthException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      dev.log(
+      _logger.warning(
         'Thread fetch hit AuthException; funneling to markSessionExpired',
         error: error,
-        name: 'ThreadListState',
-        level: 900,
       );
       _auth.markSessionExpired();
     } on Object catch (error) {
@@ -222,10 +232,9 @@ class ThreadListState {
       _cancelToken = null;
       // Preserve existing loaded threads on refresh failure.
       if (_threads.value is ThreadsLoaded) {
-        dev.log(
+        _logger.info(
           'Thread refresh failed, keeping stale list',
           error: error,
-          name: 'ThreadListState',
         );
       } else {
         _threads.value = ThreadsFailed(error);
@@ -234,11 +243,9 @@ class ThreadListState {
   }
 
   void _funnelAuthException(AuthException error, {required String op}) {
-    dev.log(
+    _logger.warning(
       '$op hit AuthException; funneling to markSessionExpired',
       error: error,
-      name: 'ThreadListState',
-      level: 900,
     );
     _auth.markSessionExpired();
   }
