@@ -188,6 +188,44 @@ void main() {
     state.dispose();
   });
 
+  test('deleteThread treats NotFoundException as success and removes thread',
+      () async {
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-1',
+        roomId: 'room-1',
+        name: 'First',
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      ThreadInfo(
+        id: 'thread-2',
+        roomId: 'room-1',
+        name: 'Second',
+        createdAt: DateTime(2026, 3, 1),
+      ),
+    ];
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: _authInActiveSession(),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    // The thread is already gone server-side: DELETE 404s.
+    api.nextDeleteThreadError = const NotFoundException(message: 'gone');
+
+    // Idempotent delete must not throw...
+    await state.deleteThread('thread-1');
+
+    // ...and the stale thread must be removed from the local list.
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.length, 1);
+    expect(loaded.threads.single.id, 'thread-2');
+
+    state.dispose();
+  });
+
   test('renameThread updates name and preserves description', () async {
     api.nextThreads = [
       ThreadInfo(
@@ -505,6 +543,46 @@ void main() {
 
     expect(api.deleteThreadCallCount, 1);
     expect(state.threads.value, isA<ThreadsLoaded>());
+    final loaded = state.threads.value as ThreadsLoaded;
+    expect(loaded.threads.single.id, 'thread-other');
+
+    state.dispose();
+  });
+
+  test(
+      'deleteThread NotFoundException from non-loaded state still reconciles '
+      'via a fresh fetch', () async {
+    // Initial fetch fails: state ends up in ThreadsFailed.
+    api.nextThreadsError = Exception('slow network');
+
+    final state = ThreadListState(
+      connection: connection,
+      roomId: 'room-1',
+      auth: _authInActiveSession(),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(state.threads.value, isA<ThreadsFailed>());
+
+    // The thread is already gone server-side (404), and there's no loaded
+    // baseline to drop it from — the swallow must still fall through to the
+    // reconciling fetch rather than returning early. Clear the fetch error
+    // and seed the post-delete server state for that fetch.
+    api.nextDeleteThreadError = const NotFoundException(message: 'gone');
+    api.nextThreadsError = null;
+    api.nextThreads = [
+      ThreadInfo(
+        id: 'thread-other',
+        roomId: 'room-1',
+        name: 'Other',
+        createdAt: DateTime(2026, 2, 1),
+      ),
+    ];
+
+    await state.deleteThread('thread-1');
+    // deleteThread scheduled a fresh fetch; let it resolve.
+    await Future<void>.delayed(Duration.zero);
+
+    expect(api.deleteThreadCallCount, 1);
     final loaded = state.threads.value as ThreadsLoaded;
     expect(loaded.threads.single.id, 'thread-other');
 

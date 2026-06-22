@@ -28,6 +28,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Auth: the consent notice terms are now selectable, so users can copy the
   text they're agreeing to.
 
+### Fixed
+
+- Room: deleting a thread that no longer exists server-side no longer traps the
+  user in the Delete dialog. A 404 is now treated as success (DELETE is
+  idempotent — the thread is already gone), so the dialog closes and the stale
+  entry is removed from the sidebar. Other failures still surface in the dialog.
+
 ## [0.90.0+60] - 2026-06-16
 
 ### Added
