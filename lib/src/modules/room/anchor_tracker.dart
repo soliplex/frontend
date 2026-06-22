@@ -162,10 +162,14 @@ class AnchorTracker {
     }
   }
 
-  /// Persists any pending advance before the tracker is discarded, so a write
-  /// the retry loop was about to re-attempt isn't lost when the room is torn
-  /// down. Guarded to the loaded state: a pending or failed load must never
-  /// write a partial map, which would clobber the unread threads it never read.
+  /// Best-effort persist of any pending advance before the tracker is
+  /// discarded, so a write the retry loop was about to re-attempt survives a
+  /// room change. Callers fire this without awaiting (a [State.dispose] has no
+  /// async gap), so during app shutdown the event loop may tear down before
+  /// the [_flush] completes and the pending advance is dropped — it reappears
+  /// on next launch. Guarded to the loaded state: a pending or failed load must
+  /// never write a partial map, which would clobber the unread threads it never
+  /// read.
   Future<void> dispose() async {
     if (_loadState == _LoadState.loaded && _dirty) await _flush();
   }
