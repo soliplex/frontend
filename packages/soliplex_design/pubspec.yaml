@@ -18,7 +18,7 @@ dev_dependencies:
   # Reused by golden tests so the snapshot matches what `flutter run` shows.
   soliplex_design_example:
     path: example
-  very_good_analysis: ^10.0.0
+  very_good_analysis: ^10.3.0
 
 flutter:
   uses-material-design: true
