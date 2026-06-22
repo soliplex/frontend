@@ -75,6 +75,17 @@ void main() {
         0,
       );
     });
+
+    test('asserts the anchor sits at or above the divider', () {
+      expect(
+        () => unreadScrollOffset(
+          anchorTop: 100,
+          dividerTop: 50,
+          contextBudget: 200,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
   });
 
   group('lastRealMessageId', () {

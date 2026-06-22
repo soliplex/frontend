@@ -770,6 +770,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _anchorAdvanceUnsub?.call();
       _anchorAdvanceUnsub = null;
       _state.dispose();
+      unawaited(_anchorTracker.dispose());
       _chatController.clear();
       _state = _createRoomState();
       _workdirs = _createWorkdirController();
@@ -905,6 +906,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _activityCancelToken?.cancel('disposed');
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _state.dispose();
+    unawaited(_anchorTracker.dispose());
     _chatController.dispose();
     _chatFocusNode.dispose();
     super.dispose();

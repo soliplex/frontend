@@ -16,6 +16,7 @@ import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
+import '../room/room_run_activity.dart';
 import '../room/run_registry.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
@@ -371,9 +372,7 @@ class LobbyState {
     _runCompletionUnsub = registry.activeKeys.subscribe((keys) {
       final serverId = _selectedServerId.value;
       final completed = serverId != null &&
-          _previousActiveKeys
-              .difference(keys)
-              .any((k) => k.serverId == serverId);
+          serverRunCompleted(_previousActiveKeys, keys, serverId: serverId);
       _previousActiveKeys = keys;
       if (completed) _activityRefresh.run(refreshActivity);
     });

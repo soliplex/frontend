@@ -205,5 +205,48 @@ void main() {
       t.advance('m9');
       expect(saves, isEmpty);
     });
+
+    test('dispose flushes an advance a failed write left pending', () async {
+      disk = {_key('a'): 'm1'};
+      var failSave = true;
+      final t = AnchorTracker(
+        load: () async => Map.of(disk),
+        save: (m) async {
+          if (failSave) throw StateError('write failed');
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      saves.clear();
+
+      // The write fails and arms the retry, but no further advance arrives.
+      t.advance('m5');
+      await pumpEventQueue();
+      expect(saves, isEmpty, reason: 'the persist threw');
+
+      // Teardown must make the stranded change one last attempt to persist.
+      failSave = false;
+      await t.dispose();
+      expect(saves.last[_key('a')], 'm5');
+    });
+
+    test('dispose after a failed load never persists (no clobber)', () async {
+      disk = {_key('a'): 'm1', _key('b'): 'x'};
+      final t = AnchorTracker(
+        load: () async => throw StateError('disk unavailable'),
+        save: (m) async {
+          saves.add(Map.of(m));
+        },
+      );
+      t.beginThread(_key('a'));
+      await t.loadFromDisk();
+      t.advance('m5');
+
+      // We read nothing, so writing the partial map on the way out would
+      // clobber the threads we never loaded.
+      await t.dispose();
+      expect(saves, isEmpty);
+    });
   });
 }

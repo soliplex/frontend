@@ -162,6 +162,14 @@ class AnchorTracker {
     }
   }
 
+  /// Persists any pending advance before the tracker is discarded, so a write
+  /// the retry loop was about to re-attempt isn't lost when the room is torn
+  /// down. Guarded to the loaded state: a pending or failed load must never
+  /// write a partial map, which would clobber the unread threads it never read.
+  Future<void> dispose() async {
+    if (_loadState == _LoadState.loaded && _dirty) await _flush();
+  }
+
   void _logPersistFailure(Object error, StackTrace stackTrace) {
     if (_consecutiveFailures >= _failureEscalationThreshold) {
       _logger.error(

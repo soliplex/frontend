@@ -61,6 +61,7 @@ double unreadScrollOffset({
   required double dividerTop,
   required double contextBudget,
 }) {
+  assert(anchorTop <= dividerTop, 'the anchor sits above the divider');
   final pinnedDivider = dividerTop - contextBudget;
   return anchorTop > pinnedDivider ? anchorTop : pinnedDivider;
 }
