@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
@@ -268,12 +267,10 @@ class _RoomScreenState extends State<RoomScreen> {
       });
     }).catchError((Object error, StackTrace stackTrace) {
       if (!mounted || token != _filterDocsCancelToken) return;
-      dev.log(
+      _logger.error(
         'Failed to load filterable documents',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 1000,
       );
       setState(() => _filterDocsLoadFailed = true);
     });
@@ -307,18 +304,12 @@ class _RoomScreenState extends State<RoomScreen> {
       // inline, so keep it below the severe channel reserved for genuine
       // failures. Still log it at debug so a misconfigured ACL leaves a trace.
       if (error is PermissionDeniedException) {
-        dev.log(
-          'Rooms fetch denied (403)',
-          name: 'RoomScreen',
-          level: 500,
-        );
+        _logger.debug('Rooms fetch denied (403)');
       } else {
-        dev.log(
+        _logger.error(
           'Failed to load server rooms',
           error: error,
           stackTrace: stackTrace,
-          name: 'RoomScreen',
-          level: 1000,
         );
       }
       setState(() => _serverRoomsError = error);
@@ -347,12 +338,10 @@ class _RoomScreenState extends State<RoomScreen> {
       _recomputeRoomRead();
     }).catchError((Object error, StackTrace stackTrace) {
       if (!mounted || token != _activityCancelToken) return;
-      dev.log(
+      _logger.warning(
         'Failed to load room activity; unread dots disabled',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
       setState(() => _roomActivity = const {});
     });
@@ -495,12 +484,10 @@ class _RoomScreenState extends State<RoomScreen> {
       // list arrived before them.
       _recomputeRoomRead();
     } catch (error, stackTrace) {
-      dev.log(
+      _logger.warning(
         'Failed to load thread read markers',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
     }
   }
@@ -660,11 +647,12 @@ class _RoomScreenState extends State<RoomScreen> {
         // A 403 is the expected steady state for a permission-restricted
         // profile endpoint, so log it below the warning channel reserved for
         // genuine 5xx / decode failures — debuggable without crying wolf.
-        dev.log(
-          'Account profile fetch returned ${response.statusCode}',
-          name: 'RoomScreen',
-          level: response.statusCode == 403 ? 500 : 900,
-        );
+        final message = 'Account profile fetch returned ${response.statusCode}';
+        if (response.statusCode == 403) {
+          _logger.debug(message);
+        } else {
+          _logger.warning(message);
+        }
         return;
       }
       final decoded = jsonDecode(response.body);
@@ -683,12 +671,10 @@ class _RoomScreenState extends State<RoomScreen> {
         entry.auth.markSessionExpired();
         return;
       }
-      dev.log(
+      _logger.warning(
         'Failed to load account profile',
         error: error,
         stackTrace: stackTrace,
-        name: 'RoomScreen',
-        level: 900,
       );
     });
   }
@@ -779,11 +765,10 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
       );
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Failed to restore persisted composer draft',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
     }
   }
@@ -1000,12 +985,10 @@ class _RoomScreenState extends State<RoomScreen> {
       result = await pick();
     } on PickFilePickerException catch (e, st) {
       if (!mounted) return const [];
-      dev.log(
+      _logger.error(
         'Pick failed',
         error: e.cause,
         stackTrace: st,
-        name: 'RoomScreen',
-        level: 1000,
       );
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,
@@ -1017,11 +1000,9 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     if (result == null || !mounted) return const [];
     for (final itemError in result.errors) {
-      dev.log(
+      _logger.error(
         'Pick failed for ${itemError.filename}',
         error: itemError.cause,
-        name: 'RoomScreen',
-        level: 1000,
       );
       _state.uploadTracker.recordClientError(
         roomId: widget.roomId,

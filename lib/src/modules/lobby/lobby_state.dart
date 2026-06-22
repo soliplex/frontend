@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
@@ -142,11 +141,10 @@ class LobbyState {
     } catch (error, st) {
       // Keep the default; a missing preference is not worth blocking on, but
       // a systematic storage failure should still leave a trace.
-      dev.log(
+      _logger.warning(
         'Failed to load lobby view mode',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
   }
@@ -160,11 +158,10 @@ class LobbyState {
         // The in-memory choice already took effect; only persistence failed.
         // The next launch falls back to the default, which the user can
         // re-select — but log so a silent storage failure is debuggable.
-        dev.log(
+        _logger.warning(
           'Failed to persist lobby view mode',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }),
     );
@@ -182,11 +179,10 @@ class LobbyState {
       // fetch is eager regardless of mode; this just runs it at launch.)
       _reconcileActivity();
     } catch (error, st) {
-      dev.log(
+      _logger.warning(
         'Failed to load lobby sort mode',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
   }
@@ -202,11 +198,10 @@ class LobbyState {
     _reconcileActivity();
     unawaited(
       LobbySortModeStorage.save(mode).catchError((Object error, StackTrace st) {
-        dev.log(
+        _logger.warning(
           'Failed to persist lobby sort mode',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }),
     );
@@ -330,11 +325,10 @@ class LobbyState {
       // error). Log at error level and leave the rooms absent so the next
       // reconcile retries, rather than freezing the lobby on "no activity" with
       // no recovery cue.
-      dev.log(
+      _logger.error(
         'Failed to fetch room activity for $serverId',
         error: error,
         stackTrace: st,
-        level: 1000,
       );
     });
   }
@@ -409,11 +403,10 @@ class LobbyState {
     try {
       persisted = await SelectedServerStorage.load();
     } catch (error, st) {
-      dev.log(
+      _logger.warning(
         'Failed to load selected server',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
     final servers = _serverManager.servers.value;
@@ -605,11 +598,10 @@ class LobbyState {
         // section; everything else (network, 5xx, decode, programmer
         // errors) would otherwise be stringified into the UI with no
         // backing log.
-        dev.log(
+        _logger.error(
           'Failed to fetch rooms for $serverId',
           error: error,
           stackTrace: st,
-          level: 1000,
         );
       }
       _roomsByServer.value = {
@@ -646,9 +638,8 @@ class LobbyState {
           profile = UserProfile.fromJson(decoded);
         }
       } else {
-        dev.log(
+        _logger.warning(
           'Profile fetch returned ${response.statusCode} for $serverId',
-          level: 900,
         );
         profile = null;
       }
@@ -664,11 +655,10 @@ class LobbyState {
       // Log everything else so 5xx / decode / programmer errors stay
       // debuggable — there is no surface in the UI for them otherwise.
       if (error is! PermissionDeniedException) {
-        dev.log(
+        _logger.warning(
           'Failed to fetch user profile for $serverId',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }
       _userProfiles.value = {..._userProfiles.value, serverId: null};
