@@ -272,13 +272,19 @@ class _MessageTimelineState extends State<MessageTimeline> {
     _evaluateUnread(displayMessages);
 
     if (_needsInitialScroll) {
-      _needsInitialScroll = false;
       _lastUserMessageId = _findLastUserMessage(widget.messages)?.id;
-      // _evaluateUnread scrolls to the divider only when one is resolved AND no
-      // run is streaming; otherwise (caught up, not yet resolved, or an active
-      // run we should follow) land at the bottom.
-      if (_frozenFirstUnreadId == null || widget.streamingState != null) {
+      // Defer the one-time initial scroll until we know where to land: follow a
+      // streaming run to the bottom right away, otherwise wait for the unread
+      // boundary to resolve so a caught-up thread lands at the bottom and an
+      // unread one is taken to its divider by _evaluateUnread. Acting before the
+      // boundary resolves would land at the bottom and then jump once the disk
+      // load resolves after the first build.
+      if (widget.streamingState != null) {
+        _needsInitialScroll = false;
         _scrollToBottom();
+      } else if (widget.unreadBoundary is BoundaryResolved) {
+        _needsInitialScroll = false;
+        if (_frozenFirstUnreadId == null) _scrollToBottom();
       }
     }
 

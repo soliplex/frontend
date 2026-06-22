@@ -80,6 +80,29 @@ void main() {
     expect(find.text('New messages'), findsNothing);
   });
 
+  testWidgets('does not scroll while the unread boundary is pending',
+      (tester) async {
+    // Enough messages to overflow the viewport so an initial scroll is
+    // observable as a non-zero offset.
+    final messages = [for (var i = 0; i < 30; i++) _msg('m$i')];
+    await tester.pumpWidget(harnessWith(
+      messages: messages,
+      boundary: 'm0',
+      resolved: false,
+    ));
+    await tester.pumpAndSettle();
+
+    // While the boundary is unresolved the timeline can't yet know whether to
+    // land at the bottom (caught up) or at the divider (unread), so it must not
+    // scroll at all. Landing at the bottom now would yank the view once the
+    // boundary resolves to an unread line.
+    final controller = tester
+        .widgetList<CustomScrollView>(find.byType(CustomScrollView))
+        .first
+        .controller!;
+    expect(controller.offset, 0);
+  });
+
   testWidgets('renders the divider above the first unread tile',
       (tester) async {
     // boundary 'a' → first unread is 'b' (tile index 1).
