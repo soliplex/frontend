@@ -1,11 +1,14 @@
 import 'dart:async' show unawaited;
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show ReadonlySignal, Signal;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/activity_read.dart' show RoomActivityKey;
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.lobby_read_markers');
 
 /// Persists per-room "last seen" timestamps so the lobby can mark rooms with
 /// newer activity as unread.
@@ -21,6 +24,12 @@ import '../../core/activity_read.dart' show RoomActivityKey;
 abstract final class LobbyReadMarkerStorage {
   static const _key = 'soliplex_lobby_read_markers';
 
+  // Row field names, shared by load and save so the read/write contract can't
+  // drift: a typo in one half alone would silently drop every row.
+  static const _fieldServer = 's';
+  static const _fieldRoom = 'r';
+  static const _fieldTime = 't';
+
   static Future<Map<RoomActivityKey, DateTime>> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -30,10 +39,8 @@ abstract final class LobbyReadMarkerStorage {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) {
-        dev.log(
-          'Discarding corrupt lobby read markers (not a JSON array)',
-          level: 900,
-        );
+        _logger.warning(
+            'Discarding corrupt lobby read markers (not a JSON array)');
         return {};
       }
       var skipped = 0;
@@ -42,9 +49,9 @@ abstract final class LobbyReadMarkerStorage {
           skipped++;
           continue;
         }
-        final s = entry['s'];
-        final r = entry['r'];
-        final t = entry['t'];
+        final s = entry[_fieldServer];
+        final r = entry[_fieldRoom];
+        final t = entry[_fieldTime];
         if (s is! String || r is! String || t is! String) {
           skipped++;
           continue;
@@ -56,27 +63,21 @@ abstract final class LobbyReadMarkerStorage {
         }
         result[(serverId: s, roomId: r)] = at.toUtc();
       }
+      // Every row dropped on a non-empty payload is a systemic serialization
+      // break, not one stale row, and it silently resets the read model (every
+      // room flips to unread). Surface it loudly.
       if (skipped > 0 && result.isEmpty) {
-        // Every row dropped on a non-empty payload is a systemic serialization
-        // break, not one stale row, and it silently resets the read model
-        // (every room flips to unread). Surface it loudly.
-        dev.log(
-          'Discarding all $skipped lobby read markers; none parsed',
-          level: 1000,
-        );
+        _logger
+            .error('Discarding all $skipped lobby read markers; none parsed');
       } else if (skipped > 0) {
-        dev.log(
-          'Skipped $skipped malformed lobby read marker(s)',
-          level: 900,
-        );
+        _logger.warning('Skipped $skipped malformed lobby read marker(s)');
       }
     } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the lobby.
-      dev.log(
+      _logger.warning(
         'Discarding corrupt lobby read markers',
         error: e,
         stackTrace: st,
-        level: 900,
       );
       return {};
     }
@@ -88,9 +89,9 @@ abstract final class LobbyReadMarkerStorage {
     final list = [
       for (final entry in markers.entries)
         {
-          's': entry.key.serverId,
-          'r': entry.key.roomId,
-          't': entry.value.toUtc().toIso8601String(),
+          _fieldServer: entry.key.serverId,
+          _fieldRoom: entry.key.roomId,
+          _fieldTime: entry.value.toUtc().toIso8601String(),
         },
     ];
     await prefs.setString(_key, jsonEncode(list));
@@ -122,11 +123,10 @@ class RoomReadMarkers {
       final loaded = await LobbyReadMarkerStorage.load();
       _markers.value = {...loaded, ..._markers.value};
     } catch (error, st) {
-      dev.log(
+      _logger.warning(
         'Failed to load room read markers',
         error: error,
         stackTrace: st,
-        level: 900,
       );
     }
   }
@@ -138,11 +138,10 @@ class RoomReadMarkers {
     unawaited(
       LobbyReadMarkerStorage.save(_markers.value)
           .catchError((Object error, StackTrace st) {
-        dev.log(
+        _logger.warning(
           'Failed to persist room read markers',
           error: error,
           stackTrace: st,
-          level: 900,
         );
       }),
     );
