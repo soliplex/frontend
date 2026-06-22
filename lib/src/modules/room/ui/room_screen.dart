@@ -22,6 +22,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         Room,
         SourceReferenceFormatting,
         buildDocumentFilter;
+import 'package:soliplex_logging/soliplex_logging.dart';
+
 import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
@@ -56,6 +58,9 @@ import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.room_screen');
 
 const double _sidebarWidth = 300;
 
@@ -204,6 +209,13 @@ class _RoomScreenState extends State<RoomScreen> {
   /// `/api/user_info` request can't be cancelled, so we guard the result
   /// against the latest generation instead.
   int _accountFetchGeneration = 0;
+
+  /// Whether [_threadReadMarkers] holds a change not yet written to disk.
+  /// Survives a failed write so the next stamp retries it instead of losing it.
+  bool _threadMarkersDirty = false;
+
+  /// Guards [_flushThreadReadMarkers] so only one write runs at a time.
+  bool _flushingThreadMarkers = false;
 
   bool get _filterEnabled => widget.enableDocumentFilter;
 
@@ -516,19 +528,39 @@ class _RoomScreenState extends State<RoomScreen> {
     if (recompute) _recomputeRoomRead();
   }
 
+  /// Serializes thread-read-marker writes so only one is ever in flight:
+  /// overlapping saves (rapid thread switches, or a switch immediately followed
+  /// by dispose) race on the shared store, and a stale snapshot could otherwise
+  /// land last and drop a just-stamped marker. Mirrors [AnchorTracker]'s flush.
   void _persistThreadReadMarkers() {
-    unawaited(
-      ThreadReadMarkerStorage.save(_threadReadMarkers)
-          .catchError((Object error, StackTrace stackTrace) {
-        dev.log(
-          'Failed to persist thread read markers',
-          error: error,
-          stackTrace: stackTrace,
-          name: 'RoomScreen',
-          level: 900,
-        );
-      }),
-    );
+    _threadMarkersDirty = true;
+    unawaited(_flushThreadReadMarkers());
+  }
+
+  Future<void> _flushThreadReadMarkers() async {
+    if (_flushingThreadMarkers) return;
+    _flushingThreadMarkers = true;
+    try {
+      while (_threadMarkersDirty) {
+        _threadMarkersDirty = false;
+        try {
+          // Reads the latest map each pass; stamps replace [_threadReadMarkers]
+          // rather than mutating it, so the newest snapshot always wins.
+          await ThreadReadMarkerStorage.save(_threadReadMarkers);
+        } catch (error, stackTrace) {
+          // Keep the change pending so the next stamp retries it.
+          _threadMarkersDirty = true;
+          _logger.warning(
+            'Failed to persist thread read markers',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          return;
+        }
+      }
+    } finally {
+      _flushingThreadMarkers = false;
+    }
   }
 
   /// Stamps the thread that was open before this update as read. Activity that
@@ -635,8 +667,17 @@ class _RoomScreenState extends State<RoomScreen> {
         );
         return;
       }
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      setState(() => _account = accountFromJson(json));
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        // A 200 whose body isn't a JSON object is a backend/proxy contract
+        // break (an HTML error page, a bare array), distinct from a network
+        // drop — log it on its own so it isn't read as "no profile".
+        _logger.warning(
+          'Account profile response was not a JSON object (status 200)',
+        );
+        return;
+      }
+      setState(() => _account = accountFromJson(decoded));
     }).catchError((Object error, StackTrace stackTrace) {
       if (error is AuthException) {
         entry.auth.markSessionExpired();

@@ -9,6 +9,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         NotFoundException,
         PermissionDeniedException,
         SoliplexApi;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/activity_read.dart';
 import '../../core/util/debouncer.dart';
@@ -21,6 +22,8 @@ import '../room/run_registry.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.lobby_state');
 
 typedef ApiResolver = SoliplexApi Function(ServerEntry entry);
 
@@ -630,8 +633,18 @@ class LobbyState {
       }
       final UserProfile? profile;
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        profile = UserProfile.fromJson(json);
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          // A 200 whose body isn't a JSON object is a backend/proxy contract
+          // break (an HTML error page, a bare array), not a missing profile —
+          // log it distinctly and degrade to null.
+          _logger.warning(
+            'Profile response was not a JSON object (status 200) for $serverId',
+          );
+          profile = null;
+        } else {
+          profile = UserProfile.fromJson(decoded);
+        }
       } else {
         dev.log(
           'Profile fetch returned ${response.statusCode} for $serverId',
