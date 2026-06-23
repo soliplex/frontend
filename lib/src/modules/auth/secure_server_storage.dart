@@ -1,9 +1,12 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'server_storage.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.secure_server_storage');
 
 /// Persists server sessions using platform secure storage.
 class SecureServerStorage implements ServerStorage {
@@ -53,7 +56,11 @@ Map<String, PersistedServer> deserializeStorageEntries(
       final json = jsonDecode(entry.value) as Map<String, dynamic>;
       result[serverId] = PersistedServer.fromJson(json);
     } catch (e, st) {
-      debugPrint('Failed to load stored session ${entry.key}: $e\n$st');
+      _logger.warning(
+        'Failed to load stored session ${entry.key}',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
   return result;

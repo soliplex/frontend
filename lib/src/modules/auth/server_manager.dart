@@ -1,13 +1,15 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../interfaces/auth_state.dart';
 import 'auth_session.dart';
 import 'auth_tokens.dart';
 import 'server_entry.dart';
 import 'server_storage.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.server_manager');
 
 typedef HttpClientFactory = SoliplexHttpClient Function({
   String? Function()? getToken,
@@ -97,7 +99,7 @@ class ServerManager {
     } else {
       resolvedAlias = _uniqueAlias(serverUrl);
       if (alias != null) {
-        debugPrint(
+        _logger.warning(
           'Alias "$alias" for $serverId collides with an existing alias; '
           'using "$resolvedAlias" instead',
         );
@@ -156,7 +158,11 @@ class ServerManager {
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))
         .catchError((Object e, StackTrace st) {
-      debugPrint('Failed to delete stored session for $serverId: $e\n$st');
+      _logger.error(
+        'Failed to delete stored session for $serverId',
+        error: e,
+        stackTrace: st,
+      );
     });
   }
 
@@ -166,7 +172,7 @@ class ServerManager {
     try {
       stored = await _storage.loadAll();
     } catch (e, st) {
-      debugPrint('Failed to load stored servers: $e\n$st');
+      _logger.error('Failed to load stored servers', error: e, stackTrace: st);
       return;
     }
     _restoring = true;
@@ -184,7 +190,11 @@ class ServerManager {
             server.auth.login(provider: provider, tokens: tokens);
           }
         } catch (e, st) {
-          debugPrint('Failed to restore server ${entry.key}: $e\n$st');
+          _logger.warning(
+            'Failed to restore server ${entry.key}',
+            error: e,
+            stackTrace: st,
+          );
         }
       }
     } finally {
@@ -234,7 +244,11 @@ class ServerManager {
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => persist())
         .catchError((Object e, StackTrace st) {
-      debugPrint('Failed to persist session for $serverId: $e\n$st');
+      _logger.error(
+        'Failed to persist session for $serverId',
+        error: e,
+        stackTrace: st,
+      );
     });
   }
 }

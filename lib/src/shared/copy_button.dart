@@ -2,8 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.copy_button');
 
 class CopyButton extends StatefulWidget {
   const CopyButton({
@@ -38,12 +42,8 @@ class _CopyButtonState extends State<CopyButton> {
   Future<void> _copy() async {
     try {
       await Clipboard.setData(ClipboardData(text: widget.text));
-    } on PlatformException catch (e, st) {
-      debugPrint('Clipboard.setData PlatformException: $e\n$st');
-      _showFeedback(_CopyFeedback.error);
-      return;
     } on Exception catch (e, st) {
-      debugPrint('Clipboard.setData failed: $e\n$st');
+      _logger.warning('Clipboard.setData failed', error: e, stackTrace: st);
       _showFeedback(_CopyFeedback.error);
       return;
     }
