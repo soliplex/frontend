@@ -1,0 +1,304 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_design/soliplex_design.dart';
+
+void main() {
+  group('BrandShape', () {
+    test("rounded() carries today's radii", () {
+      const shape = BrandShape.rounded();
+      expect(shape.sm, 6);
+      expect(shape.md, 12);
+      expect(shape.lg, 16);
+      expect(shape.xl, 24);
+    });
+
+    test('square() zeroes every radius', () {
+      const shape = BrandShape.square();
+      expect(shape.sm, 0);
+      expect(shape.md, 0);
+      expect(shape.lg, 0);
+      expect(shape.xl, 0);
+    });
+
+    test('custom() defaults to rounded, overriding only the named step', () {
+      const shape = BrandShape.custom(sm: 2);
+      expect(shape.sm, 2);
+      expect(shape.md, 12);
+      expect(shape.lg, 16);
+      expect(shape.xl, 24);
+    });
+
+    test('equality and copyWith', () {
+      const a = BrandShape.rounded();
+      expect(a, const BrandShape.custom());
+      expect(a, isNot(const BrandShape.square()));
+      expect(a.copyWith(md: 20).md, 20);
+      expect(a.copyWith(md: 20).sm, 6);
+    });
+  });
+
+  group('TypeScaleOverride', () {
+    test('holds the four primitive deltas', () {
+      const o = TypeScaleOverride(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        height: 1.4,
+        letterSpacing: 0.5,
+      );
+      expect(o.fontSize, 18);
+      expect(o.fontWeight, FontWeight.w600);
+      expect(o.height, 1.4);
+      expect(o.letterSpacing, 0.5);
+    });
+
+    test('defaults every delta to null', () {
+      const o = TypeScaleOverride();
+      expect(o.fontSize, isNull);
+      expect(o.fontWeight, isNull);
+      expect(o.height, isNull);
+      expect(o.letterSpacing, isNull);
+    });
+
+    test('equality', () {
+      expect(
+        const TypeScaleOverride(fontSize: 18),
+        const TypeScaleOverride(fontSize: 18),
+      );
+      expect(
+        const TypeScaleOverride(fontSize: 18),
+        isNot(const TypeScaleOverride(fontSize: 20)),
+      );
+    });
+  });
+
+  group('BrandTypography', () {
+    test('defaults to Material families and an empty fallback chain', () {
+      const t = BrandTypography();
+      expect(t.bodyFamily, isNull);
+      expect(t.displayFamily, isNull);
+      expect(t.codeFamily, isNull);
+      expect(t.fallbacks, isEmpty);
+      expect(t.bodyMedium, isNull);
+    });
+
+    test('copyWith replaces a single family', () {
+      const t = BrandTypography(bodyFamily: 'Inter');
+      final next = t.copyWith(displayFamily: 'Fraunces');
+      expect(next.bodyFamily, 'Inter');
+      expect(next.displayFamily, 'Fraunces');
+    });
+
+    test('equality compares the fallback list by value', () {
+      expect(
+        const BrandTypography(fallbacks: ['Roboto']),
+        const BrandTypography(fallbacks: ['Roboto']),
+      );
+      expect(
+        const BrandTypography(fallbacks: ['Roboto']),
+        isNot(const BrandTypography(fallbacks: ['Arial'])),
+      );
+    });
+  });
+
+  group('BrandColorScheme', () {
+    test('exposes the seven required roles and optional status/on slots', () {
+      const c = BrandColorScheme(
+        primary: Color(0xFF101010),
+        secondary: Color(0xFF202020),
+        background: Color(0xFF303030),
+        foreground: Color(0xFF404040),
+        muted: Color(0xFF505050),
+        mutedForeground: Color(0xFF606060),
+        border: Color(0xFF707070),
+      );
+      expect(c.primary, const Color(0xFF101010));
+      expect(c.border, const Color(0xFF707070));
+      // Optional slots are null until a consumer (or the lowering layer) fills
+      // them.
+      expect(c.tertiary, isNull);
+      expect(c.danger, isNull);
+      expect(c.onPrimary, isNull);
+    });
+
+    test('fromAccent sets primary and a contrasting onPrimary', () {
+      final c = BrandColorScheme.fromAccent(
+        const Color(0xFF112233),
+        brightness: Brightness.light,
+      );
+      expect(c.primary, const Color(0xFF112233));
+      // Dark accent => white foreground.
+      expect(c.onPrimary, const Color(0xFFFFFFFF));
+      // Every non-primary role stays the neutral light base.
+      expect(c.background, const Color(0xFFFFFFFF));
+      expect(c.secondary, const Color(0xFFF3F3FA));
+      expect(c.foreground, const Color(0xFF0A0A0A));
+    });
+
+    test('fromAccent picks a dark onPrimary for a light accent', () {
+      final c = BrandColorScheme.fromAccent(
+        const Color(0xFFEEEEEE),
+        brightness: Brightness.light,
+      );
+      expect(c.onPrimary, const Color(0xFF0A0A0A));
+    });
+
+    test('fromAccent uses the dark neutral base for dark brightness', () {
+      final c = BrandColorScheme.fromAccent(
+        const Color(0xFF112233),
+        brightness: Brightness.dark,
+      );
+      expect(c.background, const Color(0xFF111111));
+      expect(c.foreground, const Color(0xFFFAFAFA));
+    });
+
+    test('copyWith and equality', () {
+      const c = BrandColorScheme(
+        primary: Color(0xFF101010),
+        secondary: Color(0xFF202020),
+        background: Color(0xFF303030),
+        foreground: Color(0xFF404040),
+        muted: Color(0xFF505050),
+        mutedForeground: Color(0xFF606060),
+        border: Color(0xFF707070),
+      );
+      expect(c, c.copyWith());
+      expect(
+        c.copyWith(primary: const Color(0xFF000000)).primary,
+        const Color(0xFF000000),
+      );
+      expect(
+        c.copyWith(danger: const Color(0xFF00FF00)).danger,
+        const Color(0xFF00FF00),
+      );
+      expect(c, isNot(c.copyWith(primary: const Color(0xFF000000))));
+    });
+  });
+
+  group('BrandTheme.soliplex', () {
+    test("pins the light palette to today's literals", () {
+      final light = const BrandTheme.soliplex().light;
+      expect(light.primary, const Color(0xFF030213));
+      expect(light.secondary, const Color(0xFFF3F3FA));
+      expect(light.background, const Color(0xFFFFFFFF));
+      expect(light.foreground, const Color(0xFF0A0A0A));
+      expect(light.muted, const Color(0xFFECECF0));
+      expect(light.mutedForeground, const Color(0xFF595968));
+      expect(light.border, const Color(0x1A000000));
+      expect(light.tertiary, const Color(0xFF6B7280));
+      expect(light.onPrimary, const Color(0xFFFFFFFF));
+    });
+
+    test("pins the dark palette to today's literals", () {
+      final dark = const BrandTheme.soliplex().dark;
+      expect(dark.primary, const Color(0xFFFAFAFA));
+      expect(dark.background, const Color(0xFF111111));
+      expect(dark.foreground, const Color(0xFFFAFAFA));
+      expect(dark.onPrimary, const Color(0xFF222222));
+      expect(dark.tertiary, const Color(0xFF9CA3AF));
+    });
+
+    test('leaves status colors unset so the lowering layer supplies defaults',
+        () {
+      const theme = BrandTheme.soliplex();
+      expect(theme.light.danger, isNull);
+      expect(theme.light.success, isNull);
+      expect(theme.light.warning, isNull);
+      expect(theme.light.info, isNull);
+    });
+
+    test('defaults typography and shape to the shared Soliplex values', () {
+      const theme = BrandTheme.soliplex();
+      expect(theme.typography, const BrandTypography());
+      expect(theme.shape, const BrandShape.rounded());
+    });
+
+    test('is const-constructible and equal across instances', () {
+      expect(const BrandTheme.soliplex(), const BrandTheme.soliplex());
+    });
+  });
+
+  group('hashCode agrees with equality', () {
+    test('equal instances hash equally', () {
+      const scheme = BrandColorScheme(
+        primary: Color(0xFF101010),
+        secondary: Color(0xFF202020),
+        background: Color(0xFF303030),
+        foreground: Color(0xFF404040),
+        muted: Color(0xFF505050),
+        mutedForeground: Color(0xFF606060),
+        border: Color(0xFF707070),
+        danger: Color(0xFF00FF00),
+      );
+      expect(scheme.hashCode, scheme.copyWith().hashCode);
+      expect(
+        const BrandShape.rounded().hashCode,
+        const BrandShape.custom().hashCode,
+      );
+      expect(
+        const TypeScaleOverride(fontSize: 18).hashCode,
+        const TypeScaleOverride(fontSize: 18).hashCode,
+      );
+      expect(
+        const BrandTypography(fallbacks: ['Roboto']).hashCode,
+        const BrandTypography(fallbacks: ['Roboto']).hashCode,
+      );
+      expect(
+        const BrandTheme.soliplex().hashCode,
+        const BrandTheme.soliplex().hashCode,
+      );
+    });
+  });
+
+  group('BrandTheme.fromSeed', () {
+    test('drives both brightness primaries from one seed', () {
+      final theme = BrandTheme.fromSeed(const Color(0xFF112233));
+      expect(theme.light.primary, const Color(0xFF112233));
+      expect(theme.dark.primary, const Color(0xFF112233));
+      expect(theme.light.onPrimary, const Color(0xFFFFFFFF));
+      // Neutral bases still differ by brightness.
+      expect(theme.light.background, const Color(0xFFFFFFFF));
+      expect(theme.dark.background, const Color(0xFF111111));
+    });
+
+    test('defaults typography and shape, and accepts overrides', () {
+      final plain = BrandTheme.fromSeed(const Color(0xFF112233));
+      expect(plain.typography, const BrandTypography());
+      expect(plain.shape, const BrandShape.rounded());
+
+      final custom = BrandTheme.fromSeed(
+        const Color(0xFF112233),
+        typography: const BrandTypography(bodyFamily: 'Inter'),
+        shape: const BrandShape.square(),
+      );
+      expect(custom.typography.bodyFamily, 'Inter');
+      expect(custom.shape, const BrandShape.square());
+    });
+  });
+
+  group('BrandTheme.fromAccents', () {
+    test('drives each brightness primary from its own accent', () {
+      final theme = BrandTheme.fromAccents(
+        light: const Color(0xFF112233),
+        dark: const Color(0xFFEE9988),
+      );
+      expect(theme.light.primary, const Color(0xFF112233));
+      expect(theme.dark.primary, const Color(0xFFEE9988));
+    });
+  });
+
+  group('BrandTheme equality and copyWith', () {
+    test('value equality', () {
+      expect(
+        const BrandTheme.soliplex(),
+        isNot(BrandTheme.fromSeed(const Color(0xFFFF0000))),
+      );
+    });
+
+    test('copyWith swaps a single facet', () {
+      const base = BrandTheme.soliplex();
+      final next = base.copyWith(shape: const BrandShape.square());
+      expect(next.shape, const BrandShape.square());
+      expect(next.light, base.light);
+    });
+  });
+}

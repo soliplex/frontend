@@ -1,3 +1,5 @@
+export 'src/brand/brand_theme.dart';
+export 'src/brand/font_resolver.dart';
 export 'src/color/color_scheme_extensions.dart';
 export 'src/components/badge/badge.dart';
 export 'src/components/badge/intent.dart';
