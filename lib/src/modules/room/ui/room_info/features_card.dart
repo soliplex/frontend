@@ -3,9 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'room_info_widgets.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.features_card');
 
 class FeaturesCard extends StatelessWidget {
   const FeaturesCard({
@@ -74,12 +78,8 @@ class _McpTokenRowState extends State<McpTokenRow> {
   Future<void> _copyToken(String token) async {
     try {
       await Clipboard.setData(ClipboardData(text: token));
-    } on PlatformException catch (e, st) {
-      debugPrint('Clipboard.setData PlatformException: $e\n$st');
-      _showCopyFeedback(_TokenCopyState.error);
-      return;
     } on Exception catch (e, st) {
-      debugPrint('Clipboard.setData failed: $e\n$st');
+      _logger.warning('Clipboard.setData failed', error: e, stackTrace: st);
       _showCopyFeedback(_TokenCopyState.error);
       return;
     }

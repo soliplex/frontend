@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_agent/soliplex_agent.dart' as agent show AuthException;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'auth_failure_description.dart';
 import 'auth_tokens.dart';
@@ -13,6 +13,8 @@ import 'pre_auth_state.dart';
 import 'selected_server_storage.dart';
 import 'server_entry.dart';
 import 'server_manager.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.connect_flow');
 
 /// State of the server connection flow.
 sealed class ConnectState {
@@ -150,7 +152,7 @@ class ConnectFlow {
           );
       }
     } catch (e, st) {
-      debugPrint('ConnectFlow.connect: $e\n$st');
+      _logger.error('ConnectFlow.connect failed', error: e, stackTrace: st);
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
           message: ConnectError('Unexpected error connecting to $url: $e'),
@@ -291,8 +293,11 @@ class ConnectFlow {
       try {
         await PreAuthStateStorage.clear();
       } catch (e, st) {
-        debugPrint(
-            'ConnectFlow: post-login PreAuthState clear failed: $e\n$st');
+        _logger.warning(
+          'ConnectFlow: post-login PreAuthState clear failed',
+          error: e,
+          stackTrace: st,
+        );
       }
       // Only clear after a successful login. If the IdP challenge was
       // cancelled or failed, the flag stays set so the next attempt
@@ -321,7 +326,11 @@ class ConnectFlow {
         );
       }
     } on Exception catch (e, st) {
-      debugPrint('ConnectFlow._authenticate: $e\n$st');
+      _logger.error(
+        'ConnectFlow._authenticate failed',
+        error: e,
+        stackTrace: st,
+      );
       await PreAuthStateStorage.clear();
       if (!_isCancelled(gen)) {
         state.value = UrlInput(

@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex_frontend.async_action_dialog');
 
 /// Dialog that runs an async action with loading/error states.
 ///
@@ -46,8 +50,8 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
     try {
       await widget.onAction();
       if (mounted) Navigator.pop(context);
-    } on Exception catch (e) {
-      debugPrint('${widget.title} failed: $e');
+    } on Exception catch (e, st) {
+      _logger.warning('${widget.title} failed', error: e, stackTrace: st);
       if (mounted) {
         setState(() {
           _busy = false;
