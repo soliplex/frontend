@@ -37,6 +37,10 @@ void main() {
         onErrorContainer: Colors.red,
         successContainer: Colors.grey,
         onSuccessContainer: Colors.green,
+        danger: Colors.red,
+        success: Colors.green,
+        warning: Colors.orange,
+        info: Colors.blue,
         border: Colors.grey,
         outline: Colors.grey,
         outlineVariant: Colors.grey,
@@ -70,6 +74,27 @@ void main() {
 
       expect(ext, isNotNull);
       expect(ext!.colors, lightSoliplexColors);
+    });
+
+    test('defaults radii to soliplexRadii', () {
+      final theme = soliplexLightTheme();
+
+      expect(theme.extension<SoliplexTheme>()!.radii, soliplexRadii);
+    });
+
+    test('threads custom radii into the extension and component shapes', () {
+      const customRadii = SoliplexRadii(sm: 1, md: 2, lg: 3, xl: 4);
+      final theme = soliplexLightTheme(radii: customRadii);
+
+      expect(theme.extension<SoliplexTheme>()!.radii, customRadii);
+      expect(
+        (theme.cardTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(2),
+      );
+      expect(
+        (theme.checkboxTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(1),
+      );
     });
 
     test('maps ColorScheme fields from SoliplexColors', () {

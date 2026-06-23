@@ -36,6 +36,10 @@ void main() {
         onErrorContainer: Colors.red,
         successContainer: Colors.grey,
         onSuccessContainer: Colors.green,
+        danger: Colors.red,
+        success: Colors.green,
+        warning: Colors.orange,
+        info: Colors.blue,
         border: Colors.grey,
         outline: Colors.grey,
         outlineVariant: Colors.grey,
@@ -51,6 +55,22 @@ void main() {
       expect(colors.background, Colors.white);
       expect(colors.foreground, Colors.black);
       expect(colors.primary, Colors.blue);
+    });
+
+    group("status slots default to today's symbolic colors", () {
+      test('light palette', () {
+        expect(lightSoliplexColors.danger, Colors.red);
+        expect(lightSoliplexColors.success, Colors.green);
+        expect(lightSoliplexColors.warning, Colors.orange);
+        expect(lightSoliplexColors.info, Colors.blue);
+      });
+
+      test('dark palette', () {
+        expect(darkSoliplexColors.danger, Colors.red.shade300);
+        expect(darkSoliplexColors.success, Colors.green.shade300);
+        expect(darkSoliplexColors.warning, Colors.orange.shade300);
+        expect(darkSoliplexColors.info, Colors.blue.shade300);
+      });
     });
 
     group('fromAccent', () {

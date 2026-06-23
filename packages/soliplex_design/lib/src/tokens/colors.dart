@@ -24,6 +24,10 @@ class SoliplexColors {
     required this.onErrorContainer,
     required this.successContainer,
     required this.onSuccessContainer,
+    required this.danger,
+    required this.success,
+    required this.warning,
+    required this.info,
     required this.border,
     required this.outline,
     required this.outlineVariant,
@@ -81,6 +85,14 @@ class SoliplexColors {
   final Color onErrorContainer;
   final Color successContainer;
   final Color onSuccessContainer;
+
+  /// Status colors. The single source these symbolic roles read from; defaults
+  /// reproduce the Material status palette the design previously hardcoded.
+  final Color danger;
+  final Color success;
+  final Color warning;
+  final Color info;
+
   final Color border;
   final Color outline;
   final Color outlineVariant;
@@ -116,6 +128,10 @@ class SoliplexColors {
     Color? onErrorContainer,
     Color? successContainer,
     Color? onSuccessContainer,
+    Color? danger,
+    Color? success,
+    Color? warning,
+    Color? info,
     Color? border,
     Color? outline,
     Color? outlineVariant,
@@ -151,6 +167,10 @@ class SoliplexColors {
       onErrorContainer: onErrorContainer ?? this.onErrorContainer,
       successContainer: successContainer ?? this.successContainer,
       onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+      danger: danger ?? this.danger,
+      success: success ?? this.success,
+      warning: warning ?? this.warning,
+      info: info ?? this.info,
       border: border ?? this.border,
       outline: outline ?? this.outline,
       outlineVariant: outlineVariant ?? this.outlineVariant,
@@ -198,6 +218,10 @@ const lightSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFF991B1B),
   successContainer: Color(0xFFDCFCE7),
   onSuccessContainer: Color(0xFF166534),
+  danger: Colors.red,
+  success: Colors.green,
+  warning: Colors.orange,
+  info: Colors.blue,
   border: Color(0x1A000000),
   outline: Color(0xFFC0C0C4),
   outlineVariant: Color(0xFFE0E0E2),
@@ -234,6 +258,11 @@ const darkSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFFFCA5A5),
   successContainer: Color(0xFF1A3D1A),
   onSuccessContainer: Color(0xFF86EFAC),
+  // The .shade300 status colors as literals (.shadeN is not a const accessor).
+  danger: Color(0xFFE57373),
+  success: Color(0xFF81C784),
+  warning: Color(0xFFFFB74D),
+  info: Color(0xFF64B5F6),
   border: Color(0xFF2A2A2A),
   outline: Color(0xFF555555),
   outlineVariant: Color(0xFF3A3A3A),
