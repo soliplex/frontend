@@ -27,6 +27,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   not just the checkbox, giving it a full-width tap target.
 - Auth: the consent notice terms are now selectable, so users can copy the
   text they're agreeing to.
+- Logging: auth, room, and shared modules now log through `soliplex_logging`
+  instead of `debugPrint`, carrying error and stack-trace detail. The app
+  registers a console and a stdout sink at startup, holding release builds to
+  warnings and debug builds to info.
 
 ## [0.90.0+60] - 2026-06-16
 
