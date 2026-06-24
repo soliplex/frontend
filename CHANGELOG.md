@@ -8,25 +8,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
-### Added
-
-- Room: threads now show a "New messages" divider at the first unread message
-  and auto-scroll to it on open. Read state is tracked per-device, by message
-  id; there is no server-side read state or unread count.
+## [0.90.3+63] - 2026-06-24
 
 ### Changed
 
-- Room: a room now keeps its unread dot while any of its threads is unread,
-  instead of clearing the moment the room is opened. Read state stays
-  per-device; the room marker is derived from thread-read state.
-- Auth: the pre-sign-in consent notice body now renders as markdown
-  (paragraphs, lists, emphasis, and external links) instead of literal text.
-  Flavors can structure the notice; the body is treated as trusted,
-  flavor-provided input.
-- Auth: the consent agreement is now toggled by tapping anywhere on its row,
-  not just the checkbox, giving it a full-width tap target.
-- Auth: the consent notice terms are now selectable, so users can copy the
-  text they're agreeing to.
 - Logging: auth, room, and shared modules now log through `soliplex_logging`
   instead of `debugPrint`, carrying error and stack-trace detail. The app
   registers a console and a stdout sink at startup, holding release builds to
@@ -38,6 +23,33 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   user in the Delete dialog. A 404 is now treated as success (DELETE is
   idempotent — the thread is already gone), so the dialog closes and the stale
   entry is removed from the sidebar. Other failures still surface in the dialog.
+
+## [0.90.2+62] - 2026-06-22
+
+### Added
+
+- Room: threads now show a "New messages" divider at the first unread message
+  and auto-scroll to it on open. Read state is tracked per-device, by message
+  id; there is no server-side read state or unread count.
+
+### Changed
+
+- Room: a room now keeps its unread dot while any of its threads is unread,
+  instead of clearing the moment the room is opened. Read state stays
+  per-device; the room marker is derived from thread-read state.
+- Auth: the consent agreement is now toggled by tapping anywhere on its row,
+  not just the checkbox, giving it a full-width tap target.
+- Auth: the consent notice terms are now selectable, so users can copy the
+  text they're agreeing to.
+
+## [0.90.1+61] - 2026-06-17
+
+### Changed
+
+- Auth: the pre-sign-in consent notice body now renders as markdown
+  (paragraphs, lists, emphasis, and external links) instead of literal text.
+  Flavors can structure the notice; the body is treated as trusted,
+  flavor-provided input.
 
 ## [0.90.0+60] - 2026-06-16
 
