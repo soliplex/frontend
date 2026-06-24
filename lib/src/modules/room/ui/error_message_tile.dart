@@ -20,7 +20,7 @@ class ErrorMessageTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            borderRadius: BorderRadius.circular(context.radii.md),
           ),
           child: SelectableText(
             message.errorText,

@@ -18,7 +18,7 @@ class QuizAnswerFeedback extends StatelessWidget {
         color: isCorrect
             ? colorScheme.primaryContainer
             : colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         children: [
@@ -75,7 +75,7 @@ class QuizErrorFeedback extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s4),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         children: [

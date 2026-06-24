@@ -92,7 +92,7 @@ class TextMessageTile extends StatelessWidget {
                 message: 'Inspect HTTP traffic',
                 child: InkWell(
                   onTap: onInspect,
-                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                  borderRadius: BorderRadius.circular(context.radii.sm),
                   child: Padding(
                     padding: const EdgeInsets.all(SoliplexSpacing.s1),
                     child: Icon(
@@ -147,8 +147,8 @@ class _MessageBubble extends StatelessWidget {
     // are fully rounded; the trailing bottom corner (toward the sender's edge)
     // is tightened to point at its author — bottom-right for the user (right
     // aligned), bottom-left for the assistant (left aligned).
-    final rounded = Radius.circular(soliplexRadii.md);
-    final tight = Radius.circular(soliplexRadii.sm);
+    final rounded = Radius.circular(context.radii.md);
+    final tight = Radius.circular(context.radii.sm);
     return Container(
       // design-system exception: 14/10 is the documented chat-bubble padding
       // (see design_system/README.md "the only 14 in the system").

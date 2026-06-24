@@ -23,7 +23,7 @@ class InlineCodeBuilder extends MarkdownElementBuilder {
           colorScheme.onSurface.withAlpha(30),
           colorScheme.surface,
         ),
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Text(
         element.textContent,

@@ -327,7 +327,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: colors.errorContainer,
-                    borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                    borderRadius: BorderRadius.circular(context.radii.sm),
                   ),
                   child: Icon(
                     Icons.lock_outline,
@@ -358,7 +358,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                borderRadius: BorderRadius.circular(context.radii.sm),
                 border: Border.all(color: colors.outlineVariant),
               ),
               child: Text(
@@ -426,7 +426,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // no extra backend round-trip.
       Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(context.radii.md),
           border: Border.all(
             color: _consentAgreed ? colors.primary : colors.outlineVariant,
           ),
@@ -439,7 +439,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             horizontal: SoliplexSpacing.s2,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            borderRadius: BorderRadius.circular(context.radii.md),
           ),
           title: Text(
             'I understand and agree to the usage terms.',
@@ -509,7 +509,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(soliplexRadii.lg),
+                borderRadius: BorderRadius.circular(context.radii.lg),
               ),
               child: const SizedBox(
                 width: 28,
@@ -654,7 +654,7 @@ class UrlMessageBanner extends StatelessWidget {
           padding: const EdgeInsets.all(SoliplexSpacing.s3),
           decoration: BoxDecoration(
             color: theme.colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(soliplexRadii.sm),
+            borderRadius: BorderRadius.circular(context.radii.sm),
           ),
           child: Row(
             children: [
@@ -707,7 +707,7 @@ class _FlowCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(context.radii.md),
         border: Border.all(color: colors.outlineVariant),
       ),
       // IntrinsicHeight gives the row a finite height (it lives in a vertical
@@ -750,14 +750,14 @@ class _ProviderTile extends StatelessWidget {
 
     return Material(
       color: colors.surface,
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
+      borderRadius: BorderRadius.circular(context.radii.md),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(context.radii.md),
         child: Container(
           padding: const EdgeInsets.all(SoliplexSpacing.s3),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            borderRadius: BorderRadius.circular(context.radii.md),
             border: Border.all(color: colors.outlineVariant),
           ),
           child: Row(
@@ -768,7 +768,7 @@ class _ProviderTile extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: colors.primaryContainer,
-                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                  borderRadius: BorderRadius.circular(context.radii.sm),
                 ),
                 child: Text(
                   initial,

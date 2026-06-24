@@ -29,7 +29,7 @@ class PreviewIconButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
           child: Icon(Icons.visibility_outlined, size: iconSize, color: color),
         ),
       ),

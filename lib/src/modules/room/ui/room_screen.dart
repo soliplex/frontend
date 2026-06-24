@@ -1396,7 +1396,7 @@ class _RoomScreenState extends State<RoomScreen> {
         padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(context.radii.md),
         ),
         // Cap the popover height so a large file list scrolls inside
         // the panel instead of pushing the chat input off-screen.
@@ -1538,7 +1538,7 @@ class _RoomScreenState extends State<RoomScreen> {
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
+              borderRadius: BorderRadius.circular(context.radii.sm),
             )
           : null,
       child: Row(

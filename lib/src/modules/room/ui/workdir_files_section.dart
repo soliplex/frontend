@@ -107,7 +107,7 @@ class _WorkdirFilesSectionState extends State<WorkdirFilesSection> {
                 vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s2),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(soliplexRadii.md),
+              borderRadius: BorderRadius.circular(context.radii.md),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 200),
@@ -171,7 +171,7 @@ class _WorkdirFileRow extends StatelessWidget {
         };
         return InkWell(
           onTap: canPreview ? onOpenPreview : downloadTap,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 vertical: SoliplexSpacing.s1, horizontal: SoliplexSpacing.s1),
@@ -195,7 +195,7 @@ class _WorkdirFileRow extends StatelessWidget {
                 ],
                 InkWell(
                   onTap: downloadTap,
-                  borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                  borderRadius: BorderRadius.circular(context.radii.sm),
                   child: Padding(
                     padding: const EdgeInsets.all(SoliplexSpacing.s1),
                     child: Tooltip(

@@ -153,7 +153,7 @@ class _FeedbackButtonsState extends State<FeedbackButtons>
           const SizedBox(width: SoliplexSpacing.s1),
           InkWell(
             onTap: _onTellUsWhyTap,
-            borderRadius: BorderRadius.circular(soliplexRadii.sm),
+            borderRadius: BorderRadius.circular(context.radii.sm),
             child: Text(
               'Tell us why!',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -191,7 +191,7 @@ class _ThumbButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
           child: Padding(
             padding: const EdgeInsets.all(SoliplexSpacing.s1),
             child: Icon(icon, size: 20, color: color),

@@ -82,10 +82,10 @@ class _OptionTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
       child: Material(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
           child: Container(
             padding: const EdgeInsets.all(SoliplexSpacing.s4),
             decoration: BoxDecoration(
@@ -93,7 +93,7 @@ class _OptionTile extends StatelessWidget {
                 color: isSelected ? colorScheme.primary : colorScheme.outline,
                 width: isSelected ? 2 : 1,
               ),
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
+              borderRadius: BorderRadius.circular(context.radii.sm),
             ),
             child: Row(
               children: [

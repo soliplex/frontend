@@ -559,7 +559,7 @@ class _UploadEntryRow extends StatelessWidget {
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
+              borderRadius: BorderRadius.circular(context.radii.sm),
             )
           : null,
       child: Row(

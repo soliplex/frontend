@@ -212,7 +212,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
         padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -77,7 +77,7 @@ class _CopyButtonState extends State<CopyButton> {
         message: widget.tooltip,
         child: InkWell(
           onTap: _feedback == _CopyFeedback.idle ? _copy : null,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
           child: Padding(
             padding: const EdgeInsets.all(SoliplexSpacing.s1),
             child: Icon(icon, size: widget.iconSize, color: color),

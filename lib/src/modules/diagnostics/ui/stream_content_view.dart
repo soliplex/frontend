@@ -96,7 +96,7 @@ class _RawStreamView extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: SelectableText(
         body.isEmpty ? '(empty)' : body,
@@ -122,7 +122,7 @@ class _TruncationBanner extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         children: [
@@ -272,7 +272,7 @@ class _RoleBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Text(
         label,
@@ -399,7 +399,7 @@ class _EventTypeBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Text(
         type,

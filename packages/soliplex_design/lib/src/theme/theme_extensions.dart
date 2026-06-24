@@ -67,3 +67,10 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
     return Theme.of(context).extension<SoliplexTheme>();
   }
 }
+
+/// The active brand corner radii, falling back to the default scale outside a
+/// Soliplex-themed subtree.
+extension SoliplexRadiiContext on BuildContext {
+  SoliplexRadii get radii =>
+      SoliplexTheme.maybeOf(this)?.radii ?? soliplexRadii;
+}

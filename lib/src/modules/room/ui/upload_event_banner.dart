@@ -254,7 +254,7 @@ class _Pill extends StatelessWidget {
           horizontal: SoliplexSpacing.s3, vertical: SoliplexSpacing.s2),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(soliplexRadii.lg),
+        borderRadius: BorderRadius.circular(context.radii.lg),
       ),
       constraints: const BoxConstraints(maxWidth: 420),
       child: Row(

@@ -35,7 +35,7 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
       ),
       child: InkWell(
         onTap: () => setState(() => _expanded = !_expanded),
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
         child: Padding(
           padding: const EdgeInsets.symmetric(
               horizontal: SoliplexSpacing.s2, vertical: SoliplexSpacing.s1),
