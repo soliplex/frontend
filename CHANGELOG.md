@@ -12,8 +12,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Design system: themes are now customizable through a public `BrandTheme`
   contract — a per-brightness `BrandColorScheme` (seven core roles plus optional
-  status *signal* colors, the `error`/destructive role, the error/success
-  container surfaces, and `link` — all Material-`ColorScheme`-named),
+  status *signal* colors, the `error`/destructive role, the four status banner
+  surfaces (error/success/warning/info containers), and `link`),
   `BrandTypography` (font families via a pluggable `FontResolver` seam, plus
   per-role type-scale deltas), and `BrandShape` corner radii — lowered to
   `ThemeData` by `lowerBrandTheme`. A flavor passes a `BrandTheme` and an

@@ -31,6 +31,9 @@ const _minMutedContrast = 3.0;
 /// pair below WCAG AA is logged as a warning rather than altered. Unspecified
 /// status colors fall back to the base. Font families resolve through
 /// [fontResolver].
+///
+/// Contrast warnings go to the `soliplex_design.BrandTheme` logger; attach a
+/// [LogManager] sink before lowering or they are dropped silently.
 ThemeData lowerBrandTheme(
   BrandTheme theme,
   Brightness brightness, {
@@ -40,7 +43,7 @@ ThemeData lowerBrandTheme(
   final brand = brightness == Brightness.light ? theme.light : theme.dark;
   final colors = _lowerColors(brand, brightness);
 
-  _warnLowContrast(colors, brand);
+  _warnLowContrast(colors, brand, brightness);
 
   final typography = theme.typography;
   final textTheme = soliplexTextTheme(
@@ -109,6 +112,18 @@ SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
       brand.onSuccessContainer,
       base.onSuccessContainer,
     ),
+    warningContainer: brand.warningContainer ?? base.warningContainer,
+    onWarningContainer: _onColorFor(
+      brand.warningContainer,
+      brand.onWarningContainer,
+      base.onWarningContainer,
+    ),
+    infoContainer: brand.infoContainer ?? base.infoContainer,
+    onInfoContainer: _onColorFor(
+      brand.infoContainer,
+      brand.onInfoContainer,
+      base.onInfoContainer,
+    ),
     link: brand.link ?? base.link,
   );
 }
@@ -139,7 +154,11 @@ Color _onColorFor(Color? surface, Color? on, Color base) {
 /// its contrast floor ([_minContrast], or [_minMutedContrast] for muted text).
 /// Derived on-colors clear it by construction, so only a fork's own explicit
 /// choices ever warn. The colors are used as-is regardless.
-void _warnLowContrast(SoliplexColors c, BrandColorScheme brand) {
+void _warnLowContrast(
+  SoliplexColors c,
+  BrandColorScheme brand,
+  Brightness brightness,
+) {
   void check(
     String role,
     Color foreground,
@@ -149,10 +168,10 @@ void _warnLowContrast(SoliplexColors c, BrandColorScheme brand) {
     final ratio = contrastRatio(foreground, background);
     if (ratio >= min) return;
     _log.warning(
-      'BrandTheme "$role" contrast is ${ratio.toStringAsFixed(2)}:1, below '
-      '${min.toStringAsFixed(1)}:1. The supplied color is used as-is; verify '
-      'it is legible.',
-      attributes: {'role': role, 'ratio': ratio},
+      'BrandTheme "$role" contrast is ${ratio.toStringAsFixed(2)}:1 in the '
+      '${brightness.name} palette, below ${min.toStringAsFixed(1)}:1. The '
+      'supplied color is used as-is; verify it is legible.',
+      attributes: {'role': role, 'ratio': ratio, 'brightness': brightness.name},
     );
   }
 
@@ -162,6 +181,8 @@ void _warnLowContrast(SoliplexColors c, BrandColorScheme brand) {
   check('onError', c.onDestructive, c.destructive);
   check('onErrorContainer', c.onErrorContainer, c.errorContainer);
   check('onSuccessContainer', c.onSuccessContainer, c.successContainer);
+  check('onWarningContainer', c.onWarningContainer, c.warningContainer);
+  check('onInfoContainer', c.onInfoContainer, c.infoContainer);
   check('foreground', c.foreground, c.background);
   check('mutedForeground', c.mutedForeground, c.muted, min: _minMutedContrast);
 

@@ -35,6 +35,10 @@ class SoliplexColors {
     required this.onErrorContainer,
     required this.successContainer,
     required this.onSuccessContainer,
+    required this.warningContainer,
+    required this.onWarningContainer,
+    required this.infoContainer,
+    required this.onInfoContainer,
     required this.danger,
     required this.success,
     required this.warning,
@@ -74,6 +78,10 @@ class SoliplexColors {
   final Color onErrorContainer;
   final Color successContainer;
   final Color onSuccessContainer;
+  final Color warningContainer;
+  final Color onWarningContainer;
+  final Color infoContainer;
+  final Color onInfoContainer;
   final Color danger;
   final Color success;
   final Color warning;
@@ -114,6 +122,10 @@ const lightSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFF991B1B),
   successContainer: Color(0xFFDCFCE7),
   onSuccessContainer: Color(0xFF166534),
+  warningContainer: Color(0xFFFEF3C7),
+  onWarningContainer: Color(0xFF92400E),
+  infoContainer: Color(0xFFDBEAFE),
+  onInfoContainer: Color(0xFF1E40AF),
   danger: Color(0xFFF44336),
   success: Color(0xFF4CAF50),
   warning: Color(0xFFFF9800),
@@ -154,6 +166,10 @@ const darkSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFFFCA5A5),
   successContainer: Color(0xFF1A3D1A),
   onSuccessContainer: Color(0xFF86EFAC),
+  warningContainer: Color(0xFF3D2E12),
+  onWarningContainer: Color(0xFFFCD34D),
+  infoContainer: Color(0xFF1A1A3D),
+  onInfoContainer: Color(0xFF93C5FD),
   danger: Color(0xFFE57373),
   success: Color(0xFF81C784),
   warning: Color(0xFFFFB74D),

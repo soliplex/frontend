@@ -57,6 +57,14 @@ void expectSameColors(SoliplexColors a, SoliplexColors b) {
     b.onSuccessContainer,
     reason: 'onSuccessContainer',
   );
+  expect(a.warningContainer, b.warningContainer, reason: 'warningContainer');
+  expect(
+    a.onWarningContainer,
+    b.onWarningContainer,
+    reason: 'onWarningContainer',
+  );
+  expect(a.infoContainer, b.infoContainer, reason: 'infoContainer');
+  expect(a.onInfoContainer, b.onInfoContainer, reason: 'onInfoContainer');
   expect(a.danger, b.danger, reason: 'danger');
   expect(a.success, b.success, reason: 'success');
   expect(a.warning, b.warning, reason: 'warning');
@@ -303,6 +311,18 @@ void main() {
       expect(roleWarnings('onPrimary'), hasLength(1));
     });
 
+    test('warns on a sub-threshold secondary / onSecondary pair', () {
+      final bad = const BrandTheme.soliplex().light.copyWith(
+            secondary: const Color(0xFFFFFFFF),
+            onSecondary: const Color(0xFFFFFFFF),
+          );
+      loweredColors(
+        BrandTheme(light: bad, dark: const BrandTheme.soliplex().dark),
+        Brightness.light,
+      );
+      expect(roleWarnings('onSecondary'), hasLength(1));
+    });
+
     test('the default theme produces no contrast warnings', () {
       loweredColors(const BrandTheme.soliplex(), Brightness.light);
       loweredColors(const BrandTheme.soliplex(), Brightness.dark);
@@ -376,6 +396,28 @@ void main() {
       );
       expect(colors.errorContainer, const Color(0xFF330007));
       expect(colors.successContainer, const Color(0xFF062E12));
+    });
+
+    test('warning and info containers drive their slots with AA on-colors', () {
+      final colors = loweredColors(
+        brandWith(
+          (b) => b.copyWith(
+            warningContainer: const Color(0xFF3A2A05),
+            infoContainer: const Color(0xFF06122E),
+          ),
+        ),
+        Brightness.light,
+      );
+      expect(colors.warningContainer, const Color(0xFF3A2A05));
+      expect(colors.infoContainer, const Color(0xFF06122E));
+      expect(
+        contrastRatio(colors.warningContainer, colors.onWarningContainer),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(
+        contrastRatio(colors.infoContainer, colors.onInfoContainer),
+        greaterThanOrEqualTo(4.5),
+      );
     });
 
     test('explicit container on-colors survive lowering', () {
@@ -458,6 +500,29 @@ void main() {
       );
       expect(colors.tertiary, darkSoliplexColors.tertiary);
       expect(colors.onTertiary, darkSoliplexColors.onTertiary);
+    });
+
+    test('an unset onSecondary re-derives an AA on-color from secondary', () {
+      // Unlike the optional tertiary, secondary is a required role, so an
+      // omitted onSecondary always re-derives a readable foreground from it.
+      const handBuilt = BrandColorScheme(
+        primary: Color(0xFF030213),
+        secondary: Color(0xFF2E7D32),
+        background: Color(0xFFFFFFFF),
+        foreground: Color(0xFF0A0A0A),
+        muted: Color(0xFFECECF0),
+        mutedForeground: Color(0xFF595968),
+        border: Color(0x1A000000),
+      );
+      final colors = loweredColors(
+        BrandTheme(light: handBuilt, dark: const BrandTheme.soliplex().dark),
+        Brightness.light,
+      );
+      expect(colors.secondary, const Color(0xFF2E7D32));
+      expect(
+        contrastRatio(colors.secondary, colors.onSecondary),
+        greaterThanOrEqualTo(4.5),
+      );
     });
 
     test('a custom tertiary lowers and derives an AA on-color', () {

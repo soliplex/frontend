@@ -13,13 +13,13 @@ enum ChipIntent {
   /// The brand's neutral chip palette from `ChipThemeData`.
   neutral,
 
-  /// Informational notice. Blue tint.
+  /// Informational notice. Uses the brand's `infoContainer` palette.
   info,
 
   /// Success state. Uses the brand's `successContainer` palette.
   success,
 
-  /// Caution state. Orange tint.
+  /// Caution state. Uses the brand's `warningContainer` palette.
   warning,
 
   /// Failure / destructive state. Uses the brand's `errorContainer`
@@ -30,10 +30,10 @@ enum ChipIntent {
 /// The `(background, foreground)` colour pair for a chip at this intent,
 /// resolved against the current theme.
 ///
-/// Sourced identically to badges: container brand tokens for
-/// success/danger, the alpha-tinted `info` / `warning` status tokens for
-/// info/warning, and `null`s for neutral so the Material chip theme
-/// defaults apply.
+/// Sourced identically to badges: each status intent reads its
+/// `errorContainer` / `successContainer` / `warningContainer` / `infoContainer`
+/// token pair, and `null`s for neutral so the Material chip theme defaults
+/// apply.
 ({Color? background, Color? foreground}) chipIntentColors(
   ChipIntent intent,
   BuildContext context,
@@ -45,8 +45,8 @@ enum ChipIntent {
       return (background: null, foreground: null);
     case ChipIntent.info:
       return (
-        background: soliplex.colors.info.withValues(alpha: 0.15),
-        foreground: soliplex.colors.info,
+        background: soliplex.colors.infoContainer,
+        foreground: soliplex.colors.onInfoContainer,
       );
     case ChipIntent.success:
       return (
@@ -55,8 +55,8 @@ enum ChipIntent {
       );
     case ChipIntent.warning:
       return (
-        background: soliplex.colors.warning.withValues(alpha: 0.15),
-        foreground: soliplex.colors.warning,
+        background: soliplex.colors.warningContainer,
+        foreground: soliplex.colors.onWarningContainer,
       );
     case ChipIntent.danger:
       return (

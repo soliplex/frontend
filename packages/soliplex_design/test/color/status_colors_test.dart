@@ -14,6 +14,10 @@ const _errorContainer = Color(0xFF330007);
 const _onErrorContainer = Color(0xFFFFE9EC);
 const _successContainer = Color(0xFF062E12);
 const _onSuccessContainer = Color(0xFFEAFBF0);
+const _warningContainer = Color(0xFF3A2A05);
+const _onWarningContainer = Color(0xFFFFF3D6);
+const _infoContainer = Color(0xFF06122E);
+const _onInfoContainer = Color(0xFFE9F1FF);
 
 ThemeData _themeWithContainers() => lowerBrandTheme(
       BrandTheme(
@@ -22,6 +26,10 @@ ThemeData _themeWithContainers() => lowerBrandTheme(
               onErrorContainer: _onErrorContainer,
               successContainer: _successContainer,
               onSuccessContainer: _onSuccessContainer,
+              warningContainer: _warningContainer,
+              onWarningContainer: _onWarningContainer,
+              infoContainer: _infoContainer,
+              onInfoContainer: _onInfoContainer,
             ),
         dark: const BrandTheme.soliplex().dark,
       ),
@@ -84,26 +92,48 @@ void main() {
   });
 
   group('component intents read the brand status tokens', () {
-    const custom = Color(0xFF123456);
-
-    testWidgets('badge warning uses the brand warning token', (tester) async {
+    testWidgets('badge warning uses the brand warning-container tokens',
+        (tester) async {
       final colors = await _readUnder(
         tester,
-        _themeWithWarning(custom),
+        _themeWithContainers(),
         (c) => badgeIntentColors(BadgeIntent.warning, c),
       );
-      expect(colors.foreground, custom);
-      expect(colors.background, custom.withValues(alpha: 0.15));
+      expect(colors.background, _warningContainer);
+      expect(colors.foreground, _onWarningContainer);
     });
 
-    testWidgets('chip warning uses the brand warning token', (tester) async {
+    testWidgets('badge info uses the brand info-container tokens',
+        (tester) async {
       final colors = await _readUnder(
         tester,
-        _themeWithWarning(custom),
+        _themeWithContainers(),
+        (c) => badgeIntentColors(BadgeIntent.info, c),
+      );
+      expect(colors.background, _infoContainer);
+      expect(colors.foreground, _onInfoContainer);
+    });
+
+    testWidgets('chip warning uses the brand warning-container tokens',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
         (c) => chipIntentColors(ChipIntent.warning, c),
       );
-      expect(colors.foreground, custom);
-      expect(colors.background, custom.withValues(alpha: 0.15));
+      expect(colors.background, _warningContainer);
+      expect(colors.foreground, _onWarningContainer);
+    });
+
+    testWidgets('chip info uses the brand info-container tokens',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => chipIntentColors(ChipIntent.info, c),
+      );
+      expect(colors.background, _infoContainer);
+      expect(colors.foreground, _onInfoContainer);
     });
 
     testWidgets('badge danger uses the brand error-container tokens',

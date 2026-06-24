@@ -11,14 +11,15 @@ enum BadgeIntent {
   /// neutral badge palette from `SoliplexBadgeThemeData`.
   neutral,
 
-  /// Informational notice. Blue tint.
+  /// Informational notice. Uses the brand's `infoContainer` palette.
   info,
 
   /// Success state ("active", "completed"). Uses the brand's
   /// `successContainer` palette.
   success,
 
-  /// Caution state ("review needed", "expiring"). Orange tint.
+  /// Caution state ("review needed", "expiring"). Uses the brand's
+  /// `warningContainer` palette.
   warning,
 
   /// Failure / destructive state ("error", "blocked"). Uses the brand's
@@ -29,16 +30,11 @@ enum BadgeIntent {
 /// The `(background, foreground)` colour pair for a badge at this intent,
 /// resolved against the current theme.
 ///
-/// Mixed sourcing by design:
-///
 /// - `neutral`: the brand's customizable [SoliplexBadgeThemeData].
-/// - `danger` / `success`: the brand's `errorContainer` /
-///   `successContainer` token pairs — these slots exist precisely for
-///   status surfaces, so honouring them keeps brand fidelity.
-/// - `info` / `warning`: the brand's `info` / `warning` status tokens —
-///   background is the token tinted to 15% alpha, foreground is the token
-///   at full opacity. There are no `infoContainer` / `warningContainer`
-///   slots, so these synthesize a container surface from the single token.
+/// - `danger` / `success` / `warning` / `info`: the brand's `errorContainer` /
+///   `successContainer` / `warningContainer` / `infoContainer` token pairs —
+///   each a soft status surface with a readable on-color, so a fork rebrands
+///   the pill by setting those roles.
 ({Color background, Color foreground}) badgeIntentColors(
   BadgeIntent intent,
   BuildContext context,
@@ -55,8 +51,8 @@ enum BadgeIntent {
       );
     case BadgeIntent.info:
       return (
-        background: soliplex.colors.info.withValues(alpha: 0.15),
-        foreground: soliplex.colors.info,
+        background: soliplex.colors.infoContainer,
+        foreground: soliplex.colors.onInfoContainer,
       );
     case BadgeIntent.success:
       return (
@@ -65,8 +61,8 @@ enum BadgeIntent {
       );
     case BadgeIntent.warning:
       return (
-        background: soliplex.colors.warning.withValues(alpha: 0.15),
-        foreground: soliplex.colors.warning,
+        background: soliplex.colors.warningContainer,
+        foreground: soliplex.colors.onWarningContainer,
       );
     case BadgeIntent.danger:
       return (

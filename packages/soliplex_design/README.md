@@ -91,8 +91,9 @@ fallbacks, per-role `TypeScaleOverride` deltas) and `BrandShape` (`rounded()` /
 `square()` / `custom()` radii). Colors come from `BrandColorScheme` — seven
 required roles plus optional `tertiary`; the `on*` slots; the status *signal*
 colors (`danger`/`success`/`warning`/`info`); the error/destructive role
-(`error`/`onError`); the soft status surfaces (`errorContainer`/`onErrorContainer`,
-`successContainer`/`onSuccessContainer`); and `link`. Field names follow Material
+(`error`/`onError`); the four soft status surfaces with their on-colors
+(`errorContainer`/`successContainer`/`warningContainer`/`infoContainer`); and
+`link`. Field names follow Material
 `ColorScheme` convention. An unset role falls back to the base palette and an
 unset `on*` color gets a WCAG-readable foreground, so derived colors always clear
 AA. An `on*` color you set explicitly is used as-is — its legibility is your call
@@ -121,7 +122,7 @@ the platform default, so verify your fonts actually render. App identity
 | --- | --- | --- |
 | Colors (7 roles → full palette) | ✅ | `BrandColorScheme` |
 | Status signals (danger/success/warning/info) | ✅ | `BrandColorScheme` optional slots |
-| Error/destructive + error/success surfaces | ✅ | `error`/`onError`, `errorContainer`/`successContainer` slots |
+| Error/destructive + status banner surfaces | ✅ | `error`/`onError`, and `errorContainer`/`successContainer`/`warningContainer`/`infoContainer` slots |
 | Link color | ✅ | `BrandColorScheme.link` |
 | Font families (body / display / code) | ✅ | `BrandTypography` + `FontResolver` |
 | Type scale (size / weight / height / spacing) | ✅ | per-role `TypeScaleOverride` |

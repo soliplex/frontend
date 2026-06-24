@@ -115,6 +115,10 @@ class BrandColorScheme {
     this.onErrorContainer,
     this.successContainer,
     this.onSuccessContainer,
+    this.warningContainer,
+    this.onWarningContainer,
+    this.infoContainer,
+    this.onInfoContainer,
     this.link,
   });
 
@@ -202,6 +206,23 @@ class BrandColorScheme {
   /// auto-derived when [successContainer] is set, else the base value.
   final Color? onSuccessContainer;
 
+  /// Soft warning *surface* — warning banners and container fills. The matching
+  /// signal color is [warning]; set them together. Pair with
+  /// [onWarningContainer].
+  final Color? warningContainer;
+
+  /// Readable foreground for content on [warningContainer]. Omitted →
+  /// auto-derived when [warningContainer] is set, else the base value.
+  final Color? onWarningContainer;
+
+  /// Soft info *surface* — info banners and container fills. The matching
+  /// signal color is [info]; set them together. Pair with [onInfoContainer].
+  final Color? infoContainer;
+
+  /// Readable foreground for content on [infoContainer]. Omitted →
+  /// auto-derived when [infoContainer] is set, else the base value.
+  final Color? onInfoContainer;
+
   /// Hyperlink text color (foreground; it has no on-color). When set, the
   /// lowering layer warns if its contrast against [background] falls below AA —
   /// and only against [background]; links also render on neutral surfaces, so
@@ -231,6 +252,10 @@ class BrandColorScheme {
     Color? onErrorContainer,
     Color? successContainer,
     Color? onSuccessContainer,
+    Color? warningContainer,
+    Color? onWarningContainer,
+    Color? infoContainer,
+    Color? onInfoContainer,
     Color? link,
   }) =>
       BrandColorScheme(
@@ -255,6 +280,10 @@ class BrandColorScheme {
         onErrorContainer: onErrorContainer ?? this.onErrorContainer,
         successContainer: successContainer ?? this.successContainer,
         onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+        warningContainer: warningContainer ?? this.warningContainer,
+        onWarningContainer: onWarningContainer ?? this.onWarningContainer,
+        infoContainer: infoContainer ?? this.infoContainer,
+        onInfoContainer: onInfoContainer ?? this.onInfoContainer,
         link: link ?? this.link,
       );
 
@@ -282,6 +311,10 @@ class BrandColorScheme {
       other.onErrorContainer == onErrorContainer &&
       other.successContainer == successContainer &&
       other.onSuccessContainer == onSuccessContainer &&
+      other.warningContainer == warningContainer &&
+      other.onWarningContainer == onWarningContainer &&
+      other.infoContainer == infoContainer &&
+      other.onInfoContainer == onInfoContainer &&
       other.link == link;
 
   @override
@@ -307,6 +340,10 @@ class BrandColorScheme {
         onErrorContainer,
         successContainer,
         onSuccessContainer,
+        warningContainer,
+        onWarningContainer,
+        infoContainer,
+        onInfoContainer,
         link,
       ]);
 }
@@ -421,7 +458,14 @@ class TypeScaleOverride {
     this.fontWeight,
     this.height,
     this.letterSpacing,
-  });
+  })  : assert(
+          fontSize == null || fontSize >= 0,
+          'TypeScaleOverride.fontSize must be non-negative.',
+        ),
+        assert(
+          height == null || height >= 0,
+          'TypeScaleOverride.height must be non-negative.',
+        );
 
   final double? fontSize;
   final FontWeight? fontWeight;

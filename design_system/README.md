@@ -45,6 +45,10 @@ These files describe an **existing, shipped design system**. They are not protot
 | onErrorContainer            | `#991B1B`            |
 | successContainer            | `#DCFCE7`            |
 | onSuccessContainer          | `#166534`            |
+| warningContainer            | `#FEF3C7`            |
+| onWarningContainer          | `#92400E`            |
+| infoContainer               | `#DBEAFE`            |
+| onInfoContainer             | `#1E40AF`            |
 | danger                      | `#F44336`            |
 | success                     | `#4CAF50`            |
 | warning                     | `#FF9800`            |
@@ -86,6 +90,10 @@ These files describe an **existing, shipped design system**. They are not protot
 | onErrorContainer            | `#FCA5A5`            |
 | successContainer            | `#1A3D1A`            |
 | onSuccessContainer          | `#86EFAC`            |
+| warningContainer            | `#3D2E12`            |
+| onWarningContainer          | `#FCD34D`            |
+| infoContainer               | `#1A1A3D`            |
+| onInfoContainer             | `#93C5FD`            |
 | danger                      | `#E57373`            |
 | success                     | `#81C784`            |
 | warning                     | `#FFB74D`            |
@@ -208,7 +216,7 @@ Read via the `SymbolicColors` extension on `BuildContext` (`context.danger` / `s
 - `warning` — orange (light: `#FF9800`, dark: `#FFB74D`)
 - `info` — blue (light: `#2196F3`, dark: `#64B5F6`)
 
-Errors that need a container use `errorContainer` / `onErrorContainer` from the scheme, **not** the symbolic `danger`. Success states that need a container use `successContainer` / `onSuccessContainer`, read via `SoliplexTheme.of(context).colors`.
+Errors that need a container use `errorContainer` / `onErrorContainer` from the scheme, **not** the symbolic `danger`. The other status banners use their own container pairs — `successContainer` / `warningContainer` / `infoContainer` (each with its `on*` color) — read via `SoliplexTheme.of(context).colors`.
 
 ### Execution timeline (Call → Events → Event Details)
 The room view's "answering" area renders agent execution as nested swim-lanes:

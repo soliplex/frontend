@@ -78,6 +78,14 @@ void main() {
         isNot(const TypeScaleOverride(fontSize: 20)),
       );
     });
+
+    test('asserts non-negative fontSize and height', () {
+      // A runtime value so the call can't be const-folded — a const invocation
+      // with a failing assert is a compile error, not the throw we want.
+      final negative = double.parse('-1');
+      expect(() => TypeScaleOverride(fontSize: negative), throwsAssertionError);
+      expect(() => TypeScaleOverride(height: negative), throwsAssertionError);
+    });
   });
 
   group('BrandTypography', () {
