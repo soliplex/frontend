@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:soliplex_design/src/color/color_scheme_extensions.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
 
 /// Semantic flavor of a `SoliplexChip`.
@@ -46,8 +45,8 @@ enum ChipIntent {
       return (background: null, foreground: null);
     case ChipIntent.info:
       return (
-        background: scheme.info.withValues(alpha: 0.15),
-        foreground: scheme.info,
+        background: soliplex.colors.info.withValues(alpha: 0.15),
+        foreground: soliplex.colors.info,
       );
     case ChipIntent.success:
       return (
@@ -56,8 +55,8 @@ enum ChipIntent {
       );
     case ChipIntent.warning:
       return (
-        background: scheme.warning.withValues(alpha: 0.15),
-        foreground: scheme.warning,
+        background: soliplex.colors.warning.withValues(alpha: 0.15),
+        foreground: soliplex.colors.warning,
       );
     case ChipIntent.danger:
       return (

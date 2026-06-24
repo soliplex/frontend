@@ -24,7 +24,7 @@ class QuizAnswerFeedback extends StatelessWidget {
         children: [
           Icon(
             isCorrect ? Icons.check_circle : Icons.cancel,
-            color: isCorrect ? colorScheme.success : colorScheme.error,
+            color: isCorrect ? context.success : colorScheme.error,
           ),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(

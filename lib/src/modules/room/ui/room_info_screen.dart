@@ -529,7 +529,7 @@ class _UploadEntryRow extends StatelessWidget {
     final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
-          theme.colorScheme.success,
+          context.success,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),

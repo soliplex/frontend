@@ -280,9 +280,8 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      final colors = Theme.of(context).colorScheme;
       final signedIn = entry.auth.session.value is ActiveSession;
-      final color = signedIn ? colors.success : colors.danger;
+      final color = signedIn ? context.success : context.danger;
       final label = signedIn ? 'Signed in' : 'Not signed in';
       return Tooltip(
         message: label,

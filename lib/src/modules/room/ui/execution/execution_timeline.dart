@@ -346,7 +346,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           // pass/fail outcome.
           color: step.type == StepType.thinking
               ? theme.colorScheme.tertiary
-              : theme.colorScheme.success,
+              : context.success,
         );
     }
   }
@@ -368,7 +368,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         return Icon(
           Icons.check_circle,
           size: 12,
-          color: theme.colorScheme.success,
+          color: context.success,
         );
       case SkillToolCallStatus.unknown:
         return Icon(
