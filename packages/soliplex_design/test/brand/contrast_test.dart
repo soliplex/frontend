@@ -23,8 +23,8 @@ void main() {
   });
 
   group('readableOn', () {
-    test('picks the dark tone on a light background', () {
-      expect(readableOn(white), const Color(0xFF0A0A0A));
+    test('picks black on a light background', () {
+      expect(readableOn(white), black);
     });
 
     test('picks white on a dark background', () {
@@ -34,6 +34,17 @@ void main() {
     test('clears AA normal-text contrast on a mid-tone', () {
       expect(
         contrastRatio(readableOn(midGrey), midGrey),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
+    test('clears AA even at the worst-case mid luminance', () {
+      // Around luminance 0.18, white and black contrast both bottom out. With
+      // the softer 0x0A0A0A dark tone this dipped to ≈4.45 (sub-AA); pure black
+      // keeps the better choice ≥4.5.
+      const worstCase = Color(0xFF777777);
+      expect(
+        contrastRatio(readableOn(worstCase), worstCase),
         greaterThanOrEqualTo(4.5),
       );
     });

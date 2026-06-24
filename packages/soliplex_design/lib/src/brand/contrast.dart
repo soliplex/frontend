@@ -10,12 +10,16 @@ double contrastRatio(Color a, Color b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/// The more readable of the brand's near-white / near-black tones on
-/// [background], chosen by WCAG contrast ratio. Used to fill an on-color a
-/// brand leaves unspecified.
+/// The more readable of white or black on [background], chosen by WCAG contrast
+/// ratio. Used to fill an on-color a brand leaves unspecified.
+///
+/// The dark candidate is pure black, not the softer `#0A0A0A` foreground tone,
+/// so the better of the two choices clears AA 4.5:1 for *any* surface (worst
+/// case ≈4.58:1 at mid luminance). `#0A0A0A` would bottom out at ≈4.45:1,
+/// letting a mid-tone surface derive a sub-AA foreground.
 Color readableOn(Color background) {
   const light = Color(0xFFFFFFFF);
-  const dark = Color(0xFF0A0A0A);
+  const dark = Color(0xFF000000);
   return contrastRatio(light, background) >= contrastRatio(dark, background)
       ? light
       : dark;

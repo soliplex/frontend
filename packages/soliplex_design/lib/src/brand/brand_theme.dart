@@ -154,8 +154,7 @@ class BrandColorScheme {
   // For a destructive *action* or an error *surface*, see [error] /
   // [errorContainer]; do not reuse a signal color for those.
 
-  /// Status-signal color for "danger / risk" indicators. Not the error fill —
-  /// see [error] for solid destructive controls.
+  /// Status-signal color for "danger / risk" indicators.
   final Color? danger;
 
   /// Status-signal color for "success" indicators. The matching soft surface is
@@ -178,9 +177,8 @@ class BrandColorScheme {
   // status indicators.
 
   /// The error / destructive-action role — fills solid destructive buttons and
-  /// input error borders (Material `ColorScheme.error`). This is NOT the inline
-  /// status-signal color; see [danger]. Pair with [onError] for legible text on
-  /// it. Omitted → keeps the base value.
+  /// input error borders (Material `ColorScheme.error`). Pair with [onError]
+  /// for legible text on it. Omitted → keeps the base value.
   final Color? error;
 
   /// Readable foreground for text/icons on [error]. Omitted → auto-derived to a
@@ -205,9 +203,11 @@ class BrandColorScheme {
   /// auto-derived when [successContainer] is set, else the base value.
   final Color? onSuccessContainer;
 
-  /// Hyperlink text color. Drawn as foreground on [background] (and on neutral
-  /// surfaces), so it must stay legible against them — the lowering layer
-  /// asserts its contrast against [background]. Has no on-color of its own.
+  /// Hyperlink text color (foreground; it has no on-color). When set, the
+  /// lowering layer asserts its contrast against [background] — and only
+  /// [background], though links also render on neutral surfaces, so verify
+  /// those yourself if they differ much. An unset link keeps the base value
+  /// and is not asserted.
   final Color? link;
 
   BrandColorScheme copyWith({

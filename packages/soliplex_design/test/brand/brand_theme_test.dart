@@ -172,6 +172,32 @@ void main() {
       );
       expect(c, isNot(c.copyWith(primary: const Color(0xFF000000))));
     });
+
+    test('each new optional role participates in equality', () {
+      const base = BrandColorScheme(
+        primary: Color(0xFF101010),
+        secondary: Color(0xFF202020),
+        background: Color(0xFF303030),
+        foreground: Color(0xFF404040),
+        muted: Color(0xFF505050),
+        mutedForeground: Color(0xFF606060),
+        border: Color(0xFF707070),
+      );
+      // The seven new roles were wired into `==`/`hashCode` by hand; a field
+      // left out would let two schemes that differ only in it compare equal.
+      final variants = <BrandColorScheme>[
+        base.copyWith(error: const Color(0xFF111111)),
+        base.copyWith(onError: const Color(0xFF111111)),
+        base.copyWith(errorContainer: const Color(0xFF111111)),
+        base.copyWith(onErrorContainer: const Color(0xFF111111)),
+        base.copyWith(successContainer: const Color(0xFF111111)),
+        base.copyWith(onSuccessContainer: const Color(0xFF111111)),
+        base.copyWith(link: const Color(0xFF111111)),
+      ];
+      for (final v in variants) {
+        expect(v, isNot(base));
+      }
+    });
   });
 
   group('BrandTheme.soliplex', () {

@@ -279,7 +279,7 @@ void main() {
     });
   });
 
-  group('lowerBrandTheme lowers the Group A semantic colors', () {
+  group('lowerBrandTheme lowers the error / status-surface / link roles', () {
     BrandTheme brandWith(BrandColorScheme Function(BrandColorScheme) edit) =>
         BrandTheme(
           light: edit(const BrandTheme.soliplex().light),
@@ -322,6 +322,25 @@ void main() {
       expect(colors.successContainer, const Color(0xFF062E12));
     });
 
+    test('explicit container on-colors survive lowering', () {
+      // Off-white on-colors, distinct from what readableOn would derive for
+      // these dark surfaces (pure white) — proves the explicit on-color wins
+      // and that each container's on-color is wired to its own field.
+      final colors = loweredColors(
+        brandWith(
+          (b) => b.copyWith(
+            errorContainer: const Color(0xFF330007),
+            onErrorContainer: const Color(0xFFFFE9EC),
+            successContainer: const Color(0xFF062E12),
+            onSuccessContainer: const Color(0xFFEAFBF0),
+          ),
+        ),
+        Brightness.light,
+      );
+      expect(colors.onErrorContainer, const Color(0xFFFFE9EC));
+      expect(colors.onSuccessContainer, const Color(0xFFEAFBF0));
+    });
+
     test('an unspecified on-color derives a WCAG-readable foreground', () {
       final colors = loweredColors(
         brandWith(
@@ -362,7 +381,9 @@ void main() {
     });
   });
 
-  group('lowerBrandTheme contrast assert covers Group A', () {
+  group(
+      'lowerBrandTheme contrast assert covers the error / status-surface / '
+      'link roles', () {
     BrandTheme badLight(BrandColorScheme Function(BrandColorScheme) edit) =>
         BrandTheme(
           light: edit(const BrandTheme.soliplex().light),
@@ -376,6 +397,20 @@ void main() {
           Brightness.light,
         ),
         throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('does not fire on an unset link, even with an off-white background',
+        () {
+      // A fork lightens only the background; the *default* link would be
+      // sub-AA against it, but link is not a role this fork set, so the assert
+      // must not fail on it.
+      expect(
+        () => lowerBrandTheme(
+          badLight((b) => b.copyWith(background: const Color(0xFFEEEEEE))),
+          Brightness.light,
+        ),
+        returnsNormally,
       );
     });
 

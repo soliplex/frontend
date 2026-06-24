@@ -31,7 +31,7 @@ ThemeData lowerBrandTheme(
   final colors = _lowerColors(brand, brightness);
 
   assert(
-    _onColorContrastOk(colors),
+    _onColorContrastOk(colors, brand),
     'A brand on-color pair is below the $_minContrast:1 WCAG AA threshold.',
   );
 
@@ -128,13 +128,18 @@ Color _onColorFor(Color? surface, Color? on, Color base) {
   );
 }
 
-bool _onColorContrastOk(SoliplexColors c) {
+bool _onColorContrastOk(SoliplexColors c, BrandColorScheme brand) {
+  // [link] has no on-color — it is foreground drawn on the background — and is
+  // only checked when the brand actually set it. An unset link falls back to
+  // the base default, whose legibility against a brand's own [background]
+  // override is the brand's concern, not a reason to fail an untouched role.
+  final linkOk =
+      brand.link == null || contrastRatio(c.link, c.background) >= _minContrast;
   return contrastRatio(c.primary, c.onPrimary) >= _minContrast &&
       contrastRatio(c.secondary, c.onSecondary) >= _minContrast &&
       contrastRatio(c.tertiary, c.onTertiary) >= _minContrast &&
       contrastRatio(c.destructive, c.onDestructive) >= _minContrast &&
       contrastRatio(c.errorContainer, c.onErrorContainer) >= _minContrast &&
       contrastRatio(c.successContainer, c.onSuccessContainer) >= _minContrast &&
-      // [link] has no on-color: it is foreground drawn on the background.
-      contrastRatio(c.link, c.background) >= _minContrast;
+      linkOk;
 }
