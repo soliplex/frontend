@@ -85,4 +85,16 @@ void main() {
       expect(identity.logoDark, isNull);
     });
   });
+
+  test('rejects setting both logoGlow and logoDark', () {
+    expect(
+      () => AppIdentity(
+        appName: 'X',
+        logoLight: const Text('L'),
+        logoDark: const Text('D'),
+        logoGlow: const Color(0xFF00FF00),
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
 }

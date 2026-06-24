@@ -8,8 +8,8 @@ import 'package:soliplex_design/src/tokens/colors.dart';
 ///
 /// Plain Flutter types only (no JSON, no hex strings). Colors flip per
 /// [Brightness]; typography and shape are shared across both. A private
-/// lowering step (added in a later phase) maps this onto the internal token
-/// system, which stays free to evolve behind it.
+/// lowering step (`lowerBrandTheme`) maps this onto the internal token system,
+/// which stays free to evolve behind it.
 @immutable
 class BrandTheme {
   const BrandTheme({
@@ -88,10 +88,9 @@ class BrandTheme {
   int get hashCode => Object.hash(light, dark, typography, shape);
 }
 
-/// Seven required semantic roles plus an optional set. The internal 37-slot
-/// palette is derived from these during lowering; unspecified optional roles
-/// fall back to the neutral base, so a fork sets only what it wants to rebrand.
-/// New ceiling overrides arrive here as additive optional fields.
+/// Seven required semantic roles plus an optional set. Optional roles override
+/// the corresponding internal slots during lowering; unset roles fall back to
+/// the neutral base, so a fork sets only what it wants to rebrand.
 @immutable
 class BrandColorScheme {
   const BrandColorScheme({
@@ -204,10 +203,10 @@ class BrandColorScheme {
   final Color? onSuccessContainer;
 
   /// Hyperlink text color (foreground; it has no on-color). When set, the
-  /// lowering layer asserts its contrast against [background] — and only
-  /// [background], though links also render on neutral surfaces, so verify
-  /// those yourself if they differ much. An unset link keeps the base value
-  /// and is not asserted.
+  /// lowering layer warns if its contrast against [background] falls below AA —
+  /// and only against [background]; links also render on neutral surfaces, so
+  /// verify those yourself if they differ much. An unset link keeps the base
+  /// value and is not checked.
   final Color? link;
 
   BrandColorScheme copyWith({

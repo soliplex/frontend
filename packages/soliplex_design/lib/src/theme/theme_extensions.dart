@@ -49,6 +49,9 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
   @override
   SoliplexTheme lerp(covariant SoliplexTheme? other, double t) {
     if (other is! SoliplexTheme) return this;
+    // Colors, badge styling, and the monospace family are discrete brand
+    // tokens, not animatable values — they snap rather than cross-fade. Only
+    // the corner radii interpolate.
     return SoliplexTheme(
       colors: colors,
       radii: SoliplexRadii.lerp(radii, other.radii, t),

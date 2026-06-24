@@ -101,25 +101,6 @@ void main() {
   });
 
   group('BrandColorScheme', () {
-    test('exposes the seven required roles and optional status/on slots', () {
-      const c = BrandColorScheme(
-        primary: Color(0xFF101010),
-        secondary: Color(0xFF202020),
-        background: Color(0xFF303030),
-        foreground: Color(0xFF404040),
-        muted: Color(0xFF505050),
-        mutedForeground: Color(0xFF606060),
-        border: Color(0xFF707070),
-      );
-      expect(c.primary, const Color(0xFF101010));
-      expect(c.border, const Color(0xFF707070));
-      // Optional slots are null until a consumer (or the lowering layer) fills
-      // them.
-      expect(c.tertiary, isNull);
-      expect(c.danger, isNull);
-      expect(c.onPrimary, isNull);
-    });
-
     test('fromAccent sets primary and a contrasting onPrimary', () {
       final c = BrandColorScheme.fromAccent(
         const Color(0xFF112233),

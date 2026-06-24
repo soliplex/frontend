@@ -89,26 +89,44 @@ Constructor ladder, least → most change:
 Each accepts optional `BrandTypography` (body/display/code font families,
 fallbacks, per-role `TypeScaleOverride` deltas) and `BrandShape` (`rounded()` /
 `square()` / `custom()` radii). Colors come from `BrandColorScheme` — seven
-required roles plus optional `tertiary`, status, and `on*` slots; an unset
-`on*` color gets a WCAG-readable foreground, and a debug assert flags
-hand-built pairs below 4.5:1.
+required roles plus optional `tertiary`; the `on*` slots; the status *signal*
+colors (`danger`/`success`/`warning`/`info`); the error/destructive role
+(`error`/`onError`); the soft status surfaces (`errorContainer`/`onErrorContainer`,
+`successContainer`/`onSuccessContainer`); and `link`. Field names follow Material
+`ColorScheme` convention. An unset role falls back to the base palette and an
+unset `on*` color gets a WCAG-readable foreground, so derived colors always clear
+AA. An `on*` color you set explicitly is used as-is — its legibility is your call
+— and a pair below 4.5:1 (including `foreground`/`background`, and `link` against
+`background` when you set `link`) is logged as a warning. Links also render on
+neutral surfaces beyond `background`; verify those contrasts yourself.
+
+**`danger` vs `error` — two reds, distinct roles.** `danger` is the inline
+status *signal* (`context.danger`: badges, status text — no fill); `error` is
+the destructive *action* role (delete buttons, error borders; lowers to
+`colorScheme.error`). Set them — and the `errorContainer` surface — together to
+keep error styling coherent.
 
 Fonts resolve through a `FontResolver`. The default `BundledFontResolver` trusts
 native asset fonts (offline-safe, no extra dependencies); a fork wanting
 arbitrary fonts (e.g. `google_fonts`) implements `FontResolver` in its own app
-and injects it at `standard(fontResolver: ...)`. App identity (`AppIdentity` —
-name + logos) is a separate config from the theme.
+and injects it at `standard(fontResolver: ...)`. A font family that isn't
+registered — a typo, or a missing `pubspec.yaml` entry — falls back silently to
+the platform default, so verify your fonts actually render. App identity
+(`AppIdentity` — name + logos) is a separate config from the theme.
 
 ### What is customizable vs fixed
 
 | Surface | Customizable? | How |
 | --- | --- | --- |
 | Colors (7 roles → full palette) | ✅ | `BrandColorScheme` |
-| Status colors (danger/success/warning/info) | ✅ | `BrandColorScheme` optional slots |
+| Status signals (danger/success/warning/info) | ✅ | `BrandColorScheme` optional slots |
+| Error/destructive + error/success surfaces | ✅ | `error`/`onError`, `errorContainer`/`successContainer` slots |
+| Link color | ✅ | `BrandColorScheme.link` |
 | Font families (body / display / code) | ✅ | `BrandTypography` + `FontResolver` |
 | Type scale (size / weight / height / spacing) | ✅ | per-role `TypeScaleOverride` |
 | Corner radii | ✅ | `BrandShape` |
 | App name + logos | ✅ | `AppIdentity` |
+| Neutral surface ramp (cards/inputs/selected tints) | ❌ fixed | neutral by design, hosts colored content |
 | Spacing grid + breakpoints | ❌ fixed | `static const` shared grammar |
 | Widget composition / layout | ❌ fixed | module override or fork |
 

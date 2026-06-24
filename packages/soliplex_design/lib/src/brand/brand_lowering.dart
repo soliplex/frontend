@@ -22,8 +22,10 @@ const _minContrast = 4.5;
 ///
 /// The façade roles override a neutral per-brightness base; surfaces and other
 /// derived slots stay brand-independent. Unspecified on-colors get a
-/// WCAG-readable foreground; unspecified status colors fall back to the base.
-/// Font families resolve through [fontResolver].
+/// WCAG-readable foreground; an explicitly-set on-color is used as-is, and a
+/// pair below WCAG AA is logged as a warning rather than altered. Unspecified
+/// status colors fall back to the base. Font families resolve through
+/// [fontResolver].
 ThemeData lowerBrandTheme(
   BrandTheme theme,
   Brightness brightness, {

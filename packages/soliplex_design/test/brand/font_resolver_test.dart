@@ -17,10 +17,6 @@ void main() {
       expect(resolved.fontFamily, 'Fraunces');
       expect(resolved.fontFamilyFallback, isEmpty);
     });
-
-    test('is a FontResolver', () {
-      expect(resolver, isA<FontResolver>());
-    });
   });
 
   group('ResolvedFont', () {

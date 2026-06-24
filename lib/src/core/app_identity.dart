@@ -14,7 +14,11 @@ class AppIdentity {
     required this.logoLight,
     this.logoDark,
     this.logoGlow,
-  });
+  }) : assert(
+          logoGlow == null || logoDark == null,
+          'logoGlow styles the dark-mode glow fallback and is ignored when '
+          'logoDark is provided; set one or the other.',
+        );
 
   /// Used as `MaterialApp.title` and surfaced through the auth + versions
   /// modules.
