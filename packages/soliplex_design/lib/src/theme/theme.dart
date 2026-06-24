@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/theme/classification_theme.dart';
@@ -7,13 +8,14 @@ import 'package:soliplex_design/src/tokens/colors.dart';
 import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/spacing.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
+import 'package:soliplex_design/src/tokens/typography_x.dart';
 
 ThemeData soliplexLightTheme({
   SoliplexColors colors = lightSoliplexColors,
   SoliplexRadii radii = soliplexRadii,
   ClassificationTheme? classifications,
 }) =>
-    _buildTheme(
+    buildSoliplexThemeData(
       colors: colors,
       radii: radii,
       brightness: Brightness.light,
@@ -25,20 +27,24 @@ ThemeData soliplexDarkTheme({
   SoliplexRadii radii = soliplexRadii,
   ClassificationTheme? classifications,
 }) =>
-    _buildTheme(
+    buildSoliplexThemeData(
       colors: colors,
       radii: radii,
       brightness: Brightness.dark,
       classifications: classifications,
     );
 
-ThemeData _buildTheme({
+ThemeData buildSoliplexThemeData({
   required SoliplexColors colors,
   required Brightness brightness,
   SoliplexRadii radii = soliplexRadii,
+  ({String family, List<String> fallback})? monospace,
+  TextTheme? textTheme,
   ClassificationTheme? classifications,
 }) {
-  final textTheme = soliplexTextTheme(colors);
+  textTheme ??= soliplexTextTheme(colors);
+  final monospaceFamily =
+      monospace ?? monospaceFontFamily(defaultTargetPlatform);
   final colorScheme = ColorScheme(
     brightness: brightness,
     primary: colors.primary,
@@ -261,6 +267,7 @@ ThemeData _buildTheme({
       SoliplexTheme(
         colors: colors,
         radii: radii,
+        monospace: monospaceFamily,
         badgeTheme: SoliplexBadgeThemeData(
           background: Color.alphaBlend(
             colors.foreground.withAlpha(15),

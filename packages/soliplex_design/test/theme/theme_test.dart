@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -80,6 +81,12 @@ void main() {
       final theme = soliplexLightTheme();
 
       expect(theme.extension<SoliplexTheme>()!.radii, soliplexRadii);
+    });
+
+    test('defaults monospace to the platform family', () {
+      final mono = soliplexLightTheme().extension<SoliplexTheme>()!.monospace;
+
+      expect(mono, monospaceFontFamily(defaultTargetPlatform));
     });
 
     test('threads custom radii into the extension and component shapes', () {
