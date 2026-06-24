@@ -19,7 +19,7 @@ void main() {
     test('contributes /lobby route', () {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
-        branding: testBranding(),
+        identity: testIdentity(),
         registry: RunRegistry(),
         readMarkers: RoomReadMarkers(),
       ).build();
@@ -31,7 +31,7 @@ void main() {
     test('does not contribute a redirect', () {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
-        branding: testBranding(),
+        identity: testIdentity(),
         registry: RunRegistry(),
         readMarkers: RoomReadMarkers(),
       ).build();

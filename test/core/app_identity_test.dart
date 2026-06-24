@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-import 'package:soliplex_frontend/src/core/branding.dart';
+import 'package:soliplex_frontend/src/core/app_identity.dart';
 
 void main() {
   group('BrandLogo', () {
@@ -18,15 +18,13 @@ void main() {
     }
 
     testWidgets('light mode renders logoLight bare', (tester) async {
-      const branding = SoliplexBranding(
-        accentLight: Colors.blue,
-        accentDark: Colors.indigo,
+      const identity = AppIdentity(
         appName: 'X',
         logoLight: lightLogo,
         logoDark: darkLogo,
       );
       await tester.pumpWidget(
-        wrap(const BrandLogo(branding: branding), brightness: Brightness.light),
+        wrap(const BrandLogo(identity: identity), brightness: Brightness.light),
       );
       expect(find.text('LIGHT'), findsOneWidget);
       expect(find.text('DARK'), findsNothing);
@@ -34,15 +32,13 @@ void main() {
     });
 
     testWidgets('dark mode prefers logoDark when provided', (tester) async {
-      const branding = SoliplexBranding(
-        accentLight: Colors.blue,
-        accentDark: Colors.indigo,
+      const identity = AppIdentity(
         appName: 'X',
         logoLight: lightLogo,
         logoDark: darkLogo,
       );
       await tester.pumpWidget(
-        wrap(const BrandLogo(branding: branding), brightness: Brightness.dark),
+        wrap(const BrandLogo(identity: identity), brightness: Brightness.dark),
       );
       expect(find.text('DARK'), findsOneWidget);
       expect(find.byType(SoliplexGlow), findsNothing);
@@ -50,14 +46,9 @@ void main() {
 
     testWidgets('dark mode wraps logoLight in SoliplexGlow when no logoDark',
         (tester) async {
-      const branding = SoliplexBranding(
-        accentLight: Colors.blue,
-        accentDark: Colors.indigo,
-        appName: 'X',
-        logoLight: lightLogo,
-      );
+      const identity = AppIdentity(appName: 'X', logoLight: lightLogo);
       await tester.pumpWidget(
-        wrap(const BrandLogo(branding: branding), brightness: Brightness.dark),
+        wrap(const BrandLogo(identity: identity), brightness: Brightness.dark),
       );
       expect(find.text('LIGHT'), findsOneWidget);
       expect(find.byType(SoliplexGlow), findsOneWidget);
@@ -65,42 +56,33 @@ void main() {
 
     testWidgets('dark fallback halo is derived from the theme onSurface',
         (tester) async {
-      const branding = SoliplexBranding(
-        accentLight: Colors.blue,
-        accentDark: Colors.indigo,
-        appName: 'X',
-        logoLight: lightLogo,
-      );
+      const identity = AppIdentity(appName: 'X', logoLight: lightLogo);
       await tester.pumpWidget(
-        wrap(const BrandLogo(branding: branding), brightness: Brightness.dark),
+        wrap(const BrandLogo(identity: identity), brightness: Brightness.dark),
       );
       final glow = tester.widget<SoliplexGlow>(find.byType(SoliplexGlow));
       expect(glow.color, ThemeData.dark().colorScheme.onSurface.withAlpha(179));
     });
 
     testWidgets('explicit logoGlow overrides the derived halo', (tester) async {
-      const branding = SoliplexBranding(
-        accentLight: Colors.blue,
-        accentDark: Colors.indigo,
+      const identity = AppIdentity(
         appName: 'X',
         logoLight: lightLogo,
         logoGlow: Color(0xFF00FF00),
       );
       await tester.pumpWidget(
-        wrap(const BrandLogo(branding: branding), brightness: Brightness.dark),
+        wrap(const BrandLogo(identity: identity), brightness: Brightness.dark),
       );
       final glow = tester.widget<SoliplexGlow>(find.byType(SoliplexGlow));
       expect(glow.color, const Color(0xFF00FF00));
     });
   });
 
-  group('SoliplexBranding.soliplex', () {
-    test('default branding carries the Soliplex identity', () {
-      final brand = SoliplexBranding.soliplex;
-      expect(brand.appName, 'Soliplex');
-      expect(brand.accentLight, lightSoliplexColors.primary);
-      expect(brand.accentDark, darkSoliplexColors.primary);
-      expect(brand.logoDark, isNull);
+  group('AppIdentity.soliplex', () {
+    test('default identity carries the Soliplex name and a single logo', () {
+      final identity = AppIdentity.soliplex;
+      expect(identity.appName, 'Soliplex');
+      expect(identity.logoDark, isNull);
     });
   });
 }

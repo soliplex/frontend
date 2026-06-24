@@ -21,7 +21,7 @@ const _minContrast = 4.5;
 /// derived slots stay brand-independent. Unspecified on-colors get a
 /// WCAG-readable foreground; unspecified status colors fall back to the base.
 /// Font families resolve through [fontResolver].
-ThemeData lower(
+ThemeData lowerBrandTheme(
   BrandTheme theme,
   Brightness brightness, {
   FontResolver fontResolver = const BundledFontResolver(),

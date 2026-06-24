@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soliplex_frontend/src/core/branding.dart';
+import 'package:soliplex_frontend/src/core/app_identity.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
@@ -27,7 +27,7 @@ Widget _buildSidebar({
   required Map<String, ServerEntry> servers,
   ServerManager? serverManager,
   Map<String, UserProfile?> profiles = const {},
-  SoliplexBranding? branding,
+  AppIdentity? identity,
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
   void Function(String serverId)? onSignIn,
@@ -46,7 +46,7 @@ Widget _buildSidebar({
           servers: servers,
           serverManager: serverManager ?? _createManager(),
           profiles: profiles,
-          branding: branding ?? testBranding(),
+          identity: identity ?? testIdentity(),
           selectedServerId: selectedServerId,
           onSelectServer: onSelectServer ?? (_) {},
           onSignIn: onSignIn ?? (_) {},

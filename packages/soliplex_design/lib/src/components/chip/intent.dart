@@ -31,8 +31,9 @@ enum ChipIntent {
 /// resolved against the current theme.
 ///
 /// Sourced identically to badges: container brand tokens for
-/// success/danger, alpha-tinted symbolic colors for info/warning, and
-/// `null`s for neutral so the Material chip theme defaults apply.
+/// success/danger, the alpha-tinted `info` / `warning` status tokens for
+/// info/warning, and `null`s for neutral so the Material chip theme
+/// defaults apply.
 ({Color? background, Color? foreground}) chipIntentColors(
   ChipIntent intent,
   BuildContext context,

@@ -35,14 +35,10 @@ enum BadgeIntent {
 /// - `danger` / `success`: the brand's `errorContainer` /
 ///   `successContainer` token pairs — these slots exist precisely for
 ///   status surfaces, so honouring them keeps brand fidelity.
-/// - `info` / `warning`: derived at runtime from `SymbolicColors`
-///   because there are no `infoContainer` / `warningContainer` brand
-///   tokens (yet). Background is the symbolic color tinted to 15%
-///   alpha, foreground is the symbolic color at full opacity.
-///
-/// If brand-customizable info/warning containers are ever needed, add
-/// the tokens to `SoliplexColors` and swap the derived case below for
-/// the new pair.
+/// - `info` / `warning`: the brand's `info` / `warning` status tokens —
+///   background is the token tinted to 15% alpha, foreground is the token
+///   at full opacity. There are no `infoContainer` / `warningContainer`
+///   slots, so these synthesize a container surface from the single token.
 ({Color background, Color foreground}) badgeIntentColors(
   BadgeIntent intent,
   BuildContext context,

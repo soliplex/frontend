@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-import 'package:soliplex_design/src/brand/brand_lowering.dart';
 
 Future<SoliplexRadii> _radiiUnder(WidgetTester tester, ThemeData? theme) async {
   late SoliplexRadii radii;
@@ -22,7 +21,7 @@ Future<SoliplexRadii> _radiiUnder(WidgetTester tester, ThemeData? theme) async {
 void main() {
   group('context.radii', () {
     testWidgets('reads the active theme radii', (tester) async {
-      final theme = lower(
+      final theme = lowerBrandTheme(
         const BrandTheme(
           light: BrandColorScheme(
             primary: Color(0xFF030213),

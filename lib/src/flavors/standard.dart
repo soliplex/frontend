@@ -4,7 +4,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
 import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
 
-import '../core/branding.dart';
+import '../core/app_identity.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
@@ -34,8 +34,10 @@ import '../modules/room/tool_calls_extension.dart';
 import '../modules/versions/versions_module.dart';
 
 Future<ShellConfig> standard({
-  SoliplexBranding? branding,
+  AppIdentity? identity,
+  BrandTheme theme = const BrandTheme.soliplex(),
   ClassificationTheme? classifications,
+  FontResolver fontResolver = const BundledFontResolver(),
   ThemeMode themeMode = ThemeMode.system,
   String redirectScheme = 'ai.soliplex.client',
   String defaultBackendUrl = 'http://localhost:8000',
@@ -44,25 +46,23 @@ Future<ShellConfig> standard({
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
-  final brand = branding ?? SoliplexBranding.soliplex;
+  final effectiveIdentity = identity ?? AppIdentity.soliplex;
   // Markings don't flip with brightness — the same instance feeds both
   // themes. Omitted → the design system's neutral built-in (no pills).
   // This is the adopter's configuration point for deployment vocabularies.
-  final lightTheme = soliplexLightTheme(
-    colors: SoliplexColors.fromAccent(
-      brand.accentLight,
-      brightness: Brightness.light,
-    ),
+  final lightTheme = lowerBrandTheme(
+    theme,
+    Brightness.light,
+    fontResolver: fontResolver,
     classifications: classifications,
   );
-  final darkTheme = soliplexDarkTheme(
-    colors: SoliplexColors.fromAccent(
-      brand.accentDark,
-      brightness: Brightness.dark,
-    ),
+  final darkTheme = lowerBrandTheme(
+    theme,
+    Brightness.dark,
+    fontResolver: fontResolver,
     classifications: classifications,
   );
-  final brandLogo = BrandLogo(branding: brand);
+  final brandLogo = BrandLogo(identity: effectiveIdentity);
 
   final inspector = NetworkInspector();
   final httpLogger = LogManager.instance.getLogger('http_stack');
@@ -140,7 +140,7 @@ Future<ShellConfig> standard({
     serverManager: serverManager,
     probeClient: plainClient,
     authFlow: authFlow,
-    appName: brand.appName,
+    appName: effectiveIdentity.appName,
     inactivityLogoutFlags: inactivityLogoutFlags,
     callbackParams: callbackParams is! NoCallbackParams ? callbackParams : null,
     consentNotice: consentNotice,
@@ -149,7 +149,7 @@ Future<ShellConfig> standard({
   );
 
   return ShellConfig.fromModules(
-    appName: brand.appName,
+    appName: effectiveIdentity.appName,
     lightTheme: lightTheme,
     darkTheme: darkTheme,
     themeMode: themeMode,
@@ -165,14 +165,14 @@ Future<ShellConfig> standard({
     ),
     modules: [
       DiagnosticsAppModule(
-        appName: brand.appName,
+        appName: effectiveIdentity.appName,
         logo: brandLogo,
         inspector: inspector,
       ),
       authMod,
       LobbyAppModule(
         serverManager: serverManager,
-        branding: brand,
+        identity: effectiveIdentity,
         registry: registry,
         readMarkers: readMarkers,
       ),
@@ -181,13 +181,13 @@ Future<ShellConfig> standard({
         runtimeManager: runtimeManager,
         registry: registry,
         readMarkers: readMarkers,
-        appName: brand.appName,
+        appName: effectiveIdentity.appName,
         logo: brandLogo,
         enableDocumentFilter: true,
       ),
       QuizAppModule(serverManager: serverManager),
       VersionsAppModule(
-        appName: brand.appName,
+        appName: effectiveIdentity.appName,
         logo: brandLogo,
         serverManager: serverManager,
       ),

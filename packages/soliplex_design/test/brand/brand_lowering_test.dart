@@ -90,10 +90,10 @@ void expectSameColors(SoliplexColors a, SoliplexColors b) {
 }
 
 SoliplexColors loweredColors(BrandTheme theme, Brightness brightness) =>
-    lower(theme, brightness).extension<SoliplexTheme>()!.colors;
+    lowerBrandTheme(theme, brightness).extension<SoliplexTheme>()!.colors;
 
 void main() {
-  group('lower defaults are byte-identical to today', () {
+  group('lowerBrandTheme defaults are byte-identical to today', () {
     test('light palette', () {
       expectSameColors(
         loweredColors(const BrandTheme.soliplex(), Brightness.light),
@@ -109,7 +109,8 @@ void main() {
     });
 
     test('replicates the integer-alpha badge blend', () {
-      final lowered = lower(const BrandTheme.soliplex(), Brightness.light);
+      final lowered =
+          lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light);
       expect(
         lowered.extension<SoliplexTheme>()!.badgeTheme.background,
         soliplexLightTheme().extension<SoliplexTheme>()!.badgeTheme.background,
@@ -117,7 +118,7 @@ void main() {
     });
   });
 
-  group('lower maps the façade onto slots', () {
+  group('lowerBrandTheme maps the façade onto slots', () {
     test('a seed drives primary with a contrasting onPrimary', () {
       final colors = loweredColors(
         BrandTheme.fromSeed(const Color(0xFF112233)),
@@ -159,9 +160,9 @@ void main() {
     });
   });
 
-  group('lower threads shape and typography', () {
+  group('lowerBrandTheme threads shape and typography', () {
     test('shape drives the radii', () {
-      final theme = lower(
+      final theme = lowerBrandTheme(
         const BrandTheme(
           light: BrandColorScheme(
             primary: Color(0xFF030213),
@@ -197,7 +198,7 @@ void main() {
     });
 
     test('body and display families flow into the text theme', () {
-      final theme = lower(
+      final theme = lowerBrandTheme(
         BrandTheme.fromSeed(
           const Color(0xFF112233),
           typography: const BrandTypography(bodyFamily: 'Inter'),
@@ -210,7 +211,7 @@ void main() {
     });
 
     test('codeFamily becomes the monospace token', () {
-      final theme = lower(
+      final theme = lowerBrandTheme(
         BrandTheme.fromSeed(
           const Color(0xFF112233),
           typography: const BrandTypography(codeFamily: 'Brandospace'),
@@ -225,7 +226,7 @@ void main() {
 
     test('families resolve through the injected FontResolver', () {
       final resolver = _RecordingResolver();
-      final theme = lower(
+      final theme = lowerBrandTheme(
         BrandTheme.fromSeed(
           const Color(0xFF112233),
           typography: const BrandTypography(bodyFamily: 'Inter'),
@@ -238,14 +239,38 @@ void main() {
     });
   });
 
-  group('lower contrast assert', () {
+  group('a full custom brand lowers across every axis', () {
+    test('accents, families, and shape all reach the ThemeData', () {
+      final resolver = _RecordingResolver();
+      final theme = lowerBrandTheme(
+        BrandTheme.fromAccents(
+          light: const Color(0xFF0066CC),
+          dark: const Color(0xFF99CCFF),
+          typography: const BrandTypography(
+            bodyFamily: 'Inter',
+            displayFamily: 'Fraunces',
+          ),
+          shape: const BrandShape.square(),
+        ),
+        Brightness.light,
+        fontResolver: resolver,
+      );
+
+      expect(theme.colorScheme.primary, const Color(0xFF0066CC));
+      expect(theme.textTheme.bodyMedium!.fontFamily, 'Inter!');
+      expect(theme.textTheme.headlineMedium!.fontFamily, 'Fraunces!');
+      expect(theme.extension<SoliplexTheme>()!.radii.md, 0);
+    });
+  });
+
+  group('lowerBrandTheme contrast assert', () {
     test('fires in debug on a sub-threshold on-color pair', () {
       final bad = const BrandTheme.soliplex().light.copyWith(
             primary: const Color(0xFFFFFFFF),
             onPrimary: const Color(0xFFFFFFFF),
           );
       expect(
-        () => lower(
+        () => lowerBrandTheme(
           BrandTheme(light: bad, dark: const BrandTheme.soliplex().dark),
           Brightness.light,
         ),

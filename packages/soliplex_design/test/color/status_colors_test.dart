@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-import 'package:soliplex_design/src/brand/brand_lowering.dart';
 
-ThemeData _themeWithWarning(Color warning) => lower(
+ThemeData _themeWithWarning(Color warning) => lowerBrandTheme(
       BrandTheme(
         light: const BrandTheme.soliplex().light.copyWith(warning: warning),
         dark: const BrandTheme.soliplex().dark,

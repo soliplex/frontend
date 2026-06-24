@@ -2,31 +2,19 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
 
-/// Brand identity for a Soliplex shell: accent colors for light and dark
-/// themes, a display name, and one or two logo widgets.
+/// Brand identity for a Soliplex shell: a display name and one or two logo
+/// widgets. Visual theming (color, type, shape) is a separate concern — see
+/// `BrandTheme` — so identity and theme can vary independently.
 ///
 /// Whitelabel authors construct one of these and hand it to the flavor.
-/// Everything in the design system except the brand-driven `primary` stays
-/// Soliplex (surfaces, container tones, status colors, radii, typography) so
-/// the platform identity stays legible across flavors.
 @immutable
-class SoliplexBranding {
-  const SoliplexBranding({
-    required this.accentLight,
-    required this.accentDark,
+class AppIdentity {
+  const AppIdentity({
     required this.appName,
     required this.logoLight,
     this.logoDark,
     this.logoGlow,
   });
-
-  /// Brand accent for the light theme. Drives `primary` and its readable
-  /// `onPrimary` foreground via [SoliplexColors.fromAccent]; container tones
-  /// and every other slot stay neutral Soliplex.
-  final Color accentLight;
-
-  /// Brand accent for the dark theme. Same derivation as [accentLight].
-  final Color accentDark;
 
   /// Used as `MaterialApp.title` and surfaced through the auth + versions
   /// modules.
@@ -49,14 +37,11 @@ class SoliplexBranding {
   static const _soliplexLogoAsset = 'assets/branding/soliplex/logo_1024.png';
   static const _soliplexLogoSize = 64.0;
 
-  /// Default Soliplex branding. The logo resolves against the running app's
-  /// own asset bundle (the bare asset path), so this is correct when
-  /// `soliplex_frontend` is the runnable app. A consumer that imports
-  /// `soliplex_frontend` as a library is expected to supply its own
-  /// [SoliplexBranding] with its own logo.
-  static SoliplexBranding get soliplex => SoliplexBranding(
-        accentLight: lightSoliplexColors.primary,
-        accentDark: darkSoliplexColors.primary,
+  /// Default Soliplex identity. The logo resolves against the running app's
+  /// own asset bundle, so this is correct when `soliplex_frontend` is the
+  /// runnable app. A consumer that imports `soliplex_frontend` as a library
+  /// supplies its own [AppIdentity] with its own logo.
+  static AppIdentity get soliplex => AppIdentity(
         appName: 'Soliplex',
         logoLight: Image.asset(
           _soliplexLogoAsset,
@@ -69,23 +54,23 @@ class SoliplexBranding {
 /// Renders the brand mark for the current theme brightness, applying a glow
 /// backplate when only a single light-mode logo is provided.
 class BrandLogo extends StatelessWidget {
-  const BrandLogo({super.key, required this.branding});
+  const BrandLogo({super.key, required this.identity});
 
   /// 8-bit alpha (~0.7 opacity) of the theme-derived fallback halo.
   static const _fallbackGlowAlpha = 179;
 
-  final SoliplexBranding branding;
+  final AppIdentity identity;
 
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     if (brightness == Brightness.light) {
-      return branding.logoLight;
+      return identity.logoLight;
     }
-    final dark = branding.logoDark;
+    final dark = identity.logoDark;
     if (dark != null) return dark;
-    final glow = branding.logoGlow ??
+    final glow = identity.logoGlow ??
         Theme.of(context).colorScheme.onSurface.withAlpha(_fallbackGlowAlpha);
-    return SoliplexGlow(color: glow, child: branding.logoLight);
+    return SoliplexGlow(color: glow, child: identity.logoLight);
   }
 }
