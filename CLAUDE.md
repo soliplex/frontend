@@ -171,7 +171,11 @@ A runnable gallery of every variant lives at
 `packages/soliplex_design/example/lib/main.dart`. Golden snapshots of every
 gallery in both themes live under
 `packages/soliplex_design/test/components/*/goldens/` — skim these for a
-static visual reference when you're picking between variants.
+static visual reference when you're picking between variants. **These goldens
+are a Linux baseline** (CI renders them on `ubuntu-latest`); on macOS they
+always show ~1% text-edge diffs from font rendering, which is not a
+regression. Never run `--update-goldens` off Linux, and skip them locally
+with `flutter test --exclude-tags golden`.
 
 ### Adding a new token
 

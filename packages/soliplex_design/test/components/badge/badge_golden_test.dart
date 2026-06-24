@@ -1,3 +1,7 @@
+// Golden baseline is rendered on Linux (CI is the authority). On macOS these
+// always show ~1% text-edge diffs from font rendering — that is NOT a
+// regression. Never --update-goldens off Linux; skip locally with
+// `flutter test --exclude-tags golden`.
 @Tags(['golden'])
 library;
 
