@@ -278,4 +278,135 @@ void main() {
       );
     });
   });
+
+  group('lowerBrandTheme lowers the Group A semantic colors', () {
+    BrandTheme brandWith(BrandColorScheme Function(BrandColorScheme) edit) =>
+        BrandTheme(
+          light: edit(const BrandTheme.soliplex().light),
+          dark: const BrandTheme.soliplex().dark,
+        );
+
+    test('error and onError drive the destructive slot', () {
+      final colors = loweredColors(
+        brandWith(
+          (b) => b.copyWith(
+            error: const Color(0xFF7A0010),
+            onError: const Color(0xFFFFEEEE),
+          ),
+        ),
+        Brightness.light,
+      );
+      expect(colors.destructive, const Color(0xFF7A0010));
+      expect(colors.onDestructive, const Color(0xFFFFEEEE));
+    });
+
+    test('link drives the link slot', () {
+      final colors = loweredColors(
+        brandWith((b) => b.copyWith(link: const Color(0xFF7C3AED))),
+        Brightness.light,
+      );
+      expect(colors.link, const Color(0xFF7C3AED));
+    });
+
+    test('error and success containers drive their slots', () {
+      final colors = loweredColors(
+        brandWith(
+          (b) => b.copyWith(
+            errorContainer: const Color(0xFF330007),
+            successContainer: const Color(0xFF062E12),
+          ),
+        ),
+        Brightness.light,
+      );
+      expect(colors.errorContainer, const Color(0xFF330007));
+      expect(colors.successContainer, const Color(0xFF062E12));
+    });
+
+    test('an unspecified on-color derives a WCAG-readable foreground', () {
+      final colors = loweredColors(
+        brandWith(
+          (b) => b.copyWith(
+            error: const Color(0xFF7A0010),
+            errorContainer: const Color(0xFFFDE7EA),
+            successContainer: const Color(0xFFE6F6EC),
+          ),
+        ),
+        Brightness.light,
+      );
+      expect(
+        contrastRatio(colors.destructive, colors.onDestructive),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(
+        contrastRatio(colors.errorContainer, colors.onErrorContainer),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(
+        contrastRatio(colors.successContainer, colors.onSuccessContainer),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
+    test('unspecified Group A colors fall back to the neutral base', () {
+      final colors = loweredColors(
+        BrandTheme.fromSeed(const Color(0xFF112233)),
+        Brightness.light,
+      );
+      expect(colors.destructive, lightSoliplexColors.destructive);
+      expect(colors.onDestructive, lightSoliplexColors.onDestructive);
+      expect(colors.link, lightSoliplexColors.link);
+      expect(colors.errorContainer, lightSoliplexColors.errorContainer);
+      expect(colors.onErrorContainer, lightSoliplexColors.onErrorContainer);
+      expect(colors.successContainer, lightSoliplexColors.successContainer);
+      expect(colors.onSuccessContainer, lightSoliplexColors.onSuccessContainer);
+    });
+  });
+
+  group('lowerBrandTheme contrast assert covers Group A', () {
+    BrandTheme badLight(BrandColorScheme Function(BrandColorScheme) edit) =>
+        BrandTheme(
+          light: edit(const BrandTheme.soliplex().light),
+          dark: const BrandTheme.soliplex().dark,
+        );
+
+    test('fires on an illegible link against the background', () {
+      expect(
+        () => lowerBrandTheme(
+          badLight((b) => b.copyWith(link: const Color(0xFFFFFFFF))),
+          Brightness.light,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('fires on a sub-threshold error / onError pair', () {
+      expect(
+        () => lowerBrandTheme(
+          badLight(
+            (b) => b.copyWith(
+              error: const Color(0xFFFFFFFF),
+              onError: const Color(0xFFFFFFFF),
+            ),
+          ),
+          Brightness.light,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('fires on a sub-threshold error container pair', () {
+      expect(
+        () => lowerBrandTheme(
+          badLight(
+            (b) => b.copyWith(
+              errorContainer: const Color(0xFFFFFFFF),
+              onErrorContainer: const Color(0xFFFFFFFF),
+            ),
+          ),
+          Brightness.light,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
 }

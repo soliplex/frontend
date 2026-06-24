@@ -87,9 +87,10 @@ class BrandTheme {
   int get hashCode => Object.hash(light, dark, typography, shape);
 }
 
-/// Seven required semantic roles plus a small optional set. The internal
-/// 36-slot palette is derived from these during lowering; new ceiling
-/// overrides arrive here as additive optional fields.
+/// Seven required semantic roles plus an optional set. The internal 37-slot
+/// palette is derived from these during lowering; unspecified optional roles
+/// fall back to the neutral base, so a fork sets only what it wants to rebrand.
+/// New ceiling overrides arrive here as additive optional fields.
 @immutable
 class BrandColorScheme {
   const BrandColorScheme({
@@ -108,6 +109,13 @@ class BrandColorScheme {
     this.onPrimary,
     this.onSecondary,
     this.onTertiary,
+    this.error,
+    this.onError,
+    this.errorContainer,
+    this.onErrorContainer,
+    this.successContainer,
+    this.onSuccessContainer,
+    this.link,
   });
 
   /// Derives a palette from a single brand [accent].
@@ -138,13 +146,69 @@ class BrandColorScheme {
   final Color border;
 
   final Color? tertiary;
+
+  // --- Status *signal* colors ------------------------------------------------
+  // Read through `context.danger/success/warning/info`. These tint inline
+  // indicators — status text, badges, dots, "this is risky" icons — drawn as
+  // foreground on neutral surfaces. They have no fill role and no on-color.
+  // For a destructive *action* or an error *surface*, see [error] /
+  // [errorContainer]; do not reuse a signal color for those.
+
+  /// Status-signal color for "danger / risk" indicators. Not the error fill —
+  /// see [error] for solid destructive controls.
   final Color? danger;
+
+  /// Status-signal color for "success" indicators. The matching soft surface is
+  /// [successContainer].
   final Color? success;
+
+  /// Status-signal color for "warning" indicators.
   final Color? warning;
+
+  /// Status-signal color for "info" indicators.
   final Color? info;
+
   final Color? onPrimary;
   final Color? onSecondary;
   final Color? onTertiary;
+
+  // --- Error / destructive role ----------------------------------------------
+  // The Material `ColorScheme.error` family. Distinct from the [danger] signal:
+  // these paint solid destructive controls and error *surfaces*, not inline
+  // status indicators.
+
+  /// The error / destructive-action role — fills solid destructive buttons and
+  /// input error borders (Material `ColorScheme.error`). This is NOT the inline
+  /// status-signal color; see [danger]. Pair with [onError] for legible text on
+  /// it. Omitted → keeps the base value.
+  final Color? error;
+
+  /// Readable foreground for text/icons on [error]. Omitted → auto-derived to a
+  /// legible tone when [error] is set, else the base value.
+  final Color? onError;
+
+  /// Soft error *surface* — error banners and container fills (Material
+  /// `ColorScheme.errorContainer`). Set this together with [error] / [danger]
+  /// to keep the error family coherent. Pair with [onErrorContainer].
+  final Color? errorContainer;
+
+  /// Readable foreground for content on [errorContainer]. Omitted →
+  /// auto-derived when [errorContainer] is set, else the base value.
+  final Color? onErrorContainer;
+
+  /// Soft success *surface* — success banners and container fills. The matching
+  /// signal color is [success]; set them together. Pair with
+  /// [onSuccessContainer].
+  final Color? successContainer;
+
+  /// Readable foreground for content on [successContainer]. Omitted →
+  /// auto-derived when [successContainer] is set, else the base value.
+  final Color? onSuccessContainer;
+
+  /// Hyperlink text color. Drawn as foreground on [background] (and on neutral
+  /// surfaces), so it must stay legible against them — the lowering layer
+  /// asserts its contrast against [background]. Has no on-color of its own.
+  final Color? link;
 
   BrandColorScheme copyWith({
     Color? primary,
@@ -162,6 +226,13 @@ class BrandColorScheme {
     Color? onPrimary,
     Color? onSecondary,
     Color? onTertiary,
+    Color? error,
+    Color? onError,
+    Color? errorContainer,
+    Color? onErrorContainer,
+    Color? successContainer,
+    Color? onSuccessContainer,
+    Color? link,
   }) =>
       BrandColorScheme(
         primary: primary ?? this.primary,
@@ -179,6 +250,13 @@ class BrandColorScheme {
         onPrimary: onPrimary ?? this.onPrimary,
         onSecondary: onSecondary ?? this.onSecondary,
         onTertiary: onTertiary ?? this.onTertiary,
+        error: error ?? this.error,
+        onError: onError ?? this.onError,
+        errorContainer: errorContainer ?? this.errorContainer,
+        onErrorContainer: onErrorContainer ?? this.onErrorContainer,
+        successContainer: successContainer ?? this.successContainer,
+        onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+        link: link ?? this.link,
       );
 
   @override
@@ -198,7 +276,14 @@ class BrandColorScheme {
       other.info == info &&
       other.onPrimary == onPrimary &&
       other.onSecondary == onSecondary &&
-      other.onTertiary == onTertiary;
+      other.onTertiary == onTertiary &&
+      other.error == error &&
+      other.onError == onError &&
+      other.errorContainer == errorContainer &&
+      other.onErrorContainer == onErrorContainer &&
+      other.successContainer == successContainer &&
+      other.onSuccessContainer == onSuccessContainer &&
+      other.link == link;
 
   @override
   int get hashCode => Object.hashAll([
@@ -217,6 +302,13 @@ class BrandColorScheme {
         onPrimary,
         onSecondary,
         onTertiary,
+        error,
+        onError,
+        errorContainer,
+        onErrorContainer,
+        successContainer,
+        onSuccessContainer,
+        link,
       ]);
 }
 

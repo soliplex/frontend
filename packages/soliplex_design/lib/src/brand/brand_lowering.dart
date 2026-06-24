@@ -88,7 +88,31 @@ SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
     success: brand.success ?? base.success,
     warning: brand.warning ?? base.warning,
     info: brand.info ?? base.info,
+    destructive: brand.error ?? base.destructive,
+    onDestructive: _onColorFor(brand.error, brand.onError, base.onDestructive),
+    errorContainer: brand.errorContainer ?? base.errorContainer,
+    onErrorContainer: _onColorFor(
+      brand.errorContainer,
+      brand.onErrorContainer,
+      base.onErrorContainer,
+    ),
+    successContainer: brand.successContainer ?? base.successContainer,
+    onSuccessContainer: _onColorFor(
+      brand.successContainer,
+      brand.onSuccessContainer,
+      base.onSuccessContainer,
+    ),
+    link: brand.link ?? base.link,
   );
+}
+
+/// The on-color for an optional surface: the brand's [on] if given, else a
+/// WCAG-readable tone derived from [surface] when the brand set it, else the
+/// base value (so an untouched role stays byte-identical).
+Color _onColorFor(Color? surface, Color? on, Color base) {
+  if (on != null) return on;
+  if (surface != null) return readableOn(surface);
+  return base;
 }
 
 ({String family, List<String> fallback})? _lowerMonospace(
@@ -107,5 +131,10 @@ SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
 bool _onColorContrastOk(SoliplexColors c) {
   return contrastRatio(c.primary, c.onPrimary) >= _minContrast &&
       contrastRatio(c.secondary, c.onSecondary) >= _minContrast &&
-      contrastRatio(c.tertiary, c.onTertiary) >= _minContrast;
+      contrastRatio(c.tertiary, c.onTertiary) >= _minContrast &&
+      contrastRatio(c.destructive, c.onDestructive) >= _minContrast &&
+      contrastRatio(c.errorContainer, c.onErrorContainer) >= _minContrast &&
+      contrastRatio(c.successContainer, c.onSuccessContainer) >= _minContrast &&
+      // [link] has no on-color: it is foreground drawn on the background.
+      contrastRatio(c.link, c.background) >= _minContrast;
 }
