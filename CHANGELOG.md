@@ -10,12 +10,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- Design system: themes are now customizable through a public `BrandTheme`
+  contract — a per-brightness `BrandColorScheme`, `BrandTypography` (font
+  families via a pluggable `FontResolver` seam, plus per-role type-scale
+  deltas), and `BrandShape` corner radii — lowered to `ThemeData` by
+  `lowerBrandTheme`. A flavor passes a `BrandTheme` and an `AppIdentity` to
+  `standard()`. Unspecified on-colors get a WCAG-readable foreground (debug
+  assert below 4.5:1). The shipped Soliplex look is byte-for-byte unchanged.
 - Room: threads now show a "New messages" divider at the first unread message
   and auto-scroll to it on open. Read state is tracked per-device, by message
   id; there is no server-side read state or unread count.
 
 ### Changed
 
+- Design system (**breaking for whitelabel forks**): `SoliplexBranding` is
+  replaced by `AppIdentity` (app name + logos) plus `BrandTheme` (visual
+  theme); `standard()` now takes `identity:` + `theme:` instead of
+  `branding:`. The `SymbolicColors` status accessors moved from `ColorScheme`
+  to `BuildContext` (`colorScheme.danger` → `context.danger`), and app corner
+  radii now read `context.radii` so a `BrandShape` override reaches them.
 - Room: a room now keeps its unread dot while any of its threads is unread,
   instead of clearing the moment the room is opened. Read state stays
   per-device; the room marker is derived from thread-read state.

@@ -49,10 +49,10 @@
   --sp-link:                        #2563EB;
 
   /* Symbolic */
-  --sp-info:    #2563EB;
-  --sp-success: #16A34A;
-  --sp-warning: #F97316;
-  --sp-danger:  #DC2626;
+  --sp-danger:  #F44336;
+  --sp-success: #4CAF50;
+  --sp-warning: #FF9800;
+  --sp-info:    #2196F3;
 
   /* Brand (mark only — never UI chrome) */
   --sp-brand-mark-bg:      #2F3337;
@@ -96,10 +96,10 @@
   --sp-inverse-primary:             #555555;
   --sp-link:                        #60A5FA;
 
-  --sp-info:    #93C5FD;
-  --sp-success: #86EFAC;
-  --sp-warning: #FDBA74;
-  --sp-danger:  #FCA5A5;
+  --sp-danger:  #E57373;
+  --sp-success: #81C784;
+  --sp-warning: #FFB74D;
+  --sp-info:    #64B5F6;
 }
 
 @media (prefers-color-scheme: dark) {

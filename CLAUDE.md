@@ -68,11 +68,16 @@ Mental model: `Watch` is to signals what `StreamBuilder` is to streams.
 
 ### Theming
 
-`ShellConfig` takes `ThemeData` directly — Flutter's standard abstraction. Each flavor
-provides its own `ThemeData`. Custom palette abstractions deferred until multiple
-flavors need them. The brand tokens that build those `ThemeData` instances live in
-the `soliplex_design` workspace package (`packages/soliplex_design/`) — see the
-**Design system** section below before writing UI code.
+A flavor's visual theme is a **`BrandTheme`** — the public customization contract
+(colors per brightness, fonts, corner radii) built from plain Flutter types.
+`standard()` takes a `BrandTheme` (defaulting to `const BrandTheme.soliplex()`), an
+`AppIdentity` (app name + logos), and a `FontResolver`, then lowers the brand to
+`ThemeData` via `lowerBrandTheme(theme, brightness)`. Whitelabel forks customize by
+passing `BrandTheme.fromSeed(...)` / `.fromAccents(...)` or a fully-specified
+`BrandTheme`; the internal token system stays private behind that lowering boundary.
+Spacing and breakpoints are fixed. The brand tokens live in the `soliplex_design`
+workspace package (`packages/soliplex_design/`) — see the **Design system** section
+below and `packages/soliplex_design/README.md` before writing UI code.
 
 ### Flavors
 
@@ -98,8 +103,8 @@ code** — it has the full accessor cheat sheet and the component inventory.
    `Theme.of(context).colorScheme.<token>` or
    `SoliplexTheme.of(context).colors.<token>`.
 2. **No `Colors.red|green|orange|blue|yellow`** (or their `.shadeN` variants) for
-   status. Use the `SymbolicColors` extension on `ColorScheme`:
-   `colorScheme.danger`, `success`, `warning`, `info`. For errors *with* a
+   status. Use the `SymbolicColors` extension on `BuildContext`:
+   `context.danger`, `success`, `warning`, `info`. For errors *with* a
    container surface, use `colorScheme.errorContainer` /
    `onErrorContainer` — **not** `danger`.
 3. **No magic `EdgeInsets` / `SizedBox` numbers.** Use `SoliplexSpacing.s1`
@@ -107,8 +112,8 @@ code** — it has the full accessor cheat sheet and the component inventory.
    no `s5` — the scale steps from `s4` (16) straight to `s6` (24); use `s6`
    rather than reaching for 20. The only documented exception is chat bubble
    padding `14/10`.
-4. **No raw `BorderRadius.circular(N)`.** Use
-   `SoliplexTheme.of(context).radii.{sm|md|lg|xl}`. Default is `md` (12 px);
+4. **No raw `BorderRadius.circular(N)`.** Use `context.radii.{sm|md|lg|xl}`
+   (or `SoliplexTheme.of(context).radii`). Default is `md` (12 px);
    `sm` (6 px) only for checkboxes and small hit-target wells.
 5. **No `TextStyle(fontSize: ...)` or bare `fontSize:` in `.copyWith`.** Start
    from a `Theme.of(context).textTheme.<style>` entry and `.copyWith` only the
@@ -137,9 +142,9 @@ code** — it has the full accessor cheat sheet and the component inventory.
 | What                  | How                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | Color                 | `Theme.of(context).colorScheme.<token>` or `SoliplexTheme.of(context).colors.<token>`                |
-| Status color          | `colorScheme.{danger,success,warning,info}` (via `SymbolicColors`)                                   |
+| Status color          | `context.{danger,success,warning,info}` (via `SymbolicColors` on `BuildContext`)                     |
 | Spacing               | `SoliplexSpacing.{s1,s2,s3,s4,s6}` (4/8/12/16/24)                                                    |
-| Radius                | `SoliplexTheme.of(context).radii.{sm,md,lg,xl}` (6/12/16/24)                                         |
+| Radius                | `context.radii.{sm,md,lg,xl}` (6/12/16/24)                                                           |
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace`                                                                                  |
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
@@ -181,10 +186,10 @@ Don't, without explicit user approval. If a value is genuinely missing:
 
 - [ ] Colors come from `Theme.of(context).colorScheme` (or `SoliplexTheme`), not hex literals.
 - [ ] Padding values come from `SoliplexSpacing`.
-- [ ] Corner radii come from `SoliplexTheme.of(context).radii`.
+- [ ] Corner radii come from `context.radii`.
 - [ ] Text styles come from `Theme.of(context).textTheme`.
 - [ ] Monospace uses `context.monospace`.
-- [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Status colors go through `context.{danger,success,warning,info}`.
 - [ ] Interactive widgets use the branded `SoliplexX` wrapper when one exists
       (button, badge, chip, input, dropdown, date/time picker).
 - [ ] Screen behaves at all three `SoliplexBreakpoints`.

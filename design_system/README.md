@@ -45,6 +45,10 @@ These files describe an **existing, shipped design system**. They are not protot
 | onErrorContainer            | `#991B1B`            |
 | successContainer            | `#DCFCE7`            |
 | onSuccessContainer          | `#166534`            |
+| danger                      | `#F44336`            |
+| success                     | `#4CAF50`            |
+| warning                     | `#FF9800`            |
+| info                        | `#2196F3`            |
 | border                      | `rgba(0,0,0,0.10)`   |
 | outline                     | `#C0C0C4`            |
 | outlineVariant              | `#E0E0E2`            |
@@ -82,6 +86,10 @@ These files describe an **existing, shipped design system**. They are not protot
 | onErrorContainer            | `#FCA5A5`            |
 | successContainer            | `#1A3D1A`            |
 | onSuccessContainer          | `#86EFAC`            |
+| danger                      | `#E57373`            |
+| success                     | `#81C784`            |
+| warning                     | `#FFB74D`            |
+| info                        | `#64B5F6`            |
 | border                      | `#2A2A2A`            |
 | outline                     | `#555555`            |
 | outlineVariant              | `#3A3A3A`            |
@@ -194,11 +202,11 @@ The tablet/desktop boundary (840) is where the sidebar becomes persistent instea
 - Phases: `idle → countdown → modal? → submitted`.
 
 ### Status & Symbolic colors
-Read via the `SymbolicColors` extension on `ColorScheme`:
-- `info` — blue (light: `Colors.blue`, dark: `Colors.blue.shade300`)
-- `success` — green
-- `warning` — orange
-- `danger` — red
+Read via the `SymbolicColors` extension on `BuildContext` (`context.danger` / `success` / `warning` / `info`). Each is a semantic status accent (badge/chip/status icon); light uses the Material primary swatch value, dark uses the `.shade300` value:
+- `danger` — red (light: `#F44336`, dark: `#E57373`)
+- `success` — green (light: `#4CAF50`, dark: `#81C784`)
+- `warning` — orange (light: `#FF9800`, dark: `#FFB74D`)
+- `info` — blue (light: `#2196F3`, dark: `#64B5F6`)
 
 Errors that need a container use `errorContainer` / `onErrorContainer` from the scheme, **not** the symbolic `danger`. Success states that need a container use `successContainer` / `onSuccessContainer`, read via `SoliplexTheme.of(context).colors`.
 
@@ -238,10 +246,10 @@ Riverpod throughout. Each feature module exposes a `ModuleContribution { routes,
 ## Adoption checklist (run before opening a PR)
 - [ ] Colors come from `Theme.of(context).colorScheme`, not hex literals.
 - [ ] Padding values come from `SoliplexSpacing` (`s1..s6`).
-- [ ] Corner radii come from `soliplexRadii` via `SoliplexTheme.of(context).radii`.
+- [ ] Corner radii come from `context.radii`.
 - [ ] Text styles come from `Theme.of(context).textTheme`.
 - [ ] Monospace uses `context.monospace`, not a hardcoded font family.
-- [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Status colors go through `context.{danger,success,warning,info}`.
 - [ ] Screen behaves at all three `SoliplexBreakpoints`.
 - [ ] Both light and dark palettes look correct.
 - [ ] Destructive actions use `colorScheme.error`; never red hex.
