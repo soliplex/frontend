@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/brand/contrast.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
 
 /// The frozen public customization contract.
@@ -120,10 +121,9 @@ class BrandColorScheme {
 
   /// Derives a palette from a single brand [accent].
   ///
-  /// The accent drives [primary] and a contrasting [onPrimary]; every other
-  /// role stays the neutral base for [brightness]. Mirrors
-  /// [SoliplexColors.fromAccent]: surfaces stay brand-independent so colored
-  /// content on them keeps reading correctly.
+  /// The accent drives [primary] and a WCAG-readable [onPrimary]; every other
+  /// role stays the neutral base for [brightness], so colored content on those
+  /// surfaces keeps reading correctly.
   factory BrandColorScheme.fromAccent(
     Color accent, {
     required Brightness brightness,
@@ -133,7 +133,7 @@ class BrandColorScheme {
         : _defaultDarkColors;
     return base.copyWith(
       primary: accent,
-      onPrimary: contrastingForeground(accent),
+      onPrimary: readableOn(accent),
     );
   }
 

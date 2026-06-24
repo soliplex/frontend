@@ -7,6 +7,7 @@ import 'package:soliplex_design/src/brand/font_resolver.dart';
 import 'package:soliplex_design/src/theme/theme.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 class _RecordingResolver implements FontResolver {
   final List<String> requested = [];
@@ -93,6 +94,18 @@ SoliplexColors loweredColors(BrandTheme theme, Brightness brightness) =>
     lowerBrandTheme(theme, brightness).extension<SoliplexTheme>()!.colors;
 
 void main() {
+  late MemorySink logs;
+  setUp(() {
+    logs = MemorySink();
+    LogManager.instance.addSink(logs);
+  });
+  tearDown(LogManager.instance.reset);
+
+  Iterable<LogRecord> contrastWarnings() =>
+      logs.records.where((r) => r.level == LogLevel.warning);
+  Iterable<LogRecord> roleWarnings(String role) =>
+      contrastWarnings().where((r) => r.attributes['role'] == role);
+
   group('lowerBrandTheme defaults are byte-identical to today', () {
     test('light palette', () {
       expectSameColors(
@@ -126,6 +139,19 @@ void main() {
       );
       expect(colors.primary, const Color(0xFF112233));
       expect(colors.onPrimary, const Color(0xFFFFFFFF));
+    });
+
+    test('a mid-tone seed still derives an AA-readable onPrimary', () {
+      // A mid-luminance seed is the case where the softer #0A0A0A foreground
+      // bottoms out below AA; fromAccent must pick a pure black/white tone.
+      final colors = loweredColors(
+        BrandTheme.fromSeed(const Color(0xFF777777)),
+        Brightness.light,
+      );
+      expect(
+        contrastRatio(colors.primary, colors.onPrimary),
+        greaterThanOrEqualTo(4.5),
+      );
     });
 
     test('an unspecified onColor gets a WCAG-readable foreground', () {
@@ -263,19 +289,32 @@ void main() {
     });
   });
 
-  group('lowerBrandTheme contrast assert', () {
-    test('fires in debug on a sub-threshold on-color pair', () {
+  group('lowerBrandTheme contrast warning', () {
+    test('warns but keeps a sub-threshold on-color pair verbatim', () {
       final bad = const BrandTheme.soliplex().light.copyWith(
             primary: const Color(0xFFFFFFFF),
             onPrimary: const Color(0xFFFFFFFF),
           );
-      expect(
-        () => lowerBrandTheme(
-          BrandTheme(light: bad, dark: const BrandTheme.soliplex().dark),
-          Brightness.light,
-        ),
-        throwsA(isA<AssertionError>()),
+      final colors = loweredColors(
+        BrandTheme(light: bad, dark: const BrandTheme.soliplex().dark),
+        Brightness.light,
       );
+      expect(colors.onPrimary, const Color(0xFFFFFFFF));
+      expect(roleWarnings('onPrimary'), hasLength(1));
+    });
+
+    test('the default theme produces no contrast warnings', () {
+      loweredColors(const BrandTheme.soliplex(), Brightness.light);
+      loweredColors(const BrandTheme.soliplex(), Brightness.dark);
+      expect(contrastWarnings(), isEmpty);
+    });
+
+    test('an auto-derived on-color never warns', () {
+      loweredColors(
+        BrandTheme.fromSeed(const Color(0xFF0066CC)),
+        Brightness.light,
+      );
+      expect(contrastWarnings(), isEmpty);
     });
   });
 
@@ -379,69 +418,78 @@ void main() {
       expect(colors.successContainer, lightSoliplexColors.successContainer);
       expect(colors.onSuccessContainer, lightSoliplexColors.onSuccessContainer);
     });
+
+    test('a custom tertiary lowers and derives an AA on-color', () {
+      final colors = loweredColors(
+        brandWith((b) => b.copyWith(tertiary: const Color(0xFF2E7D32))),
+        Brightness.light,
+      );
+      expect(colors.tertiary, const Color(0xFF2E7D32));
+      expect(
+        contrastRatio(colors.tertiary, colors.onTertiary),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
+    test('custom error / container roles lower in the dark palette', () {
+      final colors = loweredColors(
+        BrandTheme(
+          light: const BrandTheme.soliplex().light,
+          dark: const BrandTheme.soliplex().dark.copyWith(
+                error: const Color(0xFFCF6679),
+                errorContainer: const Color(0xFF3D1A1A),
+              ),
+        ),
+        Brightness.dark,
+      );
+      expect(colors.destructive, const Color(0xFFCF6679));
+      expect(colors.errorContainer, const Color(0xFF3D1A1A));
+      expect(
+        contrastRatio(colors.errorContainer, colors.onErrorContainer),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
   });
 
-  group(
-      'lowerBrandTheme contrast assert covers the error / status-surface / '
-      'link roles', () {
+  group('lowerBrandTheme contrast warning scopes link and covers foreground',
+      () {
     BrandTheme badLight(BrandColorScheme Function(BrandColorScheme) edit) =>
         BrandTheme(
           light: edit(const BrandTheme.soliplex().light),
           dark: const BrandTheme.soliplex().dark,
         );
 
-    test('fires on an illegible link against the background', () {
-      expect(
-        () => lowerBrandTheme(
-          badLight((b) => b.copyWith(link: const Color(0xFFFFFFFF))),
-          Brightness.light,
-        ),
-        throwsA(isA<AssertionError>()),
+    test('warns on an illegible link against the background', () {
+      loweredColors(
+        badLight((b) => b.copyWith(link: const Color(0xFFFFFFFF))),
+        Brightness.light,
       );
+      expect(roleWarnings('link'), hasLength(1));
     });
 
-    test('does not fire on an unset link, even with an off-white background',
+    test('does not warn on an unset link, even with an off-white background',
         () {
       // A fork lightens only the background; the *default* link would be
-      // sub-AA against it, but link is not a role this fork set, so the assert
-      // must not fail on it.
-      expect(
-        () => lowerBrandTheme(
-          badLight((b) => b.copyWith(background: const Color(0xFFEEEEEE))),
-          Brightness.light,
-        ),
-        returnsNormally,
+      // sub-AA against it, but link is not a role this fork set, so it is not
+      // the fork's responsibility and must not warn.
+      loweredColors(
+        badLight((b) => b.copyWith(background: const Color(0xFFEEEEEE))),
+        Brightness.light,
       );
+      expect(roleWarnings('link'), isEmpty);
     });
 
-    test('fires on a sub-threshold error / onError pair', () {
-      expect(
-        () => lowerBrandTheme(
-          badLight(
-            (b) => b.copyWith(
-              error: const Color(0xFFFFFFFF),
-              onError: const Color(0xFFFFFFFF),
-            ),
+    test('warns on a sub-threshold foreground / background pair', () {
+      loweredColors(
+        badLight(
+          (b) => b.copyWith(
+            background: const Color(0xFFFFFFFF),
+            foreground: const Color(0xFFEEEEEE),
           ),
-          Brightness.light,
         ),
-        throwsA(isA<AssertionError>()),
+        Brightness.light,
       );
-    });
-
-    test('fires on a sub-threshold error container pair', () {
-      expect(
-        () => lowerBrandTheme(
-          badLight(
-            (b) => b.copyWith(
-              errorContainer: const Color(0xFFFFFFFF),
-              onErrorContainer: const Color(0xFFFFFFFF),
-            ),
-          ),
-          Brightness.light,
-        ),
-        throwsA(isA<AssertionError>()),
-      );
+      expect(roleWarnings('foreground'), hasLength(1));
     });
   });
 }

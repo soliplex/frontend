@@ -134,12 +134,12 @@ void main() {
       expect(c.foreground, const Color(0xFF0A0A0A));
     });
 
-    test('fromAccent picks a dark onPrimary for a light accent', () {
+    test('fromAccent picks a black onPrimary for a light accent', () {
       final c = BrandColorScheme.fromAccent(
         const Color(0xFFEEEEEE),
         brightness: Brightness.light,
       );
-      expect(c.onPrimary, const Color(0xFF0A0A0A));
+      expect(c.onPrimary, const Color(0xFF000000));
     });
 
     test('fromAccent uses the dark neutral base for dark brightness', () {
