@@ -35,6 +35,15 @@ void main() {
       expect(a.copyWith(md: 20).md, 20);
       expect(a.copyWith(md: 20).sm, 6);
     });
+
+    test('custom() asserts radii are non-negative', () {
+      // Via copyWith so the const constructor's assert fires at call time
+      // rather than being folded at compile time.
+      expect(
+        () => const BrandShape.rounded().copyWith(sm: -1),
+        throwsAssertionError,
+      );
+    });
   });
 
   group('TypeScaleOverride', () {

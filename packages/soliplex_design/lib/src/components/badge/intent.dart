@@ -70,8 +70,8 @@ enum BadgeIntent {
       );
     case BadgeIntent.danger:
       return (
-        background: scheme.errorContainer,
-        foreground: scheme.onErrorContainer,
+        background: soliplex.colors.errorContainer,
+        foreground: soliplex.colors.onErrorContainer,
       );
   }
 }

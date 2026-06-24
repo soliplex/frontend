@@ -316,6 +316,23 @@ void main() {
       );
       expect(contrastWarnings(), isEmpty);
     });
+
+    test('warns on a muted-text pair below the 3:1 floor', () {
+      // muted text is de-emphasized, so it is held to the 3:1 large-text floor
+      // rather than AA 4.5 (the shipped dark pair is ~4.19:1 by design). A pair
+      // this close still has to warn.
+      loweredColors(
+        BrandTheme(
+          light: const BrandTheme.soliplex().light.copyWith(
+                muted: const Color(0xFF808080),
+                mutedForeground: const Color(0xFF8A8A8A),
+              ),
+          dark: const BrandTheme.soliplex().dark,
+        ),
+        Brightness.light,
+      );
+      expect(roleWarnings('mutedForeground'), hasLength(1));
+    });
   });
 
   group('lowerBrandTheme lowers the error / status-surface / link roles', () {

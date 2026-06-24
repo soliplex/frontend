@@ -17,6 +17,11 @@ final Logger _log = LogManager.instance.getLogger('soliplex_design.BrandTheme');
 /// is used as-is and logged as a warning — its legibility is the fork's call.
 const _minContrast = 4.5;
 
+/// Contrast floor for de-emphasized (`mutedForeground`) text. Held to WCAG's
+/// 3:1 large-text/UI bar, not AA 4.5: muted text is intentionally low-emphasis
+/// and the shipped dark pair sits at ~4.19:1 against the muted surface.
+const _minMutedContrast = 3.0;
+
 /// Lowers a public [BrandTheme] onto the internal token system for the given
 /// [brightness], producing a ready `ThemeData`.
 ///
@@ -131,16 +136,22 @@ Color _onColorFor(Color? surface, Color? on, Color base) {
 }
 
 /// Logs a warning for each role whose foreground/background pair falls below
-/// [_minContrast]. Derived on-colors clear it by construction, so only a
-/// fork's own explicit choices ever warn. The colors are used as-is regardless.
+/// its contrast floor ([_minContrast], or [_minMutedContrast] for muted text).
+/// Derived on-colors clear it by construction, so only a fork's own explicit
+/// choices ever warn. The colors are used as-is regardless.
 void _warnLowContrast(SoliplexColors c, BrandColorScheme brand) {
-  void check(String role, Color foreground, Color background) {
+  void check(
+    String role,
+    Color foreground,
+    Color background, {
+    double min = _minContrast,
+  }) {
     final ratio = contrastRatio(foreground, background);
-    if (ratio >= _minContrast) return;
+    if (ratio >= min) return;
     _log.warning(
       'BrandTheme "$role" contrast is ${ratio.toStringAsFixed(2)}:1, below '
-      'WCAG AA $_minContrast:1. The supplied color is used as-is; verify it is '
-      'legible.',
+      '${min.toStringAsFixed(1)}:1. The supplied color is used as-is; verify '
+      'it is legible.',
       attributes: {'role': role, 'ratio': ratio},
     );
   }
@@ -152,6 +163,7 @@ void _warnLowContrast(SoliplexColors c, BrandColorScheme brand) {
   check('onErrorContainer', c.onErrorContainer, c.errorContainer);
   check('onSuccessContainer', c.onSuccessContainer, c.successContainer);
   check('foreground', c.foreground, c.background);
+  check('mutedForeground', c.mutedForeground, c.muted, min: _minMutedContrast);
 
   // [link] has no on-color — it is foreground drawn on the background — and is
   // checked only when the fork set it. An unset link keeps the base default,

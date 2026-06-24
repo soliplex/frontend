@@ -36,6 +36,9 @@ import '../modules/versions/versions_module.dart';
 Future<ShellConfig> standard({
   AppIdentity? identity,
   BrandTheme theme = const BrandTheme.soliplex(),
+  // Markings don't flip with brightness — the same instance feeds both themes.
+  // Omitted → the design system's neutral built-in (no pills). This is the
+  // adopter's configuration point for deployment vocabularies.
   ClassificationTheme? classifications,
   FontResolver fontResolver = const BundledFontResolver(),
   ThemeMode themeMode = ThemeMode.system,
@@ -47,9 +50,6 @@ Future<ShellConfig> standard({
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
-  // Markings don't flip with brightness — the same instance feeds both
-  // themes. Omitted → the design system's neutral built-in (no pills).
-  // This is the adopter's configuration point for deployment vocabularies.
   final lightTheme = lowerBrandTheme(
     theme,
     Brightness.light,

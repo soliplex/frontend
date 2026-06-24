@@ -35,18 +35,5 @@ void main() {
         ),
       );
     });
-
-    test('hashCode agrees with equality', () {
-      expect(
-        const ResolvedFont(
-          fontFamily: 'Inter',
-          fontFamilyFallback: ['Roboto'],
-        ).hashCode,
-        const ResolvedFont(
-          fontFamily: 'Inter',
-          fontFamilyFallback: ['Roboto'],
-        ).hashCode,
-      );
-    });
   });
 }

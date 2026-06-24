@@ -10,6 +10,24 @@ ThemeData _themeWithWarning(Color warning) => lowerBrandTheme(
       Brightness.light,
     );
 
+const _errorContainer = Color(0xFF330007);
+const _onErrorContainer = Color(0xFFFFE9EC);
+const _successContainer = Color(0xFF062E12);
+const _onSuccessContainer = Color(0xFFEAFBF0);
+
+ThemeData _themeWithContainers() => lowerBrandTheme(
+      BrandTheme(
+        light: const BrandTheme.soliplex().light.copyWith(
+              errorContainer: _errorContainer,
+              onErrorContainer: _onErrorContainer,
+              successContainer: _successContainer,
+              onSuccessContainer: _onSuccessContainer,
+            ),
+        dark: const BrandTheme.soliplex().dark,
+      ),
+      Brightness.light,
+    );
+
 Future<T> _readUnder<T>(
   WidgetTester tester,
   ThemeData? theme,
@@ -86,6 +104,39 @@ void main() {
       );
       expect(colors.foreground, custom);
       expect(colors.background, custom.withValues(alpha: 0.15));
+    });
+
+    testWidgets('badge danger uses the brand error-container tokens',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => badgeIntentColors(BadgeIntent.danger, c),
+      );
+      expect(colors.background, _errorContainer);
+      expect(colors.foreground, _onErrorContainer);
+    });
+
+    testWidgets('badge success uses the brand success-container tokens',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => badgeIntentColors(BadgeIntent.success, c),
+      );
+      expect(colors.background, _successContainer);
+      expect(colors.foreground, _onSuccessContainer);
+    });
+
+    testWidgets('chip danger uses the brand error-container tokens',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => chipIntentColors(ChipIntent.danger, c),
+      );
+      expect(colors.background, _errorContainer);
+      expect(colors.foreground, _onErrorContainer);
     });
   });
 }

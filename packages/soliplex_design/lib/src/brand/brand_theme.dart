@@ -460,7 +460,10 @@ class BrandShape {
     this.md = 12,
     this.lg = 16,
     this.xl = 24,
-  });
+  }) : assert(
+          sm >= 0 && md >= 0 && lg >= 0 && xl >= 0,
+          'BrandShape radii must be non-negative.',
+        );
 
   final double sm;
   final double md;

@@ -19,10 +19,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `ThemeData` by `lowerBrandTheme`. A flavor passes a `BrandTheme` and an
   `AppIdentity` to `standard()`. An unset role falls back to the base palette
   and unspecified on-colors get a WCAG-readable foreground, so derived colors
-  clear AA; an explicitly-set on-color is used as-is, and a pair below 4.5:1
-  (the on-color pairs, `foreground`/`background`, and `link` against the
-  background) is logged as a warning. The shipped Soliplex look is byte-for-byte
-  unchanged.
+  clear AA; an explicitly-set on-color is used as-is, and a sub-AA pair (the
+  on-color pairs, `foreground`/`background`, and `link` against the background),
+  or muted text below 3:1, is logged as a warning. The shipped Soliplex look is
+  byte-for-byte unchanged.
 - Room: threads now show a "New messages" divider at the first unread message
   and auto-scroll to it on open. Read state is tracked per-device, by message
   id; there is no server-side read state or unread count.

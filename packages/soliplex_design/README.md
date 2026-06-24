@@ -96,9 +96,10 @@ colors (`danger`/`success`/`warning`/`info`); the error/destructive role
 `ColorScheme` convention. An unset role falls back to the base palette and an
 unset `on*` color gets a WCAG-readable foreground, so derived colors always clear
 AA. An `on*` color you set explicitly is used as-is — its legibility is your call
-— and a pair below 4.5:1 (including `foreground`/`background`, and `link` against
-`background` when you set `link`) is logged as a warning. Links also render on
-neutral surfaces beyond `background`; verify those contrasts yourself.
+— and a sub-AA pair (the `on*` pairs, `foreground`/`background`, and `link`
+against `background` when you set `link`), or `mutedForeground`/`muted` below
+3:1, is logged as a warning. Links also render on neutral surfaces beyond
+`background`; verify those contrasts yourself.
 
 **`danger` vs `error` — two reds, distinct roles.** `danger` is the inline
 status *signal* (`context.danger`: badges, status text — no fill); `error` is

@@ -37,6 +37,11 @@ abstract class FontResolver {
 /// The default resolver. It performs no lookup of its own: families declared
 /// in the consumer's `pubspec.yaml` resolve through Flutter's native asset
 /// font machinery, so this works offline and in airgapped environments.
+///
+/// A family that is not bundled (or is misspelled) falls back to the platform
+/// default font with no load-time signal — Flutter resolves font assets lazily
+/// at render, so the theme layer cannot verify a family exists. Confirm a
+/// custom font actually renders by eye.
 class BundledFontResolver extends FontResolver {
   const BundledFontResolver();
 

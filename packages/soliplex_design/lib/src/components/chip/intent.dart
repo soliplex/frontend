@@ -38,7 +38,6 @@ enum ChipIntent {
   ChipIntent intent,
   BuildContext context,
 ) {
-  final scheme = Theme.of(context).colorScheme;
   final soliplex = SoliplexTheme.of(context);
 
   switch (intent) {
@@ -61,8 +60,8 @@ enum ChipIntent {
       );
     case ChipIntent.danger:
       return (
-        background: scheme.errorContainer,
-        foreground: scheme.onErrorContainer,
+        background: soliplex.colors.errorContainer,
+        foreground: soliplex.colors.onErrorContainer,
       );
   }
 }
