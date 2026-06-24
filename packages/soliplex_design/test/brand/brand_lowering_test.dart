@@ -436,6 +436,30 @@ void main() {
       expect(colors.onSuccessContainer, lightSoliplexColors.onSuccessContainer);
     });
 
+    test('an unset tertiary keeps the base on-tertiary, not a re-derived one',
+        () {
+      // The dark base tertiary (#9CA3AF) would derive pure black via
+      // readableOn, which differs from the base #1F1F1F on-color. An on-color
+      // whose surface the fork never set must stay byte-identical to the base.
+      final colors = loweredColors(
+        BrandTheme(
+          light: const BrandTheme.soliplex().light,
+          dark: const BrandColorScheme(
+            primary: Color(0xFFFAFAFA),
+            secondary: Color(0xFF2A2A2A),
+            background: Color(0xFF111111),
+            foreground: Color(0xFFFAFAFA),
+            muted: Color(0xFF444444),
+            mutedForeground: Color(0xFFAAAAAA),
+            border: Color(0xFF2A2A2A),
+          ),
+        ),
+        Brightness.dark,
+      );
+      expect(colors.tertiary, darkSoliplexColors.tertiary);
+      expect(colors.onTertiary, darkSoliplexColors.onTertiary);
+    });
+
     test('a custom tertiary lowers and derives an AA on-color', () {
       final colors = loweredColors(
         brandWith((b) => b.copyWith(tertiary: const Color(0xFF2E7D32))),

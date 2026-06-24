@@ -90,7 +90,7 @@ SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
     mutedForeground: brand.mutedForeground,
     border: brand.border,
     tertiary: tertiary,
-    onTertiary: brand.onTertiary ?? readableOn(tertiary),
+    onTertiary: _onColorFor(brand.tertiary, brand.onTertiary, base.onTertiary),
     danger: brand.danger ?? base.danger,
     success: brand.success ?? base.success,
     warning: brand.warning ?? base.warning,
