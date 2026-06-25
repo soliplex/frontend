@@ -85,10 +85,7 @@ class _ConnectFlowRailState extends State<ConnectFlowRail> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    // The brand type ramp ships only labelMedium / labelSmall for labels, so
-    // labelMedium keeps the rail on-token; a larger label style would fall
-    // through to Material's off-brand default.
-    final baseStyle = theme.textTheme.labelMedium;
+    final baseStyle = theme.textTheme.labelLarge;
 
     return Container(
       padding: const EdgeInsets.symmetric(

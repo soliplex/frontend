@@ -53,7 +53,7 @@ class SoliplexClassificationBadge extends StatelessWidget {
             vertical: SoliplexSpacing.s1,
           ),
           radius: context.radii.sm,
-          textStyle: textTheme.labelMedium!.copyWith(
+          textStyle: textTheme.labelLarge!.copyWith(
             fontWeight: FontWeight.w700,
           ),
         ),
