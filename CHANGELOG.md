@@ -8,6 +8,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Design system: `BrandTypography` now covers all 15 Material text roles (up
+  from 9) — `displayLarge/Medium/Small`, `headlineLarge/Small`, and `labelLarge`
+  are now built and each accepts a per-role `TypeScaleOverride`. A role can be
+  pointed at a named font family via `TypeScaleOverride.family`
+  (`BrandFontRole.{body,display,brand}`), and a fourth `brandFamily` font is
+  available — it renders the app/brand name in the auth and lobby headers, read
+  through `context.brandFont` / `context.brandNameOn`.
+- Design system: `BrandTint` and `TintSource` are re-exported from
+  `soliplex_frontend`, so a facade-only consumer can build
+  `BrandTheme(tint: ...)` without depending on `soliplex_design` directly.
+
 ### Changed
 
 - Chat: a message's timestamp now comes from the backend's authoritative time
@@ -16,6 +29,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   optimistic user echo fills in on replay). Client-only tiles (cancellation,
   loading, in-flight streaming, locally executed tool results) carry a UTC
   client time.
+- Design system: the label type scale is now strictly ordered at 12 / 14 / 16
+  (`labelSmall` / `labelMedium` / `labelLarge`). `labelLarge` is built at 16 and
+  drives interactive component text (buttons, chips, tabs, segmented controls),
+  which previously fell through to Material's 14 pt default. `labelMedium` moves
+  to 14 for incidental labels (badges, counters, dividers, filter indicators);
+  prominent labels — the connect-flow rail, room-info section headers, and the
+  classification badge — are pinned to `labelLarge` so they stay at 16.
 
 ### Fixed
 
