@@ -13,13 +13,15 @@ double contrastRatio(Color a, Color b) {
 
 const double _minContrast = 4.5;
 
-// Softest-first foreground cascades. Each side ends in a pure tone, which
-// always clears AA on the side it is chosen for (worst case ≈4.58:1 at the
-// contrast crossover), so the cascade can never bottom out below 4.5:1. The
-// softer
-// near-tones are preferred because pure black/white is harsher on the eyes;
-// a pure tone is the last resort, reached only on a mid-tone surface where
-// even the near-tone dips below AA.
+// Softest-first foreground cascades. Each side ends in a pure tone whose
+// contrast against any surface it is chosen for never drops below ≈4.58:1 (the
+// minimum, at the black/white crossover), so the loop in [readableOn] is always
+// able to find a tone clearing AA — it never falls through to a sub-AA result.
+// The returned tone itself is only guaranteed ≥4.5:1: a near-tone is accepted
+// as soon as it clears that floor, so a returned pair can sit right at 4.5. The
+// softer near-tones are preferred because pure black/white is harsher on the
+// eyes; a pure tone is the last resort, reached only on a mid-tone surface
+// where even the near-tone dips below AA.
 const List<Color> _darkInk = [
   Color(0xFF212427),
   Color(0xFF0A0A0A),

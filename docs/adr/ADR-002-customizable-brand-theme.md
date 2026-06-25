@@ -307,11 +307,14 @@ exact checked set, and what is deliberately *not* checked, is in §5.2.
 **`readableOn` is a softest-first cascade.** Instead of pure black/white it
 prefers a soft **near-black `#212427`** (or **near-white `#FAFAFA`**), stepping
 down to `#0A0A0A` and finally pure `#000000` only when a mid-tone surface would
-drop the near-tone below AA. The pure tone is the guaranteed last rung (worst
-case ≈4.58:1), so the cascade is AA-safe by construction while reading softer on
-the eyes — pure black surfaces only on an unusual mid-gray. `fromSeed` /
-`fromAccents` leave `onPrimary` unset so the buffer derives it through this
-cascade.
+drop the near-tone below AA. The pure tone is the guaranteed last rung, never
+below ≈4.58:1 (its minimum, at the black/white crossover), so the loop can
+always find a tone clearing AA — it never falls through to a sub-AA result. The
+returned tone itself is only guaranteed ≥4.5:1: a near-tone is taken as soon as
+it clears that floor, so a derived pair can sit right at 4.5. The cascade is
+AA-safe by construction while reading softer on the eyes — pure black surfaces
+only on an unusual mid-gray. `fromSeed` / `fromAccents` leave `onPrimary` unset
+so the buffer derives it through this cascade.
 
 **Optional brand tint (`BrandTint`).** A brand may tint those derived on-colors
 toward a hue — `TintSource.surface` (tonal, the surface the on-color sits on) or
