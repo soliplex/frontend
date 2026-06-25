@@ -22,6 +22,14 @@ class _RecordingResolver implements FontResolver {
   }
 }
 
+class _NullFamilyResolver implements FontResolver {
+  const _NullFamilyResolver();
+
+  @override
+  ResolvedFont resolve(String family, List<String> fallbacks) =>
+      ResolvedFont(fontFamilyFallback: fallbacks);
+}
+
 void expectSameColors(SoliplexColors a, SoliplexColors b) {
   expect(a.background, b.background, reason: 'background');
   expect(a.foreground, b.foreground, reason: 'foreground');
@@ -252,6 +260,21 @@ void main() {
           typography: const BrandTypography(codeFamily: 'Brandospace'),
         ),
         Brightness.light,
+      );
+      expect(
+        theme.extension<SoliplexTheme>()!.monospace.family,
+        'Brandospace',
+      );
+    });
+
+    test('a resolver returning no family falls back to the code family', () {
+      final theme = lowerBrandTheme(
+        BrandTheme.fromSeed(
+          const Color(0xFF112233),
+          typography: const BrandTypography(codeFamily: 'Brandospace'),
+        ),
+        Brightness.light,
+        fontResolver: const _NullFamilyResolver(),
       );
       expect(
         theme.extension<SoliplexTheme>()!.monospace.family,
