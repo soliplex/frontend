@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/brand/brand_theme.dart';
@@ -8,6 +9,7 @@ import 'package:soliplex_design/src/theme/theme.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
 import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
+import 'package:soliplex_design/src/tokens/typography_x.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _log = LogManager.instance.getLogger('soliplex_design.BrandTheme');
@@ -47,10 +49,14 @@ ThemeData lowerBrandTheme(
   _warnLowContrast(colors, brand, brightness);
 
   final typography = theme.typography;
+  final mono = _lowerMonospace(typography, fontResolver) ??
+      monospaceFontFamily(defaultTargetPlatform);
   final textTheme = soliplexTextTheme(
     colors,
     bodyFamily: typography.bodyFamily,
     displayFamily: typography.displayFamily,
+    brandFamily: typography.brandFamily,
+    monospace: mono,
     fallbacks: typography.fallbacks,
     fontResolver: fontResolver,
     displayLarge: typography.displayLarge,
@@ -79,7 +85,7 @@ ThemeData lowerBrandTheme(
       lg: theme.shape.lg,
       xl: theme.shape.xl,
     ),
-    monospace: _lowerMonospace(typography, fontResolver),
+    monospace: mono,
     brandFont: _lowerBrandFont(typography, fontResolver),
     textTheme: textTheme,
     classifications: classifications,

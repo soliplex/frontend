@@ -99,6 +99,48 @@ void main() {
     });
   });
 
+  group('per-role family routing', () {
+    test('a role overridden to body uses the body family', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        displayFamily: 'Oswald',
+        headlineMedium: const TypeScaleOverride(family: BrandFontRole.body),
+      );
+      expect(theme.headlineMedium!.fontFamily, 'Inter'); // not Oswald (default)
+    });
+
+    test('a role overridden to brand uses the brand family', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        brandFamily: 'Squada One',
+        titleLarge: const TypeScaleOverride(family: BrandFontRole.brand),
+      );
+      expect(theme.titleLarge!.fontFamily, 'Squada One');
+    });
+
+    test('a role overridden to code uses the monospace family', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        monospace: (family: 'JetBrains Mono', fallback: const ['monospace']),
+        labelSmall: const TypeScaleOverride(family: BrandFontRole.code),
+      );
+      expect(theme.labelSmall!.fontFamily, 'JetBrains Mono');
+    });
+
+    test('no family override keeps the group default', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        displayFamily: 'Oswald',
+      );
+      expect(theme.titleLarge!.fontFamily, 'Oswald'); // display group
+      expect(theme.bodyLarge!.fontFamily, 'Inter'); // body group
+    });
+  });
+
   group('soliplexTextTheme builds all 15 roles', () {
     final theme = soliplexTextTheme(lightSoliplexColors);
 

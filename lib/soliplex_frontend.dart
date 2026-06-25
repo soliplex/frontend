@@ -7,6 +7,7 @@ library;
 export 'package:soliplex_design/soliplex_design.dart'
     show
         BrandColorScheme,
+        BrandFontRole,
         BrandShape,
         BrandTheme,
         BrandTint,

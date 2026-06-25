@@ -14,4 +14,9 @@ void main() {
     expect(tinted.tint.source, TintSource.primary);
     expect(tinted.tint.strength, 0.1);
   });
+
+  test('BrandFontRole is exported from the facade', () {
+    expect(BrandFontRole.values.length, 4);
+    expect(BrandFontRole.brand, isNotNull);
+  });
 }

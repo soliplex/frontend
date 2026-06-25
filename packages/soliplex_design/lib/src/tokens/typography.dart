@@ -11,11 +11,14 @@ import 'package:soliplex_design/src/tokens/colors.dart';
 /// tags the body and label roles (and is the fallback for [displayFamily] when
 /// that is null). Family strings resolve through [fontResolver]. A per-role
 /// [TypeScaleOverride] adjusts only the primitives it sets, leaving the rest
-/// of that role at its default.
+/// of that role at its default. [TypeScaleOverride.family] redirects a role to
+/// one of the four named families; null keeps the role's group default.
 TextTheme soliplexTextTheme(
   SoliplexColors colors, {
   String? bodyFamily,
   String? displayFamily,
+  String? brandFamily,
+  ({String family, List<String> fallback})? monospace,
   List<String> fallbacks = const [],
   FontResolver fontResolver = const BundledFontResolver(),
   TypeScaleOverride? displayLarge,
@@ -39,14 +42,33 @@ TextTheme soliplexTextTheme(
       display == null ? null : fontResolver.resolve(display, fallbacks);
   final bodyFont =
       bodyFamily == null ? null : fontResolver.resolve(bodyFamily, fallbacks);
+  final brandFont =
+      brandFamily == null ? null : fontResolver.resolve(brandFamily, fallbacks);
+  final codeFont = monospace == null
+      ? null
+      : ResolvedFont(
+          fontFamily: monospace.family,
+          fontFamilyFallback: monospace.fallback,
+        );
+
+  ResolvedFont? fontFor(ResolvedFont? groupDefault, BrandFontRole? role) {
+    return switch (role) {
+      null => groupDefault,
+      BrandFontRole.body => bodyFont,
+      BrandFontRole.display => displayFont,
+      BrandFontRole.code => codeFont,
+      BrandFontRole.brand => brandFont,
+    };
+  }
 
   TextStyle style(
     double fontSize,
     FontWeight fontWeight,
     double height,
-    ResolvedFont? font,
+    ResolvedFont? groupDefault,
     TypeScaleOverride? override,
   ) {
+    final font = fontFor(groupDefault, override?.family);
     return TextStyle(
       fontSize: override?.fontSize ?? fontSize,
       fontWeight: override?.fontWeight ?? fontWeight,

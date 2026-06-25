@@ -370,9 +370,14 @@ class BrandColorScheme {
       ]);
 }
 
-/// Three font families plus optional per-role primitive deltas. Color and
-/// per-role family are intentionally absent: color comes from the palette and
-/// family is one of the three roles, which avoids dark-mode footguns.
+/// The named font families a text role can be assigned to.
+enum BrandFontRole { body, display, code, brand }
+
+/// Four named font families plus optional per-role primitive and family deltas.
+/// Each text role can be pointed at any of the four families via
+/// [TypeScaleOverride.family]; unset roles use their group default (display
+/// group: display, headline, title; body group: body, label). Per-role color
+/// is not supported — color comes from the palette.
 @immutable
 class BrandTypography {
   const BrandTypography({
@@ -515,6 +520,11 @@ class BrandTypography {
 }
 
 /// Per-role type-scale deltas applied on top of a base text style.
+///
+/// [family] redirects the role to one of the four named families
+/// ([BrandFontRole.body], [BrandFontRole.display], [BrandFontRole.code],
+/// [BrandFontRole.brand]); null keeps the role's group default. The remaining
+/// fields adjust primitive metrics only — per-role color is not supported.
 @immutable
 class TypeScaleOverride {
   const TypeScaleOverride({
@@ -522,6 +532,7 @@ class TypeScaleOverride {
     this.fontWeight,
     this.height,
     this.letterSpacing,
+    this.family,
   })  : assert(
           fontSize == null || fontSize >= 0,
           'TypeScaleOverride.fontSize must be non-negative.',
@@ -535,6 +546,7 @@ class TypeScaleOverride {
   final FontWeight? fontWeight;
   final double? height;
   final double? letterSpacing;
+  final BrandFontRole? family;
 
   @override
   bool operator ==(Object other) =>
@@ -542,10 +554,12 @@ class TypeScaleOverride {
       other.fontSize == fontSize &&
       other.fontWeight == fontWeight &&
       other.height == height &&
-      other.letterSpacing == letterSpacing;
+      other.letterSpacing == letterSpacing &&
+      other.family == family;
 
   @override
-  int get hashCode => Object.hash(fontSize, fontWeight, height, letterSpacing);
+  int get hashCode =>
+      Object.hash(fontSize, fontWeight, height, letterSpacing, family);
 }
 
 /// Corner radii for the four shape steps.
