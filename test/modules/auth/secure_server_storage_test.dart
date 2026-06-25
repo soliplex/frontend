@@ -122,5 +122,57 @@ void main() {
       expect(result['srv-1']!.serverUrl.host, 'one.example.com');
       expect(result['srv-2']!.serverUrl.host, 'two.example.com');
     });
+
+    test('restores cached name and description for a KnownServer', () {
+      final raw = {
+        '${prefix}srv-1': encode({
+          ...knownServerJson(),
+          'name': 'Demo Server',
+          'description': 'A friendly demo instance',
+        }),
+      };
+
+      final result = deserializeStorageEntries(raw, prefix: prefix);
+      final server = result['srv-1']!;
+      expect(server.name, 'Demo Server');
+      expect(server.description, 'A friendly demo instance');
+    });
+
+    test('leaves name/description null when absent', () {
+      final raw = {
+        '${prefix}srv-1': encode(knownServerJson()),
+      };
+
+      final result = deserializeStorageEntries(raw, prefix: prefix);
+      final server = result['srv-1']!;
+      expect(server.name, isNull);
+      expect(server.description, isNull);
+    });
+  });
+
+  group('PersistedServer JSON round-trip with identity', () {
+    test('KnownServer preserves name and description', () {
+      final original = KnownServer(
+        serverUrl: Uri.parse('https://example.com'),
+        alias: 'example',
+        name: 'Demo Server',
+        description: 'A friendly demo instance',
+      );
+
+      final restored = PersistedServer.fromJson(original.toJson());
+
+      expect(restored, isA<KnownServer>());
+      expect(restored.name, 'Demo Server');
+      expect(restored.description, 'A friendly demo instance');
+    });
+
+    test('omits name/description from JSON when null', () {
+      final original = KnownServer(serverUrl: Uri.parse('https://example.com'));
+
+      final json = original.toJson();
+
+      expect(json.containsKey('name'), isFalse);
+      expect(json.containsKey('description'), isFalse);
+    });
   });
 }

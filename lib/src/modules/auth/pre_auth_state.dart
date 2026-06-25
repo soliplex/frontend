@@ -23,6 +23,8 @@ class PreAuthState {
     required this.clientId,
     required this.createdAt,
     this.frontendReturnTo,
+    this.serverName,
+    this.serverDescription,
   }) {
     if (frontendReturnTo != null && !_isSafeReturnTo(frontendReturnTo!)) {
       throw ArgumentError.value(
@@ -41,6 +43,8 @@ class PreAuthState {
       clientId: json['clientId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
       frontendReturnTo: json['frontendReturnTo'] as String?,
+      serverName: json['serverName'] as String?,
+      serverDescription: json['serverDescription'] as String?,
     );
   }
 
@@ -65,6 +69,15 @@ class PreAuthState {
   /// values throw [ArgumentError] before they can be persisted.
   final String? frontendReturnTo;
 
+  /// Cached human-readable server name probed before redirect, carried across
+  /// the OAuth roundtrip so the web callback can persist it. Null when the
+  /// server provides none.
+  final String? serverName;
+
+  /// Cached brief server description, carried across the OAuth roundtrip.
+  /// Null when the server provides none.
+  final String? serverDescription;
+
   /// Covers typical OIDC roundtrips: password reset, MFA prompts,
   /// email magic links.
   static const maxAge = Duration(minutes: 30);
@@ -81,6 +94,8 @@ class PreAuthState {
         'clientId': clientId,
         'createdAt': createdAt.toUtc().toIso8601String(),
         if (frontendReturnTo != null) 'frontendReturnTo': frontendReturnTo,
+        if (serverName != null) 'serverName': serverName,
+        if (serverDescription != null) 'serverDescription': serverDescription,
       };
 
   @override
@@ -91,7 +106,9 @@ class PreAuthState {
       other.discoveryUrl == discoveryUrl &&
       other.clientId == clientId &&
       other.createdAt == createdAt &&
-      other.frontendReturnTo == frontendReturnTo;
+      other.frontendReturnTo == frontendReturnTo &&
+      other.serverName == serverName &&
+      other.serverDescription == serverDescription;
 
   @override
   int get hashCode => Object.hash(
@@ -101,6 +118,8 @@ class PreAuthState {
         clientId,
         createdAt,
         frontendReturnTo,
+        serverName,
+        serverDescription,
       );
 
   @override

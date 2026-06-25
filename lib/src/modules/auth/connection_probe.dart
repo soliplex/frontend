@@ -11,6 +11,16 @@ typedef DiscoverProviders = Future<List<AuthProviderConfig>> Function(
   SoliplexHttpClient httpClient,
 );
 
+/// Signature for fetching a server's human-readable identity.
+///
+/// Defaults to [discoverServerInfo] from soliplex_agent. Returns `null` when
+/// the server configures no name/description (404) or is unreachable for the
+/// metadata call — server info is best-effort and never fails a probe.
+typedef DiscoverServerInfo = Future<ServerInfo?> Function(
+  Uri serverUrl,
+  SoliplexHttpClient httpClient,
+);
+
 /// Result of probing a backend URL for connectivity.
 sealed class ConnectionProbeResult {
   const ConnectionProbeResult();
@@ -21,10 +31,16 @@ class ConnectionSuccess extends ConnectionProbeResult {
   const ConnectionSuccess({
     required this.serverUrl,
     required this.providers,
+    this.info,
   });
 
   final Uri serverUrl;
   final List<AuthProviderConfig> providers;
+
+  /// The server's human-readable identity, or `null` when the server
+  /// configures none (or the metadata call failed). Callers fall back to the
+  /// raw [serverUrl] when this is absent.
+  final ServerInfo? info;
 
   /// Whether the connection uses HTTP (not HTTPS).
   bool get isInsecure => serverUrl.scheme == 'http';
@@ -53,6 +69,7 @@ Future<ConnectionProbeResult> probeConnection({
   required String input,
   required SoliplexHttpClient httpClient,
   DiscoverProviders discover = _defaultDiscover,
+  DiscoverServerInfo discoverInfo = _defaultDiscoverInfo,
   Duration probeTimeout = const Duration(seconds: 5),
 }) async {
   final List<Uri> candidates;
@@ -68,7 +85,20 @@ Future<ConnectionProbeResult> probeConnection({
     tried.add(uri);
     try {
       final providers = await discover(uri, httpClient).timeout(probeTimeout);
-      return ConnectionSuccess(serverUrl: uri, providers: providers);
+      // Server identity is best-effort enrichment: a failure here (404, slow
+      // response, network blip) must not turn a successful probe into a
+      // failure, so swallow everything and fall back to null.
+      ServerInfo? info;
+      try {
+        info = await discoverInfo(uri, httpClient).timeout(probeTimeout);
+      } on Object {
+        info = null;
+      }
+      return ConnectionSuccess(
+        serverUrl: uri,
+        providers: providers,
+        info: info,
+      );
     } on NetworkException catch (e) {
       lastNetworkError = e;
     } on TimeoutException {
@@ -132,3 +162,9 @@ Future<List<AuthProviderConfig>> _defaultDiscover(
   SoliplexHttpClient httpClient,
 ) =>
     discoverAuthProviders(serverUrl: serverUrl, httpClient: httpClient);
+
+Future<ServerInfo?> _defaultDiscoverInfo(
+  Uri serverUrl,
+  SoliplexHttpClient httpClient,
+) =>
+    discoverServerInfo(serverUrl: serverUrl, httpClient: httpClient);

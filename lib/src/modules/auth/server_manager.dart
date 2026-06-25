@@ -89,6 +89,8 @@ class ServerManager {
     required Uri serverUrl,
     bool requiresAuth = true,
     String? alias,
+    String? name,
+    String? description,
   }) {
     final existing = _servers.value[serverId];
     if (existing != null) return existing;
@@ -127,6 +129,8 @@ class ServerManager {
       httpClient: httpClient,
       connection: connection,
       requiresAuth: requiresAuth,
+      name: name,
+      description: description,
     );
 
     registry.add(connection);
@@ -184,6 +188,8 @@ class ServerManager {
             serverUrl: entry.value.serverUrl,
             requiresAuth: entry.value.requiresAuth,
             alias: entry.value.alias,
+            name: entry.value.name,
+            description: entry.value.description,
           );
           if (entry.value
               case AuthenticatedServer(:final provider, :final tokens)) {
@@ -225,6 +231,8 @@ class ServerManager {
               serverUrl: entry.serverUrl,
               alias: entry.alias,
               requiresAuth: entry.requiresAuth,
+              name: entry.name,
+              description: entry.description,
               provider: provider,
               tokens: tokens,
             ),
@@ -236,6 +244,8 @@ class ServerManager {
               serverUrl: entry.serverUrl,
               alias: entry.alias,
               requiresAuth: entry.requiresAuth,
+              name: entry.name,
+              description: entry.description,
             ),
           );
       }

@@ -1,6 +1,7 @@
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
@@ -241,7 +242,10 @@ class _ServerTileState extends State<_ServerTile> {
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,
-        title: Text(formatServerUrl(widget.entry.serverUrl)),
+        // Prefer the server's human-readable name; fall back to the raw
+        // address. The tile shows only the name — the full address is reachable
+        // (and copyable) from the ⋮ menu's "Copy server address" action.
+        title: Text(widget.entry.displayName),
         trailing: Visibility(
           visible: showMenu,
           maintainSize: true,
@@ -308,7 +312,7 @@ String _signedInName(UserProfile? profile) {
 
 /// Per-server actions behind a tile's trailing ⋮ menu. The available set
 /// depends on the server's connection state (see [_ServerTileMenu]).
-enum _ServerTileAction { signIn, logOut, remove }
+enum _ServerTileAction { signIn, logOut, copyAddress, remove }
 
 /// What happens to the entry after a log-out attempt. The error-menu escape
 /// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
@@ -360,6 +364,8 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         widget.onSignIn();
       case _ServerTileAction.logOut:
         await _runLogout(_AfterLogout.keep);
+      case _ServerTileAction.copyAddress:
+        await _copyAddress();
       case _ServerTileAction.remove:
         // A connected, authenticated server logs out first so the IdP session
         // doesn't outlive the removed entry; everything else removes outright.
@@ -369,6 +375,26 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
           widget.serverManager.removeServer(widget.entry.serverId);
         }
     }
+  }
+
+  /// Copies the server's full address to the clipboard and confirms with a
+  /// SnackBar. Captures the messenger before the async gap so the post-await
+  /// use doesn't depend on a possibly-unmounted context.
+  Future<void> _copyAddress() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final address = formatServerUrl(widget.entry.serverUrl);
+    try {
+      await Clipboard.setData(ClipboardData(text: address));
+    } on Exception catch (e, st) {
+      dev.log('Clipboard.setData failed', error: e, stackTrace: st);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not copy server address')),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(content: Text('Copied $address')),
+    );
   }
 
   Future<void> _runLogout(_AfterLogout then) async {
@@ -463,6 +489,13 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
             value: _ServerTileAction.logOut,
             child: _MenuRow(icon: Icons.logout, label: 'Log out'),
           ),
+        const PopupMenuItem(
+          value: _ServerTileAction.copyAddress,
+          child: _MenuRow(
+            icon: Icons.content_copy,
+            label: 'Copy server address',
+          ),
+        ),
         PopupMenuItem(
           value: _ServerTileAction.remove,
           child: _MenuRow(

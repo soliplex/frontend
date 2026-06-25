@@ -473,11 +473,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ConnectionSuccess probeResult,
     List<AuthProviderConfig> providers,
   ) {
+    final info = probeResult.info;
     return [
       _titleBlock(
         context,
-        'Sign in to ${probeResult.serverUrl.host}',
-        'Choose how you want to authenticate.',
+        'Sign in to ${info?.name ?? probeResult.serverUrl.host}',
+        // Surface the server's own description when it provides one; otherwise
+        // keep the generic prompt.
+        info?.description ?? 'Choose how you want to authenticate.',
       ),
       const SizedBox(height: SoliplexSpacing.s6),
       for (final provider in providers) ...[
@@ -581,7 +584,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       for (final entry in visibleServers)
         ListTile(
-          title: Text(formatServerUrl(entry.serverUrl)),
+          // Friendly name when known; raw address otherwise. The address
+          // drops to a subtitle only when a name is shown.
+          title: Text(entry.displayName),
+          subtitle: entry.name != null
+              ? Text(
+                  formatServerUrl(entry.serverUrl),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )
+              : null,
           trailing: IconButton(
             icon: Icon(
               Icons.delete_outline,

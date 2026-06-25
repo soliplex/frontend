@@ -43,6 +43,7 @@ export 'src/host/web_platform_constraints.dart';
 // ── HTTP ──
 export 'src/http/create_agent_http_client.dart';
 export 'src/http/discover_auth_providers.dart';
+export 'src/http/discover_server_info.dart';
 // ── Models ──
 export 'src/models/agent_result.dart';
 export 'src/models/failure_reason.dart';

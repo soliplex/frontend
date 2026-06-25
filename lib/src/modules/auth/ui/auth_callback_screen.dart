@@ -79,6 +79,8 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
       final entry = widget.serverManager.addServer(
         serverId: serverId,
         serverUrl: preAuth.serverUrl,
+        name: preAuth.serverName,
+        description: preAuth.serverDescription,
       );
 
       entry.auth.login(

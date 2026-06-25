@@ -30,6 +30,8 @@ class ServerEntry {
     required this.httpClient,
     required this.connection,
     this.requiresAuth = true,
+    this.name,
+    this.description,
   });
 
   final String serverId;
@@ -39,6 +41,17 @@ class ServerEntry {
   final SoliplexHttpClient httpClient;
   final ServerConnection connection;
   final bool requiresAuth;
+
+  /// Human-readable server name (e.g., "Demo Server"), or `null` when the
+  /// server provides none. Display sites fall back to [formatServerUrl].
+  final String? name;
+
+  /// Brief server description, or `null` when the server provides none.
+  final String? description;
+
+  /// Preferred display label: the human-readable [name] when available,
+  /// otherwise the formatted server address.
+  String get displayName => name ?? formatServerUrl(serverUrl);
 
   bool get isConnected => !requiresAuth || auth.isAuthenticated;
 }
