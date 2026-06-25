@@ -224,5 +224,65 @@ void main() {
       final success = result as ConnectionSuccess;
       expect(success.serverUrl, Uri.parse('https://example.com'));
     });
+
+    test('attaches server info to a successful probe', () async {
+      const info = ServerInfo(
+        installationId: 'demo',
+        name: 'Demo Server',
+        description: 'A friendly demo instance',
+      );
+      final result = await probeConnection(
+        input: 'example.com',
+        httpClient: httpClient,
+        discover: (serverUrl, _) async => [_provider],
+        discoverInfo: (serverUrl, _) async => info,
+      );
+
+      final success = result as ConnectionSuccess;
+      expect(success.info, info);
+    });
+
+    test('leaves info null when server has no identity', () async {
+      final result = await probeConnection(
+        input: 'example.com',
+        httpClient: httpClient,
+        discover: (serverUrl, _) async => [_provider],
+        discoverInfo: (serverUrl, _) async => null,
+      );
+
+      final success = result as ConnectionSuccess;
+      expect(success.info, isNull);
+    });
+
+    test('a failing info fetch never fails the probe', () async {
+      final result = await probeConnection(
+        input: 'example.com',
+        httpClient: httpClient,
+        discover: (serverUrl, _) async => [_provider],
+        discoverInfo: (serverUrl, _) async =>
+            throw const NetworkException(message: 'metadata unreachable'),
+      );
+
+      expect(result, isA<ConnectionSuccess>());
+      final success = result as ConnectionSuccess;
+      expect(success.providers, [_provider]);
+      expect(success.info, isNull);
+    });
+
+    test('a hanging info fetch times out without failing the probe', () async {
+      final result = await probeConnection(
+        input: 'https://example.com',
+        httpClient: httpClient,
+        probeTimeout: const Duration(milliseconds: 100),
+        discover: (serverUrl, _) async => [_provider],
+        discoverInfo: (serverUrl, _) async {
+          await Future<void>.delayed(const Duration(seconds: 10));
+          throw StateError('should have timed out');
+        },
+      );
+
+      expect(result, isA<ConnectionSuccess>());
+      expect((result as ConnectionSuccess).info, isNull);
+    });
   });
 }

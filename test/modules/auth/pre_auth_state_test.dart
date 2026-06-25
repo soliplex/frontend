@@ -4,7 +4,12 @@ import 'package:soliplex_frontend/src/modules/auth/pre_auth_state.dart';
 
 final _baseTime = DateTime.utc(2026, 3, 19, 12, 0);
 
-PreAuthState _makeState({DateTime? createdAt, String? frontendReturnTo}) =>
+PreAuthState _makeState({
+  DateTime? createdAt,
+  String? frontendReturnTo,
+  String? serverName,
+  String? serverDescription,
+}) =>
     PreAuthState(
       serverUrl: Uri.parse('https://api.example.com'),
       providerId: 'keycloak',
@@ -12,6 +17,8 @@ PreAuthState _makeState({DateTime? createdAt, String? frontendReturnTo}) =>
       clientId: 'soliplex',
       createdAt: createdAt ?? _baseTime,
       frontendReturnTo: frontendReturnTo,
+      serverName: serverName,
+      serverDescription: serverDescription,
     );
 
 void main() {
@@ -51,6 +58,26 @@ void main() {
       final now = _baseTime.add(const Duration(minutes: 30, seconds: 1));
 
       expect(state.isExpired(now: now), isTrue);
+    });
+
+    test('server name and description round-trip through JSON', () {
+      final state = _makeState(
+        serverName: 'Demo Server',
+        serverDescription: 'A friendly demo instance',
+      );
+
+      final restored = PreAuthState.fromJson(state.toJson());
+
+      expect(restored.serverName, 'Demo Server');
+      expect(restored.serverDescription, 'A friendly demo instance');
+      expect(restored, equals(state));
+    });
+
+    test('omits server name/description from JSON when null', () {
+      final json = _makeState().toJson();
+
+      expect(json.containsKey('serverName'), isFalse);
+      expect(json.containsKey('serverDescription'), isFalse);
     });
 
     test('frontendReturnTo round-trips through JSON', () {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -179,8 +180,9 @@ void main() {
     });
 
     group('tile ⋮ menu', () {
-      testWidgets('a disconnected server offers Sign in and Remove',
-          (tester) async {
+      testWidgets(
+          'a disconnected server offers Sign in, Copy server address, '
+          'and Remove', (tester) async {
         final manager = _createManager();
         // requiresAuth + NoSession => not connected.
         manager.addServer(
@@ -200,6 +202,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
         expect(find.text('Sign in'), findsOneWidget);
+        expect(find.text('Copy server address'), findsOneWidget);
         expect(find.text('Remove'), findsOneWidget);
         expect(find.text('Log out'), findsNothing);
 
@@ -208,7 +211,8 @@ void main() {
         expect(signedIn, 'srv');
       });
 
-      testWidgets('a connected no-auth server offers only Remove',
+      testWidgets(
+          'a connected no-auth server offers Copy server address and Remove',
           (tester) async {
         final manager = _createManager();
         manager.addServer(
@@ -226,6 +230,7 @@ void main() {
 
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
+        expect(find.text('Copy server address'), findsOneWidget);
         expect(find.text('Remove'), findsOneWidget);
         expect(find.text('Sign in'), findsNothing);
         expect(find.text('Log out'), findsNothing);
@@ -263,8 +268,51 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_vert).first);
         await tester.pumpAndSettle();
         expect(find.text('Log out'), findsOneWidget);
+        expect(find.text('Copy server address'), findsOneWidget);
         expect(find.text('Remove'), findsOneWidget);
         expect(find.text('Sign in'), findsNothing);
+      });
+
+      testWidgets('Copy server address copies the full URL and confirms',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+          requiresAuth: false,
+        );
+
+        String? copied;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Copy server address'), findsOneWidget);
+
+        await tester.tap(find.text('Copy server address'));
+        await tester.pumpAndSettle();
+
+        // The full scheme://host address is copied, and a SnackBar confirms it.
+        expect(copied, 'https://api.example.com');
+        expect(find.text('Copied https://api.example.com'), findsOneWidget);
       });
 
       testWidgets('the tile ⋮ is hidden until the tile is hovered',

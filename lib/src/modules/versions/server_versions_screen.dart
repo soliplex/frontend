@@ -117,9 +117,27 @@ class _ServerVersionsScreenState extends State<ServerVersionsScreen> {
           ),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: SelectableText(
-              url,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SelectableText(
+                  widget.serverEntry.displayName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                // Show the raw address beneath the name only when a friendly
+                // name is present, so it stays available without duplicating
+                // the title for unnamed servers.
+                if (widget.serverEntry.name != null) ...[
+                  const SizedBox(height: SoliplexSpacing.s1),
+                  SelectableText(
+                    url,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

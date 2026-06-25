@@ -228,6 +228,8 @@ class ConnectFlow {
       serverId: serverId,
       serverUrl: probeResult.serverUrl,
       requiresAuth: false,
+      name: probeResult.info?.name,
+      description: probeResult.info?.description,
     );
     DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
     await SelectedServerStorage.save(serverId);
@@ -251,6 +253,8 @@ class ConnectFlow {
       clientId: provider.clientId,
       createdAt: DateTime.timestamp(),
       frontendReturnTo: _pendingReturnTo,
+      serverName: probeResult.info?.name,
+      serverDescription: probeResult.info?.description,
     ));
 
     final serverId = serverIdFromUrl(probeResult.serverUrl);
@@ -270,6 +274,8 @@ class ConnectFlow {
       final entry = serverManager.addServer(
         serverId: serverId,
         serverUrl: probeResult.serverUrl,
+        name: probeResult.info?.name,
+        description: probeResult.info?.description,
       );
 
       entry.auth.login(

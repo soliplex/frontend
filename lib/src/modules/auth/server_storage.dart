@@ -10,12 +10,16 @@ sealed class PersistedServer {
     required this.serverUrl,
     this.alias,
     this.requiresAuth = true,
+    this.name,
+    this.description,
   });
 
   factory PersistedServer.fromJson(Map<String, dynamic> json) {
     final serverUrl = Uri.parse(json['serverUrl'] as String);
     final alias = json['alias'] as String?;
     final requiresAuth = json['requiresAuth'] as bool? ?? true;
+    final name = json['name'] as String?;
+    final description = json['description'] as String?;
     final providerJson = json['provider'] as Map<String, dynamic>?;
     final tokensJson = json['tokens'] as Map<String, dynamic>?;
     if (providerJson != null && tokensJson != null) {
@@ -23,6 +27,8 @@ sealed class PersistedServer {
         serverUrl: serverUrl,
         alias: alias,
         requiresAuth: requiresAuth,
+        name: name,
+        description: description,
         provider: OidcProvider.fromJson(providerJson),
         tokens: AuthTokens.fromJson(tokensJson),
       );
@@ -31,12 +37,23 @@ sealed class PersistedServer {
       dev.log('Partial auth data for $serverUrl — treating as unauthenticated');
     }
     return KnownServer(
-        serverUrl: serverUrl, alias: alias, requiresAuth: requiresAuth);
+      serverUrl: serverUrl,
+      alias: alias,
+      requiresAuth: requiresAuth,
+      name: name,
+      description: description,
+    );
   }
 
   final Uri serverUrl;
   final String? alias;
   final bool requiresAuth;
+
+  /// Cached human-readable server name, or `null` when unknown.
+  final String? name;
+
+  /// Cached brief server description, or `null` when unknown.
+  final String? description;
 
   Map<String, dynamic> toJson();
 }
@@ -47,6 +64,8 @@ class AuthenticatedServer extends PersistedServer {
     required super.serverUrl,
     super.alias,
     super.requiresAuth,
+    super.name,
+    super.description,
     required this.provider,
     required this.tokens,
   });
@@ -59,6 +78,8 @@ class AuthenticatedServer extends PersistedServer {
         'serverUrl': serverUrl.toString(),
         if (alias != null) 'alias': alias,
         'requiresAuth': requiresAuth,
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
         'provider': provider.toJson(),
         'tokens': tokens.toJson(),
       };
@@ -66,14 +87,21 @@ class AuthenticatedServer extends PersistedServer {
 
 /// A known server without auth credentials.
 class KnownServer extends PersistedServer {
-  const KnownServer(
-      {required super.serverUrl, super.alias, super.requiresAuth});
+  const KnownServer({
+    required super.serverUrl,
+    super.alias,
+    super.requiresAuth,
+    super.name,
+    super.description,
+  });
 
   @override
   Map<String, dynamic> toJson() => {
         'serverUrl': serverUrl.toString(),
         if (alias != null) 'alias': alias,
         'requiresAuth': requiresAuth,
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
       };
 }
 
