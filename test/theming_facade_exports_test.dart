@@ -16,7 +16,7 @@ void main() {
   });
 
   test('BrandFontRole is exported from the facade', () {
-    expect(BrandFontRole.values.length, 4);
+    expect(BrandFontRole.values.length, 3);
     expect(BrandFontRole.brand, isNotNull);
   });
 }

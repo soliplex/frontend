@@ -371,10 +371,10 @@ class BrandColorScheme {
 }
 
 /// The named font families a text role can be assigned to.
-enum BrandFontRole { body, display, code, brand }
+enum BrandFontRole { body, display, brand }
 
-/// Four named font families plus optional per-role primitive and family deltas.
-/// Each text role can be pointed at any of the four families via
+/// Three named font families plus optional per-role primitive and family
+/// deltas. Each text role can be pointed at any of the three families via
 /// [TypeScaleOverride.family]; unset roles use their group default (display
 /// group: display, headline, title; body group: body, label). Per-role color
 /// is not supported — color comes from the palette.
@@ -521,10 +521,10 @@ class BrandTypography {
 
 /// Per-role type-scale deltas applied on top of a base text style.
 ///
-/// [family] redirects the role to one of the four named families
-/// ([BrandFontRole.body], [BrandFontRole.display], [BrandFontRole.code],
-/// [BrandFontRole.brand]); null keeps the role's group default. The remaining
-/// fields adjust primitive metrics only — per-role color is not supported.
+/// [family] redirects the role to one of the three named families
+/// ([BrandFontRole.body], [BrandFontRole.display], [BrandFontRole.brand]);
+/// null keeps the role's group default. The remaining fields adjust primitive
+/// metrics only — per-role color is not supported.
 @immutable
 class TypeScaleOverride {
   const TypeScaleOverride({

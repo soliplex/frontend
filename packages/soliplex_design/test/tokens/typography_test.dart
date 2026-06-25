@@ -114,20 +114,10 @@ void main() {
       final theme = soliplexTextTheme(
         lightSoliplexColors,
         bodyFamily: 'Inter',
-        brandFamily: 'Squada One',
+        brandFont: (family: 'Squada One', fallback: const []),
         titleLarge: const TypeScaleOverride(family: BrandFontRole.brand),
       );
       expect(theme.titleLarge!.fontFamily, 'Squada One');
-    });
-
-    test('a role overridden to code uses the monospace family', () {
-      final theme = soliplexTextTheme(
-        lightSoliplexColors,
-        bodyFamily: 'Inter',
-        monospace: (family: 'JetBrains Mono', fallback: const ['monospace']),
-        labelSmall: const TypeScaleOverride(family: BrandFontRole.code),
-      );
-      expect(theme.labelSmall!.fontFamily, 'JetBrains Mono');
     });
 
     test('no family override keeps the group default', () {
@@ -168,7 +158,7 @@ void main() {
       expect(theme.displaySmall!.fontSize, 36);
       expect(theme.headlineLarge!.fontSize, 32);
       expect(theme.headlineSmall!.fontSize, 24);
-      expect(theme.labelLarge!.fontSize, 18);
+      expect(theme.labelLarge!.fontSize, 16);
       expect(theme.labelLarge!.fontWeight, FontWeight.w500);
     });
 

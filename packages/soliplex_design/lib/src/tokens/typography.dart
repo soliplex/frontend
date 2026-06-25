@@ -12,13 +12,13 @@ import 'package:soliplex_design/src/tokens/colors.dart';
 /// that is null). Family strings resolve through [fontResolver]. A per-role
 /// [TypeScaleOverride] adjusts only the primitives it sets, leaving the rest
 /// of that role at its default. [TypeScaleOverride.family] redirects a role to
-/// one of the four named families; null keeps the role's group default.
+/// one of the three named families; null keeps the role's group default.
+/// [brandFont] is a pre-resolved tuple used for [BrandFontRole.brand] routing.
 TextTheme soliplexTextTheme(
   SoliplexColors colors, {
   String? bodyFamily,
   String? displayFamily,
-  String? brandFamily,
-  ({String family, List<String> fallback})? monospace,
+  ({String family, List<String> fallback})? brandFont,
   List<String> fallbacks = const [],
   FontResolver fontResolver = const BundledFontResolver(),
   TypeScaleOverride? displayLarge,
@@ -42,13 +42,11 @@ TextTheme soliplexTextTheme(
       display == null ? null : fontResolver.resolve(display, fallbacks);
   final bodyFont =
       bodyFamily == null ? null : fontResolver.resolve(bodyFamily, fallbacks);
-  final brandFont =
-      brandFamily == null ? null : fontResolver.resolve(brandFamily, fallbacks);
-  final codeFont = monospace == null
+  final resolvedBrandFont = brandFont == null
       ? null
       : ResolvedFont(
-          fontFamily: monospace.family,
-          fontFamilyFallback: monospace.fallback,
+          fontFamily: brandFont.family,
+          fontFamilyFallback: brandFont.fallback,
         );
 
   ResolvedFont? fontFor(ResolvedFont? groupDefault, BrandFontRole? role) {
@@ -56,8 +54,7 @@ TextTheme soliplexTextTheme(
       null => groupDefault,
       BrandFontRole.body => bodyFont,
       BrandFontRole.display => displayFont,
-      BrandFontRole.code => codeFont,
-      BrandFontRole.brand => brandFont,
+      BrandFontRole.brand => resolvedBrandFont,
     };
   }
 
@@ -94,8 +91,9 @@ TextTheme soliplexTextTheme(
     bodyLarge: style(18, FontWeight.w400, 1.5, bodyFont, bodyLarge),
     bodyMedium: style(16, FontWeight.w400, 1.5, bodyFont, bodyMedium),
     bodySmall: style(13, FontWeight.w400, 1.5, bodyFont, bodySmall),
-    labelLarge: style(18, FontWeight.w500, 1.5, bodyFont, labelLarge),
-    labelMedium: style(16, FontWeight.w500, 1.5, bodyFont, labelMedium),
+    // Label scale: 12 (small) / 14 (medium) / 16 (large).
+    labelLarge: style(16, FontWeight.w500, 1.5, bodyFont, labelLarge),
+    labelMedium: style(14, FontWeight.w500, 1.5, bodyFont, labelMedium),
     labelSmall: style(12, FontWeight.w500, 1.5, bodyFont, labelSmall),
   );
 }
