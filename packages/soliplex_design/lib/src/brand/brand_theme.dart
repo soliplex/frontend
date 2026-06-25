@@ -1,15 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:soliplex_design/src/brand/contrast.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
 
 /// The frozen public customization contract.
 ///
 /// Plain Flutter types only (no JSON, no hex strings). Colors flip per
-/// [Brightness]; typography and shape are shared across both. A private
-/// lowering step (`lowerBrandTheme`) maps this onto the internal token system,
-/// which stays free to evolve behind it.
+/// [Brightness]; typography and shape are shared across both. `lowerBrandTheme`
+/// maps this onto the internal token system to produce a `ThemeData`. A fork
+/// customizes through this contract rather than the tokens directly, keeping
+/// the supported surface small and stable.
 @immutable
 class BrandTheme {
   const BrandTheme({
@@ -17,6 +17,7 @@ class BrandTheme {
     required this.dark,
     this.typography = const BrandTypography(),
     this.shape = const BrandShape.rounded(),
+    this.tint = const BrandTint(),
   });
 
   /// The shipped Soliplex look, pinned to today's literals.
@@ -29,19 +30,22 @@ class BrandTheme {
       : light = _defaultLightColors,
         dark = _defaultDarkColors,
         typography = const BrandTypography(),
-        shape = const BrandShape.rounded();
+        shape = const BrandShape.rounded(),
+        tint = const BrandTint();
 
   /// Derives both brightness palettes from a single brand accent.
   factory BrandTheme.fromSeed(
     Color seed, {
     BrandTypography? typography,
     BrandShape? shape,
+    BrandTint? tint,
   }) =>
       BrandTheme(
         light: BrandColorScheme.fromAccent(seed, brightness: Brightness.light),
         dark: BrandColorScheme.fromAccent(seed, brightness: Brightness.dark),
         typography: typography ?? const BrandTypography(),
         shape: shape ?? const BrandShape.rounded(),
+        tint: tint ?? const BrandTint(),
       );
 
   /// Derives each brightness palette from its own accent.
@@ -50,30 +54,35 @@ class BrandTheme {
     required Color dark,
     BrandTypography? typography,
     BrandShape? shape,
+    BrandTint? tint,
   }) =>
       BrandTheme(
         light: BrandColorScheme.fromAccent(light, brightness: Brightness.light),
         dark: BrandColorScheme.fromAccent(dark, brightness: Brightness.dark),
         typography: typography ?? const BrandTypography(),
         shape: shape ?? const BrandShape.rounded(),
+        tint: tint ?? const BrandTint(),
       );
 
   final BrandColorScheme light;
   final BrandColorScheme dark;
   final BrandTypography typography;
   final BrandShape shape;
+  final BrandTint tint;
 
   BrandTheme copyWith({
     BrandColorScheme? light,
     BrandColorScheme? dark,
     BrandTypography? typography,
     BrandShape? shape,
+    BrandTint? tint,
   }) =>
       BrandTheme(
         light: light ?? this.light,
         dark: dark ?? this.dark,
         typography: typography ?? this.typography,
         shape: shape ?? this.shape,
+        tint: tint ?? this.tint,
       );
 
   @override
@@ -82,10 +91,11 @@ class BrandTheme {
       other.light == light &&
       other.dark == dark &&
       other.typography == typography &&
-      other.shape == shape;
+      other.shape == shape &&
+      other.tint == tint;
 
   @override
-  int get hashCode => Object.hash(light, dark, typography, shape);
+  int get hashCode => Object.hash(light, dark, typography, shape, tint);
 }
 
 /// Seven required semantic roles plus an optional set. Optional roles override
@@ -124,9 +134,10 @@ class BrandColorScheme {
 
   /// Derives a palette from a single brand [accent].
   ///
-  /// The accent drives [primary] and a WCAG-readable [onPrimary]; every other
-  /// role stays the neutral base for [brightness], so colored content on those
-  /// surfaces keeps reading correctly.
+  /// The accent drives [primary]; every other role stays the neutral base for
+  /// [brightness], so colored content keeps reading correctly. [onPrimary] is
+  /// left unset so the lowering layer derives a readable tone for the accent —
+  /// and applies the brand's [BrandTint] when one is set.
   factory BrandColorScheme.fromAccent(
     Color accent, {
     required Brightness brightness,
@@ -134,9 +145,17 @@ class BrandColorScheme {
     final base = brightness == Brightness.light
         ? _defaultLightColors
         : _defaultDarkColors;
-    return base.copyWith(
+    return BrandColorScheme(
       primary: accent,
-      onPrimary: readableOn(accent),
+      secondary: base.secondary,
+      background: base.background,
+      foreground: base.foreground,
+      muted: base.muted,
+      mutedForeground: base.mutedForeground,
+      border: base.border,
+      tertiary: base.tertiary,
+      onSecondary: base.onSecondary,
+      onTertiary: base.onTertiary,
     );
   }
 
@@ -152,8 +171,10 @@ class BrandColorScheme {
 
   // --- Status *signal* colors ------------------------------------------------
   // Read through `context.danger/success/warning/info`. These tint inline
-  // indicators — status text, badges, dots, "this is risky" icons — drawn as
-  // foreground on neutral surfaces. They have no fill role and no on-color.
+  // indicators — status text, dots, "this is risky" icons — drawn as
+  // foreground on neutral surfaces. They have no fill role and no on-color, and
+  // the lowering layer does not contrast-check them: they tint iconography that
+  // never stands alone (it carries a shape or label too), unlike [link] text.
   // For a destructive *action* or an error *surface*, see [error] /
   // [errorContainer]; do not reuse a signal color for those.
 
@@ -189,8 +210,8 @@ class BrandColorScheme {
   final Color? onError;
 
   /// Soft error *surface* — error banners and container fills (Material
-  /// `ColorScheme.errorContainer`). Set this together with [error] / [danger]
-  /// to keep the error family coherent. Pair with [onErrorContainer].
+  /// `ColorScheme.errorContainer`). For a coherent error family, rebrand it
+  /// alongside [error] / [danger]. Pair with [onErrorContainer].
   final Color? errorContainer;
 
   /// Readable foreground for content on [errorContainer]. Omitted →
@@ -198,8 +219,8 @@ class BrandColorScheme {
   final Color? onErrorContainer;
 
   /// Soft success *surface* — success banners and container fills. The matching
-  /// signal color is [success]; set them together. Pair with
-  /// [onSuccessContainer].
+  /// signal color is [success]; rebranding both keeps the family coherent. Pair
+  /// with [onSuccessContainer].
   final Color? successContainer;
 
   /// Readable foreground for content on [successContainer]. Omitted →
@@ -207,8 +228,8 @@ class BrandColorScheme {
   final Color? onSuccessContainer;
 
   /// Soft warning *surface* — warning banners and container fills. The matching
-  /// signal color is [warning]; set them together. Pair with
-  /// [onWarningContainer].
+  /// signal color is [warning]; rebranding both keeps the family coherent. Pair
+  /// with [onWarningContainer].
   final Color? warningContainer;
 
   /// Readable foreground for content on [warningContainer]. Omitted →
@@ -216,7 +237,8 @@ class BrandColorScheme {
   final Color? onWarningContainer;
 
   /// Soft info *surface* — info banners and container fills. The matching
-  /// signal color is [info]; set them together. Pair with [onInfoContainer].
+  /// signal color is [info]; rebranding both keeps the family coherent. Pair
+  /// with [onInfoContainer].
   final Color? infoContainer;
 
   /// Readable foreground for content on [infoContainer]. Omitted →
@@ -532,6 +554,60 @@ class BrandShape {
 
   @override
   int get hashCode => Object.hash(sm, md, lg, xl);
+}
+
+/// The hue source for an auto-derived on-color's tint.
+enum TintSource {
+  /// No tint — a neutral near-black / near-white.
+  none,
+
+  /// Tint toward the hue of the surface the on-color sits on (tonal).
+  surface,
+
+  /// Tint toward the brand's primary hue, regardless of surface.
+  primary,
+}
+
+/// How the lowering layer tints an auto-derived on-color — the text/icon color
+/// it fills in for a surface whose on-color a brand leaves unset.
+///
+/// Tinting is opt-in: the default [source] is [TintSource.none], so on-colors
+/// stay a neutral near-black / near-white unless a brand asks for a hue.
+/// Contrast is guaranteed either way — a tint that would fall below WCAG AA is
+/// dropped for the neutral tone. The tint shows only on dark on-colors over
+/// light surfaces; near-white is too light to carry a hue.
+@immutable
+class BrandTint {
+  const BrandTint({
+    this.source = TintSource.none,
+    double strength = 0.08,
+  })  : assert(
+          strength >= 0 && strength <= 1,
+          'BrandTint.strength must be in [0, 1].',
+        ),
+        // A sourceless tint is a no-op; pin its strength to 0 so two configs
+        // that render identically also compare equal.
+        strength = source == TintSource.none ? 0 : strength;
+
+  /// Where the tint hue comes from. [TintSource.none] disables tinting.
+  final TintSource source;
+
+  /// Saturation injected into the near-tone, in `[0, 1]`. `0` adds no tint.
+  final double strength;
+
+  BrandTint copyWith({TintSource? source, double? strength}) => BrandTint(
+        source: source ?? this.source,
+        strength: strength ?? this.strength,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is BrandTint &&
+      other.source == source &&
+      other.strength == strength;
+
+  @override
+  int get hashCode => Object.hash(source, strength);
 }
 
 /// The neutral light base, pinned to today's `lightSoliplexColors`. Inlined

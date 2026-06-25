@@ -84,23 +84,32 @@ Constructor ladder, least → most change:
 - `const BrandTheme.soliplex()` — the shipped look, pinned to today's literals.
 - `BrandTheme.fromSeed(seed)` — derive light and dark palettes from one accent.
 - `BrandTheme.fromAccents(light:, dark:)` — a distinct accent per brightness.
-- `BrandTheme(light:, dark:, typography:, shape:)` — fully specified.
+- `BrandTheme(light:, dark:, typography:, shape:, tint:)` — fully specified.
 
 Each accepts optional `BrandTypography` (body/display/code font families,
-fallbacks, per-role `TypeScaleOverride` deltas) and `BrandShape` (`rounded()` /
-`square()` / `custom()` radii). Colors come from `BrandColorScheme` — seven
+fallbacks, per-role `TypeScaleOverride` deltas), `BrandShape` (`rounded()` /
+`square()` / `custom()` radii), and `BrandTint` (opt-in on-color tinting; see
+below). Colors come from `BrandColorScheme` — seven
 required roles plus optional `tertiary`; the `on*` slots; the status *signal*
 colors (`danger`/`success`/`warning`/`info`); the error/destructive role
 (`error`/`onError`); the four soft status surfaces with their on-colors
 (`errorContainer`/`successContainer`/`warningContainer`/`infoContainer`); and
 `link`. Field names follow Material
 `ColorScheme` convention. An unset role falls back to the base palette and an
-unset `on*` color gets a WCAG-readable foreground, so derived colors always clear
-AA. An `on*` color you set explicitly is used as-is — its legibility is your call
-— and a sub-AA pair (the `on*` pairs, `foreground`/`background`, and `link`
-against `background` when you set `link`), or `mutedForeground`/`muted` below
-3:1, is logged as a warning. Links also render on neutral surfaces beyond
-`background`; verify those contrasts yourself.
+unset `on*` color gets a soft near-black (`#212427`) / near-white (`#FAFAFA`)
+foreground — a cascade that escalates to pure black/white only when a mid-tone
+surface needs it — so derived colors always clear AA. An `on*` color you set
+explicitly is used as-is — its legibility is your call — and a sub-AA pair (the
+`on*` pairs, `foreground`/`background`, and `link` against `background` when you
+set `link`), or `mutedForeground`/`muted` below 3:1, is logged as a warning.
+Links also render on neutral surfaces beyond `background`; verify those
+contrasts yourself.
+
+**On-color tint (`BrandTint`).** By default derived on-colors are neutral. Set
+`tint: BrandTint(source: TintSource.surface | primary, strength: 0.08)` to nudge
+them toward the surface's hue (tonal) or the brand primary. It's opt-in
+(`TintSource.none` by default), contrast-guaranteed (a tint that would fall
+below AA is dropped), and visible only on dark on-colors over light surfaces.
 
 **`danger` vs `error` — two reds, distinct roles.** `danger` is the inline
 status *signal* (`context.danger`: badges, status text — no fill); `error` is
@@ -127,6 +136,7 @@ the platform default, so verify your fonts actually render. App identity
 | Font families (body / display / code) | ✅ | `BrandTypography` + `FontResolver` |
 | Type scale (size / weight / height / spacing) | ✅ | per-role `TypeScaleOverride` |
 | Corner radii | ✅ | `BrandShape` |
+| Auto on-color tint | ✅ opt-in | `BrandTint` (`source` + `strength`); off by default |
 | App name + logos | ✅ | `AppIdentity` |
 | Neutral surface ramp (cards/inputs/selected tints) | ❌ fixed | neutral by design, hosts colored content |
 | Spacing grid + breakpoints | ❌ fixed | `static const` shared grammar |

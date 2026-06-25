@@ -146,12 +146,13 @@ void main() {
         Brightness.light,
       );
       expect(colors.primary, const Color(0xFF112233));
-      expect(colors.onPrimary, const Color(0xFFFFFFFF));
+      // Dark seed → the soft near-white, derived at lowering.
+      expect(colors.onPrimary, const Color(0xFFFAFAFA));
     });
 
     test('a mid-tone seed still derives an AA-readable onPrimary', () {
-      // A mid-luminance seed is the case where the softer #0A0A0A foreground
-      // bottoms out below AA; fromAccent must pick a pure black/white tone.
+      // A mid-luminance seed is where the soft near-tone dips below AA, so the
+      // cascade escalates to a darker tone to stay legible.
       final colors = loweredColors(
         BrandTheme.fromSeed(const Color(0xFF777777)),
         Brightness.light,
@@ -323,6 +324,19 @@ void main() {
       expect(roleWarnings('onSecondary'), hasLength(1));
     });
 
+    test('warns but keeps a sub-threshold error / onError pair verbatim', () {
+      final bad = const BrandTheme.soliplex().light.copyWith(
+            error: const Color(0xFFFFFFFF),
+            onError: const Color(0xFFFFFFFF),
+          );
+      final colors = loweredColors(
+        BrandTheme(light: bad, dark: const BrandTheme.soliplex().dark),
+        Brightness.light,
+      );
+      expect(colors.onDestructive, const Color(0xFFFFFFFF));
+      expect(roleWarnings('onError'), hasLength(1));
+    });
+
     test('the default theme produces no contrast warnings', () {
       loweredColors(const BrandTheme.soliplex(), Brightness.light);
       loweredColors(const BrandTheme.soliplex(), Brightness.dark);
@@ -353,6 +367,74 @@ void main() {
       );
       expect(roleWarnings('mutedForeground'), hasLength(1));
     });
+
+    test('a muted pair above the 3:1 floor but below AA does not warn', () {
+      // muted text is held to the 3:1 floor, not AA 4.5; a ~3.95:1 pair sits in
+      // that band and must stay silent.
+      loweredColors(
+        BrandTheme(
+          light: const BrandTheme.soliplex().light.copyWith(
+                muted: const Color(0xFFFFFFFF),
+                mutedForeground: const Color(0xFF808080),
+              ),
+          dark: const BrandTheme.soliplex().dark,
+        ),
+        Brightness.light,
+      );
+      expect(roleWarnings('mutedForeground'), isEmpty);
+    });
+  });
+
+  group('lowerBrandTheme tints auto-derived on-colors per BrandTint', () {
+    test('the default ink leaves a derived on-color a neutral near-tone', () {
+      // A light accent → dark text, so onPrimary is derived.
+      final colors = loweredColors(
+        BrandTheme.fromSeed(const Color(0xFFFFD54F)),
+        Brightness.light,
+      );
+      expect(colors.onPrimary, const Color(0xFF212427));
+    });
+
+    test('surface tint nudges a derived on-color toward its surface hue', () {
+      final colors = loweredColors(
+        BrandTheme.fromSeed(
+          const Color(0xFFFFD54F),
+          tint: const BrandTint(source: TintSource.surface, strength: 0.12),
+        ),
+        Brightness.light,
+      );
+      expect(colors.onPrimary, isNot(const Color(0xFF212427)));
+      // Warm surface → a warmer near-black (more red than blue), still AA.
+      expect(colors.onPrimary.r, greaterThan(colors.onPrimary.b));
+      expect(
+        contrastRatio(colors.onPrimary, colors.primary),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
+    test('primary tint borrows the brand primary hue, not the surface', () {
+      BrandTheme themed(TintSource source) => BrandTheme(
+            light: const BrandTheme.soliplex().light.copyWith(
+                  primary: const Color(0xFF1E66FF), // blue
+                  warningContainer: const Color(0xFFFFE9C2), // warm surface
+                ),
+            dark: const BrandTheme.soliplex().dark,
+            tint: BrandTint(source: source, strength: 0.12),
+          );
+      final surface =
+          loweredColors(themed(TintSource.surface), Brightness.light);
+      final primary =
+          loweredColors(themed(TintSource.primary), Brightness.light);
+      // Surface mode leans warm (toward the container); primary mode, blue.
+      expect(
+        surface.onWarningContainer.r,
+        greaterThan(surface.onWarningContainer.b),
+      );
+      expect(
+        primary.onWarningContainer.b,
+        greaterThan(primary.onWarningContainer.r),
+      );
+    });
   });
 
   group('lowerBrandTheme lowers the error / status-surface / link roles', () {
@@ -382,6 +464,8 @@ void main() {
         Brightness.light,
       );
       expect(colors.link, const Color(0xFF7C3AED));
+      // An explicit link that clears AA against the background stays silent.
+      expect(roleWarnings('link'), isEmpty);
     });
 
     test('error and success containers drive their slots', () {

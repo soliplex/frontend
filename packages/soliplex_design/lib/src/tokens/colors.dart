@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/brand/contrast.dart';
+
 class SoliplexColors {
   const SoliplexColors({
     required this.background,
@@ -63,7 +65,7 @@ class SoliplexColors {
         : darkSoliplexColors;
     return base.copyWith(
       primary: accent,
-      onPrimary: contrastingForeground(accent),
+      onPrimary: readableOn(accent),
     );
   }
 
@@ -94,8 +96,8 @@ class SoliplexColors {
   final Color infoContainer;
   final Color onInfoContainer;
 
-  /// Status colors. The single source these symbolic roles read from; defaults
-  /// reproduce the Material status palette the design previously hardcoded.
+  /// Status colors — the single source the symbolic roles read from. Defaults
+  /// are the Material status palette.
   final Color danger;
   final Color success;
   final Color warning;
@@ -204,8 +206,11 @@ class SoliplexColors {
   }
 }
 
-/// The legible foreground (near-white or near-black) for text or icons drawn
-/// on top of an arbitrary [background] — e.g. a hashed avatar tint.
+/// The legible foreground (white or near-black) for text or icons drawn
+/// on top of an arbitrary [background] — e.g. a hashed avatar tint. Returns the
+/// brand's near-black `#0A0A0A` rather than pure black, so decorative tints
+/// match the foreground tone. For an on-color that must clear WCAG AA by
+/// construction, use `readableOn` instead.
 Color contrastingForeground(Color background) =>
     ThemeData.estimateBrightnessForColor(background) == Brightness.dark
         ? const Color(0xFFFFFFFF)

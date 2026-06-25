@@ -41,7 +41,7 @@ ThemeData lowerBrandTheme(
   ClassificationTheme? classifications,
 }) {
   final brand = brightness == Brightness.light ? theme.light : theme.dark;
-  final colors = _lowerColors(brand, brightness);
+  final colors = _lowerColors(brand, brightness, theme.tint);
 
   _warnLowContrast(colors, brand, brightness);
 
@@ -78,48 +78,63 @@ ThemeData lowerBrandTheme(
   );
 }
 
-SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
+SoliplexColors _lowerColors(
+  BrandColorScheme brand,
+  Brightness brightness,
+  BrandTint tint,
+) {
   final base =
       brightness == Brightness.light ? lightSoliplexColors : darkSoliplexColors;
   final tertiary = brand.tertiary ?? base.tertiary;
+  Color derive(Color surface) => readableOn(
+        surface,
+        tintHue: _tintHue(tint, brand, surface),
+        tintStrength: tint.strength,
+      );
+  Color onColorFor(Color? surface, Color? on, Color baseOn) {
+    if (on != null) return on;
+    if (surface != null) return derive(surface);
+    return baseOn;
+  }
+
   return base.copyWith(
     primary: brand.primary,
-    onPrimary: brand.onPrimary ?? readableOn(brand.primary),
+    onPrimary: brand.onPrimary ?? derive(brand.primary),
     secondary: brand.secondary,
-    onSecondary: brand.onSecondary ?? readableOn(brand.secondary),
+    onSecondary: brand.onSecondary ?? derive(brand.secondary),
     background: brand.background,
     foreground: brand.foreground,
     muted: brand.muted,
     mutedForeground: brand.mutedForeground,
     border: brand.border,
     tertiary: tertiary,
-    onTertiary: _onColorFor(brand.tertiary, brand.onTertiary, base.onTertiary),
+    onTertiary: onColorFor(brand.tertiary, brand.onTertiary, base.onTertiary),
     danger: brand.danger ?? base.danger,
     success: brand.success ?? base.success,
     warning: brand.warning ?? base.warning,
     info: brand.info ?? base.info,
     destructive: brand.error ?? base.destructive,
-    onDestructive: _onColorFor(brand.error, brand.onError, base.onDestructive),
+    onDestructive: onColorFor(brand.error, brand.onError, base.onDestructive),
     errorContainer: brand.errorContainer ?? base.errorContainer,
-    onErrorContainer: _onColorFor(
+    onErrorContainer: onColorFor(
       brand.errorContainer,
       brand.onErrorContainer,
       base.onErrorContainer,
     ),
     successContainer: brand.successContainer ?? base.successContainer,
-    onSuccessContainer: _onColorFor(
+    onSuccessContainer: onColorFor(
       brand.successContainer,
       brand.onSuccessContainer,
       base.onSuccessContainer,
     ),
     warningContainer: brand.warningContainer ?? base.warningContainer,
-    onWarningContainer: _onColorFor(
+    onWarningContainer: onColorFor(
       brand.warningContainer,
       brand.onWarningContainer,
       base.onWarningContainer,
     ),
     infoContainer: brand.infoContainer ?? base.infoContainer,
-    onInfoContainer: _onColorFor(
+    onInfoContainer: onColorFor(
       brand.infoContainer,
       brand.onInfoContainer,
       base.onInfoContainer,
@@ -128,13 +143,17 @@ SoliplexColors _lowerColors(BrandColorScheme brand, Brightness brightness) {
   );
 }
 
-/// The on-color for an optional surface: the brand's [on] if given, else a
-/// WCAG-readable tone derived from [surface] when the brand set it, else the
-/// base value (so an untouched role stays byte-identical).
-Color _onColorFor(Color? surface, Color? on, Color base) {
-  if (on != null) return on;
-  if (surface != null) return readableOn(surface);
-  return base;
+/// The hue an auto-derived on-color borrows, per the brand's [tint] policy: the
+/// surface it sits on (tonal), the brand's primary, or none.
+Color? _tintHue(BrandTint tint, BrandColorScheme brand, Color surface) {
+  switch (tint.source) {
+    case TintSource.none:
+      return null;
+    case TintSource.surface:
+      return surface;
+    case TintSource.primary:
+      return brand.primary;
+  }
 }
 
 ({String family, List<String> fallback})? _lowerMonospace(

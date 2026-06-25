@@ -85,8 +85,8 @@ void main() {
           brightness: Brightness.light,
         );
         expect(derived.primary, accent);
-        // onPrimary picks white because the accent is dark.
-        expect(derived.onPrimary, const Color(0xFFFFFFFF));
+        // onPrimary picks the soft near-white because the accent is dark.
+        expect(derived.onPrimary, const Color(0xFFFAFAFA));
         // Container surfaces stay brand-independent.
         expect(
           derived.primaryContainer,
@@ -107,7 +107,8 @@ void main() {
           const Color(0xFFFFD54F),
           brightness: Brightness.light,
         );
-        expect(derived.onPrimary, const Color(0xFF0A0A0A));
+        // readableOn picks the soft near-black for a light accent.
+        expect(derived.onPrimary, const Color(0xFF212427));
       });
 
       test('dark: drives primary only, leaves every other slot untouched', () {

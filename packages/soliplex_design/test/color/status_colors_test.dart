@@ -168,5 +168,16 @@ void main() {
       expect(colors.background, _errorContainer);
       expect(colors.foreground, _onErrorContainer);
     });
+
+    testWidgets('chip neutral defers to the Material chip theme',
+        (tester) async {
+      final colors = await _readUnder(
+        tester,
+        _themeWithContainers(),
+        (c) => chipIntentColors(ChipIntent.neutral, c),
+      );
+      expect(colors.background, isNull);
+      expect(colors.foreground, isNull);
+    });
   });
 }

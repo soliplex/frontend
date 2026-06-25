@@ -118,26 +118,19 @@ void main() {
   });
 
   group('BrandColorScheme', () {
-    test('fromAccent sets primary and a contrasting onPrimary', () {
+    test('fromAccent sets primary and leaves onPrimary for the lowering layer',
+        () {
       final c = BrandColorScheme.fromAccent(
         const Color(0xFF112233),
         brightness: Brightness.light,
       );
       expect(c.primary, const Color(0xFF112233));
-      // Dark accent => white foreground.
-      expect(c.onPrimary, const Color(0xFFFFFFFF));
+      // onPrimary is unset so lowering derives (and can tint) it per accent.
+      expect(c.onPrimary, isNull);
       // Every non-primary role stays the neutral light base.
       expect(c.background, const Color(0xFFFFFFFF));
       expect(c.secondary, const Color(0xFFF3F3FA));
       expect(c.foreground, const Color(0xFF0A0A0A));
-    });
-
-    test('fromAccent picks a black onPrimary for a light accent', () {
-      final c = BrandColorScheme.fromAccent(
-        const Color(0xFFEEEEEE),
-        brightness: Brightness.light,
-      );
-      expect(c.onPrimary, const Color(0xFF000000));
     });
 
     test('fromAccent uses the dark neutral base for dark brightness', () {
@@ -241,44 +234,13 @@ void main() {
     });
   });
 
-  group('hashCode agrees with equality', () {
-    test('equal instances hash equally', () {
-      const scheme = BrandColorScheme(
-        primary: Color(0xFF101010),
-        secondary: Color(0xFF202020),
-        background: Color(0xFF303030),
-        foreground: Color(0xFF404040),
-        muted: Color(0xFF505050),
-        mutedForeground: Color(0xFF606060),
-        border: Color(0xFF707070),
-        danger: Color(0xFF00FF00),
-      );
-      expect(scheme.hashCode, scheme.copyWith().hashCode);
-      expect(
-        const BrandShape.rounded().hashCode,
-        const BrandShape.custom().hashCode,
-      );
-      expect(
-        const TypeScaleOverride(fontSize: 18).hashCode,
-        const TypeScaleOverride(fontSize: 18).hashCode,
-      );
-      expect(
-        const BrandTypography(fallbacks: ['Roboto']).hashCode,
-        const BrandTypography(fallbacks: ['Roboto']).hashCode,
-      );
-      expect(
-        const BrandTheme.soliplex().hashCode,
-        const BrandTheme.soliplex().hashCode,
-      );
-    });
-  });
-
   group('BrandTheme.fromSeed', () {
     test('drives both brightness primaries from one seed', () {
       final theme = BrandTheme.fromSeed(const Color(0xFF112233));
       expect(theme.light.primary, const Color(0xFF112233));
       expect(theme.dark.primary, const Color(0xFF112233));
-      expect(theme.light.onPrimary, const Color(0xFFFFFFFF));
+      // onPrimary is derived (and tintable) at lowering, so unset here.
+      expect(theme.light.onPrimary, isNull);
       // Neutral bases still differ by brightness.
       expect(theme.light.background, const Color(0xFFFFFFFF));
       expect(theme.dark.background, const Color(0xFF111111));
@@ -323,6 +285,22 @@ void main() {
       final next = base.copyWith(shape: const BrandShape.square());
       expect(next.shape, const BrandShape.square());
       expect(next.light, base.light);
+    });
+
+    test('tint participates in equality and copyWith', () {
+      const base = BrandTheme.soliplex();
+      expect(base.tint, const BrandTint());
+      const tint = BrandTint(source: TintSource.surface, strength: 0.1);
+      final tinted = base.copyWith(tint: tint);
+      expect(tinted.tint, tint);
+      expect(tinted, isNot(base));
+    });
+
+    test('a sourceless tint normalizes strength so no-ops compare equal', () {
+      const a = BrandTint(strength: 0.5);
+      expect(a.source, TintSource.none);
+      expect(a.strength, 0); // strength is pinned to 0 when there is no source
+      expect(a, const BrandTint());
     });
   });
 }

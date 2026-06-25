@@ -15,14 +15,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   status *signal* colors, the `error`/destructive role, the four status banner
   surfaces (error/success/warning/info containers), and `link`),
   `BrandTypography` (font families via a pluggable `FontResolver` seam, plus
-  per-role type-scale deltas), and `BrandShape` corner radii — lowered to
-  `ThemeData` by `lowerBrandTheme`. A flavor passes a `BrandTheme` and an
-  `AppIdentity` to `standard()`. An unset role falls back to the base palette
-  and unspecified on-colors get a WCAG-readable foreground, so derived colors
-  clear AA; an explicitly-set on-color is used as-is, and a sub-AA pair (the
-  on-color pairs, `foreground`/`background`, and `link` against the background),
-  or muted text below 3:1, is logged as a warning. The shipped Soliplex look is
-  byte-for-byte unchanged.
+  per-role type-scale deltas), `BrandShape` corner radii, and an opt-in
+  `BrandTint` on-color tint — lowered to `ThemeData` by `lowerBrandTheme`. A
+  flavor passes a `BrandTheme` and an `AppIdentity` to `standard()`. An unset
+  role falls back to the base palette; unspecified on-colors get a soft
+  near-black/near-white foreground (a cascade that escalates to pure black/white
+  only when a mid-tone surface needs it to stay AA-legible), which a brand can
+  optionally tint toward the surface or primary hue via `BrandTint`. An
+  explicitly-set on-color is used as-is, and a sub-AA pair (the on-color pairs,
+  `foreground`/`background`, and `link` against the background), or muted text
+  below 3:1, is logged as a warning. The shipped Soliplex look is byte-for-byte
+  unchanged.
 - Room: threads now show a "New messages" divider at the first unread message
   and auto-scroll to it on open. Read state is tracked per-device, by message
   id; there is no server-side read state or unread count.
