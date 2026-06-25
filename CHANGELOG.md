@@ -12,7 +12,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - Design system: `BrandTypography` now covers all 15 Material text roles (up
   from 9) — `displayLarge/Medium/Small`, `headlineLarge/Small`, and `labelLarge`
-  are now built and each accepts a per-role `TypeScaleOverride`. A role can be
+  are now built (the other six, including `headlineMedium`, already shipped) and
+  each accepts a per-role `TypeScaleOverride`. A role can be
   pointed at a named font family via `TypeScaleOverride.family`
   (`BrandFontRole.{body,display,brand}`), and a fourth `brandFamily` font is
   available — it renders the app/brand name in the auth and lobby headers, read
