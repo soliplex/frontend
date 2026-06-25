@@ -80,7 +80,7 @@ class _FailedImageState extends State<FailedImage> {
         decoration: BoxDecoration(
           border: Border.all(color: theme.colorScheme.outline),
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
         ),
         child: Icon(
           Icons.broken_image,
@@ -122,7 +122,7 @@ class _FailedImageState extends State<FailedImage> {
           child: Tooltip(
             message: _showSource ? 'Show preview' : 'Show source',
             child: InkWell(
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
+              borderRadius: BorderRadius.circular(context.radii.sm),
               onTap: () => setState(() => _showSource = !_showSource),
               child: Padding(
                 padding: const EdgeInsets.all(SoliplexSpacing.s1),

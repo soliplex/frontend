@@ -18,13 +18,13 @@ class QuizAnswerFeedback extends StatelessWidget {
         color: isCorrect
             ? colorScheme.primaryContainer
             : colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         children: [
           Icon(
             isCorrect ? Icons.check_circle : Icons.cancel,
-            color: isCorrect ? colorScheme.success : colorScheme.error,
+            color: isCorrect ? context.success : colorScheme.error,
           ),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
@@ -75,7 +75,7 @@ class QuizErrorFeedback extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s4),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         children: [

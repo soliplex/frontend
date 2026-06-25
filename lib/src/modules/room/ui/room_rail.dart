@@ -175,7 +175,7 @@ class _RoomAvatarTile extends StatelessWidget {
                     height: _avatar - SoliplexSpacing.s2,
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                      borderRadius: BorderRadius.circular(context.radii.sm),
                     ),
                   ),
                 ),
@@ -192,7 +192,7 @@ class _RoomAvatarTile extends StatelessWidget {
                         // A selected avatar squares off (smaller radius) so the
                         // shape shift reinforces the leading bar.
                         borderRadius: BorderRadius.circular(
-                            selected ? soliplexRadii.md : _avatar / 2),
+                            selected ? context.radii.md : _avatar / 2),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
                           onTap: onTap,
@@ -315,7 +315,7 @@ class _AccountHeader extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(soliplexRadii.sm),
+            borderRadius: BorderRadius.circular(context.radii.sm),
           ),
           child: Text(
             _avatarInitial(name),

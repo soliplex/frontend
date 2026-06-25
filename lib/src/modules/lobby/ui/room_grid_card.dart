@@ -33,7 +33,7 @@ class RoomGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final radius = BorderRadius.circular(soliplexRadii.md);
+    final radius = BorderRadius.circular(context.radii.md);
     return Card(
       // The grid owns all spacing (s3 gaps between cells and rows); drop the
       // default card margin so each card fills its cell cleanly.

@@ -21,9 +21,9 @@ golden snapshots under
 | What                  | How                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | Color                 | `Theme.of(context).colorScheme.<token>` or `SoliplexTheme.of(context).colors.<token>`                |
-| Status color          | `Theme.of(context).colorScheme.{danger,success,warning,info}` (via `SymbolicColors`)                 |
+| Status color          | `context.{danger,success,warning,info}` (via `SymbolicColors` on `BuildContext`)                     |
 | Spacing               | `SoliplexSpacing.s1` (4) / `s2` (8) / `s3` (12) / `s4` (16) / `s6` (24)                              |
-| Radius                | `SoliplexTheme.of(context).radii.{sm,md,lg,xl}` — default is `md` (12 px)                            |
+| Radius                | `context.radii.{sm,md,lg,xl}` — default is `md` (12 px)                                              |
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace` — picks `SF Mono` on Cupertino, `Roboto Mono` elsewhere                          |
 | Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
@@ -71,10 +71,81 @@ still picks up Soliplex `ThemeData` automatically.
 The wrappers are intentionally thin: each delegates rendering to its Material
 counterpart so any `ThemeData` override the host app sets still applies.
 
+## Customizing the theme (BrandTheme)
+
+`BrandTheme` is the public, stable customization contract — plain Flutter types,
+no JSON. A flavor or whitelabel fork builds one and `standard()` lowers it to
+`ThemeData` via `lowerBrandTheme(theme, brightness)`. The internal token system
+(`SoliplexColors`, `SoliplexRadii`, the `TextTheme`) stays private behind that
+boundary and can evolve without breaking the contract.
+
+Constructor ladder, least → most change:
+
+- `const BrandTheme.soliplex()` — the shipped look, pinned to today's literals.
+- `BrandTheme.fromSeed(seed)` — derive light and dark palettes from one accent.
+- `BrandTheme.fromAccents(light:, dark:)` — a distinct accent per brightness.
+- `BrandTheme(light:, dark:, typography:, shape:, tint:)` — fully specified.
+
+Each accepts optional `BrandTypography` (body/display/code font families,
+fallbacks, per-role `TypeScaleOverride` deltas), `BrandShape` (`rounded()` /
+`square()` / `custom()` radii), and `BrandTint` (opt-in on-color tinting; see
+below). Colors come from `BrandColorScheme` — seven
+required roles plus optional `tertiary`; the `on*` slots; the status *signal*
+colors (`danger`/`success`/`warning`/`info`); the error/destructive role
+(`error`/`onError`); the four soft status surfaces with their on-colors
+(`errorContainer`/`successContainer`/`warningContainer`/`infoContainer`); and
+`link`. Field names follow Material
+`ColorScheme` convention. An unset role falls back to the base palette and an
+unset `on*` color gets a soft near-black (`#212427`) / near-white (`#FAFAFA`)
+foreground — a cascade that escalates to pure black/white only when a mid-tone
+surface needs it — so derived colors always clear AA. An `on*` color you set
+explicitly is used as-is — its legibility is your call — and a sub-AA pair (the
+`on*` pairs, `foreground`/`background`, and `link` against `background` when you
+set `link`), or `mutedForeground`/`muted` below 3:1, is logged as a warning.
+Links also render on neutral surfaces beyond `background`; verify those
+contrasts yourself.
+
+**On-color tint (`BrandTint`).** By default derived on-colors are neutral. Set
+`tint: BrandTint(source: TintSource.surface | primary, strength: 0.08)` to nudge
+them toward the surface's hue (tonal) or the brand primary. It's opt-in
+(`TintSource.none` by default), contrast-guaranteed (a tint that would fall
+below AA is dropped), and visible only on dark on-colors over light surfaces.
+
+**`danger` vs `error` — two reds, distinct roles.** `danger` is the inline
+status *signal* (`context.danger`: badges, status text — no fill); `error` is
+the destructive *action* role (delete buttons, error borders; lowers to
+`colorScheme.error`). Set them — and the `errorContainer` surface — together to
+keep error styling coherent.
+
+Fonts resolve through a `FontResolver`. The default `BundledFontResolver` trusts
+native asset fonts (offline-safe, no extra dependencies); a fork wanting
+arbitrary fonts (e.g. `google_fonts`) implements `FontResolver` in its own app
+and injects it at `standard(fontResolver: ...)`. A font family that isn't
+registered — a typo, or a missing `pubspec.yaml` entry — falls back silently to
+the platform default, so verify your fonts actually render. App identity
+(`AppIdentity` — name + logos) is a separate config from the theme.
+
+### What is customizable vs fixed
+
+| Surface | Customizable? | How |
+| --- | --- | --- |
+| Colors (7 roles → full palette) | ✅ | `BrandColorScheme` |
+| Status signals (danger/success/warning/info) | ✅ | `BrandColorScheme` optional slots |
+| Error/destructive + status banner surfaces | ✅ | `error`/`onError`, and `errorContainer`/`successContainer`/`warningContainer`/`infoContainer` slots |
+| Link color | ✅ | `BrandColorScheme.link` |
+| Font families (body / display / code) | ✅ | `BrandTypography` + `FontResolver` |
+| Type scale (size / weight / height / spacing) | ✅ | per-role `TypeScaleOverride` |
+| Corner radii | ✅ | `BrandShape` |
+| Auto on-color tint | ✅ opt-in | `BrandTint` (`source` + `strength`); off by default |
+| App name + logos | ✅ | `AppIdentity` |
+| Neutral surface ramp (cards/inputs/selected tints) | ❌ fixed | neutral by design, hosts colored content |
+| Spacing grid + breakpoints | ❌ fixed | `static const` shared grammar |
+| Widget composition / layout | ❌ fixed | module override or fork |
+
 ## Hard rules
 
 1. No `Color(0x...)`, `Color.fromARGB`, or `Colors.red|green|orange|blue|yellow` outside this package.
-2. No bare `BorderRadius.circular(N)` — use `SoliplexTheme.of(context).radii.*`.
+2. No bare `BorderRadius.circular(N)` — use `context.radii.*` (or `SoliplexTheme.of(context).radii`).
 3. No `TextStyle(fontSize: ...)` or bare `fontSize:` in `.copyWith` — start from a `textTheme` entry and `copyWith` only the delta you need.
 4. No `fontFamily: 'monospace'` / `'Roboto Mono'` / `'SF Mono'` string literals — use `context.monospace`.
 5. No raw `EdgeInsets` numbers — use `SoliplexSpacing`.
@@ -92,10 +163,10 @@ Mirror of the checklist in `design_system/README.md`:
 
 - [ ] Colors come from `Theme.of(context).colorScheme`, not hex literals.
 - [ ] Padding values come from `SoliplexSpacing` (`s1..s6`).
-- [ ] Corner radii come from `SoliplexTheme.of(context).radii`.
+- [ ] Corner radii come from `context.radii`.
 - [ ] Text styles come from `Theme.of(context).textTheme`.
 - [ ] Monospace uses `context.monospace`, not a hardcoded font family.
-- [ ] Status colors go through the `SymbolicColors` extension.
+- [ ] Status colors go through `context.{danger,success,warning,info}`.
 - [ ] Interactive widgets use the branded `SoliplexX` wrapper when one exists.
 - [ ] Screen behaves at all three `SoliplexBreakpoints`.
 - [ ] Both light and dark palettes look correct.

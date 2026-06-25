@@ -23,7 +23,7 @@ class HttpStatusDisplay extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final color = isSelected
         ? colorScheme.onPrimaryContainer
-        : _colorForStatus(group.status, colorScheme);
+        : _colorForStatus(context, group.status, colorScheme);
     final statusText = _buildStatusText();
 
     final child = group.hasSpinner
@@ -36,15 +36,19 @@ class HttpStatusDisplay extends StatelessWidget {
     );
   }
 
-  Color _colorForStatus(HttpEventStatus status, ColorScheme colorScheme) {
+  Color _colorForStatus(
+    BuildContext context,
+    HttpEventStatus status,
+    ColorScheme colorScheme,
+  ) {
     return switch (status) {
       HttpEventStatus.pending => colorScheme.onSurfaceVariant,
-      HttpEventStatus.success => colorScheme.success,
-      HttpEventStatus.clientError => colorScheme.warning,
+      HttpEventStatus.success => context.success,
+      HttpEventStatus.clientError => context.warning,
       HttpEventStatus.serverError => colorScheme.error,
       HttpEventStatus.networkError => colorScheme.error,
       HttpEventStatus.streaming => colorScheme.secondary,
-      HttpEventStatus.streamComplete => colorScheme.success,
+      HttpEventStatus.streamComplete => context.success,
       HttpEventStatus.streamError => colorScheme.error,
     };
   }

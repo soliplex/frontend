@@ -98,7 +98,7 @@ class _ConnectFlowRailState extends State<ConnectFlowRail> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         border: Border.all(color: colors.outlineVariant),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(context.radii.md),
       ),
       // The strip can be wider than its column on smaller desktop windows;
       // scroll rather than shrink so every label stays legible.
@@ -171,7 +171,7 @@ class _RailNode extends StatelessWidget {
         decoration: isActive
             ? BoxDecoration(
                 color: colors.primary,
-                borderRadius: BorderRadius.circular(soliplexRadii.sm),
+                borderRadius: BorderRadius.circular(context.radii.sm),
               )
             : null,
         child: Row(

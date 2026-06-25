@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/theme/classification_theme.dart';
@@ -7,33 +8,43 @@ import 'package:soliplex_design/src/tokens/colors.dart';
 import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/spacing.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
+import 'package:soliplex_design/src/tokens/typography_x.dart';
 
 ThemeData soliplexLightTheme({
   SoliplexColors colors = lightSoliplexColors,
+  SoliplexRadii radii = soliplexRadii,
   ClassificationTheme? classifications,
 }) =>
-    _buildTheme(
+    buildSoliplexThemeData(
       colors: colors,
+      radii: radii,
       brightness: Brightness.light,
       classifications: classifications,
     );
 
 ThemeData soliplexDarkTheme({
   SoliplexColors colors = darkSoliplexColors,
+  SoliplexRadii radii = soliplexRadii,
   ClassificationTheme? classifications,
 }) =>
-    _buildTheme(
+    buildSoliplexThemeData(
       colors: colors,
+      radii: radii,
       brightness: Brightness.dark,
       classifications: classifications,
     );
 
-ThemeData _buildTheme({
+ThemeData buildSoliplexThemeData({
   required SoliplexColors colors,
   required Brightness brightness,
+  SoliplexRadii radii = soliplexRadii,
+  ({String family, List<String> fallback})? monospace,
+  TextTheme? textTheme,
   ClassificationTheme? classifications,
 }) {
-  final textTheme = soliplexTextTheme(colors);
+  textTheme ??= soliplexTextTheme(colors);
+  final monospaceFamily =
+      monospace ?? monospaceFontFamily(defaultTargetPlatform);
   final colorScheme = ColorScheme(
     brightness: brightness,
     primary: colors.primary,
@@ -97,20 +108,20 @@ ThemeData _buildTheme({
     buttonTheme: ButtonThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(radii.md),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(radii.md),
         ),
       ),
     ),
@@ -118,14 +129,14 @@ ThemeData _buildTheme({
       style: FilledButton.styleFrom(
         shape: RoundedRectangleBorder(
           side: BorderSide(color: colors.border),
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(radii.md),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(radii.md),
         ),
         side: BorderSide(color: colors.border),
       ),
@@ -136,34 +147,34 @@ ThemeData _buildTheme({
       helperMaxLines: inputFeedbackMaxLines,
       errorMaxLines: inputFeedbackMaxLines,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide(color: colors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide(color: colors.border, width: 2),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide.none,
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide(color: colors.destructive),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         borderSide: BorderSide(color: colors.destructive, width: 2),
       ),
       hintStyle: TextStyle(color: colors.hintText),
     ),
     listTileTheme: ListTileThemeData(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
       selectedColor: colors.primary,
       selectedTileColor: colors.inputBackground,
@@ -171,18 +182,18 @@ ThemeData _buildTheme({
     cardTheme: CardThemeData(
       color: colors.inputBackground,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
       elevation: 0,
     ),
     expansionTileTheme: ExpansionTileThemeData(
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
       collapsedShape: RoundedRectangleBorder(
         side: BorderSide(color: colors.border),
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
       collapsedBackgroundColor: colors.inputBackground,
       backgroundColor: colors.onPrimary,
@@ -192,7 +203,7 @@ ThemeData _buildTheme({
       selectedColor: colors.primary.withAlpha(25),
       disabledColor: colors.muted,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
         side: BorderSide(color: colors.border),
       ),
       labelStyle: TextStyle(color: colors.foreground),
@@ -206,11 +217,11 @@ ThemeData _buildTheme({
     ),
     checkboxTheme: CheckboxThemeData(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(radii.sm),
       ),
     ),
     toggleButtonsTheme: ToggleButtonsThemeData(
-      borderRadius: BorderRadius.circular(soliplexRadii.md),
+      borderRadius: BorderRadius.circular(radii.md),
     ),
     // Material's M3 default is a StadiumBorder (full pill). Pin the segmented
     // control to the system's md radius so it matches ToggleButtons and the
@@ -219,7 +230,7 @@ ThemeData _buildTheme({
       style: ButtonStyle(
         shape: WidgetStateProperty.all<OutlinedBorder?>(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            borderRadius: BorderRadius.circular(radii.md),
           ),
         ),
       ),
@@ -230,7 +241,7 @@ ThemeData _buildTheme({
         visualDensity: VisualDensity.compact,
         shape: WidgetStateProperty.all<OutlinedBorder?>(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(soliplexRadii.md),
+            borderRadius: BorderRadius.circular(radii.md),
           ),
         ),
       ),
@@ -244,7 +255,7 @@ ThemeData _buildTheme({
     popupMenuTheme: PopupMenuThemeData(
       color: colors.onPrimary,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(soliplexRadii.md),
+        borderRadius: BorderRadius.circular(radii.md),
       ),
       textStyle: textTheme.bodyMedium,
     ),
@@ -255,7 +266,8 @@ ThemeData _buildTheme({
       classifications ?? ClassificationTheme.fallback,
       SoliplexTheme(
         colors: colors,
-        radii: soliplexRadii,
+        radii: radii,
+        monospace: monospaceFamily,
         badgeTheme: SoliplexBadgeThemeData(
           background: Color.alphaBlend(
             colors.foreground.withAlpha(15),
@@ -283,7 +295,7 @@ ThemeData _buildTheme({
         ),
         codeBlockDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(radii.md),
         ),
         blockquoteDecoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,

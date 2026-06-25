@@ -28,12 +28,41 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- Design system: themes are now customizable through a public `BrandTheme`
+  contract — a per-brightness `BrandColorScheme` (seven core roles plus optional
+  status *signal* colors, the `error`/destructive role, the four status banner
+  surfaces (error/success/warning/info containers), and `link`),
+  `BrandTypography` (font families via a pluggable `FontResolver` seam, plus
+  per-role type-scale deltas), `BrandShape` corner radii, and an opt-in
+  `BrandTint` on-color tint — lowered to `ThemeData` by `lowerBrandTheme`. A
+  flavor passes a `BrandTheme` and an `AppIdentity` to `standard()`. An unset
+  role falls back to the base palette; unspecified on-colors get a soft
+  near-black/near-white foreground (a cascade that escalates to pure black/white
+  only when a mid-tone surface needs it to stay AA-legible), which a brand can
+  optionally tint toward the surface or primary hue via `BrandTint`. An
+  explicitly-set on-color is used as-is, and a sub-AA pair (the on-color pairs,
+  `foreground`/`background`, and `link` against the background), or muted text
+  below 3:1, is logged as a warning. `BrandTheme.soliplex()` lowers byte-for-byte
+  to today's palette, and the app's rendered screens are unchanged.
 - Room: threads now show a "New messages" divider at the first unread message
   and auto-scroll to it on open. Read state is tracked per-device, by message
   id; there is no server-side read state or unread count.
 
 ### Changed
 
+- Design system (**breaking for whitelabel forks**): `SoliplexBranding` is
+  replaced by `AppIdentity` (app name + logos) plus `BrandTheme` (visual
+  theme); `standard()` now takes `identity:` + `theme:` instead of
+  `branding:`. The `SymbolicColors` status accessors moved from `ColorScheme`
+  to `BuildContext` (`colorScheme.danger` → `context.danger`), and app corner
+  radii now read `context.radii` so a `BrandShape` override reaches them.
+- Design system: the `info` and `warning` filled status pills
+  (`SoliplexBadge`/`SoliplexChip`) now read the new
+  `infoContainer`/`warningContainer` token pairs — a soft container surface with
+  an AA-legible on-color, matching the existing `danger`/`success` pills —
+  instead of tinting the signal color at 15% alpha. This restyles those two pill
+  variants (visible in the component gallery); no app screen uses the
+  `info`/`warning` intents, so shipped screens are unaffected.
 - Room: a room now keeps its unread dot while any of its threads is unread,
   instead of clearing the moment the room is opened. Read state stays
   per-device; the room marker is derived from thread-read state.

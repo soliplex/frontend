@@ -529,7 +529,7 @@ class _UploadEntryRow extends StatelessWidget {
     final (icon, color, errorMessage) = switch (entry) {
       PersistedUpload() => (
           Icons.check_circle_outline,
-          theme.colorScheme.success,
+          context.success,
           null,
         ),
       PendingUpload() => (null, theme.colorScheme.primary, null),
@@ -559,7 +559,7 @@ class _UploadEntryRow extends StatelessWidget {
       decoration: isFailed
           ? BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(soliplexRadii.sm),
+              borderRadius: BorderRadius.circular(context.radii.sm),
             )
           : null,
       child: Row(

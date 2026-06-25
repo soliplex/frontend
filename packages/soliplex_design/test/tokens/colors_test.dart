@@ -36,6 +36,14 @@ void main() {
         onErrorContainer: Colors.red,
         successContainer: Colors.grey,
         onSuccessContainer: Colors.green,
+        warningContainer: Colors.grey,
+        onWarningContainer: Colors.orange,
+        infoContainer: Colors.grey,
+        onInfoContainer: Colors.blue,
+        danger: Colors.red,
+        success: Colors.green,
+        warning: Colors.orange,
+        info: Colors.blue,
         border: Colors.grey,
         outline: Colors.grey,
         outlineVariant: Colors.grey,
@@ -53,6 +61,22 @@ void main() {
       expect(colors.primary, Colors.blue);
     });
 
+    group("status slots default to today's symbolic colors", () {
+      test('light palette', () {
+        expect(lightSoliplexColors.danger, Colors.red);
+        expect(lightSoliplexColors.success, Colors.green);
+        expect(lightSoliplexColors.warning, Colors.orange);
+        expect(lightSoliplexColors.info, Colors.blue);
+      });
+
+      test('dark palette', () {
+        expect(darkSoliplexColors.danger, Colors.red.shade300);
+        expect(darkSoliplexColors.success, Colors.green.shade300);
+        expect(darkSoliplexColors.warning, Colors.orange.shade300);
+        expect(darkSoliplexColors.info, Colors.blue.shade300);
+      });
+    });
+
     group('fromAccent', () {
       test('light: drives primary only, leaves every other slot untouched', () {
         const accent = Color(0xFF6750A4);
@@ -61,8 +85,8 @@ void main() {
           brightness: Brightness.light,
         );
         expect(derived.primary, accent);
-        // onPrimary picks white because the accent is dark.
-        expect(derived.onPrimary, const Color(0xFFFFFFFF));
+        // onPrimary picks the soft near-white because the accent is dark.
+        expect(derived.onPrimary, const Color(0xFFFAFAFA));
         // Container surfaces stay brand-independent.
         expect(
           derived.primaryContainer,
@@ -83,7 +107,8 @@ void main() {
           const Color(0xFFFFD54F),
           brightness: Brightness.light,
         );
-        expect(derived.onPrimary, const Color(0xFF0A0A0A));
+        // readableOn picks the soft near-black for a light accent.
+        expect(derived.onPrimary, const Color(0xFF212427));
       });
 
       test('dark: drives primary only, leaves every other slot untouched', () {

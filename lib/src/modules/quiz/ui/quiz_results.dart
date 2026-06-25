@@ -22,9 +22,9 @@ class QuizResultsView extends StatelessWidget {
     final percent = session.scorePercent;
 
     final (scoreColor, scoreIcon) = switch (percent) {
-      >= 70 => (theme.colorScheme.success, Icons.emoji_events),
-      >= 40 => (theme.colorScheme.warning, Icons.thumb_up),
-      _ => (theme.colorScheme.danger, Icons.refresh),
+      >= 70 => (context.success, Icons.emoji_events),
+      >= 40 => (context.warning, Icons.thumb_up),
+      _ => (context.danger, Icons.refresh),
     };
 
     return Center(

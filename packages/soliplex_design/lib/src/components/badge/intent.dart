@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:soliplex_design/src/color/color_scheme_extensions.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
 
 /// Semantic flavor of a `SoliplexBadge`.
@@ -12,14 +11,15 @@ enum BadgeIntent {
   /// neutral badge palette from `SoliplexBadgeThemeData`.
   neutral,
 
-  /// Informational notice. Blue tint.
+  /// Informational notice. Uses the brand's `infoContainer` palette.
   info,
 
   /// Success state ("active", "completed"). Uses the brand's
   /// `successContainer` palette.
   success,
 
-  /// Caution state ("review needed", "expiring"). Orange tint.
+  /// Caution state ("review needed", "expiring"). Uses the brand's
+  /// `warningContainer` palette.
   warning,
 
   /// Failure / destructive state ("error", "blocked"). Uses the brand's
@@ -30,20 +30,11 @@ enum BadgeIntent {
 /// The `(background, foreground)` colour pair for a badge at this intent,
 /// resolved against the current theme.
 ///
-/// Mixed sourcing by design:
-///
 /// - `neutral`: the brand's customizable [SoliplexBadgeThemeData].
-/// - `danger` / `success`: the brand's `errorContainer` /
-///   `successContainer` token pairs — these slots exist precisely for
-///   status surfaces, so honouring them keeps brand fidelity.
-/// - `info` / `warning`: derived at runtime from `SymbolicColors`
-///   because there are no `infoContainer` / `warningContainer` brand
-///   tokens (yet). Background is the symbolic color tinted to 15%
-///   alpha, foreground is the symbolic color at full opacity.
-///
-/// If brand-customizable info/warning containers are ever needed, add
-/// the tokens to `SoliplexColors` and swap the derived case below for
-/// the new pair.
+/// - `danger` / `success` / `warning` / `info`: the brand's `errorContainer` /
+///   `successContainer` / `warningContainer` / `infoContainer` token pairs —
+///   each a soft status surface with a readable on-color, so a fork rebrands
+///   the pill by setting those roles.
 ({Color background, Color foreground}) badgeIntentColors(
   BadgeIntent intent,
   BuildContext context,
@@ -60,8 +51,8 @@ enum BadgeIntent {
       );
     case BadgeIntent.info:
       return (
-        background: scheme.info.withValues(alpha: 0.15),
-        foreground: scheme.info,
+        background: soliplex.colors.infoContainer,
+        foreground: soliplex.colors.onInfoContainer,
       );
     case BadgeIntent.success:
       return (
@@ -70,13 +61,13 @@ enum BadgeIntent {
       );
     case BadgeIntent.warning:
       return (
-        background: scheme.warning.withValues(alpha: 0.15),
-        foreground: scheme.warning,
+        background: soliplex.colors.warningContainer,
+        foreground: soliplex.colors.onWarningContainer,
       );
     case BadgeIntent.danger:
       return (
-        background: scheme.errorContainer,
-        foreground: scheme.onErrorContainer,
+        background: soliplex.colors.errorContainer,
+        foreground: soliplex.colors.onErrorContainer,
       );
   }
 }

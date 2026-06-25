@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/brand/contrast.dart';
+
 class SoliplexColors {
   const SoliplexColors({
     required this.background,
@@ -24,6 +26,14 @@ class SoliplexColors {
     required this.onErrorContainer,
     required this.successContainer,
     required this.onSuccessContainer,
+    required this.warningContainer,
+    required this.onWarningContainer,
+    required this.infoContainer,
+    required this.onInfoContainer,
+    required this.danger,
+    required this.success,
+    required this.warning,
+    required this.info,
     required this.border,
     required this.outline,
     required this.outlineVariant,
@@ -55,7 +65,7 @@ class SoliplexColors {
         : darkSoliplexColors;
     return base.copyWith(
       primary: accent,
-      onPrimary: contrastingForeground(accent),
+      onPrimary: readableOn(accent),
     );
   }
 
@@ -81,6 +91,18 @@ class SoliplexColors {
   final Color onErrorContainer;
   final Color successContainer;
   final Color onSuccessContainer;
+  final Color warningContainer;
+  final Color onWarningContainer;
+  final Color infoContainer;
+  final Color onInfoContainer;
+
+  /// Status colors — the single source the symbolic roles read from. Defaults
+  /// are the Material status palette.
+  final Color danger;
+  final Color success;
+  final Color warning;
+  final Color info;
+
   final Color border;
   final Color outline;
   final Color outlineVariant;
@@ -116,6 +138,14 @@ class SoliplexColors {
     Color? onErrorContainer,
     Color? successContainer,
     Color? onSuccessContainer,
+    Color? warningContainer,
+    Color? onWarningContainer,
+    Color? infoContainer,
+    Color? onInfoContainer,
+    Color? danger,
+    Color? success,
+    Color? warning,
+    Color? info,
     Color? border,
     Color? outline,
     Color? outlineVariant,
@@ -151,6 +181,14 @@ class SoliplexColors {
       onErrorContainer: onErrorContainer ?? this.onErrorContainer,
       successContainer: successContainer ?? this.successContainer,
       onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+      warningContainer: warningContainer ?? this.warningContainer,
+      onWarningContainer: onWarningContainer ?? this.onWarningContainer,
+      infoContainer: infoContainer ?? this.infoContainer,
+      onInfoContainer: onInfoContainer ?? this.onInfoContainer,
+      danger: danger ?? this.danger,
+      success: success ?? this.success,
+      warning: warning ?? this.warning,
+      info: info ?? this.info,
       border: border ?? this.border,
       outline: outline ?? this.outline,
       outlineVariant: outlineVariant ?? this.outlineVariant,
@@ -168,8 +206,11 @@ class SoliplexColors {
   }
 }
 
-/// The legible foreground (near-white or near-black) for text or icons drawn
-/// on top of an arbitrary [background] — e.g. a hashed avatar tint.
+/// The legible foreground (white or near-black) for text or icons drawn
+/// on top of an arbitrary [background] — e.g. a hashed avatar tint. Returns the
+/// brand's near-black `#0A0A0A` rather than pure black, so decorative tints
+/// match the foreground tone. For an on-color that must clear WCAG AA by
+/// construction, use `readableOn` instead.
 Color contrastingForeground(Color background) =>
     ThemeData.estimateBrightnessForColor(background) == Brightness.dark
         ? const Color(0xFFFFFFFF)
@@ -198,6 +239,14 @@ const lightSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFF991B1B),
   successContainer: Color(0xFFDCFCE7),
   onSuccessContainer: Color(0xFF166534),
+  warningContainer: Color(0xFFFEF3C7),
+  onWarningContainer: Color(0xFF92400E),
+  infoContainer: Color(0xFFDBEAFE),
+  onInfoContainer: Color(0xFF1E40AF),
+  danger: Colors.red,
+  success: Colors.green,
+  warning: Colors.orange,
+  info: Colors.blue,
   border: Color(0x1A000000),
   outline: Color(0xFFC0C0C4),
   outlineVariant: Color(0xFFE0E0E2),
@@ -234,6 +283,15 @@ const darkSoliplexColors = SoliplexColors(
   onErrorContainer: Color(0xFFFCA5A5),
   successContainer: Color(0xFF1A3D1A),
   onSuccessContainer: Color(0xFF86EFAC),
+  warningContainer: Color(0xFF3D2E12),
+  onWarningContainer: Color(0xFFFCD34D),
+  infoContainer: Color(0xFF1A1A3D),
+  onInfoContainer: Color(0xFF93C5FD),
+  // The .shade300 status colors as literals (.shadeN is not a const accessor).
+  danger: Color(0xFFE57373),
+  success: Color(0xFF81C784),
+  warning: Color(0xFFFFB74D),
+  info: Color(0xFF64B5F6),
   border: Color(0xFF2A2A2A),
   outline: Color(0xFF555555),
   outlineVariant: Color(0xFF3A3A3A),

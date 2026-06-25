@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -37,6 +38,14 @@ void main() {
         onErrorContainer: Colors.red,
         successContainer: Colors.grey,
         onSuccessContainer: Colors.green,
+        warningContainer: Colors.grey,
+        onWarningContainer: Colors.orange,
+        infoContainer: Colors.grey,
+        onInfoContainer: Colors.blue,
+        danger: Colors.red,
+        success: Colors.green,
+        warning: Colors.orange,
+        info: Colors.blue,
         border: Colors.grey,
         outline: Colors.grey,
         outlineVariant: Colors.grey,
@@ -70,6 +79,33 @@ void main() {
 
       expect(ext, isNotNull);
       expect(ext!.colors, lightSoliplexColors);
+    });
+
+    test('defaults radii to soliplexRadii', () {
+      final theme = soliplexLightTheme();
+
+      expect(theme.extension<SoliplexTheme>()!.radii, soliplexRadii);
+    });
+
+    test('defaults monospace to the platform family', () {
+      final mono = soliplexLightTheme().extension<SoliplexTheme>()!.monospace;
+
+      expect(mono, monospaceFontFamily(defaultTargetPlatform));
+    });
+
+    test('threads custom radii into the extension and component shapes', () {
+      const customRadii = SoliplexRadii(sm: 1, md: 2, lg: 3, xl: 4);
+      final theme = soliplexLightTheme(radii: customRadii);
+
+      expect(theme.extension<SoliplexTheme>()!.radii, customRadii);
+      expect(
+        (theme.cardTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(2),
+      );
+      expect(
+        (theme.checkboxTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(1),
+      );
     });
 
     test('maps ColorScheme fields from SoliplexColors', () {

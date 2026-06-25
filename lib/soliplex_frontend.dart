@@ -1,13 +1,24 @@
 /// Modular Flutter frontend framework for Soliplex.
 library;
 
-// General design-system theming primitives, re-exported so consumers that
-// depend only on this package can build a ThemeData (with the classification
-// ThemeExtension) without taking a direct dependency on soliplex_design.
+// Design-system theming primitives, re-exported so consumers that depend only
+// on this package can build and customize a brand theme without taking a direct
+// dependency on soliplex_design.
 export 'package:soliplex_design/soliplex_design.dart'
-    show ClassificationLevel, ClassificationTheme;
+    show
+        BrandColorScheme,
+        BrandShape,
+        BrandTheme,
+        BrandTypography,
+        BundledFontResolver,
+        ClassificationLevel,
+        ClassificationTheme,
+        FontResolver,
+        ResolvedFont,
+        TypeScaleOverride,
+        lowerBrandTheme;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
-export 'src/core/branding.dart' show BrandLogo, SoliplexBranding;
+export 'src/core/app_identity.dart' show AppIdentity, BrandLogo;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
 export 'src/core/shell.dart' show runSoliplexShell;
 export 'src/core/shell_config.dart' show ShellConfig;

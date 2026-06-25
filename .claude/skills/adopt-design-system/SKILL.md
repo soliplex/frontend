@@ -4,23 +4,24 @@ description: >-
   Use when a whitelabel fork or downstream deployment has its own hand-rolled
   theming — a custom ThemeData/ColorScheme, hex color literals, magic
   spacing/radii, raw Material widgets, or font-family strings — and wants to
-  adopt soliplex_design tokens, branded components, and per-flavor
-  SoliplexBranding (light/dark accents, logo, app name). Triggers: "adopt the
+  adopt soliplex_design tokens, branded components, an AppIdentity (logo, app
+  name) and a BrandTheme (light/dark colors, fonts, radii). Triggers: "adopt the
   design system", "migrate our fork to soliplex_design", "whitelabel branding",
   "replace our custom theme", "switch to Soliplex tokens".
 ---
 
 # Adopt the Soliplex design system
 
-Guides a whitelabel fork from a hand-rolled UI to `soliplex_design`: brand
-identity flows through one `SoliplexBranding`, and every screen consumes
-tokens and branded components instead of literals and raw Material widgets.
+Guides a whitelabel fork from a hand-rolled UI to `soliplex_design`: app
+identity flows through an `AppIdentity` and the visual theme through a
+`BrandTheme`, and every screen consumes tokens and branded components instead of
+literals and raw Material widgets.
 
 The design system is the single source of truth (`packages/soliplex_design/`,
 documented in `packages/soliplex_design/README.md`). **Read that README first**
-— it has the full accessor cheat sheet and component inventory this skill
-abbreviates. The branding API and light/dark theme split were introduced in
-PR #261 (`feat(branding): whitelabel branding API + light/dark theming`).
+— it has the full accessor cheat sheet, the component inventory, and the
+*Customizing the theme* section (the `BrandTheme` surface) this skill
+abbreviates.
 
 ## When to use
 
@@ -110,34 +111,43 @@ These cost time during the first-party sweeps; check them as you go.
 - **Use `withAlpha(N)`, not `withOpacity`.** `withOpacity` is deprecated;
   `flutter analyze` flags it, and the CI gate is zero warnings.
 
-## Step 3 — Wire the branding
+## Step 3 — Wire the identity and theme
 
-Replace the fork's custom `ThemeData` with one `SoliplexBranding`, then let the
-standard flavor build both themes from it. `SoliplexColors.fromAccent` derives
-`primary` (and a readable `onPrimary`) from the accent only — every neutral
-surface, container tone, and status color stays Soliplex, so the platform
-identity survives the rebrand.
+Replace the fork's custom `ThemeData` with an `AppIdentity` (name + logos) and a
+`BrandTheme` (the visual theme), then let the standard flavor lower the brand to
+both light and dark `ThemeData`. `BrandTheme.fromAccents` derives `primary` (and
+a readable `onPrimary`) from each accent only — every neutral surface, container
+tone, and status color stays Soliplex, so the platform identity survives the
+rebrand.
 
 ```dart
-final branding = SoliplexBranding(
-  accentLight: const Color(0xFF1B5E20), // brand accent — light theme
-  accentDark: const Color(0xFF66BB6A),  // brand accent — dark theme
+final identity = AppIdentity(
   appName: 'Acme Workspace',
   logoLight: Image.asset('assets/acme/logo.png', width: 64, height: 64),
   // logoDark optional: when omitted, BrandLogo wraps logoLight in a
   // SoliplexGlow halo so a dark-on-light mark stays legible on dark surfaces.
 );
 
+final theme = BrandTheme.fromAccents(
+  light: const Color(0xFF1B5E20), // brand accent — light theme
+  dark: const Color(0xFF66BB6A),  // brand accent — dark theme
+);
+
 final config = await standard(
-  branding: branding,
+  identity: identity,
+  theme: theme,
   themeMode: ThemeMode.system,
   // classifications: ...  // optional, only if the deployment marks rooms
+  // fontResolver: ...      // optional, e.g. a google_fonts-backed resolver
 );
 ```
 
-The hex literals in `accentLight`/`accentDark` are the **one** sanctioned place
+The hex literals in `BrandTheme.fromAccents` are the **one** sanctioned place
 for raw colors in consumer code — a brand accent has no token by definition.
-Everything downstream of `branding` must stay token-driven.
+Everything downstream stays token-driven. To also override fonts, type scale, or
+corner radii, pass `BrandTypography` / `BrandShape` into the `BrandTheme` (see
+the README's *Customizing the theme* section); for non-bundled fonts inject a
+`FontResolver`.
 
 ## Step 4 — Verify
 

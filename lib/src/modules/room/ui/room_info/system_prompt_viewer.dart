@@ -69,7 +69,7 @@ class _SystemPromptViewerState extends State<SystemPromptViewer> {
                     padding: const EdgeInsets.all(SoliplexSpacing.s2),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(soliplexRadii.md),
+                      borderRadius: BorderRadius.circular(context.radii.md),
                     ),
                     child: SelectableText(
                       widget.prompt,

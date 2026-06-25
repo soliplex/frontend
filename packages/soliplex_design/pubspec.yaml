@@ -11,6 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  soliplex_logging:
+    path: ../soliplex_logging
 
 dev_dependencies:
   flutter_test:

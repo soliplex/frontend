@@ -118,7 +118,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           color: theme.colorScheme.surfaceContainerLow,
           // Match the message bubble's base corner (md); the events card keeps
           // uniform rounding on every corner (no speech-bubble tail).
-          borderRadius: BorderRadius.circular(soliplexRadii.md),
+          borderRadius: BorderRadius.circular(context.radii.md),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +303,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         padding: const EdgeInsets.all(SoliplexSpacing.s2),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(soliplexRadii.sm),
+          borderRadius: BorderRadius.circular(context.radii.sm),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -346,7 +346,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           // pass/fail outcome.
           color: step.type == StepType.thinking
               ? theme.colorScheme.tertiary
-              : theme.colorScheme.success,
+              : context.success,
         );
     }
   }
@@ -368,7 +368,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         return Icon(
           Icons.check_circle,
           size: 12,
-          color: theme.colorScheme.success,
+          color: context.success,
         );
       case SkillToolCallStatus.unknown:
         return Icon(

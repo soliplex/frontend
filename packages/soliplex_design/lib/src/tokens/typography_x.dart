@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/theme/theme_extensions.dart';
+
 /// The monospace font family and fallbacks to use on [platform].
 ({String family, List<String> fallback}) monospaceFontFamily(
   TargetPlatform platform,
@@ -13,7 +15,8 @@ import 'package:flutter/material.dart';
 
 TextStyle appMonospaceTextStyle(BuildContext context, {TextStyle? base}) {
   final effectiveBase = base ?? Theme.of(context).textTheme.bodyMedium;
-  final mono = monospaceFontFamily(Theme.of(context).platform);
+  final mono = SoliplexTheme.maybeOf(context)?.monospace ??
+      monospaceFontFamily(Theme.of(context).platform);
   return effectiveBase!.copyWith(
     fontFamily: mono.family,
     fontFamilyFallback: mono.fallback,

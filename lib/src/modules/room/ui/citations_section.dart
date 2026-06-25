@@ -38,7 +38,7 @@ class _CitationsSectionState extends State<CitationsSection> {
           children: [
             InkWell(
               onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
-              borderRadius: BorderRadius.circular(soliplexRadii.md),
+              borderRadius: BorderRadius.circular(context.radii.md),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     vertical: SoliplexSpacing.s1,
@@ -141,7 +141,7 @@ class _SourceReferenceRow extends StatelessWidget {
               Expanded(
                 child: InkWell(
                   onTap: onToggle,
-                  borderRadius: BorderRadius.circular(soliplexRadii.md),
+                  borderRadius: BorderRadius.circular(context.radii.md),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         vertical: SoliplexSpacing.s1),
@@ -153,7 +153,7 @@ class _SourceReferenceRow extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primaryContainer,
                             borderRadius:
-                                BorderRadius.circular(soliplexRadii.sm),
+                                BorderRadius.circular(context.radii.sm),
                           ),
                           alignment: Alignment.center,
                           child: Text(
@@ -211,7 +211,7 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
               InkWell(
                 onTap: onToggle,
-                borderRadius: BorderRadius.circular(soliplexRadii.md),
+                borderRadius: BorderRadius.circular(context.radii.md),
                 child: Padding(
                   padding: const EdgeInsets.all(SoliplexSpacing.s2),
                   child: Icon(
@@ -266,7 +266,7 @@ class _SourceReferenceRow extends StatelessWidget {
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(soliplexRadii.md),
+                borderRadius: BorderRadius.circular(context.radii.md),
               ),
               child: SingleChildScrollView(
                 child: FlutterMarkdownPlusRenderer(

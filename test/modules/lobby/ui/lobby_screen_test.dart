@@ -35,7 +35,7 @@ Widget _buildApp(
         path: '/lobby',
         builder: (_, __) => LobbyScreen(
           serverManager: manager,
-          branding: testBranding(),
+          identity: testIdentity(),
           apiResolver: apiResolver,
         ),
       ),

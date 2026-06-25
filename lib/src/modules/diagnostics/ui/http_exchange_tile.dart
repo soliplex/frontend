@@ -424,7 +424,7 @@ class _CodeSurface extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: child,
     );
@@ -537,7 +537,7 @@ class _HeadersTable extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Column(
         children: [
@@ -604,7 +604,7 @@ class _MethodBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Text(
         method,
@@ -648,7 +648,7 @@ class _ErrorDisplay extends StatelessWidget {
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

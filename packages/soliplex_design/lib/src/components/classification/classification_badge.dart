@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:soliplex_design/src/components/badge/pill.dart';
 import 'package:soliplex_design/src/theme/classification_theme.dart';
-import 'package:soliplex_design/src/tokens/radii.dart';
+import 'package:soliplex_design/src/theme/theme_extensions.dart';
 import 'package:soliplex_design/src/tokens/spacing.dart';
 
 /// Display-only confidentiality marking pill.
@@ -52,7 +52,7 @@ class SoliplexClassificationBadge extends StatelessWidget {
             horizontal: SoliplexSpacing.s2,
             vertical: SoliplexSpacing.s1,
           ),
-          radius: soliplexRadii.sm,
+          radius: context.radii.sm,
           textStyle: textTheme.labelMedium!.copyWith(
             fontWeight: FontWeight.w700,
           ),

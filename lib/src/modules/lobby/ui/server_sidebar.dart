@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../version.dart';
-import '../../../core/branding.dart';
+import '../../../core/app_identity.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
@@ -20,7 +20,7 @@ class ServerSidebar extends StatelessWidget {
     required this.servers,
     required this.serverManager,
     required this.profiles,
-    required this.branding,
+    required this.identity,
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onSignIn,
@@ -36,7 +36,7 @@ class ServerSidebar extends StatelessWidget {
   final Map<String, UserProfile?> profiles;
 
   /// Brand identity shown in the header (logo + app name).
-  final SoliplexBranding branding;
+  final AppIdentity identity;
 
   /// The currently-viewed server; its tile is highlighted.
   final String? selectedServerId;
@@ -63,7 +63,7 @@ class ServerSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _BrandHeader(branding: branding),
+          _BrandHeader(identity: identity),
           const Divider(height: 1),
           Expanded(
             child: _ServerList(
@@ -90,16 +90,16 @@ class ServerSidebar extends StatelessWidget {
 
 /// Branded sidebar header: the flavor's logo, app name, and the running
 /// library version. Whitelabel forks change the logo and name through the
-/// branding API; the version is the shipped `soliplexVersion` constant.
+/// identity API; the version is the shipped `soliplexVersion` constant.
 class _BrandHeader extends StatelessWidget {
-  const _BrandHeader({required this.branding});
+  const _BrandHeader({required this.identity});
 
   /// Logo box size. Kept close to the title + version block so the mark
   /// reads as part of the header rather than dominating it; the flavor's
   /// logo is scaled to fit regardless of its intrinsic size.
   static const double _logoSize = 40;
 
-  final SoliplexBranding branding;
+  final AppIdentity identity;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +112,7 @@ class _BrandHeader extends StatelessWidget {
             dimension: _logoSize,
             child: FittedBox(
               fit: BoxFit.contain,
-              child: BrandLogo(branding: branding),
+              child: BrandLogo(identity: identity),
             ),
           ),
           const SizedBox(width: SoliplexSpacing.s6),
@@ -122,7 +122,7 @@ class _BrandHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  branding.appName,
+                  identity.appName,
                   style: theme.textTheme.titleMedium,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -280,9 +280,8 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      final colors = Theme.of(context).colorScheme;
       final signedIn = entry.auth.session.value is ActiveSession;
-      final color = signedIn ? colors.success : colors.danger;
+      final color = signedIn ? context.success : context.danger;
       final label = signedIn ? 'Signed in' : 'Not signed in';
       return Tooltip(
         message: label,
@@ -747,7 +746,7 @@ class _Avatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(soliplexRadii.sm),
+        borderRadius: BorderRadius.circular(context.radii.sm),
       ),
       child: Text(
         initial,
