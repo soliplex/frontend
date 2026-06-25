@@ -162,6 +162,12 @@ void main() {
       expect(theme.labelLarge!.fontWeight, FontWeight.w500);
     });
 
+    test('label scale is ordered 12/14/16 (small/medium/large)', () {
+      expect(theme.labelSmall!.fontSize, 12);
+      expect(theme.labelMedium!.fontSize, 14);
+      expect(theme.labelLarge!.fontSize, 16);
+    });
+
     test('a per-role override adjusts only the primitives it sets', () {
       final overridden = soliplexTextTheme(
         lightSoliplexColors,
