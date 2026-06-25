@@ -125,6 +125,13 @@ registered — a typo, or a missing `pubspec.yaml` entry — falls back silently
 the platform default, so verify your fonts actually render. App identity
 (`AppIdentity` — name + logos) is a separate config from the theme.
 
+The bundled resolver is airgap-safe and does not load fonts. A `google_fonts`-backed resolver
+loads fonts asynchronously; the app should await font readiness in `main()` before
+`runApp()` (e.g. `await GoogleFonts.pendingFonts()`) to avoid a flash of fallback
+text. An unresolved or misspelled font family falls back to the platform default
+with no load-time error — Flutter resolves fonts lazily at render time — so confirm
+custom fonts actually display by visual inspection.
+
 ### What is customizable vs fixed
 
 | Surface | Customizable? | How |
