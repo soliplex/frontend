@@ -4,12 +4,12 @@ import 'package:soliplex_design/src/brand/brand_theme.dart';
 import 'package:soliplex_design/src/brand/font_resolver.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
 
-/// Builds the Soliplex text theme.
+/// Builds all 15 Material text roles with Soliplex-consistent metrics.
 ///
 /// With no arguments beyond [colors] the result is the shipped type scale.
-/// [displayFamily] tags the headline and title roles; [bodyFamily] tags the
-/// body and label roles (and is the fallback for [displayFamily] when that is
-/// null). Family strings resolve through [fontResolver]. A per-role
+/// [displayFamily] tags the display, headline, and title roles; [bodyFamily]
+/// tags the body and label roles (and is the fallback for [displayFamily] when
+/// that is null). Family strings resolve through [fontResolver]. A per-role
 /// [TypeScaleOverride] adjusts only the primitives it sets, leaving the rest
 /// of that role at its default.
 TextTheme soliplexTextTheme(
@@ -18,13 +18,19 @@ TextTheme soliplexTextTheme(
   String? displayFamily,
   List<String> fallbacks = const [],
   FontResolver fontResolver = const BundledFontResolver(),
+  TypeScaleOverride? displayLarge,
+  TypeScaleOverride? displayMedium,
+  TypeScaleOverride? displaySmall,
+  TypeScaleOverride? headlineLarge,
   TypeScaleOverride? headlineMedium,
+  TypeScaleOverride? headlineSmall,
   TypeScaleOverride? titleLarge,
   TypeScaleOverride? titleMedium,
   TypeScaleOverride? titleSmall,
   TypeScaleOverride? bodyLarge,
   TypeScaleOverride? bodyMedium,
   TypeScaleOverride? bodySmall,
+  TypeScaleOverride? labelLarge,
   TypeScaleOverride? labelMedium,
   TypeScaleOverride? labelSmall,
 }) {
@@ -53,14 +59,20 @@ TextTheme soliplexTextTheme(
   }
 
   return TextTheme(
+    displayLarge: style(57, FontWeight.w400, 1.2, displayFont, displayLarge),
+    displayMedium: style(45, FontWeight.w400, 1.2, displayFont, displayMedium),
+    displaySmall: style(36, FontWeight.w400, 1.2, displayFont, displaySmall),
+    headlineLarge: style(32, FontWeight.w400, 1.3, displayFont, headlineLarge),
     headlineMedium:
         style(28, FontWeight.w400, 1.3, displayFont, headlineMedium),
+    headlineSmall: style(24, FontWeight.w400, 1.3, displayFont, headlineSmall),
     titleLarge: style(24, FontWeight.w500, 1.5, displayFont, titleLarge),
     titleMedium: style(20, FontWeight.w500, 1.5, displayFont, titleMedium),
     titleSmall: style(16, FontWeight.w500, 1.5, displayFont, titleSmall),
     bodyLarge: style(18, FontWeight.w400, 1.5, bodyFont, bodyLarge),
     bodyMedium: style(16, FontWeight.w400, 1.5, bodyFont, bodyMedium),
     bodySmall: style(13, FontWeight.w400, 1.5, bodyFont, bodySmall),
+    labelLarge: style(18, FontWeight.w500, 1.5, bodyFont, labelLarge),
     labelMedium: style(16, FontWeight.w500, 1.5, bodyFont, labelMedium),
     labelSmall: style(12, FontWeight.w500, 1.5, bodyFont, labelSmall),
   );

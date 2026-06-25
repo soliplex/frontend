@@ -98,4 +98,45 @@ void main() {
       expect(theme.bodyMedium!.fontSize, 16);
     });
   });
+
+  group('soliplexTextTheme builds all 15 roles', () {
+    final theme = soliplexTextTheme(lightSoliplexColors);
+
+    test('every Material role is non-null', () {
+      expect(theme.displayLarge, isNotNull);
+      expect(theme.displayMedium, isNotNull);
+      expect(theme.displaySmall, isNotNull);
+      expect(theme.headlineLarge, isNotNull);
+      expect(theme.headlineMedium, isNotNull);
+      expect(theme.headlineSmall, isNotNull);
+      expect(theme.titleLarge, isNotNull);
+      expect(theme.titleMedium, isNotNull);
+      expect(theme.titleSmall, isNotNull);
+      expect(theme.bodyLarge, isNotNull);
+      expect(theme.bodyMedium, isNotNull);
+      expect(theme.bodySmall, isNotNull);
+      expect(theme.labelLarge, isNotNull);
+      expect(theme.labelMedium, isNotNull);
+      expect(theme.labelSmall, isNotNull);
+    });
+
+    test('new roles carry soliplex default metrics', () {
+      expect(theme.displayLarge!.fontSize, 57);
+      expect(theme.displayMedium!.fontSize, 45);
+      expect(theme.displaySmall!.fontSize, 36);
+      expect(theme.headlineLarge!.fontSize, 32);
+      expect(theme.headlineSmall!.fontSize, 24);
+      expect(theme.labelLarge!.fontSize, 18);
+      expect(theme.labelLarge!.fontWeight, FontWeight.w500);
+    });
+
+    test('a per-role override adjusts only the primitives it sets', () {
+      final overridden = soliplexTextTheme(
+        lightSoliplexColors,
+        displayLarge: const TypeScaleOverride(fontSize: 64),
+      );
+      expect(overridden.displayLarge!.fontSize, 64);
+      expect(overridden.displayLarge!.height, 1.2); // default retained
+    });
+  });
 }

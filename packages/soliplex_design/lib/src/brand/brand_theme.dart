@@ -380,13 +380,19 @@ class BrandTypography {
     this.displayFamily,
     this.codeFamily,
     this.fallbacks = const [],
+    this.displayLarge,
+    this.displayMedium,
+    this.displaySmall,
+    this.headlineLarge,
     this.headlineMedium,
+    this.headlineSmall,
     this.titleLarge,
     this.titleMedium,
     this.titleSmall,
     this.bodyLarge,
     this.bodyMedium,
     this.bodySmall,
+    this.labelLarge,
     this.labelMedium,
     this.labelSmall,
   });
@@ -396,13 +402,19 @@ class BrandTypography {
   final String? codeFamily;
   final List<String> fallbacks;
 
+  final TypeScaleOverride? displayLarge;
+  final TypeScaleOverride? displayMedium;
+  final TypeScaleOverride? displaySmall;
+  final TypeScaleOverride? headlineLarge;
   final TypeScaleOverride? headlineMedium;
+  final TypeScaleOverride? headlineSmall;
   final TypeScaleOverride? titleLarge;
   final TypeScaleOverride? titleMedium;
   final TypeScaleOverride? titleSmall;
   final TypeScaleOverride? bodyLarge;
   final TypeScaleOverride? bodyMedium;
   final TypeScaleOverride? bodySmall;
+  final TypeScaleOverride? labelLarge;
   final TypeScaleOverride? labelMedium;
   final TypeScaleOverride? labelSmall;
 
@@ -411,13 +423,19 @@ class BrandTypography {
     String? displayFamily,
     String? codeFamily,
     List<String>? fallbacks,
+    TypeScaleOverride? displayLarge,
+    TypeScaleOverride? displayMedium,
+    TypeScaleOverride? displaySmall,
+    TypeScaleOverride? headlineLarge,
     TypeScaleOverride? headlineMedium,
+    TypeScaleOverride? headlineSmall,
     TypeScaleOverride? titleLarge,
     TypeScaleOverride? titleMedium,
     TypeScaleOverride? titleSmall,
     TypeScaleOverride? bodyLarge,
     TypeScaleOverride? bodyMedium,
     TypeScaleOverride? bodySmall,
+    TypeScaleOverride? labelLarge,
     TypeScaleOverride? labelMedium,
     TypeScaleOverride? labelSmall,
   }) =>
@@ -426,13 +444,19 @@ class BrandTypography {
         displayFamily: displayFamily ?? this.displayFamily,
         codeFamily: codeFamily ?? this.codeFamily,
         fallbacks: fallbacks ?? this.fallbacks,
+        displayLarge: displayLarge ?? this.displayLarge,
+        displayMedium: displayMedium ?? this.displayMedium,
+        displaySmall: displaySmall ?? this.displaySmall,
+        headlineLarge: headlineLarge ?? this.headlineLarge,
         headlineMedium: headlineMedium ?? this.headlineMedium,
+        headlineSmall: headlineSmall ?? this.headlineSmall,
         titleLarge: titleLarge ?? this.titleLarge,
         titleMedium: titleMedium ?? this.titleMedium,
         titleSmall: titleSmall ?? this.titleSmall,
         bodyLarge: bodyLarge ?? this.bodyLarge,
         bodyMedium: bodyMedium ?? this.bodyMedium,
         bodySmall: bodySmall ?? this.bodySmall,
+        labelLarge: labelLarge ?? this.labelLarge,
         labelMedium: labelMedium ?? this.labelMedium,
         labelSmall: labelSmall ?? this.labelSmall,
       );
@@ -444,32 +468,44 @@ class BrandTypography {
       other.displayFamily == displayFamily &&
       other.codeFamily == codeFamily &&
       listEquals(other.fallbacks, fallbacks) &&
+      other.displayLarge == displayLarge &&
+      other.displayMedium == displayMedium &&
+      other.displaySmall == displaySmall &&
+      other.headlineLarge == headlineLarge &&
       other.headlineMedium == headlineMedium &&
+      other.headlineSmall == headlineSmall &&
       other.titleLarge == titleLarge &&
       other.titleMedium == titleMedium &&
       other.titleSmall == titleSmall &&
       other.bodyLarge == bodyLarge &&
       other.bodyMedium == bodyMedium &&
       other.bodySmall == bodySmall &&
+      other.labelLarge == labelLarge &&
       other.labelMedium == labelMedium &&
       other.labelSmall == labelSmall;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         bodyFamily,
         displayFamily,
         codeFamily,
         Object.hashAll(fallbacks),
+        displayLarge,
+        displayMedium,
+        displaySmall,
+        headlineLarge,
         headlineMedium,
+        headlineSmall,
         titleLarge,
         titleMedium,
         titleSmall,
         bodyLarge,
         bodyMedium,
         bodySmall,
+        labelLarge,
         labelMedium,
         labelSmall,
-      );
+      ]);
 }
 
 /// Per-role type-scale deltas applied on top of a base text style.
