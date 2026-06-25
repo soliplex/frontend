@@ -24,8 +24,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   optionally tint toward the surface or primary hue via `BrandTint`. An
   explicitly-set on-color is used as-is, and a sub-AA pair (the on-color pairs,
   `foreground`/`background`, and `link` against the background), or muted text
-  below 3:1, is logged as a warning. The shipped Soliplex look is byte-for-byte
-  unchanged.
+  below 3:1, is logged as a warning. `BrandTheme.soliplex()` lowers byte-for-byte
+  to today's palette, and the app's rendered screens are unchanged.
 - Room: threads now show a "New messages" divider at the first unread message
   and auto-scroll to it on open. Read state is tracked per-device, by message
   id; there is no server-side read state or unread count.
@@ -38,6 +38,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `branding:`. The `SymbolicColors` status accessors moved from `ColorScheme`
   to `BuildContext` (`colorScheme.danger` → `context.danger`), and app corner
   radii now read `context.radii` so a `BrandShape` override reaches them.
+- Design system: the `info` and `warning` filled status pills
+  (`SoliplexBadge`/`SoliplexChip`) now read the new
+  `infoContainer`/`warningContainer` token pairs — a soft container surface with
+  an AA-legible on-color, matching the existing `danger`/`success` pills —
+  instead of tinting the signal color at 15% alpha. This restyles those two pill
+  variants (visible in the component gallery); no app screen uses the
+  `info`/`warning` intents, so shipped screens are unaffected.
 - Room: a room now keeps its unread dot while any of its threads is unread,
   instead of clearing the moment the room is opened. Read state stays
   per-device; the room marker is derived from thread-read state.
