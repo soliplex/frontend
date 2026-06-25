@@ -140,8 +140,8 @@ custom fonts actually display by visual inspection.
 | Status signals (danger/success/warning/info) | ✅ | `BrandColorScheme` optional slots |
 | Error/destructive + status banner surfaces | ✅ | `error`/`onError`, and `errorContainer`/`successContainer`/`warningContainer`/`infoContainer` slots |
 | Link color | ✅ | `BrandColorScheme.link` |
-| Font families (body / display / code) | ✅ | `BrandTypography` + `FontResolver` |
-| Type scale (size / weight / height / spacing) | ✅ | per-role `TypeScaleOverride` |
+| Font families (body / display / brand / code) | ✅ | `BrandTypography` + `FontResolver`; the brand family also drives the app-name headers via `context.brandNameOn` |
+| Type scale (all 15 roles: size / weight / height / spacing / family) | ✅ | per-role `TypeScaleOverride`, with `family` routing a role to a `BrandFontRole` (body / display / brand) |
 | Corner radii | ✅ | `BrandShape` |
 | Auto on-color tint | ✅ opt-in | `BrandTint` (`source` + `strength`); off by default |
 | App name + logos | ✅ | `AppIdentity` |
