@@ -127,7 +127,7 @@ class HomeShellHeader extends StatelessWidget {
                 Flexible(
                   child: Text(
                     appName,
-                    style: theme.textTheme.titleSmall,
+                    style: context.brandNameOn(theme.textTheme.titleSmall),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

@@ -379,6 +379,7 @@ class BrandTypography {
     this.bodyFamily,
     this.displayFamily,
     this.codeFamily,
+    this.brandFamily,
     this.fallbacks = const [],
     this.displayLarge,
     this.displayMedium,
@@ -400,6 +401,7 @@ class BrandTypography {
   final String? bodyFamily;
   final String? displayFamily;
   final String? codeFamily;
+  final String? brandFamily;
   final List<String> fallbacks;
 
   final TypeScaleOverride? displayLarge;
@@ -422,6 +424,7 @@ class BrandTypography {
     String? bodyFamily,
     String? displayFamily,
     String? codeFamily,
+    String? brandFamily,
     List<String>? fallbacks,
     TypeScaleOverride? displayLarge,
     TypeScaleOverride? displayMedium,
@@ -443,6 +446,7 @@ class BrandTypography {
         bodyFamily: bodyFamily ?? this.bodyFamily,
         displayFamily: displayFamily ?? this.displayFamily,
         codeFamily: codeFamily ?? this.codeFamily,
+        brandFamily: brandFamily ?? this.brandFamily,
         fallbacks: fallbacks ?? this.fallbacks,
         displayLarge: displayLarge ?? this.displayLarge,
         displayMedium: displayMedium ?? this.displayMedium,
@@ -467,6 +471,7 @@ class BrandTypography {
       other.bodyFamily == bodyFamily &&
       other.displayFamily == displayFamily &&
       other.codeFamily == codeFamily &&
+      other.brandFamily == brandFamily &&
       listEquals(other.fallbacks, fallbacks) &&
       other.displayLarge == displayLarge &&
       other.displayMedium == displayMedium &&
@@ -489,6 +494,7 @@ class BrandTypography {
         bodyFamily,
         displayFamily,
         codeFamily,
+        brandFamily,
         Object.hashAll(fallbacks),
         displayLarge,
         displayMedium,

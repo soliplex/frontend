@@ -80,6 +80,7 @@ ThemeData lowerBrandTheme(
       xl: theme.shape.xl,
     ),
     monospace: _lowerMonospace(typography, fontResolver),
+    brandFont: _lowerBrandFont(typography, fontResolver),
     textTheme: textTheme,
     classifications: classifications,
   );
@@ -172,6 +173,19 @@ Color? _tintHue(BrandTint tint, BrandColorScheme brand, Color surface) {
   final resolved = fontResolver.resolve(code, typography.fallbacks);
   return (
     family: resolved.fontFamily ?? code,
+    fallback: resolved.fontFamilyFallback,
+  );
+}
+
+({String family, List<String> fallback})? _lowerBrandFont(
+  BrandTypography typography,
+  FontResolver fontResolver,
+) {
+  final brand = typography.brandFamily;
+  if (brand == null) return null;
+  final resolved = fontResolver.resolve(brand, typography.fallbacks);
+  return (
+    family: resolved.fontFamily ?? brand,
     fallback: resolved.fontFamilyFallback,
   );
 }

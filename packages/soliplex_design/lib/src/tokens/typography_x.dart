@@ -13,6 +13,15 @@ import 'package:soliplex_design/src/theme/theme_extensions.dart';
       : (family: 'Roboto Mono', fallback: const ['monospace']);
 }
 
+TextStyle? brandNameTextStyle(BuildContext context, TextStyle? base) {
+  final brand = SoliplexTheme.maybeOf(context)?.brandFont;
+  if (brand == null) return base;
+  return base?.copyWith(
+    fontFamily: brand.family,
+    fontFamilyFallback: brand.fallback,
+  );
+}
+
 TextStyle appMonospaceTextStyle(BuildContext context, {TextStyle? base}) {
   final effectiveBase = base ?? Theme.of(context).textTheme.bodyMedium;
   final mono = SoliplexTheme.maybeOf(context)?.monospace ??
@@ -32,4 +41,13 @@ extension TypographyX on BuildContext {
   /// 12pt monospace badge.
   TextStyle monospaceOn(TextStyle? base) =>
       appMonospaceTextStyle(this, base: base);
+
+  /// The brand-name font family + fallback, or null when no distinct brand
+  /// font is configured.
+  ({String family, List<String> fallback})? get brandFont =>
+      SoliplexTheme.maybeOf(this)?.brandFont;
+
+  /// [base] with the brand-name font applied, or [base] unchanged when no
+  /// brand font is configured.
+  TextStyle? brandNameOn(TextStyle? base) => brandNameTextStyle(this, base);
 }

@@ -124,7 +124,7 @@ class _BrandHeader extends StatelessWidget {
               children: [
                 Text(
                   identity.appName,
-                  style: theme.textTheme.titleMedium,
+                  style: context.brandNameOn(theme.textTheme.titleMedium),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

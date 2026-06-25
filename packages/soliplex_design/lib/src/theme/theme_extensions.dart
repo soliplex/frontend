@@ -21,6 +21,7 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
     required this.radii,
     required this.badgeTheme,
     required this.monospace,
+    this.brandFont,
   });
 
   final SoliplexColors colors;
@@ -31,32 +32,39 @@ class SoliplexTheme extends ThemeExtension<SoliplexTheme> {
   /// `context.monospace`.
   final ({String family, List<String> fallback}) monospace;
 
+  /// The brand-name font family and fallback chain, or null when no distinct
+  /// brand font is configured. Read by `context.brandFont`.
+  final ({String family, List<String> fallback})? brandFont;
+
   @override
   SoliplexTheme copyWith({
     SoliplexColors? colors,
     SoliplexRadii? radii,
     SoliplexBadgeThemeData? badgeTheme,
     ({String family, List<String> fallback})? monospace,
+    ({String family, List<String> fallback})? brandFont,
   }) {
     return SoliplexTheme(
       colors: colors ?? this.colors,
       radii: radii ?? this.radii,
       badgeTheme: badgeTheme ?? this.badgeTheme,
       monospace: monospace ?? this.monospace,
+      brandFont: brandFont ?? this.brandFont,
     );
   }
 
   @override
   SoliplexTheme lerp(covariant SoliplexTheme? other, double t) {
     if (other is! SoliplexTheme) return this;
-    // Colors, badge styling, and the monospace family are discrete brand
-    // tokens, not animatable values — they snap rather than cross-fade. Only
-    // the corner radii interpolate.
+    // Colors, badge styling, and font families are discrete brand tokens, not
+    // animatable values — they snap rather than cross-fade. Only the corner
+    // radii interpolate.
     return SoliplexTheme(
       colors: colors,
       radii: SoliplexRadii.lerp(radii, other.radii, t),
       badgeTheme: badgeTheme,
       monospace: monospace,
+      brandFont: brandFont,
     );
   }
 

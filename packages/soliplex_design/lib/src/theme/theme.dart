@@ -39,6 +39,7 @@ ThemeData buildSoliplexThemeData({
   required Brightness brightness,
   SoliplexRadii radii = soliplexRadii,
   ({String family, List<String> fallback})? monospace,
+  ({String family, List<String> fallback})? brandFont,
   TextTheme? textTheme,
   ClassificationTheme? classifications,
 }) {
@@ -268,6 +269,7 @@ ThemeData buildSoliplexThemeData({
         colors: colors,
         radii: radii,
         monospace: monospaceFamily,
+        brandFont: brandFont,
         badgeTheme: SoliplexBadgeThemeData(
           background: Color.alphaBlend(
             colors.foreground.withAlpha(15),

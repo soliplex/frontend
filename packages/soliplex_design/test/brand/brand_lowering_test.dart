@@ -297,6 +297,26 @@ void main() {
     });
   });
 
+  group('brandFamily lowering', () {
+    test('resolves onto SoliplexTheme.brandFont when set', () {
+      final theme = lowerBrandTheme(
+        const BrandTheme.soliplex().copyWith(
+          typography: const BrandTypography(brandFamily: 'Squada One'),
+        ),
+        Brightness.light,
+      );
+      final ext = theme.extension<SoliplexTheme>()!;
+      expect(ext.brandFont, isNotNull);
+      expect(ext.brandFont!.family, 'Squada One');
+    });
+
+    test('brandFont is null when brandFamily is unset', () {
+      final theme =
+          lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light);
+      expect(theme.extension<SoliplexTheme>()!.brandFont, isNull);
+    });
+  });
+
   group('a full custom brand lowers across every axis', () {
     test('accents, families, and shape all reach the ThemeData', () {
       final resolver = _RecordingResolver();
