@@ -34,7 +34,7 @@ Widget _harness(List<ChatMessage> messages, double bottomInset) {
                   unreadBoundary: const BoundaryResolved(null),
                 ),
               ),
-              Container(height: 80, color: const Color(0xFF888888)),
+              Container(height: 80),
             ],
           ),
         ),
@@ -76,5 +76,48 @@ void main() {
         afterKeyboard.maxScrollExtent - afterKeyboard.pixels, lessThan(100.0),
         reason: 'list re-pins to the bottom so the latest message stays '
             'visible above the input instead of hiding behind the keyboard');
+  });
+
+  testWidgets('does not move a scrolled-up list when the inset stays zero',
+      (tester) async {
+    await tester.pumpWidget(_harness(_manyMessages(), 0));
+    await tester.pumpAndSettle();
+
+    // User scrolls up to read history.
+    final position = _timelinePosition(tester);
+    position.jumpTo(0);
+    await tester.pump();
+    expect(position.pixels, 0.0);
+
+    // A rebuild with the inset still zero (no keyboard — i.e. desktop) must
+    // not shrink the viewport, so the fix stays a no-op and the user's
+    // position is preserved.
+    await tester.pumpWidget(_harness(_manyMessages(), 0));
+    await tester.pumpAndSettle();
+
+    expect(_timelinePosition(tester).pixels, 0.0,
+        reason: 'no viewport shrink => fix is a no-op; scroll position kept');
+  });
+
+  testWidgets(
+      'leaves a list scrolled beyond the band in place when the '
+      'keyboard opens', (tester) async {
+    await tester.pumpWidget(_harness(_manyMessages(), 0));
+    await tester.pumpAndSettle();
+
+    // Scroll up well beyond the near-bottom band to read history.
+    final position = _timelinePosition(tester);
+    position.jumpTo(position.maxScrollExtent - 300);
+    await tester.pump();
+    final scrolledUp = _timelinePosition(tester).pixels;
+
+    // Keyboard opens — the viewport shrinks — but the user is outside the
+    // near-bottom band, so the re-pin guard must leave them where they are.
+    await tester.pumpWidget(_harness(_manyMessages(), 300));
+    await tester.pumpAndSettle();
+
+    expect(_timelinePosition(tester).pixels, closeTo(scrolledUp, 1.0),
+        reason: 'a list scrolled beyond the band is not yanked to the bottom '
+            'when the keyboard opens');
   });
 }
