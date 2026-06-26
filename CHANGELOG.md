@@ -8,6 +8,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Fixed
+
+- Room: the on-screen keyboard no longer hides the most recent message. When
+  the keyboard opens while the conversation is resting at the bottom, the
+  message list re-pins to the bottom so the latest message stays visible above
+  the input bar. The trigger is the viewport shrinking (any near-bottom
+  reflow), not a platform check, so desktop — which has no software keyboard —
+  is unaffected.
+
 ## [0.90.3+63] - 2026-06-24
 
 ### Changed
