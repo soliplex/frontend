@@ -70,11 +70,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// Gap left above a message when it is revealed at the top of the viewport.
   static const _revealTopGap = 8.0;
 
-  /// Viewport height from the previous layout. Lets [build] notice the
-  /// viewport shrinking when the on-screen keyboard opens: the Scaffold
-  /// consumes the keyboard inset and hands the body a shorter constraint
-  /// (the inset itself is stripped before it reaches here). Null until the
-  /// first layout.
+  /// Viewport height from the previous layout pass. Compared in
+  /// [_maybeStickToBottomOnShrink] to detect the viewport shrinking when the
+  /// on-screen keyboard opens: the Scaffold consumes the keyboard inset and
+  /// hands the body a shorter constraint (the inset itself is stripped before
+  /// it reaches here). Null until the first layout.
   double? _lastViewportHeight;
 
   /// Distance from the bottom within which the list counts as "resting at the
@@ -184,20 +184,26 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  /// Re-pins the list to the bottom when the viewport shrinks (e.g. the
-  /// keyboard opens) and the list was already resting at the bottom. The
-  /// Scaffold reflows the body shorter, but the scroll offset would otherwise
-  /// stay put and let the newest message slide below the fold. A user who has
-  /// scrolled up to read history is left in place. A no-op when the viewport
-  /// grows or is unchanged — and therefore on desktop, where no keyboard ever
-  /// shrinks it.
+  /// Re-pins the list to the bottom when the viewport shrinks while the list
+  /// is already resting at the bottom (within [_bottomStickThreshold]). The
+  /// motivating case is the on-screen keyboard opening: the Scaffold reflows
+  /// the body shorter, but the scroll offset would otherwise stay put and let
+  /// the newest message slide below the fold. The trigger is the shrink
+  /// itself, not the keyboard specifically — any Column sibling that claims
+  /// space (e.g. the reconnect banner appearing) shrinks the viewport too, and
+  /// re-pinning then is consistent with the near-bottom band the
+  /// scroll-to-bottom button already uses. A user who has scrolled meaningfully
+  /// up to read history (outside the band) is left in place. A no-op when the
+  /// viewport grows or is unchanged — and therefore on desktop, where no
+  /// keyboard ever shrinks it.
   void _maybeStickToBottomOnShrink(double viewportHeight) {
     final previous = _lastViewportHeight;
     _lastViewportHeight = viewportHeight;
     if (previous == null || viewportHeight >= previous) return;
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    // Sampled before the relayout, so these are the pre-shrink metrics.
+    // pos.pixels and pos.maxScrollExtent are from the previous frame —
+    // not yet reconciled to the shrunk viewport.
     if (pos.maxScrollExtent - pos.pixels >= _bottomStickThreshold) return;
     _scrollToBottom();
   }
