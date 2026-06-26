@@ -25,6 +25,25 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
+  testWidgets('labels the create-thread action "New"', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadSidebar(
+          threadListStatus: ThreadsLoading(),
+          selectedThreadId: null,
+          onThreadSelected: (_) {},
+          onBackToLobby: () {},
+          onCreateThread: () {},
+          runningThreadIds: _emptyRunning,
+          onRetryThreads: () async {},
+        ),
+      ),
+    ));
+
+    expect(find.text('New'), findsOneWidget);
+    expect(find.text('New Thread'), findsNothing);
+  });
+
   testWidgets('shows thread names when loaded', (tester) async {
     final threads = [
       ThreadInfo(

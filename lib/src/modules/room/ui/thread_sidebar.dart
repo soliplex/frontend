@@ -64,7 +64,7 @@ class ThreadSidebar extends StatelessWidget {
                 child: SoliplexButton.filled(
                   onPressed: onCreateThread,
                   icon: const Icon(Icons.add, size: 16),
-                  child: const Text('New Thread'),
+                  child: const Text('New'),
                 ),
               ),
             ],
