@@ -407,7 +407,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('New Thread'));
+    await tester.tap(find.text('New'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.error_outline), findsOneWidget);

@@ -57,18 +57,29 @@ void main() {
       expect(body.styleSheet?.p?.color, Colors.purple);
     });
 
-    testWidgets('renders selectable text so the prose can be copied',
-        (tester) async {
+    testWidgets(
+        'wraps non-selectable blocks in a SelectionArea so a single '
+        'selection spans the whole notice', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: ProseMarkdown(data: 'selectable paragraph'),
+            body: ProseMarkdown(
+              data: 'first paragraph\n\nsecond paragraph',
+            ),
           ),
         ),
       );
 
+      expect(
+        find.ancestor(
+          of: find.byType(MarkdownBody),
+          matching: find.byType(SelectionArea),
+        ),
+        findsOneWidget,
+      );
+
       final body = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
-      expect(body.selectable, isTrue);
+      expect(body.selectable, isFalse);
     });
 
     testWidgets('does not render LaTeX (no math builder wired)',

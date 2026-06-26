@@ -10,6 +10,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Consent notice: the full notice can now be selected and copied in one drag.
+  The prose renderer no longer builds each markdown block as an isolated
+  selectable, so a selection spans every paragraph and list at once.
+- Room: the sidebar create-thread button is now labelled "New" instead of
+  "New Thread".
 - Room: the on-screen keyboard no longer hides the most recent message. When
   the keyboard opens while the conversation is resting at the bottom, the
   message list re-pins to the bottom so the latest message stays visible above

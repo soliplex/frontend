@@ -33,20 +33,22 @@ class ProseMarkdown extends MarkdownRenderer {
         MarkdownStyleSheet.fromTheme(Theme.of(context));
     final styleSheet = textStyle == null ? base : base.copyWith(p: textStyle);
 
-    return MarkdownBody(
-      data: sanitizeMarkdown(data),
-      selectable: true,
-      styleSheet: styleSheet,
-      extensionSet: md.ExtensionSet.gitHubFlavored,
-      onTapLink: (_, href, title) {
-        if (href == null) return;
-        final handleTap = onLinkTap;
-        if (handleTap != null) {
-          handleTap(href, title);
-        } else {
-          launchMarkdownLink(href);
-        }
-      },
+    return SelectionArea(
+      child: MarkdownBody(
+        data: sanitizeMarkdown(data),
+        selectable: false,
+        styleSheet: styleSheet,
+        extensionSet: md.ExtensionSet.gitHubFlavored,
+        onTapLink: (_, href, title) {
+          if (href == null) return;
+          final handleTap = onLinkTap;
+          if (handleTap != null) {
+            handleTap(href, title);
+          } else {
+            launchMarkdownLink(href);
+          }
+        },
+      ),
     );
   }
 }
