@@ -36,6 +36,7 @@ class _GalleryHomeState extends State<GalleryHome> {
     ('Inputs', InputGallery()),
     ('Dropdowns', DropdownGallery()),
     ('Pickers', PickerGallery()),
+    ('Effects', EffectsGallery()),
   ];
 
   @override
@@ -761,6 +762,47 @@ class PickerGallery extends StatelessWidget {
             label: 'Reminder',
             enabled: false,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// =====================================================================
+// Effects
+// =====================================================================
+
+class EffectsGallery extends StatelessWidget {
+  const EffectsGallery({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Section(
+          title: 'Shimmer — text placeholder',
+          children: [
+            SizedBox(width: 280, child: SoliplexShimmer()),
+          ],
+        ),
+        _Section(
+          title: 'Shimmer — single line',
+          children: [
+            SizedBox(
+              width: 280,
+              child: SoliplexShimmer(lineFractions: [0.7]),
+            ),
+          ],
+        ),
+        _Section(
+          title: 'Shimmer — dense paragraph',
+          children: [
+            SizedBox(
+              width: 280,
+              child: SoliplexShimmer(lineFractions: [1, 1, 1, 1, 1, 0.4]),
+            ),
+          ],
         ),
       ],
     );
