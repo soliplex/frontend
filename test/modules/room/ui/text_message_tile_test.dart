@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
@@ -234,5 +235,22 @@ void main() {
     await tester.pumpWidget(tree(const ValueKey('B')));
     await tester.pumpAndSettle();
     expect(find.text('Deep thought'), findsNothing);
+  });
+
+  testWidgets('empty assistant message shows a shimmer placeholder',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        roomId: 'r',
+        message: TextMessage(
+          id: 'empty-1',
+          user: ChatUser.assistant,
+          createdAt: DateTime(2026),
+          text: '',
+        ),
+      ),
+    ));
+
+    expect(find.byType(SoliplexShimmer), findsOneWidget);
   });
 }

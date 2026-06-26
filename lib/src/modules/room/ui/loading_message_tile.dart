@@ -41,15 +41,38 @@ class LoadingMessageTile extends StatelessWidget {
         ],
       );
     }
-    return const Row(
+    // No execution detail yet: stand in with an animated skeleton of the
+    // assistant reply, shaped like a real assistant bubble so the placeholder
+    // reads as an incoming message (and doesn't jump when the text lands).
+    final theme = Theme.of(context);
+    final rounded = Radius.circular(context.radii.md);
+    final tight = Radius.circular(context.radii.sm);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        if (streamingPhase != null) PhaseIndicator(phase: streamingPhase!),
+        Text(
+          'Assistant',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
-        SizedBox(width: SoliplexSpacing.s2),
-        Text('Thinking...'),
+        const SizedBox(height: SoliplexSpacing.s1),
+        Container(
+          // design-system exception: 14/10 is the documented chat-bubble
+          // padding (see design_system/README.md), matching _MessageBubble.
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.only(
+              topLeft: rounded,
+              topRight: rounded,
+              bottomLeft: tight,
+              bottomRight: rounded,
+            ),
+          ),
+          child: const SoliplexShimmer(lineFractions: [1, 1, 0.55]),
+        ),
       ],
     );
   }
