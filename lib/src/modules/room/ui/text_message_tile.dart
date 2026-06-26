@@ -170,7 +170,7 @@ class _MessageBubble extends StatelessWidget {
               style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
             )
           : message.text.isEmpty
-              ? const Text('...')
+              ? const SoliplexShimmer(lineFractions: [1, 1, 0.55])
               : FlutterMarkdownPlusRenderer(data: message.text),
     );
   }

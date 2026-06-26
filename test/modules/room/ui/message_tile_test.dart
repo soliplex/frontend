@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../helpers/test_logger.dart';
 
@@ -117,7 +118,8 @@ void main() {
       expect(find.text('Responding...'), findsOneWidget);
     });
 
-    testWidgets('renders placeholder for empty assistant text', (tester) async {
+    testWidgets('renders a shimmer placeholder for empty assistant text',
+        (tester) async {
       final msg = TextMessage(
         id: 'msg-1',
         user: ChatUser.assistant,
@@ -129,7 +131,8 @@ void main() {
         _wrap(TextMessageTile(roomId: 'r', message: msg)),
       );
 
-      expect(find.text('...'), findsOneWidget);
+      expect(find.byType(SoliplexShimmer), findsOneWidget);
+      expect(find.text('...'), findsNothing);
     });
 
     testWidgets('prefers ExecutionThinkingBlock over message thinkingText',
@@ -168,14 +171,18 @@ void main() {
   });
 
   group('LoadingMessageTile', () {
-    testWidgets('renders spinner fallback without tracker', (tester) async {
+    testWidgets('renders an animated shimmer placeholder without tracker',
+        (tester) async {
       await tester.pumpWidget(_wrap(const LoadingMessageTile(
         roomId: 'r',
         messageId: '_loading',
       )));
 
-      expect(find.text('Thinking...'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(SoliplexShimmer), findsOneWidget);
+      expect(find.text('Assistant'), findsOneWidget);
+      // The bare spinner + "Thinking..." text is replaced by the skeleton.
+      expect(find.text('Thinking...'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
     testWidgets('renders execution widgets with tracker', (tester) async {
