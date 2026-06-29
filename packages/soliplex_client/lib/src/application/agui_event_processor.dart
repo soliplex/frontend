@@ -57,10 +57,18 @@ EventProcessingResult processEvent(
         conversation: conversation.withStatus(Running(runId: runId)),
         streaming: streaming,
       ),
-    RunFinishedEvent(:final runId) =>
-      _processRunFinished(conversation, streaming, runId),
-    RunErrorEvent(:final message) =>
-      _processRunError(conversation, streaming, message),
+    RunFinishedEvent(:final runId, :final timestamp) => _processRunFinished(
+        conversation,
+        streaming,
+        runId,
+        createdAt: _eventTime(timestamp) ?? runCreated,
+      ),
+    RunErrorEvent(:final message, :final timestamp) => _processRunError(
+        conversation,
+        streaming,
+        message,
+        createdAt: _eventTime(timestamp) ?? runCreated,
+      ),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -552,8 +560,9 @@ StreamingState _withToolCallPhase(
 EventProcessingResult _processRunFinished(
   Conversation conversation,
   StreamingState streaming,
-  String runId,
-) {
+  String runId, {
+  DateTime? createdAt,
+}) {
   if (conversation.status is! Running) {
     _logger.warning(
       'RunFinishedEvent on non-Running status; preserving prior status. '
@@ -573,11 +582,13 @@ EventProcessingResult _processRunFinished(
     streaming: streaming,
     runId: runId,
     terminalEvent: 'RunFinishedEvent',
+    createdAt: createdAt,
   );
   final result = synthesizeFinishedNoResponse(
     conversation: withPartial,
     streaming: streaming,
     runId: runId,
+    createdAt: createdAt,
   );
   // RunFinished with no synthesized tile and no in-flight text produces
   // no message in the list at all — `AgentSession` will return
@@ -627,20 +638,23 @@ EventProcessingResult _processRunFinished(
 EventProcessingResult _processRunError(
   Conversation conversation,
   StreamingState streaming,
-  String message,
-) {
+  String message, {
+  DateTime? createdAt,
+}) {
   if (conversation.status case Running(:final runId)) {
     final withPartial = commitPartialTextOnTerminal(
       conversation: conversation,
       streaming: streaming,
       runId: runId,
       terminalEvent: 'RunErrorEvent',
+      createdAt: createdAt,
     );
     final result = synthesizeFailedNoResponse(
       conversation: withPartial,
       streaming: streaming,
       runId: runId,
       errorDetail: message,
+      createdAt: createdAt,
     );
     // The partial-text commit already produces a user-visible signal in
     // the messages list — synthesis declines on TextStreaming by design,
@@ -677,6 +691,7 @@ EventProcessingResult _processRunError(
             ErrorMessage.create(
               id: runErrorMessageId(runId),
               message: message,
+              createdAt: createdAt,
             ),
           );
     return EventProcessingResult(

@@ -217,8 +217,16 @@ class ErrorMessage extends ChatMessage {
   }) : super(user: ChatUser.system);
 
   /// Creates an error message with the given ID and auto-generated timestamp.
-  factory ErrorMessage.create({required String id, required String message}) {
-    return ErrorMessage(id: id, errorText: message, createdAt: DateTime.now());
+  factory ErrorMessage.create({
+    required String id,
+    required String message,
+    DateTime? createdAt,
+  }) {
+    return ErrorMessage(
+      id: id,
+      errorText: message,
+      createdAt: createdAt ?? DateTime.now(),
+    );
   }
 
   /// The error message text.

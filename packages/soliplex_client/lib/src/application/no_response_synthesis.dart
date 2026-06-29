@@ -42,6 +42,7 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
+  DateTime? createdAt,
 }) =>
     _synthesize(
       conversation: conversation,
@@ -50,6 +51,7 @@ NoResponseSynthesisResult synthesizeFinishedNoResponse({
       buildTile: (id, thinking) => NoResponseTile.finished(
         id: id,
         thinkingText: thinking,
+        createdAt: createdAt,
       ),
     );
 
@@ -62,6 +64,7 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
   required StreamingState streaming,
   required String runId,
   required String errorDetail,
+  DateTime? createdAt,
 }) =>
     _synthesize(
       conversation: conversation,
@@ -71,6 +74,7 @@ NoResponseSynthesisResult synthesizeFailedNoResponse({
         id: id,
         thinkingText: thinking,
         errorDetail: errorDetail,
+        createdAt: createdAt,
       ),
     );
 
@@ -80,6 +84,7 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
   required Conversation conversation,
   required StreamingState streaming,
   required String runId,
+  DateTime? createdAt,
 }) =>
     _synthesize(
       conversation: conversation,
@@ -88,6 +93,7 @@ NoResponseSynthesisResult synthesizeCancelledNoResponse({
       buildTile: (id, thinking) => NoResponseTile.cancelled(
         id: id,
         thinkingText: thinking,
+        createdAt: createdAt,
       ),
     );
 
@@ -137,6 +143,7 @@ Conversation commitPartialTextOnTerminal({
   required StreamingState streaming,
   required String runId,
   required String terminalEvent,
+  DateTime? createdAt,
 }) {
   if (streaming is! TextStreaming) return conversation;
   final messageId = streaming.messageId;
@@ -167,6 +174,7 @@ Conversation commitPartialTextOnTerminal({
       user: streaming.user,
       text: streaming.text,
       thinkingText: streaming.thinkingText,
+      createdAt: createdAt,
     ),
   );
 }
