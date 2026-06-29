@@ -82,9 +82,27 @@ class QuizQuestionView extends StatelessWidget {
                       const SizedBox(height: SoliplexSpacing.s4),
                       QuizAnswerFeedback(result: result),
                     ],
-                    const SizedBox(height: SoliplexSpacing.s4),
-                    _buildActionButton(questionState),
                   ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Pinned action bar, kept out of the scroll view above so the on-screen
+        // keyboard (during free-text answers) can never push Submit/Next
+        // off-screen. SafeArea(top: false) clears the home indicator; the
+        // screen's AppBar already owns the top inset.
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(SoliplexSpacing.s4),
+            child: Center(
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: SoliplexBreakpoints.tablet),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: _buildActionButton(questionState),
                 ),
               ),
             ),
