@@ -53,6 +53,50 @@ List<ChatMessage> _manyMessages() => [
         ),
     ];
 
+/// A short thread. With [withFollowUp] a *tall* follow-up question and a *short*
+/// reply are appended; arriving as an update they pin the new question at the
+/// top (as sending a message does), which sets the anchor that expands the
+/// scroll extent past the content. A question taller than the (keyboard-shrunk)
+/// viewport with too little reply below to fill it is exactly the case where a
+/// plain jump-to-max re-pins the question and pushes the short reply — the
+/// latest message — below the fold. The reply is tagged so the test can locate
+/// it.
+List<ChatMessage> _conversation({required bool withFollowUp}) {
+  final filler = 'word ' * 40;
+  final messages = <ChatMessage>[
+    TextMessage(
+      id: 'u-a',
+      user: ChatUser.user,
+      createdAt: DateTime(2026, 3, 1),
+      text: 'First question $filler',
+    ),
+    TextMessage(
+      id: 'a-a',
+      user: ChatUser.assistant,
+      createdAt: DateTime(2026, 3, 1, 0, 1),
+      text: 'First answer $filler',
+    ),
+  ];
+  if (!withFollowUp) return messages;
+  return [
+    ...messages,
+    TextMessage(
+      id: 'u-b',
+      user: ChatUser.user,
+      createdAt: DateTime(2026, 3, 1, 0, 2),
+      // Tall enough to fill the shrunk viewport on its own.
+      text: 'Second question ${'word ' * 200}',
+    ),
+    TextMessage(
+      id: 'a-b',
+      user: ChatUser.assistant,
+      createdAt: DateTime(2026, 3, 1, 0, 3),
+      // Short: too little to fill the viewport below the pinned question.
+      text: 'LATEST ASSISTANT REPLY',
+    ),
+  ];
+}
+
 ScrollPosition _timelinePosition(WidgetTester tester) =>
     tester.state<ScrollableState>(find.byType(Scrollable).first).position;
 
@@ -119,5 +163,41 @@ void main() {
     expect(_timelinePosition(tester).pixels, closeTo(scrolledUp, 1.0),
         reason: 'a list scrolled beyond the band is not yanked to the bottom '
             'when the keyboard opens');
+  });
+
+  testWidgets(
+      'reveals the end of the latest reply over a top anchor when the '
+      'keyboard opens', (tester) async {
+    // Caught up on the first exchange.
+    await tester.pumpWidget(_harness(_conversation(withFollowUp: false), 0));
+    await tester.pumpAndSettle();
+
+    // A follow-up question and its reply arrive; the new question is pinned to
+    // the top, setting the anchor that expands maxScrollExtent past the content.
+    await tester.pumpWidget(_harness(_conversation(withFollowUp: true), 0));
+    await tester.pumpAndSettle();
+
+    final anchored = _timelinePosition(tester);
+    expect(anchored.maxScrollExtent - anchored.pixels, greaterThan(100.0),
+        reason: 'the tall question is pinned at the top, so the rest position '
+            'is above the bottom band (the reply hangs below the fold)');
+
+    // Keyboard opens.
+    await tester.pumpWidget(_harness(_conversation(withFollowUp: true), 300));
+    await tester.pumpAndSettle();
+
+    // The end of the latest reply is visible within the timeline viewport,
+    // rather than the question staying pinned and the reply hiding behind the
+    // keyboard.
+    final replyFinder = find.textContaining('LATEST ASSISTANT REPLY');
+    expect(replyFinder, findsOneWidget);
+    final viewport = tester.getRect(find.byType(Scrollable).first);
+    final replyRect = tester.getRect(replyFinder);
+    expect(replyRect.bottom, lessThanOrEqualTo(viewport.bottom + 1.0),
+        reason: 'the end of the latest reply sits within the visible viewport, '
+            'instead of the tall question staying pinned and pushing the reply '
+            'below the fold');
+    expect(replyRect.bottom, greaterThan(viewport.top),
+        reason: 'the latest reply is on-screen, not scrolled above the fold');
   });
 }
