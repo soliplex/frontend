@@ -434,6 +434,46 @@ void main() {
         expect(message.id, equals('msg-1'));
       });
 
+      test('TextMessageEndEvent stamps createdAt from event.timestamp', () {
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
+        final event = TextMessageEndEvent(
+          messageId: 'msg-1',
+          timestamp: eventTime.millisecondsSinceEpoch,
+        );
+
+        final result = processEvent(conversation, streamingState, event);
+
+        final message = result.conversation.messages.first;
+        expect(message.createdAt.isAtSameMomentAs(eventTime), isTrue);
+        expect(message.createdAt.isUtc, isTrue);
+      });
+
+      test('TextMessageEndEvent uses runCreated when event has no timestamp',
+          () {
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        const event = TextMessageEndEvent(messageId: 'msg-1');
+        final runCreated = DateTime.utc(2026, 3, 3, 9);
+
+        final result = processEvent(
+          conversation,
+          streamingState,
+          event,
+          runCreated: runCreated,
+        );
+
+        final message = result.conversation.messages.first;
+        expect(message.createdAt, runCreated);
+      });
+
       test('TextMessageEndEvent preserves user role from streaming state', () {
         // Verify role propagation: user from streaming state goes into message
         const streamingState = app_streaming.TextStreaming(

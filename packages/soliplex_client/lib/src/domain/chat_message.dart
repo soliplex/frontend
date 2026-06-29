@@ -70,13 +70,14 @@ class TextMessage extends ChatMessage {
     this.thinkingText = '',
   });
 
-  /// Creates a text message with the given ID and auto-generated timestamp.
+  /// Creates a text message with the given ID, defaulting [createdAt] to now.
   factory TextMessage.create({
     required String id,
     required ChatUser user,
     required String text,
     bool isStreaming = false,
     String thinkingText = '',
+    DateTime? createdAt,
   }) {
     return TextMessage(
       id: id,
@@ -84,7 +85,7 @@ class TextMessage extends ChatMessage {
       text: text,
       isStreaming: isStreaming,
       thinkingText: thinkingText,
-      createdAt: DateTime.now(),
+      createdAt: createdAt ?? DateTime.now(),
     );
   }
 

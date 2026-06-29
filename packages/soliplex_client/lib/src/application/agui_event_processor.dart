@@ -48,8 +48,9 @@ class EventProcessingResult {
 EventProcessingResult processEvent(
   Conversation conversation,
   StreamingState streaming,
-  BaseEvent event,
-) {
+  BaseEvent event, {
+  DateTime? runCreated,
+}) {
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
@@ -93,10 +94,11 @@ EventProcessingResult processEvent(
       ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
-    TextMessageEndEvent(:final messageId) => _processTextEnd(
+    TextMessageEndEvent(:final messageId, :final timestamp) => _processTextEnd(
         conversation,
         streaming,
         messageId,
+        createdAt: _eventTime(timestamp) ?? runCreated,
       ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
@@ -309,11 +311,18 @@ EventProcessingResult _processTextContent(
       ),
     );
 
+/// Converts an AG-UI event's epoch-millisecond [timestamp] to a UTC [DateTime],
+/// or null when the event carries no timestamp.
+DateTime? _eventTime(int? timestamp) => timestamp == null
+    ? null
+    : DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+
 EventProcessingResult _processTextEnd(
   Conversation conversation,
   StreamingState streaming,
-  String messageId,
-) =>
+  String messageId, {
+  DateTime? createdAt,
+}) =>
     _onActiveTextStream(
       conversation,
       streaming,
@@ -337,6 +346,7 @@ EventProcessingResult _processTextEnd(
           user: active.user,
           text: active.text,
           thinkingText: active.thinkingText,
+          createdAt: createdAt,
         );
 
         return EventProcessingResult(
