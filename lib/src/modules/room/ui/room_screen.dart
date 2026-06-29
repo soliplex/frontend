@@ -1124,14 +1124,19 @@ class _RoomScreenState extends State<RoomScreen> {
 
           if (isWide) {
             return Scaffold(
-              body: Row(
-                children: [
-                  SizedBox(width: RoomRail.width, child: _buildRail()),
-                  const VerticalDivider(width: 1),
-                  SizedBox(width: _sidebarWidth, child: sidebar),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: content),
-                ],
+              // No AppBar here, so SafeArea guards every edge: the rail/sidebar
+              // headers clear the status bar and side notches, and the chat
+              // composer clears the home indicator.
+              body: SafeArea(
+                child: Row(
+                  children: [
+                    SizedBox(width: RoomRail.width, child: _buildRail()),
+                    const VerticalDivider(width: 1),
+                    SizedBox(width: _sidebarWidth, child: sidebar),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: content),
+                  ],
+                ),
               ),
             );
           }
@@ -1194,7 +1199,9 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
               ),
             ),
-            body: content,
+            // The AppBar consumes the top inset; SafeArea adds the bottom (home
+            // indicator) and side guards the chat composer otherwise misses.
+            body: SafeArea(top: false, child: content),
           );
         },
       ),

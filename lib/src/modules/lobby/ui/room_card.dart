@@ -37,7 +37,12 @@ class RoomCard extends StatelessWidget {
       child: ListTile(
         // Match RoomGridCard's title/subtitle styles so the two views read
         // identically: titleMedium name, small muted description.
-        title: Text(room.name, style: theme.textTheme.titleMedium),
+        title: Text(
+          room.name,
+          style: theme.textTheme.titleMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: _buildSubtitle(theme),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -84,7 +89,13 @@ class RoomCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (hasDescription) Text(room.description, style: muted),
+        if (hasDescription)
+          Text(
+            room.description,
+            style: muted,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         if (time != null) ...[
           if (hasDescription) const SizedBox(height: SoliplexSpacing.s1),
           // A small clock fronts the relative time so the row reads as

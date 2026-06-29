@@ -245,7 +245,11 @@ class _ServerTileState extends State<_ServerTile> {
         // Prefer the server's human-readable name; fall back to the raw
         // address. The tile shows only the name — the full address is reachable
         // (and copyable) from the ⋮ menu's "Copy server address" action.
-        title: Text(widget.entry.displayName),
+        title: Text(
+          widget.entry.displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         trailing: Visibility(
           visible: showMenu,
           maintainSize: true,
