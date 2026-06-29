@@ -461,10 +461,15 @@ class _KvGrid extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
+                // Long unbroken values (URLs, tokens) pan horizontally rather
+                // than clipping inside the fixed-width cell.
                 Expanded(
-                  child: SelectableText(
-                    value,
-                    style: context.monospaceOn(theme.textTheme.bodySmall),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SelectableText(
+                      value,
+                      style: context.monospaceOn(theme.textTheme.bodySmall),
+                    ),
                   ),
                 ),
               ],
@@ -568,8 +573,13 @@ class _HeadersTable extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: SoliplexSpacing.s2),
+                  // Long header values (Bearer tokens, cookies) pan
+                  // horizontally rather than clipping past the cell edge.
                   Expanded(
-                    child: SelectableText(entry.value, style: monoSmall),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SelectableText(entry.value, style: monoSmall),
+                    ),
                   ),
                 ],
               ),

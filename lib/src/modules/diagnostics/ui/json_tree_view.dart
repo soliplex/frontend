@@ -21,7 +21,13 @@ class JsonTreeView extends StatelessWidget {
             ),
       );
     }
-    return _JsonNodeList(nodes: nodes, depth: 0);
+    // Deep nesting (left indent) and long unbroken values (tokens, URLs) would
+    // otherwise clip off the right edge on narrow screens. A horizontal scroll
+    // lets the tree extend to its natural width and pan instead.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: _JsonNodeList(nodes: nodes, depth: 0),
+    );
   }
 }
 
