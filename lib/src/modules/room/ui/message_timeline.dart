@@ -82,6 +82,13 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// near-bottom band so the two agree on what "at the bottom" means.
   static const _bottomStickThreshold = 100.0;
 
+  /// Scroll offset that the most recent [_tryPinAtTop] parked the list at (the
+  /// last question sitting at the viewport top), or null once the user scrolls
+  /// away or the anchor is cleared. Lets [_maybeStickToBottomOnShrink] tell
+  /// "still parked on the freshly-sent exchange" — where revealing the reply on
+  /// keyboard-open is wanted — from "scrolled up into history", where it is not.
+  double? _pinnedTopOffset;
+
   Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
 
@@ -168,6 +175,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   bool _tryPinAtTop(String messageId) {
     final target = _revealTopOffset(messageId);
     if (target == null) return false;
+    _pinnedTopOffset = target;
     _scrollController.setAnchor(target);
     _scrollController.animateTo(
       target,
@@ -184,6 +192,23 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
+  /// Scrolls to the true end of the latest message after the anchor has been
+  /// cleared. The first jump fires on the post-frame whose layout still carries
+  /// the anchor-expanded extent; clearing the anchor collapses [maxScrollExtent]
+  /// to the natural content height on the *next* layout pass, so a second jump
+  /// lands on the reconciled bottom (the end of the reply) rather than the
+  /// expanded anchor offset (which would keep the question pinned at the top).
+  void _scrollToContentBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      });
+    });
+  }
+
   /// Re-pins the list to the bottom when the viewport shrinks while the list
   /// is already resting at the bottom (within [_bottomStickThreshold]). The
   /// motivating case is the on-screen keyboard opening: the Scaffold reflows
@@ -196,6 +221,24 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// up to read history (outside the band) is left in place. A no-op when the
   /// viewport grows or is unchanged — and therefore on desktop, where no
   /// keyboard ever shrinks it.
+  ///
+  /// Two rest positions count as "show me the latest message when the keyboard
+  /// opens":
+  ///
+  /// 1. Within [_bottomStickThreshold] of the bottom — a caught-up thread.
+  /// 2. Still parked on the freshly-sent exchange ([_pinnedTopOffset]), where
+  ///    the question sits at the top and a tall question + reply leaves the
+  ///    rest position *above* the bottom band. Without this the band guard
+  ///    bails and the reply hides behind the keyboard — the reported bug.
+  ///
+  /// A user who scrolled up to read history matches neither (no pin, outside the
+  /// band) and is left in place, as before.
+  ///
+  /// The anchor that pins the question at the top expands [maxScrollExtent]
+  /// beyond the content, so a plain jump-to-max would re-pin the question and
+  /// leave the reply's tail behind the keyboard. Clearing the anchor first makes
+  /// the bottom we re-pin to the true end of the latest message. The clear is a
+  /// no-op when no anchor is set, so the caught-up case is unaffected.
   void _maybeStickToBottomOnShrink(double viewportHeight) {
     final previous = _lastViewportHeight;
     _lastViewportHeight = viewportHeight;
@@ -204,8 +247,14 @@ class _MessageTimelineState extends State<MessageTimeline> {
     final pos = _scrollController.position;
     // pos.pixels and pos.maxScrollExtent are from the previous frame —
     // not yet reconciled to the shrunk viewport.
-    if (pos.maxScrollExtent - pos.pixels >= _bottomStickThreshold) return;
-    _scrollToBottom();
+    final atBottom = pos.maxScrollExtent - pos.pixels < _bottomStickThreshold;
+    final pinnedTop = _pinnedTopOffset;
+    final restingOnPin = pinnedTop != null &&
+        (pos.pixels - pinnedTop).abs() < _bottomStickThreshold;
+    if (!atBottom && !restingOnPin) return;
+    _pinnedTopOffset = null;
+    _scrollController.clearAnchor();
+    _scrollToContentBottom();
   }
 
   void _scrollToUnread(String firstUnreadId, String? anchorId) {
@@ -285,6 +334,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
   }
 
   void _onScrollToBottom() {
+    _pinnedTopOffset = null;
     _scrollController.clearAnchor();
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
