@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/core/app_identity.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
@@ -36,12 +37,14 @@ Widget _buildSidebar({
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
   List<Override> overrides = const [],
+  ThemeData? theme,
 }) {
   // The per-tile ⋮ menu is a ConsumerWidget, so the tree needs a ProviderScope;
   // the auth providers are only read when a logout fires.
   return ProviderScope(
     overrides: overrides,
     child: MaterialApp(
+      theme: theme,
       home: Scaffold(
         body: ServerSidebar(
           servers: servers,
@@ -69,6 +72,23 @@ void main() {
       expect(find.byType(BrandLogo), findsOneWidget);
       expect(find.text('Test App'), findsOneWidget);
       expect(find.text('v$soliplexVersion'), findsOneWidget);
+    });
+
+    testWidgets('app name renders in the brand font when configured',
+        (tester) async {
+      final theme = lowerBrandTheme(
+        const BrandTheme.soliplex().copyWith(
+          typography: const BrandTypography(brandFamily: 'Squada One'),
+        ),
+        Brightness.light,
+      );
+      await tester.pumpWidget(_buildSidebar(
+        servers: const {},
+        theme: theme,
+      ));
+
+      final nameText = tester.widget<Text>(find.text('Test App'));
+      expect(nameText.style?.fontFamily, 'Squada One');
     });
 
     testWidgets('displays connected servers with formatted URLs',

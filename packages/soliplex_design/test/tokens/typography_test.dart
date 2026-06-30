@@ -98,4 +98,83 @@ void main() {
       expect(theme.bodyMedium!.fontSize, 16);
     });
   });
+
+  group('per-role family routing', () {
+    test('a role overridden to body uses the body family', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        displayFamily: 'Oswald',
+        headlineMedium: const TypeScaleOverride(family: BrandFontRole.body),
+      );
+      expect(theme.headlineMedium!.fontFamily, 'Inter'); // not Oswald (default)
+    });
+
+    test('a role overridden to brand uses the brand family', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        brandFont: (family: 'Squada One', fallback: const []),
+        titleLarge: const TypeScaleOverride(family: BrandFontRole.brand),
+      );
+      expect(theme.titleLarge!.fontFamily, 'Squada One');
+    });
+
+    test('no family override keeps the group default', () {
+      final theme = soliplexTextTheme(
+        lightSoliplexColors,
+        bodyFamily: 'Inter',
+        displayFamily: 'Oswald',
+      );
+      expect(theme.titleLarge!.fontFamily, 'Oswald'); // display group
+      expect(theme.bodyLarge!.fontFamily, 'Inter'); // body group
+    });
+  });
+
+  group('soliplexTextTheme builds all 15 roles', () {
+    final theme = soliplexTextTheme(lightSoliplexColors);
+
+    test('every Material role is non-null', () {
+      expect(theme.displayLarge, isNotNull);
+      expect(theme.displayMedium, isNotNull);
+      expect(theme.displaySmall, isNotNull);
+      expect(theme.headlineLarge, isNotNull);
+      expect(theme.headlineMedium, isNotNull);
+      expect(theme.headlineSmall, isNotNull);
+      expect(theme.titleLarge, isNotNull);
+      expect(theme.titleMedium, isNotNull);
+      expect(theme.titleSmall, isNotNull);
+      expect(theme.bodyLarge, isNotNull);
+      expect(theme.bodyMedium, isNotNull);
+      expect(theme.bodySmall, isNotNull);
+      expect(theme.labelLarge, isNotNull);
+      expect(theme.labelMedium, isNotNull);
+      expect(theme.labelSmall, isNotNull);
+    });
+
+    test('new roles carry soliplex default metrics', () {
+      expect(theme.displayLarge!.fontSize, 57);
+      expect(theme.displayMedium!.fontSize, 45);
+      expect(theme.displaySmall!.fontSize, 36);
+      expect(theme.headlineLarge!.fontSize, 32);
+      expect(theme.headlineSmall!.fontSize, 24);
+      expect(theme.labelLarge!.fontSize, 16);
+      expect(theme.labelLarge!.fontWeight, FontWeight.w500);
+    });
+
+    test('label scale is ordered 12/14/16 (small/medium/large)', () {
+      expect(theme.labelSmall!.fontSize, 12);
+      expect(theme.labelMedium!.fontSize, 14);
+      expect(theme.labelLarge!.fontSize, 16);
+    });
+
+    test('a per-role override adjusts only the primitives it sets', () {
+      final overridden = soliplexTextTheme(
+        lightSoliplexColors,
+        displayLarge: const TypeScaleOverride(fontSize: 64),
+      );
+      expect(overridden.displayLarge!.fontSize, 64);
+      expect(overridden.displayLarge!.height, 1.2); // default retained
+    });
+  });
 }

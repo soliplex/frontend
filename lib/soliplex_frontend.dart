@@ -7,14 +7,17 @@ library;
 export 'package:soliplex_design/soliplex_design.dart'
     show
         BrandColorScheme,
+        BrandFontRole,
         BrandShape,
         BrandTheme,
+        BrandTint,
         BrandTypography,
         BundledFontResolver,
         ClassificationLevel,
         ClassificationTheme,
         FontResolver,
         ResolvedFont,
+        TintSource,
         TypeScaleOverride,
         lowerBrandTheme;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;

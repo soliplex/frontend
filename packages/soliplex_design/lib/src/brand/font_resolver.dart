@@ -31,6 +31,15 @@ class ResolvedFont {
 abstract class FontResolver {
   const FontResolver();
 
+  /// Resolves a font-family name (plus fallbacks) to a usable [ResolvedFont].
+  ///
+  /// An implementation MAY load the font as a side effect — e.g. a
+  /// `google_fonts`-backed resolver registers a font loader and returns the
+  /// family name it registered under. Resolution is synchronous: the theme
+  /// layer cannot await a load or verify that a family actually renders.
+  /// A consumer that must avoid a flash of fallback text should await font
+  /// readiness in `main()` before `runApp` (e.g. `GoogleFonts.pendingFonts()`),
+  /// because lowering is intentionally synchronous.
   ResolvedFont resolve(String family, List<String> fallbacks);
 }
 

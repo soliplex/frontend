@@ -370,23 +370,35 @@ class BrandColorScheme {
       ]);
 }
 
-/// Three font families plus optional per-role primitive deltas. Color and
-/// per-role family are intentionally absent: color comes from the palette and
-/// family is one of the three roles, which avoids dark-mode footguns.
+/// The named font families a text role can be assigned to.
+enum BrandFontRole { body, display, brand }
+
+/// Three named font families plus optional per-role primitive and family
+/// deltas. Each text role can be pointed at any of the three families via
+/// [TypeScaleOverride.family]; unset roles use their group default (display
+/// group: display, headline, title; body group: body, label). Per-role color
+/// is not supported — color comes from the palette.
 @immutable
 class BrandTypography {
   const BrandTypography({
     this.bodyFamily,
     this.displayFamily,
     this.codeFamily,
+    this.brandFamily,
     this.fallbacks = const [],
+    this.displayLarge,
+    this.displayMedium,
+    this.displaySmall,
+    this.headlineLarge,
     this.headlineMedium,
+    this.headlineSmall,
     this.titleLarge,
     this.titleMedium,
     this.titleSmall,
     this.bodyLarge,
     this.bodyMedium,
     this.bodySmall,
+    this.labelLarge,
     this.labelMedium,
     this.labelSmall,
   });
@@ -394,15 +406,22 @@ class BrandTypography {
   final String? bodyFamily;
   final String? displayFamily;
   final String? codeFamily;
+  final String? brandFamily;
   final List<String> fallbacks;
 
+  final TypeScaleOverride? displayLarge;
+  final TypeScaleOverride? displayMedium;
+  final TypeScaleOverride? displaySmall;
+  final TypeScaleOverride? headlineLarge;
   final TypeScaleOverride? headlineMedium;
+  final TypeScaleOverride? headlineSmall;
   final TypeScaleOverride? titleLarge;
   final TypeScaleOverride? titleMedium;
   final TypeScaleOverride? titleSmall;
   final TypeScaleOverride? bodyLarge;
   final TypeScaleOverride? bodyMedium;
   final TypeScaleOverride? bodySmall;
+  final TypeScaleOverride? labelLarge;
   final TypeScaleOverride? labelMedium;
   final TypeScaleOverride? labelSmall;
 
@@ -410,14 +429,21 @@ class BrandTypography {
     String? bodyFamily,
     String? displayFamily,
     String? codeFamily,
+    String? brandFamily,
     List<String>? fallbacks,
+    TypeScaleOverride? displayLarge,
+    TypeScaleOverride? displayMedium,
+    TypeScaleOverride? displaySmall,
+    TypeScaleOverride? headlineLarge,
     TypeScaleOverride? headlineMedium,
+    TypeScaleOverride? headlineSmall,
     TypeScaleOverride? titleLarge,
     TypeScaleOverride? titleMedium,
     TypeScaleOverride? titleSmall,
     TypeScaleOverride? bodyLarge,
     TypeScaleOverride? bodyMedium,
     TypeScaleOverride? bodySmall,
+    TypeScaleOverride? labelLarge,
     TypeScaleOverride? labelMedium,
     TypeScaleOverride? labelSmall,
   }) =>
@@ -425,14 +451,21 @@ class BrandTypography {
         bodyFamily: bodyFamily ?? this.bodyFamily,
         displayFamily: displayFamily ?? this.displayFamily,
         codeFamily: codeFamily ?? this.codeFamily,
+        brandFamily: brandFamily ?? this.brandFamily,
         fallbacks: fallbacks ?? this.fallbacks,
+        displayLarge: displayLarge ?? this.displayLarge,
+        displayMedium: displayMedium ?? this.displayMedium,
+        displaySmall: displaySmall ?? this.displaySmall,
+        headlineLarge: headlineLarge ?? this.headlineLarge,
         headlineMedium: headlineMedium ?? this.headlineMedium,
+        headlineSmall: headlineSmall ?? this.headlineSmall,
         titleLarge: titleLarge ?? this.titleLarge,
         titleMedium: titleMedium ?? this.titleMedium,
         titleSmall: titleSmall ?? this.titleSmall,
         bodyLarge: bodyLarge ?? this.bodyLarge,
         bodyMedium: bodyMedium ?? this.bodyMedium,
         bodySmall: bodySmall ?? this.bodySmall,
+        labelLarge: labelLarge ?? this.labelLarge,
         labelMedium: labelMedium ?? this.labelMedium,
         labelSmall: labelSmall ?? this.labelSmall,
       );
@@ -443,36 +476,55 @@ class BrandTypography {
       other.bodyFamily == bodyFamily &&
       other.displayFamily == displayFamily &&
       other.codeFamily == codeFamily &&
+      other.brandFamily == brandFamily &&
       listEquals(other.fallbacks, fallbacks) &&
+      other.displayLarge == displayLarge &&
+      other.displayMedium == displayMedium &&
+      other.displaySmall == displaySmall &&
+      other.headlineLarge == headlineLarge &&
       other.headlineMedium == headlineMedium &&
+      other.headlineSmall == headlineSmall &&
       other.titleLarge == titleLarge &&
       other.titleMedium == titleMedium &&
       other.titleSmall == titleSmall &&
       other.bodyLarge == bodyLarge &&
       other.bodyMedium == bodyMedium &&
       other.bodySmall == bodySmall &&
+      other.labelLarge == labelLarge &&
       other.labelMedium == labelMedium &&
       other.labelSmall == labelSmall;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         bodyFamily,
         displayFamily,
         codeFamily,
+        brandFamily,
         Object.hashAll(fallbacks),
+        displayLarge,
+        displayMedium,
+        displaySmall,
+        headlineLarge,
         headlineMedium,
+        headlineSmall,
         titleLarge,
         titleMedium,
         titleSmall,
         bodyLarge,
         bodyMedium,
         bodySmall,
+        labelLarge,
         labelMedium,
         labelSmall,
-      );
+      ]);
 }
 
 /// Per-role type-scale deltas applied on top of a base text style.
+///
+/// [family] redirects the role to one of the three named families
+/// ([BrandFontRole.body], [BrandFontRole.display], [BrandFontRole.brand]);
+/// null keeps the role's group default. The remaining fields adjust primitive
+/// metrics only — per-role color is not supported.
 @immutable
 class TypeScaleOverride {
   const TypeScaleOverride({
@@ -480,6 +532,7 @@ class TypeScaleOverride {
     this.fontWeight,
     this.height,
     this.letterSpacing,
+    this.family,
   })  : assert(
           fontSize == null || fontSize >= 0,
           'TypeScaleOverride.fontSize must be non-negative.',
@@ -493,6 +546,7 @@ class TypeScaleOverride {
   final FontWeight? fontWeight;
   final double? height;
   final double? letterSpacing;
+  final BrandFontRole? family;
 
   @override
   bool operator ==(Object other) =>
@@ -500,10 +554,12 @@ class TypeScaleOverride {
       other.fontSize == fontSize &&
       other.fontWeight == fontWeight &&
       other.height == height &&
-      other.letterSpacing == letterSpacing;
+      other.letterSpacing == letterSpacing &&
+      other.family == family;
 
   @override
-  int get hashCode => Object.hash(fontSize, fontWeight, height, letterSpacing);
+  int get hashCode =>
+      Object.hash(fontSize, fontWeight, height, letterSpacing, family);
 }
 
 /// Corner radii for the four shape steps.

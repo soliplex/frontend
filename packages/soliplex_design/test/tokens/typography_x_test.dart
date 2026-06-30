@@ -26,6 +26,48 @@ void main() {
     });
   });
 
+  group('context.brandFont', () {
+    testWidgets('returns the configured brand font', (tester) async {
+      final theme = lowerBrandTheme(
+        const BrandTheme.soliplex().copyWith(
+          typography: const BrandTypography(brandFamily: 'Squada One'),
+        ),
+        Brightness.light,
+      );
+      late ({String family, List<String> fallback})? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Builder(
+            builder: (context) {
+              captured = context.brandFont;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      expect(captured!.family, 'Squada One');
+    });
+
+    testWidgets('is null without a brand font', (tester) async {
+      final theme =
+          lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light);
+      late ({String family, List<String> fallback})? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Builder(
+            builder: (context) {
+              captured = context.brandFont;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      expect(captured, isNull);
+    });
+  });
+
   group('context.monospace', () {
     testWidgets('reads the monospace family from the theme extension',
         (tester) async {

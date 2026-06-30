@@ -214,6 +214,35 @@ void main() {
     });
   });
 
+  group('SoliplexTheme brandFont', () {
+    test('copyWith round-trips brandFont', () {
+      final base = soliplexLightTheme().extension<SoliplexTheme>()!;
+      const font = (family: 'Squada One', fallback: <String>['sans-serif']);
+      final updated = base.copyWith(brandFont: font);
+      expect(updated.brandFont, equals(font));
+      expect(updated.brandFont!.family, 'Squada One');
+    });
+
+    test('lerp snaps brandFont to the receiver value', () {
+      const font = (family: 'Squada One', fallback: <String>['sans-serif']);
+      final a = soliplexLightTheme()
+          .extension<SoliplexTheme>()!
+          .copyWith(brandFont: font);
+      final b = soliplexLightTheme().extension<SoliplexTheme>()!;
+      // lerp carries receiver's (a's) brandFont regardless of t.
+      expect(a.lerp(b, 0).brandFont, equals(font));
+      expect(a.lerp(b, 0.5).brandFont, equals(font));
+      expect(a.lerp(b, 1).brandFont, equals(font));
+    });
+
+    test('brandFont is null by default', () {
+      expect(
+        soliplexLightTheme().extension<SoliplexTheme>()!.brandFont,
+        isNull,
+      );
+    });
+  });
+
   group('MarkdownThemeExtension wiring', () {
     test('light theme bakes in a MarkdownThemeExtension', () {
       expect(

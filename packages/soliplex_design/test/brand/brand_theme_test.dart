@@ -115,6 +115,22 @@ void main() {
         isNot(const BrandTypography(fallbacks: ['Arial'])),
       );
     });
+
+    test('BrandTypography copyWith and equality cover the new roles', () {
+      const base = BrandTypography();
+      final updated =
+          base.copyWith(displayLarge: const TypeScaleOverride(fontSize: 60));
+      expect(updated.displayLarge, const TypeScaleOverride(fontSize: 60));
+      expect(updated, isNot(equals(base)));
+      expect(
+        updated,
+        equals(
+          const BrandTypography(
+            displayLarge: TypeScaleOverride(fontSize: 60),
+          ),
+        ),
+      );
+    });
   });
 
   group('BrandColorScheme', () {

@@ -47,19 +47,28 @@ ThemeData lowerBrandTheme(
   _warnLowContrast(colors, brand, brightness);
 
   final typography = theme.typography;
+  final mono = _lowerMonospace(typography, fontResolver);
+  final brandFontTuple = _lowerBrandFont(typography, fontResolver);
   final textTheme = soliplexTextTheme(
     colors,
     bodyFamily: typography.bodyFamily,
     displayFamily: typography.displayFamily,
+    brandFont: brandFontTuple,
     fallbacks: typography.fallbacks,
     fontResolver: fontResolver,
+    displayLarge: typography.displayLarge,
+    displayMedium: typography.displayMedium,
+    displaySmall: typography.displaySmall,
+    headlineLarge: typography.headlineLarge,
     headlineMedium: typography.headlineMedium,
+    headlineSmall: typography.headlineSmall,
     titleLarge: typography.titleLarge,
     titleMedium: typography.titleMedium,
     titleSmall: typography.titleSmall,
     bodyLarge: typography.bodyLarge,
     bodyMedium: typography.bodyMedium,
     bodySmall: typography.bodySmall,
+    labelLarge: typography.labelLarge,
     labelMedium: typography.labelMedium,
     labelSmall: typography.labelSmall,
   );
@@ -73,7 +82,8 @@ ThemeData lowerBrandTheme(
       lg: theme.shape.lg,
       xl: theme.shape.xl,
     ),
-    monospace: _lowerMonospace(typography, fontResolver),
+    monospace: mono,
+    brandFont: brandFontTuple,
     textTheme: textTheme,
     classifications: classifications,
   );
@@ -166,6 +176,19 @@ Color? _tintHue(BrandTint tint, BrandColorScheme brand, Color surface) {
   final resolved = fontResolver.resolve(code, typography.fallbacks);
   return (
     family: resolved.fontFamily ?? code,
+    fallback: resolved.fontFamilyFallback,
+  );
+}
+
+({String family, List<String> fallback})? _lowerBrandFont(
+  BrandTypography typography,
+  FontResolver fontResolver,
+) {
+  final brand = typography.brandFamily;
+  if (brand == null) return null;
+  final resolved = fontResolver.resolve(brand, typography.fallbacks);
+  return (
+    family: resolved.fontFamily ?? brand,
     fallback: resolved.fontFamilyFallback,
   );
 }
