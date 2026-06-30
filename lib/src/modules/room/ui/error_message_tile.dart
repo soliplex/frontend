@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'copy_button.dart';
+import 'message_caption.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class ErrorMessageTile extends StatelessWidget {
@@ -29,6 +30,7 @@ class ErrorMessageTile extends StatelessWidget {
             ),
           ),
         ),
+        if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s1),
         CopyButton(text: message.errorText),
       ],

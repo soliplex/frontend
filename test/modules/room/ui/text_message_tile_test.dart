@@ -7,6 +7,7 @@ import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/copy_button.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/message_caption.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
 
 Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
@@ -34,6 +35,40 @@ void main() {
 
     expect(find.byType(CopyButton), findsOneWidget);
     expect(find.byType(FeedbackButtons), findsNothing);
+  });
+
+  testWidgets('shows a timestamp caption when createdAt is set',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        roomId: 'r',
+        message: TextMessage(
+          id: 'cap-1',
+          user: ChatUser.user,
+          createdAt: DateTime(2020, 3, 3, 9, 3),
+          text: 'Hello',
+        ),
+      ),
+    ));
+
+    expect(find.byType(MessageCaption), findsOneWidget);
+    expect(find.text('Mar 3, 2020 · 9:03 AM'), findsOneWidget);
+  });
+
+  testWidgets('omits the caption when createdAt is null', (tester) async {
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        roomId: 'r',
+        message: TextMessage(
+          id: 'cap-2',
+          user: ChatUser.assistant,
+          createdAt: null,
+          text: 'Streaming…',
+        ),
+      ),
+    ));
+
+    expect(find.byType(MessageCaption), findsNothing);
   });
 
   testWidgets('assistant message shows copy button and feedback buttons',

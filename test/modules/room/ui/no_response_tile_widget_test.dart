@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/message_caption.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/no_response_tile_widget.dart';
 
 Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
@@ -40,6 +41,22 @@ NoResponseTile _tile({
     };
 
 void main() {
+  testWidgets('shows a timestamp caption', (tester) async {
+    await tester.pumpWidget(_wrap(
+      NoResponseTileWidget(
+        roomId: 'r',
+        message: NoResponseTile.finished(
+          id: 'nr1',
+          createdAt: DateTime(2020, 3, 3, 9, 3),
+          thinkingText: 'thinking',
+        ),
+      ),
+    ));
+
+    expect(find.byType(MessageCaption), findsOneWidget);
+    expect(find.text('Mar 3, 2020 · 9:03 AM'), findsOneWidget);
+  });
+
   testWidgets('finished renders the info icon', (tester) async {
     await tester.pumpWidget(_wrap(
       NoResponseTileWidget(

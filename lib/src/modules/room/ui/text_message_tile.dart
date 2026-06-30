@@ -10,6 +10,7 @@ import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
 import 'feedback_buttons.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
+import 'message_caption.dart';
 import 'workdir_files_section.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -81,6 +82,7 @@ class TextMessageTile extends StatelessWidget {
         ),
         const SizedBox(height: SoliplexSpacing.s1),
         _MessageBubble(message: message),
+        if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s2),
         Row(
           mainAxisSize: MainAxisSize.min,

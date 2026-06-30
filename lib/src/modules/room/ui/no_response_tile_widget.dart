@@ -6,6 +6,7 @@ import 'execution/phase_indicator.dart';
 import 'execution/execution_timeline.dart';
 import 'execution/static_thinking_block.dart';
 import 'execution/thinking_block.dart';
+import 'message_caption.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class NoResponseTileWidget extends StatelessWidget {
@@ -60,6 +61,7 @@ class NoResponseTileWidget extends StatelessWidget {
           reason: message.reason,
           errorDetail: message.errorDetail,
         ),
+        if (message.createdAt != null) MessageCaption(time: message.createdAt!),
       ],
     );
   }
