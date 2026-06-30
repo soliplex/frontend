@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/errors/exceptions.dart';
 
 /// Human-readable identity for a Soliplex server, from
 /// `GET /api/v1/installation/identity`.
@@ -17,11 +18,22 @@ class ServerInfo {
   });
 
   /// Parses a `GET /api/v1/installation/identity` response body.
+  ///
+  /// Blank or whitespace-only `name`/`description` are treated as absent so the
+  /// `null` fallback contract holds for every display site. Throws
+  /// [MalformedResponseException] when `installation_id` is missing or not a
+  /// string.
   factory ServerInfo.fromJson(Map<String, dynamic> json) {
+    final id = json['installation_id'];
+    if (id is! String) {
+      throw const MalformedResponseException(
+        message: 'identity response missing string installation_id',
+      );
+    }
     return ServerInfo(
-      installationId: json['installation_id'] as String,
-      name: json['name'] as String?,
-      description: json['description'] as String?,
+      installationId: id,
+      name: _blankToNull(json['name']),
+      description: _blankToNull(json['description']),
     );
   }
 
@@ -49,4 +61,10 @@ class ServerInfo {
   @override
   String toString() =>
       'ServerInfo(installationId: $installationId, name: $name)';
+}
+
+String? _blankToNull(Object? value) {
+  final text = value as String?;
+  if (text == null || text.trim().isEmpty) return null;
+  return text;
 }

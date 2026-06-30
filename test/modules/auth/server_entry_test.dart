@@ -1,7 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 
+import '../../helpers/test_server_entry.dart';
+
 void main() {
+  group('displayName', () {
+    test('uses the human-readable name when present', () {
+      final entry = createTestServerEntry(
+        serverId: 'https://api.example.com',
+        name: 'Demo Server',
+      );
+      expect(entry.displayName, 'Demo Server');
+    });
+
+    test('falls back to the formatted address when name is null', () {
+      final entry = createTestServerEntry(serverId: 'https://api.example.com');
+      expect(entry.displayName, 'https://api.example.com');
+    });
+  });
+
   group('aliasFromUrl', () {
     test('localhost with explicit port', () {
       expect(

@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.connection_probe');
 
 /// Signature for the auth provider discovery function.
 ///
@@ -13,9 +17,10 @@ typedef DiscoverProviders = Future<List<AuthProviderConfig>> Function(
 
 /// Signature for fetching a server's human-readable identity.
 ///
-/// Defaults to [discoverServerInfo] from soliplex_agent. Returns `null` when
-/// the server configures no name/description (404) or is unreachable for the
-/// metadata call — server info is best-effort and never fails a probe.
+/// Defaults to [discoverServerInfo] from soliplex_agent, which returns `null`
+/// only for a 404 (server configures no name/description) and otherwise throws.
+/// [probeConnection] treats any failure here as best-effort and falls back to
+/// `null`, so server info never fails a probe.
 typedef DiscoverServerInfo = Future<ServerInfo?> Function(
   Uri serverUrl,
   SoliplexHttpClient httpClient,
@@ -85,13 +90,17 @@ Future<ConnectionProbeResult> probeConnection({
     tried.add(uri);
     try {
       final providers = await discover(uri, httpClient).timeout(probeTimeout);
-      // Server identity is best-effort enrichment: a failure here (404, slow
-      // response, network blip) must not turn a successful probe into a
-      // failure, so swallow everything and fall back to null.
+      // Server identity is best-effort enrichment: any failure here (404, slow
+      // response, network blip, malformed or empty body) must not turn a
+      // successful probe into a failure, so log it and fall back to null.
       ServerInfo? info;
       try {
         info = await discoverInfo(uri, httpClient).timeout(probeTimeout);
-      } on Object {
+      } on Object catch (e) {
+        _logger.warning(
+          'Server info fetch failed for $uri; using raw address',
+          error: e,
+        );
         info = null;
       }
       return ConnectionSuccess(

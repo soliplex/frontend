@@ -91,6 +91,22 @@ void main() {
       expect(find.text('http://srv2.test:9000'), findsOneWidget);
     });
 
+    testWidgets('a server with a name shows the name, not the raw address',
+        (tester) async {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'https://api.example.com',
+        serverUrl: Uri.parse('https://api.example.com'),
+        requiresAuth: false,
+        name: 'Demo Server',
+      );
+
+      await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
+
+      expect(find.text('Demo Server'), findsOneWidget);
+      expect(find.text('https://api.example.com'), findsNothing);
+    });
+
     testWidgets('the more menu routes Network Inspector / Versions',
         (tester) async {
       var inspector = 0;
