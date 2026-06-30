@@ -277,7 +277,8 @@ class ToolCallMessage extends ChatMessage {
   /// Used after client-side tool execution to append results to the
   /// conversation before starting a continuation run. The [toolCalls]
   /// should have `status: completed` or `status: failed` with results
-  /// populated.
+  /// populated. Stamped with the client clock at creation, since a locally
+  /// executed result has no backend time.
   factory ToolCallMessage.fromExecuted({
     required String id,
     required List<ToolCallInfo> toolCalls,

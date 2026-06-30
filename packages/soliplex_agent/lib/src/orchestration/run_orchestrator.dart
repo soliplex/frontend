@@ -895,7 +895,7 @@ class RunOrchestrator {
                 DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
           } on Object catch (error) {
             _logger.warning(
-              'Ignoring out-of-range event timestamp ($timestamp) on run '
+              'Ignoring invalid event timestamp ($timestamp) on run '
               '${running.runId}',
               error: error,
             );
