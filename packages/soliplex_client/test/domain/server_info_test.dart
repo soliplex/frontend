@@ -24,6 +24,28 @@ void main() {
       expect(info.name, isNull);
       expect(info.description, isNull);
     });
+
+    test('treats blank/whitespace name/description as null', () {
+      final info = ServerInfo.fromJson(const {
+        'installation_id': 'soliplex-conf-minimal',
+        'name': '',
+        'description': '   ',
+      });
+
+      expect(info.name, isNull);
+      expect(info.description, isNull);
+    });
+
+    test('throws when installation_id is missing or not a string', () {
+      expect(
+        () => ServerInfo.fromJson(const {'name': 'Demo Server'}),
+        throwsA(isA<MalformedResponseException>()),
+      );
+      expect(
+        () => ServerInfo.fromJson(const {'installation_id': 42}),
+        throwsA(isA<MalformedResponseException>()),
+      );
+    });
   });
 
   group('ServerInfo equality', () {
