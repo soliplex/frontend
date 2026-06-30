@@ -33,7 +33,7 @@ List<ChatMessage> computeDisplayMessages(
         TextMessage(
           id: messageId,
           user: user,
-          createdAt: DateTime.now(),
+          createdAt: DateTime.timestamp(),
           text: text,
           thinkingText: thinkingText,
         ),

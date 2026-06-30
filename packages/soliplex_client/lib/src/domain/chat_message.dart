@@ -28,15 +28,16 @@ sealed class ChatMessage {
   /// The user who sent this message.
   final ChatUser user;
 
-  /// When this message was created. Backend-event-driven messages (replayed or
-  /// terminal text, run finished/errored) carry the backend's time
-  /// (`event.timestamp`, falling back to the run's `created`). Client-event
-  /// messages carry the client clock at creation, because the event happened on
-  /// the client and has no backend counterpart — e.g. a user-cancelled tile
-  /// (the cancel instant), the loading placeholder, the in-flight streaming
-  /// tile, and locally executed tool results. Null when no authoritative time
-  /// is known yet — e.g. the optimistic user echo before the run is persisted,
-  /// which fills in from the run's `created` on replay.
+  /// When this message was created. Backend-driven messages carry the backend's
+  /// time: replayed or terminal text and run finished/errored use
+  /// `event.timestamp` (falling back to the run's `created`), and a reply cut
+  /// off by a cancel keeps its last received backend event time. Client-only
+  /// artifacts carry the client clock at creation, since they have no backend
+  /// counterpart — the user-cancelled tile (the cancel instant), the loading
+  /// placeholder, the in-flight streaming tile, and locally executed tool
+  /// results. Null when no authoritative time is known yet — e.g. the
+  /// optimistic user echo before the run is persisted, which fills in from the
+  /// run's `created` on replay.
   final DateTime? createdAt;
 
   @override
@@ -258,8 +259,8 @@ class ToolCallMessage extends ChatMessage {
     required this.toolCalls,
   }) : super(user: ChatUser.assistant);
 
-  /// Creates a tool call message with the given ID and auto-generated
-  /// timestamp.
+  /// Creates a tool call message with the given ID, stamped with the client
+  /// clock at creation (created client-side; no backend time).
   factory ToolCallMessage.create({
     required String id,
     required List<ToolCallInfo> toolCalls,
@@ -267,7 +268,7 @@ class ToolCallMessage extends ChatMessage {
     return ToolCallMessage(
       id: id,
       toolCalls: toolCalls,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.timestamp(),
     );
   }
 
@@ -292,7 +293,7 @@ class ToolCallMessage extends ChatMessage {
     return ToolCallMessage(
       id: id,
       toolCalls: toolCalls,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.timestamp(),
     );
   }
 
@@ -314,7 +315,8 @@ class GenUiMessage extends ChatMessage {
     required this.data,
   }) : super(user: ChatUser.assistant);
 
-  /// Creates a genUI message with the given ID and auto-generated timestamp.
+  /// Creates a genUI message with the given ID, stamped with the client clock
+  /// at creation (created client-side; no backend time).
   factory GenUiMessage.create({
     required String id,
     required String widgetName,
@@ -324,7 +326,7 @@ class GenUiMessage extends ChatMessage {
       id: id,
       widgetName: widgetName,
       data: data,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.timestamp(),
     );
   }
 
@@ -345,9 +347,10 @@ class LoadingMessage extends ChatMessage {
   const LoadingMessage({required super.id, required super.createdAt})
       : super(user: ChatUser.assistant);
 
-  /// Creates a loading message with the given ID and auto-generated timestamp.
+  /// Creates a loading message with the given ID, stamped with the client clock
+  /// at creation (a transient client-side placeholder with no backend time).
   factory LoadingMessage.create({required String id}) {
-    return LoadingMessage(id: id, createdAt: DateTime.now());
+    return LoadingMessage(id: id, createdAt: DateTime.timestamp());
   }
 
   @override
