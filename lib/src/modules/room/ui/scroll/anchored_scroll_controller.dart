@@ -36,6 +36,11 @@ class AnchoredScrollController extends ScrollController {
 
   /// Revert to natural content bounds.
   void clearAnchor() => _anchoredPosition.anchorOffset = null;
+
+  /// The offset a message is currently pinned to at the viewport top, or null
+  /// when the list is at natural content bounds (no pin) or not yet attached.
+  double? get anchorOffset =>
+      hasClients ? _anchoredPosition.anchorOffset : null;
 }
 
 class _AnchoredScrollPosition extends ScrollPositionWithSingleContext {

@@ -82,13 +82,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// near-bottom band so the two agree on what "at the bottom" means.
   static const _bottomStickThreshold = 100.0;
 
-  /// Scroll offset that the most recent [_tryPinAtTop] parked the list at (the
-  /// last question sitting at the viewport top), or null once the user scrolls
-  /// away or the anchor is cleared. Lets [_maybeStickToBottomOnShrink] tell
-  /// "still parked on the freshly-sent exchange" — where revealing the reply on
-  /// keyboard-open is wanted — from "scrolled up into history", where it is not.
-  double? _pinnedTopOffset;
-
   Map<String, String?> _runIdMap = const {};
   Map<String, List<SourceReference>> _sourceReferencesMap = const {};
 
@@ -175,7 +168,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
   bool _tryPinAtTop(String messageId) {
     final target = _revealTopOffset(messageId);
     if (target == null) return false;
-    _pinnedTopOffset = target;
     _scrollController.setAnchor(target);
     _scrollController.animateTo(
       target,
@@ -185,6 +177,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
     return true;
   }
 
+  /// Jumps to the bottom on the next frame. For callers with no anchor set,
+  /// where [ScrollPosition.maxScrollExtent] is already the true content bottom
+  /// so a single jump lands correctly — the one-time initial scroll. When an
+  /// anchor is (or was just) in play, use [_scrollToContentBottom], which
+  /// absorbs the extra layout pass the anchor-expanded extent needs to collapse.
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -192,12 +189,21 @@ class _MessageTimelineState extends State<MessageTimeline> {
     });
   }
 
-  /// Scrolls to the true end of the latest message after the anchor has been
-  /// cleared. The first jump fires on the post-frame whose layout still carries
-  /// the anchor-expanded extent; clearing the anchor collapses [maxScrollExtent]
-  /// to the natural content height on the *next* layout pass, so a second jump
-  /// lands on the reconciled bottom (the end of the reply) rather than the
-  /// expanded anchor offset (which would keep the question pinned at the top).
+  /// Jumps to the true end of the content, compensating for the one-frame lag
+  /// before a just-cleared anchor takes effect.
+  ///
+  /// Precondition: call only immediately after
+  /// [AnchoredScrollController.clearAnchor]. The two jumps exist solely to
+  /// absorb that lag; without a preceding clear, prefer the single
+  /// [_scrollToBottom].
+  ///
+  /// While set, the anchor expands [ScrollPosition.maxScrollExtent] past the
+  /// natural content so a pinned message can rest at the viewport top. Clearing
+  /// it reverts the extent, but only on the *next* layout pass. So the first
+  /// post-frame jump still targets the anchor-expanded extent and would land
+  /// back at the pin (question at top, reply's tail below the fold); the second
+  /// jump, one frame later, targets the reconciled extent and lands on the real
+  /// content bottom — the end of the latest reply.
   void _scrollToContentBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -226,10 +232,11 @@ class _MessageTimelineState extends State<MessageTimeline> {
   /// opens":
   ///
   /// 1. Within [_bottomStickThreshold] of the bottom — a caught-up thread.
-  /// 2. Still parked on the freshly-sent exchange ([_pinnedTopOffset]), where
-  ///    the question sits at the top and a tall question + reply leaves the
-  ///    rest position *above* the bottom band. Without this the band guard
-  ///    bails and the reply hides behind the keyboard — the reported bug.
+  /// 2. Still parked on the freshly-sent exchange (the list is at the
+  ///    controller's [AnchoredScrollController.anchorOffset]), where the
+  ///    question sits at the top and a tall question + reply leaves the rest
+  ///    position *above* the bottom band. Without this the band guard bails and
+  ///    the reply hides behind the keyboard — the reported bug.
   ///
   /// A user who scrolled up to read history matches neither (no pin, outside the
   /// band) and is left in place, as before.
@@ -248,11 +255,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
     // pos.pixels and pos.maxScrollExtent are from the previous frame —
     // not yet reconciled to the shrunk viewport.
     final atBottom = pos.maxScrollExtent - pos.pixels < _bottomStickThreshold;
-    final pinnedTop = _pinnedTopOffset;
+    final pinnedTop = _scrollController.anchorOffset;
     final restingOnPin = pinnedTop != null &&
         (pos.pixels - pinnedTop).abs() < _bottomStickThreshold;
     if (!atBottom && !restingOnPin) return;
-    _pinnedTopOffset = null;
     _scrollController.clearAnchor();
     _scrollToContentBottom();
   }
@@ -334,7 +340,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
   }
 
   void _onScrollToBottom() {
-    _pinnedTopOffset = null;
     _scrollController.clearAnchor();
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
