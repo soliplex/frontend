@@ -4,10 +4,12 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
+import '../message_timestamp_format.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
 import '../unread_boundary.dart';
+import 'day_divider.dart';
 import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
 import 'scroll/scroll_to_bottom.dart';
@@ -433,19 +435,37 @@ class _MessageTimelineState extends State<MessageTimeline> {
                                 : null),
                         streamingPhase: isLastItem ? streamingPhase : null,
                       );
+                      // A null createdAt (the in-flight user echo) groups under
+                      // today for the boundary check.
+                      final dayFallback = DateTime.now();
+                      final startsNewDay = index == 0 ||
+                          !isSameCalendarDay(
+                            message.createdAt ?? dayFallback,
+                            displayMessages[index - 1].createdAt ?? dayFallback,
+                          );
+                      final showUnread = message.id == _frozenFirstUnreadId;
+                      final leading = <Widget>[
+                        if (startsNewDay)
+                          DayDivider(
+                            label: formatDayDivider(
+                              message.createdAt ?? dayFallback,
+                            ),
+                          ),
+                        if (showUnread) const UnreadDivider(),
+                      ];
                       return Padding(
                         key: message is LoadingMessage
                             ? const ValueKey('loading')
                             : _keyFor(message.id),
                         padding:
                             const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-                        child: message.id == _frozenFirstUnreadId
-                            ? Column(
+                        child: leading.isEmpty
+                            ? tile
+                            : Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [const UnreadDivider(), tile],
-                              )
-                            : tile,
+                                children: [...leading, tile],
+                              ),
                       );
                     },
                   ),
