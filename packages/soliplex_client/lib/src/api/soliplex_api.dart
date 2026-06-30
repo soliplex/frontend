@@ -775,7 +775,7 @@ class SoliplexApi {
       DateTime? created,
     })>[];
     for (final entry in _sortRunsByCreationTime(runs)) {
-      final created = _runCreated(entry.value);
+      final created = _runCreated(entry.value, entry.key, threadId);
       final preFetchError = preFetchByRunKey[entry.key];
       if (preFetchError != null) {
         eventsPerRun.add(
@@ -1072,18 +1072,36 @@ class SoliplexApi {
     );
   }
 
-  /// Sorts runs by creation time (oldest first). Non-Map run values
-  /// sort to the end; the caller filters them out before fetching.
-  /// Parses a run map's UTC `created` ISO-8601 string to a UTC [DateTime], or
-  /// null when absent or malformed. Used to stamp replayed messages with their
-  /// run's server time; null leaves them without a displayed timestamp rather
-  /// than substituting a client `now()`.
-  static DateTime? _runCreated(dynamic runData) {
+  /// Resolves a run map's `created` to a UTC [DateTime] via [parseTimestamp]
+  /// (which reads a naive ISO-8601 string as UTC), or null when the field is
+  /// absent. A present-but-wrong-shaped or malformed value logs a warning and
+  /// resolves to null, leaving the run's replayed messages without a displayed
+  /// timestamp rather than substituting a client `now()`.
+  static DateTime? _runCreated(dynamic runData, String runId, String threadId) {
     if (runData is! Map<String, dynamic>) return null;
     final created = runData['created'];
-    return created is String ? DateTime.tryParse(created)?.toUtc() : null;
+    if (created == null) return null;
+    if (created is! String) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId has a non-string `created` '
+        '(${created.runtimeType}); resolving to no timestamp.',
+      );
+      return null;
+    }
+    try {
+      return parseTimestamp(created);
+    } on FormatException catch (error) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId has a malformed `created` '
+        'timestamp; resolving to no timestamp.',
+        error: error,
+      );
+      return null;
+    }
   }
 
+  /// Sorts runs by creation time (oldest first). Non-Map run values
+  /// sort to the end; the caller filters them out before fetching.
   List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
     Map<String, dynamic> runs,
   ) {

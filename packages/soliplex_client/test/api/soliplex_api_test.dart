@@ -1269,6 +1269,13 @@ void main() {
               'run_id': 'run-3',
               'finished': '2026-01-07T03:01:00.000Z',
             },
+            // Malformed 'created' → resolves to null without throwing, so the
+            // rest of the thread still loads.
+            'run-4': {
+              'run_id': 'run-4',
+              'created': 'not-a-date',
+              'finished': '2026-01-07T04:01:00.000Z',
+            },
           },
         });
         stubGet('rooms/room-123/agui/thread-456/run-1', {
@@ -1283,6 +1290,10 @@ void main() {
         stubGet('rooms/room-123/agui/thread-456/run-3', {
           'run_id': 'run-3',
           'events': textEvents('msg-3'),
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-4', {
+          'run_id': 'run-4',
+          'events': textEvents('msg-4'),
         });
 
         final history = await api.getThreadHistory('room-123', 'thread-456');
@@ -1299,6 +1310,8 @@ void main() {
         expect(byId['msg-2']!.createdAt!.isAtSameMomentAs(eventTime), isTrue);
         // Neither event timestamp nor run created → null (no client now()).
         expect(byId['msg-3']!.createdAt, isNull);
+        // Malformed run created → null, and the run still replayed.
+        expect(byId['msg-4']!.createdAt, isNull);
       });
 
       test('fetches multiple runs in parallel and orders by creation time',
@@ -2706,6 +2719,9 @@ void main() {
           final drop = history.messages.whereType<DroppedEventMessage>().single;
           expect(drop.runId, 'run-1');
           expect(drop.reason, contains('Connection failed'));
+          // The drop tile carries the failed run's server `created`, not a
+          // client now().
+          expect(drop.createdAt, DateTime.utc(2026, 1, 7, 1));
         },
       );
 
