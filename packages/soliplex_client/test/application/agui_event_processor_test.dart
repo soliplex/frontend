@@ -376,7 +376,7 @@ void main() {
 
         final surfaced =
             result.conversation.messages.whereType<ErrorMessage>().single;
-        expect(surfaced.createdAt.isAtSameMomentAs(eventTime), isTrue);
+        expect(surfaced.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
       test(
@@ -400,7 +400,7 @@ void main() {
         final committed = result.conversation.messages
             .whereType<TextMessage>()
             .firstWhere((m) => m.id == 'msg-1');
-        expect(committed.createdAt.isAtSameMomentAs(eventTime), isTrue);
+        expect(committed.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
 
       test(
@@ -423,7 +423,7 @@ void main() {
 
         final tile =
             result.conversation.messages.whereType<NoResponseTile>().single;
-        expect(tile.createdAt.isAtSameMomentAs(eventTime), isTrue);
+        expect(tile.createdAt!.isAtSameMomentAs(eventTime), isTrue);
       });
     });
 
@@ -520,8 +520,8 @@ void main() {
         final result = processEvent(conversation, streamingState, event);
 
         final message = result.conversation.messages.first;
-        expect(message.createdAt.isAtSameMomentAs(eventTime), isTrue);
-        expect(message.createdAt.isUtc, isTrue);
+        expect(message.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+        expect(message.createdAt!.isUtc, isTrue);
       });
 
       test('TextMessageEndEvent uses runCreated when event has no timestamp',

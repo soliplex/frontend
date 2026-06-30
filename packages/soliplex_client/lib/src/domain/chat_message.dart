@@ -28,8 +28,12 @@ sealed class ChatMessage {
   /// The user who sent this message.
   final ChatUser user;
 
-  /// When this message was created.
-  final DateTime createdAt;
+  /// When this message was created, per the backend (`event.timestamp` or the
+  /// run's `created`). Null when no authoritative time is known yet — e.g. the
+  /// live optimistic user echo before the run is persisted; it fills in from
+  /// the run's server `created` on replay. The frontend never invents a
+  /// displayed time, so this is never a client `DateTime.now()`.
+  final DateTime? createdAt;
 
   @override
   bool operator ==(Object other) =>
@@ -70,14 +74,16 @@ class TextMessage extends ChatMessage {
     this.thinkingText = '',
   });
 
-  /// Creates a text message with the given ID, defaulting [createdAt] to now.
+  /// Creates a text message with the given ID. [createdAt] is the
+  /// backend-sourced time, or null when none is known yet (e.g. the live
+  /// optimistic echo). The model never substitutes a client `now()`.
   factory TextMessage.create({
     required String id,
     required ChatUser user,
     required String text,
+    DateTime? createdAt,
     bool isStreaming = false,
     String thinkingText = '',
-    DateTime? createdAt,
   }) {
     return TextMessage(
       id: id,
@@ -85,7 +91,7 @@ class TextMessage extends ChatMessage {
       text: text,
       isStreaming: isStreaming,
       thinkingText: thinkingText,
-      createdAt: createdAt ?? DateTime.now(),
+      createdAt: createdAt,
     );
   }
 
@@ -147,7 +153,7 @@ class NoResponseTile extends ChatMessage {
   }) =>
       NoResponseTile._(
         id: id,
-        createdAt: createdAt ?? DateTime.now(),
+        createdAt: createdAt,
         thinkingText: thinkingText,
         reason: TerminalReason.failed,
         errorDetail: errorDetail,
@@ -161,7 +167,7 @@ class NoResponseTile extends ChatMessage {
   }) =>
       NoResponseTile._(
         id: id,
-        createdAt: createdAt ?? DateTime.now(),
+        createdAt: createdAt,
         thinkingText: thinkingText,
         reason: TerminalReason.cancelled,
         errorDetail: null,
@@ -175,7 +181,7 @@ class NoResponseTile extends ChatMessage {
   }) =>
       NoResponseTile._(
         id: id,
-        createdAt: createdAt ?? DateTime.now(),
+        createdAt: createdAt,
         thinkingText: thinkingText,
         reason: TerminalReason.finished,
         errorDetail: null,
@@ -225,7 +231,7 @@ class ErrorMessage extends ChatMessage {
     return ErrorMessage(
       id: id,
       errorText: message,
-      createdAt: createdAt ?? DateTime.now(),
+      createdAt: createdAt,
     );
   }
 

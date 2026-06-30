@@ -779,6 +779,11 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) {
     final priorMessages = cachedHistory?.messages ?? <ChatMessage>[];
+    // No authoritative time exists at submit — the backend hasn't created the
+    // run yet — so the optimistic echo carries no timestamp (createdAt: null,
+    // the default). It fills from the run's server `created` on replay; the
+    // frontend never displays a client-generated time. now() here is only for a
+    // unique id.
     final userMsg = TextMessage.create(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
       user: ChatUser.user,

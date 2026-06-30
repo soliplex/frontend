@@ -722,6 +722,7 @@ EventProcessingResult _processRunError(
             ErrorMessage.create(
               id: preRunErrorMessageId(conversation.threadId, message),
               message: message,
+              createdAt: createdAt,
             ),
           )
           .withStatus(Failed(error: message)),

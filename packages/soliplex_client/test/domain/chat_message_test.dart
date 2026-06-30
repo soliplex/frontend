@@ -14,7 +14,9 @@ void main() {
       expect(message.text, equals('Hello'));
       expect(message.isStreaming, isFalse);
       expect(message.id, equals('msg-1'));
-      expect(message.createdAt, isNotNull);
+      // createdAt is omitted, so it defaults to null — the model never
+      // substitutes a client-generated time.
+      expect(message.createdAt, isNull);
     });
 
     test('create with all fields', () {
@@ -237,11 +239,11 @@ void main() {
       final after = DateTime.now();
 
       expect(
-        message.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
+        message.createdAt!.isAfter(before.subtract(const Duration(seconds: 1))),
         isTrue,
       );
       expect(
-        message.createdAt.isBefore(after.add(const Duration(seconds: 1))),
+        message.createdAt!.isBefore(after.add(const Duration(seconds: 1))),
         isTrue,
       );
     });
