@@ -29,11 +29,24 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Room: the sidebar create-thread button is now labelled "New" instead of
   "New Thread".
 - Room: the on-screen keyboard no longer hides the most recent message. When
-  the keyboard opens while the conversation is resting at the bottom, the
-  message list re-pins to the bottom so the latest message stays visible above
-  the input bar. The trigger is the viewport shrinking (any near-bottom
-  reflow), not a platform check, so desktop — which has no software keyboard —
-  is unaffected.
+  the keyboard opens while the conversation is resting at the bottom, or still
+  parked on a just-sent question pinned to the top whose reply runs past the
+  fold, the message list scrolls to the end of the latest reply so it stays
+  visible above the input bar. The trigger is the viewport shrinking (any
+  near-bottom reflow), not a platform check, so desktop — which has no software
+  keyboard — is unaffected.
+- Room and lobby: content now clears the device safe areas on mobile — the chat
+  composer sits above the home indicator, and the wide room layout's rail and
+  sidebar headers clear the status bar and side notches.
+- Lobby: long room names and descriptions in the list view, and long server
+  addresses in the sidebar, now ellipsize instead of overflowing their tiles on
+  narrow screens.
+- Quiz: the Submit/Next action bar is pinned in a footer below the scrolling
+  question, so the on-screen keyboard can no longer push it off-screen during
+  free-text answers.
+- Diagnostics: long monospace values in the network inspector — the JSON tree
+  root and the key/value and header cells (URLs, tokens, cookies) — now scroll
+  horizontally instead of clipping.
 
 ## [0.90.3+63] - 2026-06-24
 
