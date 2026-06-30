@@ -113,6 +113,12 @@ class RunOrchestrator {
   /// decoder produces.
   int _liveEventCounter = 0;
 
+  /// The backend timestamp of the most recent event received on the active
+  /// subscription, or null before any timestamped event arrives. Used to stamp
+  /// the partial reply committed on cancel with the last server time rather
+  /// than a client `now()`.
+  DateTime? _lastEventTime;
+
   // runToCompletion infrastructure
   Completer<RunState>? _terminalCompleter;
   int _subscriptionEpoch = 0;
@@ -251,11 +257,13 @@ class RunOrchestrator {
           streaming: streaming,
           runId: runId,
           terminalEvent: 'cancelRun',
+          createdAt: _lastEventTime,
         );
         final synthesisResult = synthesizeCancelledNoResponse(
           conversation: withPartial,
           streaming: streaming,
           runId: runId,
+          createdAt: DateTime.timestamp(),
         );
         final withCitations =
             _extractCitations(synthesisResult.conversation, runId);
@@ -851,6 +859,7 @@ class RunOrchestrator {
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
     _liveEventCounter = 0;
+    _lastEventTime = null;
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
@@ -879,6 +888,11 @@ class RunOrchestrator {
       case DecodedEvent(:final event, :final rawJson):
         final running = _currentState;
         if (running is! RunningState) return;
+        final timestamp = event.timestamp;
+        if (timestamp != null) {
+          _lastEventTime =
+              DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+        }
         try {
           final result =
               processEvent(running.conversation, running.streaming, event);

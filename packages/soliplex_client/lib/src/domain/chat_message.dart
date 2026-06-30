@@ -28,11 +28,15 @@ sealed class ChatMessage {
   /// The user who sent this message.
   final ChatUser user;
 
-  /// When this message was created, per the backend (`event.timestamp` or the
-  /// run's `created`). Null when no authoritative time is known yet — e.g. the
-  /// live optimistic user echo before the run is persisted; it fills in from
-  /// the run's server `created` on replay. The frontend never invents a
-  /// displayed time, so this is never a client `DateTime.now()`.
+  /// When this message was created. Backend-event-driven messages (replayed or
+  /// terminal text, run finished/errored) carry the backend's time
+  /// (`event.timestamp`, falling back to the run's `created`). Client-event
+  /// messages carry the client clock at creation, because the event happened on
+  /// the client and has no backend counterpart — e.g. a user-cancelled tile
+  /// (the cancel instant), the loading placeholder, the in-flight streaming
+  /// tile, and locally executed tool results. Null when no authoritative time
+  /// is known yet — e.g. the optimistic user echo before the run is persisted,
+  /// which fills in from the run's `created` on replay.
   final DateTime? createdAt;
 
   @override
@@ -222,7 +226,9 @@ class ErrorMessage extends ChatMessage {
     required this.errorText,
   }) : super(user: ChatUser.system);
 
-  /// Creates an error message with the given ID and auto-generated timestamp.
+  /// Creates an error message with the given ID. [createdAt] is the
+  /// backend-sourced time (the error event's timestamp or the run's
+  /// `created`), or null when none is known yet.
   factory ErrorMessage.create({
     required String id,
     required String message,
