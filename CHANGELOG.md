@@ -8,8 +8,21 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- Chat: a message's timestamp now comes from the backend's authoritative time
+  — the AG-UI event timestamp, falling back to the run's server `created` —
+  instead of the device clock, and is absent until that time is known (e.g. an
+  optimistic user echo fills in on replay). Client-only tiles (cancellation,
+  loading, in-flight streaming, locally executed tool results) carry a UTC
+  client time.
+
 ### Fixed
 
+- Chat history: a malformed or out-of-range backend timestamp no longer aborts
+  loading a thread's history or hangs an in-flight run; the affected message
+  simply carries no timestamp. Naive (offset-less) backend timestamps are now
+  read as UTC instead of the device's local zone, fixing an off-by-hours error.
 - Consent notice: the full notice can now be selected and copied in one drag.
   The prose renderer no longer builds each markdown block as an isolated
   selectable, so a selection spans every paragraph and list at once.

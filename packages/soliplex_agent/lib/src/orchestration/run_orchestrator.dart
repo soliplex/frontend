@@ -113,6 +113,12 @@ class RunOrchestrator {
   /// decoder produces.
   int _liveEventCounter = 0;
 
+  /// The backend timestamp of the most recent event received on the active
+  /// subscription, or null before any timestamped event arrives. Used to stamp
+  /// the partial reply committed on cancel with the last server time rather
+  /// than a client `now()`.
+  DateTime? _lastEventTime;
+
   // runToCompletion infrastructure
   Completer<RunState>? _terminalCompleter;
   int _subscriptionEpoch = 0;
@@ -251,11 +257,13 @@ class RunOrchestrator {
           streaming: streaming,
           runId: runId,
           terminalEvent: 'cancelRun',
+          createdAt: _lastEventTime,
         );
         final synthesisResult = synthesizeCancelledNoResponse(
           conversation: withPartial,
           streaming: streaming,
           runId: runId,
+          createdAt: DateTime.timestamp(),
         );
         final withCitations =
             _extractCitations(synthesisResult.conversation, runId);
@@ -779,6 +787,11 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) {
     final priorMessages = cachedHistory?.messages ?? <ChatMessage>[];
+    // No authoritative time exists at submit — the backend hasn't created the
+    // run yet — so the optimistic echo carries no timestamp (createdAt: null,
+    // the default). It fills from the run's server `created` on replay; the
+    // frontend never displays a client-generated time. now() here is only for a
+    // unique id.
     final userMsg = TextMessage.create(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
       user: ChatUser.user,
@@ -846,6 +859,7 @@ class RunOrchestrator {
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
     _liveEventCounter = 0;
+    _lastEventTime = null;
     _terminalCompleter = Completer<RunState>();
     _subscriptionEpoch++;
     final epoch = _subscriptionEpoch;
@@ -874,6 +888,19 @@ class RunOrchestrator {
       case DecodedEvent(:final event, :final rawJson):
         final running = _currentState;
         if (running is! RunningState) return;
+        final timestamp = event.timestamp;
+        if (timestamp != null) {
+          try {
+            _lastEventTime =
+                DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+          } on Object catch (error) {
+            _logger.warning(
+              'Ignoring invalid event timestamp ($timestamp) on run '
+              '${running.runId}',
+              error: error,
+            );
+          }
+        }
         try {
           final result =
               processEvent(running.conversation, running.streaming, event);

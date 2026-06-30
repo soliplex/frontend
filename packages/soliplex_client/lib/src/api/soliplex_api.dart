@@ -768,9 +768,14 @@ class SoliplexApi {
     //    position by walking the original sort once.
     final fetchByRunId = {for (final r in results) r.runId: r};
     final preFetchByRunKey = {for (final d in preFetchDrops) d.runId: d.error};
-    final eventsPerRun =
-        <({String runId, List<dynamic> events, Object? fetchError})>[];
+    final eventsPerRun = <({
+      String runId,
+      List<dynamic> events,
+      Object? fetchError,
+      DateTime? created,
+    })>[];
     for (final entry in _sortRunsByCreationTime(runs)) {
+      final created = _runCreated(entry.value, entry.key, threadId);
       final preFetchError = preFetchByRunKey[entry.key];
       if (preFetchError != null) {
         eventsPerRun.add(
@@ -778,6 +783,7 @@ class SoliplexApi {
             runId: entry.key,
             events: const <dynamic>[],
             fetchError: preFetchError,
+            created: created,
           ),
         );
         continue;
@@ -794,6 +800,7 @@ class SoliplexApi {
           runId: rawRunId,
           events: fetched.events,
           fetchError: fetched.fetchError,
+          created: created,
         ),
       );
     }
@@ -900,7 +907,13 @@ class SoliplexApi {
   /// messages. Each run's citations are keyed by the user message ID that
   /// initiated that run.
   ThreadHistory _replayEventsToHistory(
-    List<({String runId, List<dynamic> events, Object? fetchError})>
+    List<
+            ({
+              String runId,
+              List<dynamic> events,
+              Object? fetchError,
+              DateTime? created,
+            })>
         eventsPerRun,
     String threadId,
   ) {
@@ -912,7 +925,7 @@ class SoliplexApi {
     final messageStates = <String, MessageState>{};
     final runs = <RunEventBundle>[];
 
-    for (final (:runId, :events, :fetchError) in eventsPerRun) {
+    for (final (:runId, :events, :fetchError, :created) in eventsPerRun) {
       // Run-level fetch failure (transient HTTP error or pre-fetch
       // shape-drift on the run entry) → mint one drop tile in place so
       // the run is visibly missing from the timeline rather than
@@ -929,6 +942,7 @@ class SoliplexApi {
             source: DropSource.decode,
             reason: fetchError.toString(),
             runId: runId,
+            createdAt: created,
           ),
         );
       }
@@ -978,6 +992,7 @@ class SoliplexApi {
               reason: error.toString(),
               runId: runId,
               rawPayload: rawPayload,
+              createdAt: created,
             ),
           );
         }
@@ -1013,7 +1028,12 @@ class SoliplexApi {
           case DecodedEvent(:final event):
             decodedEvents.add(event);
             try {
-              final result = processEvent(conversation, streaming, event);
+              final result = processEvent(
+                conversation,
+                streaming,
+                event,
+                runCreated: created,
+              );
               conversation = result.conversation;
               streaming = result.streaming;
             } on Object catch (error, stackTrace) {
@@ -1050,6 +1070,47 @@ class SoliplexApi {
       messageStates: messageStates,
       runs: runs,
     );
+  }
+
+  /// Resolves a run map's `created` to a UTC [DateTime] via [parseTimestamp]
+  /// (which reads a naive ISO-8601 string as UTC), or null when the field is
+  /// absent. A present-but-wrong-shaped or malformed value logs a warning and
+  /// resolves to null, leaving the run's replayed messages without a displayed
+  /// timestamp rather than substituting a client `now()`.
+  static DateTime? _runCreated(dynamic runData, String runId, String threadId) {
+    if (runData is! Map<String, dynamic>) return null;
+    final created = runData['created'];
+    if (created == null) return null;
+    if (created is! String) {
+      _logger.warning(
+        'replay: run $runId in thread $threadId has a non-string `created` '
+        '(${created.runtimeType}); resolving to no timestamp.',
+      );
+      return null;
+    }
+    try {
+      return parseTimestamp(created);
+    } on FormatException catch (error) {
+      // Expected shape drift: a malformed `created` string. Routine — warn
+      // and resolve to no timestamp.
+      _logger.warning(
+        'replay: run $runId in thread $threadId has a malformed `created` '
+        'timestamp; resolving to no timestamp.',
+        error: error,
+      );
+      return null;
+    } on Object catch (error, stackTrace) {
+      // parseTimestamp is documented to throw only FormatException; anything
+      // else is an unexpected contract break worth a louder signal. Still
+      // resolve to null so one run never aborts the whole history replay.
+      _logger.error(
+        'replay: run $runId in thread $threadId threw unexpectedly parsing '
+        '`created`; resolving to no timestamp.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 
   /// Sorts runs by creation time (oldest first). Non-Map run values

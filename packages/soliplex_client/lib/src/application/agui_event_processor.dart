@@ -36,8 +36,10 @@ class EventProcessingResult {
 /// Processes a single AG-UI event, returning updated domain and streaming
 /// state.
 ///
-/// This is a pure function with no side effects. It takes the current state
-/// and an event, and returns the new state.
+/// A minted message's `createdAt` resolves to `event.timestamp ?? runCreated`,
+/// where [runCreated] is the run's server `created` (supplied during replay,
+/// null while live). Both may be null — the message then carries no timestamp
+/// rather than a client-generated one.
 ///
 /// Example usage:
 /// ```dart
@@ -48,18 +50,27 @@ class EventProcessingResult {
 EventProcessingResult processEvent(
   Conversation conversation,
   StreamingState streaming,
-  BaseEvent event,
-) {
+  BaseEvent event, {
+  DateTime? runCreated,
+}) {
   return switch (event) {
     // Run lifecycle events
     RunStartedEvent(:final runId) => EventProcessingResult(
         conversation: conversation.withStatus(Running(runId: runId)),
         streaming: streaming,
       ),
-    RunFinishedEvent(:final runId) =>
-      _processRunFinished(conversation, streaming, runId),
-    RunErrorEvent(:final message) =>
-      _processRunError(conversation, streaming, message),
+    RunFinishedEvent(:final runId, :final timestamp) => _processRunFinished(
+        conversation,
+        streaming,
+        runId,
+        createdAt: _eventTime(timestamp) ?? runCreated,
+      ),
+    RunErrorEvent(:final message, :final timestamp) => _processRunError(
+        conversation,
+        streaming,
+        message,
+        createdAt: _eventTime(timestamp) ?? runCreated,
+      ),
 
     // Thinking / reasoning lifecycle — outer (Thinking/ReasoningStart/End),
     // inner thinking (ThinkingTextMessageStart/End), and reasoning message
@@ -93,10 +104,11 @@ EventProcessingResult processEvent(
       ),
     TextMessageContentEvent(:final messageId, :final delta) =>
       _processTextContent(conversation, streaming, messageId, delta),
-    TextMessageEndEvent(:final messageId) => _processTextEnd(
+    TextMessageEndEvent(:final messageId, :final timestamp) => _processTextEnd(
         conversation,
         streaming,
         messageId,
+        createdAt: _eventTime(timestamp) ?? runCreated,
       ),
 
     // Tool call events — accumulate tool names on start, args via deltas,
@@ -309,11 +321,18 @@ EventProcessingResult _processTextContent(
       ),
     );
 
+/// Converts an AG-UI event's epoch-millisecond [timestamp] to a UTC [DateTime],
+/// or null when the event carries no timestamp.
+DateTime? _eventTime(int? timestamp) => timestamp == null
+    ? null
+    : DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+
 EventProcessingResult _processTextEnd(
   Conversation conversation,
   StreamingState streaming,
-  String messageId,
-) =>
+  String messageId, {
+  DateTime? createdAt,
+}) =>
     _onActiveTextStream(
       conversation,
       streaming,
@@ -337,6 +356,7 @@ EventProcessingResult _processTextEnd(
           user: active.user,
           text: active.text,
           thinkingText: active.thinkingText,
+          createdAt: createdAt,
         );
 
         return EventProcessingResult(
@@ -542,8 +562,9 @@ StreamingState _withToolCallPhase(
 EventProcessingResult _processRunFinished(
   Conversation conversation,
   StreamingState streaming,
-  String runId,
-) {
+  String runId, {
+  DateTime? createdAt,
+}) {
   if (conversation.status is! Running) {
     _logger.warning(
       'RunFinishedEvent on non-Running status; preserving prior status. '
@@ -563,11 +584,13 @@ EventProcessingResult _processRunFinished(
     streaming: streaming,
     runId: runId,
     terminalEvent: 'RunFinishedEvent',
+    createdAt: createdAt,
   );
   final result = synthesizeFinishedNoResponse(
     conversation: withPartial,
     streaming: streaming,
     runId: runId,
+    createdAt: createdAt,
   );
   // RunFinished with no synthesized tile and no in-flight text produces
   // no message in the list at all — `AgentSession` will return
@@ -617,20 +640,23 @@ EventProcessingResult _processRunFinished(
 EventProcessingResult _processRunError(
   Conversation conversation,
   StreamingState streaming,
-  String message,
-) {
+  String message, {
+  DateTime? createdAt,
+}) {
   if (conversation.status case Running(:final runId)) {
     final withPartial = commitPartialTextOnTerminal(
       conversation: conversation,
       streaming: streaming,
       runId: runId,
       terminalEvent: 'RunErrorEvent',
+      createdAt: createdAt,
     );
     final result = synthesizeFailedNoResponse(
       conversation: withPartial,
       streaming: streaming,
       runId: runId,
       errorDetail: message,
+      createdAt: createdAt,
     );
     // The partial-text commit already produces a user-visible signal in
     // the messages list — synthesis declines on TextStreaming by design,
@@ -667,6 +693,7 @@ EventProcessingResult _processRunError(
             ErrorMessage.create(
               id: runErrorMessageId(runId),
               message: message,
+              createdAt: createdAt,
             ),
           );
     return EventProcessingResult(
@@ -697,6 +724,7 @@ EventProcessingResult _processRunError(
             ErrorMessage.create(
               id: preRunErrorMessageId(conversation.threadId, message),
               message: message,
+              createdAt: createdAt,
             ),
           )
           .withStatus(Failed(error: message)),

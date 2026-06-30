@@ -354,6 +354,77 @@ void main() {
         final surfaced = result.conversation.messages.last as ErrorMessage;
         expect(surfaced.errorText, equals('tool failure'));
       });
+
+      test(
+          'RunErrorEvent stamps surfaced ErrorMessage createdAt from '
+          'event.timestamp', () {
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1')).withToolCall(
+                  const ToolCallInfo(id: 'tc1', name: 'search'),
+                );
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'planning the call',
+        );
+        final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
+        final event = RunErrorEvent(
+          message: 'tool failure',
+          timestamp: eventTime.millisecondsSinceEpoch,
+        );
+
+        final result =
+            processEvent(runningConversation, streamingWithThinking, event);
+
+        final surfaced =
+            result.conversation.messages.whereType<ErrorMessage>().single;
+        expect(surfaced.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+      });
+
+      test(
+          'RunErrorEvent stamps committed partial text createdAt from '
+          'event.timestamp', () {
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1'));
+        const streamingText = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'partial reply',
+        );
+        final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
+        final event = RunErrorEvent(
+          message: 'boom',
+          timestamp: eventTime.millisecondsSinceEpoch,
+        );
+
+        final result = processEvent(runningConversation, streamingText, event);
+
+        final committed = result.conversation.messages
+            .whereType<TextMessage>()
+            .firstWhere((m) => m.id == 'msg-1');
+        expect(committed.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+      });
+
+      test(
+          'RunFinishedEvent stamps synthesized NoResponseTile createdAt from '
+          'event.timestamp', () {
+        final runningConversation =
+            conversation.withStatus(const Running(runId: 'run-1'));
+        const streamingWithThinking = app_streaming.AwaitingText(
+          bufferedThinkingText: 'thought process',
+        );
+        final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
+        final event = RunFinishedEvent(
+          threadId: 'thread-1',
+          runId: 'run-1',
+          timestamp: eventTime.millisecondsSinceEpoch,
+        );
+
+        final result =
+            processEvent(runningConversation, streamingWithThinking, event);
+
+        final tile =
+            result.conversation.messages.whereType<NoResponseTile>().single;
+        expect(tile.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+      });
     });
 
     group('text message streaming', () {
@@ -432,6 +503,46 @@ void main() {
         expect(result.conversation.messages, hasLength(1));
         final message = result.conversation.messages.first;
         expect(message.id, equals('msg-1'));
+      });
+
+      test('TextMessageEndEvent stamps createdAt from event.timestamp', () {
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        final eventTime = DateTime.utc(2026, 3, 3, 9, 3);
+        final event = TextMessageEndEvent(
+          messageId: 'msg-1',
+          timestamp: eventTime.millisecondsSinceEpoch,
+        );
+
+        final result = processEvent(conversation, streamingState, event);
+
+        final message = result.conversation.messages.first;
+        expect(message.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+        expect(message.createdAt!.isUtc, isTrue);
+      });
+
+      test('TextMessageEndEvent uses runCreated when event has no timestamp',
+          () {
+        const streamingState = app_streaming.TextStreaming(
+          messageId: 'msg-1',
+          user: _defaultUser,
+          text: 'Hello world',
+        );
+        const event = TextMessageEndEvent(messageId: 'msg-1');
+        final runCreated = DateTime.utc(2026, 3, 3, 9);
+
+        final result = processEvent(
+          conversation,
+          streamingState,
+          event,
+          runCreated: runCreated,
+        );
+
+        final message = result.conversation.messages.first;
+        expect(message.createdAt, runCreated);
       });
 
       test('TextMessageEndEvent preserves user role from streaming state', () {

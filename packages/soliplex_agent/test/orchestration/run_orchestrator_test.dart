@@ -432,6 +432,39 @@ void main() {
           as ErrorMessage;
       expect(surfaced.errorText, equals('connection lost'));
     });
+
+    test(
+        'event with out-of-range timestamp is tolerated; run completes '
+        'instead of hanging', () async {
+      // An absurd epoch must not throw out of the stream listener (where it
+      // would escape the per-event guard and leave the run hung). The
+      // timestamp is ignored; the event still processes.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(
+            messageId: 'msg-1',
+            delta: 'hello',
+            // One past DateTime's max epoch-ms (kept under 2^53 for web).
+            timestamp: 8640000000000001,
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final reply = completed.conversation.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.id == 'msg-1');
+      expect(reply.text, equals('hello'));
+    });
   });
 
   group('cancel', () {
@@ -522,6 +555,7 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
+      final staleTs = DateTime.utc(2026).millisecondsSinceEpoch;
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller
         ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
@@ -532,7 +566,7 @@ void main() {
             delta: 'considering options',
           ),
         )
-        ..add(const ThinkingTextMessageEndEvent());
+        ..add(ThinkingTextMessageEndEvent(timestamp: staleTs));
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<RunningState>());
@@ -545,6 +579,12 @@ void main() {
       expect(synthesized.id, equals(noResponseMessageId(_runId)));
       expect(synthesized.reason, equals(TerminalReason.cancelled));
       expect(synthesized.thinkingText, equals('considering options'));
+      // The cancel is a client action with no backend event, so the tile
+      // carries the cancel instant (client now) — not the stale last-event
+      // time.
+      expect(synthesized.createdAt, isNotNull);
+      expect(synthesized.createdAt!.isUtc, isTrue);
+      expect(synthesized.createdAt!.isAfter(DateTime.utc(2026, 1, 2)), isTrue);
 
       await controller.close();
     });
@@ -559,6 +599,7 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
+      final lastChunkTime = DateTime.utc(2026, 1, 1, 12);
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller
         ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
@@ -570,9 +611,10 @@ void main() {
           ),
         )
         ..add(
-          const TextMessageContentEvent(
+          TextMessageContentEvent(
             messageId: 'reply-1',
             delta: 'reply',
+            timestamp: lastChunkTime.millisecondsSinceEpoch,
           ),
         );
       await Future<void>.delayed(Duration.zero);
@@ -587,6 +629,10 @@ void main() {
           .singleWhere((m) => m.id == 'reply-1');
       expect(committed.text, equals('half-rendered reply'));
       expect(committed.user, equals(ChatUser.assistant));
+      // The committed partial is backend content, so it carries the last
+      // received backend event time — not a client now().
+      expect(committed.createdAt, isNotNull);
+      expect(committed.createdAt!.isAtSameMomentAs(lastChunkTime), isTrue);
       // No NoResponseTile — partial-commit is the user-visible signal,
       // and synthesis declines on TextStreaming by design.
       expect(

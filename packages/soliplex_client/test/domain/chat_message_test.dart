@@ -14,7 +14,9 @@ void main() {
       expect(message.text, equals('Hello'));
       expect(message.isStreaming, isFalse);
       expect(message.id, equals('msg-1'));
-      expect(message.createdAt, isNotNull);
+      // createdAt is omitted, so it defaults to null — the model never
+      // substitutes a client-generated time.
+      expect(message.createdAt, isNull);
     });
 
     test('create with all fields', () {
@@ -221,8 +223,8 @@ void main() {
       expect(message.createdAt, isNotNull);
     });
 
-    test('fromExecuted sets auto-generated timestamp', () {
-      final before = DateTime.now();
+    test('fromExecuted stamps the client clock at creation', () {
+      final before = DateTime.timestamp();
       final message = ToolCallMessage.fromExecuted(
         id: 'tc-exec-2',
         toolCalls: const [
@@ -234,14 +236,14 @@ void main() {
           ),
         ],
       );
-      final after = DateTime.now();
+      final after = DateTime.timestamp();
 
       expect(
-        message.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
+        message.createdAt!.isAfter(before.subtract(const Duration(seconds: 1))),
         isTrue,
       );
       expect(
-        message.createdAt.isBefore(after.add(const Duration(seconds: 1))),
+        message.createdAt!.isBefore(after.add(const Duration(seconds: 1))),
         isTrue,
       );
     });
