@@ -890,8 +890,16 @@ class RunOrchestrator {
         if (running is! RunningState) return;
         final timestamp = event.timestamp;
         if (timestamp != null) {
-          _lastEventTime =
-              DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+          try {
+            _lastEventTime =
+                DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true);
+          } on Object catch (error) {
+            _logger.warning(
+              'Ignoring out-of-range event timestamp ($timestamp) on run '
+              '${running.runId}',
+              error: error,
+            );
+          }
         }
         try {
           final result =

@@ -432,6 +432,39 @@ void main() {
           as ErrorMessage;
       expect(surfaced.errorText, equals('connection lost'));
     });
+
+    test(
+        'event with out-of-range timestamp is tolerated; run completes '
+        'instead of hanging', () async {
+      // An absurd epoch must not throw out of the stream listener (where it
+      // would escape the per-event guard and leave the run hung). The
+      // timestamp is ignored; the event still processes.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(
+            messageId: 'msg-1',
+            delta: 'hello',
+            // One past DateTime's max epoch-ms (kept under 2^53 for web).
+            timestamp: 8640000000000001,
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final reply = completed.conversation.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.id == 'msg-1');
+      expect(reply.text, equals('hello'));
+    });
   });
 
   group('cancel', () {

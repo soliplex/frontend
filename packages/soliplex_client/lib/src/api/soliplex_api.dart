@@ -1091,10 +1091,23 @@ class SoliplexApi {
     try {
       return parseTimestamp(created);
     } on FormatException catch (error) {
+      // Expected shape drift: a malformed `created` string. Routine — warn
+      // and resolve to no timestamp.
       _logger.warning(
         'replay: run $runId in thread $threadId has a malformed `created` '
         'timestamp; resolving to no timestamp.',
         error: error,
+      );
+      return null;
+    } on Object catch (error, stackTrace) {
+      // parseTimestamp is documented to throw only FormatException; anything
+      // else is an unexpected contract break worth a louder signal. Still
+      // resolve to null so one run never aborts the whole history replay.
+      _logger.error(
+        'replay: run $runId in thread $threadId threw unexpectedly parsing '
+        '`created`; resolving to no timestamp.',
+        error: error,
+        stackTrace: stackTrace,
       );
       return null;
     }
