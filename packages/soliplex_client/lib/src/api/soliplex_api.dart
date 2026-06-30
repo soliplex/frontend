@@ -768,9 +768,14 @@ class SoliplexApi {
     //    position by walking the original sort once.
     final fetchByRunId = {for (final r in results) r.runId: r};
     final preFetchByRunKey = {for (final d in preFetchDrops) d.runId: d.error};
-    final eventsPerRun =
-        <({String runId, List<dynamic> events, Object? fetchError})>[];
+    final eventsPerRun = <({
+      String runId,
+      List<dynamic> events,
+      Object? fetchError,
+      DateTime? created,
+    })>[];
     for (final entry in _sortRunsByCreationTime(runs)) {
+      final created = _runCreated(entry.value);
       final preFetchError = preFetchByRunKey[entry.key];
       if (preFetchError != null) {
         eventsPerRun.add(
@@ -778,6 +783,7 @@ class SoliplexApi {
             runId: entry.key,
             events: const <dynamic>[],
             fetchError: preFetchError,
+            created: created,
           ),
         );
         continue;
@@ -794,6 +800,7 @@ class SoliplexApi {
           runId: rawRunId,
           events: fetched.events,
           fetchError: fetched.fetchError,
+          created: created,
         ),
       );
     }
@@ -900,7 +907,13 @@ class SoliplexApi {
   /// messages. Each run's citations are keyed by the user message ID that
   /// initiated that run.
   ThreadHistory _replayEventsToHistory(
-    List<({String runId, List<dynamic> events, Object? fetchError})>
+    List<
+            ({
+              String runId,
+              List<dynamic> events,
+              Object? fetchError,
+              DateTime? created,
+            })>
         eventsPerRun,
     String threadId,
   ) {
@@ -912,7 +925,7 @@ class SoliplexApi {
     final messageStates = <String, MessageState>{};
     final runs = <RunEventBundle>[];
 
-    for (final (:runId, :events, :fetchError) in eventsPerRun) {
+    for (final (:runId, :events, :fetchError, :created) in eventsPerRun) {
       // Run-level fetch failure (transient HTTP error or pre-fetch
       // shape-drift on the run entry) → mint one drop tile in place so
       // the run is visibly missing from the timeline rather than
@@ -929,6 +942,7 @@ class SoliplexApi {
             source: DropSource.decode,
             reason: fetchError.toString(),
             runId: runId,
+            createdAt: created,
           ),
         );
       }
@@ -978,6 +992,7 @@ class SoliplexApi {
               reason: error.toString(),
               runId: runId,
               rawPayload: rawPayload,
+              createdAt: created,
             ),
           );
         }
@@ -1013,7 +1028,12 @@ class SoliplexApi {
           case DecodedEvent(:final event):
             decodedEvents.add(event);
             try {
-              final result = processEvent(conversation, streaming, event);
+              final result = processEvent(
+                conversation,
+                streaming,
+                event,
+                runCreated: created,
+              );
               conversation = result.conversation;
               streaming = result.streaming;
             } on Object catch (error, stackTrace) {
@@ -1054,6 +1074,16 @@ class SoliplexApi {
 
   /// Sorts runs by creation time (oldest first). Non-Map run values
   /// sort to the end; the caller filters them out before fetching.
+  /// Parses a run map's UTC `created` ISO-8601 string to a UTC [DateTime], or
+  /// null when absent or malformed. Used to stamp replayed messages with their
+  /// run's server time; null leaves them without a displayed timestamp rather
+  /// than substituting a client `now()`.
+  static DateTime? _runCreated(dynamic runData) {
+    if (runData is! Map<String, dynamic>) return null;
+    final created = runData['created'];
+    return created is String ? DateTime.tryParse(created)?.toUtc() : null;
+  }
+
   List<MapEntry<String, dynamic>> _sortRunsByCreationTime(
     Map<String, dynamic> runs,
   ) {

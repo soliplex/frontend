@@ -381,14 +381,16 @@ class DroppedEventMessage extends ChatMessage {
     this.rawPayload,
   }) : super(user: ChatUser.system);
 
-  /// Creates a dropped-event message with the given id and auto-generated
-  /// timestamp.
+  /// Creates a dropped-event message with the given id. [createdAt] is the
+  /// run's `created` on replay, or null for a live drop (no authoritative
+  /// time yet); the model never substitutes a client `now()`.
   factory DroppedEventMessage.create({
     required String id,
     required DropSource source,
     required String reason,
     String? runId,
     Object? rawPayload,
+    DateTime? createdAt,
   }) {
     return DroppedEventMessage(
       id: id,
@@ -396,7 +398,7 @@ class DroppedEventMessage extends ChatMessage {
       reason: reason,
       runId: runId,
       rawPayload: rawPayload,
-      createdAt: DateTime.now(),
+      createdAt: createdAt,
     );
   }
 

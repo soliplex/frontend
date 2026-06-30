@@ -1212,6 +1212,95 @@ void main() {
         );
       });
 
+      test(
+          'replayed message createdAt resolves event.timestamp ?? run.created '
+          '?? null', () async {
+        final eventTime = DateTime.utc(2026, 1, 7, 2, 0, 30);
+
+        List<Map<String, dynamic>> textEvents(String msgId, {int? timestamp}) =>
+            [
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': msgId,
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': msgId,
+                'delta': 'x',
+              },
+              {
+                'type': 'TEXT_MESSAGE_END',
+                'messageId': msgId,
+                if (timestamp != null) 'timestamp': timestamp,
+              },
+            ];
+
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+            'run-2': {
+              'run_id': 'run-2',
+              'created': '2026-01-07T02:00:00.000Z',
+              'finished': '2026-01-07T02:01:00.000Z',
+            },
+            // No 'created' → run.created resolves to null.
+            'run-3': {
+              'run_id': 'run-3',
+              'finished': '2026-01-07T03:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'events': textEvents('msg-1'),
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-2', {
+          'run_id': 'run-2',
+          'events':
+              textEvents('msg-2', timestamp: eventTime.millisecondsSinceEpoch),
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-3', {
+          'run_id': 'run-3',
+          'events': textEvents('msg-3'),
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final byId = {for (final m in history.messages) m.id: m};
+
+        // No event timestamp → falls back to the run's created.
+        expect(
+          byId['msg-1']!
+              .createdAt!
+              .isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+        // Event timestamp present → wins over the run's created (02:00:00).
+        expect(byId['msg-2']!.createdAt!.isAtSameMomentAs(eventTime), isTrue);
+        // Neither event timestamp nor run created → null (no client now()).
+        expect(byId['msg-3']!.createdAt, isNull);
+      });
+
       test('fetches multiple runs in parallel and orders by creation time',
           () async {
         // Thread endpoint returns two completed runs

@@ -36,8 +36,10 @@ class EventProcessingResult {
 /// Processes a single AG-UI event, returning updated domain and streaming
 /// state.
 ///
-/// This is a pure function with no side effects. It takes the current state
-/// and an event, and returns the new state.
+/// A minted message's `createdAt` resolves to `event.timestamp ?? runCreated`,
+/// where [runCreated] is the run's server `created` (supplied during replay,
+/// null while live). Both may be null — the message then carries no timestamp
+/// rather than a client-generated one.
 ///
 /// Example usage:
 /// ```dart
