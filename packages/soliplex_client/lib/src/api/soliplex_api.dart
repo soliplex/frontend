@@ -974,7 +974,7 @@ class SoliplexApi {
       // The run-start event carries the server time the run began. Messages
       // without a timestamp of their own — chiefly the user message — resolve
       // to it, matching the live path; run.created is the fallback when the
-      // run-start event is absent or carries no timestamp.
+      // run-start event is absent or carries no usable timestamp.
       DateTime? runStartedAt;
       for (final eventJson in events) {
         if (eventJson is! Map<String, dynamic>) continue;
@@ -990,6 +990,12 @@ class SoliplexApi {
               error: error,
             );
           }
+        } else if (ts != null) {
+          _logger.warning(
+            'replay: non-int RUN_STARTED timestamp (${ts.runtimeType}) in run '
+            '$runId of thread $threadId; falling back to run.created '
+            '(or none).',
+          );
         }
         break;
       }
@@ -1107,7 +1113,8 @@ class SoliplexApi {
   /// rather than fail the create call.
   static DateTime _createdOrNow(dynamic created) {
     // Absent is the documented fallback; a present-but-wrong-shaped value is
-    // contract drift worth a signal (mirrors [_runCreated]).
+    // contract drift worth a signal (same warn-on-wrong-shape as [_runCreated],
+    // which differs only in resolving a bad value to null instead of `now()`).
     if (created == null) return DateTime.now();
     if (created is! String) {
       _logger.warning(

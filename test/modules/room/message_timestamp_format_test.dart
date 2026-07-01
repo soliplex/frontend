@@ -59,6 +59,18 @@ void main() {
       );
     });
 
+    test('buckets by calendar day, not elapsed hours, across midnight', () {
+      // 1h05m apart but a calendar day apart: a naive now.difference(t).inDays
+      // reads 0 (today); the UTC-floored day math reads 1 (yesterday).
+      expect(
+        formatMessageCaption(
+          DateTime(2026, 3, 14, 23, 30),
+          now: DateTime(2026, 3, 15, 0, 35),
+        ),
+        'Yesterday · 11:30 PM',
+      );
+    });
+
     test('day 6 is the weekday bucket, day 7 falls through to the date', () {
       // 2026-03-09 (Mon) is 6 days before Sunday the 15th → weekday.
       // 2026-03-08 (Sun) is 7 days ago → same weekday as today, so it shows

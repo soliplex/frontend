@@ -23,7 +23,7 @@ class ErrorMessageTile extends StatelessWidget {
             color: theme.colorScheme.errorContainer,
             borderRadius: BorderRadius.circular(context.radii.md),
           ),
-          child: SelectableText(
+          child: Text(
             message.errorText,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onErrorContainer,

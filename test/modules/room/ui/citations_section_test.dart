@@ -30,9 +30,10 @@ void main() {
   testWidgets(
       'expanded citation content renders non-selectable inside a SelectionArea',
       (tester) async {
-    // Gate: a self-selecting (selectable:true) markdown nested in a
-    // SelectionArea throws; this proves the citation content renders
-    // selectable:false and so coexists with the surrounding area.
+    // A self-selecting (selectable:true) markdown nested in a SelectionArea
+    // captures the drag gesture itself and drops out of the transcript-wide
+    // selection; this proves the citation content renders selectable:false and
+    // so joins the surrounding area's selection.
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SelectionArea(

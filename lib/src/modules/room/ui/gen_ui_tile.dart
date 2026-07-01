@@ -23,7 +23,7 @@ class GenUiTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: SoliplexSpacing.s2),
-            SelectableText(
+            Text(
               const JsonEncoder.withIndent('  ').convert(message.data),
               style: context.monospaceOn(theme.textTheme.bodySmall),
             ),

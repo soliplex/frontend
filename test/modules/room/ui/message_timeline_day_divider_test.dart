@@ -12,6 +12,13 @@ TextMessage _msg(String id, DateTime createdAt) => TextMessage(
       text: 'body-$id',
     );
 
+TextMessage _pending(String id) => TextMessage(
+      id: id,
+      user: ChatUser.user,
+      createdAt: null,
+      text: 'body-$id',
+    );
+
 Widget _harness(List<ChatMessage> messages) => MaterialApp(
       home: Scaffold(
         body: MessageTimeline(
@@ -46,6 +53,21 @@ void main() {
     ]));
     await tester.pump();
 
+    expect(find.byType(DayDivider), findsOneWidget);
+  });
+
+  testWidgets('a pending message (null createdAt) groups under today',
+      (tester) async {
+    // The in-flight user echo carries no time until RUN_STARTED; it must not
+    // crash the day grouping and falls under today's group alongside a message
+    // already stamped today.
+    await tester.pumpWidget(_harness([
+      _msg('a', DateTime.now()),
+      _pending('b'),
+    ]));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
     expect(find.byType(DayDivider), findsOneWidget);
   });
 }

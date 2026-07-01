@@ -312,7 +312,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               alignment: Alignment.centerRight,
               child: CopyButton(text: source, iconSize: 14),
             ),
-            SelectableText(
+            Text(
               source,
               style: context
                   .monospaceOn(theme.textTheme.labelSmall)
