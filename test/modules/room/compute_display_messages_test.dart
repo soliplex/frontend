@@ -91,6 +91,21 @@ void main() {
     expect((result.last as TextMessage).text, 'Response');
   });
 
+  test('streaming message carries no client-clock createdAt', () {
+    final result = computeDisplayMessages(
+      const [],
+      const TextStreaming(
+        messageId: 'msg-1',
+        user: ChatUser.assistant,
+        text: 'Response',
+      ),
+    );
+
+    // No server time exists mid-stream; the caption fills when the message
+    // commits with the backend's event time, not a client clock.
+    expect((result.single as TextMessage).createdAt, isNull);
+  });
+
   test('preserves thinkingText from streaming state', () {
     final result = computeDisplayMessages(
       const [],
