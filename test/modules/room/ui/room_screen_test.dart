@@ -129,60 +129,68 @@ void main() {
           timeStamp: Duration.zero,
         );
 
-    test('a typed character pulls focus to the composer', () {
-      expect(
+    bool shouldFocus(
+      KeyEvent event, {
+      bool meta = false,
+      bool control = false,
+      bool alt = false,
+    }) =>
         shouldFocusChatInputOnKey(
-          down(LogicalKeyboardKey.keyA),
-          shortcutModifierActive: false,
-        ),
-        isTrue,
-      );
+          event,
+          isMetaPressed: meta,
+          isControlPressed: control,
+          isAltPressed: alt,
+        );
+
+    test('a typed character pulls focus to the composer', () {
+      expect(shouldFocus(down(LogicalKeyboardKey.keyA)), isTrue);
     });
 
     test('a bare shift press does not steal focus', () {
       // Shift is a modifier key, so pressing it alone is not typing — even
       // though it is not a command modifier (Shift+letter still types, covered
-      // by the plain-character case above via shortcutModifierActive: false).
+      // by the plain-character case above).
+      expect(shouldFocus(down(LogicalKeyboardKey.shiftLeft)), isFalse);
+    });
+
+    test('a character with meta held does not steal focus', () {
+      // e.g. Cmd+C / Cmd+A — must leave the transcript selection intact.
+      expect(shouldFocus(down(LogicalKeyboardKey.keyC), meta: true), isFalse);
+    });
+
+    test('a character with control alone held does not steal focus', () {
+      // e.g. Ctrl+C / Ctrl+A on Windows/Linux — must leave the selection.
       expect(
-        shouldFocusChatInputOnKey(
-          down(LogicalKeyboardKey.shiftLeft),
-          shortcutModifierActive: false,
-        ),
-        isFalse,
+          shouldFocus(down(LogicalKeyboardKey.keyC), control: true), isFalse);
+    });
+
+    test('an AltGr (control+alt) character focuses the composer', () {
+      // Windows synthesizes AltGr as Ctrl+Alt to compose special characters;
+      // that composed keystroke must still focus-and-type, not read as a
+      // shortcut.
+      expect(
+        shouldFocus(down(LogicalKeyboardKey.keyQ), control: true, alt: true),
+        isTrue,
       );
     });
 
-    test('a character with a command modifier held does not steal focus', () {
-      // e.g. Cmd+C / Cmd+A — must leave the transcript selection intact.
-      expect(
-        shouldFocusChatInputOnKey(
-          down(LogicalKeyboardKey.keyC),
-          shortcutModifierActive: true,
-        ),
-        isFalse,
-      );
+    test('a plain alt/option character focuses the composer', () {
+      expect(shouldFocus(down(LogicalKeyboardKey.keyE), alt: true), isTrue);
     });
 
     test('a bare modifier key does not steal focus', () {
       // Pressing Cmd alone (before C) must not clear the selection.
-      expect(
-        shouldFocusChatInputOnKey(
-          down(LogicalKeyboardKey.metaLeft),
-          shortcutModifierActive: false,
-        ),
-        isFalse,
-      );
+      expect(shouldFocus(down(LogicalKeyboardKey.metaLeft)), isFalse);
     });
 
     test('a key-up event does not steal focus', () {
       expect(
-        shouldFocusChatInputOnKey(
+        shouldFocus(
           KeyUpEvent(
             physicalKey: PhysicalKeyboardKey.keyA,
             logicalKey: LogicalKeyboardKey.keyA,
             timeStamp: Duration.zero,
           ),
-          shortcutModifierActive: false,
         ),
         isFalse,
       );

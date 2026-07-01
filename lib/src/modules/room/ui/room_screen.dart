@@ -78,15 +78,25 @@ final _modifierKeys = <LogicalKeyboardKey>{
 
 /// Whether a key press should pull focus into the chat composer
 /// ("type to focus"). Only real typing does — never a bare modifier, and never
-/// while [shortcutModifierActive] (a copy/select command modifier) is held, so
-/// shortcuts like copy and select-all leave the transcript's [SelectionArea]
-/// selection intact instead of clearing it by moving focus.
+/// while a copy/select command modifier is held (meta, or control on its own),
+/// so shortcuts like copy and select-all leave the transcript's
+/// [SelectionArea] selection intact instead of clearing it by moving focus.
+///
+/// Control *combined with* alt is treated as typing, not a shortcut: Windows
+/// synthesizes AltGr as Ctrl+Alt to compose special characters (`@`, `€`, `{`,
+/// …), so those keystrokes must still focus-and-type. Plain Alt/Option is
+/// likewise typing. A genuine Ctrl+Alt shortcut is rare and — since this only
+/// moves focus without consuming the event — harmless if it also focuses.
 bool shouldFocusChatInputOnKey(
   KeyEvent event, {
-  required bool shortcutModifierActive,
+  required bool isMetaPressed,
+  required bool isControlPressed,
+  required bool isAltPressed,
 }) {
   if (event is! KeyDownEvent) return false;
   if (_modifierKeys.contains(event.logicalKey)) return false;
+  final shortcutModifierActive =
+      isMetaPressed || (isControlPressed && !isAltPressed);
   if (shortcutModifierActive) return false;
   return true;
 }
@@ -972,15 +982,11 @@ class _RoomScreenState extends State<RoomScreen> {
     if (_chatFocusNode.hasFocus) return false;
     if (ModalRoute.of(context)?.isCurrent != true) return false;
     final keyboard = HardwareKeyboard.instance;
-    // Meta/control are the copy/select-all shortcut modifiers whose keystrokes
-    // must not clear the transcript selection. Alt is excluded: AltGr
-    // (Windows/Linux) and Option (macOS) type special characters, so those
-    // keystrokes should still focus-and-type.
-    final shortcutModifierActive =
-        keyboard.isMetaPressed || keyboard.isControlPressed;
     if (!shouldFocusChatInputOnKey(
       event,
-      shortcutModifierActive: shortcutModifierActive,
+      isMetaPressed: keyboard.isMetaPressed,
+      isControlPressed: keyboard.isControlPressed,
+      isAltPressed: keyboard.isAltPressed,
     )) {
       return false;
     }
