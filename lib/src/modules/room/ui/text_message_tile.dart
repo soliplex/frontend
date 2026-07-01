@@ -169,7 +169,9 @@ class _MessageBubble extends StatelessWidget {
       child: isUser
           ? Text(
               message.text,
-              style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             )
           : message.text.isEmpty
               ? const Text('...')
