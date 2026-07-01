@@ -200,6 +200,24 @@ class Conversation {
     return copyWith(messageStates: {...messageStates, userMessageId: state});
   }
 
+  /// Returns a copy with [messageId]'s `createdAt` set to [createdAt] when that
+  /// message is present and has no time yet. Stamps the optimistic user echo
+  /// with the run's server start time once it is known; a no-op if the message
+  /// already carries a time or is absent.
+  Conversation withMessageTime(String messageId, DateTime createdAt) {
+    return copyWith(
+      messages: [
+        for (final message in messages)
+          if (message is TextMessage &&
+              message.id == messageId &&
+              message.createdAt == null)
+            message.copyWith(createdAt: createdAt)
+          else
+            message,
+      ],
+    );
+  }
+
   /// Creates a copy with the given fields replaced.
   Conversation copyWith({
     String? threadId,
