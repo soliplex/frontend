@@ -1124,6 +1124,27 @@ void main() {
         );
       });
 
+      test('malformed created does not abort the run creation', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {'run_id': 'new-run', 'created': 'not-a-date'},
+        );
+
+        // A malformed timestamp must degrade to the client clock, not throw
+        // out of the send path.
+        final run = await api.createRun('room-123', 'thread-456');
+        expect(run.id, equals('new-run'));
+      });
+
       test('validates non-empty roomId', () {
         expect(
           () => api.createRun('', 'thread-123'),
@@ -1427,6 +1448,68 @@ void main() {
             history.messages.firstWhere((m) => m.id == 'user-1');
 
         expect(userMessage.createdAt!.isAtSameMomentAs(runStart), isTrue);
+      });
+
+      test('out-of-range RUN_STARTED timestamp falls back to run.created',
+          () async {
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'events': [
+            {
+              'type': 'RUN_STARTED',
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+              // Beyond the DateTime epoch-ms range: the conversion throws and
+              // must not abort the whole replay.
+              'timestamp': 8640000000000001,
+            },
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'user-1',
+              'role': 'user',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'user-1',
+              'delta': 'Hi',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'user-1'},
+          ],
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final userMessage =
+            history.messages.firstWhere((m) => m.id == 'user-1');
+
+        expect(
+          userMessage.createdAt!.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
       });
 
       test('fetches multiple runs in parallel and orders by creation time',
