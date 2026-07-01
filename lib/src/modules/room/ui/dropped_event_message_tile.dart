@@ -112,9 +112,11 @@ class _DroppedEventMessageTileState extends State<DroppedEventMessageTile> {
     if (raw is String) {
       // Top-level JSON parse failure: show the raw bytes the parser
       // rejected, so a developer can see the malformed wire content.
-      return SelectableText(raw, style: mono);
+      return Text(raw, style: mono);
     }
-    return JsonTreeView(nodes: buildJsonTree(raw));
+    // Non-selectable so the tile joins the transcript's SelectionArea rather
+    // than capturing the drag with its own selection.
+    return JsonTreeView(nodes: buildJsonTree(raw), selectable: false);
   }
 
   String _humanizeSource(DropSource source) {

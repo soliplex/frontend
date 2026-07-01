@@ -82,7 +82,7 @@ class _CodeBlock extends StatelessWidget {
             ),
           ),
           const SizedBox(height: SoliplexSpacing.s1),
-          SelectableText(
+          Text(
             text,
             style: context.monospaceOn(theme.textTheme.bodySmall),
           ),

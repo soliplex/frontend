@@ -61,6 +61,46 @@ import 'package:soliplex_design/soliplex_design.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.room_screen');
 
+final _modifierKeys = <LogicalKeyboardKey>{
+  LogicalKeyboardKey.meta,
+  LogicalKeyboardKey.metaLeft,
+  LogicalKeyboardKey.metaRight,
+  LogicalKeyboardKey.control,
+  LogicalKeyboardKey.controlLeft,
+  LogicalKeyboardKey.controlRight,
+  LogicalKeyboardKey.alt,
+  LogicalKeyboardKey.altLeft,
+  LogicalKeyboardKey.altRight,
+  LogicalKeyboardKey.shift,
+  LogicalKeyboardKey.shiftLeft,
+  LogicalKeyboardKey.shiftRight,
+};
+
+/// Whether a key press should pull focus into the chat composer
+/// ("type to focus"). Only real typing does — never a bare modifier, and never
+/// while a copy/select command modifier is held (meta, or control on its own),
+/// so shortcuts like copy and select-all leave the transcript's
+/// [SelectionArea] selection intact instead of clearing it by moving focus.
+///
+/// Control *combined with* alt is treated as typing, not a shortcut: Windows
+/// synthesizes AltGr as Ctrl+Alt to compose special characters (`@`, `€`, `{`,
+/// …), so those keystrokes must still focus-and-type. Plain Alt/Option is
+/// likewise typing. A genuine Ctrl+Alt shortcut is rare and — since this only
+/// moves focus without consuming the event — harmless if it also focuses.
+bool shouldFocusChatInputOnKey(
+  KeyEvent event, {
+  required bool isMetaPressed,
+  required bool isControlPressed,
+  required bool isAltPressed,
+}) {
+  if (event is! KeyDownEvent) return false;
+  if (_modifierKeys.contains(event.logicalKey)) return false;
+  final shortcutModifierActive =
+      isMetaPressed || (isControlPressed && !isAltPressed);
+  if (shortcutModifierActive) return false;
+  return true;
+}
+
 const double _sidebarWidth = 300;
 
 /// Caps the conversation column (message timeline + chat input) so it stays
@@ -940,8 +980,16 @@ class _RoomScreenState extends State<RoomScreen> {
 
   bool _handleKey(KeyEvent event) {
     if (_chatFocusNode.hasFocus) return false;
-    if (event is! KeyDownEvent) return false;
     if (ModalRoute.of(context)?.isCurrent != true) return false;
+    final keyboard = HardwareKeyboard.instance;
+    if (!shouldFocusChatInputOnKey(
+      event,
+      isMetaPressed: keyboard.isMetaPressed,
+      isControlPressed: keyboard.isControlPressed,
+      isAltPressed: keyboard.isAltPressed,
+    )) {
+      return false;
+    }
     _chatFocusNode.requestFocus();
     return false;
   }

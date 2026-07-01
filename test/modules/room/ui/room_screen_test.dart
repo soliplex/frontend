@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -122,6 +122,81 @@ Widget _buildRouted({
 }
 
 void main() {
+  group('shouldFocusChatInputOnKey', () {
+    KeyDownEvent down(LogicalKeyboardKey key) => KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyA,
+          logicalKey: key,
+          timeStamp: Duration.zero,
+        );
+
+    bool shouldFocus(
+      KeyEvent event, {
+      bool meta = false,
+      bool control = false,
+      bool alt = false,
+    }) =>
+        shouldFocusChatInputOnKey(
+          event,
+          isMetaPressed: meta,
+          isControlPressed: control,
+          isAltPressed: alt,
+        );
+
+    test('a typed character pulls focus to the composer', () {
+      expect(shouldFocus(down(LogicalKeyboardKey.keyA)), isTrue);
+    });
+
+    test('a bare shift press does not steal focus', () {
+      // Shift is a modifier key, so pressing it alone is not typing — even
+      // though it is not a command modifier (Shift+letter still types, covered
+      // by the plain-character case above).
+      expect(shouldFocus(down(LogicalKeyboardKey.shiftLeft)), isFalse);
+    });
+
+    test('a character with meta held does not steal focus', () {
+      // e.g. Cmd+C / Cmd+A — must leave the transcript selection intact.
+      expect(shouldFocus(down(LogicalKeyboardKey.keyC), meta: true), isFalse);
+    });
+
+    test('a character with control alone held does not steal focus', () {
+      // e.g. Ctrl+C / Ctrl+A on Windows/Linux — must leave the selection.
+      expect(
+          shouldFocus(down(LogicalKeyboardKey.keyC), control: true), isFalse);
+    });
+
+    test('an AltGr (control+alt) character focuses the composer', () {
+      // Windows synthesizes AltGr as Ctrl+Alt to compose special characters;
+      // that composed keystroke must still focus-and-type, not read as a
+      // shortcut.
+      expect(
+        shouldFocus(down(LogicalKeyboardKey.keyQ), control: true, alt: true),
+        isTrue,
+      );
+    });
+
+    test('a plain alt/option character focuses the composer', () {
+      expect(shouldFocus(down(LogicalKeyboardKey.keyE), alt: true), isTrue);
+    });
+
+    test('a bare modifier key does not steal focus', () {
+      // Pressing Cmd alone (before C) must not clear the selection.
+      expect(shouldFocus(down(LogicalKeyboardKey.metaLeft)), isFalse);
+    });
+
+    test('a key-up event does not steal focus', () {
+      expect(
+        shouldFocus(
+          KeyUpEvent(
+            physicalKey: PhysicalKeyboardKey.keyA,
+            logicalKey: LogicalKeyboardKey.keyA,
+            timeStamp: Duration.zero,
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   late FakeSoliplexApi api;
   late ServerEntry entry;
   late AgentRuntimeManager runtimeManager;

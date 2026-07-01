@@ -436,12 +436,14 @@ class SoliplexApi {
     final metadata = response['metadata'] as Map<String, dynamic>?;
     final threadName = metadata?['name'] as String? ?? name ?? '';
 
+    // Prefer the backend's server `created`; fall back to the client clock if
+    // the response omits it or the value is malformed.
     final threadInfo = ThreadInfo(
       id: response['thread_id'] as String,
       roomId: roomId,
       initialRunId: initialRunId ?? '',
       name: threadName,
-      createdAt: DateTime.now(),
+      createdAt: _createdOrNow(response['created']),
     );
 
     return (threadInfo, aguiState);
@@ -545,11 +547,13 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    // Normalize response: backend returns run_id, we use id
+    // Normalize response: backend returns run_id, we use id. Prefer the
+    // backend's server `created`; fall back to the client clock if the response
+    // omits it or the value is malformed.
     return RunInfo(
       id: response['run_id'] as String,
       threadId: threadId,
-      createdAt: DateTime.now(),
+      createdAt: _createdOrNow(response['created']),
     );
   }
 
@@ -967,6 +971,36 @@ class SoliplexApi {
         }
       }
 
+      // The run-start event carries the server time the run began. Messages
+      // without a timestamp of their own — chiefly the user message — resolve
+      // to it, matching the live path; run.created is the fallback when the
+      // run-start event is absent or carries no usable timestamp.
+      DateTime? runStartedAt;
+      for (final eventJson in events) {
+        if (eventJson is! Map<String, dynamic>) continue;
+        if (eventJson['type'] != 'RUN_STARTED') continue;
+        final ts = eventJson['timestamp'];
+        if (ts is int) {
+          try {
+            runStartedAt = DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
+          } on Object catch (error) {
+            _logger.warning(
+              'replay: invalid RUN_STARTED timestamp ($ts) in run $runId of '
+              'thread $threadId; falling back to run.created (or none).',
+              error: error,
+            );
+          }
+        } else if (ts != null) {
+          _logger.warning(
+            'replay: non-int RUN_STARTED timestamp (${ts.runtimeType}) in run '
+            '$runId of thread $threadId; falling back to run.created '
+            '(or none).',
+          );
+        }
+        break;
+      }
+      final fallbackCreated = runStartedAt ?? created;
+
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
       for (var i = 0; i < events.length; i++) {
@@ -992,7 +1026,7 @@ class SoliplexApi {
               reason: error.toString(),
               runId: runId,
               rawPayload: rawPayload,
-              createdAt: created,
+              createdAt: fallbackCreated,
             ),
           );
         }
@@ -1032,7 +1066,7 @@ class SoliplexApi {
                 conversation,
                 streaming,
                 event,
-                runCreated: created,
+                runCreated: fallbackCreated,
               );
               conversation = result.conversation;
               streaming = result.streaming;
@@ -1070,6 +1104,45 @@ class SoliplexApi {
       messageStates: messageStates,
       runs: runs,
     );
+  }
+
+  /// Resolves a create response's server [created] to a UTC [DateTime],
+  /// degrading to the client clock ([DateTime.timestamp], also UTC) when it is
+  /// absent or malformed. Unlike [_runCreated] (replay, which has no acceptable
+  /// client fallback for a historical run), a freshly created run/thread can
+  /// safely stamp the current time rather than fail the create call.
+  static DateTime _createdOrNow(dynamic created) {
+    // Absent is the documented fallback; a present-but-wrong-shaped value is
+    // contract drift worth a signal (same warn-on-wrong-shape as [_runCreated],
+    // which differs only in resolving a bad value to null instead of `now()`).
+    if (created == null) return DateTime.timestamp();
+    if (created is! String) {
+      _logger.warning(
+        'create: non-string `created` (${created.runtimeType}); using the '
+        'client clock.',
+      );
+      return DateTime.timestamp();
+    }
+    try {
+      return parseTimestamp(created);
+    } on FormatException catch (error) {
+      _logger.warning(
+        'create: malformed `created` ($created); using the client clock.',
+        error: error,
+      );
+      return DateTime.timestamp();
+    } on Object catch (error, stackTrace) {
+      // parseTimestamp is documented to throw only FormatException; anything
+      // else is an unexpected contract break worth a louder signal, but still
+      // must not fail the create call.
+      _logger.error(
+        'create: unexpected error parsing `created` ($created); using the '
+        'client clock.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return DateTime.timestamp();
+    }
   }
 
   /// Resolves a run map's `created` to a UTC [DateTime] via [parseTimestamp]

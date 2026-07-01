@@ -53,6 +53,45 @@ void main() {
       });
     });
 
+    group('withMessageTime', () {
+      test('sets createdAt on a matching message that has none', () {
+        final time = DateTime.utc(2026, 1, 2, 3, 4);
+        final base = conversation.withAppendedMessage(
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'Hi'),
+        );
+
+        final updated = base.withMessageTime('u1', time);
+
+        expect(updated.messages.single.createdAt, time);
+      });
+
+      test('leaves a message that already has a time unchanged', () {
+        final existing = DateTime.utc(2026);
+        final base = conversation.withAppendedMessage(
+          TextMessage.create(
+            id: 'u1',
+            user: ChatUser.user,
+            text: 'Hi',
+            createdAt: existing,
+          ),
+        );
+
+        final updated = base.withMessageTime('u1', DateTime.utc(2027));
+
+        expect(updated.messages.single.createdAt, existing);
+      });
+
+      test('leaves other messages untouched when the id does not match', () {
+        final base = conversation.withAppendedMessage(
+          TextMessage.create(id: 'u1', user: ChatUser.user, text: 'Hi'),
+        );
+
+        final updated = base.withMessageTime('missing', DateTime.utc(2026));
+
+        expect(updated.messages.single.createdAt, isNull);
+      });
+    });
+
     group('withToolCall', () {
       test('adds tool call to empty list', () {
         const toolCall = ToolCallInfo(id: 'tool-1', name: 'search');

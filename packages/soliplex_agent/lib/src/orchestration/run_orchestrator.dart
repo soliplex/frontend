@@ -787,11 +787,12 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) {
     final priorMessages = cachedHistory?.messages ?? <ChatMessage>[];
-    // No authoritative time exists at submit — the backend hasn't created the
-    // run yet — so the optimistic echo carries no timestamp (createdAt: null,
-    // the default). It fills from the run's server `created` on replay; the
-    // frontend never displays a client-generated time. now() here is only for a
-    // unique id.
+    // No authoritative time exists at submit — the run has no server time yet —
+    // so the optimistic echo starts without one (createdAt: null, the default).
+    // It is stamped with the run's server start time when RunStartedEvent
+    // arrives, and fills from the run's server `created` on replay. The
+    // frontend never displays a client-generated time. now() here is only for
+    // a unique id.
     final userMsg = TextMessage.create(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
       user: ChatUser.user,
@@ -991,6 +992,23 @@ class RunOrchestrator {
           reason: FailureReason.serverError,
           error: event.message,
           conversation: withCitations,
+        ),
+      );
+      return;
+    }
+    if (event is RunStartedEvent) {
+      // Stamp the optimistic user echo with the run's server start time, so its
+      // caption matches the time a reload resolves it to (the `RUN_STARTED`
+      // timestamp, falling back to run `created`).
+      final userMessageId = _userMessageId;
+      final startTime = _lastEventTime;
+      final conversation = userMessageId != null && startTime != null
+          ? result.conversation.withMessageTime(userMessageId, startTime)
+          : result.conversation;
+      _setState(
+        previous.copyWith(
+          conversation: conversation,
+          streaming: result.streaming,
         ),
       );
       return;

@@ -186,6 +186,36 @@ void main() {
       verifyNever(() => api.createRun(any(), any()));
       expect(orchestrator.currentState, isA<CompletedState>());
     });
+
+    test('stamps the user message with the run-start server time', () async {
+      const startMs = 1782922475841;
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable([
+          const RunStartedEvent(
+            threadId: 'thread-1',
+            runId: _runId,
+            timestamp: startMs,
+          ),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final userMessage = completed.conversation.messages
+          .whereType<TextMessage>()
+          .firstWhere((m) => m.user == ChatUser.user);
+      expect(
+        userMessage.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
+      );
+    });
   });
 
   group('error', () {

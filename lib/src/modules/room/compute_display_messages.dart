@@ -33,7 +33,10 @@ List<ChatMessage> computeDisplayMessages(
         TextMessage(
           id: messageId,
           user: user,
-          createdAt: DateTime.timestamp(),
+          // No server time exists mid-stream; the caption fills when the
+          // message commits with the backend's event time on TextMessageEnd,
+          // rather than flashing a client clock.
+          createdAt: null,
           text: text,
           thinkingText: thinkingText,
         ),

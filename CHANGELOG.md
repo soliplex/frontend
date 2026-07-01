@@ -21,6 +21,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Design system: `BrandTint` and `TintSource` are re-exported from
   `soliplex_frontend`, so a facade-only consumer can build
   `BrandTheme(tint: ...)` without depending on `soliplex_design` directly.
+- Chat: messages now show a muted timestamp caption, and a centered day
+  divider marks each calendar-day group in the transcript. Both use the
+  viewer's local zone and stay correct across DST.
+- Chat: the transcript is selectable across message bubbles — one drag spans
+  user, assistant, error, and tool-output tiles at once.
 
 ### Changed
 
