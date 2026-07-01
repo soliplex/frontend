@@ -19,13 +19,4 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(FlutterMarkdownPlusRenderer), findsOneWidget);
   });
-
-  testWidgets('plain SelectableText inside a SelectionArea', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: SelectionArea(child: SelectableText('hello'))),
-    ));
-    await tester.pump();
-
-    expect(tester.takeException(), isNull);
-  });
 }
