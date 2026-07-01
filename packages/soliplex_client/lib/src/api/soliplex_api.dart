@@ -436,12 +436,16 @@ class SoliplexApi {
     final metadata = response['metadata'] as Map<String, dynamic>?;
     final threadName = metadata?['name'] as String? ?? name ?? '';
 
+    // Prefer the backend's server `created`; fall back to the client clock
+    // only if the response omits it.
+    final createdRaw = response['created'];
     final threadInfo = ThreadInfo(
       id: response['thread_id'] as String,
       roomId: roomId,
       initialRunId: initialRunId ?? '',
       name: threadName,
-      createdAt: DateTime.now(),
+      createdAt:
+          createdRaw is String ? parseTimestamp(createdRaw) : DateTime.now(),
     );
 
     return (threadInfo, aguiState);
@@ -545,11 +549,15 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    // Normalize response: backend returns run_id, we use id
+    // Normalize response: backend returns run_id, we use id. Prefer the
+    // backend's server `created`; fall back to the client clock only if the
+    // response omits it.
+    final createdRaw = response['created'];
     return RunInfo(
       id: response['run_id'] as String,
       threadId: threadId,
-      createdAt: DateTime.now(),
+      createdAt:
+          createdRaw is String ? parseTimestamp(createdRaw) : DateTime.now(),
     );
   }
 
@@ -967,6 +975,22 @@ class SoliplexApi {
         }
       }
 
+      // The run-start event carries the server time the run began. Messages
+      // without a timestamp of their own — chiefly the user message — resolve
+      // to it, matching the live path; run.created is the fallback when the
+      // run-start event is absent or carries no timestamp.
+      DateTime? runStartedAt;
+      for (final eventJson in events) {
+        if (eventJson is! Map<String, dynamic>) continue;
+        if (eventJson['type'] != 'RUN_STARTED') continue;
+        final ts = eventJson['timestamp'];
+        if (ts is int) {
+          runStartedAt = DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
+        }
+        break;
+      }
+      final fallbackCreated = runStartedAt ?? created;
+
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
       for (var i = 0; i < events.length; i++) {
@@ -992,7 +1016,7 @@ class SoliplexApi {
               reason: error.toString(),
               runId: runId,
               rawPayload: rawPayload,
-              createdAt: created,
+              createdAt: fallbackCreated,
             ),
           );
         }
@@ -1032,7 +1056,7 @@ class SoliplexApi {
                 conversation,
                 streaming,
                 event,
-                runCreated: created,
+                runCreated: fallbackCreated,
               );
               conversation = result.conversation;
               streaming = result.streaming;

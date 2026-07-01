@@ -757,6 +757,33 @@ void main() {
         );
       });
 
+      test('createdAt comes from the backend created field', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'thread_id': 'new-thread',
+            'created': '2026-01-07T01:00:00.000Z',
+            'runs': <String, dynamic>{},
+          },
+        );
+
+        final (thread, _) = await api.createThread('room-123');
+
+        expect(
+          thread.createdAt.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+      });
+
       test('returns empty state when runs have no run_input', () async {
         when(
           () => mockTransport.request<Map<String, dynamic>>(
@@ -1071,6 +1098,32 @@ void main() {
         expect(run.threadId, equals('thread-456'));
       });
 
+      test('createdAt comes from the backend created field', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'new-run',
+            'created': '2026-01-07T01:00:00.000Z',
+          },
+        );
+
+        final run = await api.createRun('room-123', 'thread-456');
+
+        expect(
+          run.createdAt.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+      });
+
       test('validates non-empty roomId', () {
         expect(
           () => api.createRun('', 'thread-123'),
@@ -1312,6 +1365,68 @@ void main() {
         expect(byId['msg-3']!.createdAt, isNull);
         // Malformed run created → null, and the run still replayed.
         expect(byId['msg-4']!.createdAt, isNull);
+      });
+
+      test('user message resolves to RUN_STARTED timestamp over run.created',
+          () async {
+        // RUN_STARTED fires just after the run row is created, so its server
+        // timestamp differs from run.created; the user message (no timestamp of
+        // its own) should take the RUN_STARTED time, matching the live path.
+        final runStart = DateTime.utc(2026, 1, 7, 1, 0, 5);
+
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'events': [
+            {
+              'type': 'RUN_STARTED',
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+              'timestamp': runStart.millisecondsSinceEpoch,
+            },
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'user-1',
+              'role': 'user',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'user-1',
+              'delta': 'Hi',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'user-1'},
+          ],
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final userMessage =
+            history.messages.firstWhere((m) => m.id == 'user-1');
+
+        expect(userMessage.createdAt!.isAtSameMomentAs(runStart), isTrue);
       });
 
       test('fetches multiple runs in parallel and orders by creation time',
