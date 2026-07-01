@@ -271,6 +271,7 @@ class _SourceReferenceRow extends StatelessWidget {
               child: SingleChildScrollView(
                 child: FlutterMarkdownPlusRenderer(
                   data: sourceReference.content,
+                  selectable: false,
                 ),
               ),
             ),

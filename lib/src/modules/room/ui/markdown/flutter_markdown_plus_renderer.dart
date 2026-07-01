@@ -26,7 +26,14 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
     super.onLinkTap,
     super.onImageTap,
     super.key,
+    this.selectable = true,
   });
+
+  /// Whether the markdown manages its own selection (via `SelectableText`).
+  /// Pass `false` when rendered inside a `SelectionArea` so the surrounding
+  /// area handles selection — a self-selecting widget nested in a
+  /// `SelectionArea` conflicts.
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +46,7 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
 
     return MarkdownBody(
       data: sanitizeMarkdown(data),
-      selectable: true,
+      selectable: selectable,
       styleSheet: markdownTheme?.toMarkdownStyleSheet(
         codeFontStyle: monoStyle,
       ),

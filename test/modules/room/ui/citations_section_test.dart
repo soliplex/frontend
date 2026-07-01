@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 
 SourceReference _ref({
   required int index,
@@ -26,6 +27,38 @@ SourceReference _ref({
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
+  testWidgets(
+      'expanded citation content renders non-selectable inside a SelectionArea',
+      (tester) async {
+    // Gate: a self-selecting (selectable:true) markdown nested in a
+    // SelectionArea throws; this proves the citation content renders
+    // selectable:false and so coexists with the surrounding area.
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SelectionArea(
+          child: SingleChildScrollView(
+            child: CitationsSection(
+              sourceReferences: [
+                _ref(index: 1, title: 'Alpha', content: 'cited body'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('Alpha'));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final md = tester.widget<FlutterMarkdownPlusRenderer>(
+      find.byType(FlutterMarkdownPlusRenderer),
+    );
+    expect(md.selectable, isFalse);
+  });
+
   testWidgets('header shows source count', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(sourceReferences: [_ref(index: 1), _ref(index: 2)]),

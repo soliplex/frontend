@@ -167,13 +167,16 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
       child: isUser
-          ? SelectableText(
+          ? Text(
               message.text,
               style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
             )
           : message.text.isEmpty
               ? const Text('...')
-              : FlutterMarkdownPlusRenderer(data: message.text),
+              : FlutterMarkdownPlusRenderer(
+                  data: message.text,
+                  selectable: false,
+                ),
     );
   }
 }

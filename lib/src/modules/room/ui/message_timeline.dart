@@ -396,81 +396,85 @@ class _MessageTimelineState extends State<MessageTimeline> {
         _maybeStickToBottomOnShrink(constraints.maxHeight);
         return Stack(
           children: [
-            CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.all(SoliplexSpacing.s4),
-                  sliver: SliverList.builder(
-                    itemCount: displayMessages.length,
-                    itemBuilder: (context, index) {
-                      final message = displayMessages[index];
-                      final isLastItem = index == displayMessages.length - 1;
-                      // A distinct key for the loading sentinel forces a
-                      // remount at the AwaitingText → TextStreaming transition.
-                      // Children capture their MessageExpansion handle once in
-                      // initState; without the remount they would stay bound to
-                      // loadingMessageId (which forMessage rejects) and never
-                      // acquire a handle under the real messageId.
-                      final tile = MessageTile(
-                        roomId: widget.roomId,
-                        message: message,
-                        runId: _runIdMap[message.id] ??
-                            (message is TextMessage &&
-                                    message.user == ChatUser.user
-                                ? widget.messageStates[message.id]?.runId
-                                : null),
-                        sourceReferences: _sourceReferencesMap[message.id],
-                        onFeedbackSubmit: widget.onFeedbackSubmit,
-                        onInspect: widget.onInspect,
-                        onShowChunkVisualization:
-                            widget.onShowChunkVisualization,
-                        onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
-                        onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
-                        onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
-                        executionTracker: widget
-                                .executionTrackers[message.id] ??
-                            (message is LoadingMessage
-                                ? widget.executionTrackers[awaitingTrackerKey]
-                                : null),
-                        streamingPhase: isLastItem ? streamingPhase : null,
-                      );
-                      // A null createdAt (the in-flight user echo) groups under
-                      // today for the boundary check.
-                      final dayFallback = DateTime.now();
-                      final startsNewDay = index == 0 ||
-                          !isSameCalendarDay(
-                            message.createdAt ?? dayFallback,
-                            displayMessages[index - 1].createdAt ?? dayFallback,
-                          );
-                      final showUnread = message.id == _frozenFirstUnreadId;
-                      final leading = <Widget>[
-                        if (startsNewDay)
-                          DayDivider(
-                            label: formatDayDivider(
+            SelectionArea(
+              child: CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s4),
+                    sliver: SliverList.builder(
+                      itemCount: displayMessages.length,
+                      itemBuilder: (context, index) {
+                        final message = displayMessages[index];
+                        final isLastItem = index == displayMessages.length - 1;
+                        // A distinct key for the loading sentinel forces a
+                        // remount at the AwaitingText → TextStreaming transition.
+                        // Children capture their MessageExpansion handle once in
+                        // initState; without the remount they would stay bound to
+                        // loadingMessageId (which forMessage rejects) and never
+                        // acquire a handle under the real messageId.
+                        final tile = MessageTile(
+                          roomId: widget.roomId,
+                          message: message,
+                          runId: _runIdMap[message.id] ??
+                              (message is TextMessage &&
+                                      message.user == ChatUser.user
+                                  ? widget.messageStates[message.id]?.runId
+                                  : null),
+                          sourceReferences: _sourceReferencesMap[message.id],
+                          onFeedbackSubmit: widget.onFeedbackSubmit,
+                          onInspect: widget.onInspect,
+                          onShowChunkVisualization:
+                              widget.onShowChunkVisualization,
+                          onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
+                          onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
+                          onPreviewWorkdirFile: widget.onPreviewWorkdirFile,
+                          executionTracker: widget
+                                  .executionTrackers[message.id] ??
+                              (message is LoadingMessage
+                                  ? widget.executionTrackers[awaitingTrackerKey]
+                                  : null),
+                          streamingPhase: isLastItem ? streamingPhase : null,
+                        );
+                        // A null createdAt (the in-flight user echo) groups under
+                        // today for the boundary check.
+                        final dayFallback = DateTime.now();
+                        final startsNewDay = index == 0 ||
+                            !isSameCalendarDay(
                               message.createdAt ?? dayFallback,
-                            ),
-                          ),
-                        if (showUnread) const UnreadDivider(),
-                      ];
-                      return Padding(
-                        key: message is LoadingMessage
-                            ? const ValueKey('loading')
-                            : _keyFor(message.id),
-                        padding:
-                            const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-                        child: leading.isEmpty
-                            ? tile
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [...leading, tile],
+                              displayMessages[index - 1].createdAt ??
+                                  dayFallback,
+                            );
+                        final showUnread = message.id == _frozenFirstUnreadId;
+                        final leading = <Widget>[
+                          if (startsNewDay)
+                            DayDivider(
+                              label: formatDayDivider(
+                                message.createdAt ?? dayFallback,
                               ),
-                      );
-                    },
+                            ),
+                          if (showUnread) const UnreadDivider(),
+                        ];
+                        return Padding(
+                          key: message is LoadingMessage
+                              ? const ValueKey('loading')
+                              : _keyFor(message.id),
+                          padding:
+                              const EdgeInsets.only(bottom: SoliplexSpacing.s4),
+                          child: leading.isEmpty
+                              ? tile
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [...leading, tile],
+                                ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             Positioned(
               right: SoliplexSpacing.s4,
