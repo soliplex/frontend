@@ -61,6 +61,36 @@ import 'package:soliplex_design/soliplex_design.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.room_screen');
 
+final _modifierKeys = <LogicalKeyboardKey>{
+  LogicalKeyboardKey.meta,
+  LogicalKeyboardKey.metaLeft,
+  LogicalKeyboardKey.metaRight,
+  LogicalKeyboardKey.control,
+  LogicalKeyboardKey.controlLeft,
+  LogicalKeyboardKey.controlRight,
+  LogicalKeyboardKey.alt,
+  LogicalKeyboardKey.altLeft,
+  LogicalKeyboardKey.altRight,
+  LogicalKeyboardKey.shift,
+  LogicalKeyboardKey.shiftLeft,
+  LogicalKeyboardKey.shiftRight,
+};
+
+/// Whether a key press should pull focus into the chat composer
+/// ("type to focus"). Only real typing does — never a bare modifier, and never
+/// while [shortcutModifierActive] (a copy/select command modifier) is held, so
+/// shortcuts like copy and select-all leave the transcript's [SelectionArea]
+/// selection intact instead of clearing it by moving focus.
+bool shouldFocusChatInputOnKey(
+  KeyEvent event, {
+  required bool shortcutModifierActive,
+}) {
+  if (event is! KeyDownEvent) return false;
+  if (_modifierKeys.contains(event.logicalKey)) return false;
+  if (shortcutModifierActive) return false;
+  return true;
+}
+
 const double _sidebarWidth = 300;
 
 /// Caps the conversation column (message timeline + chat input) so it stays
@@ -940,8 +970,20 @@ class _RoomScreenState extends State<RoomScreen> {
 
   bool _handleKey(KeyEvent event) {
     if (_chatFocusNode.hasFocus) return false;
-    if (event is! KeyDownEvent) return false;
     if (ModalRoute.of(context)?.isCurrent != true) return false;
+    final keyboard = HardwareKeyboard.instance;
+    // Meta/control are the copy/select-all shortcut modifiers whose keystrokes
+    // must not clear the transcript selection. Alt is excluded: AltGr
+    // (Windows/Linux) and Option (macOS) type special characters, so those
+    // keystrokes should still focus-and-type.
+    final shortcutModifierActive =
+        keyboard.isMetaPressed || keyboard.isControlPressed;
+    if (!shouldFocusChatInputOnKey(
+      event,
+      shortcutModifierActive: shortcutModifierActive,
+    )) {
+      return false;
+    }
     _chatFocusNode.requestFocus();
     return false;
   }

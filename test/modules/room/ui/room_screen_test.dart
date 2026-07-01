@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -122,6 +122,73 @@ Widget _buildRouted({
 }
 
 void main() {
+  group('shouldFocusChatInputOnKey', () {
+    KeyDownEvent down(LogicalKeyboardKey key) => KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyA,
+          logicalKey: key,
+          timeStamp: Duration.zero,
+        );
+
+    test('a typed character pulls focus to the composer', () {
+      expect(
+        shouldFocusChatInputOnKey(
+          down(LogicalKeyboardKey.keyA),
+          shortcutModifierActive: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a bare shift press does not steal focus', () {
+      // Shift is a modifier key, so pressing it alone is not typing — even
+      // though it is not a command modifier (Shift+letter still types, covered
+      // by the plain-character case above via shortcutModifierActive: false).
+      expect(
+        shouldFocusChatInputOnKey(
+          down(LogicalKeyboardKey.shiftLeft),
+          shortcutModifierActive: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a character with a command modifier held does not steal focus', () {
+      // e.g. Cmd+C / Cmd+A — must leave the transcript selection intact.
+      expect(
+        shouldFocusChatInputOnKey(
+          down(LogicalKeyboardKey.keyC),
+          shortcutModifierActive: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a bare modifier key does not steal focus', () {
+      // Pressing Cmd alone (before C) must not clear the selection.
+      expect(
+        shouldFocusChatInputOnKey(
+          down(LogicalKeyboardKey.metaLeft),
+          shortcutModifierActive: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a key-up event does not steal focus', () {
+      expect(
+        shouldFocusChatInputOnKey(
+          KeyUpEvent(
+            physicalKey: PhysicalKeyboardKey.keyA,
+            logicalKey: LogicalKeyboardKey.keyA,
+            timeStamp: Duration.zero,
+          ),
+          shortcutModifierActive: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   late FakeSoliplexApi api;
   late ServerEntry entry;
   late AgentRuntimeManager runtimeManager;
