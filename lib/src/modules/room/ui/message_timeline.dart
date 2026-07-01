@@ -364,6 +364,13 @@ class _MessageTimelineState extends State<MessageTimeline> {
 
     _evaluateUnread(displayMessages);
 
+    // Messages with no known time yet — the streaming assistant reply and the
+    // optimistic user echo, both effectively "now" — group under the current
+    // day for the divider boundary (their captions are omitted until a server
+    // time arrives). Computed once per build so grouping is stable across
+    // items; UTC to match the backend-sourced createdAt values it stands in for.
+    final dayFallback = DateTime.timestamp();
+
     if (_needsInitialScroll) {
       _lastUserMessageId = _findLastUserMessage(widget.messages)?.id;
       // Defer the one-time initial scroll until we know where to land: follow a
@@ -436,9 +443,6 @@ class _MessageTimelineState extends State<MessageTimeline> {
                                   : null),
                           streamingPhase: isLastItem ? streamingPhase : null,
                         );
-                        // A null createdAt (the in-flight user echo) groups under
-                        // today for the boundary check.
-                        final dayFallback = DateTime.now();
                         final startsNewDay = index == 0 ||
                             !isSameCalendarDay(
                               message.createdAt ?? dayFallback,
