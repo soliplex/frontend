@@ -1143,6 +1143,29 @@ void main() {
         // out of the send path.
         final run = await api.createRun('room-123', 'thread-456');
         expect(run.id, equals('new-run'));
+        // The client-clock fallback stays UTC, matching the backend-parsed
+        // path so the field's zone is uniform however it was resolved.
+        expect(run.createdAt.isUtc, isTrue);
+      });
+
+      test('non-string created degrades to a UTC client clock', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {'run_id': 'new-run', 'created': 42},
+        );
+
+        final run = await api.createRun('room-123', 'thread-456');
+        expect(run.id, equals('new-run'));
+        expect(run.createdAt.isUtc, isTrue);
       });
 
       test('validates non-empty roomId', () {

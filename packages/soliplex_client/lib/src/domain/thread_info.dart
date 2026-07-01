@@ -30,7 +30,7 @@ class ThreadInfo {
   /// Description of the thread (empty string if not provided).
   final String description;
 
-  /// When the thread was created.
+  /// When the thread was created, in UTC.
   final DateTime createdAt;
 
   /// Most recent message turn (AG-UI run) in the thread, in UTC, or `null`

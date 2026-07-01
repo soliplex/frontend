@@ -1107,21 +1107,21 @@ class SoliplexApi {
   }
 
   /// Resolves a create response's server [created] to a UTC [DateTime],
-  /// degrading to the client clock when it is absent or malformed. Unlike
-  /// [_runCreated] (replay, which has no acceptable client fallback for a
-  /// historical run), a freshly created run/thread can safely stamp `now()`
-  /// rather than fail the create call.
+  /// degrading to the client clock ([DateTime.timestamp], also UTC) when it is
+  /// absent or malformed. Unlike [_runCreated] (replay, which has no acceptable
+  /// client fallback for a historical run), a freshly created run/thread can
+  /// safely stamp the current time rather than fail the create call.
   static DateTime _createdOrNow(dynamic created) {
     // Absent is the documented fallback; a present-but-wrong-shaped value is
     // contract drift worth a signal (same warn-on-wrong-shape as [_runCreated],
     // which differs only in resolving a bad value to null instead of `now()`).
-    if (created == null) return DateTime.now();
+    if (created == null) return DateTime.timestamp();
     if (created is! String) {
       _logger.warning(
         'create: non-string `created` (${created.runtimeType}); using the '
         'client clock.',
       );
-      return DateTime.now();
+      return DateTime.timestamp();
     }
     try {
       return parseTimestamp(created);
@@ -1130,7 +1130,7 @@ class SoliplexApi {
         'create: malformed `created` ($created); using the client clock.',
         error: error,
       );
-      return DateTime.now();
+      return DateTime.timestamp();
     } on Object catch (error, stackTrace) {
       // parseTimestamp is documented to throw only FormatException; anything
       // else is an unexpected contract break worth a louder signal, but still
@@ -1141,7 +1141,7 @@ class SoliplexApi {
         error: error,
         stackTrace: stackTrace,
       );
-      return DateTime.now();
+      return DateTime.timestamp();
     }
   }
 

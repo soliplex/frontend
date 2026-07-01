@@ -998,7 +998,8 @@ class RunOrchestrator {
     }
     if (event is RunStartedEvent) {
       // Stamp the optimistic user echo with the run's server start time, so its
-      // caption matches the backend `created` a reload would resolve.
+      // caption matches the time a reload resolves it to (the `RUN_STARTED`
+      // timestamp, falling back to run `created`).
       final userMessageId = _userMessageId;
       final startTime = _lastEventTime;
       final conversation = userMessageId != null && startTime != null

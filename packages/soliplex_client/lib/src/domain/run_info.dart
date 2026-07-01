@@ -76,7 +76,7 @@ class RunInfo {
   /// Label for the run (empty string if not provided).
   final String label;
 
-  /// When the run was created.
+  /// When the run was created, in UTC.
   final DateTime createdAt;
 
   /// Completion status of the run.
