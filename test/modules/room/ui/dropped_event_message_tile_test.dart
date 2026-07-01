@@ -126,4 +126,32 @@ void main() {
     // Belt-and-suspenders: not the unavailable fallback.
     expect(find.text('(payload unavailable)'), findsNothing);
   });
+
+  testWidgets('expanded JSON payload is non-selectable inside a SelectionArea',
+      (tester) async {
+    // The tile renders in the transcript's SelectionArea; a self-selecting
+    // JSON tree would capture the drag and drop out of the transcript-wide
+    // selection, so the tree must render its text non-selectable.
+    final msg = DroppedEventMessage.create(
+      id: 'dropped-run-1-3',
+      source: DropSource.decode,
+      reason: 'unknown event type',
+      runId: 'run-1',
+      rawPayload: const {'type': 'WIDGET', 'foo': 'bar'},
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(child: DroppedEventMessageTile(message: msg)),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(InkWell).first);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('foo'), findsWidgets);
+    expect(find.byType(SelectableText), findsNothing);
+  });
 }

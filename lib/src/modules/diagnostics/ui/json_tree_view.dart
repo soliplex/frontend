@@ -5,9 +5,19 @@ import '../models/json_tree_model.dart';
 
 /// Renders a [List<JsonNode>] as an expandable tree with syntax coloring.
 class JsonTreeView extends StatelessWidget {
-  const JsonTreeView({required this.nodes, super.key});
+  const JsonTreeView({
+    required this.nodes,
+    this.selectable = true,
+    super.key,
+  });
 
   final List<JsonNode> nodes;
+
+  /// Whether the tree's text manages its own selection (via `SelectableText`).
+  /// Pass `false` when rendered inside a `SelectionArea` so the surrounding
+  /// area handles selection — a self-selecting widget nested in a
+  /// `SelectionArea` drops out of the area's selection.
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
@@ -26,33 +36,44 @@ class JsonTreeView extends StatelessWidget {
     // lets the tree extend to its natural width and pan instead.
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: _JsonNodeList(nodes: nodes, depth: 0),
+      child: _JsonNodeList(nodes: nodes, depth: 0, selectable: selectable),
     );
   }
 }
 
 class _JsonNodeList extends StatelessWidget {
-  const _JsonNodeList({required this.nodes, required this.depth});
+  const _JsonNodeList({
+    required this.nodes,
+    required this.depth,
+    required this.selectable,
+  });
 
   final List<JsonNode> nodes;
   final int depth;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final node in nodes) _JsonNodeTile(node: node, depth: depth),
+        for (final node in nodes)
+          _JsonNodeTile(node: node, depth: depth, selectable: selectable),
       ],
     );
   }
 }
 
 class _JsonNodeTile extends StatefulWidget {
-  const _JsonNodeTile({required this.node, required this.depth});
+  const _JsonNodeTile({
+    required this.node,
+    required this.depth,
+    required this.selectable,
+  });
 
   final JsonNode node;
   final int depth;
+  final bool selectable;
 
   @override
   State<_JsonNodeTile> createState() => _JsonNodeTileState();
@@ -108,25 +129,25 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
 
     final baseStyle = context.monospaceOn(theme.textTheme.bodySmall);
 
+    final span = TextSpan(
+      children: [
+        if (node.key.isNotEmpty)
+          TextSpan(
+            text: '${node.key}: ',
+            style: baseStyle.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+        TextSpan(
+          text: node.value,
+          style: baseStyle.copyWith(color: valueColor),
+        ),
+      ],
+    );
+
     return Padding(
       padding: EdgeInsets.only(left: indent),
-      child: SelectableText.rich(
-        TextSpan(
-          children: [
-            if (node.key.isNotEmpty)
-              TextSpan(
-                text: '${node.key}: ',
-                style: baseStyle.copyWith(
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            TextSpan(
-              text: node.value,
-              style: baseStyle.copyWith(color: valueColor),
-            ),
-          ],
-        ),
-      ),
+      child: widget.selectable ? SelectableText.rich(span) : Text.rich(span),
     );
   }
 
@@ -159,19 +180,30 @@ class _JsonNodeTileState extends State<_JsonNodeTile> {
                   color: colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: SoliplexSpacing.s1),
-                SelectableText(
-                  _expanded ? expandedLabel : label,
-                  style: baseStyle,
-                ),
+                widget.selectable
+                    ? SelectableText(
+                        _expanded ? expandedLabel : label,
+                        style: baseStyle,
+                      )
+                    : Text(
+                        _expanded ? expandedLabel : label,
+                        style: baseStyle,
+                      ),
               ],
             ),
           ),
         ),
         if (_expanded) ...[
-          _JsonNodeList(nodes: children, depth: widget.depth + 1),
+          _JsonNodeList(
+            nodes: children,
+            depth: widget.depth + 1,
+            selectable: widget.selectable,
+          ),
           Padding(
             padding: EdgeInsets.only(left: indent),
-            child: SelectableText(closingLabel, style: baseStyle),
+            child: widget.selectable
+                ? SelectableText(closingLabel, style: baseStyle)
+                : Text(closingLabel, style: baseStyle),
           ),
         ],
       ],
