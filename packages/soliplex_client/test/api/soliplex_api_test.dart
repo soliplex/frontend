@@ -1168,6 +1168,29 @@ void main() {
         expect(run.createdAt.isUtc, isTrue);
       });
 
+      test('absent created degrades to a UTC client clock', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'POST',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {'run_id': 'new-run'},
+        );
+
+        // Absent `created` is the documented primary fallback: stamp the client
+        // clock rather than fail the create, and keep it UTC to match the
+        // backend-parsed path.
+        final run = await api.createRun('room-123', 'thread-456');
+        expect(run.id, equals('new-run'));
+        expect(run.createdAt.isUtc, isTrue);
+      });
+
       test('validates non-empty roomId', () {
         expect(
           () => api.createRun('', 'thread-123'),
@@ -1510,6 +1533,67 @@ void main() {
               // Beyond the DateTime epoch-ms range: the conversion throws and
               // must not abort the whole replay.
               'timestamp': 8640000000000001,
+            },
+            {
+              'type': 'TEXT_MESSAGE_START',
+              'messageId': 'user-1',
+              'role': 'user',
+            },
+            {
+              'type': 'TEXT_MESSAGE_CONTENT',
+              'messageId': 'user-1',
+              'delta': 'Hi',
+            },
+            {'type': 'TEXT_MESSAGE_END', 'messageId': 'user-1'},
+          ],
+        });
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        final userMessage =
+            history.messages.firstWhere((m) => m.id == 'user-1');
+
+        expect(
+          userMessage.createdAt!.isAtSameMomentAs(DateTime.utc(2026, 1, 7, 1)),
+          isTrue,
+        );
+      });
+
+      test('non-int RUN_STARTED timestamp falls back to run.created', () async {
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com/api/v1/$path'),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        stubGet('rooms/room-123/agui/thread-456', {
+          'room_id': 'room-123',
+          'thread_id': 'thread-456',
+          'runs': {
+            'run-1': {
+              'run_id': 'run-1',
+              'created': '2026-01-07T01:00:00.000Z',
+              'finished': '2026-01-07T01:01:00.000Z',
+            },
+          },
+        });
+        stubGet('rooms/room-123/agui/thread-456/run-1', {
+          'run_id': 'run-1',
+          'events': [
+            {
+              'type': 'RUN_STARTED',
+              'threadId': 'thread-456',
+              'runId': 'run-1',
+              // Wrong-typed timestamp: the parse is skipped and the user
+              // message falls back to run.created rather than aborting replay.
+              'timestamp': '2026-01-07T01:00:05.000Z',
             },
             {
               'type': 'TEXT_MESSAGE_START',
