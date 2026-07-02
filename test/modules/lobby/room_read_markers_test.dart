@@ -46,5 +46,27 @@ void main() {
       expect(store.markers.value[key], at);
       store.dispose();
     });
+
+    test('clearServer drops only that server\'s markers and persists',
+        () async {
+      final store = RoomReadMarkers();
+      store.markRead((serverId: 's1', roomId: 'a'), at);
+      store.markRead((serverId: 's1', roomId: 'b'), at);
+      store.markRead((serverId: 's2', roomId: 'c'), at);
+      // Let the mark write-throughs settle before clearing, so the reload
+      // below observes clearServer's write rather than a racing stamp save.
+      await Future<void>.delayed(Duration.zero);
+
+      store.clearServer('s1');
+
+      expect(store.value.keys, {(serverId: 's2', roomId: 'c')});
+      // Persisted: a fresh store loads only the surviving server's marker.
+      await Future<void>.delayed(Duration.zero);
+      final reloaded = RoomReadMarkers();
+      await reloaded.ensureLoaded();
+      expect(reloaded.value.keys, {(serverId: 's2', roomId: 'c')});
+      store.dispose();
+      reloaded.dispose();
+    });
   });
 }

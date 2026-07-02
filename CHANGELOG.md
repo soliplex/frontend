@@ -65,6 +65,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Room/Lobby: removing a server now clears its per-device read markers (server,
+  room, and thread), so re-adding the same server no longer shows its rooms and
+  threads as already read. Markers are keyed by a URL-derived server id, which a
+  re-added server reuses, so a removed server's markers would otherwise floor
+  the fresh one.
 - Chat history: a malformed or out-of-range backend timestamp no longer aborts
   loading a thread's history or hangs an in-flight run; the affected message
   simply carries no timestamp. Naive (offset-less) backend timestamps are now

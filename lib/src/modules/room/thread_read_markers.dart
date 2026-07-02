@@ -98,4 +98,15 @@ abstract final class ThreadReadMarkerStorage {
     ];
     await prefs.setString(_key, jsonEncode(list));
   }
+
+  /// Drops every thread marker for [serverId], so a removed server's threads
+  /// don't read as read if the server is re-added under the same id. No-op (and
+  /// no write) when the server has no markers.
+  static Future<void> clearServer(String serverId) async {
+    final markers = await load();
+    final next = {...markers}
+      ..removeWhere((key, _) => key.serverId == serverId);
+    if (next.length == markers.length) return;
+    await save(next);
+  }
 }

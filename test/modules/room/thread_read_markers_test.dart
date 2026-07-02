@@ -67,5 +67,18 @@ void main() {
         DateTime.utc(2026, 6, 1, 12),
       );
     });
+
+    test('clearServer prunes only that server\'s thread markers', () async {
+      final at = DateTime.utc(2026, 6, 1);
+      await ThreadReadMarkerStorage.save({
+        (serverId: 's1', roomId: 'r', threadId: 't1'): at,
+        (serverId: 's2', roomId: 'r', threadId: 't2'): at,
+      });
+
+      await ThreadReadMarkerStorage.clearServer('s1');
+
+      final loaded = await ThreadReadMarkerStorage.load();
+      expect(loaded.keys, {(serverId: 's2', roomId: 'r', threadId: 't2')});
+    });
   });
 }
