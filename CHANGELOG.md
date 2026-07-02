@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.92.0+65] - 2026-07-02
+
 ### Added
 
 - Design system: `BrandTypography` now covers all 15 Material text roles (up
@@ -98,6 +100,56 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Diagnostics: long monospace values in the network inspector — the JSON tree
   root and the key/value and header cells (URLs, tokens, cookies) — now scroll
   horizontally instead of clipping.
+
+## [0.91.0+64] - 2026-06-25
+
+### Added
+
+- Design system: `BrandTheme` is the public theme-customization contract — a
+  constructor ladder (`soliplex()` / `fromSeed(...)` / `fromAccents(...)`), a
+  `BrandColorScheme` of seven required roles plus optional status and on-color
+  slots, `BrandTypography` + `TypeScaleOverride`, and `BrandShape`. A fork
+  customizes color, type, and shape through it and depends only on the
+  `soliplex_frontend` barrel, which re-exports the façade, `AppIdentity`, and
+  `FontResolver`.
+- Design system: app identity is now split from the visual theme. `AppIdentity`
+  (app name + logos) and `BrandTheme` vary independently; `standard()` takes
+  `identity`, `theme`, and a `fontResolver`, defaulting to the shipped Soliplex
+  look.
+- Design system: `FontResolver` injection seam with a dependency-free
+  `BundledFontResolver` that defers to native asset fonts.
+- Design system: `BrandColorScheme` exposes `link`, `error`/`onError`, and the
+  soft status-surface roles (`errorContainer`/`successContainer` and their
+  on-colors), plus `warningContainer`/`infoContainer` — so a fork can rebrand
+  all four status pills (`SoliplexBadge` / `SoliplexChip`) alongside the base
+  palette.
+- Design system: `BrandTint` (`TintSource none|surface|primary` + strength), an
+  opt-in axis that tints auto-derived on-colors toward the surface or
+  brand-primary hue. Default is `none`, so the shipped look is unchanged.
+
+### Changed
+
+- Design system: derived on-colors resolve through a WCAG-aware `readableOn`
+  cascade (softest-first near-black/near-white, falling through to pure
+  black/white only when a mid-tone surface would drop below AA), so
+  auto-filled on-colors stay AA-legible while reading easier than pure
+  black/white. `BrandTheme.soliplex()` lowers byte-for-byte to the previous
+  Soliplex palette, so the shipped look is unchanged.
+- Design system: corner radii and status colors now route through the active
+  brand theme rather than fixed internal tokens.
+- Design system (**breaking**): consumer forks migrate
+  `SoliplexBranding(accentLight, accentDark, ...)` to `AppIdentity(...)` +
+  `BrandTheme.fromAccents(...)`, and `SymbolicColors` moves from `ColorScheme`
+  to `BuildContext` (`colorScheme.danger` becomes `context.danger`).
+
+### Fixed
+
+- Design system: brand-supplied on-colors are used verbatim; a pair below the
+  WCAG AA 4.5:1 threshold is reported through `soliplex_logging` (naming the
+  brightness) instead of tripping a debug-only assert, so the contract holds in
+  release builds. The `link` role is checked against the background only when a
+  fork sets it, so overriding just the background no longer flags the default
+  link.
 
 ## [0.90.3+63] - 2026-06-24
 

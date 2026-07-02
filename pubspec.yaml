@@ -3,7 +3,7 @@ description: Modular Flutter frontend framework for Soliplex
 publish_to: none
 # To update version, run:
 # dart run tool/bump_version.dart <major|minor|patch|build>
-version: 0.91.0+64
+version: 0.92.0+65
 
 environment:
   sdk: ^3.6.0
