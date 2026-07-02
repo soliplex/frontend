@@ -30,6 +30,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   pinned first, then unread rooms newest-first, a divider, then read rooms
   newest-first, then idle rooms alphabetically — so a freshly-added server's
   backlog no longer reads as a wall of unread noise.
+- Room/Lobby: read markers now cascade down a server → room → thread hierarchy.
+  Each unread check floors an item's read state under its ancestors — a room
+  reads as read when its activity is at or before the later of its own marker
+  and its server's, and a thread under the later of its own, its room's, and its
+  server's — so a single higher-level marker can clear every dot beneath it with
+  no per-item write. Server-level markers persist per-device alongside the
+  existing room and thread markers.
 
 ### Changed
 
