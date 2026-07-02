@@ -132,9 +132,10 @@ class RoomReadMarkers {
   }
 
   /// Stamps [key] read as of [at] and persists. [at] is normalized to UTC so
-  /// the in-memory value matches what a reload yields (storage round-trips in
-  /// UTC), keeping marker identity stable. The [markers] update is synchronous,
-  /// so a screen watching it reacts with no storage round-trip.
+  /// the in-memory value equals what a reload yields: DateTime equality compares
+  /// the isUtc flag, so a local stamp would be unequal to its own UTC-parsed
+  /// reload. The [markers] update is synchronous, so a screen watching it reacts
+  /// with no storage round-trip.
   void markRead(RoomActivityKey key, DateTime at) {
     _markers.value = {..._markers.value, key: at.toUtc()};
     unawaited(
@@ -160,8 +161,11 @@ class RoomReadMarkers {
     unawaited(
       LobbyReadMarkerStorage.save(_markers.value)
           .catchError((Object error, StackTrace st) {
-        _logger.warning(
-          'Failed to persist room read markers',
+        // Error, not warning: a failed clear leaves stale floors on disk, so a
+        // server re-added under the same id reads as already-read (hides unread
+        // content), a worse outcome than a missed stamp.
+        _logger.error(
+          'Failed to clear room read markers for removed server',
           error: error,
           stackTrace: st,
         );
@@ -278,9 +282,10 @@ class ServerReadMarkers {
   }
 
   /// Stamps [serverId] read as of [at] and persists. [at] is normalized to UTC
-  /// so the in-memory value matches what a reload yields (storage round-trips in
-  /// UTC), keeping marker identity stable. The [markers] update is synchronous,
-  /// so a screen watching it reacts with no storage round-trip.
+  /// so the in-memory value equals what a reload yields: DateTime equality
+  /// compares the isUtc flag, so a local stamp would be unequal to its own
+  /// UTC-parsed reload. The [markers] update is synchronous, so a screen
+  /// watching it reacts with no storage round-trip.
   void markRead(String serverId, DateTime at) {
     _markers.value = {..._markers.value, serverId: at.toUtc()};
     unawaited(
@@ -303,8 +308,11 @@ class ServerReadMarkers {
     unawaited(
       ServerReadMarkerStorage.save(_markers.value)
           .catchError((Object error, StackTrace st) {
-        _logger.warning(
-          'Failed to persist server read markers',
+        // Error, not warning: a failed clear leaves a stale floor on disk, so a
+        // server re-added under the same id reads as already-read (hides unread
+        // content), a worse outcome than a missed stamp.
+        _logger.error(
+          'Failed to clear server read marker for removed server',
           error: error,
           stackTrace: st,
         );

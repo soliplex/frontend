@@ -521,7 +521,10 @@ class LobbyState {
         unawaited(
           ThreadReadMarkerStorage.clearServer(id)
               .catchError((Object error, StackTrace st) {
-            _logger.warning(
+            // Error, not warning: a failed clear leaves stale thread floors on
+            // disk, so a server re-added under the same id reads as already-read
+            // (hides unread content), a worse outcome than a missed stamp.
+            _logger.error(
               'Failed to clear thread read markers for removed server',
               error: error,
               stackTrace: st,
