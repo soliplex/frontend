@@ -57,6 +57,10 @@ class MarkReadContextMenu extends StatelessWidget {
         ),
       ],
     );
+    // The menu awaits a selection, during which this element can unmount (the
+    // owning screen torn down). Bail if so, rather than stamp through an
+    // already-disposed marker store.
+    if (!context.mounted) return;
     if (selected ?? false) onMarkRead();
   }
 
