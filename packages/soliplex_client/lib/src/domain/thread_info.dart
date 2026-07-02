@@ -4,7 +4,7 @@ import 'package:meta/meta.dart';
 @immutable
 class ThreadInfo {
   /// Creates thread info.
-  const ThreadInfo({
+  ThreadInfo({
     required this.id,
     required this.roomId,
     required this.createdAt,
@@ -13,7 +13,10 @@ class ThreadInfo {
     this.description = '',
     this.metadata = const {},
     this.lastActivity,
-  });
+  }) : assert(
+          lastActivity == null || lastActivity.isUtc,
+          'lastActivity must be UTC',
+        );
 
   /// Unique identifier for the thread.
   final String id;

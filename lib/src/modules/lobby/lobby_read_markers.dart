@@ -131,10 +131,12 @@ class RoomReadMarkers {
     }
   }
 
-  /// Stamps [key] read as of [at] and persists. The [markers] update is
-  /// synchronous, so a screen watching it reacts with no storage round-trip.
+  /// Stamps [key] read as of [at] and persists. [at] is normalized to UTC so
+  /// the in-memory value matches what a reload yields (storage round-trips in
+  /// UTC), keeping marker identity stable. The [markers] update is synchronous,
+  /// so a screen watching it reacts with no storage round-trip.
   void markRead(RoomActivityKey key, DateTime at) {
-    _markers.value = {..._markers.value, key: at};
+    _markers.value = {..._markers.value, key: at.toUtc()};
     unawaited(
       LobbyReadMarkerStorage.save(_markers.value)
           .catchError((Object error, StackTrace st) {
@@ -275,10 +277,12 @@ class ServerReadMarkers {
     }
   }
 
-  /// Stamps [serverId] read as of [at] and persists. The [markers] update is
-  /// synchronous, so a screen watching it reacts with no storage round-trip.
+  /// Stamps [serverId] read as of [at] and persists. [at] is normalized to UTC
+  /// so the in-memory value matches what a reload yields (storage round-trips in
+  /// UTC), keeping marker identity stable. The [markers] update is synchronous,
+  /// so a screen watching it reacts with no storage round-trip.
   void markRead(String serverId, DateTime at) {
-    _markers.value = {..._markers.value, serverId: at};
+    _markers.value = {..._markers.value, serverId: at.toUtc()};
     unawaited(
       ServerReadMarkerStorage.save(_markers.value)
           .catchError((Object error, StackTrace st) {

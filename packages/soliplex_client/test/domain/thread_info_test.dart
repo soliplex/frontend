@@ -23,6 +23,18 @@ void main() {
       expect(thread.hasDescription, isFalse);
     });
 
+    test('lastActivity must be UTC', () {
+      expect(
+        () => ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          createdAt: DateTime.utc(2025),
+          lastActivity: DateTime(2025), // device-local — must be rejected
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
     test('creates with all fields', () {
       final createdAt = DateTime(2025);
       final thread = ThreadInfo(

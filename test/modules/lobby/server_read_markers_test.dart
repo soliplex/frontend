@@ -73,6 +73,16 @@ void main() {
       store.dispose();
     });
 
+    test('markRead normalizes a non-UTC timestamp to UTC', () {
+      final store = ServerReadMarkers();
+      final local = DateTime(2026, 6, 1, 12); // device-local
+      store.markRead(serverId, local);
+      final stored = store.value[serverId]!;
+      expect(stored.isUtc, isTrue);
+      expect(stored, local.toUtc());
+      store.dispose();
+    });
+
     test('clearServer drops only that server\'s marker and persists', () async {
       final store = ServerReadMarkers();
       store.markRead('s1', at);
