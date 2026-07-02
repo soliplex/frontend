@@ -158,7 +158,8 @@ class RoomScreen extends StatefulWidget {
     required this.uploadRegistry,
     this.enableDocumentFilter = false,
     required this.documentSelections,
-    this.readMarkers,
+    this.roomReadMarkers,
+    this.serverReadMarkers,
   });
 
   final ServerEntry serverEntry;
@@ -173,7 +174,12 @@ class RoomScreen extends StatefulWidget {
   /// Shared in-memory room read markers, also watched by the lobby. Stamping a
   /// room read here is visible to the lobby immediately, with no storage race.
   /// Null in tests, where each screen gets its own isolated store.
-  final RoomReadMarkers? readMarkers;
+  final RoomReadMarkers? roomReadMarkers;
+
+  /// Shared in-memory server read markers. A server marker floors every room
+  /// and thread on the server, so the rail's unread computations read up to it.
+  /// Null in tests, where each screen gets its own isolated store.
+  final ServerReadMarkers? serverReadMarkers;
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
@@ -195,7 +201,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Last-activity per room id for the current server (from the room stats
   /// batch). Absent/empty when stats are unavailable — which simply shows no
   /// unread dots (graceful on a pre-stats backend). Drives [_unreadRoomIds]
-  /// together with [_readMarkers].
+  /// together with [_roomReadMarkers] and [_serverReadMarkers].
   Map<String, DateTime?> _roomActivity = const {};
   CancelToken? _activityCancelToken;
 
@@ -203,7 +209,12 @@ class _RoomScreenState extends State<RoomScreen> {
   /// also watched by the lobby. A room is unread when its last-activity is
   /// newer than its marker; opening a room here stamps "now", clearing its dot
   /// here and — immediately, no storage race — in the lobby.
-  late final RoomReadMarkers _readMarkers;
+  late final RoomReadMarkers _roomReadMarkers;
+
+  /// Shared in-memory model of per-`serverId` "last seen" markers, also watched
+  /// by the lobby. Floors every room and thread on the server: the rail's unread
+  /// checks read up to it, so a server marker suppresses their dots.
+  late final ServerReadMarkers _serverReadMarkers;
 
   /// Per-`(serverId, roomId, threadId)` "last seen" markers for threads,
   /// device-local. A thread is unread when its [ThreadInfo.lastActivity] is
@@ -389,8 +400,15 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// Loads the shared read markers once, then re-evaluates the room read state
   /// in case the thread list arrived before them.
-  Future<void> _loadReadMarkers() async {
-    await _readMarkers.ensureLoaded();
+  Future<void> _loadRoomReadMarkers() async {
+    await _roomReadMarkers.ensureLoaded();
+    if (mounted) _recomputeRoomRead();
+  }
+
+  /// Loads the shared server read markers once, then re-evaluates the room read
+  /// state in case the thread list arrived before them.
+  Future<void> _loadServerReadMarkers() async {
+    await _serverReadMarkers.ensureLoaded();
     if (mounted) _recomputeRoomRead();
   }
 
@@ -400,7 +418,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// calls this, and only once no thread is unread. The shared store both
   /// persists and notifies its watchers (this build and the lobby's).
   void _markRoomRead(String roomId) {
-    _readMarkers.markRead(
+    _roomReadMarkers.markRead(
       (serverId: widget.serverEntry.serverId, roomId: roomId),
       clock.now().toUtc(),
     );
@@ -427,9 +445,11 @@ class _RoomScreenState extends State<RoomScreen> {
       serverId: serverId,
       roomId: roomId,
       selectedThreadId: leavingThreadId,
+      roomSeen: _roomReadMarkers.value[(serverId: serverId, roomId: roomId)],
+      serverSeen: _serverReadMarkers.value[serverId],
     ).isNotEmpty;
     if (stillUnread) return;
-    _readMarkers.markRead(
+    _roomReadMarkers.markRead(
       (serverId: serverId, roomId: roomId),
       clock.now().toUtc(),
     );
@@ -450,9 +470,10 @@ class _RoomScreenState extends State<RoomScreen> {
     if (shouldMarkRoomRead(
       status.threads,
       _threadReadMarkers,
-      _readMarkers.value[key],
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
+      roomSeen: _roomReadMarkers.value[key],
+      serverSeen: _serverReadMarkers.value[widget.serverEntry.serverId],
       selectedThreadId: widget.threadId,
     )) {
       _markRoomRead(widget.roomId);
@@ -502,9 +523,10 @@ class _RoomScreenState extends State<RoomScreen> {
   Set<String> get _unreadRoomIds {
     final ids = unreadRoomIds(
       _roomActivity,
-      _readMarkers.value,
+      _roomReadMarkers.value,
       serverId: widget.serverEntry.serverId,
       currentRoomId: widget.roomId,
+      serverSeen: _serverReadMarkers.value[widget.serverEntry.serverId],
     );
     final openRoomUnread = _unreadThreadIds(
       _state.threadList.threads.value,
@@ -643,12 +665,16 @@ class _RoomScreenState extends State<RoomScreen> {
     String? selectedThreadId,
   ) {
     if (status is! ThreadsLoaded) return const {};
+    final serverId = widget.serverEntry.serverId;
     return unreadThreadIds(
       status.threads,
       _threadReadMarkers,
-      serverId: widget.serverEntry.serverId,
+      serverId: serverId,
       roomId: widget.roomId,
       selectedThreadId: selectedThreadId,
+      roomSeen:
+          _roomReadMarkers.value[(serverId: serverId, roomId: widget.roomId)],
+      serverSeen: _serverReadMarkers.value[serverId],
     );
   }
 
@@ -753,13 +779,15 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
-    _readMarkers = widget.readMarkers ?? RoomReadMarkers();
+    _roomReadMarkers = widget.roomReadMarkers ?? RoomReadMarkers();
+    _serverReadMarkers = widget.serverReadMarkers ?? ServerReadMarkers();
     _state = _createRoomState();
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
     _fetchServerRooms();
     _fetchRoomActivity();
-    unawaited(_loadReadMarkers());
+    unawaited(_loadRoomReadMarkers());
+    unawaited(_loadServerReadMarkers());
     unawaited(_loadThreadReadMarkers());
     _anchorTracker = _createAnchorTracker();
     // Keep the room's unread dot derived from its threads: watch the thread
@@ -1139,7 +1167,8 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget build(BuildContext context) {
     // Rebuild the rail's room dots when a read marker is stamped (here or by
     // the lobby). Marker writes go through the shared store, not setState.
-    _readMarkers.markers.watch(context);
+    _roomReadMarkers.markers.watch(context);
+    _serverReadMarkers.markers.watch(context);
     final threadListStatus = _state.threadList.threads.watch(context);
     final selectedThreadId = _state.activeThreadView?.threadId;
     final unreadThreadIds =

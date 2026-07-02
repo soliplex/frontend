@@ -11,3 +11,14 @@ bool isActivityUnread(DateTime? lastActivity, DateTime? seen) {
   if (lastActivity == null) return false;
   return seen == null || lastActivity.isAfter(seen);
 }
+
+/// The later of two "last seen" markers, treating null as never-seen (so it
+/// never wins). Used to floor an item's read state under its ancestors: an item
+/// reads as read when its activity is at or before the latest of its own marker
+/// and its ancestors' (a room's server marker; a thread's room and server
+/// markers).
+DateTime? latestSeen(DateTime? a, DateTime? b) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a.isAfter(b) ? a : b;
+}

@@ -11,7 +11,7 @@ import '../../../core/routes.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
-import '../lobby_read_markers.dart' show RoomReadMarkers;
+import '../lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
@@ -34,7 +34,8 @@ class LobbyScreen extends StatefulWidget {
     required this.serverManager,
     required this.identity,
     this.registry,
-    this.readMarkers,
+    this.roomReadMarkers,
+    this.serverReadMarkers,
     this.apiResolver,
   });
 
@@ -50,7 +51,11 @@ class LobbyScreen extends StatefulWidget {
 
   /// Shared room read markers, forwarded to [LobbyState]. Null in tests, where
   /// each screen gets its own isolated store.
-  final RoomReadMarkers? readMarkers;
+  final RoomReadMarkers? roomReadMarkers;
+
+  /// Shared server read markers, forwarded to [LobbyState]. Null in tests, where
+  /// each screen gets its own isolated store.
+  final ServerReadMarkers? serverReadMarkers;
 
   /// Test seam forwarded to [LobbyState]; production uses the default
   /// per-entry API resolver.
@@ -71,7 +76,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
       serverManager: widget.serverManager,
       apiResolver: widget.apiResolver,
       registry: widget.registry,
-      readMarkers: widget.readMarkers,
+      roomReadMarkers: widget.roomReadMarkers,
+      serverReadMarkers: widget.serverReadMarkers,
     );
   }
 
@@ -126,7 +132,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final selectedServerId = _state.selectedServerId.watch(context);
     final sortMode = _state.sortMode.watch(context);
     final roomActivity = _state.roomActivity.watch(context);
-    final readMarkers = _state.readMarkers.watch(context);
+    final roomReadMarkers = _state.roomReadMarkers.watch(context);
+    final serverReadMarkers = _state.serverReadMarkers.watch(context);
     final activityLoading = _state.activityLoading.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -146,7 +153,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 sortMode: sortMode,
                 onSortModeChanged: _state.setSortMode,
                 roomActivity: roomActivity,
-                readMarkers: readMarkers,
+                roomReadMarkers: roomReadMarkers,
+                serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
@@ -170,7 +178,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 sortMode: sortMode,
                 onSortModeChanged: _state.setSortMode,
                 roomActivity: roomActivity,
-                readMarkers: readMarkers,
+                roomReadMarkers: roomReadMarkers,
+                serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
@@ -200,7 +209,8 @@ class _WideLayout extends StatelessWidget {
     required this.sortMode,
     required this.onSortModeChanged,
     required this.roomActivity,
-    required this.readMarkers,
+    required this.roomReadMarkers,
+    required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
@@ -224,7 +234,8 @@ class _WideLayout extends StatelessWidget {
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
   final Map<RoomActivityKey, DateTime?> roomActivity;
-  final Map<RoomActivityKey, DateTime> readMarkers;
+  final Map<RoomActivityKey, DateTime> roomReadMarkers;
+  final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
@@ -271,7 +282,8 @@ class _WideLayout extends StatelessWidget {
                 sortMode: sortMode,
                 onSortModeChanged: onSortModeChanged,
                 roomActivity: roomActivity,
-                readMarkers: readMarkers,
+                roomReadMarkers: roomReadMarkers,
+                serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onRoomTap: onRoomTap,
@@ -300,7 +312,8 @@ class _NarrowLayout extends StatelessWidget {
     required this.sortMode,
     required this.onSortModeChanged,
     required this.roomActivity,
-    required this.readMarkers,
+    required this.roomReadMarkers,
+    required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
@@ -324,7 +337,8 @@ class _NarrowLayout extends StatelessWidget {
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
   final Map<RoomActivityKey, DateTime?> roomActivity;
-  final Map<RoomActivityKey, DateTime> readMarkers;
+  final Map<RoomActivityKey, DateTime> roomReadMarkers;
+  final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
@@ -386,7 +400,8 @@ class _NarrowLayout extends StatelessWidget {
           sortMode: sortMode,
           onSortModeChanged: onSortModeChanged,
           roomActivity: roomActivity,
-          readMarkers: readMarkers,
+          roomReadMarkers: roomReadMarkers,
+          serverReadMarkers: serverReadMarkers,
           activityLoading: activityLoading,
           selectedServerId: selectedServerId,
           onRoomTap: onRoomTap,
@@ -410,7 +425,8 @@ class _RoomContent extends StatelessWidget {
     required this.sortMode,
     required this.onSortModeChanged,
     required this.roomActivity,
-    required this.readMarkers,
+    required this.roomReadMarkers,
+    required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
     required this.onRoomTap,
@@ -428,7 +444,8 @@ class _RoomContent extends StatelessWidget {
   final LobbySortMode sortMode;
   final void Function(LobbySortMode) onSortModeChanged;
   final Map<RoomActivityKey, DateTime?> roomActivity;
-  final Map<RoomActivityKey, DateTime> readMarkers;
+  final Map<RoomActivityKey, DateTime> roomReadMarkers;
+  final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId, String roomId) onRoomTap;
@@ -524,7 +541,8 @@ class _RoomContent extends StatelessWidget {
           searchQuery: searchQuery,
           sortMode: sortMode,
           roomActivity: roomActivity,
-          readMarkers: readMarkers,
+          roomReadMarkers: roomReadMarkers,
+          serverReadMarkers: serverReadMarkers,
           onRoomTap: onRoomTap,
           onInfoTap: onInfoTap,
           onSignIn: onSignIn,
@@ -714,7 +732,8 @@ class _ServerSection extends StatelessWidget {
     required this.searchQuery,
     required this.sortMode,
     required this.roomActivity,
-    required this.readMarkers,
+    required this.roomReadMarkers,
+    required this.serverReadMarkers,
     required this.onRoomTap,
     required this.onInfoTap,
     required this.onSignIn,
@@ -726,7 +745,8 @@ class _ServerSection extends StatelessWidget {
   final String searchQuery;
   final LobbySortMode sortMode;
   final Map<RoomActivityKey, DateTime?> roomActivity;
-  final Map<RoomActivityKey, DateTime> readMarkers;
+  final Map<RoomActivityKey, DateTime> roomReadMarkers;
+  final Map<String, DateTime> serverReadMarkers;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
@@ -845,7 +865,10 @@ class _ServerSection extends StatelessWidget {
 
   bool _isUnread(Room room) {
     final key = (serverId: serverId, roomId: room.id);
-    return isActivityUnread(roomActivity[key], readMarkers[key]);
+    return isActivityUnread(
+      roomActivity[key],
+      latestSeen(roomReadMarkers[key], serverReadMarkers[serverId]),
+    );
   }
 
   /// Renders [rooms] in the active view mode (no grouping).

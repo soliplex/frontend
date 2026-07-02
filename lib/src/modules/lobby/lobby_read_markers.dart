@@ -149,3 +149,127 @@ class RoomReadMarkers {
 
   void dispose() => _markers.dispose();
 }
+
+/// Persists per-server "last seen" timestamps. A server marker floors every
+/// room and thread on that server: activity at or before it reads as read, so a
+/// single server-level write floors the whole server with no per-room fan-out.
+/// Mirrors [LobbyReadMarkerStorage] but keyed by a single server id, so rows are
+/// `{s, t}` (server id, ISO-8601 UTC instant).
+abstract final class ServerReadMarkerStorage {
+  static const _key = 'soliplex_server_read_markers';
+
+  static const _fieldServer = 's';
+  static const _fieldTime = 't';
+
+  static Future<Map<String, DateTime>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null || raw.isEmpty) return {};
+
+    final result = <String, DateTime>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        _logger.warning(
+            'Discarding corrupt server read markers (not a JSON array)');
+        return {};
+      }
+      var skipped = 0;
+      for (final entry in decoded) {
+        if (entry is! Map) {
+          skipped++;
+          continue;
+        }
+        final s = entry[_fieldServer];
+        final t = entry[_fieldTime];
+        if (s is! String || t is! String) {
+          skipped++;
+          continue;
+        }
+        final at = DateTime.tryParse(t);
+        if (at == null) {
+          skipped++;
+          continue;
+        }
+        result[s] = at.toUtc();
+      }
+      if (skipped > 0 && result.isEmpty) {
+        _logger
+            .error('Discarding all $skipped server read markers; none parsed');
+      } else if (skipped > 0) {
+        _logger.warning('Skipped $skipped malformed server read marker(s)');
+      }
+    } on FormatException catch (e, st) {
+      _logger.warning(
+        'Discarding corrupt server read markers',
+        error: e,
+        stackTrace: st,
+      );
+      return {};
+    }
+    return result;
+  }
+
+  static Future<void> save(Map<String, DateTime> markers) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = [
+      for (final entry in markers.entries)
+        {
+          _fieldServer: entry.key,
+          _fieldTime: entry.value.toUtc().toIso8601String(),
+        },
+    ];
+    await prefs.setString(_key, jsonEncode(list));
+  }
+}
+
+/// In-memory, reactive source of truth for per-server read markers, shared by
+/// the lobby and the room screen: a marker written to it is visible to both
+/// immediately, with no [ServerReadMarkerStorage] round-trip, so a server floor
+/// applies to every surface at once. Mirrors [RoomReadMarkers] one level up the
+/// hierarchy. Backed by [ServerReadMarkerStorage] for persistence across launches.
+class ServerReadMarkers {
+  final Signal<Map<String, DateTime>> _markers = Signal(const {});
+  ReadonlySignal<Map<String, DateTime>> get markers => _markers;
+
+  bool _loaded = false;
+
+  /// The current markers, for a non-reactive read.
+  Map<String, DateTime> get value => _markers.value;
+
+  /// Loads persisted markers once, merging them under any already stamped
+  /// in-memory (an early [markRead] before the disk read returned) so a
+  /// just-read server isn't clobbered back to unread by the slower load.
+  Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    try {
+      final loaded = await ServerReadMarkerStorage.load();
+      _markers.value = {...loaded, ..._markers.value};
+    } catch (error, st) {
+      _logger.warning(
+        'Failed to load server read markers',
+        error: error,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// Stamps [serverId] read as of [at] and persists. The [markers] update is
+  /// synchronous, so a screen watching it reacts with no storage round-trip.
+  void markRead(String serverId, DateTime at) {
+    _markers.value = {..._markers.value, serverId: at};
+    unawaited(
+      ServerReadMarkerStorage.save(_markers.value)
+          .catchError((Object error, StackTrace st) {
+        _logger.warning(
+          'Failed to persist server read markers',
+          error: error,
+          stackTrace: st,
+        );
+      }),
+    );
+  }
+
+  void dispose() => _markers.dispose();
+}

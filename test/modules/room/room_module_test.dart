@@ -35,7 +35,8 @@ void main() {
       serverManager: _createManager(),
       runtimeManager: runtimeManager,
       registry: registry,
-      readMarkers: RoomReadMarkers(),
+      roomReadMarkers: RoomReadMarkers(),
+      serverReadMarkers: ServerReadMarkers(),
       appName: 'Soliplex',
     );
   });

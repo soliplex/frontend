@@ -1,6 +1,7 @@
 import 'package:soliplex_client/soliplex_client.dart';
 
-import '../../core/activity_read.dart' show RoomActivityKey, isActivityUnread;
+import '../../core/activity_read.dart'
+    show RoomActivityKey, isActivityUnread, latestSeen;
 import 'thread_read_markers.dart' show ThreadActivityKey;
 
 export 'thread_read_markers.dart' show ThreadActivityKey;
@@ -10,10 +11,17 @@ export 'thread_read_markers.dart' show ThreadActivityKey;
 /// activity arriving while the user views it (e.g. their own reply) does not
 /// light its own rail dot. Mirrors the selected-thread exclusion in
 /// [unreadThreadIds].
+///
+/// [serverSeen] is the server-level marker: a room reads as read when its
+/// activity is at or before the later of its own marker and [serverSeen], so a
+/// server marker floors every room on it without a per-room write. It is
+/// required (pass null for "no server marker") so a caller can't silently drop
+/// the floor and leave a room's dot stale.
 Set<String> unreadRoomIds(
   Map<String, DateTime?> roomActivity,
   Map<RoomActivityKey, DateTime> markers, {
   required String serverId,
+  required DateTime? serverSeen,
   String? currentRoomId,
 }) {
   return {
@@ -21,7 +29,10 @@ Set<String> unreadRoomIds(
       if (entry.key != currentRoomId &&
           isActivityUnread(
             entry.value,
-            markers[(serverId: serverId, roomId: entry.key)],
+            latestSeen(
+              markers[(serverId: serverId, roomId: entry.key)],
+              serverSeen,
+            ),
           ))
         entry.key,
   };
@@ -34,34 +45,46 @@ Set<String> unreadRoomIds(
 ///
 /// Used both for the per-thread unread dots and to roll thread-unread up into
 /// the room's unread state.
+///
+/// [roomSeen] and [serverSeen] are the ancestor markers: a thread reads as read
+/// when its activity is at or before the later of its own marker and either
+/// ancestor, so a room (or server) marker floors every thread inside it without
+/// a per-thread write. Both are required (pass null for "no ancestor marker") so
+/// a caller can't silently drop a floor and leave a thread's dot stale.
 Set<String> unreadThreadIds(
   List<ThreadInfo> threads,
   Map<ThreadActivityKey, DateTime> threadMarkers, {
   required String serverId,
   required String roomId,
+  required DateTime? roomSeen,
+  required DateTime? serverSeen,
   String? selectedThreadId,
 }) {
+  final ancestorSeen = latestSeen(roomSeen, serverSeen);
   return {
     for (final thread in threads)
       if (thread.id != selectedThreadId &&
           isActivityUnread(
             thread.lastActivity,
-            threadMarkers[(
-              serverId: serverId,
-              roomId: roomId,
-              threadId: thread.id,
-            )],
+            latestSeen(
+              threadMarkers[(
+                serverId: serverId,
+                roomId: roomId,
+                threadId: thread.id,
+              )],
+              ancestorSeen,
+            ),
           ))
         thread.id,
   };
 }
 
 /// Whether to stamp the room read now: true only when no thread is unread AND
-/// the room still has activity newer than [roomSeen] (an unread→read transition
-/// worth persisting). Returns false when already caught up, so we don't re-stamp
-/// on every update.
+/// the room still has activity newer than the effective floor (an unread→read
+/// transition worth persisting). Returns false when already caught up, so we
+/// don't re-stamp on every update.
 ///
-/// "Activity newer than [roomSeen]" is the room-level dot signal, not the truth
+/// "Activity newer than the floor" is the room-level dot signal, not the truth
 /// of unread — the room marker and the per-thread markers are separate, so it
 /// can be a stale false positive (dot lit, yet every thread read). The unread
 /// truth is the first clause; we stamp only when the dot is lit but no thread is
@@ -71,12 +94,19 @@ Set<String> unreadThreadIds(
 /// the same source as the unread check — so a thread list that hasn't caught up
 /// to new activity can't mark the room read over a thread about to surface (the
 /// two inputs can never disagree).
+///
+/// [roomSeen] and [serverSeen] are the room's own marker and its server's; the
+/// effective floor is their max ([latestSeen]), which both gates the room-level
+/// dot and floors the per-thread check, keeping the two consistent. Both are
+/// required (pass null for "no marker"), matching [unreadThreadIds], so a caller
+/// can't silently drop a floor.
 bool shouldMarkRoomRead(
   List<ThreadInfo> threads,
-  Map<ThreadActivityKey, DateTime> threadMarkers,
-  DateTime? roomSeen, {
+  Map<ThreadActivityKey, DateTime> threadMarkers, {
   required String serverId,
   required String roomId,
+  required DateTime? roomSeen,
+  required DateTime? serverSeen,
   String? selectedThreadId,
 }) {
   final hasUnread = unreadThreadIds(
@@ -85,6 +115,8 @@ bool shouldMarkRoomRead(
     serverId: serverId,
     roomId: roomId,
     selectedThreadId: selectedThreadId,
+    roomSeen: roomSeen,
+    serverSeen: serverSeen,
   ).isNotEmpty;
   if (hasUnread) return false;
 
@@ -96,7 +128,7 @@ bool shouldMarkRoomRead(
       latestActivity = activity;
     }
   }
-  return isActivityUnread(latestActivity, roomSeen);
+  return isActivityUnread(latestActivity, latestSeen(roomSeen, serverSeen));
 }
 
 /// The rail's room order plus where the unread→read divider goes.
