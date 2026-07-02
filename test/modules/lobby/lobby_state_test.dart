@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -1122,6 +1123,20 @@ void main() {
         expect(state.roomActivity.value[key], DateTime.utc(2026, 6, 2));
 
         state.dispose();
+      });
+    });
+
+    group('mark as read', () {
+      test('markRoomRead stamps the room marker so it reads as read', () {
+        withClock(Clock.fixed(DateTime.utc(2026, 6, 1)), () {
+          final state = LobbyState(serverManager: _createManager());
+          state.markRoomRead('srv', 'roomA');
+          expect(
+            state.roomReadMarkers.value[(serverId: 'srv', roomId: 'roomA')],
+            DateTime.utc(2026, 6, 1),
+          );
+          state.dispose();
+        });
       });
     });
   });

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
     show
@@ -236,6 +237,16 @@ class LobbyState {
   /// server's marker here, so a server marker floors all its rooms.
   ReadonlySignal<Map<String, DateTime>> get serverReadMarkers =>
       _serverReadMarkers.markers;
+
+  /// Stamps a room read as of now (from a lobby card's context menu). Writes
+  /// through the shared store, so the rail's dot clears too, and every thread in
+  /// the room reads as read via the read-up rule.
+  void markRoomRead(String serverId, String roomId) {
+    _roomReadMarkers.markRead(
+      (serverId: serverId, roomId: roomId),
+      clock.now().toUtc(),
+    );
+  }
 
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
