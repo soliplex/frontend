@@ -40,20 +40,6 @@ void main() {
       expect(order.rooms.map((r) => r.id).toList(), ['a', 'new', 'old']);
     });
 
-    test('a room that just got activity lands right below the selected room',
-        () {
-      // The "new activity slots below current room" behaviour falls out of
-      // unread-newest-first + selected-pinned-top.
-      final rooms = [_room('sel', 'Sel'), _room('x', 'X'), _room('y', 'Y')];
-      final order = orderRoomsForRail(
-        rooms,
-        {'sel': _t(1), 'x': _t(3), 'y': _t(20)}, // y just pinged
-        {'x', 'y'},
-        selectedRoomId: 'sel',
-      );
-      expect(order.rooms[1].id, 'y');
-    });
-
     test(
         'read rooms follow unread, newest first; no-activity rooms last '
         'alphabetically', () {

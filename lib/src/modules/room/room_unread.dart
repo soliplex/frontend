@@ -110,7 +110,7 @@ typedef RoomRailOrder = ({List<Room> rooms, int? dividerIndex});
 ///   3. read rooms that have activity, newest first;
 ///   4. rooms with no activity, alphabetical (case-insensitive) by name.
 ///
-/// A grey divider separates the unread section (2) from the read sections
+/// A divider separates the unread section (2) from the read sections
 /// (3+4); [RoomRailOrder.dividerIndex] marks its position, or is null when
 /// either section is empty.
 ///
@@ -144,7 +144,8 @@ RoomRailOrder orderRoomsForRail(
       if (ta == null && tb == null) return byName(a, b);
       if (ta == null) return 1;
       if (tb == null) return -1;
-      return tb.compareTo(ta);
+      final byActivity = tb.compareTo(ta);
+      return byActivity != 0 ? byActivity : byName(a, b);
     });
 
   final firstReadIndex = ordered.indexWhere((room) => rankOf(room) >= 2);

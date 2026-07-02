@@ -71,7 +71,8 @@ void main() {
       expect(find.byTooltip('Unread activity'), findsNothing);
     });
 
-    testWidgets('renders a divider at dividerIndex', (tester) async {
+    testWidgets('renders the divider between the rooms at dividerIndex',
+        (tester) async {
       await tester.pumpWidget(_wrap(_rail(
         rooms: const [
           Room(id: 'r1', name: 'Alpha'),
@@ -79,14 +80,15 @@ void main() {
         ],
         dividerIndex: 1,
       )));
-      expect(
-        find.byKey(const ValueKey('rail-unread-divider')),
-        findsOneWidget,
-      );
-      // Both rooms still render — the divider is an extra row, not a
-      // replacement.
-      expect(find.text('A'), findsOneWidget);
-      expect(find.text('B'), findsOneWidget);
+      final divider = find.byKey(const ValueKey('rail-unread-divider'));
+      expect(divider, findsOneWidget);
+      // The divider sits below the first room and above the second — the one
+      // thing the index-shift in _buildList encodes.
+      final alphaY = tester.getTopLeft(find.text('A')).dy;
+      final dividerY = tester.getTopLeft(divider).dy;
+      final betaY = tester.getTopLeft(find.text('B')).dy;
+      expect(alphaY, lessThan(dividerY));
+      expect(dividerY, lessThan(betaY));
     });
 
     testWidgets('renders no divider when dividerIndex is null', (tester) async {
