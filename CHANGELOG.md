@@ -36,7 +36,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   and its server's, and a thread under the later of its own, its room's, and its
   server's — so a single higher-level marker can clear every dot beneath it with
   no per-item write. Server-level markers persist per-device alongside the
-  existing room and thread markers.
+  existing room and thread markers. Note: activating the hierarchy re-interprets
+  markers you already have, so some threads may show as read on upgrade with no
+  action on your part — the rule can only clear an unread dot, never light one.
+- Room/Lobby: you can now mark a thread, a room, or a whole server read on
+  demand — "Mark as read" in the thread tile menu, a long-press (touch) or
+  right-click (desktop) "Mark as read" on the rooms-rail circle and on the lobby
+  room cards, and "Mark all as read" in the server tile menu. Thanks to the
+  read-up hierarchy above, marking a room read also reads all its threads, and
+  marking a server read reads every room and thread on it — loaded or not — with
+  a single marker write and no per-item fan-out.
 
 ### Changed
 
