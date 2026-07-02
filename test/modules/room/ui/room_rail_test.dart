@@ -20,6 +20,7 @@ RoomRail _rail({
   Object? roomsError,
   String selectedRoomId = 'r1',
   Set<String> unreadRoomIds = const {},
+  int? dividerIndex,
   void Function(String)? onSelectRoom,
   VoidCallback? onRetryRooms,
   RoomAccount? account,
@@ -31,6 +32,7 @@ RoomRail _rail({
       roomsError: roomsError,
       onRetryRooms: onRetryRooms,
       unreadRoomIds: unreadRoomIds,
+      dividerIndex: dividerIndex,
       selectedRoomId: selectedRoomId,
       onSelectRoom: onSelectRoom ?? (_) {},
       entry: createTestServerEntry(),
@@ -67,6 +69,31 @@ void main() {
     testWidgets('shows no dots when nothing is unread', (tester) async {
       await tester.pumpWidget(_wrap(_rail()));
       expect(find.byTooltip('Unread activity'), findsNothing);
+    });
+
+    testWidgets('renders the divider between the rooms at dividerIndex',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_rail(
+        rooms: const [
+          Room(id: 'r1', name: 'Alpha'),
+          Room(id: 'r2', name: 'Beta'),
+        ],
+        dividerIndex: 1,
+      )));
+      final divider = find.byKey(const ValueKey('rail-unread-divider'));
+      expect(divider, findsOneWidget);
+      // The divider sits below the first room and above the second — the one
+      // thing the index-shift in _buildList encodes.
+      final alphaY = tester.getTopLeft(find.text('A')).dy;
+      final dividerY = tester.getTopLeft(divider).dy;
+      final betaY = tester.getTopLeft(find.text('B')).dy;
+      expect(alphaY, lessThan(dividerY));
+      expect(dividerY, lessThan(betaY));
+    });
+
+    testWidgets('renders no divider when dividerIndex is null', (tester) async {
+      await tester.pumpWidget(_wrap(_rail()));
+      expect(find.byKey(const ValueKey('rail-unread-divider')), findsNothing);
     });
 
     testWidgets('shows an error affordance that retries', (tester) async {

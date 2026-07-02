@@ -98,3 +98,60 @@ bool shouldMarkRoomRead(
   }
   return isActivityUnread(latestActivity, roomSeen);
 }
+
+/// The rail's room order plus where the unread→read divider goes.
+/// [dividerIndex] is the index in [rooms] of the first read-section room, or
+/// null when no divider should show (either section empty).
+typedef RoomRailOrder = ({List<Room> rooms, int? dividerIndex});
+
+/// Orders [rooms] for the rooms rail:
+///   1. the selected room (if present), pinned first regardless of its state;
+///   2. unread rooms, newest [activity] first;
+///   3. read rooms that have activity, newest first;
+///   4. rooms with no activity, alphabetical (case-insensitive) by name.
+///
+/// A divider separates the unread section (2) from the read sections
+/// (3+4); [RoomRailOrder.dividerIndex] marks its position, or is null when
+/// either section is empty.
+///
+/// [activity] maps room id to last-activity (null when the room has no runs).
+/// [unreadRoomIds] is the caller's already-computed unread set, so this only
+/// orders — it does not re-derive unread.
+RoomRailOrder orderRoomsForRail(
+  List<Room> rooms,
+  Map<String, DateTime?> activity,
+  Set<String> unreadRoomIds, {
+  String? selectedRoomId,
+}) {
+  int rankOf(Room room) {
+    if (room.id == selectedRoomId) return 0;
+    if (unreadRoomIds.contains(room.id)) return 1;
+    if (activity[room.id] != null) return 2;
+    return 3;
+  }
+
+  int byName(Room a, Room b) =>
+      a.name.toLowerCase().compareTo(b.name.toLowerCase());
+
+  final ordered = [...rooms]..sort((a, b) {
+      final ra = rankOf(a);
+      final rb = rankOf(b);
+      if (ra != rb) return ra.compareTo(rb);
+      if (ra == 3) return byName(a, b); // no-activity: alphabetical
+      // Unread and read-with-activity sections: newest activity first.
+      final ta = activity[a.id];
+      final tb = activity[b.id];
+      if (ta == null && tb == null) return byName(a, b);
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      final byActivity = tb.compareTo(ta);
+      return byActivity != 0 ? byActivity : byName(a, b);
+    });
+
+  final firstReadIndex = ordered.indexWhere((room) => rankOf(room) >= 2);
+  final hasUnread = ordered.any((room) => rankOf(room) == 1);
+  final dividerIndex =
+      (hasUnread && firstReadIndex != -1) ? firstReadIndex : null;
+
+  return (rooms: ordered, dividerIndex: dividerIndex);
+}
