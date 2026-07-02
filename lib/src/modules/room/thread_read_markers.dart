@@ -97,6 +97,15 @@ abstract final class ThreadReadMarkerStorage {
   /// Drops every thread marker for [serverId], so a removed server's threads
   /// don't read as read if the server is re-added under the same id. No-op (and
   /// no write) when the server has no markers.
+  ///
+  /// Fire-and-forget with no retry: unlike the signal-backed room/server
+  /// stores, this has no in-memory owner to re-save a corrected map, so a
+  /// failed [save] leaves stale thread floors on disk (a re-added same-id
+  /// server reads as already-read). Accepted because a re-add after a write
+  /// failure is rare and the caller logs the failure at error level. A live
+  /// RoomScreen's marker flush, which persists its full cross-server map, can
+  /// likewise overwrite this clear — reachable only if lobby and room are ever
+  /// mounted at once, which the current navigation never does.
   static Future<void> clearServer(String serverId) async {
     final markers = await load();
     final next = {...markers}
