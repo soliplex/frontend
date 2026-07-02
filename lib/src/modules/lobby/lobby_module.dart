@@ -5,7 +5,7 @@ import '../../core/app_identity.dart';
 import '../../core/routes.dart';
 import '../auth/server_manager.dart';
 import '../room/run_registry.dart';
-import 'lobby_read_markers.dart' show RoomReadMarkers;
+import 'lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
 import 'ui/lobby_screen.dart';
 
 class LobbyAppModule extends AppModule {
@@ -13,7 +13,8 @@ class LobbyAppModule extends AppModule {
     required this.serverManager,
     required this.identity,
     required this.registry,
-    required this.readMarkers,
+    required this.roomReadMarkers,
+    required this.serverReadMarkers,
   });
 
   final ServerManager serverManager;
@@ -27,7 +28,11 @@ class LobbyAppModule extends AppModule {
 
   /// Shared room read markers, also stamped by the room screen so a room read
   /// there clears its lobby unread dot immediately.
-  final RoomReadMarkers readMarkers;
+  final RoomReadMarkers roomReadMarkers;
+
+  /// Shared server read markers, also watched by the room screen. A server
+  /// marker floors every room's unread dot on the server.
+  final ServerReadMarkers serverReadMarkers;
 
   @override
   String get namespace => 'lobby';
@@ -42,7 +47,8 @@ class LobbyAppModule extends AppModule {
                 serverManager: serverManager,
                 identity: identity,
                 registry: registry,
-                readMarkers: readMarkers,
+                roomReadMarkers: roomReadMarkers,
+                serverReadMarkers: serverReadMarkers,
               ),
             ),
           ),

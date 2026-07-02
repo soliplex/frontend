@@ -85,15 +85,18 @@ class LobbyState {
     required ServerManager serverManager,
     ApiResolver? apiResolver,
     RunRegistry? registry,
-    RoomReadMarkers? readMarkers,
+    RoomReadMarkers? roomReadMarkers,
+    ServerReadMarkers? serverReadMarkers,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
         _registry = registry,
-        _readMarkers = readMarkers ?? RoomReadMarkers() {
+        _roomReadMarkers = roomReadMarkers ?? RoomReadMarkers(),
+        _serverReadMarkers = serverReadMarkers ?? ServerReadMarkers() {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    unawaited(_readMarkers.ensureLoaded());
+    unawaited(_roomReadMarkers.ensureLoaded());
+    unawaited(_serverReadMarkers.ensureLoaded());
     unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
@@ -105,7 +108,12 @@ class LobbyState {
   /// Shared in-memory read-marker model. A room is unread when [roomActivity]
   /// reports activity newer than this marker. Stamped by the room screen on
   /// leave; the lobby watches it so a just-read room clears immediately.
-  final RoomReadMarkers _readMarkers;
+  final RoomReadMarkers _roomReadMarkers;
+
+  /// Shared in-memory server read-marker model. A server marker floors every
+  /// room on it, so a room is unread only when its activity beats the later of
+  /// its own marker and this one. Shared with the room screen.
+  final ServerReadMarkers _serverReadMarkers;
 
   late final void Function() _unsubscribe;
 
@@ -220,8 +228,14 @@ class LobbyState {
   /// *unread* when [roomActivity] reports a last-activity time newer than its
   /// marker (or newer than the epoch, when never opened). Persisted per-device;
   /// there is no server-side read state and no unread count.
-  ReadonlySignal<Map<RoomActivityKey, DateTime>> get readMarkers =>
-      _readMarkers.markers;
+  ReadonlySignal<Map<RoomActivityKey, DateTime>> get roomReadMarkers =>
+      _roomReadMarkers.markers;
+
+  /// Per-server "last seen" timestamps, keyed by serverId. A room reads as read
+  /// when its activity is at or before the later of its room marker and its
+  /// server's marker here, so a server marker floors all its rooms.
+  ReadonlySignal<Map<String, DateTime>> get serverReadMarkers =>
+      _serverReadMarkers.markers;
 
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);

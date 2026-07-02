@@ -21,7 +21,8 @@ void main() {
         serverManager: _createManager(),
         identity: testIdentity(),
         registry: RunRegistry(),
-        readMarkers: RoomReadMarkers(),
+        roomReadMarkers: RoomReadMarkers(),
+        serverReadMarkers: ServerReadMarkers(),
       ).build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -33,7 +34,8 @@ void main() {
         serverManager: _createManager(),
         identity: testIdentity(),
         registry: RunRegistry(),
-        readMarkers: RoomReadMarkers(),
+        roomReadMarkers: RoomReadMarkers(),
+        serverReadMarkers: ServerReadMarkers(),
       ).build();
       expect(contribution.redirect, isNull);
     });

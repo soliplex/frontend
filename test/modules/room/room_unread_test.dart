@@ -22,6 +22,8 @@ void main() {
           serverId: 's1',
           roomId: 'r1',
           selectedThreadId: selectedThreadId,
+          roomSeen: null,
+          serverSeen: null,
         );
 
     test('includes a thread with activity newer than its marker', () {
@@ -86,9 +88,10 @@ void main() {
         shouldMarkRoomRead(
           threads,
           markers,
-          roomSeen,
           serverId: 's1',
           roomId: 'r1',
+          roomSeen: roomSeen,
+          serverSeen: null,
           selectedThreadId: selectedThreadId,
         );
 
@@ -149,7 +152,7 @@ void main() {
         (serverId: 's1', roomId: 'r1'): DateTime.utc(2026, 6, 1),
       };
       expect(
-        unreadRoomIds(activity, markers, serverId: 's1'),
+        unreadRoomIds(activity, markers, serverId: 's1', serverSeen: null),
         {'r1'},
       );
     });
@@ -162,7 +165,8 @@ void main() {
         (serverId: 's1', roomId: 'r1'): DateTime.utc(2026, 6, 1),
       };
       expect(
-        unreadRoomIds(activity, markers, serverId: 's1', currentRoomId: 'r1'),
+        unreadRoomIds(activity, markers,
+            serverId: 's1', currentRoomId: 'r1', serverSeen: null),
         isEmpty,
       );
     });
@@ -177,9 +181,136 @@ void main() {
         (serverId: 's1', roomId: 'r2'): DateTime.utc(2026, 6, 1),
       };
       expect(
-        unreadRoomIds(activity, markers, serverId: 's1', currentRoomId: 'r1'),
+        unreadRoomIds(activity, markers,
+            serverId: 's1', currentRoomId: 'r1', serverSeen: null),
         {'r2'},
       );
+    });
+  });
+
+  group('read-up cascade', () {
+    final t1 = DateTime.utc(2026, 1, 1);
+    final t5 = DateTime.utc(2026, 1, 5);
+    final t9 = DateTime.utc(2026, 1, 9);
+
+    test('server floor marks every room read without a room marker', () {
+      // Rooms "a"/"b" have activity but no room marker; the server marker t9
+      // floors them so neither reads unread.
+      final unread = unreadRoomIds(
+        {'a': t5, 'b': t1},
+        const {},
+        serverId: 's',
+        serverSeen: t9,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('activity newer than the server floor still reads unread', () {
+      final unread = unreadRoomIds(
+        {'a': t9},
+        const {},
+        serverId: 's',
+        serverSeen: t5,
+      );
+      expect(unread, {'a'});
+    });
+
+    test('a room marker newer than the server floor still floors its activity',
+        () {
+      // The room's own marker t9 beats the older server floor t5, so activity
+      // at t5 reads as read.
+      final unread = unreadRoomIds(
+        {'a': t5},
+        {(serverId: 's', roomId: 'a'): t9},
+        serverId: 's',
+        serverSeen: t5,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('a newer server floor supersedes an older existing room marker', () {
+      // Room "a" already has a stale room marker t1; the newer server floor t9
+      // must win (the floor is the max of the two, not "prefer the room marker
+      // when present"), so activity at t5 reads as read. This is the mark-server-
+      // read-over-a-partially-read-room case.
+      final unread = unreadRoomIds(
+        {'a': t5},
+        {(serverId: 's', roomId: 'a'): t1},
+        serverId: 's',
+        serverSeen: t9,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('room floor marks every thread read without a thread marker', () {
+      final unread = unreadThreadIds(
+        [_thread('x', lastActivity: t5), _thread('y', lastActivity: t1)],
+        const {},
+        serverId: 's',
+        roomId: 'r1',
+        roomSeen: t9,
+        serverSeen: null,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('thread newer than its room/server floor reads unread', () {
+      final unread = unreadThreadIds(
+        [_thread('x', lastActivity: t9)],
+        const {},
+        serverId: 's',
+        roomId: 'r1',
+        roomSeen: t1,
+        serverSeen: t5,
+      );
+      expect(unread, {'x'});
+    });
+
+    test('a thread with its own newer marker beats the ancestor floor', () {
+      final unread = unreadThreadIds(
+        [_thread('x', lastActivity: t5)],
+        {(serverId: 's', roomId: 'r1', threadId: 'x'): t9},
+        serverId: 's',
+        roomId: 'r1',
+        roomSeen: t1,
+        serverSeen: null,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('a newer server floor supersedes an older existing thread marker', () {
+      // Thread "x" already has a stale thread marker t1 and there is no room
+      // marker; the newer server floor t9 must supersede the thread marker
+      // (max, not "prefer own marker") AND participate in the ancestor floor
+      // even when roomSeen is null, so activity at t5 reads as read.
+      final unread = unreadThreadIds(
+        [_thread('x', lastActivity: t5)],
+        {(serverId: 's', roomId: 'r1', threadId: 'x'): t1},
+        serverId: 's',
+        roomId: 'r1',
+        roomSeen: null,
+        serverSeen: t9,
+      );
+      expect(unread, isEmpty);
+    });
+
+    test('shouldMarkRoomRead floors its thread check by the server floor', () {
+      // Thread "b" has old activity (t5) and no thread marker, so without the
+      // floor it would read unread and block the stamp. The server floor
+      // (t7, supplied via serverSeen with no room marker) covers it, leaving no
+      // unread thread; thread "a" (read on its own marker) carries the room's
+      // latest activity (t9) past the floor, so the room genuinely transitions
+      // unread→read and should be stamped. Passing the floor through serverSeen
+      // guards that shouldMarkRoomRead folds it into the per-thread check.
+      final marked = shouldMarkRoomRead(
+        [_thread('a', lastActivity: t9), _thread('b', lastActivity: t5)],
+        {(serverId: 's', roomId: 'r1', threadId: 'a'): t9},
+        serverId: 's',
+        roomId: 'r1',
+        roomSeen: null,
+        serverSeen: DateTime.utc(2026, 1, 7),
+      );
+      expect(marked, isTrue);
     });
   });
 }
