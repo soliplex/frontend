@@ -1138,6 +1138,15 @@ void main() {
           state.dispose();
         });
       });
+
+      test('markServerRead stamps the server marker', () {
+        withClock(Clock.fixed(DateTime.utc(2026, 6, 1)), () {
+          final state = LobbyState(serverManager: _createManager());
+          state.markServerRead('s');
+          expect(state.serverReadMarkers.value['s'], DateTime.utc(2026, 6, 1));
+          state.dispose();
+        });
+      });
     });
   });
 

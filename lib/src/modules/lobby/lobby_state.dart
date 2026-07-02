@@ -248,6 +248,13 @@ class LobbyState {
     );
   }
 
+  /// Stamps [serverId] read as of now (from the server tile menu). Via the
+  /// read-up rule this reads every room and thread on the server — loaded or not
+  /// — as read, with a single marker write.
+  void markServerRead(String serverId) {
+    _serverReadMarkers.markRead(serverId, clock.now().toUtc());
+  }
+
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
   ReadonlySignal<bool> get activityLoading => _activityLoading;

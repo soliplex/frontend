@@ -159,6 +159,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
+                onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -185,6 +186,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
+                onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
@@ -217,6 +219,7 @@ class _WideLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
+    required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -243,6 +246,7 @@ class _WideLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
+  final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -270,6 +274,7 @@ class _WideLayout extends StatelessWidget {
                 selectedServerId: selectedServerId,
                 onSelectServer: onSelectServer,
                 onSignIn: onSignIn,
+                onMarkServerRead: onMarkServerRead,
                 onAddServer: onAddServer,
                 onNetworkInspector: onNetworkInspector,
                 onVersions: onVersions,
@@ -323,6 +328,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
+    required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
@@ -349,6 +355,7 @@ class _NarrowLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
+  final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
@@ -387,6 +394,7 @@ class _NarrowLayout extends StatelessWidget {
                 Scaffold.of(drawerContext).closeDrawer();
               },
               onSignIn: onSignIn,
+              onMarkServerRead: onMarkServerRead,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
               onVersions: onVersions,
