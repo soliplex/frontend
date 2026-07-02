@@ -4,6 +4,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException, Room;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../shared/mark_read_context_menu.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/ui/unread_dot.dart';
@@ -39,6 +40,7 @@ class RoomRail extends StatelessWidget {
     this.onRetryRooms,
     this.unreadRoomIds = const {},
     this.dividerIndex,
+    this.onMarkRoomRead,
   });
 
   /// The server's rooms, or `null` while loading.
@@ -70,6 +72,10 @@ class RoomRail extends StatelessWidget {
 
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
+
+  /// Marks a room read from its avatar's context menu (long-press /
+  /// secondary-tap). Offered only for unread rooms; null disables the menu.
+  final void Function(String roomId)? onMarkRoomRead;
 
   /// Fixed rail width — wide enough for a 44px avatar plus the selection bar
   /// and breathing room, narrow enough to stay a rail.
@@ -151,6 +157,8 @@ class RoomRail extends StatelessWidget {
           selected: room.id == selectedRoomId,
           unread: unreadRoomIds.contains(room.id),
           onTap: () => onSelectRoom(room.id),
+          onMarkRead:
+              onMarkRoomRead == null ? null : () => onMarkRoomRead!(room.id),
         );
       },
     );
@@ -165,12 +173,17 @@ class _RoomAvatarTile extends StatelessWidget {
     required this.selected,
     required this.unread,
     required this.onTap,
+    required this.onMarkRead,
   });
 
   final Room room;
   final bool selected;
   final bool unread;
   final VoidCallback onTap;
+
+  /// Stamps this room read from the context menu; null when marking is
+  /// unavailable. The menu is offered only when the room is [unread].
+  final VoidCallback? onMarkRead;
 
   static const double _avatar = 44;
 
@@ -180,61 +193,73 @@ class _RoomAvatarTile extends StatelessWidget {
     final bg = roomAvatarColor(room.name, theme.brightness);
     final fg = contrastingForeground(bg);
 
+    // Tooltip must wrap the context menu (not the other way round): the
+    // tooltip triggers on long-press for touch, so if it sat *inside* the
+    // menu's GestureDetector it would win the gesture arena and the long-press
+    // menu would never open. As the outer widget its recognizer is the ancestor
+    // one, so the menu's (descendant) long-press wins when a room is unread.
     return Tooltip(
       message: room.name,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-        child: SizedBox(
-          height: _avatar,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Leading selection bar, hugging the rail's left edge.
-              if (selected)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    width: SoliplexSpacing.s1,
-                    height: _avatar - SoliplexSpacing.s2,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(context.radii.sm),
+      child: MarkReadContextMenu(
+        onMarkRead: unread ? onMarkRead : null,
+        // The avatar is a single letter; surface the room name in the menu so a
+        // long-press still identifies the room where the tooltip can't fire.
+        title: room.name,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
+          child: SizedBox(
+            height: _avatar,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Leading selection bar, hugging the rail's left edge.
+                if (selected)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      width: SoliplexSpacing.s1,
+                      height: _avatar - SoliplexSpacing.s2,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(context.radii.sm),
+                      ),
                     ),
                   ),
-                ),
-              // Fixed-size box so the unread badge anchors to the avatar's
-              // corner rather than the wider rail column.
-              SizedBox.square(
-                dimension: _avatar,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                      child: Material(
-                        color: bg,
-                        // A selected avatar squares off (smaller radius) so the
-                        // shape shift reinforces the leading bar.
-                        borderRadius: BorderRadius.circular(
-                            selected ? context.radii.md : _avatar / 2),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: onTap,
-                          child: Center(
-                            child: Text(
-                              _avatarInitial(room.name),
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(color: fg),
+                // Fixed-size box so the unread badge anchors to the avatar's
+                // corner rather than the wider rail column.
+                SizedBox.square(
+                  dimension: _avatar,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: Material(
+                          color: bg,
+                          // A selected avatar squares off (smaller radius) so the
+                          // shape shift reinforces the leading bar.
+                          borderRadius: BorderRadius.circular(
+                              selected ? context.radii.md : _avatar / 2),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: onTap,
+                            child: Center(
+                              child: Text(
+                                _avatarInitial(room.name),
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(color: fg),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    if (unread)
-                      const Positioned(top: 0, right: 0, child: _UnreadBadge()),
-                  ],
+                      if (unread)
+                        const Positioned(
+                            top: 0, right: 0, child: _UnreadBadge()),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

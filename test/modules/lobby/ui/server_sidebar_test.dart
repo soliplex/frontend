@@ -33,6 +33,7 @@ Widget _buildSidebar({
   String? selectedServerId,
   void Function(String serverId)? onSelectServer,
   void Function(String serverId)? onSignIn,
+  void Function(String serverId)? onMarkServerRead,
   VoidCallback? onAddServer,
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
@@ -54,6 +55,7 @@ Widget _buildSidebar({
           selectedServerId: selectedServerId,
           onSelectServer: onSelectServer ?? (_) {},
           onSignIn: onSignIn ?? (_) {},
+          onMarkServerRead: onMarkServerRead ?? (_) {},
           onAddServer: onAddServer ?? () {},
           onNetworkInspector: onNetworkInspector ?? () {},
           onVersions: onVersions ?? () {},
@@ -216,6 +218,33 @@ void main() {
     });
 
     group('tile ⋮ menu', () {
+      testWidgets('offers Mark all as read and fires onMarkServerRead',
+          (tester) async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+
+        String? marked;
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          // Selected so the hover-revealed ⋮ is shown (no mouse in the test).
+          selectedServerId: 'srv',
+          onMarkServerRead: (id) => marked = id,
+        ));
+
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Mark all as read'), findsOneWidget);
+
+        await tester.tap(find.text('Mark all as read'));
+        await tester.pumpAndSettle();
+        expect(marked, 'srv');
+      });
+
       testWidgets(
           'a disconnected server offers Sign in, Copy server address, '
           'and Remove', (tester) async {

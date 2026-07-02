@@ -25,6 +25,7 @@ class ServerSidebar extends StatelessWidget {
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onSignIn,
+    required this.onMarkServerRead,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
@@ -47,6 +48,9 @@ class ServerSidebar extends StatelessWidget {
 
   /// Routes a disconnected server to its sign-in flow.
   final void Function(String serverId) onSignIn;
+
+  /// Marks every room (and thread) on a server read, from its tile menu.
+  final void Function(String serverId) onMarkServerRead;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
@@ -73,6 +77,7 @@ class ServerSidebar extends StatelessWidget {
               selectedServerId: selectedServerId,
               onSelectServer: onSelectServer,
               onSignIn: onSignIn,
+              onMarkServerRead: onMarkServerRead,
               onAddServer: onAddServer,
             ),
           ),
@@ -150,6 +155,7 @@ class _ServerList extends StatelessWidget {
     required this.selectedServerId,
     required this.onSelectServer,
     required this.onSignIn,
+    required this.onMarkServerRead,
     required this.onAddServer,
   });
 
@@ -158,6 +164,7 @@ class _ServerList extends StatelessWidget {
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
   final void Function(String serverId) onSignIn;
+  final void Function(String serverId) onMarkServerRead;
   final VoidCallback onAddServer;
 
   @override
@@ -183,6 +190,7 @@ class _ServerList extends StatelessWidget {
             selected: entry.key == selectedServerId,
             onTap: () => onSelectServer(entry.key),
             onSignIn: () => onSignIn(entry.key),
+            onMarkAllRead: () => onMarkServerRead(entry.key),
           ),
         Padding(
           padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
@@ -204,6 +212,7 @@ class _ServerTile extends StatefulWidget {
     required this.selected,
     required this.onTap,
     required this.onSignIn,
+    required this.onMarkAllRead,
   });
 
   final ServerEntry entry;
@@ -211,6 +220,7 @@ class _ServerTile extends StatefulWidget {
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback onSignIn;
+  final VoidCallback onMarkAllRead;
 
   @override
   State<_ServerTile> createState() => _ServerTileState();
@@ -259,6 +269,7 @@ class _ServerTileState extends State<_ServerTile> {
             entry: widget.entry,
             serverManager: widget.serverManager,
             onSignIn: widget.onSignIn,
+            onMarkAllRead: widget.onMarkAllRead,
           ),
         ),
         dense: true,
@@ -316,7 +327,7 @@ String _signedInName(UserProfile? profile) {
 
 /// Per-server actions behind a tile's trailing ⋮ menu. The available set
 /// depends on the server's connection state (see [_ServerTileMenu]).
-enum _ServerTileAction { signIn, logOut, copyAddress, remove }
+enum _ServerTileAction { signIn, logOut, markAllRead, copyAddress, remove }
 
 /// What happens to the entry after a log-out attempt. The error-menu escape
 /// hatch (remove even when sign-out fails) is a third outcome beyond "keep"
@@ -348,11 +359,13 @@ class _ServerTileMenu extends ConsumerStatefulWidget {
     required this.entry,
     required this.serverManager,
     required this.onSignIn,
+    required this.onMarkAllRead,
   });
 
   final ServerEntry entry;
   final ServerManager serverManager;
   final VoidCallback onSignIn;
+  final VoidCallback onMarkAllRead;
 
   @override
   ConsumerState<_ServerTileMenu> createState() => _ServerTileMenuState();
@@ -368,6 +381,8 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         widget.onSignIn();
       case _ServerTileAction.logOut:
         await _runLogout(_AfterLogout.keep);
+      case _ServerTileAction.markAllRead:
+        widget.onMarkAllRead();
       case _ServerTileAction.copyAddress:
         await _copyAddress();
       case _ServerTileAction.remove:
@@ -493,6 +508,13 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
             value: _ServerTileAction.logOut,
             child: _MenuRow(icon: Icons.logout, label: 'Log out'),
           ),
+        const PopupMenuItem(
+          value: _ServerTileAction.markAllRead,
+          child: _MenuRow(
+            icon: Icons.mark_chat_read_outlined,
+            label: 'Mark all as read',
+          ),
+        ),
         const PopupMenuItem(
           value: _ServerTileAction.copyAddress,
           child: _MenuRow(

@@ -414,9 +414,11 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// Stamps [roomId] on the current server read as of now. Uses "now" (not the
   /// cached activity time) so the marker is at or after any observed activity,
-  /// even if the activity batch is stale or pending. Only [_recomputeRoomRead]
-  /// calls this, and only once no thread is unread. The shared store both
-  /// persists and notifies its watchers (this build and the lobby's).
+  /// even if the activity batch is stale or pending. Called by
+  /// [_recomputeRoomRead] once no thread is unread, and directly from the rail's
+  /// context menu to mark a room read on demand (which floors its threads via
+  /// the read-up rule). The shared store both persists and notifies its
+  /// watchers (this build and the lobby's).
   void _markRoomRead(String roomId) {
     _roomReadMarkers.markRead(
       (serverId: widget.serverEntry.serverId, roomId: roomId),
@@ -1182,24 +1184,29 @@ class _RoomScreenState extends State<RoomScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
-          final sidebar = ThreadSidebar(
-            threadListStatus: threadListStatus,
-            selectedThreadId: selectedThreadId,
-            onThreadSelected: _onThreadSelected,
-            onBackToLobby: _onBackToLobby,
-            onCreateThread: _state.createThread,
-            onRetryThreads: () => _state.threadList.refresh(),
-            onReauthenticate: _onReauthenticate,
-            quizzes: room?.quizzes ?? const {},
-            onQuizTapped: _onQuizTapped,
-            onRenameThread: _showRenameDialog,
-            onDeleteThread: _showDeleteDialog,
-            runningThreadIds: _state.runningThreadIds,
-            unreadThreadIds: unreadThreadIds,
-          );
           final content = _buildContent(room);
 
           if (isWide) {
+            final sidebar = ThreadSidebar(
+              threadListStatus: threadListStatus,
+              selectedThreadId: selectedThreadId,
+              onThreadSelected: _onThreadSelected,
+              onBackToLobby: _onBackToLobby,
+              onCreateThread: _state.createThread,
+              onRetryThreads: () => _state.threadList.refresh(),
+              onReauthenticate: _onReauthenticate,
+              quizzes: room?.quizzes ?? const {},
+              onQuizTapped: _onQuizTapped,
+              onRenameThread: _showRenameDialog,
+              onDeleteThread: _showDeleteDialog,
+              onMarkThreadRead: (threadId) => _stampThreadRead((
+                serverId: widget.serverEntry.serverId,
+                roomId: widget.roomId,
+                threadId: threadId,
+              )),
+              runningThreadIds: _state.runningThreadIds,
+              unreadThreadIds: unreadThreadIds,
+            );
             return Scaffold(
               // No AppBar here, so SafeArea guards every edge: the rail/sidebar
               // headers clear the status bar and side notches, and the chat
@@ -1269,6 +1276,11 @@ class _RoomScreenState extends State<RoomScreen> {
                             Navigator.pop(drawerContext);
                             _showDeleteDialog(id);
                           },
+                          onMarkThreadRead: (threadId) => _stampThreadRead((
+                            serverId: widget.serverEntry.serverId,
+                            roomId: widget.roomId,
+                            threadId: threadId,
+                          )),
                         ),
                       ),
                     ],
@@ -1303,6 +1315,7 @@ class _RoomScreenState extends State<RoomScreen> {
       roomsError: _serverRoomsError,
       onRetryRooms: () => setState(_fetchServerRooms),
       unreadRoomIds: _unreadRoomIds,
+      onMarkRoomRead: _markRoomRead,
       selectedRoomId: widget.roomId,
       onSelectRoom: (roomId) {
         onNavigate?.call();

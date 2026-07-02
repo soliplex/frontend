@@ -49,8 +49,10 @@ Set<String> unreadRoomIds(
 /// [roomSeen] and [serverSeen] are the ancestor markers: a thread reads as read
 /// when its activity is at or before the later of its own marker and either
 /// ancestor, so a room (or server) marker floors every thread inside it without
-/// a per-thread write. Both are required (pass null for "no ancestor marker") so
-/// a caller can't silently drop a floor and leave a thread's dot stale.
+/// a per-thread write. This upward flooring is the "read-up rule" referenced
+/// elsewhere (e.g. the marker-stamping doc comments). Both are required (pass
+/// null for "no ancestor marker") so a caller can't silently drop a floor and
+/// leave a thread's dot stale.
 Set<String> unreadThreadIds(
   List<ThreadInfo> threads,
   Map<ThreadActivityKey, DateTime> threadMarkers, {

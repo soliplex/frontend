@@ -22,6 +22,7 @@ RoomRail _rail({
   Set<String> unreadRoomIds = const {},
   int? dividerIndex,
   void Function(String)? onSelectRoom,
+  void Function(String)? onMarkRoomRead,
   VoidCallback? onRetryRooms,
   RoomAccount? account,
   VoidCallback? onNetworkInspector,
@@ -35,6 +36,7 @@ RoomRail _rail({
       dividerIndex: dividerIndex,
       selectedRoomId: selectedRoomId,
       onSelectRoom: onSelectRoom ?? (_) {},
+      onMarkRoomRead: onMarkRoomRead,
       entry: createTestServerEntry(),
       account: account,
       onNetworkInspector: onNetworkInspector ?? () {},
@@ -64,6 +66,38 @@ void main() {
     testWidgets('marks only unread rooms with a dot', (tester) async {
       await tester.pumpWidget(_wrap(_rail(unreadRoomIds: const {'r2'})));
       expect(find.byTooltip('Unread activity'), findsOneWidget);
+    });
+
+    testWidgets(
+        'long-pressing an unread room offers Mark as read and fires with '
+        'its id', (tester) async {
+      String? marked;
+      await tester.pumpWidget(_wrap(_rail(
+        unreadRoomIds: const {'r2'},
+        onMarkRoomRead: (id) => marked = id,
+      )));
+
+      await tester.longPress(find.text('B')); // Beta = r2, unread
+      await tester.pumpAndSettle();
+      expect(find.text('Mark as read'), findsOneWidget);
+      // The menu surfaces the room name (the avatar shows only 'B').
+      expect(find.text('Beta'), findsOneWidget);
+
+      await tester.tap(find.text('Mark as read'));
+      await tester.pumpAndSettle();
+      expect(marked, 'r2');
+    });
+
+    testWidgets('long-pressing a read room offers no Mark as read',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_rail(
+        unreadRoomIds: const {'r2'},
+        onMarkRoomRead: (_) {},
+      )));
+
+      await tester.longPress(find.text('A')); // Alpha = r1, read
+      await tester.pumpAndSettle();
+      expect(find.text('Mark as read'), findsNothing);
     });
 
     testWidgets('shows no dots when nothing is unread', (tester) async {

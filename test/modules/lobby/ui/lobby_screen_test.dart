@@ -723,5 +723,100 @@ void main() {
       expect(find.text('Special'), findsOneWidget);
       expect(find.text('General'), findsNothing);
     });
+
+    testWidgets(
+        'unread room card long-press marks it read: persists the marker '
+        'and clears the dot', (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // Unread to begin with (activity, no marker).
+      expect(find.byType(UnreadDot), findsOneWidget);
+
+      await tester.longPress(find.byType(RoomCard));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark as read'));
+      await tester.pumpAndSettle();
+
+      // The dot clears reactively, and the room's marker is persisted keyed by
+      // its id (so the gating wired the correct room, not just any room).
+      expect(find.byType(UnreadDot), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('soliplex_lobby_read_markers'), contains('r1'));
+    });
+
+    testWidgets('a read room card offers no Mark as read menu', (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      // No activity => not unread => the gating passes a null callback, so the
+      // context menu adds no gesture and a long-press opens nothing.
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+      expect(find.byType(UnreadDot), findsNothing);
+
+      await tester.longPress(find.byType(RoomCard));
+      await tester.pumpAndSettle();
+      expect(find.text('Mark as read'), findsNothing);
+    });
+
+    testWidgets(
+        'unread room grid card long-press marks it read (grid layout wires '
+        'the same gating)', (tester) async {
+      SharedPreferences.setMockInitialValues(
+        {'soliplex_lobby_view_mode': 'grid'},
+      );
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')]
+        ..roomsStats = {'r1': RoomStats(lastActivity: DateTime.utc(2026, 6))};
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+      expect(find.byType(RoomGridCard), findsOneWidget);
+      expect(find.byType(UnreadDot), findsOneWidget);
+
+      await tester.longPress(find.byType(RoomGridCard));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark as read'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UnreadDot), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('soliplex_lobby_read_markers'), contains('r1'));
+    });
   });
 }

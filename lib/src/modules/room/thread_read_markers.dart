@@ -1,7 +1,10 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.thread_read_markers');
 
 /// Identifies a thread across servers and rooms for the read model. Named
 /// fields (rather than a positional tuple) so the three ids can't be
@@ -31,10 +34,8 @@ abstract final class ThreadReadMarkerStorage {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) {
-        dev.log(
-          'Discarding corrupt thread read markers (not a JSON array)',
-          level: 900,
-        );
+        _logger.warning(
+            'Discarding corrupt thread read markers (not a JSON array)');
         return {};
       }
       var skipped = 0;
@@ -62,23 +63,17 @@ abstract final class ThreadReadMarkerStorage {
         // Every row dropped on a non-empty payload is a systemic serialization
         // break, not one stale row, and it silently resets the read model
         // (every thread flips to unread). Surface it loudly.
-        dev.log(
-          'Discarding all $skipped thread read markers; none parsed',
-          level: 1000,
-        );
+        _logger
+            .error('Discarding all $skipped thread read markers; none parsed');
       } else if (skipped > 0) {
-        dev.log(
-          'Skipped $skipped malformed thread read marker(s)',
-          level: 900,
-        );
+        _logger.warning('Skipped $skipped malformed thread read marker(s)');
       }
     } on FormatException catch (e, st) {
       // Corrupt payload: start fresh rather than wedging the room.
-      dev.log(
+      _logger.warning(
         'Discarding corrupt thread read markers',
         error: e,
         stackTrace: st,
-        level: 900,
       );
       return {};
     }
@@ -97,5 +92,25 @@ abstract final class ThreadReadMarkerStorage {
         },
     ];
     await prefs.setString(_key, jsonEncode(list));
+  }
+
+  /// Drops every thread marker for [serverId], so a removed server's threads
+  /// don't read as read if the server is re-added under the same id. No-op (and
+  /// no write) when the server has no markers.
+  ///
+  /// Fire-and-forget with no retry: unlike the signal-backed room/server
+  /// stores, this has no in-memory owner to re-save a corrected map, so a
+  /// failed [save] leaves stale thread floors on disk (a re-added same-id
+  /// server reads as already-read). Accepted because a re-add after a write
+  /// failure is rare and the caller logs the failure at error level. A live
+  /// RoomScreen's marker flush, which persists its full cross-server map, can
+  /// likewise overwrite this clear — reachable only if lobby and room are ever
+  /// mounted at once, which the current navigation never does.
+  static Future<void> clearServer(String serverId) async {
+    final markers = await load();
+    final next = {...markers}
+      ..removeWhere((key, _) => key.serverId == serverId);
+    if (next.length == markers.length) return;
+    await save(next);
   }
 }

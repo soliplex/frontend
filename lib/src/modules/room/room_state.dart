@@ -319,7 +319,7 @@ class RoomState {
           threadList.noteSpawnedThread(ThreadInfo(
             id: key.threadId,
             roomId: _roomId,
-            createdAt: DateTime.now(),
+            createdAt: DateTime.timestamp(),
           ));
           selectThread(key.threadId);
           _activeThreadView!.attachSession(session);

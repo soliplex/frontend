@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
     show
@@ -18,6 +19,7 @@ import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import '../room/room_run_activity.dart';
 import '../room/run_registry.dart';
+import '../room/thread_read_markers.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
@@ -236,6 +238,23 @@ class LobbyState {
   /// server's marker here, so a server marker floors all its rooms.
   ReadonlySignal<Map<String, DateTime>> get serverReadMarkers =>
       _serverReadMarkers.markers;
+
+  /// Stamps a room read as of now (from a lobby card's context menu). Writes
+  /// through the shared store, so the rail's dot clears too, and every thread in
+  /// the room reads as read via the read-up rule.
+  void markRoomRead(String serverId, String roomId) {
+    _roomReadMarkers.markRead(
+      (serverId: serverId, roomId: roomId),
+      clock.now().toUtc(),
+    );
+  }
+
+  /// Stamps [serverId] read as of now (from the server tile menu). Via the
+  /// read-up rule this reads every room and thread on the server — loaded or not
+  /// — as read, with a single marker write.
+  void markServerRead(String serverId) {
+    _serverReadMarkers.markRead(serverId, clock.now().toUtc());
+  }
 
   /// True while activity for the selected server is being fetched.
   final Signal<bool> _activityLoading = Signal(false);
@@ -494,6 +513,24 @@ class LobbyState {
         // Drop a stuck in-flight activity fetch for a removed server; otherwise
         // _activityFetchServerId would block a future fetch if the id returns.
         if (_activityFetchServerId == id) _cancelActivityFetch();
+        // Server ids are derived from the URL, so re-adding a removed server
+        // reuses its id. Drop its read markers at every level so the re-added
+        // server starts unread instead of inheriting the old floors.
+        _serverReadMarkers.clearServer(id);
+        _roomReadMarkers.clearServer(id);
+        unawaited(
+          ThreadReadMarkerStorage.clearServer(id)
+              .catchError((Object error, StackTrace st) {
+            // Error, not warning: a failed clear leaves stale thread floors on
+            // disk, so a server re-added under the same id reads as already-read
+            // (hides unread content), a worse outcome than a missed stamp.
+            _logger.error(
+              'Failed to clear thread read markers for removed server',
+              error: error,
+              stackTrace: st,
+            );
+          }),
+        );
       }
       _roomsByServer.value = updatedRooms;
       _userProfiles.value = updatedProfiles;

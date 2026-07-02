@@ -8,6 +8,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import '../../../core/activity_read.dart';
 import '../../../core/app_identity.dart';
 import '../../../core/routes.dart';
+import '../../../shared/mark_read_context_menu.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
@@ -158,11 +159,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
+                onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
+                onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
               )
@@ -183,11 +186,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onSelectServer: _state.selectServer,
+                onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
                 onNetworkInspector: _onNetworkInspector,
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
+                onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
               );
@@ -214,11 +219,13 @@ class _WideLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
+    required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
     required this.onRoomTap,
+    required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
   });
@@ -239,11 +246,13 @@ class _WideLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
+  final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
 
@@ -265,6 +274,7 @@ class _WideLayout extends StatelessWidget {
                 selectedServerId: selectedServerId,
                 onSelectServer: onSelectServer,
                 onSignIn: onSignIn,
+                onMarkServerRead: onMarkServerRead,
                 onAddServer: onAddServer,
                 onNetworkInspector: onNetworkInspector,
                 onVersions: onVersions,
@@ -287,6 +297,7 @@ class _WideLayout extends StatelessWidget {
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
                 onRoomTap: onRoomTap,
+                onMarkRoomRead: onMarkRoomRead,
                 onInfoTap: onInfoTap,
                 onAddServer: onAddServer,
                 onSignIn: onSignIn,
@@ -317,11 +328,13 @@ class _NarrowLayout extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onSelectServer,
+    required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
     required this.onNetworkInspector,
     required this.onVersions,
     required this.onRoomTap,
+    required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
   });
@@ -342,11 +355,13 @@ class _NarrowLayout extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId) onSelectServer;
+  final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
   final VoidCallback onNetworkInspector;
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
 
@@ -379,6 +394,7 @@ class _NarrowLayout extends StatelessWidget {
                 Scaffold.of(drawerContext).closeDrawer();
               },
               onSignIn: onSignIn,
+              onMarkServerRead: onMarkServerRead,
               onAddServer: onAddServer,
               onNetworkInspector: onNetworkInspector,
               onVersions: onVersions,
@@ -405,6 +421,7 @@ class _NarrowLayout extends StatelessWidget {
           activityLoading: activityLoading,
           selectedServerId: selectedServerId,
           onRoomTap: onRoomTap,
+          onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
           onAddServer: onAddServer,
           onSignIn: onSignIn,
@@ -430,6 +447,7 @@ class _RoomContent extends StatelessWidget {
     required this.activityLoading,
     required this.selectedServerId,
     required this.onRoomTap,
+    required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onAddServer,
     required this.onSignIn,
@@ -449,6 +467,7 @@ class _RoomContent extends StatelessWidget {
   final bool activityLoading;
   final String? selectedServerId;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
   final VoidCallback onAddServer;
   final void Function(String serverId) onSignIn;
@@ -544,6 +563,7 @@ class _RoomContent extends StatelessWidget {
           roomReadMarkers: roomReadMarkers,
           serverReadMarkers: serverReadMarkers,
           onRoomTap: onRoomTap,
+          onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
           onSignIn: onSignIn,
         ),
@@ -735,6 +755,7 @@ class _ServerSection extends StatelessWidget {
     required this.roomReadMarkers,
     required this.serverReadMarkers,
     required this.onRoomTap,
+    required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
   });
@@ -748,6 +769,7 @@ class _ServerSection extends StatelessWidget {
   final Map<RoomActivityKey, DateTime> roomReadMarkers;
   final Map<String, DateTime> serverReadMarkers;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
   final void Function(String serverId) onSignIn;
 
@@ -881,12 +903,17 @@ class _ServerSection extends StatelessWidget {
           child: Column(
             children: [
               for (final room in rooms)
-                RoomCard(
-                  room: room,
-                  activityTime: _activityFor(room),
-                  isUnread: _isUnread(room),
-                  onTap: () => onRoomTap(serverId, room.id),
-                  onInfoTap: () => onInfoTap(serverId, room.id),
+                MarkReadContextMenu(
+                  onMarkRead: _isUnread(room)
+                      ? () => onMarkRoomRead(serverId, room.id)
+                      : null,
+                  child: RoomCard(
+                    room: room,
+                    activityTime: _activityFor(room),
+                    isUnread: _isUnread(room),
+                    onTap: () => onRoomTap(serverId, room.id),
+                    onInfoTap: () => onInfoTap(serverId, room.id),
+                  ),
                 ),
             ],
           ),
@@ -897,6 +924,7 @@ class _ServerSection extends StatelessWidget {
           activityFor: _activityFor,
           isUnread: _isUnread,
           onRoomTap: onRoomTap,
+          onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
         ),
     };
@@ -940,6 +968,7 @@ class _RoomGrid extends StatelessWidget {
     required this.activityFor,
     required this.isUnread,
     required this.onRoomTap,
+    required this.onMarkRoomRead,
     required this.onInfoTap,
   });
 
@@ -948,6 +977,7 @@ class _RoomGrid extends StatelessWidget {
   final DateTime? Function(Room) activityFor;
   final bool Function(Room) isUnread;
   final void Function(String serverId, String roomId) onRoomTap;
+  final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
 
   @override
@@ -977,14 +1007,20 @@ class _RoomGrid extends StatelessWidget {
                       if (i > 0) const SizedBox(width: spacing),
                       Expanded(
                         child: i < rowRooms.length
-                            ? RoomGridCard(
-                                room: rowRooms[i],
-                                activityTime: activityFor(rowRooms[i]),
-                                isUnread: isUnread(rowRooms[i]),
-                                onTap: () =>
-                                    onRoomTap(serverId, rowRooms[i].id),
-                                onInfoTap: () =>
-                                    onInfoTap(serverId, rowRooms[i].id),
+                            ? MarkReadContextMenu(
+                                onMarkRead: isUnread(rowRooms[i])
+                                    ? () =>
+                                        onMarkRoomRead(serverId, rowRooms[i].id)
+                                    : null,
+                                child: RoomGridCard(
+                                  room: rowRooms[i],
+                                  activityTime: activityFor(rowRooms[i]),
+                                  isUnread: isUnread(rowRooms[i]),
+                                  onTap: () =>
+                                      onRoomTap(serverId, rowRooms[i].id),
+                                  onInfoTap: () =>
+                                      onInfoTap(serverId, rowRooms[i].id),
+                                ),
                               )
                             : const SizedBox.shrink(),
                       ),

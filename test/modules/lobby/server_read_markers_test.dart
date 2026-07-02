@@ -72,5 +72,34 @@ void main() {
       expect(store.markers.value[serverId], at);
       store.dispose();
     });
+
+    test('markRead normalizes a non-UTC timestamp to UTC', () {
+      final store = ServerReadMarkers();
+      final local = DateTime(2026, 6, 1, 12); // device-local
+      store.markRead(serverId, local);
+      final stored = store.value[serverId]!;
+      expect(stored.isUtc, isTrue);
+      expect(stored, local.toUtc());
+      store.dispose();
+    });
+
+    test('clearServer drops only that server\'s marker and persists', () async {
+      final store = ServerReadMarkers();
+      store.markRead('s1', at);
+      store.markRead('s2', at);
+      // Let the mark write-throughs settle before clearing, so the reload
+      // below observes clearServer's write rather than a racing stamp save.
+      await Future<void>.delayed(Duration.zero);
+
+      store.clearServer('s1');
+
+      expect(store.value.keys, {'s2'});
+      await Future<void>.delayed(Duration.zero);
+      final reloaded = ServerReadMarkers();
+      await reloaded.ensureLoaded();
+      expect(reloaded.value.keys, {'s2'});
+      store.dispose();
+      reloaded.dispose();
+    });
   });
 }
