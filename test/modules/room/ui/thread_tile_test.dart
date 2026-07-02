@@ -28,6 +28,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -45,6 +46,7 @@ void main() {
               onTap: () {},
               onRename: () {},
               onDelete: () {},
+              onMarkRead: () {},
             ),
           ),
         );
@@ -65,6 +67,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -86,6 +89,7 @@ void main() {
           onTap: () {},
           onRename: () => renameCalled = true,
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -109,6 +113,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () => deleteCalled = true,
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -142,6 +147,7 @@ void main() {
               onTap: () {},
               onRename: () => renameCalled = true,
               onDelete: () {},
+              onMarkRead: () {},
             ),
           ),
         ),
@@ -191,6 +197,7 @@ void main() {
               onTap: () {},
               onRename: () {},
               onDelete: () => deleteCalled = true,
+              onMarkRead: () {},
             ),
           ),
         ),
@@ -227,6 +234,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -252,6 +260,7 @@ void main() {
               onTap: () {},
               onRename: () {},
               onDelete: () {},
+              onMarkRead: () {},
             ),
           ),
         ),
@@ -283,6 +292,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));
@@ -290,6 +300,51 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byIcon(Icons.more_vert), findsNothing);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('unread thread menu offers Mark as read and fires callback',
+      (tester) async {
+    var marked = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadTile(
+          thread: thread,
+          isSelected: false,
+          unread: true,
+          onTap: () {},
+          onRename: () {},
+          onDelete: () {},
+          onMarkRead: () => marked = true,
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Mark as read'), findsOneWidget);
+
+    await tester.tap(find.text('Mark as read'));
+    await tester.pumpAndSettle();
+    expect(marked, isTrue);
+  });
+
+  testWidgets('read thread menu omits Mark as read', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadTile(
+          thread: thread,
+          isSelected: false,
+          onTap: () {},
+          onRename: () {},
+          onDelete: () {},
+          onMarkRead: () {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Mark as read'), findsNothing);
   });
 
   testWidgets('Delete menu item uses error color', (tester) async {
@@ -301,6 +356,7 @@ void main() {
           onTap: () {},
           onRename: () {},
           onDelete: () {},
+          onMarkRead: () {},
         ),
       ),
     ));

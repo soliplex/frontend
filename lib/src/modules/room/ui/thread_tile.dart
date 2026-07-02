@@ -7,7 +7,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/relative_time.dart';
 import '../../lobby/ui/unread_dot.dart';
 
-enum _ThreadAction { rename, delete }
+enum _ThreadAction { markRead, rename, delete }
 
 class ThreadTile extends StatefulWidget {
   const ThreadTile({
@@ -17,6 +17,7 @@ class ThreadTile extends StatefulWidget {
     required this.onTap,
     required this.onRename,
     required this.onDelete,
+    required this.onMarkRead,
     this.isRunning = false,
     this.unread = false,
   });
@@ -26,6 +27,9 @@ class ThreadTile extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+
+  /// Stamps this thread read. Offered in the overflow menu only when [unread].
+  final VoidCallback onMarkRead;
   final bool isRunning;
 
   /// Whether the thread has activity newer than the user last saw — shows a
@@ -122,6 +126,8 @@ class _ThreadTileState extends State<ThreadTile> {
       onSelected: (action) {
         setState(() => _isMenuOpen = false);
         switch (action) {
+          case _ThreadAction.markRead:
+            widget.onMarkRead();
           case _ThreadAction.rename:
             widget.onRename();
           case _ThreadAction.delete:
@@ -129,6 +135,17 @@ class _ThreadTileState extends State<ThreadTile> {
         }
       },
       itemBuilder: (context) => [
+        if (widget.unread)
+          const PopupMenuItem(
+            value: _ThreadAction.markRead,
+            child: Row(
+              children: [
+                Icon(Icons.mark_chat_read_outlined, size: 18),
+                SizedBox(width: SoliplexSpacing.s3),
+                Text('Mark as read'),
+              ],
+            ),
+          ),
         const PopupMenuItem(
           value: _ThreadAction.rename,
           child: Row(

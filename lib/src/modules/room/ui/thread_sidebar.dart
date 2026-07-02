@@ -22,6 +22,7 @@ class ThreadSidebar extends StatelessWidget {
     this.onQuizTapped,
     this.onRenameThread,
     this.onDeleteThread,
+    this.onMarkThreadRead,
   });
 
   final ThreadListStatus threadListStatus;
@@ -35,6 +36,7 @@ class ThreadSidebar extends StatelessWidget {
   final void Function(String quizId)? onQuizTapped;
   final void Function(String threadId, String currentName)? onRenameThread;
   final void Function(String threadId)? onDeleteThread;
+  final void Function(String threadId)? onMarkThreadRead;
   final ReadonlySignal<Set<String>> runningThreadIds;
 
   /// Ids of threads with activity newer than the user last saw — each gets an
@@ -122,6 +124,7 @@ class ThreadSidebar extends StatelessWidget {
                         onRename: () =>
                             onRenameThread?.call(thread.id, thread.name),
                         onDelete: () => onDeleteThread?.call(thread.id),
+                        onMarkRead: () => onMarkThreadRead?.call(thread.id),
                       );
                     },
                   );

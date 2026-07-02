@@ -1182,24 +1182,29 @@ class _RoomScreenState extends State<RoomScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
-          final sidebar = ThreadSidebar(
-            threadListStatus: threadListStatus,
-            selectedThreadId: selectedThreadId,
-            onThreadSelected: _onThreadSelected,
-            onBackToLobby: _onBackToLobby,
-            onCreateThread: _state.createThread,
-            onRetryThreads: () => _state.threadList.refresh(),
-            onReauthenticate: _onReauthenticate,
-            quizzes: room?.quizzes ?? const {},
-            onQuizTapped: _onQuizTapped,
-            onRenameThread: _showRenameDialog,
-            onDeleteThread: _showDeleteDialog,
-            runningThreadIds: _state.runningThreadIds,
-            unreadThreadIds: unreadThreadIds,
-          );
           final content = _buildContent(room);
 
           if (isWide) {
+            final sidebar = ThreadSidebar(
+              threadListStatus: threadListStatus,
+              selectedThreadId: selectedThreadId,
+              onThreadSelected: _onThreadSelected,
+              onBackToLobby: _onBackToLobby,
+              onCreateThread: _state.createThread,
+              onRetryThreads: () => _state.threadList.refresh(),
+              onReauthenticate: _onReauthenticate,
+              quizzes: room?.quizzes ?? const {},
+              onQuizTapped: _onQuizTapped,
+              onRenameThread: _showRenameDialog,
+              onDeleteThread: _showDeleteDialog,
+              onMarkThreadRead: (threadId) => _stampThreadRead((
+                serverId: widget.serverEntry.serverId,
+                roomId: widget.roomId,
+                threadId: threadId,
+              )),
+              runningThreadIds: _state.runningThreadIds,
+              unreadThreadIds: unreadThreadIds,
+            );
             return Scaffold(
               // No AppBar here, so SafeArea guards every edge: the rail/sidebar
               // headers clear the status bar and side notches, and the chat
@@ -1269,6 +1274,11 @@ class _RoomScreenState extends State<RoomScreen> {
                             Navigator.pop(drawerContext);
                             _showDeleteDialog(id);
                           },
+                          onMarkThreadRead: (threadId) => _stampThreadRead((
+                            serverId: widget.serverEntry.serverId,
+                            roomId: widget.roomId,
+                            threadId: threadId,
+                          )),
                         ),
                       ),
                     ],
