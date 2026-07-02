@@ -26,6 +26,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   viewer's local zone and stay correct across DST.
 - Chat: the transcript is selectable across message bubbles — one drag spans
   user, assistant, error, and tool-output tiles at once.
+- Room: the rooms rail clusters unread rooms at the top — the selected room is
+  pinned first, then unread rooms newest-first, a divider, then read rooms
+  newest-first, then idle rooms alphabetically — so a freshly-added server's
+  backlog no longer reads as a wall of unread noise.
 
 ### Changed
 
