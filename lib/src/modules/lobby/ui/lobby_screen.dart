@@ -904,8 +904,9 @@ class _ServerSection extends StatelessWidget {
             children: [
               for (final room in rooms)
                 MarkReadContextMenu(
-                  enabled: _isUnread(room),
-                  onMarkRead: () => onMarkRoomRead(serverId, room.id),
+                  onMarkRead: _isUnread(room)
+                      ? () => onMarkRoomRead(serverId, room.id)
+                      : null,
                   child: RoomCard(
                     room: room,
                     activityTime: _activityFor(room),
@@ -1007,9 +1008,10 @@ class _RoomGrid extends StatelessWidget {
                       Expanded(
                         child: i < rowRooms.length
                             ? MarkReadContextMenu(
-                                enabled: isUnread(rowRooms[i]),
-                                onMarkRead: () =>
-                                    onMarkRoomRead(serverId, rowRooms[i].id),
+                                onMarkRead: isUnread(rowRooms[i])
+                                    ? () =>
+                                        onMarkRoomRead(serverId, rowRooms[i].id)
+                                    : null,
                                 child: RoomGridCard(
                                   room: rowRooms[i],
                                   activityTime: activityFor(rowRooms[i]),

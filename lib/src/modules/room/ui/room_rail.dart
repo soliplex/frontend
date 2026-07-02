@@ -193,11 +193,18 @@ class _RoomAvatarTile extends StatelessWidget {
     final bg = roomAvatarColor(room.name, theme.brightness);
     final fg = contrastingForeground(bg);
 
-    return MarkReadContextMenu(
-      enabled: unread && onMarkRead != null,
-      onMarkRead: onMarkRead ?? () {},
-      child: Tooltip(
-        message: room.name,
+    // Tooltip must wrap the context menu (not the other way round): the
+    // tooltip triggers on long-press for touch, so if it sat *inside* the
+    // menu's GestureDetector it would win the gesture arena and the long-press
+    // menu would never open. As the outer widget its recognizer is the ancestor
+    // one, so the menu's (descendant) long-press wins when a room is unread.
+    return Tooltip(
+      message: room.name,
+      child: MarkReadContextMenu(
+        onMarkRead: unread ? onMarkRead : null,
+        // The avatar is a single letter; surface the room name in the menu so a
+        // long-press still identifies the room where the tooltip can't fire.
+        title: room.name,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
           child: SizedBox(
