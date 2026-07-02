@@ -414,9 +414,11 @@ class _RoomScreenState extends State<RoomScreen> {
 
   /// Stamps [roomId] on the current server read as of now. Uses "now" (not the
   /// cached activity time) so the marker is at or after any observed activity,
-  /// even if the activity batch is stale or pending. Only [_recomputeRoomRead]
-  /// calls this, and only once no thread is unread. The shared store both
-  /// persists and notifies its watchers (this build and the lobby's).
+  /// even if the activity batch is stale or pending. Called by
+  /// [_recomputeRoomRead] once no thread is unread, and directly from the rail's
+  /// context menu to mark a room read on demand (which floors its threads via
+  /// the read-up rule). The shared store both persists and notifies its
+  /// watchers (this build and the lobby's).
   void _markRoomRead(String roomId) {
     _roomReadMarkers.markRead(
       (serverId: widget.serverEntry.serverId, roomId: roomId),
@@ -1313,6 +1315,7 @@ class _RoomScreenState extends State<RoomScreen> {
       roomsError: _serverRoomsError,
       onRetryRooms: () => setState(_fetchServerRooms),
       unreadRoomIds: _unreadRoomIds,
+      onMarkRoomRead: _markRoomRead,
       selectedRoomId: widget.roomId,
       onSelectRoom: (roomId) {
         onNavigate?.call();
