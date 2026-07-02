@@ -20,6 +20,7 @@ RoomRail _rail({
   Object? roomsError,
   String selectedRoomId = 'r1',
   Set<String> unreadRoomIds = const {},
+  int? dividerIndex,
   void Function(String)? onSelectRoom,
   VoidCallback? onRetryRooms,
   RoomAccount? account,
@@ -31,6 +32,7 @@ RoomRail _rail({
       roomsError: roomsError,
       onRetryRooms: onRetryRooms,
       unreadRoomIds: unreadRoomIds,
+      dividerIndex: dividerIndex,
       selectedRoomId: selectedRoomId,
       onSelectRoom: onSelectRoom ?? (_) {},
       entry: createTestServerEntry(),
@@ -67,6 +69,29 @@ void main() {
     testWidgets('shows no dots when nothing is unread', (tester) async {
       await tester.pumpWidget(_wrap(_rail()));
       expect(find.byTooltip('Unread activity'), findsNothing);
+    });
+
+    testWidgets('renders a divider at dividerIndex', (tester) async {
+      await tester.pumpWidget(_wrap(_rail(
+        rooms: const [
+          Room(id: 'r1', name: 'Alpha'),
+          Room(id: 'r2', name: 'Beta'),
+        ],
+        dividerIndex: 1,
+      )));
+      expect(
+        find.byKey(const ValueKey('rail-unread-divider')),
+        findsOneWidget,
+      );
+      // Both rooms still render — the divider is an extra row, not a
+      // replacement.
+      expect(find.text('A'), findsOneWidget);
+      expect(find.text('B'), findsOneWidget);
+    });
+
+    testWidgets('renders no divider when dividerIndex is null', (tester) async {
+      await tester.pumpWidget(_wrap(_rail()));
+      expect(find.byKey(const ValueKey('rail-unread-divider')), findsNothing);
     });
 
     testWidgets('shows an error affordance that retries', (tester) async {

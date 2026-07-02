@@ -1259,8 +1259,18 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Builds the always-visible rooms rail. [onNavigate] (the drawer pop) runs
   /// before any navigation when the rail lives inside the narrow drawer.
   Widget _buildRail({VoidCallback? onNavigate}) {
+    final rooms = _serverRooms;
+    final order = rooms == null
+        ? null
+        : orderRoomsForRail(
+            rooms,
+            _roomActivity,
+            _unreadRoomIds,
+            selectedRoomId: widget.roomId,
+          );
     return RoomRail(
-      rooms: _serverRooms,
+      rooms: order?.rooms,
+      dividerIndex: order?.dividerIndex,
       roomsError: _serverRoomsError,
       onRetryRooms: () => setState(_fetchServerRooms),
       unreadRoomIds: _unreadRoomIds,

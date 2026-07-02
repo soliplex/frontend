@@ -38,6 +38,7 @@ class RoomRail extends StatelessWidget {
     this.roomsError,
     this.onRetryRooms,
     this.unreadRoomIds = const {},
+    this.dividerIndex,
   });
 
   /// The server's rooms, or `null` while loading.
@@ -48,6 +49,10 @@ class RoomRail extends StatelessWidget {
   /// the lobby reads here too (and vice versa). Empty when stats are
   /// unavailable (e.g. a pre-stats backend), which simply shows no dots.
   final Set<String> unreadRoomIds;
+
+  /// Index in [rooms] of the first read-section room; a grey divider is drawn
+  /// above it to separate unread rooms from read ones. Null draws no divider.
+  final int? dividerIndex;
 
   /// Non-null when the room list failed to load.
   final Object? roomsError;
@@ -120,8 +125,26 @@ class RoomRail extends StatelessWidget {
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-      itemCount: rooms.length,
+      // One extra item for the divider row when present.
+      itemCount: rooms.length + (dividerIndex == null ? 0 : 1),
       itemBuilder: (context, index) {
+        final divider = dividerIndex;
+        if (divider != null) {
+          if (index == divider) {
+            return Padding(
+              key: const ValueKey('rail-unread-divider'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: SoliplexSpacing.s3,
+                vertical: SoliplexSpacing.s1,
+              ),
+              child: Divider(
+                height: 1,
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            );
+          }
+          if (index > divider) index -= 1;
+        }
         final room = rooms[index];
         return _RoomAvatarTile(
           room: room,
