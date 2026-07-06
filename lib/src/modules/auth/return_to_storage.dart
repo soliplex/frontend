@@ -1,7 +1,10 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.return_to_storage');
 
 /// Per-screen snapshot store for state that needs to survive an
 /// auth-failure round-trip (composer drafts, quiz progress).
@@ -67,8 +70,8 @@ abstract final class ReturnToStorage {
       }
       return json['unsentText'] as String?;
     } catch (e, st) {
-      dev.log(
-        'ReturnToStorage: corrupted composer entry; clearing',
+      _logger.warning(
+        'Corrupted composer entry; clearing',
         error: e,
         stackTrace: st,
       );
