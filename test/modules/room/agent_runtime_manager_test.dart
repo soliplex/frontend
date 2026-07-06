@@ -1,9 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 
 import '../../helpers/fakes.dart';
+
+ServerConnection _connection(String serverId) => ServerConnection(
+      serverId: serverId,
+      api: FakeSoliplexApi(),
+      agUiStreamClient: FakeAgUiStreamClient(),
+    );
+
+ServerEntry _entry(String serverId) => ServerEntry(
+      serverId: serverId,
+      alias: serverId,
+      serverUrl: Uri.parse('https://$serverId.example.com'),
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
+      httpClient: FakeHttpClient(),
+      connection: _connection(serverId),
+    );
 
 void main() {
   late AgentRuntimeManager manager;
@@ -65,6 +82,58 @@ void main() {
       () async {
     final registry = await manager.toolRegistryResolver('any-room');
     expect(registry, isA<ToolRegistry>());
+  });
+
+  test('evicts a runtime when its server is removed from the signal', () {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = AgentRuntimeManager(
+      platform: TestPlatformConstraints(),
+      toolRegistryResolver: (_) async => const ToolRegistry(),
+      logger: testLogger(),
+      servers: servers,
+    );
+    addTearDown(() async {
+      await evicting.dispose();
+      servers.dispose();
+    });
+
+    final conn = _connection('server-1');
+    servers.value = {'server-1': _entry('server-1')};
+    final rt1 = evicting.getRuntime(conn);
+
+    servers.value = {};
+
+    // The stale runtime was disposed and dropped, so re-requesting the same
+    // connection builds a fresh one instead of returning the evicted cache hit.
+    expect(identical(evicting.getRuntime(conn), rt1), isFalse);
+  });
+
+  test('keeps runtimes for servers that remain', () {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = AgentRuntimeManager(
+      platform: TestPlatformConstraints(),
+      toolRegistryResolver: (_) async => const ToolRegistry(),
+      logger: testLogger(),
+      servers: servers,
+    );
+    addTearDown(() async {
+      await evicting.dispose();
+      servers.dispose();
+    });
+
+    final conn1 = _connection('server-1');
+    final conn2 = _connection('server-2');
+    servers.value = {
+      'server-1': _entry('server-1'),
+      'server-2': _entry('server-2')
+    };
+    final rt1 = evicting.getRuntime(conn1);
+    final rt2 = evicting.getRuntime(conn2);
+
+    servers.value = {'server-2': _entry('server-2')};
+
+    expect(identical(evicting.getRuntime(conn2), rt2), isTrue);
+    expect(identical(evicting.getRuntime(conn1), rt1), isFalse);
   });
 
   test('replaces runtime when connection changes for same serverId', () {

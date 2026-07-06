@@ -3,6 +3,8 @@ import 'dart:async' show unawaited;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../auth/server_entry.dart';
+
 final Logger _logger = LogManager.instance.getLogger('soliplex.run_registry');
 
 /// Terminal outcome of an agent run.
@@ -38,8 +40,17 @@ class CancelledRun extends RunOutcome {
 /// to a thread, [ThreadViewState] checks the registry for an active
 /// session to reattach to or a completed outcome to display.
 class RunRegistry {
+  /// [servers] wires the removal-eviction path: when a server disappears from
+  /// the signal, its tracked runs are cancelled and dropped so they don't
+  /// linger until the whole registry is disposed. Null in tests that don't
+  /// exercise eviction.
+  RunRegistry({ReadonlySignal<Map<String, ServerEntry>>? servers}) {
+    _unsubscribe = servers?.subscribe(_evictRemoved);
+  }
+
   final Map<ThreadKey, _TrackedRun> _runs = {};
   final Signal<Set<ThreadKey>> _activeKeys = Signal({});
+  void Function()? _unsubscribe;
   bool _isDisposed = false;
 
   /// Reactive set of keys that currently have an active (non-terminal) session.
@@ -111,10 +122,31 @@ class RunRegistry {
     return _runs[key]?.outcome;
   }
 
+  /// Cancels and drops every tracked run for a server no longer present in
+  /// [snapshot], so a removed server's live session is cancelled and its
+  /// captured outcome released instead of lingering until [dispose].
+  void _evictRemoved(Map<String, ServerEntry> snapshot) {
+    if (_isDisposed) return;
+    final liveIds = snapshot.keys.toSet();
+    final dead =
+        _runs.keys.where((key) => !liveIds.contains(key.serverId)).toList();
+    if (dead.isEmpty) return;
+    for (final key in dead) {
+      _runs.remove(key)?.session?.cancel();
+    }
+    final nextActive = _activeKeys.value
+        .where((key) => liveIds.contains(key.serverId))
+        .toSet();
+    if (nextActive.length != _activeKeys.value.length) {
+      _activeKeys.value = nextActive;
+    }
+  }
+
   /// Cancels all active sessions and releases resources. Idempotent.
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _unsubscribe?.call();
     for (final run in _runs.values) {
       run.session?.cancel();
     }

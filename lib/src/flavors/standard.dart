@@ -127,9 +127,10 @@ Future<ShellConfig> standard({
       ToolCallsExtension(),
       HumanApprovalExtension(),
     ],
+    servers: serverManager.servers,
   );
 
-  final registry = RunRegistry();
+  final registry = RunRegistry(servers: serverManager.servers);
 
   // Shared in-memory read-marker model so a room stamped read in the room
   // screen clears its lobby unread dot immediately, with no storage race.

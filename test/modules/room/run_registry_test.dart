@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
@@ -12,6 +14,19 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
+    );
+
+ServerEntry _entry(String serverId) => ServerEntry(
+      serverId: serverId,
+      alias: serverId,
+      serverUrl: Uri.parse('https://$serverId.example.com'),
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
+      httpClient: FakeHttpClient(),
+      connection: ServerConnection(
+        serverId: serverId,
+        api: FakeSoliplexApi(),
+        agUiStreamClient: FakeAgUiStreamClient(),
+      ),
     );
 
 const _key = (
@@ -289,5 +304,31 @@ void main() {
     );
     expect(session.cancelCalled, isTrue);
     expect(registry.activeSession(_key), isNull);
+  });
+
+  test('evicts runs whose server is removed from the signal', () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const keyS1 = (serverId: 's1', roomId: 'r', threadId: 't');
+    const keyS2 = (serverId: 's2', roomId: 'r', threadId: 't');
+    final s1Session = ManualAgentSession(keyS1);
+    final s2Session = ManualAgentSession(keyS2);
+    servers.value = {'s1': _entry('s1'), 's2': _entry('s2')};
+    evicting.register(keyS1, s1Session);
+    evicting.register(keyS2, s2Session);
+
+    servers.value = {'s2': _entry('s2')};
+
+    expect(s1Session.cancelCalled, isTrue);
+    expect(evicting.activeSession(keyS1), isNull);
+    expect(evicting.activeKeys.value, isNot(contains(keyS1)));
+    // A surviving server's run is untouched.
+    expect(evicting.activeSession(keyS2), same(s2Session));
+    expect(evicting.activeKeys.value, contains(keyS2));
   });
 }
