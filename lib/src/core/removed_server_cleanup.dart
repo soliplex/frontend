@@ -63,14 +63,16 @@ class RemovedServerCleanup {
   }
 
   /// Runs synchronously inside the servers-signal write (the subscription fires
-  /// during [ServerManager.removeServer]). The in-memory model clears are
-  /// synchronous map/signal updates that also persist themselves fire-and-forget
-  /// with their own failure logging; the static stores are awaited off the
-  /// microtask queue with their throws caught here so one failure can't strand
-  /// the others or unwind the signal write.
+  /// during [ServerManager.removeServer]). Every clear is isolated so one
+  /// failure can neither strand the others nor unwind that write: the in-memory
+  /// clears run guarded (their `value =` writes notify watchers synchronously,
+  /// so a throwing watcher would otherwise escape), and the static stores run
+  /// fire-and-forget with their throws caught and logged per store.
   void _clearServer(String id) {
-    _serverReadMarkers.clearServer(id);
-    _roomReadMarkers.clearServer(id);
+    _clearInMemory(
+        () => _serverReadMarkers.clearServer(id), 'server read marker', id);
+    _clearInMemory(
+        () => _roomReadMarkers.clearServer(id), 'room read markers', id);
     unawaited(
       ThreadReadMarkerStorage.clearServer(id)
           .catchError((Object error, StackTrace st) {
@@ -115,6 +117,21 @@ class RemovedServerCleanup {
     // prompt=login on the next connect (see ConnectFlow), so a server removed
     // while inactivity-logged-out must keep it: clearing it would let a re-add
     // under the same id reuse a silent IdP session and skip the forced re-login.
+  }
+
+  /// Runs a synchronous in-memory clear, logging any throw instead of letting
+  /// it unwind the servers-signal write this executes inside.
+  void _clearInMemory(void Function() clear, String what, String id) {
+    try {
+      clear();
+    } on Object catch (error, st) {
+      _logger.error(
+        'Failed to clear $what for removed server',
+        error: error,
+        stackTrace: st,
+        attributes: {'serverId': id},
+      );
+    }
   }
 
   void dispose() {
