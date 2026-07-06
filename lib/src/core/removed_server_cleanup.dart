@@ -90,10 +90,10 @@ class RemovedServerCleanup {
     unawaited(
       ThreadAnchorStorage.clearServer(id)
           .catchError((Object error, StackTrace st) {
-        // Error to match the thread-marker clear it mirrors: a stale anchor
-        // only misplaces a divider, but a systemic write failure here would
-        // also fail that clear, so surface both at the same level.
-        _logger.error(
+        // Warning, not error: a stale anchor only misplaces a "New messages"
+        // divider (cosmetic), unlike the thread-marker clear above whose
+        // failure hides unread content.
+        _logger.warning(
           'Failed to clear thread anchors for removed server',
           error: error,
           stackTrace: st,
