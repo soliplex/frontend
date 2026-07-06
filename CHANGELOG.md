@@ -11,8 +11,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Added
 
 - Lobby: an "Unread first" sort option groups a server's rooms into an Unread
-  section above a Read section, each ordered by recent activity. Read rooms are
-  reordered below a divider, never hidden.
+  section above a Read section, each ordered by recent activity. It joins the
+  existing "Recent activity" mode as a mutually-exclusive sort, not a filter.
 
 ## [0.92.0+65] - 2026-07-02
 
