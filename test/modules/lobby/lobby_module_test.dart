@@ -20,7 +20,7 @@ void main() {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
         identity: testIdentity(),
-        registry: RunRegistry(),
+        registry: RunRegistry(servers: emptyServers()),
         roomReadMarkers: RoomReadMarkers(),
         serverReadMarkers: ServerReadMarkers(),
       ).build();
@@ -33,7 +33,7 @@ void main() {
       final contribution = LobbyAppModule(
         serverManager: _createManager(),
         identity: testIdentity(),
-        registry: RunRegistry(),
+        registry: RunRegistry(servers: emptyServers()),
         roomReadMarkers: RoomReadMarkers(),
         serverReadMarkers: ServerReadMarkers(),
       ).build();

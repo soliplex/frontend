@@ -150,7 +150,7 @@ void main() {
     api = FakeSoliplexApi();
     connection = _fakeConnection(api);
     auth = AuthSession(refreshService: FakeTokenRefreshService());
-    registry = RunRegistry();
+    registry = RunRegistry(servers: emptyServers());
   });
 
   tearDown(() {
@@ -451,6 +451,7 @@ void main() {
         platform: TestPlatformConstraints(),
         toolRegistryResolver: (_) async => const ToolRegistry(),
         logger: testLogger(),
+        servers: emptyServers(),
       );
       runtime = runtimeManager.getRuntime(connection);
     });

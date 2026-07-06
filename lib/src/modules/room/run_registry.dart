@@ -42,15 +42,15 @@ class CancelledRun extends RunOutcome {
 class RunRegistry {
   /// [servers] wires the removal-eviction path: when a server disappears from
   /// the signal, its tracked runs are cancelled and dropped so they don't
-  /// linger until the whole registry is disposed. Null in tests that don't
-  /// exercise eviction.
-  RunRegistry({ReadonlySignal<Map<String, ServerEntry>>? servers}) {
-    _unsubscribe = servers?.subscribe(_evictRemoved);
+  /// linger until the whole registry is disposed. Tests that don't exercise
+  /// eviction pass a never-changing `Signal({})`.
+  RunRegistry({required ReadonlySignal<Map<String, ServerEntry>> servers}) {
+    _unsubscribe = servers.subscribe(_evictRemoved);
   }
 
   final Map<ThreadKey, _TrackedRun> _runs = {};
   final Signal<Set<ThreadKey>> _activeKeys = Signal({});
-  void Function()? _unsubscribe;
+  late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
   /// Reactive set of keys that currently have an active (non-terminal) session.
@@ -165,7 +165,7 @@ class RunRegistry {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
-    _unsubscribe?.call();
+    _unsubscribe();
     for (final entry in _runs.entries) {
       final session = entry.value.session;
       if (session != null) _cancelQuietly(entry.key, session);

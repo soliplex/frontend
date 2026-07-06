@@ -30,6 +30,7 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      servers: emptyServers(),
     );
   });
 

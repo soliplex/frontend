@@ -225,8 +225,9 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      servers: emptyServers(),
     );
-    registry = RunRegistry();
+    registry = RunRegistry(servers: emptyServers());
     servers = Signal({entry.serverId: entry});
     uploadRegistry = UploadTrackerRegistry(servers: servers);
   });

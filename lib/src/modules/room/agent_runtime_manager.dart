@@ -11,19 +11,19 @@ import '../auth/server_entry.dart';
 class AgentRuntimeManager {
   /// [servers] wires the removal-eviction path: when a server disappears from
   /// the signal, its cached runtime is disposed and dropped so it doesn't
-  /// linger until the whole manager is disposed. Null in tests that don't
-  /// exercise eviction.
+  /// linger until the whole manager is disposed. Tests that don't exercise
+  /// eviction pass a never-changing `Signal({})`.
   AgentRuntimeManager({
     required PlatformConstraints platform,
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
     required Logger logger,
+    required ReadonlySignal<Map<String, ServerEntry>> servers,
     SessionExtensionFactory? extensionFactory,
-    ReadonlySignal<Map<String, ServerEntry>>? servers,
   })  : _platform = platform,
         _toolRegistryResolver = toolRegistryResolver,
         _extensionFactory = extensionFactory,
         _logger = logger {
-    _unsubscribe = servers?.subscribe(_evictRemoved);
+    _unsubscribe = servers.subscribe(_evictRemoved);
   }
 
   final PlatformConstraints _platform;
@@ -32,7 +32,7 @@ class AgentRuntimeManager {
   final Logger _logger;
   final Map<String, ({ServerConnection connection, AgentRuntime runtime})>
       _cache = {};
-  void Function()? _unsubscribe;
+  late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
   /// Resolves the [ToolRegistry] for a given room ID.
@@ -99,7 +99,7 @@ class AgentRuntimeManager {
   /// Disposes all cached runtimes and clears the cache.
   Future<void> dispose() async {
     _isDisposed = true;
-    _unsubscribe?.call();
+    _unsubscribe();
     final entries = _cache.values.toList();
     _cache.clear();
     for (final entry in entries) {
