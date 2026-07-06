@@ -200,7 +200,10 @@ void main() {
       );
     });
 
-    test('clearServer does not sweep a server whose id is a prefix match',
+    // The key joins ids with a `:`, so the trailing `:` on the prefix keeps a
+    // clear from reaching an id that merely shares a leading substring but not a
+    // whole `:`-delimited segment (`a` vs `ab`).
+    test('clearServer keeps drafts of an id sharing only a non-boundary prefix',
         () async {
       await ReturnToStorage.saveComposer(
         serverId: 'a',
@@ -224,6 +227,39 @@ void main() {
           now: _baseTime,
         ),
         'AB/r',
+      );
+    });
+
+    // Characterizes a known, accepted over-sweep (issue #393): a server id is a
+    // `Uri.origin`, which omits the default port, so a portless origin is a full
+    // prefix of the same host with an explicit port. Clearing the portless
+    // origin therefore also sweeps the explicit-port sibling's drafts. This
+    // pins the current behavior so the keyed-store fix is a deliberate,
+    // test-breaking change rather than a silent one.
+    test('clearServer over-sweeps a portless origin onto its port sibling',
+        () async {
+      await ReturnToStorage.saveComposer(
+        serverId: 'https://foo.com',
+        roomId: 'r',
+        unsentText: 'default port',
+        now: _baseTime,
+      );
+      await ReturnToStorage.saveComposer(
+        serverId: 'https://foo.com:8443',
+        roomId: 'r',
+        unsentText: 'explicit port',
+        now: _baseTime,
+      );
+
+      await ReturnToStorage.clearServer('https://foo.com');
+
+      expect(
+        await ReturnToStorage.loadComposer(
+          serverId: 'https://foo.com:8443',
+          roomId: 'r',
+          now: _baseTime,
+        ),
+        isNull,
       );
     });
   });

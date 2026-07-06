@@ -182,7 +182,6 @@ Future<ShellConfig> standard({
         registry: registry,
         roomReadMarkers: roomReadMarkers,
         serverReadMarkers: serverReadMarkers,
-        inactivityLogoutFlags: inactivityLogoutFlags,
       ),
       RoomAppModule(
         serverManager: serverManager,

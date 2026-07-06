@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_module.dart';
 import '../../core/app_identity.dart';
 import '../../core/routes.dart';
-import '../auth/inactivity_logout_storage.dart';
 import '../auth/server_manager.dart';
 import '../room/run_registry.dart';
 import 'lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
@@ -16,7 +15,6 @@ class LobbyAppModule extends AppModule {
     required this.registry,
     required this.roomReadMarkers,
     required this.serverReadMarkers,
-    required this.inactivityLogoutFlags,
   });
 
   final ServerManager serverManager;
@@ -36,10 +34,6 @@ class LobbyAppModule extends AppModule {
   /// marker floors every room's unread dot on the server.
   final ServerReadMarkers serverReadMarkers;
 
-  /// Clears a removed server's pending inactivity-logout flag, so re-adding a
-  /// server under the same id doesn't inherit a stale forced `prompt=login`.
-  final InactivityLogoutFlagStorage inactivityLogoutFlags;
-
   @override
   String get namespace => 'lobby';
 
@@ -55,7 +49,6 @@ class LobbyAppModule extends AppModule {
                 registry: registry,
                 roomReadMarkers: roomReadMarkers,
                 serverReadMarkers: serverReadMarkers,
-                inactivityLogoutFlags: inactivityLogoutFlags,
               ),
             ),
           ),

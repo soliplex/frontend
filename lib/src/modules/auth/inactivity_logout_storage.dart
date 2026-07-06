@@ -1,6 +1,8 @@
-import 'dart:developer' as dev;
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.inactivity_logout_storage');
 
 /// Per-server flag recording that the most recent logout was triggered by
 /// the inactivity monitor.
@@ -32,7 +34,7 @@ abstract class InactivityLogoutFlagStorage {
 ///
 /// Every method degrades gracefully if the storage layer throws: writes
 /// and clears become no-ops and reads default to not-marked, each logged
-/// at SEVERE. Storage is best-effort here precisely because a thrown
+/// at error level. Storage is best-effort here precisely because a thrown
 /// `PlatformException` must not wedge the auth flow ([isMarked] runs
 /// before sign-in) or mask a completed sign-in as a failure ([clear]
 /// runs after it). The two write failures fail safe in opposite
@@ -56,11 +58,10 @@ class LocalInactivityLogoutFlagStorage implements InactivityLogoutFlagStorage {
       final prefs = await _prefsFactory();
       await prefs.setBool(_key(serverId), true);
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Failed to persist inactivity-logout flag for $serverId',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
     }
   }
@@ -71,12 +72,11 @@ class LocalInactivityLogoutFlagStorage implements InactivityLogoutFlagStorage {
       final prefs = await _prefsFactory();
       return prefs.getBool(_key(serverId)) ?? false;
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Failed to read inactivity-logout flag for $serverId; '
         'defaulting to not-marked',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
       return false;
     }
@@ -88,11 +88,10 @@ class LocalInactivityLogoutFlagStorage implements InactivityLogoutFlagStorage {
       final prefs = await _prefsFactory();
       await prefs.remove(_key(serverId));
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Failed to clear inactivity-logout flag for $serverId',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
     }
   }

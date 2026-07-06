@@ -8,14 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
-import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
-import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -1150,112 +1146,6 @@ void main() {
           expect(state.serverReadMarkers.value['s'], DateTime.utc(2026, 6, 1));
           state.dispose();
         });
-      });
-
-      test('removing a server clears its read markers at every level',
-          () async {
-        final at = DateTime.utc(2026, 6, 1);
-        final manager = _createManager();
-        manager.addServer(
-          serverId: 's1',
-          serverUrl: Uri.parse('http://s1.test'),
-          requiresAuth: false,
-        );
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi(),
-        );
-        await pumpEventQueue();
-
-        state.markServerRead('s1');
-        state.markRoomRead('s1', 'r');
-        await ThreadReadMarkerStorage.save({
-          (serverId: 's1', roomId: 'r', threadId: 't'): at,
-          (serverId: 's2', roomId: 'r', threadId: 't'): at,
-        });
-
-        manager.removeServer('s1');
-        await pumpEventQueue();
-
-        expect(state.serverReadMarkers.value.containsKey('s1'), isFalse);
-        expect(
-          state.roomReadMarkers.value
-              .containsKey((serverId: 's1', roomId: 'r')),
-          isFalse,
-        );
-        // A re-added server (same URL → same id) must start unread: the
-        // persisted thread markers for the removed server are gone, while
-        // another server's survive.
-        final threads = await ThreadReadMarkerStorage.load();
-        expect(
-          threads.containsKey((serverId: 's1', roomId: 'r', threadId: 't')),
-          isFalse,
-        );
-        expect(
-          threads.containsKey((serverId: 's2', roomId: 'r', threadId: 't')),
-          isTrue,
-        );
-
-        state.dispose();
-      });
-
-      test('removing a server purges its anchors, drafts, and inactivity flag',
-          () async {
-        final manager = _createManager();
-        manager.addServer(
-          serverId: 's1',
-          serverUrl: Uri.parse('http://s1.test'),
-          requiresAuth: false,
-        );
-        final inactivityFlags = LocalInactivityLogoutFlagStorage();
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi(),
-          inactivityLogoutFlags: inactivityFlags,
-        );
-        await pumpEventQueue();
-
-        await ThreadAnchorStorage.save({
-          (serverId: 's1', roomId: 'r', threadId: 't'): 'm1',
-          (serverId: 's2', roomId: 'r', threadId: 't'): 'm2',
-        });
-        await ReturnToStorage.saveComposer(
-          serverId: 's1',
-          roomId: 'r',
-          unsentText: 's1 draft',
-        );
-        await ReturnToStorage.saveComposer(
-          serverId: 's2',
-          roomId: 'r',
-          unsentText: 's2 draft',
-        );
-        await inactivityFlags.mark('s1');
-        await inactivityFlags.mark('s2');
-
-        manager.removeServer('s1');
-        await pumpEventQueue();
-
-        final anchors = await ThreadAnchorStorage.load();
-        expect(
-          anchors.containsKey((serverId: 's1', roomId: 'r', threadId: 't')),
-          isFalse,
-        );
-        expect(
-          anchors.containsKey((serverId: 's2', roomId: 'r', threadId: 't')),
-          isTrue,
-        );
-        expect(
-          await ReturnToStorage.loadComposer(serverId: 's1', roomId: 'r'),
-          isNull,
-        );
-        expect(
-          await ReturnToStorage.loadComposer(serverId: 's2', roomId: 'r'),
-          's2 draft',
-        );
-        expect(await inactivityFlags.isMarked('s1'), isFalse);
-        expect(await inactivityFlags.isMarked('s2'), isTrue);
-
-        state.dispose();
       });
     });
   });

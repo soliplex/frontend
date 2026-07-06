@@ -16,10 +16,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Fixed
 
 - Removing a server now clears the rest of its device-local state, not just its
-  read markers: the thread unread-divider anchors, unsent composer drafts, and
-  the pending inactivity-logout flag are all dropped. Because server ids derive
-  from the URL, re-adding the same server reused the id and could resurrect a
-  stale divider, an old draft, or a spurious `prompt=login`.
+  read markers: the thread unread-divider anchors and unsent composer drafts are
+  dropped too, on every removal path. Because server ids derive from the URL,
+  re-adding the same server reused the id and could resurrect a stale divider or
+  an old draft.
 - Removing a server now evicts its in-memory agent runtime and tracked runs
   instead of leaking them until app exit — the runtime's timers and stream are
   disposed and any live run for the server is cancelled.

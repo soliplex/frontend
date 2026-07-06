@@ -9,7 +9,6 @@ import '../../../core/activity_read.dart';
 import '../../../core/app_identity.dart';
 import '../../../core/routes.dart';
 import '../../../shared/mark_read_context_menu.dart';
-import '../../auth/inactivity_logout_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
@@ -39,7 +38,6 @@ class LobbyScreen extends StatefulWidget {
     this.registry,
     this.roomReadMarkers,
     this.serverReadMarkers,
-    this.inactivityLogoutFlags,
     this.apiResolver,
   });
 
@@ -60,10 +58,6 @@ class LobbyScreen extends StatefulWidget {
   /// Shared server read markers, forwarded to [LobbyState]. Null in tests, where
   /// each screen gets its own isolated store.
   final ServerReadMarkers? serverReadMarkers;
-
-  /// Clears a removed server's pending inactivity-logout flag, forwarded to
-  /// [LobbyState]. Null in tests that don't exercise the flag.
-  final InactivityLogoutFlagStorage? inactivityLogoutFlags;
 
   /// Test seam forwarded to [LobbyState]; production uses the default
   /// per-entry API resolver.
@@ -86,7 +80,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
       registry: widget.registry,
       roomReadMarkers: widget.roomReadMarkers,
       serverReadMarkers: widget.serverReadMarkers,
-      inactivityLogoutFlags: widget.inactivityLogoutFlags,
     );
   }
 
