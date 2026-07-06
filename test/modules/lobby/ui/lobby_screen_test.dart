@@ -638,6 +638,54 @@ void main() {
     });
 
     testWidgets(
+        'unread-first sort groups unread rooms above read rooms with headers',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      // 'Fresh' has activity and no read marker -> unread. 'Quiet' has no
+      // activity -> read. Backend lists the read room first, so the grouping
+      // (not the input order) is what pulls 'Fresh' to the top.
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'Quiet'),
+          Room(id: 'r2', name: 'Fresh'),
+        ]
+        ..roomsStats = {
+          'r1': RoomStats(),
+          'r2': RoomStats(lastActivity: DateTime.utc(2026, 6)),
+        };
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // No section headers under the default 'None' sort.
+      expect(find.text('Unread'), findsNothing);
+      expect(find.text('Read'), findsNothing);
+
+      await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unread first').hitTestable());
+      await tester.pumpAndSettle();
+
+      // Both section headers present.
+      expect(find.text('Unread'), findsOneWidget);
+      expect(find.text('Read'), findsOneWidget);
+
+      // The unread room card sits above the read room card.
+      final freshY = tester.getTopLeft(find.text('Fresh')).dy;
+      final quietY = tester.getTopLeft(find.text('Quiet')).dy;
+      expect(freshY, lessThan(quietY));
+    });
+
+    testWidgets(
         'shows only the selected server, and switching the sidebar '
         'selection swaps the shown rooms', (tester) async {
       tester.view.physicalSize = const Size(900, 600);
