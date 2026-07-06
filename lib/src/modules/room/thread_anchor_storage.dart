@@ -91,4 +91,20 @@ abstract final class ThreadAnchorStorage {
     ];
     await prefs.setString(_key, jsonEncode(list));
   }
+
+  /// Drops every anchor for [serverId], so a removed server's threads don't
+  /// restore a stale "New messages" divider if the server is re-added under the
+  /// same id. No-op (and no write) when the server has no anchors.
+  ///
+  /// Fire-and-forget with no retry, like the thread read-marker store: a failed
+  /// [save] leaves stale anchors on disk. Accepted because an anchor only
+  /// positions a divider (it never floors unread state), so a surviving stale
+  /// anchor is a cosmetic misplacement, not a correctness break.
+  static Future<void> clearServer(String serverId) async {
+    final anchors = await load();
+    final next = {...anchors}
+      ..removeWhere((key, _) => key.serverId == serverId);
+    if (next.length == anchors.length) return;
+    await save(next);
+  }
 }

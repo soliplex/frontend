@@ -151,5 +151,80 @@ void main() {
         isNull,
       );
     });
+
+    test('clearServer removes every room draft for that server only', () async {
+      await ReturnToStorage.saveComposer(
+        serverId: 'a',
+        roomId: 'r1',
+        unsentText: 'A/r1',
+        now: _baseTime,
+      );
+      await ReturnToStorage.saveComposer(
+        serverId: 'a',
+        roomId: 'r2',
+        unsentText: 'A/r2',
+        now: _baseTime,
+      );
+      await ReturnToStorage.saveComposer(
+        serverId: 'b',
+        roomId: 'r1',
+        unsentText: 'B/r1',
+        now: _baseTime,
+      );
+
+      await ReturnToStorage.clearServer('a');
+
+      expect(
+        await ReturnToStorage.loadComposer(
+          serverId: 'a',
+          roomId: 'r1',
+          now: _baseTime,
+        ),
+        isNull,
+      );
+      expect(
+        await ReturnToStorage.loadComposer(
+          serverId: 'a',
+          roomId: 'r2',
+          now: _baseTime,
+        ),
+        isNull,
+      );
+      expect(
+        await ReturnToStorage.loadComposer(
+          serverId: 'b',
+          roomId: 'r1',
+          now: _baseTime,
+        ),
+        'B/r1',
+      );
+    });
+
+    test('clearServer does not sweep a server whose id is a prefix match',
+        () async {
+      await ReturnToStorage.saveComposer(
+        serverId: 'a',
+        roomId: 'r',
+        unsentText: 'A/r',
+        now: _baseTime,
+      );
+      await ReturnToStorage.saveComposer(
+        serverId: 'ab',
+        roomId: 'r',
+        unsentText: 'AB/r',
+        now: _baseTime,
+      );
+
+      await ReturnToStorage.clearServer('a');
+
+      expect(
+        await ReturnToStorage.loadComposer(
+          serverId: 'ab',
+          roomId: 'r',
+          now: _baseTime,
+        ),
+        'AB/r',
+      );
+    });
   });
 }

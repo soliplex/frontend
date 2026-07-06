@@ -84,4 +84,16 @@ abstract final class ReturnToStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_composerKey(serverId, roomId));
   }
+
+  /// Removes every composer draft belonging to [serverId], so a removed
+  /// server's unsent text can't resurface in a re-added room. The trailing
+  /// `:` bounds the match so `serverId: 'a'` does not also sweep `'ab'`.
+  static Future<void> clearServer(String serverId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final prefix = '$_prefix:composer:$serverId:';
+    final keys = prefs.getKeys().where((key) => key.startsWith(prefix));
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+  }
 }

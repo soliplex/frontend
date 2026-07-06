@@ -14,11 +14,14 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../core/activity_read.dart';
 import '../../core/util/debouncer.dart';
 import '../auth/auth_tokens.dart';
+import '../auth/inactivity_logout_storage.dart';
+import '../auth/return_to_storage.dart';
 import '../auth/selected_server_storage.dart';
 import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import '../room/room_run_activity.dart';
 import '../room/run_registry.dart';
+import '../room/thread_anchor_storage.dart';
 import '../room/thread_read_markers.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
@@ -89,11 +92,13 @@ class LobbyState {
     RunRegistry? registry,
     RoomReadMarkers? roomReadMarkers,
     ServerReadMarkers? serverReadMarkers,
+    InactivityLogoutFlagStorage? inactivityLogoutFlags,
   })  : _serverManager = serverManager,
         _apiResolver = apiResolver ?? _defaultResolver,
         _registry = registry,
         _roomReadMarkers = roomReadMarkers ?? RoomReadMarkers(),
-        _serverReadMarkers = serverReadMarkers ?? ServerReadMarkers() {
+        _serverReadMarkers = serverReadMarkers ?? ServerReadMarkers(),
+        _inactivityLogoutFlags = inactivityLogoutFlags {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
@@ -116,6 +121,11 @@ class LobbyState {
   /// room on it, so a room is unread only when its activity beats the later of
   /// its own marker and this one. Shared with the room screen.
   final ServerReadMarkers _serverReadMarkers;
+
+  /// Clears a removed server's pending inactivity-logout flag so a re-add under
+  /// the same id doesn't inherit a stale forced `prompt=login`. Null in
+  /// contexts that don't wire it (the flag then self-heals on next sign-in).
+  final InactivityLogoutFlagStorage? _inactivityLogoutFlags;
 
   late final void Function() _unsubscribe;
 
@@ -531,6 +541,34 @@ class LobbyState {
             );
           }),
         );
+        unawaited(
+          ThreadAnchorStorage.clearServer(id)
+              .catchError((Object error, StackTrace st) {
+            // Error to match the thread-marker clear it shadows: a stale anchor
+            // only misplaces a divider, but a systemic write failure here would
+            // also fail that clear, so surface both at the same level.
+            _logger.error(
+              'Failed to clear thread anchors for removed server',
+              error: error,
+              stackTrace: st,
+            );
+          }),
+        );
+        unawaited(
+          ReturnToStorage.clearServer(id)
+              .catchError((Object error, StackTrace st) {
+            // Warning: a surviving draft self-expires after 24h and can only
+            // resurface in a re-added room, so it's lower stakes than a marker.
+            _logger.warning(
+              'Failed to clear composer drafts for removed server',
+              error: error,
+              stackTrace: st,
+            );
+          }),
+        );
+        // The impl swallows and logs its own storage failures, so a missed
+        // clear only forces a harmless extra prompt=login on a same-id re-add.
+        unawaited(_inactivityLogoutFlags?.clear(id) ?? Future<void>.value());
       }
       _roomsByServer.value = updatedRooms;
       _userProfiles.value = updatedProfiles;

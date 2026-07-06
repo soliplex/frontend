@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_module.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
@@ -23,6 +24,7 @@ void main() {
         registry: RunRegistry(),
         roomReadMarkers: RoomReadMarkers(),
         serverReadMarkers: ServerReadMarkers(),
+        inactivityLogoutFlags: LocalInactivityLogoutFlagStorage(),
       ).build();
       final paths =
           contribution.routes.whereType<GoRoute>().map((r) => r.path).toList();
@@ -36,6 +38,7 @@ void main() {
         registry: RunRegistry(),
         roomReadMarkers: RoomReadMarkers(),
         serverReadMarkers: ServerReadMarkers(),
+        inactivityLogoutFlags: LocalInactivityLogoutFlagStorage(),
       ).build();
       expect(contribution.redirect, isNull);
     });
