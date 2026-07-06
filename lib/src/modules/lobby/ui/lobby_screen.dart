@@ -17,6 +17,7 @@ import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_view_mode.dart';
 import '../room_activity_format.dart';
+import '../room_grouping.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -665,18 +666,23 @@ class _LobbyControlsState extends State<_LobbyControls> {
           value: LobbySortMode.recentActivity,
           label: 'Recent activity',
         ),
+        SoliplexDropdownEntry(
+          value: LobbySortMode.unreadFirst,
+          label: 'Unread first',
+        ),
       ],
     );
-    final busy =
-        widget.sortLoading && widget.sortMode == LobbySortMode.recentActivity
-            ? const Padding(
-                padding: EdgeInsets.only(left: SoliplexSpacing.s2),
-                child: SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : const SizedBox.shrink();
+    final busy = widget.sortLoading &&
+            (widget.sortMode == LobbySortMode.recentActivity ||
+                widget.sortMode == LobbySortMode.unreadFirst)
+        ? const Padding(
+            padding: EdgeInsets.only(left: SoliplexSpacing.s2),
+            child: SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        : const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -857,15 +863,17 @@ class _ServerSection extends StatelessWidget {
       );
     }
 
-    final ordered = _applySort(matches);
+    return switch (sortMode) {
+      LobbySortMode.none => _buildBlock(context, matches),
+      LobbySortMode.recentActivity => _buildRecencyGroups(context, matches),
+      LobbySortMode.unreadFirst => _buildUnreadGroups(context, matches),
+    };
+  }
 
-    // When sorting by recency, split the (already date-descending) list into
-    // "Today / Yesterday / ..." sections, each under a header + divider — like
-    // an LLM chat history. Otherwise render one flat block.
-    if (sortMode != LobbySortMode.recentActivity) {
-      return _buildBlock(context, ordered);
-    }
-
+  /// Sorts [rooms] by recency and groups them under "Today / Yesterday / …"
+  /// date-bucket headers, like an LLM chat history.
+  Widget _buildRecencyGroups(BuildContext context, List<Room> rooms) {
+    final ordered = sortRoomsByRecency(rooms, _activityFor);
     final groups = <ActivityBucket, List<Room>>{};
     for (final room in ordered) {
       (groups[bucketFor(_activityFor(room))] ??= []).add(room);
@@ -878,6 +886,26 @@ class _ServerSection extends StatelessWidget {
             _GroupHeader(label: bucket.label),
             _buildBlock(context, bucketRooms),
           ],
+      ],
+    );
+  }
+
+  /// Splits [rooms] into an Unread section above a Read section, each
+  /// recency-ordered. A section with no rooms renders no header, so an
+  /// all-read list shows only "Read" and an all-unread list only "Unread".
+  Widget _buildUnreadGroups(BuildContext context, List<Room> rooms) {
+    final parts = partitionByUnread(rooms, _isUnread, _activityFor);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (parts.unread.isNotEmpty) ...[
+          const _GroupHeader(label: 'Unread'),
+          _buildBlock(context, parts.unread),
+        ],
+        if (parts.read.isNotEmpty) ...[
+          const _GroupHeader(label: 'Read'),
+          _buildBlock(context, parts.read),
+        ],
       ],
     );
   }
@@ -928,30 +956,6 @@ class _ServerSection extends StatelessWidget {
           onInfoTap: onInfoTap,
         ),
     };
-  }
-
-  /// Orders rooms by most-recent-thread activity (descending) when that sort
-  /// is active. Rooms without a known timestamp — none fetched, no threads,
-  /// or a failed lookup — keep their original relative order at the end. Ties
-  /// break by original index so equal timestamps stay in their input order
-  /// (`List.sort` is not guaranteed stable). Does not mutate the input list.
-  List<Room> _applySort(List<Room> rooms) {
-    if (sortMode != LobbySortMode.recentActivity) return rooms;
-    final dated = <(Room, DateTime, int)>[];
-    final undated = <Room>[];
-    for (var i = 0; i < rooms.length; i++) {
-      final time = _activityFor(rooms[i]);
-      if (time != null) {
-        dated.add((rooms[i], time, i));
-      } else {
-        undated.add(rooms[i]);
-      }
-    }
-    dated.sort((a, b) {
-      final byTime = b.$2.compareTo(a.$2);
-      return byTime != 0 ? byTime : a.$3.compareTo(b.$3);
-    });
-    return [...dated.map((e) => e.$1), ...undated];
   }
 }
 

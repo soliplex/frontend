@@ -8,6 +8,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Lobby: an "Unread first" sort option groups a server's rooms into an Unread
+  section above a Read section, each ordered by recent activity.
+
 ## [0.92.0+65] - 2026-07-02
 
 ### Added
