@@ -5,7 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// [recentActivity] sorts by the most recently *created* thread in each room
 /// (the only recency signal the backend exposes today — there is no
 /// last-access field). Rooms with no threads sort last.
-enum LobbySortMode { none, recentActivity }
+///
+/// [unreadFirst] groups rooms into an Unread section above a Read section,
+/// each ordered by recent activity. It groups by *attention status* rather
+/// than *time*; it is mutually exclusive with [recentActivity].
+enum LobbySortMode { none, recentActivity, unreadFirst }
 
 /// Persists the user's preferred [LobbySortMode] across launches.
 ///

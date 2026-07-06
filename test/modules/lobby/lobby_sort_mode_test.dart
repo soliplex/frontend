@@ -52,6 +52,12 @@ void main() {
       );
       expect(await LobbySortModeStorage.load(), LobbySortMode.none);
     });
+
+    test('round-trips unreadFirst', () async {
+      SharedPreferences.setMockInitialValues({});
+      await LobbySortModeStorage.save(LobbySortMode.unreadFirst);
+      expect(await LobbySortModeStorage.load(), LobbySortMode.unreadFirst);
+    });
   });
 
   group('LobbyState sorting', () {
