@@ -342,16 +342,23 @@ void main() {
     });
 
     const key = (serverId: 's1', roomId: 'r', threadId: 't');
+    const survivorKey = (serverId: 's2', roomId: 'r', threadId: 't');
     final session = ManualAgentSession(key);
-    servers.value = {'s1': _entry('s1')};
+    final survivor = ManualAgentSession(survivorKey);
+    servers.value = {'s1': _entry('s1'), 's2': _entry('s2')};
     evicting.register(key, session);
+    evicting.register(survivorKey, survivor);
     session.completeAsCancelled();
+    survivor.completeAsCancelled();
     await Future<void>.delayed(Duration.zero);
     expect(evicting.completedOutcome(key), isNotNull);
+    expect(evicting.completedOutcome(survivorKey), isNotNull);
 
-    servers.value = <String, ServerEntry>{};
+    servers.value = {'s2': _entry('s2')};
 
     expect(evicting.completedOutcome(key), isNull);
+    // A surviving server's completed outcome is retained.
+    expect(evicting.completedOutcome(survivorKey), isNotNull);
   });
 
   test('eviction survives a session whose cancel throws', () async {
@@ -367,11 +374,16 @@ void main() {
     final throwing = _ThrowingCancelSession(throwingKey);
     final normal = ManualAgentSession(normalKey);
     servers.value = {'s1': _entry('s1')};
+    // Register the throwing session first so it is iterated first (insertion
+    // order): that is what proves the surviving session is still evicted after
+    // the throw, and catches a guard that wraps the whole loop instead of the
+    // single cancel.
     evicting.register(throwingKey, throwing);
     evicting.register(normalKey, normal);
 
-    // A throwing cancel must not abort the eviction fan-out (which runs inside
-    // the servers-signal batch and would otherwise unwind removeServer).
+    // A throwing cancel must not abort the eviction fan-out (which runs
+    // synchronously inside the servers-signal write and would otherwise unwind
+    // removeServer).
     expect(() => servers.value = <String, ServerEntry>{}, returnsNormally);
 
     expect(evicting.activeSession(throwingKey), isNull);

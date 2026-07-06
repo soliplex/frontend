@@ -85,7 +85,7 @@ class AgentRuntimeManager {
       await runtime.dispose();
     } on Object catch (e, st) {
       _logger.error(
-        'Failed to dispose runtime for removed server $serverId',
+        'Failed to dispose runtime $serverId',
         error: e,
         stackTrace: st,
       );
@@ -99,12 +99,7 @@ class AgentRuntimeManager {
     final entries = _cache.values.toList();
     _cache.clear();
     for (final entry in entries) {
-      try {
-        await entry.runtime.dispose();
-      } on Object catch (e) {
-        _logger.warning(
-            'Failed to dispose runtime ${entry.connection.serverId}: $e');
-      }
+      await _disposeRuntime(entry.connection.serverId, entry.runtime);
     }
   }
 }

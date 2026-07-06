@@ -108,7 +108,10 @@ void main() {
     // the cache entry but skips disposal (the leak this eviction path fixes).
     await expectLater(
       rt1.spawn(roomId: 'r', prompt: 'p', threadId: 't'),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<StateError>()
+            .having((e) => e.toString(), 'message', contains('disposed')),
+      ),
     );
     // And re-requesting the same connection builds a fresh runtime.
     expect(identical(evicting.getRuntime(conn), rt1), isFalse);

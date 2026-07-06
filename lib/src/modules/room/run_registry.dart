@@ -133,20 +133,7 @@ class RunRegistry {
     if (dead.isEmpty) return;
     for (final key in dead) {
       final session = _runs.remove(key)?.session;
-      if (session == null) continue;
-      // This runs inside the servers-signal batch: a throwing cancel would
-      // otherwise abort the loop and unwind removeServer before it deletes the
-      // stored session. Log and keep evicting the rest.
-      try {
-        session.cancel();
-      } on Object catch (error, stackTrace) {
-        _logger.error(
-          'Failed to cancel run for removed server',
-          error: error,
-          stackTrace: stackTrace,
-          attributes: {'key': key.toString()},
-        );
-      }
+      if (session != null) _cancelQuietly(key, session);
     }
     final nextActive = _activeKeys.value
         .where((key) => liveIds.contains(key.serverId))
@@ -156,13 +143,32 @@ class RunRegistry {
     }
   }
 
+  /// Cancels [session], swallowing and logging any throw. [cancel] runs real
+  /// teardown that can throw; both callers cancel in a loop where one throw must
+  /// not strand the rest. Eviction also runs synchronously inside the
+  /// servers-signal write, where an escape would unwind removeServer before it
+  /// deletes the stored session.
+  void _cancelQuietly(ThreadKey key, AgentSession session) {
+    try {
+      session.cancel();
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'Failed to cancel run',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {'key': key.toString()},
+      );
+    }
+  }
+
   /// Cancels all active sessions and releases resources. Idempotent.
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
     _unsubscribe?.call();
-    for (final run in _runs.values) {
-      run.session?.cancel();
+    for (final entry in _runs.entries) {
+      final session = entry.value.session;
+      if (session != null) _cancelQuietly(entry.key, session);
     }
     _runs.clear();
     _activeKeys.dispose();

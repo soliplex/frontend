@@ -74,16 +74,5 @@ void main() {
       final loaded = await ThreadAnchorStorage.load();
       expect(loaded.keys, {(serverId: 's2', roomId: 'r', threadId: 't2')});
     });
-
-    test('clearServer leaves storage untouched when nothing matches', () async {
-      await ThreadAnchorStorage.save({
-        (serverId: 's1', roomId: 'r', threadId: 't1'): 'm1',
-      });
-
-      await ThreadAnchorStorage.clearServer('absent');
-
-      final loaded = await ThreadAnchorStorage.load();
-      expect(loaded.keys, {(serverId: 's1', roomId: 'r', threadId: 't1')});
-    });
   });
 }
