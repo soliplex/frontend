@@ -132,7 +132,21 @@ class RunRegistry {
         _runs.keys.where((key) => !liveIds.contains(key.serverId)).toList();
     if (dead.isEmpty) return;
     for (final key in dead) {
-      _runs.remove(key)?.session?.cancel();
+      final session = _runs.remove(key)?.session;
+      if (session == null) continue;
+      // This runs inside the servers-signal batch: a throwing cancel would
+      // otherwise abort the loop and unwind removeServer before it deletes the
+      // stored session. Log and keep evicting the rest.
+      try {
+        session.cancel();
+      } on Object catch (error, stackTrace) {
+        _logger.error(
+          'Failed to cancel run for removed server',
+          error: error,
+          stackTrace: stackTrace,
+          attributes: {'key': key.toString()},
+        );
+      }
     }
     final nextActive = _activeKeys.value
         .where((key) => liveIds.contains(key.serverId))

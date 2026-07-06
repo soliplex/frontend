@@ -84,7 +84,7 @@ void main() {
     expect(registry, isA<ToolRegistry>());
   });
 
-  test('evicts a runtime when its server is removed from the signal', () {
+  test('evicts a runtime when its server is removed from the signal', () async {
     final servers = Signal<Map<String, ServerEntry>>({});
     final evicting = AgentRuntimeManager(
       platform: TestPlatformConstraints(),
@@ -103,8 +103,14 @@ void main() {
 
     servers.value = {};
 
-    // The stale runtime was disposed and dropped, so re-requesting the same
-    // connection builds a fresh one instead of returning the evicted cache hit.
+    // The stale runtime is actually disposed, not just dropped from the cache:
+    // a disposed runtime rejects spawn. This catches a regression that evicts
+    // the cache entry but skips disposal (the leak this eviction path fixes).
+    await expectLater(
+      rt1.spawn(roomId: 'r', prompt: 'p', threadId: 't'),
+      throwsA(isA<StateError>()),
+    );
+    // And re-requesting the same connection builds a fresh runtime.
     expect(identical(evicting.getRuntime(conn), rt1), isFalse);
   });
 

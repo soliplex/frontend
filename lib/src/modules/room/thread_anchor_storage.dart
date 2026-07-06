@@ -96,10 +96,11 @@ abstract final class ThreadAnchorStorage {
   /// restore a stale "New messages" divider if the server is re-added under the
   /// same id. No-op (and no write) when the server has no anchors.
   ///
-  /// Fire-and-forget with no retry, like the thread read-marker store: a failed
-  /// [save] leaves stale anchors on disk. Accepted because an anchor only
-  /// positions a divider (it never floors unread state), so a surviving stale
-  /// anchor is a cosmetic misplacement, not a correctness break.
+  /// Propagates I/O failures from [load]/[save] to the caller (like the thread
+  /// read-marker store); callers run it fire-and-forget and log. A failed [save]
+  /// leaves stale anchors on disk — accepted because an anchor only positions a
+  /// divider (it never floors unread state), so a surviving stale anchor is a
+  /// cosmetic misplacement, not a correctness break.
   static Future<void> clearServer(String serverId) async {
     final anchors = await load();
     final next = {...anchors}

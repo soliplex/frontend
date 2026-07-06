@@ -331,4 +331,60 @@ void main() {
     expect(evicting.activeSession(keyS2), same(s2Session));
     expect(evicting.activeKeys.value, contains(keyS2));
   });
+
+  test('evicts the removed server\'s completed outcome, not just live runs',
+      () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const key = (serverId: 's1', roomId: 'r', threadId: 't');
+    final session = ManualAgentSession(key);
+    servers.value = {'s1': _entry('s1')};
+    evicting.register(key, session);
+    session.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+    expect(evicting.completedOutcome(key), isNotNull);
+
+    servers.value = <String, ServerEntry>{};
+
+    expect(evicting.completedOutcome(key), isNull);
+  });
+
+  test('eviction survives a session whose cancel throws', () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const throwingKey = (serverId: 's1', roomId: 'r', threadId: 't1');
+    const normalKey = (serverId: 's1', roomId: 'r', threadId: 't2');
+    final throwing = _ThrowingCancelSession(throwingKey);
+    final normal = ManualAgentSession(normalKey);
+    servers.value = {'s1': _entry('s1')};
+    evicting.register(throwingKey, throwing);
+    evicting.register(normalKey, normal);
+
+    // A throwing cancel must not abort the eviction fan-out (which runs inside
+    // the servers-signal batch and would otherwise unwind removeServer).
+    expect(() => servers.value = <String, ServerEntry>{}, returnsNormally);
+
+    expect(evicting.activeSession(throwingKey), isNull);
+    expect(evicting.activeSession(normalKey), isNull);
+    expect(normal.cancelCalled, isTrue);
+    expect(evicting.activeKeys.value, isEmpty);
+  });
+}
+
+/// Session whose [cancel] throws, to exercise the eviction guard.
+class _ThrowingCancelSession extends ManualAgentSession {
+  _ThrowingCancelSession(super.threadKey);
+
+  @override
+  void cancel() => throw StateError('cancel boom');
 }

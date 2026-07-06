@@ -83,8 +83,12 @@ class AgentRuntimeManager {
   Future<void> _disposeRuntime(String serverId, AgentRuntime runtime) async {
     try {
       await runtime.dispose();
-    } on Object catch (e) {
-      _logger.warning('Failed to dispose runtime $serverId: $e');
+    } on Object catch (e, st) {
+      _logger.error(
+        'Failed to dispose runtime for removed server $serverId',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 

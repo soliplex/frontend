@@ -86,8 +86,15 @@ abstract final class ReturnToStorage {
   }
 
   /// Removes every composer draft belonging to [serverId], so a removed
-  /// server's unsent text can't resurface in a re-added room. The trailing
-  /// `:` bounds the match so `serverId: 'a'` does not also sweep `'ab'`.
+  /// server's unsent text can't resurface in a re-added room.
+  ///
+  /// Matches by key prefix. This is exact for the common case, but the key
+  /// joins [serverId] and roomId with an unescaped `:`, and a server id is a
+  /// `Uri.origin` (which omits the default port). So a portless origin is a
+  /// prefix of the same host with an explicit port — `clearServer` for
+  /// `https://foo.com` also sweeps `https://foo.com:8443`'s drafts. Bounded and
+  /// rare (both servers on one host, one with an unsent draft); the unambiguous
+  /// fix is the keyed-store migration tracked in issue #393.
   static Future<void> clearServer(String serverId) async {
     final prefs = await SharedPreferences.getInstance();
     final prefix = '$_prefix:composer:$serverId:';
