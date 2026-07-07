@@ -302,6 +302,7 @@ class RoomState {
         isDisposed: () => _isDisposed,
         onAuthExpired: (text) => persistComposerDraft(
           serverId: _connection.serverId,
+          userId: _auth.currentUserId.value,
           roomId: _roomId,
           prompt: text,
         ),

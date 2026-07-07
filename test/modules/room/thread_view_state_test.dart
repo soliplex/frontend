@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +21,16 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
     );
+
+/// Builds a minimal unsigned JWT with `iss`/`sub` claims so
+/// [AuthSession.currentUserId] can decode a stable identity from it.
+String _jwt(String iss, String sub) {
+  String seg(Map<String, dynamic> m) =>
+      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
+}
+
+const _testUserId = 'iss-test#user';
 
 /// FakeSoliplexApi variant that holds getThreadHistory open until the
 /// test resolves it. Used to assert observable behavior on an in-flight
@@ -1140,6 +1151,17 @@ void main() {
         // to ReturnToStorage so the composer survives the route guard
         // redirect and reload.
         api.nextThreadHistory = ThreadHistory(messages: const []);
+        auth.login(
+          provider: const OidcProvider(
+            discoveryUrl: 'https://sso/.well-known/openid-configuration',
+            clientId: 'c',
+          ),
+          tokens: AuthTokens(
+            accessToken: _jwt('iss-test', 'user'),
+            refreshToken: 'r',
+            expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        );
 
         final state = ThreadViewState(
           connection: connection,
@@ -1159,6 +1181,7 @@ void main() {
 
         final restored = await ReturnToStorage.loadComposer(
           serverId: 'test-server',
+          userId: _testUserId,
           roomId: 'room-1',
         );
         expect(

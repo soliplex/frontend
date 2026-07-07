@@ -94,11 +94,13 @@ void main() {
       });
       await ReturnToStorage.saveComposer(
         serverId: 's1',
+        userId: 'u',
         roomId: 'r',
         unsentText: 's1 draft',
       );
       await ReturnToStorage.saveComposer(
         serverId: 's2',
+        userId: 'u',
         roomId: 'r',
         unsentText: 's2 draft',
       );
@@ -116,11 +118,13 @@ void main() {
         isTrue,
       );
       expect(
-        await ReturnToStorage.loadComposer(serverId: 's1', roomId: 'r'),
+        await ReturnToStorage.loadComposer(
+            serverId: 's1', userId: 'u', roomId: 'r'),
         isNull,
       );
       expect(
-        await ReturnToStorage.loadComposer(serverId: 's2', roomId: 'r'),
+        await ReturnToStorage.loadComposer(
+            serverId: 's2', userId: 'u', roomId: 'r'),
         's2 draft',
       );
     });
