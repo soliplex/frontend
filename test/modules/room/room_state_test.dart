@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -63,6 +65,16 @@ class _StubRuntimeManager extends AgentRuntimeManager {
   AgentRuntime getRuntime(ServerConnection connection) => _runtime;
 }
 
+/// Builds a minimal unsigned JWT with `iss`/`sub` claims so
+/// [AuthSession.currentUserId] can decode a stable identity from it.
+String _jwt(String iss, String sub) {
+  String seg(Map<String, dynamic> m) =>
+      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
+}
+
+const _testUserId = 'iss-test#user';
+
 void _activate(AuthSession auth) {
   auth.login(
     provider: const OidcProvider(
@@ -70,7 +82,7 @@ void _activate(AuthSession auth) {
       clientId: 'test-client',
     ),
     tokens: AuthTokens(
-      accessToken: 'access',
+      accessToken: _jwt('iss-test', 'user'),
       refreshToken: 'refresh',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     ),
@@ -924,6 +936,7 @@ void main() {
 
       final restored = await ReturnToStorage.loadComposer(
         serverId: 'test-server',
+        userId: _testUserId,
         roomId: 'room-1',
       );
       expect(

@@ -819,8 +819,11 @@ class _RoomScreenState extends State<RoomScreen> {
   /// composer is the safe fallback.
   Future<void> _restorePersistedComposer() async {
     try {
+      final userId = widget.serverEntry.auth.currentUserId.value;
+      if (userId == null) return; // no signed-in user → nothing to restore
       final text = await ReturnToStorage.loadComposer(
         serverId: widget.serverEntry.serverId,
+        userId: userId,
         roomId: widget.roomId,
       );
       if (!mounted || text == null) return;
@@ -832,6 +835,7 @@ class _RoomScreenState extends State<RoomScreen> {
       // room don't re-pre-fill the box with stale content.
       await ReturnToStorage.clearComposer(
         serverId: widget.serverEntry.serverId,
+        userId: userId,
         roomId: widget.roomId,
       );
     } catch (e, st) {

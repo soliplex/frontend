@@ -11,6 +11,7 @@ import '../auth/return_to_storage.dart';
 /// redirect still proceeds.
 void persistComposerDraft({
   required String serverId,
+  required String? userId,
   required String roomId,
   required String prompt,
 }) {
@@ -18,6 +19,7 @@ void persistComposerDraft({
   unawaited(
     ReturnToStorage.saveComposer(
       serverId: serverId,
+      userId: userId,
       roomId: roomId,
       unsentText: prompt,
     ).catchError((Object e, StackTrace st) {

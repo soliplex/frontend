@@ -32,6 +32,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   instead of leaking them until app exit — the runtime's timers and stream are
   disposed and any live run for the server is cancelled.
 
+### Security
+
+- Composer drafts are now scoped to the signed-in user: a different user signing
+  in on the same server no longer sees the previous user's unsent draft. A
+  by-server draft clear also no longer over-reaches a same-host server that
+  differs only by an explicit vs default port.
+
 ## [0.92.0+65] - 2026-07-02
 
 ### Added

@@ -2,6 +2,7 @@ import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'access_token_identity.dart';
 import 'auth_tokens.dart';
 
 /// Manages auth session and implements TokenRefresher for the HTTP client.
@@ -17,6 +18,21 @@ class AuthSession implements TokenRefresher {
 
   final Signal<SessionState> _session = Signal<SessionState>(const NoSession());
   ReadonlySignal<SessionState> get session => _session;
+
+  /// The live user's stable identity (`iss#sub`) for this server, or `null`
+  /// when signed out or the access token can't be decoded. Resolves the token
+  /// from ActiveSession AND ExpiredSession — a draft persisted on auth-expiry
+  /// must still be attributable to the user. Re-evaluates only when the session
+  /// changes and yields the same value across a same-user refresh, so watchers
+  /// don't churn. Raw (un-encoded); key builders percent-encode it downstream.
+  late final ReadonlySignal<String?> currentUserId = computed(() {
+    final token = switch (_session.value) {
+      ActiveSession(:final tokens) => tokens.accessToken,
+      ExpiredSession(:final tokens) => tokens.accessToken,
+      NoSession() => null,
+    };
+    return token == null ? null : accessTokenIdentity(token);
+  });
 
   /// Sync read for the HTTP client's getToken callback.
   ///
