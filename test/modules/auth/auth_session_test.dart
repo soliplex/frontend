@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -20,6 +21,18 @@ AuthTokens _tokens({Duration expiresIn = const Duration(hours: 1)}) {
     expiresAt: DateTime.now().add(expiresIn),
   );
 }
+
+String _jwt(String iss, String sub) {
+  String seg(Map<String, dynamic> m) =>
+      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+  return '${seg({'alg': 'RS256'})}.${seg({'iss': iss, 'sub': sub})}.sig';
+}
+
+AuthTokens _identityTokens(String accessToken) => AuthTokens(
+      accessToken: accessToken,
+      refreshToken: 'r',
+      expiresAt: DateTime.utc(2100),
+    );
 
 void main() {
   late FakeTokenRefreshService refreshService;
@@ -123,6 +136,62 @@ void main() {
     test('is a no-op when state is NoSession', () {
       session.markSessionExpired();
       expect(session.session.value, isA<NoSession>());
+    });
+  });
+
+  group('AuthSession.currentUserId', () {
+    test('null before any login (NoSession)', () {
+      expect(session.currentUserId.value, isNull);
+    });
+
+    test('yields iss#sub after login', () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice')),
+      );
+      expect(session.currentUserId.value, 'iss-a#alice');
+    });
+
+    test('still yields iss#sub while ExpiredSession (critical for draft save)',
+        () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice')),
+      );
+      session.markSessionExpired();
+      expect(session.currentUserId.value, 'iss-a#alice');
+    });
+
+    test('null after logout', () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice')),
+      );
+      session.logout();
+      expect(session.currentUserId.value, isNull);
+    });
+
+    test('null when the access token is not a decodable JWT', () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens('opaque-token'),
+      );
+      expect(session.currentUserId.value, isNull);
+    });
+
+    test('value is stable across a same-user token refresh', () {
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice')),
+      );
+      final first = session.currentUserId.value;
+      // Simulate a refresh: same user, new token string.
+      session.login(
+        provider: _provider,
+        tokens: _identityTokens(_jwt('iss-a', 'alice')),
+      );
+      expect(session.currentUserId.value, first);
+      expect(session.currentUserId.value, 'iss-a#alice');
     });
   });
 
