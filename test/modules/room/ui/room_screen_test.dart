@@ -1229,10 +1229,13 @@ void main() {
         ),
       ];
 
+      final signedInEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+
       await withClock(Clock(() => now), () async {
         await tester.pumpWidget(MaterialApp(
           home: RoomScreen(
-            serverEntry: entry,
+            serverEntry: signedInEntry,
             roomId: 'room-1',
             threadId: 'thread-1',
             runtimeManager: runtimeManager,
@@ -1248,15 +1251,12 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await ThreadReadMarkerStorage.load();
-        expect(
-          markers[(
-            serverId: entry.serverId,
-            roomId: 'room-1',
-            threadId: 'thread-1',
-          )],
-          leave,
+        final markers = await ThreadReadMarkerStorage.loadRoom(
+          serverId: signedInEntry.serverId,
+          userId: testUserIdentity,
+          roomId: 'room-1',
         );
+        expect(markers['thread-1'], leave);
       });
     });
 
@@ -1281,9 +1281,12 @@ void main() {
         ),
       ];
 
+      final signedInEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
-              serverEntry: entry,
+              serverEntry: signedInEntry,
               roomId: roomId,
               threadId: roomId == 'room-1' ? 'thread-1' : null,
               runtimeManager: runtimeManager,
@@ -1303,14 +1306,87 @@ void main() {
         await tester.pumpWidget(roomScreen('room-2'));
         await tester.pumpAndSettle();
 
-        final markers = await ThreadReadMarkerStorage.load();
+        final markers = await ThreadReadMarkerStorage.loadRoom(
+          serverId: signedInEntry.serverId,
+          userId: testUserIdentity,
+          roomId: 'room-1',
+        );
+        expect(markers['thread-1'], leave);
+      });
+    });
+
+    testWidgets(
+        'a server switch stamps the left server under its own user, not the '
+        'incoming one', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      const serverA = 'http://server-a:8000';
+      final entryAlice = createTestServerEntry(
+        api: api,
+        serverId: serverA,
+        auth: authWithIdentity(sub: 'alice'),
+      );
+      final entryBob = createTestServerEntry(
+        api: FakeSoliplexApi(),
+        serverId: 'http://server-b:8000',
+        auth: authWithIdentity(sub: 'bob'),
+      );
+
+      Widget roomScreen(ServerEntry e) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: e,
+              roomId: 'room-1',
+              threadId: 'thread-1',
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(roomScreen(entryAlice));
+        await tester.pumpAndSettle();
+
+        // Switch servers (alice -> bob) in place. The left server's stamp must
+        // be filed under alice, never bob — reading userId off the (advanced)
+        // widget at flush time would misfile it under bob.
+        now = leave;
+        await tester.pumpWidget(roomScreen(entryBob));
+        await tester.pumpAndSettle();
+
         expect(
-          markers[(
-            serverId: entry.serverId,
+          await ThreadReadMarkerStorage.loadRoom(
+            serverId: serverA,
+            userId: testIdentityFor('alice'),
             roomId: 'room-1',
-            threadId: 'thread-1',
-          )],
-          leave,
+          ),
+          containsPair('thread-1', leave),
+        );
+        expect(
+          await ThreadReadMarkerStorage.loadRoom(
+            serverId: serverA,
+            userId: testIdentityFor('bob'),
+            roomId: 'room-1',
+          ),
+          isEmpty,
         );
       });
     });

@@ -6,79 +6,147 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  const s = 'https://foo.com', u1 = 'iss#alice', u2 = 'iss#bob', r = 'r1';
+  final t = DateTime.utc(2026, 1, 1);
+
   group('ThreadReadMarkerStorage', () {
-    test('defaults to empty when nothing is persisted', () async {
-      expect(await ThreadReadMarkerStorage.load(), isEmpty);
+    test('round-trips a room\'s markers per user', () async {
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': t});
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th1': t});
     });
 
-    test('round-trips markers, normalizing to UTC', () async {
-      final markers = {
-        (serverId: 'a', roomId: 'r1', threadId: 't1'):
-            DateTime.utc(2026, 6, 1, 12),
-        (serverId: 'b', roomId: 'r2', threadId: 't2'):
-            DateTime.utc(2026, 1, 2, 3, 4),
-      };
-      await ThreadReadMarkerStorage.save(markers);
-
-      final loaded = await ThreadReadMarkerStorage.load();
-      expect(loaded, hasLength(2));
-      expect(
-        loaded[(serverId: 'a', roomId: 'r1', threadId: 't1')],
-        DateTime.utc(2026, 6, 1, 12),
-      );
-      expect(
-        loaded[(serverId: 'b', roomId: 'r2', threadId: 't2')]!.isUtc,
-        isTrue,
-      );
+    test('normalizes a local instant to UTC', () async {
+      final local = DateTime(2026, 6, 1, 12); // local zone, not .utc
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': local});
+      final loaded = (await ThreadReadMarkerStorage.loadRoom(
+          serverId: s, userId: u1, roomId: r))['th1']!;
+      expect(loaded.isUtc, isTrue);
+      expect(loaded, local.toUtc());
     });
 
     test('preserves ids that would collide under a naive composite key',
         () async {
-      final markers = {
-        (serverId: 'a:b', roomId: 'r/1', threadId: 't|2'): DateTime.utc(2026),
-      };
-      await ThreadReadMarkerStorage.save(markers);
-
-      final loaded = await ThreadReadMarkerStorage.load();
+      const server = 'a:b', user = 'iss#u/1', room = 'r|2';
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: server, userId: user, roomId: room, markers: {'t|3': t});
       expect(
-        loaded[(serverId: 'a:b', roomId: 'r/1', threadId: 't|2')],
-        DateTime.utc(2026),
-      );
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: server, userId: user, roomId: room),
+          {'t|3': t});
     });
 
-    test('discards a corrupt (non-array) payload', () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_thread_read_markers': '{"not":"an array"}',
-      });
-      expect(await ThreadReadMarkerStorage.load(), isEmpty);
-    });
-
-    test('skips malformed rows but keeps valid ones', () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_thread_read_markers':
-            '[{"s":"a","r":"r1","th":"t1","t":"2026-06-01T12:00:00Z"},'
-                '{"s":"a","r":"r1"},'
-                '{"s":"a","r":"r1","th":"t2","t":"not-a-date"}]',
-      });
-      final loaded = await ThreadReadMarkerStorage.load();
-      expect(loaded, hasLength(1));
+    test('markers saved as one user are invisible to another (isolation)',
+        () async {
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': t});
       expect(
-        loaded[(serverId: 'a', roomId: 'r1', threadId: 't1')],
-        DateTime.utc(2026, 6, 1, 12),
-      );
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
     });
 
-    test('clearServer prunes only that server\'s thread markers', () async {
-      final at = DateTime.utc(2026, 6, 1);
-      await ThreadReadMarkerStorage.save({
-        (serverId: 's1', roomId: 'r', threadId: 't1'): at,
-        (serverId: 's2', roomId: 'r', threadId: 't2'): at,
+    test('null userId no-ops save and returns empty on load', () async {
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: null, roomId: r, markers: {'th1': t});
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: null, roomId: r),
+          isEmpty);
+    });
+
+    test('clearServer removes every user, spares a different-port peer',
+        () async {
+      const s2 = 'https://foo.com:8443';
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s2, userId: u1, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.clearServer(s);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s2, userId: u1, roomId: r),
+          {'th1': t});
+    });
+
+    test('clearRoom removes every user for the room, keeps sibling rooms',
+        () async {
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: 'r2', markers: {'th9': t});
+      await ThreadReadMarkerStorage.clearRoom(s, r);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: 'r2'),
+          {'th9': t});
+    });
+
+    test('clearThread removes one thread across users, keeps siblings',
+        () async {
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, markers: {'th1': t, 'th2': t});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, markers: {'th1': t});
+      await ThreadReadMarkerStorage.clearThread(s, r, 'th1');
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th2': t});
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+    });
+
+    test('discards a corrupt blob and returns empty', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_thread_read_marker:${Uri.encodeComponent(s)}:'
+            '${Uri.encodeComponent(u1)}:${Uri.encodeComponent(r)}': 'not json',
       });
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+    });
 
-      await ThreadReadMarkerStorage.clearServer('s1');
-
-      final loaded = await ThreadReadMarkerStorage.load();
-      expect(loaded.keys, {(serverId: 's2', roomId: 'r', threadId: 't2')});
+    test('skips malformed entries but keeps valid ones', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_thread_read_marker:${Uri.encodeComponent(s)}:'
+                '${Uri.encodeComponent(u1)}:${Uri.encodeComponent(r)}':
+            '{"th1":"2026-06-01T12:00:00Z","th2":"not-a-date","th3":5}',
+      });
+      final loaded = await ThreadReadMarkerStorage.loadRoom(
+          serverId: s, userId: u1, roomId: r);
+      expect(loaded, {'th1': DateTime.utc(2026, 6, 1, 12)});
     });
   });
 }

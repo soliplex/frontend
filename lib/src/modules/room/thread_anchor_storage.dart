@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'thread_read_markers.dart' show ThreadActivityKey;
+import '../../core/keyed_storage.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.thread_anchor_storage');
@@ -12,100 +12,120 @@ final Logger _logger =
 /// "New messages" divider at the first unread message.
 ///
 /// The topological twin of [ThreadReadMarkerStorage]: that store keeps a
-/// timestamp for the unread dot (computed before history loads); this one
-/// keeps a message id for the in-thread line (computed after history loads).
-/// Separate stores because the two values have different mutation lifecycles.
-/// Device-local; stored as a JSON array of `{s, r, th, id}` objects so the
-/// ids needn't be escaped into a composite key.
+/// timestamp for the unread dot (computed before history loads); this one keeps a
+/// message id for the in-thread line (computed after history loads). Separate
+/// stores because the two values have different mutation lifecycles.
+///
+/// Backed by `shared_preferences`, grained to one blob per `(serverId, userId,
+/// roomId)` — the room screen reads one room at a time. The value is a JSON
+/// object `{threadId: messageId}`. Keyed via the shared codec so component
+/// separators are unambiguous.
 abstract final class ThreadAnchorStorage {
-  static const _key = 'soliplex_thread_unread_anchors';
+  static const _prefix = 'soliplex_thread_anchor';
 
-  // Row field names, shared by load and save so the read/write contract can't
-  // drift: a typo in one half alone would silently drop every row.
-  static const _fieldServer = 's';
-  static const _fieldRoom = 'r';
-  static const _fieldThread = 'th';
-  static const _fieldId = 'id';
+  static String _key(String serverId, String userId, String roomId) =>
+      encodeKey(_prefix, [serverId, userId, roomId]);
 
-  /// Returns the stored anchors, dropping corrupt rows. Throws on an
-  /// underlying storage I/O failure; callers must handle it.
-  static Future<Map<ThreadActivityKey, String>> load() async {
+  /// The anchors (threadId → last-read message id) for one room and user, or
+  /// empty when [userId] is null (signed out) or nothing is stored.
+  static Future<Map<String, String>> loadRoom({
+    required String serverId,
+    required String? userId,
+    required String roomId,
+  }) async {
+    if (userId == null) return {};
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(_key(serverId, userId, roomId));
     if (raw == null || raw.isEmpty) return {};
 
-    final result = <ThreadActivityKey, String>{};
+    final result = <String, String>{};
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        _logger.warning('Discarding corrupt thread anchors (not a JSON array)');
+      if (decoded is! Map) {
+        _logger
+            .warning('Discarding corrupt thread anchors (not a JSON object)');
         return {};
       }
       var skipped = 0;
-      for (final entry in decoded) {
-        if (entry is! Map) {
+      decoded.forEach((key, value) {
+        if (key is! String || value is! String) {
           skipped++;
-          continue;
+          return;
         }
-        final s = entry[_fieldServer];
-        final r = entry[_fieldRoom];
-        final th = entry[_fieldThread];
-        final id = entry[_fieldId];
-        if (s is! String || r is! String || th is! String || id is! String) {
-          skipped++;
-          continue;
-        }
-        result[(serverId: s, roomId: r, threadId: th)] = id;
-      }
-      // Every row dropped on a non-empty payload is a systemic serialization
-      // break, not one stale row, and it silently resets the read model. Surface
-      // it loudly.
+        result[key] = value;
+      });
       if (skipped > 0 && result.isEmpty) {
+        // Every entry dropped on a non-empty payload is a systemic
+        // serialization break, not one stale row, and it silently resets this
+        // room's dividers. Surface it loudly.
         _logger.error('Discarding all $skipped thread anchors; none parsed');
       } else if (skipped > 0) {
         _logger.warning('Skipped $skipped malformed thread anchor(s)');
       }
     } on FormatException catch (e, st) {
-      // Corrupt payload: start fresh rather than wedging the room.
-      _logger.warning(
-        'Discarding corrupt thread anchors',
-        error: e,
-        stackTrace: st,
-      );
+      _logger.warning('Discarding corrupt thread anchors',
+          error: e, stackTrace: st);
       return {};
     }
     return result;
   }
 
-  /// Throws on an underlying storage I/O failure; callers must handle it.
-  static Future<void> save(Map<ThreadActivityKey, String> anchors) async {
+  /// Persists [anchors] (threadId → message id) as the whole blob for the room.
+  /// No-op when [userId] is null.
+  static Future<void> saveRoom({
+    required String serverId,
+    required String? userId,
+    required String roomId,
+    required Map<String, String> anchors,
+  }) async {
+    if (userId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final list = [
-      for (final entry in anchors.entries)
-        {
-          _fieldServer: entry.key.serverId,
-          _fieldRoom: entry.key.roomId,
-          _fieldThread: entry.key.threadId,
-          _fieldId: entry.value,
-        },
-    ];
-    await prefs.setString(_key, jsonEncode(list));
+    await prefs.setString(_key(serverId, userId, roomId), jsonEncode(anchors));
   }
 
-  /// Drops every anchor for [serverId], so a removed server's threads don't
-  /// restore a stale "New messages" divider if the server is re-added under the
-  /// same id. No-op (and no write) when the server has no anchors.
-  ///
-  /// Propagates I/O failures from [load]/[save] to the caller (like the thread
-  /// read-marker store); callers run it fire-and-forget and log. A failed [save]
-  /// leaves stale anchors on disk — accepted because an anchor only positions a
-  /// divider (it never floors unread state), so a surviving stale anchor is a
-  /// cosmetic misplacement, not a correctness break.
+  /// Drops every user's anchors for [serverId] (keyed format). Legacy pre-keyed
+  /// anchors are swept once by the first-launch migration (PR 6), not here.
   static Future<void> clearServer(String serverId) async {
-    final anchors = await load();
-    final next = {...anchors}
-      ..removeWhere((key, _) => key.serverId == serverId);
-    if (next.length == anchors.length) return;
-    await save(next);
+    final prefs = await SharedPreferences.getInstance();
+    final sweep = serverKeyPrefix(_prefix, serverId);
+    for (final k
+        in prefs.getKeys().where((k) => k.startsWith(sweep)).toList()) {
+      await prefs.remove(k);
+    }
   }
+
+  /// Drops every user's anchors for [roomId] on [serverId].
+  static Future<void> clearRoom(String serverId, String roomId) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in _roomKeys(prefs, serverId, roomId)) {
+      await prefs.remove(k);
+    }
+  }
+
+  /// Removes [threadId]'s anchor from every user's blob for [roomId] on
+  /// [serverId], leaving sibling threads intact.
+  static Future<void> clearThread(
+      String serverId, String roomId, String threadId) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in _roomKeys(prefs, serverId, roomId)) {
+      final raw = prefs.getString(k);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map || !decoded.containsKey(threadId)) continue;
+        decoded.remove(threadId);
+        await prefs.setString(k, jsonEncode(decoded));
+      } on FormatException {
+        continue;
+      }
+    }
+  }
+
+  /// Every stored key (any user) for [roomId] on [serverId].
+  static List<String> _roomKeys(
+          SharedPreferences prefs, String serverId, String roomId) =>
+      prefs.getKeys().where((k) {
+        final c = decodeKey(_prefix, k);
+        return c != null && c.length == 3 && c[0] == serverId && c[2] == roomId;
+      }).toList();
 }
