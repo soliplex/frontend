@@ -11,8 +11,8 @@ import '../auth/server_entry.dart';
 class AgentRuntimeManager {
   /// [servers] wires the removal-eviction path: when a server disappears from
   /// the signal, its cached runtime is disposed and dropped so it doesn't
-  /// linger until the whole manager is disposed. Tests that don't exercise
-  /// eviction pass a never-changing `Signal({})`.
+  /// linger until the whole manager is disposed. A caller that never mutates
+  /// the signal opts out of eviction.
   AgentRuntimeManager({
     required PlatformConstraints platform,
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,
@@ -71,9 +71,9 @@ class AgentRuntimeManager {
 
   /// Disposes and drops the cached runtime for every server no longer present
   /// in [snapshot], so a removed server's runtime doesn't linger until the
-  /// whole manager is disposed. Disposal is fire-and-forget: it may make
-  /// teardown calls over a connection [ServerManager] has already closed, so a
-  /// throw is logged, not propagated.
+  /// whole manager is disposed. Disposal is fire-and-forget: it runs teardown
+  /// that can throw, and this eviction must not strand the other disposals or
+  /// propagate, so a throw is logged.
   void _evictRemoved(Map<String, ServerEntry> snapshot) {
     if (_isDisposed) return;
     final liveIds = snapshot.keys.toSet();
@@ -96,8 +96,9 @@ class AgentRuntimeManager {
     }
   }
 
-  /// Disposes all cached runtimes and clears the cache.
+  /// Disposes all cached runtimes and clears the cache. Idempotent.
   Future<void> dispose() async {
+    if (_isDisposed) return;
     _isDisposed = true;
     _unsubscribe();
     final entries = _cache.values.toList();

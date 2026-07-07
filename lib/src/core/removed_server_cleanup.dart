@@ -57,6 +57,16 @@ class RemovedServerCleanup {
     final nextIds = servers.keys.toSet();
     final removed = _knownIds.difference(nextIds);
     _knownIds = nextIds;
+    // Every departed id is cleared unconditionally — there is deliberately no
+    // "skip when nextIds is empty" guard against the teardown empty-out. That
+    // empty-out is indistinguishable here from a user removing their last
+    // server: both drop the final id to `{}`, and the last-server removal must
+    // still clear its state. The only reliable separator is the code path
+    // (teardown keeps stored sessions; removeServer deletes them), which the
+    // signal transition doesn't carry. What keeps teardown safe is the dispose
+    // ordering documented on this class: [dispose] unsubscribes before
+    // [ServerManager.dispose] empties the signal, so this callback never sees
+    // the empty-out.
     for (final id in removed) {
       _clearServer(id);
     }
@@ -64,9 +74,9 @@ class RemovedServerCleanup {
 
   /// Runs synchronously inside the servers-signal write (the subscription fires
   /// during [ServerManager.removeServer]). Every clear is isolated so one
-  /// failure can neither strand the others nor unwind that write: the in-memory
-  /// clears run guarded (their `value =` writes notify watchers synchronously,
-  /// so a throwing watcher would otherwise escape), and the static stores run
+  /// failure can neither strand the others nor unwind that write: a synchronous
+  /// throw from an in-memory clear would propagate out of this callback and
+  /// unwind the write, so each runs guarded, and the static stores run
   /// fire-and-forget with their throws caught and logged per store.
   void _clearServer(String id) {
     _clearInMemory(

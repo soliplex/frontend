@@ -42,8 +42,8 @@ class CancelledRun extends RunOutcome {
 class RunRegistry {
   /// [servers] wires the removal-eviction path: when a server disappears from
   /// the signal, its tracked runs are cancelled and dropped so they don't
-  /// linger until the whole registry is disposed. Tests that don't exercise
-  /// eviction pass a never-changing `Signal({})`.
+  /// linger until the whole registry is disposed. A caller that never mutates
+  /// the signal opts out of eviction.
   RunRegistry({required ReadonlySignal<Map<String, ServerEntry>> servers}) {
     _unsubscribe = servers.subscribe(_evictRemoved);
   }
