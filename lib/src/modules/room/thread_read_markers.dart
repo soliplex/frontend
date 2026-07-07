@@ -33,15 +33,16 @@ abstract final class ThreadReadMarkerStorage {
       encodeKey(_prefix, [serverId, userId, roomId]);
 
   /// The read markers (threadId → last-seen instant) for one room and user, or
-  /// empty when [userId] is null (signed out) or nothing is stored.
+  /// empty when nothing is stored. A null [userId] (a server requiring no
+  /// sign-in) resolves to the shared [unauthenticatedStorageUser] bucket.
   static Future<Map<String, DateTime>> loadRoom({
     required String serverId,
     required String? userId,
     required String roomId,
   }) async {
-    if (userId == null) return {};
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key(serverId, userId, roomId));
+    final raw = prefs.getString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId));
     if (raw == null || raw.isEmpty) return {};
 
     final result = <String, DateTime>{};
@@ -82,20 +83,22 @@ abstract final class ThreadReadMarkerStorage {
     return result;
   }
 
-  /// Persists [markers] (threadId → instant) as the whole blob for the room.
-  /// No-op when [userId] is null.
+  /// Persists [markers] (threadId → instant) as the whole blob for the room. A
+  /// null [userId] (a server requiring no sign-in) resolves to the shared
+  /// [unauthenticatedStorageUser] bucket.
   static Future<void> saveRoom({
     required String serverId,
     required String? userId,
     required String roomId,
     required Map<String, DateTime> markers,
   }) async {
-    if (userId == null) return;
     final prefs = await SharedPreferences.getInstance();
     final obj = {
       for (final e in markers.entries) e.key: e.value.toUtc().toIso8601String(),
     };
-    await prefs.setString(_key(serverId, userId, roomId), jsonEncode(obj));
+    await prefs.setString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId),
+        jsonEncode(obj));
   }
 
   /// Drops every user's thread markers for [serverId] (keyed format). Legacy

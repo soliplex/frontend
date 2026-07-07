@@ -1390,6 +1390,60 @@ void main() {
         );
       });
     });
+
+    testWidgets(
+        'an unauthenticated server persists read state to the shared bucket',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      // The default entry has no signed-in user (currentUserId == null) — a
+      // server requiring no sign-in. Its read state must still persist, under
+      // the shared unauthenticated bucket, rather than being silently dropped.
+      final anonEntry = createTestServerEntry(api: api);
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: anonEntry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        now = leave;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+
+        final markers = await ThreadReadMarkerStorage.loadRoom(
+          serverId: anonEntry.serverId,
+          userId: null,
+          roomId: 'room-1',
+        );
+        expect(markers['thread-1'], leave);
+      });
+    });
   });
 
   group('room unread rollup', () {

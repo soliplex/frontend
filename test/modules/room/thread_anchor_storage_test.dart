@@ -39,16 +39,20 @@ void main() {
           isEmpty);
     });
 
-    test('null userId no-ops save and returns empty on load', () async {
+    test(
+        'null userId persists to the shared unauthenticated bucket, isolated '
+        'from real users', () async {
       await ThreadAnchorStorage.saveRoom(
           serverId: s, userId: null, roomId: r, anchors: {'th1': 'm1'});
-      expect(
-          await ThreadAnchorStorage.loadRoom(
-              serverId: s, userId: u1, roomId: r),
-          isEmpty);
+      // Persisted and re-readable under the unauthenticated (null) bucket.
       expect(
           await ThreadAnchorStorage.loadRoom(
               serverId: s, userId: null, roomId: r),
+          {'th1': 'm1'});
+      // A signed-in user does not see the unauthenticated bucket.
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
           isEmpty);
     });
 

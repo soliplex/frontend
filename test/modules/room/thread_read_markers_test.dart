@@ -50,16 +50,22 @@ void main() {
           isEmpty);
     });
 
-    test('null userId no-ops save and returns empty on load', () async {
+    test(
+        'null userId persists to the shared unauthenticated bucket, isolated '
+        'from real users', () async {
       await ThreadReadMarkerStorage.saveRoom(
           serverId: s, userId: null, roomId: r, markers: {'th1': t});
-      expect(
-          await ThreadReadMarkerStorage.loadRoom(
-              serverId: s, userId: u1, roomId: r),
-          isEmpty);
+      // Persisted and re-readable under the unauthenticated (null) bucket — a
+      // server requiring no sign-in has no identity to isolate by, so its read
+      // state is device-shared rather than dropped.
       expect(
           await ThreadReadMarkerStorage.loadRoom(
               serverId: s, userId: null, roomId: r),
+          {'th1': t});
+      // A signed-in user does not see the unauthenticated bucket.
+      expect(
+          await ThreadReadMarkerStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
           isEmpty);
     });
 

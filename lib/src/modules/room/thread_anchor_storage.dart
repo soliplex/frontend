@@ -27,15 +27,16 @@ abstract final class ThreadAnchorStorage {
       encodeKey(_prefix, [serverId, userId, roomId]);
 
   /// The anchors (threadId → last-read message id) for one room and user, or
-  /// empty when [userId] is null (signed out) or nothing is stored.
+  /// empty when nothing is stored. A null [userId] (a server requiring no
+  /// sign-in) resolves to the shared [unauthenticatedStorageUser] bucket.
   static Future<Map<String, String>> loadRoom({
     required String serverId,
     required String? userId,
     required String roomId,
   }) async {
-    if (userId == null) return {};
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key(serverId, userId, roomId));
+    final raw = prefs.getString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId));
     if (raw == null || raw.isEmpty) return {};
 
     final result = <String, String>{};
@@ -70,17 +71,19 @@ abstract final class ThreadAnchorStorage {
     return result;
   }
 
-  /// Persists [anchors] (threadId → message id) as the whole blob for the room.
-  /// No-op when [userId] is null.
+  /// Persists [anchors] (threadId → message id) as the whole blob for the room. A
+  /// null [userId] (a server requiring no sign-in) resolves to the shared
+  /// [unauthenticatedStorageUser] bucket.
   static Future<void> saveRoom({
     required String serverId,
     required String? userId,
     required String roomId,
     required Map<String, String> anchors,
   }) async {
-    if (userId == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key(serverId, userId, roomId), jsonEncode(anchors));
+    await prefs.setString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId),
+        jsonEncode(anchors));
   }
 
   /// Drops every user's anchors for [serverId] (keyed format). Legacy pre-keyed
