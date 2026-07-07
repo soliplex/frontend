@@ -1,10 +1,9 @@
 import 'dart:async' show unawaited;
 
-import 'package:soliplex_agent/soliplex_agent.dart' show ReadonlySignal;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../modules/auth/return_to_storage.dart';
-import '../modules/auth/server_entry.dart';
+import '../modules/auth/server_manager.dart';
 import '../modules/lobby/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
 import '../modules/room/thread_anchor_storage.dart';
@@ -19,61 +18,40 @@ final Logger _logger =
 ///
 /// Owned by [RoomAppModule] (like [UploadTrackerRegistry]) rather than a screen
 /// because removal fires from surfaces that don't mount the lobby — notably the
-/// home screen's server list. Subscribing to [ServerManager.servers] at module
-/// scope runs the cleanup for every removal path across the whole app session.
-/// The shared in-memory read-marker models are the same instances the lobby and
-/// room screens watch, so clearing them updates a mounted screen reactively too.
+/// home screen's server list. Registering on [ServerManager.onServerRemoved] at
+/// module scope runs the cleanup for every removal path across the whole app
+/// session. The shared in-memory read-marker models are the same instances the
+/// lobby and room screens watch, so clearing them updates a mounted screen
+/// reactively too.
 ///
-/// [dispose] must run before [ServerManager.dispose] empties the servers signal
-/// on shell teardown: that empty-out is a set transition this class would
-/// otherwise read as a mass removal and wipe every server's state, even though
-/// teardown keeps stored sessions for the next launch. [RoomAppModule] is
-/// disposed before the auth module (reverse registration order), so its
-/// `onDispose` unsubscribes in time.
+/// Keying off the removal event — not the [ServerManager.servers] signal —
+/// means only a genuine [ServerManager.removeServer] clears disk state.
+/// Teardown's signal empty-out never fires the event, so stored sessions
+/// survive to the next launch regardless of module dispose ordering.
 class RemovedServerCleanup {
   RemovedServerCleanup({
-    required ReadonlySignal<Map<String, ServerEntry>> servers,
+    required ServerManager serverManager,
     required RoomReadMarkers roomReadMarkers,
     required ServerReadMarkers serverReadMarkers,
   })  : _roomReadMarkers = roomReadMarkers,
-        _serverReadMarkers = serverReadMarkers,
-        // Seed the baseline (initializer list) before subscribing below: the
-        // signals library fires the callback synchronously with the current
-        // value, and _onServersChanged diffs against _knownIds on that first
-        // fire. Seeding it to the current ids makes that fire a no-op (nothing
-        // diffs as removed).
-        _knownIds = servers.value.keys.toSet() {
-    _unsubscribe = servers.subscribe(_onServersChanged);
+        _serverReadMarkers = serverReadMarkers {
+    _unsubscribe = serverManager.onServerRemoved(_clearServer);
   }
 
   final RoomReadMarkers _roomReadMarkers;
   final ServerReadMarkers _serverReadMarkers;
-  Set<String> _knownIds;
   late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
-  void _onServersChanged(Map<String, ServerEntry> servers) {
-    if (_isDisposed) return;
-    final nextIds = servers.keys.toSet();
-    final removed = _knownIds.difference(nextIds);
-    _knownIds = nextIds;
-    // No "skip when nextIds is empty" shortcut: a user removing their last
-    // server also drops to `{}` and must still be cleared, so the empty-out is
-    // indistinguishable here from a real removal. The dispose ordering
-    // documented on this class — not a guard in this method — is what keeps
-    // teardown's empty-out from wiping every server.
-    for (final id in removed) {
-      _clearServer(id);
-    }
-  }
-
-  /// Runs synchronously inside the servers-signal write (the subscription fires
-  /// during [ServerManager.removeServer]). Every clear is isolated so one
-  /// failure can neither strand the others nor unwind that write: a synchronous
-  /// throw from an in-memory clear would propagate out of this callback and
-  /// unwind the write, so each runs guarded, and the static stores run
-  /// fire-and-forget with their throws caught and logged per store.
+  /// Runs synchronously inside [ServerManager.removeServer] via the
+  /// onServerRemoved dispatch. Every clear is isolated so one failure can't
+  /// strand the others: the in-memory clears run guarded and the static stores
+  /// run fire-and-forget with their throws caught and logged per store.
   void _clearServer(String id) {
+    // onServerRemoved dispatches over a snapshot, so if a preceding listener
+    // synchronously tore down this cleanup, this callback still fires from that
+    // snapshot. A disposed cleanup does no work; the silent return is expected.
+    if (_isDisposed) return;
     _clearInMemory(
         () => _serverReadMarkers.clearServer(id), 'server read marker', id);
     _clearInMemory(
@@ -124,8 +102,8 @@ class RemovedServerCleanup {
     // under the same id reuse a silent IdP session and skip the forced re-login.
   }
 
-  /// Runs a synchronous in-memory clear, logging any throw instead of letting
-  /// it unwind the servers-signal write this executes inside.
+  /// Runs a synchronous in-memory clear, logging any throw so it can't strand
+  /// the sibling clears that follow it in [_clearServer].
   void _clearInMemory(void Function() clear, String what, String id) {
     try {
       clear();

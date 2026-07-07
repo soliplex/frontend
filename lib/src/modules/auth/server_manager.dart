@@ -152,6 +152,11 @@ class ServerManager {
 
   /// Registers a listener fired synchronously when [removeServer] permanently
   /// removes a server. Returns a disposer that unregisters it.
+  ///
+  /// Dispatch runs over a snapshot of the listeners, so a listener that
+  /// unregisters another mid-dispatch does not retract it from the in-flight
+  /// round — the unregistered listener still receives the current event.
+  /// Subscribers must guard against running after their own disposal.
   void Function() onServerRemoved(void Function(String serverId) listener) {
     _onRemoved.add(listener);
     return () => _onRemoved.remove(listener);
@@ -175,7 +180,8 @@ class ServerManager {
 
     // Snapshot so a listener that unsubscribes itself can't mutate the list
     // mid-iteration. Each dispatch is guarded so one throwing listener can
-    // neither strand the others nor unwind this removal write.
+    // neither strand the others nor abort the rest of removeServer (the storage
+    // delete below).
     for (final listener in List.of(_onRemoved)) {
       try {
         listener(serverId);
