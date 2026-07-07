@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../core/keyed_storage.dart';
+
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.thread_read_markers');
 
@@ -11,106 +13,138 @@ final Logger _logger =
 /// transposed at a lookup or insertion site.
 typedef ThreadActivityKey = ({String serverId, String roomId, String threadId});
 
-/// Persists per-thread "last seen" timestamps so the room can mark threads
-/// with newer activity as unread.
+/// Persists per-thread "last seen" timestamps so the room can mark threads with
+/// newer activity as unread.
 ///
-/// The thread-level twin of the lobby's room read model: a thread is unread
-/// when its last-message time is newer than the moment the user last opened
-/// it on this device. There is no server-side read state and no count — just
-/// a boolean affordance. Read markers are therefore per-device.
+/// The thread-level twin of the lobby's room read model: a thread is unread when
+/// its last-message time is newer than the moment the user last opened it on this
+/// device. There is no server-side read state and no count — just a boolean
+/// affordance, per device and per user.
 ///
-/// Backed by `shared_preferences` (non-sensitive UI state). Stored as a JSON
-/// array of `{s, r, th, t}` objects (server id, room id, thread id, ISO-8601
-/// UTC instant) so ids needn't be escaped into a composite key.
+/// Backed by `shared_preferences` (non-sensitive UI state), grained to one blob
+/// per `(serverId, userId, roomId)` — the room screen reads one room at a time,
+/// so the blob matches the read-unit. The value is a JSON object `{threadId:
+/// ISO-8601 UTC instant}`. Keyed via the shared codec so component separators are
+/// unambiguous.
 abstract final class ThreadReadMarkerStorage {
-  static const _key = 'soliplex_thread_read_markers';
+  static const _prefix = 'soliplex_thread_read_marker';
 
-  static Future<Map<ThreadActivityKey, DateTime>> load() async {
+  static String _key(String serverId, String userId, String roomId) =>
+      encodeKey(_prefix, [serverId, userId, roomId]);
+
+  /// The read markers (threadId → last-seen instant) for one room and user, or
+  /// empty when nothing is stored. A null [userId] (a server requiring no
+  /// sign-in) resolves to the shared [unauthenticatedStorageUser] bucket.
+  static Future<Map<String, DateTime>> loadRoom({
+    required String serverId,
+    required String? userId,
+    required String roomId,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId));
     if (raw == null || raw.isEmpty) return {};
 
-    final result = <ThreadActivityKey, DateTime>{};
+    final result = <String, DateTime>{};
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) {
+      if (decoded is! Map) {
         _logger.warning(
-            'Discarding corrupt thread read markers (not a JSON array)');
+            'Discarding corrupt thread read markers (not a JSON object)');
         return {};
       }
       var skipped = 0;
-      for (final entry in decoded) {
-        if (entry is! Map) {
+      decoded.forEach((key, value) {
+        if (key is! String || value is! String) {
           skipped++;
-          continue;
+          return;
         }
-        final s = entry['s'];
-        final r = entry['r'];
-        final th = entry['th'];
-        final t = entry['t'];
-        if (s is! String || r is! String || th is! String || t is! String) {
-          skipped++;
-          continue;
-        }
-        final at = DateTime.tryParse(t);
+        final at = DateTime.tryParse(value);
         if (at == null) {
           skipped++;
-          continue;
+          return;
         }
-        result[(serverId: s, roomId: r, threadId: th)] = at.toUtc();
-      }
+        result[key] = at.toUtc();
+      });
       if (skipped > 0 && result.isEmpty) {
-        // Every row dropped on a non-empty payload is a systemic serialization
-        // break, not one stale row, and it silently resets the read model
-        // (every thread flips to unread). Surface it loudly.
+        // Every entry dropped on a non-empty payload is a systemic
+        // serialization break, not one stale row, and it silently resets this
+        // room's read model. Surface it loudly.
         _logger
             .error('Discarding all $skipped thread read markers; none parsed');
       } else if (skipped > 0) {
         _logger.warning('Skipped $skipped malformed thread read marker(s)');
       }
     } on FormatException catch (e, st) {
-      // Corrupt payload: start fresh rather than wedging the room.
-      _logger.warning(
-        'Discarding corrupt thread read markers',
-        error: e,
-        stackTrace: st,
-      );
+      _logger.warning('Discarding corrupt thread read markers',
+          error: e, stackTrace: st);
       return {};
     }
     return result;
   }
 
-  static Future<void> save(Map<ThreadActivityKey, DateTime> markers) async {
+  /// Persists [markers] (threadId → instant) as the whole blob for the room. A
+  /// null [userId] (a server requiring no sign-in) resolves to the shared
+  /// [unauthenticatedStorageUser] bucket.
+  static Future<void> saveRoom({
+    required String serverId,
+    required String? userId,
+    required String roomId,
+    required Map<String, DateTime> markers,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final list = [
-      for (final entry in markers.entries)
-        {
-          's': entry.key.serverId,
-          'r': entry.key.roomId,
-          'th': entry.key.threadId,
-          't': entry.value.toUtc().toIso8601String(),
-        },
-    ];
-    await prefs.setString(_key, jsonEncode(list));
+    final obj = {
+      for (final e in markers.entries) e.key: e.value.toUtc().toIso8601String(),
+    };
+    await prefs.setString(
+        _key(serverId, userId ?? unauthenticatedStorageUser, roomId),
+        jsonEncode(obj));
   }
 
-  /// Drops every thread marker for [serverId], so a removed server's threads
-  /// don't read as read if the server is re-added under the same id. No-op (and
-  /// no write) when the server has no markers.
-  ///
-  /// Fire-and-forget with no retry: unlike the signal-backed room/server
-  /// stores, this has no in-memory owner to re-save a corrected map, so a
-  /// failed [save] leaves stale thread floors on disk (a re-added same-id
-  /// server reads as already-read). Accepted because a re-add after a write
-  /// failure is rare and the caller logs the failure at error level. A live
-  /// RoomScreen's marker flush, which persists its full cross-server map, can
-  /// likewise overwrite this clear — reachable only if lobby and room are ever
-  /// mounted at once, which the current navigation never does.
+  /// Drops every user's thread markers for [serverId] (keyed format). Only keyed
+  /// entries are removed; any pre-keyed entry under the old key name is left
+  /// untouched.
   static Future<void> clearServer(String serverId) async {
-    final markers = await load();
-    final next = {...markers}
-      ..removeWhere((key, _) => key.serverId == serverId);
-    if (next.length == markers.length) return;
-    await save(next);
+    final prefs = await SharedPreferences.getInstance();
+    final sweep = serverKeyPrefix(_prefix, serverId);
+    for (final k
+        in prefs.getKeys().where((k) => k.startsWith(sweep)).toList()) {
+      await prefs.remove(k);
+    }
   }
+
+  /// Drops every user's thread markers for [roomId] on [serverId].
+  static Future<void> clearRoom(String serverId, String roomId) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in _roomKeys(prefs, serverId, roomId)) {
+      await prefs.remove(k);
+    }
+  }
+
+  /// Removes [threadId]'s marker from every user's blob for [roomId] on
+  /// [serverId], leaving sibling threads intact.
+  static Future<void> clearThread(
+      String serverId, String roomId, String threadId) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in _roomKeys(prefs, serverId, roomId)) {
+      final raw = prefs.getString(k);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map || !decoded.containsKey(threadId)) continue;
+        decoded.remove(threadId);
+        await prefs.setString(k, jsonEncode(decoded));
+      } on FormatException {
+        continue;
+      }
+    }
+  }
+
+  /// Every stored key (any user) for [roomId] on [serverId].
+  static List<String> _roomKeys(
+          SharedPreferences prefs, String serverId, String roomId) =>
+      prefs.getKeys().where((k) {
+        final c = decodeKey(_prefix, k);
+        return c != null && c.length == 3 && c[0] == serverId && c[2] == roomId;
+      }).toList();
 }

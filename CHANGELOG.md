@@ -38,6 +38,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   in on the same server no longer sees the previous user's unsent draft. A
   by-server draft clear also no longer over-reaches a same-host server that
   differs only by an explicit vs default port.
+- Thread read markers and unread-divider anchors are now scoped to the signed-in
+  user: a different user signing in on the same server no longer inherits the
+  previous user's read state or "New messages" dividers. As a one-time effect of
+  the storage-format change, existing thread read state resets on upgrade — every
+  thread reads as unread once and dividers are recomputed from that point.
 
 ## [0.92.0+65] - 2026-07-02
 

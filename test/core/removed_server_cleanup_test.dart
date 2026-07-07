@@ -57,10 +57,10 @@ void main() {
       wired.server.markRead('s2', at);
       wired.room.markRead((serverId: 's1', roomId: 'r'), at);
       wired.room.markRead((serverId: 's2', roomId: 'r'), at);
-      await ThreadReadMarkerStorage.save({
-        (serverId: 's1', roomId: 'r', threadId: 't'): at,
-        (serverId: 's2', roomId: 'r', threadId: 't'): at,
-      });
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: 's1', userId: 'u', roomId: 'r', markers: {'t': at});
+      await ThreadReadMarkerStorage.saveRoom(
+          serverId: 's2', userId: 'u', roomId: 'r', markers: {'t': at});
 
       wired.manager.removeServer('s1');
       await pumpEventQueue();
@@ -75,23 +75,24 @@ void main() {
         wired.room.value.containsKey((serverId: 's2', roomId: 'r')),
         isTrue,
       );
-      final threads = await ThreadReadMarkerStorage.load();
       expect(
-        threads.containsKey((serverId: 's1', roomId: 'r', threadId: 't')),
-        isFalse,
+        await ThreadReadMarkerStorage.loadRoom(
+            serverId: 's1', userId: 'u', roomId: 'r'),
+        isEmpty,
       );
       expect(
-        threads.containsKey((serverId: 's2', roomId: 'r', threadId: 't')),
-        isTrue,
+        await ThreadReadMarkerStorage.loadRoom(
+            serverId: 's2', userId: 'u', roomId: 'r'),
+        {'t': at},
       );
     });
 
     test('clears the removed server\'s thread anchors and drafts', () async {
       final wired = wire();
-      await ThreadAnchorStorage.save({
-        (serverId: 's1', roomId: 'r', threadId: 't'): 'm1',
-        (serverId: 's2', roomId: 'r', threadId: 't'): 'm2',
-      });
+      await ThreadAnchorStorage.saveRoom(
+          serverId: 's1', userId: 'u', roomId: 'r', anchors: {'t': 'm1'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: 's2', userId: 'u', roomId: 'r', anchors: {'t': 'm2'});
       await ReturnToStorage.saveComposer(
         serverId: 's1',
         userId: 'u',
@@ -108,14 +109,15 @@ void main() {
       wired.manager.removeServer('s1');
       await pumpEventQueue();
 
-      final anchors = await ThreadAnchorStorage.load();
       expect(
-        anchors.containsKey((serverId: 's1', roomId: 'r', threadId: 't')),
-        isFalse,
+        await ThreadAnchorStorage.loadRoom(
+            serverId: 's1', userId: 'u', roomId: 'r'),
+        isEmpty,
       );
       expect(
-        anchors.containsKey((serverId: 's2', roomId: 'r', threadId: 't')),
-        isTrue,
+        await ThreadAnchorStorage.loadRoom(
+            serverId: 's2', userId: 'u', roomId: 'r'),
+        {'t': 'm2'},
       );
       expect(
         await ReturnToStorage.loadComposer(

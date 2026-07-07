@@ -24,3 +24,10 @@ List<String>? decodeKey(String prefix, String key) {
 /// first component: `'<prefix>:<enc(serverId)>:'`.
 String serverKeyPrefix(String prefix, String serverId) =>
     '$prefix:${Uri.encodeComponent(serverId)}:';
+
+/// The `userId` component used to bucket device-local state on a server that
+/// requires no sign-in, where there is no user identity. Real identities are
+/// `iss#sub` and always contain a `#`, so this `#`-free literal can never collide
+/// with one. State in this bucket is device-shared across everyone using that
+/// unauthenticated server — there is no identity to isolate it by.
+const unauthenticatedStorageUser = 'unauthenticated';

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import 'thread_anchor_storage.dart';
 import 'thread_read_markers.dart' show ThreadActivityKey;
 import 'unread_boundary.dart';
 
@@ -17,10 +16,10 @@ final Logger _logger = LogManager.instance.getLogger('soliplex.anchor_tracker');
 /// tested independently of the room screen.
 class AnchorTracker {
   AnchorTracker({
-    Future<Map<ThreadActivityKey, String>> Function()? load,
-    Future<void> Function(Map<ThreadActivityKey, String>)? save,
-  })  : _load = load ?? ThreadAnchorStorage.load,
-        _save = save ?? ThreadAnchorStorage.save;
+    required Future<Map<ThreadActivityKey, String>> Function() load,
+    required Future<void> Function(Map<ThreadActivityKey, String>) save,
+  })  : _load = load,
+        _save = save;
 
   final Future<Map<ThreadActivityKey, String>> Function() _load;
   final Future<void> Function(Map<ThreadActivityKey, String>) _save;

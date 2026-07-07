@@ -6,73 +6,144 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  const s = 'https://foo.com', u1 = 'iss#alice', u2 = 'iss#bob', r = 'r1';
+
   group('ThreadAnchorStorage', () {
-    test('defaults to empty when nothing is persisted', () async {
-      expect(await ThreadAnchorStorage.load(), isEmpty);
-    });
-
-    test('round-trips anchors', () async {
-      final anchors = {
-        (serverId: 'a', roomId: 'r1', threadId: 't1'): 'msg-1',
-        (serverId: 'b', roomId: 'r2', threadId: 't2'): 'msg-2',
-      };
-      await ThreadAnchorStorage.save(anchors);
-
-      final loaded = await ThreadAnchorStorage.load();
-      expect(loaded, hasLength(2));
-      expect(loaded[(serverId: 'a', roomId: 'r1', threadId: 't1')], 'msg-1');
-      expect(loaded[(serverId: 'b', roomId: 'r2', threadId: 't2')], 'msg-2');
+    test('round-trips a room\'s anchors per user', () async {
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, anchors: {'th1': 'm1'});
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th1': 'm1'});
     });
 
     test('preserves ids that would collide under a naive composite key',
         () async {
-      final anchors = {
-        (serverId: 'a:b', roomId: 'r/1', threadId: 't|2'): 'm',
-      };
-      await ThreadAnchorStorage.save(anchors);
-
-      final loaded = await ThreadAnchorStorage.load();
-      expect(loaded[(serverId: 'a:b', roomId: 'r/1', threadId: 't|2')], 'm');
+      const server = 'a:b', user = 'iss#u/1', room = 'r|2';
+      await ThreadAnchorStorage.saveRoom(
+          serverId: server, userId: user, roomId: room, anchors: {'t|3': 'm'});
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: server, userId: user, roomId: room),
+          {'t|3': 'm'});
     });
 
-    test('discards a corrupt (non-array) payload', () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_thread_unread_anchors': '{"not":"an array"}',
-      });
-      expect(await ThreadAnchorStorage.load(), isEmpty);
-    });
-
-    test('skips malformed rows but keeps valid ones', () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_thread_unread_anchors':
-            '[{"s":"a","r":"r1","th":"t1","id":"m1"},'
-                '{"s":"a","r":"r1"},'
-                '{"s":"a","r":"r1","th":"t2","id":123}]',
-      });
-      final loaded = await ThreadAnchorStorage.load();
-      expect(loaded, hasLength(1));
-      expect(loaded[(serverId: 'a', roomId: 'r1', threadId: 't1')], 'm1');
-    });
-
-    test('degrades to empty when every row of a non-empty payload is malformed',
+    test('anchors saved as one user are invisible to another (isolation)',
         () async {
-      SharedPreferences.setMockInitialValues({
-        'soliplex_thread_unread_anchors':
-            '[{"s":"a","r":"r1"},{"th":"t2","id":123}]',
-      });
-      expect(await ThreadAnchorStorage.load(), isEmpty);
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, anchors: {'th1': 'm1'});
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
     });
 
-    test('clearServer prunes only that server\'s anchors', () async {
-      await ThreadAnchorStorage.save({
-        (serverId: 's1', roomId: 'r', threadId: 't1'): 'm1',
-        (serverId: 's2', roomId: 'r', threadId: 't2'): 'm2',
+    test(
+        'null userId persists to the shared unauthenticated bucket, isolated '
+        'from real users', () async {
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: null, roomId: r, anchors: {'th1': 'm1'});
+      // Persisted and re-readable under the unauthenticated (null) bucket.
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: null, roomId: r),
+          {'th1': 'm1'});
+      // A signed-in user does not see the unauthenticated bucket.
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+    });
+
+    test('clearServer removes every user, spares a different-port peer',
+        () async {
+      const s2 = 'https://foo.com:8443';
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s2, userId: u1, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.clearServer(s);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s2, userId: u1, roomId: r),
+          {'th1': 'm1'});
+    });
+
+    test('clearRoom removes every user for the room, keeps sibling rooms',
+        () async {
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u1, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u1, roomId: 'r2', anchors: {'th9': 'm9'});
+      await ThreadAnchorStorage.clearRoom(s, r);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: 'r2'),
+          {'th9': 'm9'});
+    });
+
+    test('clearThread removes one thread across users, keeps siblings',
+        () async {
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s,
+          userId: u1,
+          roomId: r,
+          anchors: {'th1': 'm1', 'th2': 'm2'});
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s, userId: u2, roomId: r, anchors: {'th1': 'm1'});
+      await ThreadAnchorStorage.clearThread(s, r, 'th1');
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th2': 'm2'});
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u2, roomId: r),
+          isEmpty);
+    });
+
+    test('discards a corrupt blob and returns empty', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_thread_anchor:${Uri.encodeComponent(s)}:'
+            '${Uri.encodeComponent(u1)}:${Uri.encodeComponent(r)}': 'not json',
       });
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          isEmpty);
+    });
 
-      await ThreadAnchorStorage.clearServer('s1');
-
-      final loaded = await ThreadAnchorStorage.load();
-      expect(loaded.keys, {(serverId: 's2', roomId: 'r', threadId: 't2')});
+    test('skips malformed entries but keeps valid ones', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_thread_anchor:${Uri.encodeComponent(s)}:'
+                '${Uri.encodeComponent(u1)}:${Uri.encodeComponent(r)}':
+            '{"th1":"m1","th2":123}',
+      });
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th1': 'm1'});
     });
   });
 }
