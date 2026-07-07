@@ -23,6 +23,8 @@ import 'package:soliplex_client/soliplex_client.dart'
         buildDocumentFilter;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../core/activity_read.dart' show currentUserRoomMarkers;
+import '../../../core/keyed_storage.dart' show unauthenticatedStorageUser;
 import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
@@ -213,10 +215,19 @@ class _RoomScreenState extends State<RoomScreen> {
   /// here and — immediately, no storage race — in the lobby.
   late final RoomReadMarkers _roomReadMarkers;
 
-  /// Shared in-memory model of per-`serverId` "last seen" markers, also watched
-  /// by the lobby. Floors every room and thread on the server: the rail's unread
-  /// checks read up to it, so a server marker suppresses their dots.
+  /// Shared in-memory model of per-`(serverId, userId)` "last seen" markers,
+  /// also watched by the lobby. Floors every room and thread on the server: the
+  /// rail's unread checks read up to it, so a server marker suppresses their dots.
   late final ServerReadMarkers _serverReadMarkers;
+
+  /// The identity the open room's read markers are scoped to, captured at mount
+  /// and re-captured on every room change (like the trackers' coordinates); the
+  /// value only differs on a server switch. Read and write sites resolve it from
+  /// this field rather than live off the session so a deferred write after a
+  /// switch or logout can't misfile a marker into the wrong user's bucket. Null
+  /// (a signed-out or no-auth server) resolves to the shared unauthenticated
+  /// bucket in the stores.
+  String? _userId;
 
   /// Owns the current room's per-thread "last seen" read markers. Recreated on
   /// room change (like [_anchorTracker]) so its captured coordinates never shift
@@ -394,17 +405,19 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  /// Loads the shared read markers once, then re-evaluates the room read state
-  /// in case the thread list arrived before them.
+  /// Loads the current user's room markers for this server once, then
+  /// re-evaluates the room read state in case the thread list arrived first.
   Future<void> _loadRoomReadMarkers() async {
-    await _roomReadMarkers.ensureLoaded();
+    await _roomReadMarkers.ensureLoaded(
+        serverId: widget.serverEntry.serverId, userId: _userId);
     if (mounted) _recomputeRoomRead();
   }
 
-  /// Loads the shared server read markers once, then re-evaluates the room read
-  /// state in case the thread list arrived before them.
+  /// Loads the current user's server marker for this server once, then
+  /// re-evaluates the room read state in case the thread list arrived first.
   Future<void> _loadServerReadMarkers() async {
-    await _serverReadMarkers.ensureLoaded();
+    await _serverReadMarkers.ensureLoaded(
+        serverId: widget.serverEntry.serverId, userId: _userId);
     if (mounted) _recomputeRoomRead();
   }
 
@@ -417,10 +430,28 @@ class _RoomScreenState extends State<RoomScreen> {
   /// watchers (this build and the lobby's).
   void _markRoomRead(String roomId) {
     _roomReadMarkers.markRead(
-      (serverId: widget.serverEntry.serverId, roomId: roomId),
-      clock.now().toUtc(),
+      serverId: widget.serverEntry.serverId,
+      userId: _userId,
+      roomId: roomId,
+      at: clock.now().toUtc(),
     );
   }
+
+  /// The current user's room-level "last seen" for [roomId] on [serverId], via
+  /// the shared store's user-scoped key.
+  DateTime? _roomSeen(String serverId, String? userId, String roomId) =>
+      _roomReadMarkers.value[(
+        serverId: serverId,
+        userId: userId ?? unauthenticatedStorageUser,
+        roomId: roomId,
+      )];
+
+  /// The current user's server-level "last seen" for [serverId].
+  DateTime? _serverSeen(String serverId, String? userId) =>
+      _serverReadMarkers.value[(
+        serverId: serverId,
+        userId: userId ?? unauthenticatedStorageUser,
+      )];
 
   /// Marks the room being left read when none of its threads remains unread,
   /// stamping the room-level marker the lobby reads (it has no per-thread
@@ -433,6 +464,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _markRoomReadOnLeave({
     required String serverId,
     required String roomId,
+    required String? userId,
     required String? leavingThreadId,
   }) {
     final status = _state.threadList.threads.value;
@@ -443,13 +475,15 @@ class _RoomScreenState extends State<RoomScreen> {
       serverId: serverId,
       roomId: roomId,
       selectedThreadId: leavingThreadId,
-      roomSeen: _roomReadMarkers.value[(serverId: serverId, roomId: roomId)],
-      serverSeen: _serverReadMarkers.value[serverId],
+      roomSeen: _roomSeen(serverId, userId, roomId),
+      serverSeen: _serverSeen(serverId, userId),
     ).isNotEmpty;
     if (stillUnread) return;
     _roomReadMarkers.markRead(
-      (serverId: serverId, roomId: roomId),
-      clock.now().toUtc(),
+      serverId: serverId,
+      userId: userId,
+      roomId: roomId,
+      at: clock.now().toUtc(),
     );
   }
 
@@ -460,7 +494,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void _recomputeRoomRead() {
     final status = _state.threadList.threads.value;
     if (status is! ThreadsLoaded) return;
-    final key = (serverId: widget.serverEntry.serverId, roomId: widget.roomId);
+    final serverId = widget.serverEntry.serverId;
     // Judge "mark read" from the thread list's own latest activity, not the
     // separately-fetched room-activity batch: when the batch refreshes before
     // the thread list does, a stale list must not mark the room read over a
@@ -468,10 +502,10 @@ class _RoomScreenState extends State<RoomScreen> {
     if (shouldMarkRoomRead(
       status.threads,
       _threadReadTracker.markers,
-      serverId: widget.serverEntry.serverId,
+      serverId: serverId,
       roomId: widget.roomId,
-      roomSeen: _roomReadMarkers.value[key],
-      serverSeen: _serverReadMarkers.value[widget.serverEntry.serverId],
+      roomSeen: _roomSeen(serverId, _userId, widget.roomId),
+      serverSeen: _serverSeen(serverId, _userId),
       selectedThreadId: widget.threadId,
     )) {
       _markRoomRead(widget.roomId);
@@ -519,12 +553,16 @@ class _RoomScreenState extends State<RoomScreen> {
   /// whereas the thread-unread set excludes the open thread and surfaces only a
   /// genuinely unread sibling thread. Empty when activity is unavailable.
   Set<String> get _unreadRoomIds {
+    final serverId = widget.serverEntry.serverId;
     final ids = unreadRoomIds(
       _roomActivity,
-      _roomReadMarkers.value,
-      serverId: widget.serverEntry.serverId,
+      currentUserRoomMarkers(
+        _roomReadMarkers.value,
+        (_) => _userId ?? unauthenticatedStorageUser,
+      ),
+      serverId: serverId,
       currentRoomId: widget.roomId,
-      serverSeen: _serverReadMarkers.value[widget.serverEntry.serverId],
+      serverSeen: _serverSeen(serverId, _userId),
     );
     final openRoomUnread = _unreadThreadIds(
       _state.threadList.threads.value,
@@ -614,9 +652,8 @@ class _RoomScreenState extends State<RoomScreen> {
       serverId: serverId,
       roomId: widget.roomId,
       selectedThreadId: selectedThreadId,
-      roomSeen:
-          _roomReadMarkers.value[(serverId: serverId, roomId: widget.roomId)],
-      serverSeen: _serverReadMarkers.value[serverId],
+      roomSeen: _roomSeen(serverId, _userId, widget.roomId),
+      serverSeen: _serverSeen(serverId, _userId),
     );
   }
 
@@ -723,6 +760,7 @@ class _RoomScreenState extends State<RoomScreen> {
     HardwareKeyboard.instance.addHandler(_handleKey);
     _roomReadMarkers = widget.roomReadMarkers ?? RoomReadMarkers();
     _serverReadMarkers = widget.serverReadMarkers ?? ServerReadMarkers();
+    _userId = widget.serverEntry.auth.currentUserId.value;
     _state = _createRoomState();
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
@@ -799,9 +837,14 @@ class _RoomScreenState extends State<RoomScreen> {
     if (roomChanged) {
       // Mark the room being left read (under its own coordinates) before its
       // _state is torn down, so the lobby agrees the user caught up there.
+      // _userId still holds the leaving room's captured identity here (it is
+      // re-captured further below), so the leave stamp files under the user who
+      // read the room — not a live session read that a mid-flight logout could
+      // flip to null and misfile into the unauthenticated bucket.
       _markRoomReadOnLeave(
         serverId: oldWidget.serverEntry.serverId,
         roomId: oldWidget.roomId,
+        userId: _userId,
         leavingThreadId: oldWidget.threadId,
       );
       _cancelAutoSelect();
@@ -813,6 +856,10 @@ class _RoomScreenState extends State<RoomScreen> {
       unawaited(_anchorTracker.dispose());
       unawaited(_threadReadTracker.dispose());
       _chatController.clear();
+      // Re-capture the identity for the entered room/server before _watchRoomRead
+      // below fires the initial recompute, so it reads the right user's markers.
+      // A same-server room switch keeps the same user; a server switch changes it.
+      _userId = widget.serverEntry.auth.currentUserId.value;
       _state = _createRoomState();
       _workdirs = _createWorkdirController();
       _anchorTracker = _createAnchorTracker();
@@ -831,6 +878,11 @@ class _RoomScreenState extends State<RoomScreen> {
         _fetchServerRooms();
         _fetchRoomActivity();
         _fetchAccount();
+        // The read markers are keyed per (server, user); load the entered
+        // server's blobs for the current user. Idempotent — a no-op if the
+        // lobby already loaded them into the shared store.
+        unawaited(_loadRoomReadMarkers());
+        unawaited(_loadServerReadMarkers());
       }
       if (widget.threadId != null) {
         _state.selectThread(widget.threadId!);
@@ -1000,6 +1052,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _markRoomReadOnLeave(
       serverId: widget.serverEntry.serverId,
       roomId: widget.roomId,
+      userId: _userId,
       leavingThreadId: threadId,
     );
     _cancelAutoSelect();

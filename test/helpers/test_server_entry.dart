@@ -73,13 +73,19 @@ AuthSession authWithIdentity({String sub = 'test-user'}) {
       clientId: 'test-client',
     ),
     tokens: AuthTokens(
-      accessToken: _jwt('https://idp.test', sub),
+      accessToken: testAccessToken(sub: sub),
       refreshToken: 'refresh',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     ),
   );
   return auth;
 }
+
+/// A decodable JWT access token embedding `https://idp.test#`[sub], for logging
+/// a [ServerManager] entry into a specific identity (`entry.auth.login`) so its
+/// `currentUserId` resolves to [testIdentityFor]`(sub)`.
+String testAccessToken({String sub = 'test-user'}) =>
+    _jwt('https://idp.test', sub);
 
 /// Builds a JWT-shaped `header.payload.signature` string embedding [iss]/[sub].
 String _jwt(String iss, String sub) {

@@ -1,71 +1,101 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_frontend/src/core/keyed_storage.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  const s = 'https://foo.com', u1 = 'iss#alice', u2 = 'iss#bob';
+  final t = DateTime.utc(2026, 6, 1, 12);
+
   group('LobbyReadMarkerStorage', () {
     test('defaults to empty when nothing is persisted', () async {
-      expect(await LobbyReadMarkerStorage.load(), isEmpty);
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          isEmpty);
     });
 
-    test('round-trips markers, normalizing to UTC', () async {
-      final markers = {
-        (serverId: 'a', roomId: 'r1'): DateTime.utc(2026, 6, 1, 12),
-        (serverId: 'b', roomId: 'r2'): DateTime.utc(2026, 1, 2, 3, 4),
-      };
-      await LobbyReadMarkerStorage.save(markers);
-
-      final loaded = await LobbyReadMarkerStorage.load();
-      expect(loaded, hasLength(2));
-      expect(
-          loaded[(serverId: 'a', roomId: 'r1')], DateTime.utc(2026, 6, 1, 12));
-      expect(loaded[(serverId: 'b', roomId: 'r2')]!.isUtc, isTrue);
-    });
-
-    test('preserves ids that would collide under a naive composite key',
+    test('round-trips a server\'s room markers per user, normalizing to UTC',
         () async {
-      // Ids with separators must survive the JSON round-trip intact.
-      final markers = {
-        (serverId: 'a|b', roomId: 'r'): DateTime.utc(2026),
-        (serverId: 'a', roomId: 'b|r'): DateTime.utc(2025),
-      };
-      await LobbyReadMarkerStorage.save(markers);
-
-      final loaded = await LobbyReadMarkerStorage.load();
+      await LobbyReadMarkerStorage.saveServer(
+        serverId: s,
+        userId: u1,
+        markers: {'r1': t, 'r2': DateTime.utc(2026, 1, 2, 3, 4)},
+      );
+      final loaded =
+          await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1);
       expect(loaded, hasLength(2));
-      expect(loaded[(serverId: 'a|b', roomId: 'r')], DateTime.utc(2026));
-      expect(loaded[(serverId: 'a', roomId: 'b|r')], DateTime.utc(2025));
+      expect(loaded['r1'], t);
+      expect(loaded['r2']!.isUtc, isTrue);
     });
 
-    test('a corrupt payload loads as empty rather than throwing', () async {
-      SharedPreferences.setMockInitialValues(
-        {'soliplex_lobby_read_markers': 'not json{'},
-      );
-      expect(await LobbyReadMarkerStorage.load(), isEmpty);
+    test('markers saved as one user are invisible to another (isolation)',
+        () async {
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'r1': t});
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u2),
+          isEmpty);
+    });
+
+    test('a null userId resolves to the shared unauthenticated bucket',
+        () async {
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: null, markers: {'r1': t});
+      expect(
+          await LobbyReadMarkerStorage.loadServer(
+              serverId: s, userId: unauthenticatedStorageUser),
+          {'r1': t});
+    });
+
+    test('clearServer removes every user, spares a same-host different port',
+        () async {
+      const s2 = 'https://foo.com:8443';
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'r1': t});
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u2, markers: {'r1': t});
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s2, userId: u1, markers: {'r1': t});
+
+      await LobbyReadMarkerStorage.clearServer(s);
+
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          isEmpty);
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u2),
+          isEmpty);
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s2, userId: u1),
+          {'r1': t});
+    });
+
+    test('discards a corrupt blob and returns empty', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
+            '${Uri.encodeComponent(u1)}': 'not json{',
+      });
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          isEmpty);
+    });
+
+    test('a non-object payload loads as empty', () async {
+      SharedPreferences.setMockInitialValues({
+        'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
+            '${Uri.encodeComponent(u1)}': '["r1"]',
+      });
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          isEmpty);
     });
 
     test('skips malformed entries but keeps valid ones', () async {
       SharedPreferences.setMockInitialValues({
-        'soliplex_lobby_read_markers': '['
-            '{"s":"a","r":"r1","t":"2026-06-01T00:00:00Z"},'
-            '{"s":"a","r":"r2","t":"not-a-date"},'
-            '{"s":"a","t":"2026-06-01T00:00:00Z"},'
-            '"garbage"'
-            ']',
+        'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
+                '${Uri.encodeComponent(u1)}':
+            '{"r1":"2026-06-01T00:00:00Z","r2":"not-a-date","r3":5}',
       });
-      final loaded = await LobbyReadMarkerStorage.load();
+      final loaded =
+          await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1);
       expect(loaded, hasLength(1));
-      expect(loaded[(serverId: 'a', roomId: 'r1')], DateTime.utc(2026, 6));
-    });
-
-    test('a non-list payload loads as empty', () async {
-      SharedPreferences.setMockInitialValues(
-        {'soliplex_lobby_read_markers': '{"s":"a"}'},
-      );
-      expect(await LobbyReadMarkerStorage.load(), isEmpty);
+      expect(loaded['r1'], DateTime.utc(2026, 6));
     });
   });
 }

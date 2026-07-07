@@ -3,6 +3,47 @@
 /// be transposed at a lookup or insertion site.
 typedef RoomActivityKey = ({String serverId, String roomId});
 
+/// Identifies a room read marker, scoped to the user who owns it so a different
+/// user signing in on the same device sees their own read state. `userId` is the
+/// non-null, sentinel-substituted identity (see `keyed_storage.dart`).
+typedef RoomMarkerKey = ({String serverId, String userId, String roomId});
+
+/// Identifies a server read marker, scoped to the user who owns it.
+typedef ServerMarkerKey = ({String serverId, String userId});
+
+/// Projects the user-scoped room markers down to the current user per server:
+/// keeps each entry whose `userId` equals [userFor] for its server, re-keyed to
+/// the user-agnostic [RoomActivityKey] the unread helpers and lobby consume.
+///
+/// [userFor] returns the non-null identity currently signed into that server (a
+/// signed-out or no-auth server resolves to the `unauthenticatedStorageUser`
+/// sentinel), letting the multi-server lobby resolve a different user per server.
+Map<RoomActivityKey, DateTime> currentUserRoomMarkers(
+  Map<RoomMarkerKey, DateTime> markers,
+  String Function(String serverId) userFor,
+) {
+  final result = <RoomActivityKey, DateTime>{};
+  markers.forEach((key, at) {
+    if (key.userId == userFor(key.serverId)) {
+      result[(serverId: key.serverId, roomId: key.roomId)] = at;
+    }
+  });
+  return result;
+}
+
+/// Projects the user-scoped server markers down to the current user per server,
+/// re-keyed to bare `serverId`. The server twin of [currentUserRoomMarkers].
+Map<String, DateTime> currentUserServerMarkers(
+  Map<ServerMarkerKey, DateTime> markers,
+  String Function(String serverId) userFor,
+) {
+  final result = <String, DateTime>{};
+  markers.forEach((key, at) {
+    if (key.userId == userFor(key.serverId)) result[key.serverId] = at;
+  });
+  return result;
+}
+
 /// Whether activity is unread: a known [lastActivity] strictly newer than the
 /// user's last-[seen] marker (or it has never been seen). No known activity
 /// means there is nothing to be unread about. The tie case ([lastActivity]

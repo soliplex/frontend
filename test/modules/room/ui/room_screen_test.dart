@@ -1654,8 +1654,9 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: entry.serverId, userId: null);
+        expect(markers['room-1'], leave);
       });
     });
 
@@ -1705,8 +1706,9 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], isNull);
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: entry.serverId, userId: null);
+        expect(markers['room-1'], isNull);
       });
     });
 
@@ -1721,6 +1723,12 @@ void main() {
       final leave = DateTime.utc(2026, 6, 1, 10, 1);
       var now = open;
 
+      // Signed in: the left room's marker must persist under the user's bucket,
+      // not the unauthenticated one — the room-screen captures the identity at
+      // open and files the leave stamp against it.
+      final authedEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+
       api.nextThreads = [
         ThreadInfo(
           id: 'thread-1',
@@ -1733,7 +1741,7 @@ void main() {
 
       Widget roomScreen(String roomId) => MaterialApp(
             home: RoomScreen(
-              serverEntry: entry,
+              serverEntry: authedEntry,
               roomId: roomId,
               threadId: roomId == 'room-1' ? 'thread-1' : null,
               runtimeManager: runtimeManager,
@@ -1751,8 +1759,9 @@ void main() {
         await tester.pumpWidget(roomScreen('room-2'));
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: authedEntry.serverId, userId: testUserIdentity);
+        expect(markers['room-1'], leave);
       });
     });
   });

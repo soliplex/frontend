@@ -6,16 +6,19 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('RoomReadMarkers', () {
-    const key = (serverId: 's', roomId: 'r');
-    final at = DateTime.utc(2026, 6, 19);
+  const s = 'server', u1 = 'iss#alice', u2 = 'iss#bob', r = 'r';
+  final at = DateTime.utc(2026, 6, 19);
 
+  RoomMarkerKey key(String serverId, String userId, String roomId) =>
+      (serverId: serverId, userId: userId, roomId: roomId);
+
+  group('RoomReadMarkers', () {
     test('markRead notifies a subscriber synchronously', () {
       final store = RoomReadMarkers();
       final seen = <DateTime?>[];
-      final unsub = store.markers.subscribe((m) => seen.add(m[key]));
+      final unsub = store.markers.subscribe((m) => seen.add(m[key(s, u1, r)]));
 
-      store.markRead(key, at);
+      store.markRead(serverId: s, userId: u1, roomId: r, at: at);
 
       // A watcher (the lobby) sees the stamp immediately, with no storage
       // round-trip — this is what removes the lobby/room handoff race.
@@ -24,57 +27,110 @@ void main() {
       store.dispose();
     });
 
-    test('ensureLoaded reads markers persisted by an earlier store', () async {
-      final seed = RoomReadMarkers()..markRead(key, at);
-      // Let the write-through persist before the next store loads.
-      await Future<void>.delayed(Duration.zero);
-      seed.dispose();
-
+    test('a stamp by one user is invisible to another (isolation)', () {
       final store = RoomReadMarkers();
-      await store.ensureLoaded();
-
-      expect(store.markers.value[key], at);
+      store.markRead(serverId: s, userId: u1, roomId: r, at: at);
+      expect(store.value[key(s, u1, r)], at);
+      expect(store.value[key(s, u2, r)], isNull);
       store.dispose();
     });
 
-    test('ensureLoaded is a no-op after the first load', () async {
+    test('ensureLoaded reads markers persisted by an earlier store', () async {
+      RoomReadMarkers().markRead(serverId: s, userId: u1, roomId: r, at: at);
+      // Let the write-through persist before the next store loads.
+      await Future<void>.delayed(Duration.zero);
+
       final store = RoomReadMarkers();
-      await store.ensureLoaded();
-      store.markRead(key, at);
-      // A second ensureLoaded must not reload and clobber the in-memory stamp.
-      await store.ensureLoaded();
-      expect(store.markers.value[key], at);
+      await store.ensureLoaded(serverId: s, userId: u1);
+
+      expect(store.value[key(s, u1, r)], at);
+      store.dispose();
+    });
+
+    test('ensureLoaded merges under an optimistic stamp made before it returns',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      // Seed disk with a sibling room for the same (server,user).
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'other': at});
+
+      final store = RoomReadMarkers();
+      final now = DateTime.utc(2026, 7, 1);
+      store.markRead(serverId: s, userId: u1, roomId: r, at: now);
+      await store.ensureLoaded(serverId: s, userId: u1);
+
+      // The optimistic stamp survives; the disk sibling is merged in under it.
+      expect(store.value[key(s, u1, r)], now);
+      expect(store.value[key(s, u1, 'other')], at);
+
+      // The stamp's persist loaded the blob first, so it rewrote the full
+      // (server,user) set — the disk sibling isn't clobbered to just the stamp.
+      await Future<void>.delayed(Duration.zero);
+      final reloaded = RoomReadMarkers();
+      await reloaded.ensureLoaded(serverId: s, userId: u1);
+      expect(reloaded.value[key(s, u1, r)], now);
+      expect(reloaded.value[key(s, u1, 'other')], at);
+      store.dispose();
+      reloaded.dispose();
+    });
+
+    test('clearServer sweeps disk for a user the in-memory view never loaded',
+        () async {
+      // Another user's blob left on disk that this store never ensureLoaded —
+      // clearServer must still remove it (the cross-user leak on server re-add).
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: 's1', userId: 'iss#alice', markers: {'a': at});
+      final store = RoomReadMarkers();
+
+      store.clearServer('s1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        await LobbyReadMarkerStorage.loadServer(
+            serverId: 's1', userId: 'iss#alice'),
+        isEmpty,
+      );
+      store.dispose();
+    });
+
+    test('two servers with different users coexist in one signal', () async {
+      final store = RoomReadMarkers();
+      store.markRead(serverId: 's1', userId: u1, roomId: 'a', at: at);
+      store.markRead(serverId: 's2', userId: u2, roomId: 'b', at: at);
+      expect(store.value[key('s1', u1, 'a')], at);
+      expect(store.value[key('s2', u2, 'b')], at);
       store.dispose();
     });
 
     test('markRead normalizes a non-UTC timestamp to UTC', () {
       final store = RoomReadMarkers();
       final local = DateTime(2026, 6, 1, 12); // device-local
-      store.markRead(key, local);
-      final stored = store.value[key]!;
+      store.markRead(serverId: s, userId: u1, roomId: r, at: local);
+      final stored = store.value[key(s, u1, r)]!;
       expect(stored.isUtc, isTrue);
       expect(stored, local.toUtc());
       store.dispose();
     });
 
-    test('clearServer drops only that server\'s markers and persists',
-        () async {
+    test('clearServer drops every user for the server and persists', () async {
       final store = RoomReadMarkers();
-      store.markRead((serverId: 's1', roomId: 'a'), at);
-      store.markRead((serverId: 's1', roomId: 'b'), at);
-      store.markRead((serverId: 's2', roomId: 'c'), at);
+      store.markRead(serverId: 's1', userId: u1, roomId: 'a', at: at);
+      store.markRead(serverId: 's1', userId: u2, roomId: 'b', at: at);
+      store.markRead(serverId: 's2', userId: u1, roomId: 'c', at: at);
       // Let the mark write-throughs settle before clearing, so the reload
       // below observes clearServer's write rather than a racing stamp save.
       await Future<void>.delayed(Duration.zero);
 
       store.clearServer('s1');
 
-      expect(store.value.keys, {(serverId: 's2', roomId: 'c')});
+      expect(store.value.keys, {key('s2', u1, 'c')});
       // Persisted: a fresh store loads only the surviving server's marker.
       await Future<void>.delayed(Duration.zero);
       final reloaded = RoomReadMarkers();
-      await reloaded.ensureLoaded();
-      expect(reloaded.value.keys, {(serverId: 's2', roomId: 'c')});
+      await reloaded.ensureLoaded(serverId: 's1', userId: u1);
+      await reloaded.ensureLoaded(serverId: 's1', userId: u2);
+      await reloaded.ensureLoaded(serverId: 's2', userId: u1);
+      expect(reloaded.value.keys, {key('s2', u1, 'c')});
       store.dispose();
       reloaded.dispose();
     });

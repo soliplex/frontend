@@ -49,14 +49,17 @@ void main() {
   }
 
   group('RemovedServerCleanup', () {
-    test('clears the removed server\'s read markers, keeping a survivor\'s',
+    test('clears the removed server for every user, keeping a survivor\'s',
         () async {
       final at = DateTime.utc(2026, 6, 1);
       final wired = wire();
-      wired.server.markRead('s1', at);
-      wired.server.markRead('s2', at);
-      wired.room.markRead((serverId: 's1', roomId: 'r'), at);
-      wired.room.markRead((serverId: 's2', roomId: 'r'), at);
+      // Two users signed into s1 on this device: removal must clear both.
+      wired.server.markRead(serverId: 's1', userId: 'alice', at: at);
+      wired.server.markRead(serverId: 's1', userId: 'bob', at: at);
+      wired.server.markRead(serverId: 's2', userId: 'alice', at: at);
+      wired.room.markRead(serverId: 's1', userId: 'alice', roomId: 'r', at: at);
+      wired.room.markRead(serverId: 's1', userId: 'bob', roomId: 'r', at: at);
+      wired.room.markRead(serverId: 's2', userId: 'alice', roomId: 'r', at: at);
       await ThreadReadMarkerStorage.saveRoom(
           serverId: 's1', userId: 'u', roomId: 'r', markers: {'t': at});
       await ThreadReadMarkerStorage.saveRoom(
@@ -65,16 +68,9 @@ void main() {
       wired.manager.removeServer('s1');
       await pumpEventQueue();
 
-      expect(wired.server.value.containsKey('s1'), isFalse);
-      expect(wired.server.value.containsKey('s2'), isTrue);
-      expect(
-        wired.room.value.containsKey((serverId: 's1', roomId: 'r')),
-        isFalse,
-      );
-      expect(
-        wired.room.value.containsKey((serverId: 's2', roomId: 'r')),
-        isTrue,
-      );
+      expect(wired.server.value.keys, {(serverId: 's2', userId: 'alice')});
+      expect(wired.room.value.keys,
+          {(serverId: 's2', userId: 'alice', roomId: 'r')});
       expect(
         await ThreadReadMarkerStorage.loadRoom(
             serverId: 's1', userId: 'u', roomId: 'r'),
@@ -138,15 +134,17 @@ void main() {
     test('ServerManager.dispose does not clear device-local state', () async {
       final at = DateTime.utc(2026, 6, 1);
       final wired = wire();
-      wired.server.markRead('s1', at);
-      wired.room.markRead((serverId: 's1', roomId: 'r'), at);
+      wired.server.markRead(serverId: 's1', userId: 'u', at: at);
+      wired.room.markRead(serverId: 's1', userId: 'u', roomId: 'r', at: at);
 
       wired.manager.dispose();
       await pumpEventQueue();
 
-      expect(wired.server.value.containsKey('s1'), isTrue);
+      expect(wired.server.value.containsKey((serverId: 's1', userId: 'u')),
+          isTrue);
       expect(
-        wired.room.value.containsKey((serverId: 's1', roomId: 'r')),
+        wired.room.value
+            .containsKey((serverId: 's1', userId: 'u', roomId: 'r')),
         isTrue,
       );
     });
@@ -157,16 +155,18 @@ void main() {
     test('a disposed cleanup ignores later server removals', () async {
       final at = DateTime.utc(2026, 6, 1);
       final wired = wire();
-      wired.server.markRead('s1', at);
-      wired.room.markRead((serverId: 's1', roomId: 'r'), at);
+      wired.server.markRead(serverId: 's1', userId: 'u', at: at);
+      wired.room.markRead(serverId: 's1', userId: 'u', roomId: 'r', at: at);
 
       wired.cleanup.dispose();
       wired.manager.removeServer('s1');
       await pumpEventQueue();
 
-      expect(wired.server.value.containsKey('s1'), isTrue);
+      expect(wired.server.value.containsKey((serverId: 's1', userId: 'u')),
+          isTrue);
       expect(
-        wired.room.value.containsKey((serverId: 's1', roomId: 'r')),
+        wired.room.value
+            .containsKey((serverId: 's1', userId: 'u', roomId: 'r')),
         isTrue,
       );
     });
