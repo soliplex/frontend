@@ -86,8 +86,8 @@ abstract final class ThreadAnchorStorage {
         jsonEncode(anchors));
   }
 
-  /// Drops every user's anchors for [serverId] (keyed format). Legacy pre-keyed
-  /// anchors are swept once by the first-launch migration (PR 6), not here.
+  /// Drops every user's anchors for [serverId] (keyed format). Only keyed entries
+  /// are removed; any pre-keyed entry under the old key name is left untouched.
   static Future<void> clearServer(String serverId) async {
     final prefs = await SharedPreferences.getInstance();
     final sweep = serverKeyPrefix(_prefix, serverId);

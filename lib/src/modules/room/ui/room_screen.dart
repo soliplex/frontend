@@ -888,18 +888,21 @@ class _RoomScreenState extends State<RoomScreen> {
       );
 
   ThreadReadTracker _createThreadReadTracker() {
-    // Capture the entry so the tracker's (serverId, userId) stay bound to the
-    // room it was created for: on a server switch the old tracker flushes after
-    // `widget` has advanced, and reading userId off `widget` then would misfile
-    // the old server's markers under the new server's user.
-    final serverEntry = widget.serverEntry;
-    final serverId = serverEntry.serverId;
+    // Capture all three coordinates at creation so the tracker stays bound to the
+    // room and user it was created for. Reading userId off the session at
+    // flush time would misfile markers: a server switch flushes the old tracker
+    // after `widget` has advanced, and a logout drops the session to NoSession
+    // (userId null) before the dispose flush — either would write the room's
+    // markers to the wrong bucket. The route guard guarantees a signed-in session
+    // before the room mounts, so userId is non-null here for auth-required servers.
+    final serverId = widget.serverEntry.serverId;
+    final userId = widget.serverEntry.auth.currentUserId.value;
     final roomId = widget.roomId;
     final tracker = ThreadReadTracker(
       load: () async {
         final markers = await ThreadReadMarkerStorage.loadRoom(
           serverId: serverId,
-          userId: serverEntry.auth.currentUserId.value,
+          userId: userId,
           roomId: roomId,
         );
         return {
@@ -909,7 +912,7 @@ class _RoomScreenState extends State<RoomScreen> {
       },
       save: (markers) => ThreadReadMarkerStorage.saveRoom(
         serverId: serverId,
-        userId: serverEntry.auth.currentUserId.value,
+        userId: userId,
         roomId: roomId,
         markers: {for (final e in markers.entries) e.key.threadId: e.value},
       ),
@@ -926,17 +929,17 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   AnchorTracker _createAnchorTracker() {
-    // Capture the entry (see [_createThreadReadTracker]) so the anchor tracker's
-    // (serverId, userId) stay bound to the room it was created for across a
-    // server switch.
-    final serverEntry = widget.serverEntry;
-    final serverId = serverEntry.serverId;
+    // Capture all three coordinates at creation (see [_createThreadReadTracker])
+    // so the anchor tracker stays bound to the room and user it was created for
+    // across a server switch or a logout before its dispose flush.
+    final serverId = widget.serverEntry.serverId;
+    final userId = widget.serverEntry.auth.currentUserId.value;
     final roomId = widget.roomId;
     final tracker = AnchorTracker(
       load: () async {
         final anchors = await ThreadAnchorStorage.loadRoom(
           serverId: serverId,
-          userId: serverEntry.auth.currentUserId.value,
+          userId: userId,
           roomId: roomId,
         );
         return {
@@ -946,7 +949,7 @@ class _RoomScreenState extends State<RoomScreen> {
       },
       save: (anchors) => ThreadAnchorStorage.saveRoom(
         serverId: serverId,
-        userId: serverEntry.auth.currentUserId.value,
+        userId: userId,
         roomId: roomId,
         anchors: {for (final e in anchors.entries) e.key.threadId: e.value},
       ),

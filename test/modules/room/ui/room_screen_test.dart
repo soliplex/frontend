@@ -1444,6 +1444,73 @@ void main() {
         expect(markers['thread-1'], leave);
       });
     });
+
+    testWidgets(
+        'a logout while in a room stamps the open thread under the logged-in '
+        'user, not the unauthenticated bucket', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      final aliceEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity(sub: 'alice'));
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: aliceEntry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Log out while the room is still mounted, then let it dispose. The
+        // dispose stamp must use the userId captured at tracker creation
+        // (alice), not the now-null live session — otherwise alice's read state
+        // leaks into the shared unauthenticated bucket.
+        now = leave;
+        aliceEntry.auth.logout();
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+
+        expect(
+          await ThreadReadMarkerStorage.loadRoom(
+            serverId: aliceEntry.serverId,
+            userId: testIdentityFor('alice'),
+            roomId: 'room-1',
+          ),
+          containsPair('thread-1', leave),
+        );
+        expect(
+          await ThreadReadMarkerStorage.loadRoom(
+            serverId: aliceEntry.serverId,
+            userId: null,
+            roomId: 'room-1',
+          ),
+          isEmpty,
+        );
+      });
+    });
   });
 
   group('room unread rollup', () {
