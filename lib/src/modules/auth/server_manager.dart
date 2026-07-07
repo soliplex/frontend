@@ -48,6 +48,13 @@ class ServerManager {
   /// Tracks in-use aliases to ensure uniqueness.
   final Set<String> _aliases = {};
 
+  /// Listeners notified when a server is permanently removed via
+  /// [removeServer]. Carries the removal *intent* that the [servers] signal
+  /// cannot: an empty-out from [dispose] shrinks the signal identically but
+  /// must not notify, so persistent device-local cleanup keys off this event
+  /// rather than diffing the signal.
+  final List<void Function(String serverId)> _onRemoved = [];
+
   bool _restoring = false;
 
   /// Aggregate auth state derived from all server sessions.
@@ -143,6 +150,13 @@ class ServerManager {
     return entry;
   }
 
+  /// Registers a listener fired synchronously when [removeServer] permanently
+  /// removes a server. Returns a disposer that unregisters it.
+  void Function() onServerRemoved(void Function(String serverId) listener) {
+    _onRemoved.add(listener);
+    return () => _onRemoved.remove(listener);
+  }
+
   void removeServer(String serverId) {
     final entry = _servers.value[serverId];
     if (entry == null) {
@@ -158,6 +172,22 @@ class ServerManager {
 
     final updated = {..._servers.value}..remove(serverId);
     _servers.value = updated;
+
+    // Snapshot so a listener that unsubscribes itself can't mutate the list
+    // mid-iteration. Each dispatch is guarded so one throwing listener can
+    // neither strand the others nor unwind this removal write.
+    for (final listener in List.of(_onRemoved)) {
+      try {
+        listener(serverId);
+      } on Object catch (e, st) {
+        _logger.error(
+          'server-removed listener threw',
+          error: e,
+          stackTrace: st,
+          attributes: {'serverId': serverId},
+        );
+      }
+    }
 
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))

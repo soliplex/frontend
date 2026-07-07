@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/interfaces/auth_state.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
@@ -155,6 +156,81 @@ void main() {
         () => manager.removeServer('nonexistent'),
         throwsStateError,
       );
+    });
+  });
+
+  group('onServerRemoved', () {
+    test('fires with the removed id on removeServer', () {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final removed = <String>[];
+      manager.onServerRemoved(removed.add);
+
+      manager.removeServer('test');
+
+      expect(removed, ['test']);
+    });
+
+    test('does not fire on dispose', () {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final removed = <String>[];
+      manager.onServerRemoved(removed.add);
+
+      manager.dispose();
+
+      expect(removed, isEmpty);
+    });
+
+    test('returned disposer stops delivery', () {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'a',
+        serverUrl: Uri.parse('https://a.example.com'),
+      );
+      manager.addServer(
+        serverId: 'b',
+        serverUrl: Uri.parse('https://b.example.com'),
+      );
+      final removed = <String>[];
+      final unsubscribe = manager.onServerRemoved(removed.add);
+
+      unsubscribe();
+      manager.removeServer('a');
+
+      expect(removed, isEmpty);
+    });
+
+    test('a throwing listener is isolated and does not unwind removeServer',
+        () {
+      final sink = MemorySink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final removed = <String>[];
+      manager.onServerRemoved((_) => throw StateError('listener boom'));
+      manager.onServerRemoved(removed.add);
+
+      // The throwing listener must not unwind the removal write.
+      manager.removeServer('test');
+
+      expect(manager.servers.value, isEmpty);
+      // Later listeners still run despite the earlier throw.
+      expect(removed, ['test']);
+      final errors = sink.records.where((r) => r.level == LogLevel.error);
+      expect(errors, hasLength(1));
+      expect(errors.single.error, isA<StateError>());
     });
   });
 
