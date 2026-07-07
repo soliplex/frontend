@@ -18,6 +18,8 @@ typedef HttpClientFactory = SoliplexHttpClient Function({
 
 typedef AuthSessionFactory = AuthSession Function();
 
+typedef ServerRemovedListener = void Function(String serverId);
+
 /// Owns the collection of per-server resources and shared infrastructure.
 /// Keeps [ServerRegistry] in sync internally.
 class ServerManager {
@@ -49,11 +51,10 @@ class ServerManager {
   final Set<String> _aliases = {};
 
   /// Listeners notified when a server is permanently removed via
-  /// [removeServer]. Carries the removal *intent* that the [servers] signal
-  /// cannot: an empty-out from [dispose] shrinks the signal identically but
-  /// must not notify, so persistent device-local cleanup keys off this event
-  /// rather than diffing the signal.
-  final List<void Function(String serverId)> _onRemoved = [];
+  /// [removeServer]. Carries the removal *intent* the [servers] signal cannot:
+  /// [dispose] empties the signal identically but must not notify, so
+  /// persistent device-local cleanup keys off this event.
+  final List<ServerRemovedListener> _onRemoved = [];
 
   bool _restoring = false;
 
@@ -157,9 +158,14 @@ class ServerManager {
   /// unregisters another mid-dispatch does not retract it from the in-flight
   /// round — the unregistered listener still receives the current event.
   /// Subscribers must guard against running after their own disposal.
-  void Function() onServerRemoved(void Function(String serverId) listener) {
+  void Function() onServerRemoved(ServerRemovedListener listener) {
     _onRemoved.add(listener);
-    return () => _onRemoved.remove(listener);
+    var active = true;
+    return () {
+      if (!active) return;
+      active = false;
+      _onRemoved.remove(listener);
+    };
   }
 
   void removeServer(String serverId) {

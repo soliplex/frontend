@@ -24,10 +24,10 @@ final Logger _logger =
 /// lobby and room screens watch, so clearing them updates a mounted screen
 /// reactively too.
 ///
-/// Keying off the removal event — not the [ServerManager.servers] signal —
-/// means only a genuine [ServerManager.removeServer] clears disk state.
-/// Teardown's signal empty-out never fires the event, so stored sessions
-/// survive to the next launch regardless of module dispose ordering.
+/// Only a genuine [ServerManager.removeServer] clears disk state. Shell
+/// teardown empties the servers signal without firing the removal event, so
+/// stored sessions survive to the next launch regardless of module dispose
+/// ordering.
 class RemovedServerCleanup {
   RemovedServerCleanup({
     required ServerManager serverManager,

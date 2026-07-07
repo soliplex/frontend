@@ -208,29 +208,77 @@ void main() {
     });
 
     test('a throwing listener is isolated and does not unwind removeServer',
-        () {
+        () async {
       final sink = MemorySink();
       LogManager.instance.addSink(sink);
       addTearDown(() => LogManager.instance.removeSink(sink));
 
-      final manager = _createManager();
+      final storage = InMemoryServerStorage();
+      final manager = _createManager(storage: storage);
       manager.addServer(
         serverId: 'test',
         serverUrl: Uri.parse('https://api.example.com'),
+      );
+      await storage.save(
+        'test',
+        KnownServer(serverUrl: Uri.parse('https://api.example.com')),
       );
       final removed = <String>[];
       manager.onServerRemoved((_) => throw StateError('listener boom'));
       manager.onServerRemoved(removed.add);
 
-      // The throwing listener must not unwind the removal write.
       manager.removeServer('test');
+      await pumpEventQueue();
 
       expect(manager.servers.value, isEmpty);
       // Later listeners still run despite the earlier throw.
       expect(removed, ['test']);
+      // The work after the dispatch loop still runs: the stored session is
+      // deleted despite the throw.
+      expect(await storage.loadAll(), isEmpty);
       final errors = sink.records.where((r) => r.level == LogLevel.error);
       expect(errors, hasLength(1));
       expect(errors.single.error, isA<StateError>());
+    });
+
+    test('calling a disposer twice does not retract a live subscription', () {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final delivered = <String>[];
+      void listener(String _) => delivered.add('hit');
+      // The same listener registered twice yields two independent
+      // subscriptions. Disposing one twice must retract only its own entry.
+      final disposeFirst = manager.onServerRemoved(listener);
+      manager.onServerRemoved(listener);
+
+      disposeFirst();
+      disposeFirst();
+
+      manager.removeServer('test');
+
+      expect(delivered, ['hit']);
+    });
+
+    test('dispatch snapshots listeners so one can unregister another mid-round',
+        () {
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      final delivered = <String>[];
+      late void Function() disposeSecond;
+      // The first listener unregisters the second while dispatch is in flight.
+      // Dispatch runs over a snapshot, so the second still receives this event.
+      manager.onServerRemoved((_) => disposeSecond());
+      disposeSecond = manager.onServerRemoved((_) => delivered.add('second'));
+
+      manager.removeServer('test');
+
+      expect(delivered, ['second']);
     });
   });
 
