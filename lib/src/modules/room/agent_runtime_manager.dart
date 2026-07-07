@@ -11,8 +11,8 @@ import '../auth/server_entry.dart';
 class AgentRuntimeManager {
   /// [servers] wires the removal-eviction path: when a server disappears from
   /// the signal, its cached runtime is disposed and dropped so it doesn't
-  /// linger until the whole manager is disposed. A caller that never mutates
-  /// the signal opts out of eviction.
+  /// linger until the whole manager is disposed. Eviction is driven entirely by
+  /// the signal, so a signal that never changes simply never evicts.
   AgentRuntimeManager({
     required PlatformConstraints platform,
     required Future<ToolRegistry> Function(String roomId) toolRegistryResolver,

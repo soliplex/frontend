@@ -36,19 +36,19 @@ class RemovedServerCleanup {
     required RoomReadMarkers roomReadMarkers,
     required ServerReadMarkers serverReadMarkers,
   })  : _roomReadMarkers = roomReadMarkers,
-        _serverReadMarkers = serverReadMarkers {
-    // Seed the baseline before subscribing: the signals library fires the
-    // callback synchronously with the current value, and _onServersChanged
-    // reads _knownIds on that first fire. Seeding it to the current ids makes
-    // that fire a no-op (nothing diffs as removed) and avoids reading the late
-    // field before it is assigned.
-    _knownIds = servers.value.keys.toSet();
+        _serverReadMarkers = serverReadMarkers,
+        // Seed the baseline (initializer list) before subscribing below: the
+        // signals library fires the callback synchronously with the current
+        // value, and _onServersChanged diffs against _knownIds on that first
+        // fire. Seeding it to the current ids makes that fire a no-op (nothing
+        // diffs as removed).
+        _knownIds = servers.value.keys.toSet() {
     _unsubscribe = servers.subscribe(_onServersChanged);
   }
 
   final RoomReadMarkers _roomReadMarkers;
   final ServerReadMarkers _serverReadMarkers;
-  late Set<String> _knownIds;
+  Set<String> _knownIds;
   late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
@@ -57,16 +57,11 @@ class RemovedServerCleanup {
     final nextIds = servers.keys.toSet();
     final removed = _knownIds.difference(nextIds);
     _knownIds = nextIds;
-    // Every departed id is cleared unconditionally — there is deliberately no
-    // "skip when nextIds is empty" guard against the teardown empty-out. That
-    // empty-out is indistinguishable here from a user removing their last
-    // server: both drop the final id to `{}`, and the last-server removal must
-    // still clear its state. The only reliable separator is the code path
-    // (teardown keeps stored sessions; removeServer deletes them), which the
-    // signal transition doesn't carry. What keeps teardown safe is the dispose
-    // ordering documented on this class: [dispose] unsubscribes before
-    // [ServerManager.dispose] empties the signal, so this callback never sees
-    // the empty-out.
+    // No "skip when nextIds is empty" shortcut: a user removing their last
+    // server also drops to `{}` and must still be cleared, so the empty-out is
+    // indistinguishable here from a real removal. The dispose ordering
+    // documented on this class — not a guard in this method — is what keeps
+    // teardown's empty-out from wiping every server.
     for (final id in removed) {
       _clearServer(id);
     }
