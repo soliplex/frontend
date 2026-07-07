@@ -1,0 +1,26 @@
+/// Composite, percent-encoded SharedPreferences keys of the form
+/// `<prefix>:<enc(c0)>:<enc(c1)>:…`.
+///
+/// Every component is percent-encoded, so the `:` delimiter only ever appears
+/// between components — a component may itself contain `:` `/` `#`. This makes
+/// server-scoped prefix sweeps exact (a portless origin no longer prefix-matches
+/// the same host with an explicit port) and is what fixes the composer-draft
+/// colon-collision bug. By convention `serverId` is the first component.
+String encodeKey(String prefix, List<String> components) =>
+    [prefix, ...components.map(Uri.encodeComponent)].join(':');
+
+/// The decoded components of [key] if it belongs to [prefix], else `null`.
+List<String>? decodeKey(String prefix, String key) {
+  final head = '$prefix:';
+  if (!key.startsWith(head)) return null;
+  return key
+      .substring(head.length)
+      .split(':')
+      .map(Uri.decodeComponent)
+      .toList(growable: false);
+}
+
+/// The prefix for a server-scoped `startsWith` sweep, assuming `serverId` is the
+/// first component: `'<prefix>:<enc(serverId)>:'`.
+String serverKeyPrefix(String prefix, String serverId) =>
+    '$prefix:${Uri.encodeComponent(serverId)}:';
