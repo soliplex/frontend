@@ -16,7 +16,13 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/src/core/app_identity.dart';
 import 'package:soliplex_frontend/src/modules/auth/inactivity_logout_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/auth_flow.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+
+/// A servers signal that never changes, for constructing eviction-aware
+/// managers and registries in tests that don't exercise eviction.
+ReadonlySignal<Map<String, ServerEntry>> emptyServers() =>
+    Signal<Map<String, ServerEntry>>({});
 
 /// Minimal app identity for widget tests: a trivial inline logo (no asset
 /// loading) plus a placeholder name.

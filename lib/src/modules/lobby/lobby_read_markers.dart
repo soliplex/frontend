@@ -168,6 +168,7 @@ class RoomReadMarkers {
           'Failed to clear room read markers for removed server',
           error: error,
           stackTrace: st,
+          attributes: {'serverId': serverId},
         );
       }),
     );
@@ -315,6 +316,7 @@ class ServerReadMarkers {
           'Failed to clear server read marker for removed server',
           error: error,
           stackTrace: st,
+          attributes: {'serverId': serverId},
         );
       }),
     );

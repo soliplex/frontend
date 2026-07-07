@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_module.dart';
+import '../../core/removed_server_cleanup.dart';
 import '../auth/require_connected_server.dart';
 import '../auth/server_manager.dart';
 import '../lobby/lobby_read_markers.dart'
@@ -27,7 +28,12 @@ class RoomAppModule extends AppModule {
     this.enableDocumentFilter = false,
   })  : _documentSelections = DocumentSelections(),
         _messageExpansions = MessageExpansions(),
-        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers);
+        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
+        _removedServerCleanup = RemovedServerCleanup(
+          servers: serverManager.servers,
+          roomReadMarkers: roomReadMarkers,
+          serverReadMarkers: serverReadMarkers,
+        );
 
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
@@ -49,6 +55,7 @@ class RoomAppModule extends AppModule {
   final DocumentSelections _documentSelections;
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
+  final RemovedServerCleanup _removedServerCleanup;
 
   @override
   String get namespace => 'room';
@@ -115,6 +122,10 @@ class RoomAppModule extends AppModule {
 
   @override
   Future<void> onDispose() async {
+    // Before the auth module disposes ServerManager (reverse registration
+    // order), so the cleanup stops observing before ServerManager empties the
+    // servers signal — an empty-out it would otherwise read as a mass removal.
+    _removedServerCleanup.dispose();
     await runtimeManager.dispose();
     registry.dispose();
     _uploadRegistry.dispose();

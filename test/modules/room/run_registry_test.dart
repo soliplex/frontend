@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
+import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 
@@ -12,6 +14,19 @@ ServerConnection _fakeConnection(FakeSoliplexApi api) => ServerConnection(
       serverId: 'test-server',
       api: api,
       agUiStreamClient: FakeAgUiStreamClient(),
+    );
+
+ServerEntry _entry(String serverId) => ServerEntry(
+      serverId: serverId,
+      alias: serverId,
+      serverUrl: Uri.parse('https://$serverId.example.com'),
+      auth: AuthSession(refreshService: FakeTokenRefreshService()),
+      httpClient: FakeHttpClient(),
+      connection: ServerConnection(
+        serverId: serverId,
+        api: FakeSoliplexApi(),
+        agUiStreamClient: FakeAgUiStreamClient(),
+      ),
     );
 
 const _key = (
@@ -40,9 +55,10 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      servers: emptyServers(),
     );
     runtime = runtimeManager.getRuntime(connection);
-    registry = RunRegistry();
+    registry = RunRegistry(servers: emptyServers());
   });
 
   tearDown(() async {
@@ -290,4 +306,98 @@ void main() {
     expect(session.cancelCalled, isTrue);
     expect(registry.activeSession(_key), isNull);
   });
+
+  test('evicts runs whose server is removed from the signal', () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const keyS1 = (serverId: 's1', roomId: 'r', threadId: 't');
+    const keyS2 = (serverId: 's2', roomId: 'r', threadId: 't');
+    final s1Session = ManualAgentSession(keyS1);
+    final s2Session = ManualAgentSession(keyS2);
+    servers.value = {'s1': _entry('s1'), 's2': _entry('s2')};
+    evicting.register(keyS1, s1Session);
+    evicting.register(keyS2, s2Session);
+
+    servers.value = {'s2': _entry('s2')};
+
+    expect(s1Session.cancelCalled, isTrue);
+    expect(evicting.activeSession(keyS1), isNull);
+    expect(evicting.activeKeys.value, isNot(contains(keyS1)));
+    // A surviving server's run is untouched.
+    expect(evicting.activeSession(keyS2), same(s2Session));
+    expect(evicting.activeKeys.value, contains(keyS2));
+  });
+
+  test('evicts the removed server\'s completed outcome, not just live runs',
+      () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const key = (serverId: 's1', roomId: 'r', threadId: 't');
+    const survivorKey = (serverId: 's2', roomId: 'r', threadId: 't');
+    final session = ManualAgentSession(key);
+    final survivor = ManualAgentSession(survivorKey);
+    servers.value = {'s1': _entry('s1'), 's2': _entry('s2')};
+    evicting.register(key, session);
+    evicting.register(survivorKey, survivor);
+    session.completeAsCancelled();
+    survivor.completeAsCancelled();
+    await Future<void>.delayed(Duration.zero);
+    expect(evicting.completedOutcome(key), isNotNull);
+    expect(evicting.completedOutcome(survivorKey), isNotNull);
+
+    servers.value = {'s2': _entry('s2')};
+
+    expect(evicting.completedOutcome(key), isNull);
+    // A surviving server's completed outcome is retained.
+    expect(evicting.completedOutcome(survivorKey), isNotNull);
+  });
+
+  test('eviction survives a session whose cancel throws', () async {
+    final servers = Signal<Map<String, ServerEntry>>({});
+    final evicting = RunRegistry(servers: servers);
+    addTearDown(() {
+      evicting.dispose();
+      servers.dispose();
+    });
+
+    const throwingKey = (serverId: 's1', roomId: 'r', threadId: 't1');
+    const normalKey = (serverId: 's1', roomId: 'r', threadId: 't2');
+    final throwing = _ThrowingCancelSession(throwingKey);
+    final normal = ManualAgentSession(normalKey);
+    servers.value = {'s1': _entry('s1')};
+    // Register the throwing session first so it is iterated first (insertion
+    // order): that is what proves the surviving session is still evicted after
+    // the throw, and catches a guard that wraps the whole loop instead of the
+    // single cancel.
+    evicting.register(throwingKey, throwing);
+    evicting.register(normalKey, normal);
+
+    // A throwing cancel must not abort the eviction fan-out (which runs
+    // synchronously inside the servers-signal write and would otherwise unwind
+    // removeServer).
+    expect(() => servers.value = <String, ServerEntry>{}, returnsNormally);
+
+    expect(evicting.activeSession(throwingKey), isNull);
+    expect(evicting.activeSession(normalKey), isNull);
+    expect(normal.cancelCalled, isTrue);
+    expect(evicting.activeKeys.value, isEmpty);
+  });
+}
+
+/// Session whose [cancel] throws, to exercise the eviction guard.
+class _ThrowingCancelSession extends ManualAgentSession {
+  _ThrowingCancelSession(super.threadKey);
+
+  @override
+  void cancel() => throw StateError('cancel boom');
 }

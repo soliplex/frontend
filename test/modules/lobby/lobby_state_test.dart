@@ -12,7 +12,6 @@ import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart'
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
-import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -1147,53 +1146,6 @@ void main() {
           expect(state.serverReadMarkers.value['s'], DateTime.utc(2026, 6, 1));
           state.dispose();
         });
-      });
-
-      test('removing a server clears its read markers at every level',
-          () async {
-        final at = DateTime.utc(2026, 6, 1);
-        final manager = _createManager();
-        manager.addServer(
-          serverId: 's1',
-          serverUrl: Uri.parse('http://s1.test'),
-          requiresAuth: false,
-        );
-        final state = LobbyState(
-          serverManager: manager,
-          apiResolver: (_) => FakeSoliplexApi(),
-        );
-        await pumpEventQueue();
-
-        state.markServerRead('s1');
-        state.markRoomRead('s1', 'r');
-        await ThreadReadMarkerStorage.save({
-          (serverId: 's1', roomId: 'r', threadId: 't'): at,
-          (serverId: 's2', roomId: 'r', threadId: 't'): at,
-        });
-
-        manager.removeServer('s1');
-        await pumpEventQueue();
-
-        expect(state.serverReadMarkers.value.containsKey('s1'), isFalse);
-        expect(
-          state.roomReadMarkers.value
-              .containsKey((serverId: 's1', roomId: 'r')),
-          isFalse,
-        );
-        // A re-added server (same URL → same id) must start unread: the
-        // persisted thread markers for the removed server are gone, while
-        // another server's survive.
-        final threads = await ThreadReadMarkerStorage.load();
-        expect(
-          threads.containsKey((serverId: 's1', roomId: 'r', threadId: 't')),
-          isFalse,
-        );
-        expect(
-          threads.containsKey((serverId: 's2', roomId: 'r', threadId: 't')),
-          isTrue,
-        );
-
-        state.dispose();
       });
     });
   });

@@ -3,6 +3,8 @@ import 'dart:async' show unawaited;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../auth/server_entry.dart';
+
 final Logger _logger = LogManager.instance.getLogger('soliplex.run_registry');
 
 /// Terminal outcome of an agent run.
@@ -38,8 +40,17 @@ class CancelledRun extends RunOutcome {
 /// to a thread, [ThreadViewState] checks the registry for an active
 /// session to reattach to or a completed outcome to display.
 class RunRegistry {
+  /// [servers] wires the removal-eviction path: when a server disappears from
+  /// the signal, its tracked runs are cancelled and dropped so they don't
+  /// linger until the whole registry is disposed. Eviction is driven entirely by
+  /// the signal, so a signal that never changes simply never evicts.
+  RunRegistry({required ReadonlySignal<Map<String, ServerEntry>> servers}) {
+    _unsubscribe = servers.subscribe(_evictRemoved);
+  }
+
   final Map<ThreadKey, _TrackedRun> _runs = {};
   final Signal<Set<ThreadKey>> _activeKeys = Signal({});
+  late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
   /// Reactive set of keys that currently have an active (non-terminal) session.
@@ -111,12 +122,53 @@ class RunRegistry {
     return _runs[key]?.outcome;
   }
 
+  /// Cancels and drops every tracked run for a server no longer present in
+  /// [snapshot], so a removed server's live session is cancelled and its
+  /// captured outcome released instead of lingering until [dispose].
+  void _evictRemoved(Map<String, ServerEntry> snapshot) {
+    if (_isDisposed) return;
+    final liveIds = snapshot.keys.toSet();
+    final dead =
+        _runs.keys.where((key) => !liveIds.contains(key.serverId)).toList();
+    if (dead.isEmpty) return;
+    for (final key in dead) {
+      final session = _runs.remove(key)?.session;
+      if (session != null) _cancelQuietly(key, session);
+    }
+    final nextActive = _activeKeys.value
+        .where((key) => liveIds.contains(key.serverId))
+        .toSet();
+    if (nextActive.length != _activeKeys.value.length) {
+      _activeKeys.value = nextActive;
+    }
+  }
+
+  /// Cancels [session], swallowing and logging any throw. [cancel] runs real
+  /// teardown that can throw; both callers cancel in a loop where one throw must
+  /// not strand the rest. Eviction also runs synchronously inside the
+  /// servers-signal write, where an escape would unwind removeServer before it
+  /// deletes the stored session.
+  void _cancelQuietly(ThreadKey key, AgentSession session) {
+    try {
+      session.cancel();
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'Failed to cancel run',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {'key': key.toString()},
+      );
+    }
+  }
+
   /// Cancels all active sessions and releases resources. Idempotent.
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
-    for (final run in _runs.values) {
-      run.session?.cancel();
+    _unsubscribe();
+    for (final entry in _runs.entries) {
+      final session = entry.value.session;
+      if (session != null) _cancelQuietly(entry.key, session);
     }
     _runs.clear();
     _activeKeys.dispose();

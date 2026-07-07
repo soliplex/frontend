@@ -54,6 +54,7 @@ class _StubRuntimeManager extends AgentRuntimeManager {
           platform: TestPlatformConstraints(),
           toolRegistryResolver: (_) async => const ToolRegistry(),
           logger: testLogger(),
+          servers: emptyServers(),
         );
 
   final AgentRuntime _runtime;
@@ -108,8 +109,9 @@ void main() {
       platform: TestPlatformConstraints(),
       toolRegistryResolver: (_) async => const ToolRegistry(),
       logger: testLogger(),
+      servers: emptyServers(),
     );
-    registry = RunRegistry();
+    registry = RunRegistry(servers: emptyServers());
     servers = Signal({serverEntry.serverId: serverEntry});
     uploadRegistry = UploadTrackerRegistry(servers: servers);
   });

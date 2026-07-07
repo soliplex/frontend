@@ -1,7 +1,10 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.return_to_storage');
 
 /// Per-screen snapshot store for state that needs to survive an
 /// auth-failure round-trip (composer drafts, quiz progress).
@@ -67,8 +70,8 @@ abstract final class ReturnToStorage {
       }
       return json['unsentText'] as String?;
     } catch (e, st) {
-      dev.log(
-        'ReturnToStorage: corrupted composer entry; clearing',
+      _logger.warning(
+        'Corrupted composer entry; clearing',
         error: e,
         stackTrace: st,
       );
@@ -83,5 +86,24 @@ abstract final class ReturnToStorage {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_composerKey(serverId, roomId));
+  }
+
+  /// Removes every composer draft belonging to [serverId], so a removed
+  /// server's unsent text can't resurface in a re-added room.
+  ///
+  /// Matches by key prefix. This is exact for the common case, but the key
+  /// joins [serverId] and roomId with an unescaped `:`, and a server id is a
+  /// `Uri.origin` (which omits the default port). So a portless origin is a
+  /// prefix of the same host with an explicit port — `clearServer` for
+  /// `https://foo.com` also sweeps `https://foo.com:8443`'s drafts. Bounded and
+  /// rare (both servers on one host, one with an unsent draft); the unambiguous
+  /// fix is the keyed-store migration tracked in issue #393.
+  static Future<void> clearServer(String serverId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final prefix = '$_prefix:composer:$serverId:';
+    final keys = prefs.getKeys().where((key) => key.startsWith(prefix));
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
   }
 }

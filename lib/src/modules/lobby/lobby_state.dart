@@ -19,7 +19,6 @@ import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import '../room/room_run_activity.dart';
 import '../room/run_registry.dart';
-import '../room/thread_read_markers.dart';
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
@@ -513,24 +512,6 @@ class LobbyState {
         // Drop a stuck in-flight activity fetch for a removed server; otherwise
         // _activityFetchServerId would block a future fetch if the id returns.
         if (_activityFetchServerId == id) _cancelActivityFetch();
-        // Server ids are derived from the URL, so re-adding a removed server
-        // reuses its id. Drop its read markers at every level so the re-added
-        // server starts unread instead of inheriting the old floors.
-        _serverReadMarkers.clearServer(id);
-        _roomReadMarkers.clearServer(id);
-        unawaited(
-          ThreadReadMarkerStorage.clearServer(id)
-              .catchError((Object error, StackTrace st) {
-            // Error, not warning: a failed clear leaves stale thread floors on
-            // disk, so a server re-added under the same id reads as already-read
-            // (hides unread content), a worse outcome than a missed stamp.
-            _logger.error(
-              'Failed to clear thread read markers for removed server',
-              error: error,
-              stackTrace: st,
-            );
-          }),
-        );
       }
       _roomsByServer.value = updatedRooms;
       _userProfiles.value = updatedProfiles;

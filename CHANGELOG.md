@@ -13,6 +13,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: an "Unread first" sort option groups a server's rooms into an Unread
   section above a Read section, each ordered by recent activity.
 
+### Fixed
+
+- Removing a server now clears the rest of its device-local state, not just its
+  read markers: the thread unread-divider anchors and unsent composer drafts are
+  dropped too, on every removal path. Because server ids derive from the URL,
+  re-adding the same server reused the id and could resurrect a stale divider or
+  an old draft.
+- Removing a server now evicts its in-memory agent runtime and tracked runs
+  instead of leaking them until app exit — the runtime's timers and stream are
+  disposed and any live run for the server is cancelled.
+
 ## [0.92.0+65] - 2026-07-02
 
 ### Added

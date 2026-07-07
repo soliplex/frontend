@@ -62,5 +62,17 @@ void main() {
       });
       expect(await ThreadAnchorStorage.load(), isEmpty);
     });
+
+    test('clearServer prunes only that server\'s anchors', () async {
+      await ThreadAnchorStorage.save({
+        (serverId: 's1', roomId: 'r', threadId: 't1'): 'm1',
+        (serverId: 's2', roomId: 'r', threadId: 't2'): 'm2',
+      });
+
+      await ThreadAnchorStorage.clearServer('s1');
+
+      final loaded = await ThreadAnchorStorage.load();
+      expect(loaded.keys, {(serverId: 's2', roomId: 'r', threadId: 't2')});
+    });
   });
 }
