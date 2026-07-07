@@ -13,6 +13,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Lobby: an "Unread first" sort option groups a server's rooms into an Unread
   section above a Read section, each ordered by recent activity.
 
+### Changed
+
+- Device-local cleanup on server removal is driven by an explicit
+  `ServerManager.onServerRemoved` event instead of diffing the servers signal.
+  Only a genuine removal clears a server's read state, unread-divider anchors,
+  and composer drafts; a signal reset such as shell teardown no longer risks
+  wiping stored state, independent of module dispose order.
+
 ### Fixed
 
 - Removing a server now clears the rest of its device-local state, not just its

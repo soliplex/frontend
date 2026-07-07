@@ -18,6 +18,8 @@ typedef HttpClientFactory = SoliplexHttpClient Function({
 
 typedef AuthSessionFactory = AuthSession Function();
 
+typedef ServerRemovedListener = void Function(String serverId);
+
 /// Owns the collection of per-server resources and shared infrastructure.
 /// Keeps [ServerRegistry] in sync internally.
 class ServerManager {
@@ -47,6 +49,12 @@ class ServerManager {
 
   /// Tracks in-use aliases to ensure uniqueness.
   final Set<String> _aliases = {};
+
+  /// Listeners notified when a server is permanently removed via
+  /// [removeServer]. Carries the removal *intent* the [servers] signal cannot:
+  /// [dispose] empties the signal identically but must not notify, so
+  /// persistent device-local cleanup keys off this event.
+  final List<ServerRemovedListener> _onRemoved = [];
 
   bool _restoring = false;
 
@@ -143,6 +151,23 @@ class ServerManager {
     return entry;
   }
 
+  /// Registers a listener fired synchronously when [removeServer] permanently
+  /// removes a server. Returns a disposer that unregisters it.
+  ///
+  /// Dispatch runs over a snapshot of the listeners, so a listener that
+  /// unregisters another mid-dispatch does not retract it from the in-flight
+  /// round — the unregistered listener still receives the current event.
+  /// Subscribers must guard against running after their own disposal.
+  void Function() onServerRemoved(ServerRemovedListener listener) {
+    _onRemoved.add(listener);
+    var active = true;
+    return () {
+      if (!active) return;
+      active = false;
+      _onRemoved.remove(listener);
+    };
+  }
+
   void removeServer(String serverId) {
     final entry = _servers.value[serverId];
     if (entry == null) {
@@ -158,6 +183,23 @@ class ServerManager {
 
     final updated = {..._servers.value}..remove(serverId);
     _servers.value = updated;
+
+    // Snapshot so a listener that unsubscribes itself can't mutate the list
+    // mid-iteration. Each dispatch is guarded so one throwing listener can
+    // neither strand the others nor abort the rest of removeServer (the storage
+    // delete below).
+    for (final listener in List.of(_onRemoved)) {
+      try {
+        listener(serverId);
+      } on Object catch (e, st) {
+        _logger.error(
+          'server-removed listener threw',
+          error: e,
+          stackTrace: st,
+          attributes: {'serverId': serverId},
+        );
+      }
+    }
 
     _persistQueue[serverId] = (_persistQueue[serverId] ?? Future.value())
         .then((_) => _storage.delete(serverId))

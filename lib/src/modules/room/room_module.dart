@@ -30,7 +30,7 @@ class RoomAppModule extends AppModule {
         _messageExpansions = MessageExpansions(),
         _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
         _removedServerCleanup = RemovedServerCleanup(
-          servers: serverManager.servers,
+          serverManager: serverManager,
           roomReadMarkers: roomReadMarkers,
           serverReadMarkers: serverReadMarkers,
         );
@@ -122,9 +122,6 @@ class RoomAppModule extends AppModule {
 
   @override
   Future<void> onDispose() async {
-    // Before the auth module disposes ServerManager (reverse registration
-    // order), so the cleanup stops observing before ServerManager empties the
-    // servers signal — an empty-out it would otherwise read as a mass removal.
     _removedServerCleanup.dispose();
     await runtimeManager.dispose();
     registry.dispose();
