@@ -15,6 +15,7 @@ export 'src/components/picker/date_picker.dart';
 export 'src/components/picker/time_picker.dart';
 export 'src/effects/glow.dart';
 export 'src/effects/shimmer.dart';
+export 'src/effects/shimmer_text.dart';
 export 'src/theme/classification_theme.dart';
 export 'src/theme/markdown_theme_extension.dart';
 export 'src/theme/theme.dart';

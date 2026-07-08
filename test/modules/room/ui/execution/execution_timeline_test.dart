@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../../helpers/test_logger.dart';
 
@@ -270,6 +271,25 @@ void main() {
     await tester.pump();
 
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
+  });
+
+  testWidgets('running step shimmers its label instead of showing a spinner',
+      (tester) async {
+    // Started-but-not-completed: the step stays active and its activity
+    // in-progress.
+    events.value = const ServerToolCallStarted(
+      toolName: 'search',
+      toolCallId: 'tc-1',
+    );
+
+    await tester.pumpWidget(wrap(build()));
+    await tester.pump();
+    await tester.tap(find.text('1 event'));
+    await tester.pump();
+
+    // No anxiety-inducing spinner; the running rows shimmer instead.
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(SoliplexShimmerText), findsWidgets);
   });
 
   testWidgets('standalone activity rendered when no active step',

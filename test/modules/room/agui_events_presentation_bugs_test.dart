@@ -91,7 +91,7 @@ void main() {
           activity.status,
           SkillToolCallStatus.done,
           reason: 'Result snapshot must flip the row to done; otherwise '
-              'the nested icon stays at the in-progress spinner.',
+              'the nested row stays in its in-progress (shimmering) state.',
         );
         expect(activity.result, 'answer text');
         expect(
@@ -152,7 +152,7 @@ void main() {
           calls.single.status,
           SkillToolCallStatus.inProgress,
           reason: 'The call phase carries no explicit status; the decoder '
-              'must synthesize inProgress so the spinner renders.',
+              'must synthesize inProgress so the row shimmers as running.',
         );
 
         const resultContent = {

@@ -215,11 +215,10 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           _stepIcon(step, theme),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
-            child: Text(
+            child: _rowLabel(
               step.label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              theme,
+              running: step.status == StepStatus.active,
             ),
           ),
           Text(
@@ -270,11 +269,10 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                 _activityStatusIcon(activity.status, theme),
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
-                  child: Text(
+                  child: _rowLabel(
                     activity.toolName,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    theme,
+                    running: activity.status == SkillToolCallStatus.inProgress,
                   ),
                 ),
                 Text(
@@ -324,17 +322,26 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
   }
 
+  /// The primary label of a timeline row. While the row is [running] the text
+  /// shimmers (a calm stand-in for the old per-row spinner) and settles back to
+  /// the plain muted label — same resting color — once the step completes.
+  Widget _rowLabel(String label, ThemeData theme, {required bool running}) {
+    final text = Text(
+      label,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+    if (!running) return text;
+    return SoliplexShimmerText(child: text);
+  }
+
   Widget _stepIcon(ExecutionStep step, ThemeData theme) {
     switch (step.status) {
       case StepStatus.active:
-        return SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            color: theme.colorScheme.primary,
-          ),
-        );
+        // No spinner: the shimmering label carries the "in progress" signal.
+        // Keep the slot so completed rows' check icons stay column-aligned.
+        return const SizedBox(width: 12, height: 12);
       case StepStatus.failed:
         return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
       case StepStatus.completed:
@@ -354,14 +361,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   Widget _activityStatusIcon(SkillToolCallStatus status, ThemeData theme) {
     switch (status) {
       case SkillToolCallStatus.inProgress:
-        return SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            color: theme.colorScheme.primary,
-          ),
-        );
+        // No spinner: the shimmering label carries the "in progress" signal.
+        return const SizedBox(width: 12, height: 12);
       case SkillToolCallStatus.error:
         return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
       case SkillToolCallStatus.done:

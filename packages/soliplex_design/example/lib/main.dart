@@ -804,6 +804,14 @@ class EffectsGallery extends StatelessWidget {
             ),
           ],
         ),
+        _Section(
+          title: 'Shimmer text — running label',
+          children: [
+            SoliplexShimmerText(child: Text('Generating response')),
+            SoliplexShimmerText(child: Text('Calling search_documents')),
+            SoliplexShimmerText(child: Text('Thinking')),
+          ],
+        ),
       ],
     );
   }

@@ -11,21 +11,14 @@ class PhaseIndicator extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: SoliplexSpacing.s2),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
+      // A phase is always live work, so the whole label shimmers — no spinner.
+      child: SoliplexShimmerText(
+        child: Text(
+          _label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Text(
-            _label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
