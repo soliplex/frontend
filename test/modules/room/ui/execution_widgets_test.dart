@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../helpers/test_logger.dart';
 
@@ -28,7 +29,9 @@ void main() {
     ));
 
     expect(find.text('Processing...'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsWidgets);
+    // The spinner was replaced by a shimmering label.
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(SoliplexShimmerText), findsOneWidget);
   });
 
   testWidgets('PhaseIndicator shows tool call label', (tester) async {
