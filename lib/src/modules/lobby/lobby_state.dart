@@ -20,6 +20,8 @@ import '../auth/server_entry.dart';
 import '../auth/server_manager.dart';
 import '../room/room_run_activity.dart';
 import '../room/run_registry.dart';
+import '../room/thread_anchor_storage.dart' show ThreadAnchorStorage;
+import '../room/thread_read_markers.dart' show ThreadReadMarkerStorage;
 import 'lobby_read_markers.dart';
 import 'lobby_sort_mode.dart';
 import 'lobby_view_mode.dart';
@@ -657,7 +659,8 @@ class LobbyState {
     final token = CancelToken();
     _cancelTokens[serverId] = token;
 
-    // Mark as loading
+    // Mark as loading, keeping the prior list to diff for disappeared rooms.
+    final previous = _roomsByServer.value[serverId];
     _roomsByServer.value = {
       ..._roomsByServer.value,
       serverId: const RoomsLoading(),
@@ -670,6 +673,7 @@ class LobbyState {
         ..._roomsByServer.value,
         serverId: RoomsLoaded(rooms),
       };
+      _pruneDisappearedRooms(serverId, previous, rooms);
       // A fresh room list invalidates cached activity for this server (rooms
       // may have been added); drop those entries so recency refetches.
       _invalidateActivity(serverId);
@@ -700,6 +704,41 @@ class LobbyState {
         serverId: RoomsFailed(error),
       };
     });
+  }
+
+  /// Prunes device-local state for rooms that vanished from [serverId]'s list
+  /// between [previous] and the fresh [rooms] (a backend delete / access loss).
+  /// Only diffs a prior loaded list against the new one — a failed or first
+  /// fetch removes nothing. Drafts are deliberately left alone (they self-expire
+  /// and clear on server removal); a passive list diff must never destroy unsent
+  /// text on a transient shortfall.
+  void _pruneDisappearedRooms(
+      String serverId, ServerRooms? previous, List<Room> rooms) {
+    if (previous is! RoomsLoaded) return;
+    final live = rooms.map((r) => r.id).toSet();
+    final removed =
+        previous.rooms.map((r) => r.id).where((id) => !live.contains(id));
+    for (final roomId in removed) {
+      _roomReadMarkers.clearRoom(serverId, roomId);
+      unawaited(ThreadReadMarkerStorage.clearRoom(serverId, roomId)
+          .catchError((Object error, StackTrace st) {
+        _logger.error(
+          'Failed to clear thread read markers for removed room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId},
+        );
+      }));
+      unawaited(ThreadAnchorStorage.clearRoom(serverId, roomId)
+          .catchError((Object error, StackTrace st) {
+        _logger.warning(
+          'Failed to clear thread anchors for removed room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId},
+        );
+      }));
+    }
   }
 
   void _fetchUserProfile(String serverId, ServerEntry entry) {

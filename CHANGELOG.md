@@ -20,9 +20,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   Only a genuine removal clears a server's read state, unread-divider anchors,
   and composer drafts; a signal reset such as shell teardown no longer risks
   wiping stored state, independent of module dispose order.
+- When a room or thread disappears from a server (deleted, or access removed),
+  its device-local read markers and unread-divider anchors are dropped across
+  users, and a deleted thread's document-filter selection is cleared. Unsent
+  composer drafts are intentionally kept (they self-expire and clear on explicit
+  server removal), so a transient fetch shortfall can't destroy unsent text.
 
 ### Fixed
 
+- Deleting the open thread no longer writes a stale "read" marker for it on the
+  way out (via dispose, or the auto-navigate to a sibling thread), so a thread
+  later re-created under the same id no longer appears already-read.
 - Removing a server now clears the rest of its device-local state, not just its
   read markers: the thread unread-divider anchors and unsent composer drafts are
   dropped too, on every removal path. Because server ids derive from the URL,

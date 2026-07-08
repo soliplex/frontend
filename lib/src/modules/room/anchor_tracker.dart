@@ -136,6 +136,20 @@ class AnchorTracker {
     if (_dirty) unawaited(_flush());
   }
 
+  /// Drops [threadId]'s anchor (a deleted thread) from the in-memory map so a
+  /// later flush doesn't re-persist it. Only flushes once loaded — the exit-time
+  /// prune that calls this runs against an already-loaded tracker, so the
+  /// in-flight-load merge that could otherwise re-add the entry isn't reached in
+  /// practice. The disk store's all-users `clearThread` is the source of truth.
+  void clearThread(String threadId) {
+    final next = {..._anchors}..removeWhere((k, _) => k.threadId == threadId);
+    if (next.length == _anchors.length) return;
+    _anchors = next;
+    _dirty = true;
+    if (_loadState != _LoadState.loaded) return;
+    unawaited(_flush());
+  }
+
   /// Writes [_anchors] while any change is pending, one write at a time. Keeps
   /// [_dirty] set on failure so the change is retried by the next flush rather
   /// than lost, and escalates the log once failures persist.

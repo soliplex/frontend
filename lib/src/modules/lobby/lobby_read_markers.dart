@@ -128,6 +128,27 @@ abstract final class LobbyReadMarkerStorage {
       await prefs.remove(k);
     }
   }
+
+  /// Removes [roomId] from every user's blob for [serverId], leaving sibling
+  /// rooms intact. Sweeps this class's `(serverId, userId)` keys; unrelated keys
+  /// are untouched.
+  static Future<void> clearRoom(String serverId, String roomId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sweep = serverKeyPrefix(_prefix, serverId);
+    for (final k
+        in prefs.getKeys().where((k) => k.startsWith(sweep)).toList()) {
+      final raw = prefs.getString(k);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map || !decoded.containsKey(roomId)) continue;
+        decoded.remove(roomId);
+        await prefs.setString(k, jsonEncode(decoded));
+      } on FormatException {
+        continue;
+      }
+    }
+  }
 }
 
 /// In-memory, reactive source of truth for per-room read markers, shared by the
@@ -296,6 +317,28 @@ class RoomReadMarkers {
           error: error,
           stackTrace: st,
           attributes: {'serverId': serverId},
+        );
+      }),
+    );
+  }
+
+  /// Drops [roomId] for every user on [serverId] from memory and disk, so a
+  /// disappeared room doesn't read as read if re-created under the same id.
+  /// Unlike [clearServer] this does not bump [_generation]: the epoch is
+  /// server-wide, so bumping it on a single-room clear would abort in-flight
+  /// loads/persists for other rooms on the server and drop their stamps.
+  void clearRoom(String serverId, String roomId) {
+    final next = {..._markers.value}..removeWhere(
+        (key, _) => key.serverId == serverId && key.roomId == roomId);
+    if (next.length != _markers.value.length) _markers.value = next;
+    unawaited(
+      LobbyReadMarkerStorage.clearRoom(serverId, roomId)
+          .catchError((Object error, StackTrace st) {
+        _logger.error(
+          'Failed to clear room read markers for removed room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId},
         );
       }),
     );

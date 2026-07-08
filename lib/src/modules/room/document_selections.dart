@@ -19,6 +19,11 @@ class DocumentSelections {
     }
   }
 
+  /// Drops the selection for a deleted thread.
+  void clearThread(String roomId, String threadId) {
+    _selections.remove((roomId, threadId));
+  }
+
   /// Moves the selection from the null-thread key to [threadId].
   ///
   /// Used when a user selects documents before a thread exists, then

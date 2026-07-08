@@ -51,6 +51,18 @@ void main() {
     });
   });
 
+  group('clearThread', () {
+    test('clearThread removes just that (room, thread)', () {
+      selections.set('room-1', 'thread-1', {_doc1});
+      selections.set('room-1', 'thread-2', {_doc2});
+
+      selections.clearThread('room-1', 'thread-1');
+
+      expect(selections.get('room-1', 'thread-1'), isEmpty);
+      expect(selections.get('room-1', 'thread-2'), {_doc2});
+    });
+  });
+
   group('migrateToThread', () {
     test('moves null-key selection to thread', () {
       selections.set('room-1', null, {_doc1, _doc2});

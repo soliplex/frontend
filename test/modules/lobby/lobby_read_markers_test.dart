@@ -68,6 +68,28 @@ void main() {
           {'r1': t});
     });
 
+    test('clearRoom drops one room across users, keeps siblings and peers',
+        () async {
+      const s2 = 'https://foo.com:8443';
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'r1': t, 'r2': t});
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u2, markers: {'r1': t});
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s2, userId: u1, markers: {'r1': t});
+
+      await LobbyReadMarkerStorage.clearRoom(s, 'r1');
+
+      // r1 gone for every user of s; r2 sibling kept; the different-port peer
+      // and its r1 untouched.
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u1),
+          {'r2': t});
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s, userId: u2),
+          isEmpty);
+      expect(await LobbyReadMarkerStorage.loadServer(serverId: s2, userId: u1),
+          {'r1': t});
+    });
+
     test('discards a corrupt blob and returns empty', () async {
       SharedPreferences.setMockInitialValues({
         'soliplex_room_read_marker:${Uri.encodeComponent(s)}:'
