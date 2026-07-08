@@ -7,6 +7,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' show Room, RoomStats;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_sort_mode.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
@@ -334,8 +335,11 @@ void main() {
       // room must not stamp it read — the room screen's per-thread rollup owns
       // that, so a genuinely-unread thread isn't hidden.
       expect(find.text('Room'), findsOneWidget);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('soliplex_lobby_read_markers'), isNull);
+      expect(
+        await LobbyReadMarkerStorage.loadServer(
+            serverId: 'local', userId: null),
+        isEmpty,
+      );
     });
 
     testWidgets('honors the persisted grid mode on load', (tester) async {
@@ -803,8 +807,12 @@ void main() {
       // The dot clears reactively, and the room's marker is persisted keyed by
       // its id (so the gating wired the correct room, not just any room).
       expect(find.byType(UnreadDot), findsNothing);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('soliplex_lobby_read_markers'), contains('r1'));
+      expect(
+        (await LobbyReadMarkerStorage.loadServer(
+                serverId: 'local', userId: null))
+            .keys,
+        contains('r1'),
+      );
     });
 
     testWidgets('a read room card offers no Mark as read menu', (tester) async {
@@ -863,8 +871,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(UnreadDot), findsNothing);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('soliplex_lobby_read_markers'), contains('r1'));
+      expect(
+        (await LobbyReadMarkerStorage.loadServer(
+                serverId: 'local', userId: null))
+            .keys,
+        contains('r1'),
+      );
     });
   });
 }

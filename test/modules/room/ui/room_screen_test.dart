@@ -1654,8 +1654,9 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: entry.serverId, userId: null);
+        expect(markers['room-1'], leave);
       });
     });
 
@@ -1705,13 +1706,68 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], isNull);
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: entry.serverId, userId: null);
+        expect(markers['room-1'], isNull);
       });
     });
 
     testWidgets('switching rooms marks the left room read when caught up',
         (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final open = DateTime.utc(2026, 6, 1, 10);
+      final leave = DateTime.utc(2026, 6, 1, 10, 1);
+      var now = open;
+
+      // Signed in: the left room's marker must persist under the user's bucket,
+      // not the unauthenticated one — the room-screen captures the identity at
+      // open and files the leave stamp against it.
+      final authedEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 2),
+          lastActivity: DateTime.utc(2026, 6, 1, 10, 0, 30),
+        ),
+      ];
+
+      Widget roomScreen(String roomId) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: authedEntry,
+              roomId: roomId,
+              threadId: roomId == 'room-1' ? 'thread-1' : null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+
+      await withClock(Clock(() => now), () async {
+        await tester.pumpWidget(roomScreen('room-1'));
+        await tester.pumpAndSettle();
+
+        now = leave;
+        await tester.pumpWidget(roomScreen('room-2'));
+        await tester.pumpAndSettle();
+
+        final markers = await LobbyReadMarkerStorage.loadServer(
+            serverId: authedEntry.serverId, userId: testUserIdentity);
+        expect(markers['room-1'], leave);
+      });
+    });
+
+    testWidgets(
+        'a logout while in a room stamps the left room under the logged-in '
+        'user, not the unauthenticated bucket', (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -1731,28 +1787,41 @@ void main() {
         ),
       ];
 
-      Widget roomScreen(String roomId) => MaterialApp(
-            home: RoomScreen(
-              serverEntry: entry,
-              roomId: roomId,
-              threadId: roomId == 'room-1' ? 'thread-1' : null,
-              runtimeManager: runtimeManager,
-              registry: registry,
-              uploadRegistry: uploadRegistry,
-              documentSelections: DocumentSelections(),
-            ),
-          );
+      final aliceEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity(sub: 'alice'));
 
       await withClock(Clock(() => now), () async {
-        await tester.pumpWidget(roomScreen('room-1'));
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: aliceEntry,
+            roomId: 'room-1',
+            threadId: 'thread-1',
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
         await tester.pumpAndSettle();
 
+        // Log out while mounted, then let the screen dispose. The room-level
+        // leave stamp (which the lobby reads) must file under alice, captured
+        // at open, not the now-null live session.
         now = leave;
-        await tester.pumpWidget(roomScreen('room-2'));
+        aliceEntry.auth.logout();
+        await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
 
-        final markers = await LobbyReadMarkerStorage.load();
-        expect(markers[(serverId: entry.serverId, roomId: 'room-1')], leave);
+        expect(
+          await LobbyReadMarkerStorage.loadServer(
+              serverId: aliceEntry.serverId, userId: testIdentityFor('alice')),
+          containsPair('room-1', leave),
+        );
+        expect(
+          await LobbyReadMarkerStorage.loadServer(
+              serverId: aliceEntry.serverId, userId: null),
+          isEmpty,
+        );
       });
     });
   });

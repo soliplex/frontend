@@ -9,11 +9,14 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/selected_server_storage.dart';
+import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
+import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 
 import '../../helpers/fakes.dart';
+import '../../helpers/test_server_entry.dart';
 
 ServerManager _createManager() => ServerManager(
       authFactory: () => AuthSession(refreshService: FakeTokenRefreshService()),
@@ -1127,25 +1130,141 @@ void main() {
     });
 
     group('mark as read', () {
-      test('markRoomRead stamps the room marker so it reads as read', () {
+      const provider = OidcProvider(
+        discoveryUrl: 'https://sso/.well-known/openid-configuration',
+        clientId: 'c',
+      );
+
+      void loginAs(ServerEntry entry, String sub) => entry.auth.login(
+            provider: provider,
+            tokens: AuthTokens(
+              accessToken: testAccessToken(sub: sub),
+              refreshToken: 'r',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+          );
+
+      test('markRoomRead stamps under the signed-in user and projects it back',
+          () {
         withClock(Clock.fixed(DateTime.utc(2026, 6, 1)), () {
-          final state = LobbyState(serverManager: _createManager());
-          state.markRoomRead('srv', 'roomA');
+          final manager = _createManager();
+          loginAs(
+            manager.addServer(
+                serverId: 'srvA', serverUrl: Uri.parse('http://a.test')),
+            'alice',
+          );
+          final state = LobbyState(serverManager: manager);
+
+          state.markRoomRead('srvA', 'roomA');
+
           expect(
-            state.roomReadMarkers.value[(serverId: 'srv', roomId: 'roomA')],
+            state.roomReadMarkers.value[(serverId: 'srvA', roomId: 'roomA')],
             DateTime.utc(2026, 6, 1),
           );
           state.dispose();
         });
       });
 
-      test('markServerRead stamps the server marker', () {
+      test('markServerRead stamps under the signed-in user', () {
         withClock(Clock.fixed(DateTime.utc(2026, 6, 1)), () {
-          final state = LobbyState(serverManager: _createManager());
-          state.markServerRead('s');
-          expect(state.serverReadMarkers.value['s'], DateTime.utc(2026, 6, 1));
+          final manager = _createManager();
+          loginAs(
+            manager.addServer(
+                serverId: 'srvA', serverUrl: Uri.parse('http://a.test')),
+            'alice',
+          );
+          final state = LobbyState(serverManager: manager);
+
+          state.markServerRead('srvA');
+
+          expect(
+            state.serverReadMarkers.value['srvA'],
+            DateTime.utc(2026, 6, 1),
+          );
           state.dispose();
         });
+      });
+
+      test(
+          'projects each server to its own user, hiding another user\'s marker',
+          () async {
+        final t = DateTime.utc(2026, 6, 1);
+        final manager = _createManager();
+        loginAs(
+          manager.addServer(
+              serverId: 'srvA', serverUrl: Uri.parse('http://a.test')),
+          'alice',
+        );
+        loginAs(
+          manager.addServer(
+              serverId: 'srvB', serverUrl: Uri.parse('http://b.test')),
+          'bob',
+        );
+
+        final room = RoomReadMarkers();
+        room.markRead(
+            serverId: 'srvA',
+            userId: testIdentityFor('alice'),
+            roomId: 'r1',
+            at: t);
+        // A stale marker from a user who is NOT srvA's current user: must be
+        // hidden by the per-server projection.
+        room.markRead(
+            serverId: 'srvA',
+            userId: testIdentityFor('bob'),
+            roomId: 'rStale',
+            at: t);
+        room.markRead(
+            serverId: 'srvB',
+            userId: testIdentityFor('bob'),
+            roomId: 'r2',
+            at: t);
+        final server = ServerReadMarkers();
+        server.markRead(
+            serverId: 'srvA', userId: testIdentityFor('alice'), at: t);
+        server.markRead(
+            serverId: 'srvB', userId: testIdentityFor('bob'), at: t);
+
+        final state = LobbyState(
+          serverManager: manager,
+          roomReadMarkers: room,
+          serverReadMarkers: server,
+        );
+        await pumpEventQueue();
+
+        expect(state.roomReadMarkers.value, {
+          (serverId: 'srvA', roomId: 'r1'): t,
+          (serverId: 'srvB', roomId: 'r2'): t,
+        });
+        expect(state.serverReadMarkers.value, {'srvA': t, 'srvB': t});
+        state.dispose();
+      });
+
+      test('a live sign-in loads and projects that user\'s persisted markers',
+          () async {
+        final t = DateTime.utc(2026, 6, 1);
+        // Bob has read state persisted from a previous session.
+        await LobbyReadMarkerStorage.saveServer(
+            serverId: 'srvA',
+            userId: testIdentityFor('bob'),
+            markers: {'r1': t});
+
+        final manager = _createManager();
+        final entry = manager.addServer(
+            serverId: 'srvA', serverUrl: Uri.parse('http://a.test'));
+        final state = LobbyState(serverManager: manager);
+        await pumpEventQueue();
+        // Signed out: no user resolves, so nothing projects.
+        expect(state.roomReadMarkers.value, isEmpty);
+
+        loginAs(entry, 'bob');
+        await pumpEventQueue();
+
+        // The auth change loads Bob's blob and re-runs the projection (his
+        // currentUserId is a tracked dependency), surfacing his marker.
+        expect(
+            state.roomReadMarkers.value[(serverId: 'srvA', roomId: 'r1')], t);
+        state.dispose();
       });
     });
   });

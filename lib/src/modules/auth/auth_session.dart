@@ -25,6 +25,11 @@ class AuthSession implements TokenRefresher {
   /// must still be attributable to the user. Re-evaluates only when the session
   /// changes and yields the same value across a same-user refresh, so watchers
   /// don't churn. Raw (un-encoded); key builders percent-encode it downstream.
+  ///
+  /// A `null` on an *authenticated* session (an opaque, non-JWT access token
+  /// carrying no `iss`/`sub`) is expected, not an error: user-scoped
+  /// device-local state then shares this server's unauthenticated bucket, since
+  /// there is no identity claim to isolate it by.
   late final ReadonlySignal<String?> currentUserId = computed(() {
     final token = switch (_session.value) {
       ActiveSession(:final tokens) => tokens.accessToken,

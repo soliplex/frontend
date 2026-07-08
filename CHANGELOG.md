@@ -43,6 +43,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   previous user's read state or "New messages" dividers. As a one-time effect of
   the storage-format change, existing thread read state resets on upgrade — every
   thread reads as unread once and dividers are recomputed from that point.
+- Lobby room and server read markers are now scoped to the signed-in user, per
+  server: a different user signing in on a shared device no longer inherits the
+  previous user's unread state, and the multi-server lobby resolves each server's
+  own signed-in user. This closes the last device-local read-state leak between
+  users. As a one-time effect of the storage-format change, existing lobby
+  read state resets on upgrade — every room reads as unread once.
 
 ## [0.92.0+65] - 2026-07-02
 

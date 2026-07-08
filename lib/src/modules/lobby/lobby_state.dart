@@ -12,6 +12,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/activity_read.dart';
+import '../../core/keyed_storage.dart' show storageUser;
 import '../../core/util/debouncer.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
@@ -96,8 +97,6 @@ class LobbyState {
     _unsubscribe = _serverManager.servers.subscribe(_onServersChanged);
     unawaited(_loadViewMode());
     unawaited(_loadSortMode());
-    unawaited(_roomReadMarkers.ensureLoaded());
-    unawaited(_serverReadMarkers.ensureLoaded());
     unawaited(_loadSelectedServer());
     _watchRunCompletions();
   }
@@ -225,26 +224,76 @@ class LobbyState {
   ReadonlySignal<Map<RoomActivityKey, DateTime?>> get roomActivity =>
       _roomActivity;
 
-  /// Per-room "last seen" timestamps, keyed by (serverId, roomId). A room is
-  /// *unread* when [roomActivity] reports a last-activity time newer than its
-  /// marker (or newer than the epoch, when never opened). Persisted per-device;
-  /// there is no server-side read state and no unread count.
-  ReadonlySignal<Map<RoomActivityKey, DateTime>> get roomReadMarkers =>
-      _roomReadMarkers.markers;
+  /// Per-room "last seen" timestamps for the current user of each server, keyed
+  /// by (serverId, roomId). A room is *unread* when [roomActivity] reports a
+  /// last-activity time newer than its marker (or newer than the epoch, when
+  /// never opened). Persisted per-device and per-user; there is no server-side
+  /// read state and no unread count.
+  ///
+  /// The shared store keys by `(serverId, userId, roomId)` so servers signed in
+  /// as different users coexist; this projects to each server's current user.
+  /// Every visible server's `currentUserId` is read up front so a marker-less
+  /// server still subscribes and a later sign-in re-runs the projection.
+  late final ReadonlySignal<Map<RoomActivityKey, DateTime>> roomReadMarkers =
+      computed(() {
+    final userFor = _currentUserByServer();
+    return currentUserRoomMarkers(
+      _roomReadMarkers.markers.value,
+      (serverId) => storageUser(userFor[serverId]),
+    );
+  });
 
-  /// Per-server "last seen" timestamps, keyed by serverId. A room reads as read
-  /// when its activity is at or before the later of its room marker and its
-  /// server's marker here, so a server marker floors all its rooms.
-  ReadonlySignal<Map<String, DateTime>> get serverReadMarkers =>
-      _serverReadMarkers.markers;
+  /// Per-server "last seen" timestamps for the current user of each server,
+  /// keyed by serverId. A room reads as read when its activity is at or before
+  /// the later of its room marker and its server's marker here, so a server
+  /// marker floors all its rooms. Projects the shared `(serverId, userId)` store
+  /// to each server's current user, mirroring [roomReadMarkers].
+  late final ReadonlySignal<Map<String, DateTime>> serverReadMarkers =
+      computed(() {
+    final userFor = _currentUserByServer();
+    return currentUserServerMarkers(
+      _serverReadMarkers.markers.value,
+      (serverId) => storageUser(userFor[serverId]),
+    );
+  });
+
+  /// The current user identity per visible server (sentinel-substituted). Read
+  /// inside the projection computeds so every server's `currentUserId` is a
+  /// tracked dependency — otherwise a server with no markers yet would never be
+  /// read, and a later sign-in on it wouldn't invalidate the projection.
+  Map<String, String> _currentUserByServer() {
+    final result = <String, String>{};
+    for (final entry in _serverManager.servers.value.values) {
+      result[entry.serverId] = storageUser(entry.auth.currentUserId.value);
+    }
+    return result;
+  }
+
+  String? _currentUserId(String serverId) =>
+      _serverManager.servers.value[serverId]?.auth.currentUserId.value;
+
+  /// Loads the current user's room + server marker blobs for [entry] into the
+  /// shared stores. Idempotent per `(serverId, userId)`, so calling it on every
+  /// auth change reloads only when the user actually changed (Alice → Bob), not
+  /// on a same-user token refresh.
+  void _ensureMarkersLoaded(ServerEntry entry) {
+    final userId = entry.auth.currentUserId.value;
+    unawaited(_roomReadMarkers.ensureLoaded(
+        serverId: entry.serverId, userId: userId));
+    unawaited(_serverReadMarkers.ensureLoaded(
+        serverId: entry.serverId, userId: userId));
+  }
 
   /// Stamps a room read as of now (from a lobby card's context menu). Writes
   /// through the shared store, so the rail's dot clears too, and every thread in
-  /// the room reads as read via the read-up rule.
+  /// the room reads as read via the read-up rule. Resolves the current user for
+  /// [serverId] live — a menu tap is immediate, so the signed-in user is right.
   void markRoomRead(String serverId, String roomId) {
     _roomReadMarkers.markRead(
-      (serverId: serverId, roomId: roomId),
-      clock.now().toUtc(),
+      serverId: serverId,
+      userId: _currentUserId(serverId),
+      roomId: roomId,
+      at: clock.now().toUtc(),
     );
   }
 
@@ -252,7 +301,11 @@ class LobbyState {
   /// read-up rule this reads every room and thread on the server — loaded or not
   /// — as read, with a single marker write.
   void markServerRead(String serverId) {
-    _serverReadMarkers.markRead(serverId, clock.now().toUtc());
+    _serverReadMarkers.markRead(
+      serverId: serverId,
+      userId: _currentUserId(serverId),
+      at: clock.now().toUtc(),
+    );
   }
 
   /// True while activity for the selected server is being fetched.
@@ -536,6 +589,7 @@ class LobbyState {
       _authSubscriptions[id] = entry.auth.session.subscribe((_) {
         _onAuthChanged(id, entry);
       });
+      _ensureMarkersLoaded(entry);
       if (entry.isConnected) {
         _fetchRooms(id, entry);
         _fetchUserProfile(id, entry);
@@ -549,6 +603,11 @@ class LobbyState {
     final previous = _lastSessionState[serverId];
     final current = entry.auth.session.value;
     _lastSessionState[serverId] = current;
+
+    // Load this server's markers for whoever is now signed in. Idempotent per
+    // (server, user): a same-user token rotation is a no-op, an Alice → Bob
+    // switch loads Bob's blob. Keyed on identity, not the session transition.
+    _ensureMarkersLoaded(entry);
 
     if (entry.isConnected) {
       // Refetch only on transitions INTO ActiveSession (silent
