@@ -24,7 +24,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/activity_read.dart' show currentUserRoomMarkers;
-import '../../../core/keyed_storage.dart' show unauthenticatedStorageUser;
+import '../../../core/keyed_storage.dart' show storageUser;
 import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
 import '../../auth/return_to_storage.dart';
@@ -221,12 +221,13 @@ class _RoomScreenState extends State<RoomScreen> {
   late final ServerReadMarkers _serverReadMarkers;
 
   /// The identity the open room's read markers are scoped to, captured at mount
-  /// and re-captured on every room change (like the trackers' coordinates); the
-  /// value only differs on a server switch. Read and write sites resolve it from
-  /// this field rather than live off the session so a deferred write after a
-  /// switch or logout can't misfile a marker into the wrong user's bucket. Null
-  /// (a signed-out or no-auth server) resolves to the shared unauthenticated
-  /// bucket in the stores.
+  /// and re-captured on every room change (like the trackers' coordinates). It
+  /// normally changes only on a server switch, but is re-read on every room
+  /// change, so an identity change on the same server (a logout/re-login) is
+  /// picked up too. Read and write sites resolve it from this field rather than
+  /// live off the session so a deferred write after a switch or logout can't
+  /// misfile a marker into the wrong user's bucket. Null (a signed-out or no-auth
+  /// server) resolves to the shared unauthenticated bucket in the stores.
   String? _userId;
 
   /// Owns the current room's per-thread "last seen" read markers. Recreated on
@@ -442,7 +443,7 @@ class _RoomScreenState extends State<RoomScreen> {
   DateTime? _roomSeen(String serverId, String? userId, String roomId) =>
       _roomReadMarkers.value[(
         serverId: serverId,
-        userId: userId ?? unauthenticatedStorageUser,
+        userId: storageUser(userId),
         roomId: roomId,
       )];
 
@@ -450,7 +451,7 @@ class _RoomScreenState extends State<RoomScreen> {
   DateTime? _serverSeen(String serverId, String? userId) =>
       _serverReadMarkers.value[(
         serverId: serverId,
-        userId: userId ?? unauthenticatedStorageUser,
+        userId: storageUser(userId),
       )];
 
   /// Marks the room being left read when none of its threads remains unread,
@@ -558,7 +559,7 @@ class _RoomScreenState extends State<RoomScreen> {
       _roomActivity,
       currentUserRoomMarkers(
         _roomReadMarkers.value,
-        (_) => _userId ?? unauthenticatedStorageUser,
+        (_) => storageUser(_userId),
       ),
       serverId: serverId,
       currentRoomId: widget.roomId,
@@ -858,7 +859,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _chatController.clear();
       // Re-capture the identity for the entered room/server before _watchRoomRead
       // below fires the initial recompute, so it reads the right user's markers.
-      // A same-server room switch keeps the same user; a server switch changes it.
+      // Normally only a server switch changes it; re-reading also picks up an
+      // identity change on the same server (a logout/re-login).
       _userId = widget.serverEntry.auth.currentUserId.value;
       _state = _createRoomState();
       _workdirs = _createWorkdirController();

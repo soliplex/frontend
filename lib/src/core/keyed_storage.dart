@@ -31,3 +31,8 @@ String serverKeyPrefix(String prefix, String serverId) =>
 /// with one. State in this bucket is device-shared across everyone using that
 /// unauthenticated server — there is no identity to isolate it by.
 const unauthenticatedStorageUser = 'unauthenticated';
+
+/// The `userId` key component for [userId], substituting [unauthenticatedStorageUser]
+/// for a null identity (a signed-out or no-auth server). The single choke point
+/// for that substitution, so every key-construction site buckets the same way.
+String storageUser(String? userId) => userId ?? unauthenticatedStorageUser;

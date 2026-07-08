@@ -12,7 +12,7 @@ import 'package:soliplex_client/soliplex_client.dart'
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/activity_read.dart';
-import '../../core/keyed_storage.dart' show unauthenticatedStorageUser;
+import '../../core/keyed_storage.dart' show storageUser;
 import '../../core/util/debouncer.dart';
 import '../auth/auth_tokens.dart';
 import '../auth/selected_server_storage.dart';
@@ -239,7 +239,7 @@ class LobbyState {
     final userFor = _currentUserByServer();
     return currentUserRoomMarkers(
       _roomReadMarkers.markers.value,
-      (serverId) => userFor[serverId] ?? unauthenticatedStorageUser,
+      (serverId) => storageUser(userFor[serverId]),
     );
   });
 
@@ -253,7 +253,7 @@ class LobbyState {
     final userFor = _currentUserByServer();
     return currentUserServerMarkers(
       _serverReadMarkers.markers.value,
-      (serverId) => userFor[serverId] ?? unauthenticatedStorageUser,
+      (serverId) => storageUser(userFor[serverId]),
     );
   });
 
@@ -264,8 +264,7 @@ class LobbyState {
   Map<String, String> _currentUserByServer() {
     final result = <String, String>{};
     for (final entry in _serverManager.servers.value.values) {
-      result[entry.serverId] =
-          entry.auth.currentUserId.value ?? unauthenticatedStorageUser;
+      result[entry.serverId] = storageUser(entry.auth.currentUserId.value);
     }
     return result;
   }

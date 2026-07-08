@@ -162,5 +162,41 @@ void main() {
       store.dispose();
       reloaded.dispose();
     });
+
+    test('a clearServer during an in-flight load is not undone on resume',
+        () async {
+      // A blob on disk for (s, u1). The singleton is warm, so the concurrent
+      // load below reads the blob (it wins the shared cache), giving a real
+      // in-flight window in which the clear lands — the production timing.
+      await SharedPreferences.getInstance();
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {r: at});
+
+      final store = RoomReadMarkers();
+      // Start the load but DON'T await it — it is now parked on the disk read.
+      final loading = store.ensureLoaded(serverId: s, userId: u1);
+      // The server is removed while that load is in flight.
+      store.clearServer(s);
+      await loading; // the load resumes AFTER the clear, holding the read blob
+      await Future<void>.delayed(Duration.zero);
+
+      // The resumed load must not re-insert the swept blob: doing so would hide
+      // unread content if the server were re-added under the same id.
+      expect(store.value[key(s, u1, r)], isNull,
+          reason: 'a load resuming after clearServer must not resurrect it');
+      store.dispose();
+    });
+
+    test('a load resolving after dispose does not throw', () async {
+      await SharedPreferences.getInstance();
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {r: at});
+
+      final store = RoomReadMarkers();
+      final loading = store.ensureLoaded(serverId: s, userId: u1);
+      store.dispose(); // disposed while the load is in flight
+      // The load must not write to the disposed signal; no throw is the assert.
+      await loading;
+    });
   });
 }
