@@ -50,7 +50,12 @@ abstract final class LobbyReadMarkerStorage {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) {
         _logger.warning(
-            'Discarding corrupt room read markers (not a JSON object)');
+          'Discarding corrupt room read markers (not a JSON object)',
+          attributes: {
+            'serverId': serverId,
+            'userId': userId ?? unauthenticatedStorageUser,
+          },
+        );
         return {};
       }
       var skipped = 0;
@@ -69,14 +74,27 @@ abstract final class LobbyReadMarkerStorage {
       // Every entry dropped on a non-empty payload is a systemic serialization
       // break, not one stale row, and it silently resets this server's read
       // model (every room flips to unread). Surface it loudly.
+      final attributes = {
+        'serverId': serverId,
+        'userId': userId ?? unauthenticatedStorageUser,
+      };
       if (skipped > 0 && result.isEmpty) {
-        _logger.error('Discarding all $skipped room read markers; none parsed');
+        _logger.error('Discarding all $skipped room read markers; none parsed',
+            attributes: attributes);
       } else if (skipped > 0) {
-        _logger.warning('Skipped $skipped malformed room read marker(s)');
+        _logger.warning('Skipped $skipped malformed room read marker(s)',
+            attributes: attributes);
       }
     } on FormatException catch (e, st) {
-      _logger.warning('Discarding corrupt room read markers',
-          error: e, stackTrace: st);
+      _logger.warning(
+        'Discarding corrupt room read markers',
+        error: e,
+        stackTrace: st,
+        attributes: {
+          'serverId': serverId,
+          'userId': userId ?? unauthenticatedStorageUser,
+        },
+      );
       return {};
     }
     return result;
@@ -96,8 +114,8 @@ abstract final class LobbyReadMarkerStorage {
         _key(serverId, userId ?? unauthenticatedStorageUser), jsonEncode(obj));
   }
 
-  /// Drops every user's room markers for [serverId]. Only keyed entries are
-  /// removed; any pre-keyed entry under the old flat key name is left untouched.
+  /// Drops every user's room markers for [serverId]. Sweeps only keys under this
+  /// class's `(serverId, userId)` prefix; unrelated keys are untouched.
   static Future<void> clearServer(String serverId) async {
     final prefs = await SharedPreferences.getInstance();
     final sweep = serverKeyPrefix(_prefix, serverId);
@@ -123,9 +141,14 @@ class RoomReadMarkers {
   final Signal<Map<RoomMarkerKey, DateTime>> _markers = Signal(const {});
   ReadonlySignal<Map<RoomMarkerKey, DateTime>> get markers => _markers;
 
-  /// The `(serverId, userId)` blobs already merged in from disk. Guards against
-  /// a re-entrant load clobbering an optimistic in-memory stamp.
-  final Set<(String, String)> _loaded = {};
+  /// `(serverId, userId)` blobs whose disk load has completed. A completed key
+  /// means the in-memory map already holds that blob's full on-disk set, so a
+  /// rewrite of it (see [_persist]) can't shrink what's on disk.
+  final Set<ServerMarkerKey> _loaded = {};
+
+  /// In-flight loads per `(serverId, userId)`, so concurrent callers await the
+  /// same disk read instead of each racing a partial in-memory view onto disk.
+  final Map<ServerMarkerKey, Future<void>> _loadTasks = {};
 
   bool _disposed = false;
 
@@ -135,34 +158,39 @@ class RoomReadMarkers {
   /// Loads the `(serverId, userId)` blob once, merging it *under* anything
   /// already stamped in-memory (an early [markRead] before the disk read
   /// returned) so a just-read room isn't clobbered back to unread by the slower
-  /// load. Idempotent per `(serverId, userId)`; on failure the guard is released
-  /// so a later mount can retry rather than leaving the blob permanently unread.
+  /// load. Concurrent calls await the same in-flight load; a failed load leaves
+  /// the key unloaded so a later mount retries rather than wedging it unread.
   Future<void> ensureLoaded({
     required String serverId,
     required String? userId,
-  }) async {
-    final u = userId ?? unauthenticatedStorageUser;
-    if (!_loaded.add((serverId, u))) return;
-    final Map<String, DateTime> loaded;
+  }) {
+    final key =
+        (serverId: serverId, userId: userId ?? unauthenticatedStorageUser);
+    if (_loaded.contains(key)) return Future<void>.value();
+    return _loadTasks[key] ??= _load(serverId, userId, key);
+  }
+
+  Future<void> _load(
+      String serverId, String? userId, ServerMarkerKey key) async {
     try {
-      loaded = await LobbyReadMarkerStorage.loadServer(
+      final loaded = await LobbyReadMarkerStorage.loadServer(
           serverId: serverId, userId: userId);
+      if (_disposed) return;
+      _markers.value = {
+        for (final e in loaded.entries)
+          (serverId: serverId, userId: key.userId, roomId: e.key): e.value,
+        ..._markers.value,
+      };
+      _loaded.add(key);
     } catch (error, st) {
-      // Release the guard so a later mount can retry a transient storage error.
-      _loaded.remove((serverId, u));
       _logger.warning(
         'Failed to load room read markers',
         error: error,
         stackTrace: st,
       );
-      return;
+    } finally {
+      _loadTasks.remove(key);
     }
-    if (_disposed) return;
-    _markers.value = {
-      for (final e in loaded.entries)
-        (serverId: serverId, userId: u, roomId: e.key): e.value,
-      ..._markers.value,
-    };
   }
 
   /// Stamps `(serverId, userId, roomId)` read as of [at] and persists. [at] is
@@ -185,42 +213,48 @@ class RoomReadMarkers {
     unawaited(_persist(serverId, u, userId));
   }
 
-  /// Rewrites the whole `(serverId, userId)` blob. Loads the blob first
-  /// (idempotent) so a stamp made before the server's markers were loaded
-  /// rewrites the full on-disk set rather than clobbering it down to the single
-  /// just-stamped room.
+  /// Rewrites the whole `(serverId, userId)` blob. Waits for the blob's load to
+  /// complete first, so a stamp made before or during the load rewrites the
+  /// full on-disk set rather than shrinking it to the just-stamped room. When
+  /// the load didn't complete (a storage failure), the write is skipped: the
+  /// in-memory view is missing rooms that are still on disk, so rewriting it
+  /// would drop them.
   Future<void> _persist(String serverId, String u, String? userId) async {
-    await ensureLoaded(serverId: serverId, userId: userId);
-    if (_disposed) return;
-    final blob = <String, DateTime>{
-      for (final e in _markers.value.entries)
-        if (e.key.serverId == serverId && e.key.userId == u)
-          e.key.roomId: e.value,
-    };
-    await LobbyReadMarkerStorage.saveServer(
-      serverId: serverId,
-      userId: userId,
-      markers: blob,
-    ).catchError((Object error, StackTrace st) {
+    try {
+      await ensureLoaded(serverId: serverId, userId: userId);
+      if (_disposed || !_loaded.contains((serverId: serverId, userId: u))) {
+        return;
+      }
+      final blob = <String, DateTime>{
+        for (final e in _markers.value.entries)
+          if (e.key.serverId == serverId && e.key.userId == u)
+            e.key.roomId: e.value,
+      };
+      await LobbyReadMarkerStorage.saveServer(
+        serverId: serverId,
+        userId: userId,
+        markers: blob,
+      );
+    } catch (error, st) {
       _logger.warning(
         'Failed to persist room read markers',
         error: error,
         stackTrace: st,
       );
-    });
+    }
   }
 
   /// Drops every user's markers for [serverId] from memory and disk, so a
   /// removed server's rooms don't read as read if it's re-added under the same
-  /// id. The disk sweep runs unconditionally: the in-memory view holds only the
-  /// current user's blob per server, so it can't tell whether another user's
-  /// (or an unloaded) blob is still on disk.
+  /// id. The disk sweep runs unconditionally: the in-memory view can't see
+  /// another user's (or an unloaded) blob that may still be on disk.
   void clearServer(String serverId) {
     final next = {..._markers.value}
       ..removeWhere((key, _) => key.serverId == serverId);
     // Reassign only on a real change, to avoid a spurious watcher notification.
     if (next.length != _markers.value.length) _markers.value = next;
-    _loaded.removeWhere((pair) => pair.$1 == serverId);
+    _loaded.removeWhere((key) => key.serverId == serverId);
+    _loadTasks.removeWhere((key, _) => key.serverId == serverId);
     unawaited(
       LobbyReadMarkerStorage.clearServer(serverId)
           .catchError((Object error, StackTrace st) {
@@ -267,7 +301,13 @@ abstract final class ServerReadMarkerStorage {
     if (raw == null || raw.isEmpty) return null;
     final at = DateTime.tryParse(raw);
     if (at == null) {
-      _logger.warning('Discarding corrupt server read marker (unparseable)');
+      _logger.warning(
+        'Discarding corrupt server read marker (unparseable)',
+        attributes: {
+          'serverId': serverId,
+          'userId': userId ?? unauthenticatedStorageUser,
+        },
+      );
       return null;
     }
     return at.toUtc();
@@ -286,7 +326,7 @@ abstract final class ServerReadMarkerStorage {
     );
   }
 
-  /// Drops every user's marker for [serverId] (keyed format).
+  /// Drops every user's marker for [serverId].
   static Future<void> clearServer(String serverId) async {
     final prefs = await SharedPreferences.getInstance();
     final sweep = serverKeyPrefix(_prefix, serverId);
@@ -307,7 +347,11 @@ class ServerReadMarkers {
   final Signal<Map<ServerMarkerKey, DateTime>> _markers = Signal(const {});
   ReadonlySignal<Map<ServerMarkerKey, DateTime>> get markers => _markers;
 
-  final Set<(String, String)> _loaded = {};
+  final Set<ServerMarkerKey> _loaded = {};
+
+  /// In-flight loads per `(serverId, userId)`, so concurrent callers await the
+  /// same disk read instead of one resolving before the marker is in memory.
+  final Map<ServerMarkerKey, Future<void>> _loadTasks = {};
 
   bool _disposed = false;
 
@@ -315,32 +359,37 @@ class ServerReadMarkers {
   Map<ServerMarkerKey, DateTime> get value => _markers.value;
 
   /// Loads the `(serverId, userId)` marker once, merging it *under* any stamp
-  /// already in-memory. Idempotent per `(serverId, userId)`; releases the guard
-  /// on failure so a later mount can retry.
+  /// already in-memory. Concurrent calls await the same in-flight load; a failed
+  /// load leaves the key unloaded so a later mount retries.
   Future<void> ensureLoaded({
     required String serverId,
     required String? userId,
-  }) async {
-    final u = userId ?? unauthenticatedStorageUser;
-    if (!_loaded.add((serverId, u))) return;
-    final DateTime? at;
+  }) {
+    final key =
+        (serverId: serverId, userId: userId ?? unauthenticatedStorageUser);
+    if (_loaded.contains(key)) return Future<void>.value();
+    return _loadTasks[key] ??= _load(serverId, userId, key);
+  }
+
+  Future<void> _load(
+      String serverId, String? userId, ServerMarkerKey key) async {
     try {
-      at = await ServerReadMarkerStorage.loadServer(
+      final at = await ServerReadMarkerStorage.loadServer(
           serverId: serverId, userId: userId);
+      if (_disposed) return;
+      if (at != null && !_markers.value.containsKey(key)) {
+        _markers.value = {..._markers.value, key: at};
+      }
+      _loaded.add(key);
     } catch (error, st) {
-      // Release the guard so a later mount can retry a transient storage error.
-      _loaded.remove((serverId, u));
       _logger.warning(
         'Failed to load server read marker',
         error: error,
         stackTrace: st,
       );
-      return;
+    } finally {
+      _loadTasks.remove(key);
     }
-    if (at == null || _disposed) return;
-    final key = (serverId: serverId, userId: u);
-    if (_markers.value.containsKey(key)) return;
-    _markers.value = {..._markers.value, key: at};
   }
 
   /// Stamps [serverId] read as of [at] for [userId] and persists. [at] is
@@ -379,7 +428,8 @@ class ServerReadMarkers {
       ..removeWhere((key, _) => key.serverId == serverId);
     // Reassign only on a real change, to avoid a spurious watcher notification.
     if (next.length != _markers.value.length) _markers.value = next;
-    _loaded.removeWhere((pair) => pair.$1 == serverId);
+    _loaded.removeWhere((key) => key.serverId == serverId);
+    _loadTasks.removeWhere((key, _) => key.serverId == serverId);
     unawaited(
       ServerReadMarkerStorage.clearServer(serverId)
           .catchError((Object error, StackTrace st) {

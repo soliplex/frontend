@@ -123,6 +123,23 @@ void main() {
       store.dispose();
     });
 
+    test('a concurrent ensureLoaded awaits the same in-flight load', () async {
+      await ServerReadMarkerStorage.saveServer(serverId: s, userId: u1, at: at);
+      // Drop the warmed singleton so the load below actually re-reads disk.
+      SharedPreferences.resetStatic();
+
+      final store = ServerReadMarkers();
+      // Two overlapping loads: awaiting the second must still see the marker,
+      // i.e. it awaits the first's disk read rather than returning early.
+      final first = store.ensureLoaded(serverId: s, userId: u1);
+      final second = store.ensureLoaded(serverId: s, userId: u1);
+      await second;
+      expect(store.value[key(s, u1)], at,
+          reason: 'a concurrent load must not resolve before the disk read');
+      await first;
+      store.dispose();
+    });
+
     test('clearServer sweeps disk for a user the in-memory view never loaded',
         () async {
       await ServerReadMarkerStorage.saveServer(

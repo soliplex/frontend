@@ -1239,6 +1239,33 @@ void main() {
         expect(state.serverReadMarkers.value, {'srvA': t, 'srvB': t});
         state.dispose();
       });
+
+      test('a live sign-in loads and projects that user\'s persisted markers',
+          () async {
+        final t = DateTime.utc(2026, 6, 1);
+        // Bob has read state persisted from a previous session.
+        await LobbyReadMarkerStorage.saveServer(
+            serverId: 'srvA',
+            userId: testIdentityFor('bob'),
+            markers: {'r1': t});
+
+        final manager = _createManager();
+        final entry = manager.addServer(
+            serverId: 'srvA', serverUrl: Uri.parse('http://a.test'));
+        final state = LobbyState(serverManager: manager);
+        await pumpEventQueue();
+        // Signed out: no user resolves, so nothing projects.
+        expect(state.roomReadMarkers.value, isEmpty);
+
+        loginAs(entry, 'bob');
+        await pumpEventQueue();
+
+        // The auth change loads Bob's blob and re-runs the projection (his
+        // currentUserId is a tracked dependency), surfacing his marker.
+        expect(
+            state.roomReadMarkers.value[(serverId: 'srvA', roomId: 'r1')], t);
+        state.dispose();
+      });
     });
   });
 

@@ -74,6 +74,34 @@ void main() {
       reloaded.dispose();
     });
 
+    test('a stamp during an in-flight load does not truncate the on-disk blob',
+        () async {
+      // A room already persisted for (s, u1). resetStatic() drops the warmed
+      // SharedPreferences singleton so the load below actually re-reads disk
+      // (a real in-flight window), not a cached hit.
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'other': at});
+      SharedPreferences.resetStatic();
+
+      final store = RoomReadMarkers();
+      final now = DateTime.utc(2026, 7, 1);
+      // Start the load but DON'T await it — it is now in flight. A stamp landing
+      // now must still wait for the load before rewriting the blob, or it drops
+      // 'other' off disk (it isn't in memory yet).
+      final loading = store.ensureLoaded(serverId: s, userId: u1);
+      store.markRead(serverId: s, userId: u1, roomId: r, at: now);
+      await loading;
+      await Future<void>.delayed(Duration.zero);
+
+      final reloaded = RoomReadMarkers();
+      await reloaded.ensureLoaded(serverId: s, userId: u1);
+      expect(reloaded.value[key(s, u1, 'other')], at,
+          reason: 'the pre-existing room must survive a stamp made mid-load');
+      expect(reloaded.value[key(s, u1, r)], now);
+      store.dispose();
+      reloaded.dispose();
+    });
+
     test('clearServer sweeps disk for a user the in-memory view never loaded',
         () async {
       // Another user's blob left on disk that this store never ensureLoaded —
