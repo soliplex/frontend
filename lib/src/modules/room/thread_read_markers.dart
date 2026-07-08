@@ -41,8 +41,7 @@ abstract final class ThreadReadMarkerStorage {
     required String roomId,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(
-        _key(serverId, userId ?? unauthenticatedStorageUser, roomId));
+    final raw = prefs.getString(_key(serverId, storageUser(userId), roomId));
     if (raw == null || raw.isEmpty) return {};
 
     final result = <String, DateTime>{};
@@ -97,8 +96,7 @@ abstract final class ThreadReadMarkerStorage {
       for (final e in markers.entries) e.key: e.value.toUtc().toIso8601String(),
     };
     await prefs.setString(
-        _key(serverId, userId ?? unauthenticatedStorageUser, roomId),
-        jsonEncode(obj));
+        _key(serverId, storageUser(userId), roomId), jsonEncode(obj));
   }
 
   /// Drops every user's thread markers for [serverId] (keyed format). Only keyed

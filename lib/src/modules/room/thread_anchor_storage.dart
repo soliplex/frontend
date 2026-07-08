@@ -35,8 +35,7 @@ abstract final class ThreadAnchorStorage {
     required String roomId,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(
-        _key(serverId, userId ?? unauthenticatedStorageUser, roomId));
+    final raw = prefs.getString(_key(serverId, storageUser(userId), roomId));
     if (raw == null || raw.isEmpty) return {};
 
     final result = <String, String>{};
@@ -82,8 +81,7 @@ abstract final class ThreadAnchorStorage {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-        _key(serverId, userId ?? unauthenticatedStorageUser, roomId),
-        jsonEncode(anchors));
+        _key(serverId, storageUser(userId), roomId), jsonEncode(anchors));
   }
 
   /// Drops every user's anchors for [serverId] (keyed format). Only keyed entries

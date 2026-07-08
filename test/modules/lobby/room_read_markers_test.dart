@@ -187,6 +187,26 @@ void main() {
       store.dispose();
     });
 
+    test('a clearServer for another server does not discard an in-flight load',
+        () async {
+      // Epochs are keyed per server, so clearing one server must not invalidate
+      // another's in-flight load. A single global epoch would wrongly discard
+      // the s1 load's result, rendering it unloaded (and its rooms unread).
+      await SharedPreferences.getInstance();
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: 's1', userId: u1, markers: {r: at});
+
+      final store = RoomReadMarkers();
+      final loading = store.ensureLoaded(serverId: 's1', userId: u1);
+      store.clearServer('s2'); // a DIFFERENT server than the one loading
+      await loading; // the s1 load resumes after the unrelated clear
+      await Future<void>.delayed(Duration.zero);
+
+      expect(store.value[key('s1', u1, r)], at,
+          reason: 'clearing another server must not discard this load');
+      store.dispose();
+    });
+
     test('a load resolving after dispose does not throw', () async {
       await SharedPreferences.getInstance();
       await LobbyReadMarkerStorage.saveServer(

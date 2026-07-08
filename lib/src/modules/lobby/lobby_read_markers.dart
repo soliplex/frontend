@@ -245,7 +245,7 @@ class RoomReadMarkers {
       // already gone, so there is nothing left to persist.
       if (_disposed || gen != (_generation[serverId] ?? 0)) return;
       if (!_loaded.contains((serverId: serverId, userId: u))) {
-        _logger.debug(
+        _logger.warning(
           'Skipped room read marker persist; blob not loaded (a prior load '
           'failed). The stamp holds in memory but is not yet on disk.',
           attributes: {'serverId': serverId, 'userId': u},
@@ -384,8 +384,9 @@ class ServerReadMarkers {
 
   /// Per-server clear epoch, bumped by [clearServer]; see
   /// [RoomReadMarkers._generation]. Only [_load] needs it here — [markRead]
-  /// persists with no `await` before its write, so a synchronously-following
-  /// [clearServer] sweep always lands after it in storage order.
+  /// schedules its write without first awaiting a load (unlike
+  /// [RoomReadMarkers._persist]), so a [clearServer] sweep enqueued right after
+  /// it is ordered behind the write and wins.
   final Map<String, int> _generation = {};
 
   bool _disposed = false;
