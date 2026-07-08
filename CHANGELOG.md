@@ -38,6 +38,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   in on the same server no longer sees the previous user's unsent draft. A
   by-server draft clear also no longer over-reaches a same-host server that
   differs only by an explicit vs default port.
+- On first launch after upgrade, a one-time cleanup removes device-local data
+  left over from the previous storage format — orphaned read/anchor markers and
+  raw-format composer drafts, plus a defunct hidden-servers key — so a former
+  user's leftover plaintext no longer lingers on disk.
 - Thread read markers and unread-divider anchors are now scoped to the signed-in
   user: a different user signing in on the same server no longer inherits the
   previous user's read state or "New messages" dividers. As a one-time effect of
