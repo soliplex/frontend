@@ -47,6 +47,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.documentTitle,
     required this.pageNumbers,
     required this.useDialogLayout,
+    this.docItemRefs = const [],
   });
 
   final SoliplexApi api;
@@ -56,6 +57,10 @@ class ChunkVisualizationPage extends StatefulWidget {
   final List<int> pageNumbers;
   final bool useDialogLayout;
 
+  /// The citation's doc-item refs, sent to the backend so the highlight
+  /// matches the cited content instead of re-expanding.
+  final List<String> docItemRefs;
+
   static Future<void> show({
     required BuildContext context,
     required SoliplexApi api,
@@ -63,6 +68,7 @@ class ChunkVisualizationPage extends StatefulWidget {
     required String chunkId,
     required String documentTitle,
     required List<int> pageNumbers,
+    List<String> docItemRefs = const [],
   }) {
     final useDialog =
         MediaQuery.sizeOf(context).width >= SoliplexBreakpoints.tablet;
@@ -73,6 +79,7 @@ class ChunkVisualizationPage extends StatefulWidget {
       documentTitle: documentTitle,
       pageNumbers: pageNumbers,
       useDialogLayout: useDialog,
+      docItemRefs: docItemRefs,
     );
 
     if (useDialog) {
@@ -126,8 +133,11 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
   Future<List<PageImage>> _fetchAndDecode() async {
     try {
-      final viz =
-          await widget.api.getChunkVisualization(widget.roomId, widget.chunkId);
+      final viz = await widget.api.getChunkVisualization(
+        widget.roomId,
+        widget.chunkId,
+        refs: widget.docItemRefs,
+      );
       return viz.imagesBase64.map(_decodePageImage).toList();
     } catch (error, stack) {
       _logger.error(

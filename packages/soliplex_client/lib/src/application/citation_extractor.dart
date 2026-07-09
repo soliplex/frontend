@@ -84,6 +84,7 @@ class CitationExtractor {
       documentTitle: c.documentTitle,
       headings: c.headings ?? [],
       pageNumbers: c.pageNumbers ?? [],
+      docItemRefs: c.docItemRefs ?? [],
       index: c.index,
     );
   }

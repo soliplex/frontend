@@ -1959,6 +1959,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             chunkId: ref.chunkId,
                             documentTitle: ref.displayTitle,
                             pageNumbers: ref.pageNumbers,
+                            docItemRefs: ref.docItemRefs,
                           ),
                           onFetchWorkdirFiles: (runId) =>
                               _workdirs.fetchFiles(threadView.threadId, runId),
