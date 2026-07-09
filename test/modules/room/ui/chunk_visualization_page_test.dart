@@ -24,6 +24,8 @@ class _ChunkVizApi extends FakeSoliplexApi {
   Future<ChunkVisualization> getChunkVisualization(
     String roomId,
     String chunkId, {
+    List<String>? refs,
+    bool expand = true,
     CancelToken? cancelToken,
   }) async {
     if (nextVizError != null) throw nextVizError!;
