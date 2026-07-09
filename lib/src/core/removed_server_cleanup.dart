@@ -6,6 +6,7 @@ import '../modules/auth/return_to_storage.dart';
 import '../modules/auth/server_manager.dart';
 import '../modules/lobby/lobby_read_markers.dart'
     show RoomReadMarkers, ServerReadMarkers;
+import '../modules/room/document_selections.dart';
 import '../modules/room/thread_anchor_storage.dart';
 import '../modules/room/thread_read_markers.dart';
 
@@ -13,8 +14,9 @@ final Logger _logger =
     LogManager.instance.getLogger('soliplex.removed_server_cleanup');
 
 /// Drops a removed server's device-local state so re-adding it under the same
-/// id doesn't resurrect stale read state, a misplaced thread divider, or an
-/// unsent draft. Server ids derive from the URL, so a re-add reuses the id.
+/// id doesn't resurrect stale read state, a misplaced thread divider, an unsent
+/// draft, or its in-memory document filter selections. Server ids derive from
+/// the URL, so a re-add reuses the id.
 ///
 /// Owned by [RoomAppModule] (like [UploadTrackerRegistry]) rather than a screen
 /// because removal fires from surfaces that don't mount the lobby — notably the
@@ -33,13 +35,16 @@ class RemovedServerCleanup {
     required ServerManager serverManager,
     required RoomReadMarkers roomReadMarkers,
     required ServerReadMarkers serverReadMarkers,
+    required DocumentSelections documentSelections,
   })  : _roomReadMarkers = roomReadMarkers,
-        _serverReadMarkers = serverReadMarkers {
+        _serverReadMarkers = serverReadMarkers,
+        _documentSelections = documentSelections {
     _unsubscribe = serverManager.onServerRemoved(_clearServer);
   }
 
   final RoomReadMarkers _roomReadMarkers;
   final ServerReadMarkers _serverReadMarkers;
+  final DocumentSelections _documentSelections;
   late final void Function() _unsubscribe;
   bool _isDisposed = false;
 
@@ -56,6 +61,8 @@ class RemovedServerCleanup {
         () => _serverReadMarkers.clearServer(id), 'server read marker', id);
     _clearInMemory(
         () => _roomReadMarkers.clearServer(id), 'room read markers', id);
+    _clearInMemory(
+        () => _documentSelections.clearServer(id), 'document selections', id);
     unawaited(
       ThreadReadMarkerStorage.clearServer(id)
           .catchError((Object error, StackTrace st) {

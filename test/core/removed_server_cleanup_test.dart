@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_client/soliplex_client.dart' show RagDocument;
 import 'package:soliplex_frontend/src/core/removed_server_cleanup.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
+import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 
@@ -24,6 +26,7 @@ void main() {
     ServerManager manager,
     RoomReadMarkers room,
     ServerReadMarkers server,
+    DocumentSelections docs,
     RemovedServerCleanup cleanup,
   }) wire() {
     final manager = _createManager();
@@ -39,13 +42,21 @@ void main() {
     );
     final room = RoomReadMarkers();
     final server = ServerReadMarkers();
+    final docs = DocumentSelections();
     final cleanup = RemovedServerCleanup(
       serverManager: manager,
       roomReadMarkers: room,
       serverReadMarkers: server,
+      documentSelections: docs,
     );
     addTearDown(cleanup.dispose);
-    return (manager: manager, room: room, server: server, cleanup: cleanup);
+    return (
+      manager: manager,
+      room: room,
+      server: server,
+      docs: docs,
+      cleanup: cleanup
+    );
   }
 
   group('RemovedServerCleanup', () {
@@ -125,6 +136,21 @@ void main() {
             serverId: 's2', userId: 'u', roomId: 'r'),
         's2 draft',
       );
+    });
+
+    test('clears the removed server\'s document selections, keeping others\'',
+        () async {
+      const doc = RagDocument(id: 'd1', title: 'Doc');
+      final wired = wire();
+      wired.docs.set(serverId: 's1', roomId: 'r', threadId: 't', docs: {doc});
+      wired.docs.set(serverId: 's2', roomId: 'r', threadId: 't', docs: {doc});
+
+      wired.manager.removeServer('s1');
+      await pumpEventQueue();
+
+      expect(
+          wired.docs.get(serverId: 's1', roomId: 'r', threadId: 't'), isEmpty);
+      expect(wired.docs.get(serverId: 's2', roomId: 'r', threadId: 't'), {doc});
     });
 
     // A signal empty-out is not a removal: ServerManager.dispose() empties the

@@ -29,12 +29,14 @@ class RoomAppModule extends AppModule {
     this.enableDocumentFilter = false,
   })  : _documentSelections = DocumentSelections(),
         _messageExpansions = MessageExpansions(),
-        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
-        _removedServerCleanup = RemovedServerCleanup(
-          serverManager: serverManager,
-          roomReadMarkers: roomReadMarkers,
-          serverReadMarkers: serverReadMarkers,
-        ) {
+        _uploadRegistry =
+            UploadTrackerRegistry(servers: serverManager.servers) {
+    _removedServerCleanup = RemovedServerCleanup(
+      serverManager: serverManager,
+      roomReadMarkers: roomReadMarkers,
+      serverReadMarkers: serverReadMarkers,
+      documentSelections: _documentSelections,
+    );
     _userSwitchTeardown = UserSwitchTeardown(
       servers: serverManager.servers,
       runtimeManager: runtimeManager,
@@ -64,7 +66,7 @@ class RoomAppModule extends AppModule {
   final DocumentSelections _documentSelections;
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
-  final RemovedServerCleanup _removedServerCleanup;
+  late final RemovedServerCleanup _removedServerCleanup;
   late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
