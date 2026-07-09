@@ -15,12 +15,12 @@ final Logger _logger =
 ///
 /// Persistent device-local state is partitioned by user identity, so a switch
 /// needs no teardown there. But four in-memory caches would carry the prior
-/// user's state into the new session: [AgentRuntimeManager], [RunRegistry], and
+/// user's state into the new session: [AgentRuntimeManager] and
 /// [UploadTrackerRegistry] cache against the live `ServerConnection`, which
-/// re-auth reuses; and [DocumentSelections] holds document filters in a
-/// process-global map that is not partitioned by user. Without this the next
-/// user would reattach to the prior user's runtime, runs, uploads, and document
-/// filters.
+/// re-auth reuses; [RunRegistry] keys live runs by the stable `serverId`; and
+/// [DocumentSelections] holds document filters in a process-global map that is
+/// not partitioned by user. Without this the next user would reattach to the
+/// prior user's runtime, runs, uploads, and document filters.
 ///
 /// Detection keys off each server's `AuthSession.currentUserId` rather than the
 /// sign-in call sites: that signal is stable across a token refresh (no
@@ -63,6 +63,10 @@ class UserSwitchTeardown {
   final RunRegistry _registry;
   final UploadTrackerRegistry _uploadRegistry;
   final DocumentSelections _documentSelections;
+  // Baseline identity per server. An entry for a removed server is left in
+  // place: the map is bounded by servers seen this process, and a stale
+  // baseline only ever fires a harmless no-op eviction if that id is re-added,
+  // since its caches were already cleared on removal.
   final Map<String, String> _lastSeen = {};
   late final void Function() _dispose;
 

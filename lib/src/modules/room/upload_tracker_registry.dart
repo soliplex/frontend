@@ -72,8 +72,9 @@ class UploadTrackerRegistry {
   }
 
   /// Disposes and drops every tracker for [serverId], so a different user
-  /// signing in on that server gets a fresh tracker built with their own
-  /// api/auth rather than the prior user's. No-op if none are cached.
+  /// signing in on that server starts with an empty tracker instead of
+  /// inheriting the prior user's in-flight and completed uploads. No-op if
+  /// none are cached.
   void evictServer(String serverId) {
     _evictWhere((id) => id == serverId);
   }
