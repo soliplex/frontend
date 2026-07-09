@@ -92,10 +92,12 @@ class ThreadReadTracker {
   }
 
   /// Drops [threadId]'s marker (a deleted thread) from the in-memory map so a
-  /// later flush doesn't re-persist it. Only flushes once loaded — the exit-time
-  /// prune that calls this runs against an already-loaded tracker, so the
-  /// in-flight-load merge that could otherwise re-add the entry isn't reached in
-  /// practice. The disk store's all-users `clearThread` is the source of truth
+  /// later flush doesn't re-persist it. Only flushes once loaded: the sole caller
+  /// (the room screen's thread-list-diff prune) fires on live list updates, and
+  /// its first emission only seeds the disappearance baseline — a clear reaches
+  /// this tracker on a later emission, by which point the disk load has resolved,
+  /// so the in-flight-load merge that could otherwise re-add the entry isn't hit
+  /// in practice. The disk store's all-users `clearThread` is the source of truth
   /// for the removal.
   void clearThread(String threadId) {
     final next = {..._markers}..removeWhere((k, _) => k.threadId == threadId);

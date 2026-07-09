@@ -9,9 +9,10 @@ const _currentSchemaVersion = 1;
 
 /// Device-local keys from the pre-keyed storage format that no code reads any
 /// more, plus a defunct hidden-servers key. Removed by exact match, not a prefix
-/// sweep: each shares a stem with a live keyed key (e.g.
-/// `soliplex_server_read_markers` vs `soliplex_server_read_marker:…`), so a
-/// prefix sweep would take the live data with it.
+/// sweep: some share a stem with a live keyed key (e.g.
+/// `soliplex_server_read_markers` vs `soliplex_server_read_marker:…`), where a
+/// prefix sweep would take the live data with it. Exact match is used uniformly
+/// so the list stays trivially safe to extend.
 const _legacyExactKeys = <String>[
   'soliplex_thread_read_markers',
   'soliplex_thread_unread_anchors',

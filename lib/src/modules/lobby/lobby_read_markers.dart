@@ -144,7 +144,16 @@ abstract final class LobbyReadMarkerStorage {
         if (decoded is! Map || !decoded.containsKey(roomId)) continue;
         decoded.remove(roomId);
         await prefs.setString(k, jsonEncode(decoded));
-      } on FormatException {
+      } on FormatException catch (error, st) {
+        // A corrupt blob can't be stripped, so the room's marker survives here;
+        // the next loadServer discards the whole blob and re-logs. Log so this
+        // skip isn't silent, matching the other corruption sites in this class.
+        _logger.warning(
+          'Skipped corrupt room read marker blob while clearing a room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId, 'key': k},
+        );
         continue;
       }
     }
@@ -327,6 +336,16 @@ class RoomReadMarkers {
   /// Unlike [clearServer] this does not bump [_generation]: the epoch is
   /// server-wide, so bumping it on a single-room clear would abort in-flight
   /// loads/persists for other rooms on the server and drop their stamps.
+  ///
+  /// The tradeoff is a resurrection window that no real user path opens on the
+  /// current wiring: an in-flight [_load] for this server that read disk before
+  /// the async disk clear finished carries the old value and — with the epoch
+  /// unchanged — commits it, re-adding [roomId] to memory (a later persist then
+  /// rewrites it to disk). Reaching it needs that load still parked when a fetch
+  /// diffs the deletion, but only a non-first fetch prunes, and the only one that
+  /// fires is a silent re-auth into ActiveSession — minutes after connect, where
+  /// the marker load was kicked off alongside the first fetch. By then the local
+  /// SharedPreferences read has long since resolved.
   void clearRoom(String serverId, String roomId) {
     final next = {..._markers.value}..removeWhere(
         (key, _) => key.serverId == serverId && key.roomId == roomId);
