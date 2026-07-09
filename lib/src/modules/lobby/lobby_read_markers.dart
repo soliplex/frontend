@@ -344,8 +344,9 @@ class RoomReadMarkers {
   /// need the epoch: the disk-level [LobbyReadMarkerStorage.clearRoom] is the
   /// source of truth, a prune only runs on a non-first fetch (the first seeds
   /// the baseline, so no cold-start path opens the window), the local
-  /// SharedPreferences reads a prune races against resolve quickly, and a
-  /// re-added marker self-corrects on the next genuine clear.
+  /// SharedPreferences reads a prune races against resolve quickly from the
+  /// in-memory cache, and a re-added marker self-corrects on the next genuine
+  /// clear.
   void clearRoom(String serverId, String roomId) {
     final next = {..._markers.value}..removeWhere(
         (key, _) => key.serverId == serverId && key.roomId == roomId);

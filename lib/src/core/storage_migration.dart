@@ -23,7 +23,7 @@ const _orphanedExactKeys = <String>[
 
 /// Runs device-local storage migrations in order, once per version bump.
 ///
-/// Each step is gated on the stored schema version, and the new version is
+/// Each step is gated on the stored schema version, and the target version is
 /// written only after the steps complete, so a failure retries on the next
 /// launch. Best-effort: the whole run is guarded and never rethrows — a corrupt
 /// `SharedPreferences` file must not white-screen the app at bootstrap. Safe to
@@ -52,13 +52,13 @@ Future<void> migrateStorage() async {
 }
 
 /// v1: removes the orphaned pre-keyed-format keys. The keyed stores no longer
-/// read these, so this clears the leftover plaintext from disk.
+/// read these, so this clears the leftover data from disk.
 Future<void> _sweepOrphanedKeys(SharedPreferences prefs) async {
   for (final key in _orphanedExactKeys) {
     await prefs.remove(key);
   }
-  // Pre-keyed composer drafts share the new prefix head but carry a raw '://'
-  // (the un-encoded server origin); a percent-encoded new key never does,
+  // Pre-keyed composer drafts share the current prefix head but carry a raw
+  // '://' (the un-encoded server origin); a percent-encoded key never does,
   // because Uri.encodeComponent escapes it to %3A%2F%2F.
   final orphanedDrafts = prefs
       .getKeys()

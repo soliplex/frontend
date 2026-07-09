@@ -1664,6 +1664,63 @@ void main() {
       expect(anchors.containsKey('thread-1'), isFalse);
       expect(anchors['thread-3'], 'm3');
     });
+
+    testWidgets(
+        'a thread absent from the first load is not pruned (no baseline)',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final seen = DateTime.utc(2026, 6, 1);
+      // thread-9 has stored read state but is not in the room's first thread
+      // list. With no prior baseline to diff against, a cold load must never
+      // read its absence as a deletion and prune it.
+      await ThreadReadMarkerStorage.saveRoom(
+        serverId: entry.serverId,
+        userId: null,
+        roomId: 'room-1',
+        markers: {'thread-9': seen},
+      );
+      await ThreadAnchorStorage.saveRoom(
+        serverId: entry.serverId,
+        userId: null,
+        roomId: 'room-1',
+        anchors: {'thread-9': 'm9'},
+      );
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // thread-9 survives the cold load untouched (opening thread-1 may stamp
+      // its own marker, which is fine — the point is thread-9 is not pruned).
+      final markers = await ThreadReadMarkerStorage.loadRoom(
+          serverId: entry.serverId, userId: null, roomId: 'room-1');
+      expect(markers['thread-9'], seen);
+      final anchors = await ThreadAnchorStorage.loadRoom(
+          serverId: entry.serverId, userId: null, roomId: 'room-1');
+      expect(anchors['thread-9'], 'm9');
+    });
   });
 
   group('room unread rollup', () {
