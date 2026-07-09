@@ -71,13 +71,25 @@ class AgentRuntimeManager {
 
   /// Disposes and drops the cached runtime for every server no longer present
   /// in [snapshot], so a removed server's runtime doesn't linger until the
-  /// whole manager is disposed. Disposal is fire-and-forget: it runs teardown
-  /// that can throw, and this eviction must not strand the other disposals or
-  /// propagate, so a throw is logged.
+  /// whole manager is disposed.
   void _evictRemoved(Map<String, ServerEntry> snapshot) {
-    if (_isDisposed) return;
     final liveIds = snapshot.keys.toSet();
-    final dead = _cache.entries.where((e) => !liveIds.contains(e.key)).toList();
+    _evictWhere((serverId) => !liveIds.contains(serverId));
+  }
+
+  /// Disposes and drops the cached runtime for [serverId], so the next
+  /// [getRuntime] builds one bound to the current session. Used when a
+  /// different user signs in on that server. No-op if nothing is cached.
+  void evictServer(String serverId) {
+    _evictWhere((id) => id == serverId);
+  }
+
+  /// Disposal is fire-and-forget: it runs teardown that can throw, and this
+  /// eviction must not strand the other disposals or propagate, so a throw is
+  /// logged.
+  void _evictWhere(bool Function(String serverId) shouldEvict) {
+    if (_isDisposed) return;
+    final dead = _cache.entries.where((e) => shouldEvict(e.key)).toList();
     for (final entry in dead) {
       _cache.remove(entry.key);
       unawaited(_disposeRuntime(entry.key, entry.value.runtime));

@@ -15,6 +15,7 @@ import 'run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
 import 'upload_tracker_registry.dart';
+import 'user_switch_teardown.dart';
 
 class RoomAppModule extends AppModule {
   RoomAppModule({
@@ -28,12 +29,22 @@ class RoomAppModule extends AppModule {
     this.enableDocumentFilter = false,
   })  : _documentSelections = DocumentSelections(),
         _messageExpansions = MessageExpansions(),
-        _uploadRegistry = UploadTrackerRegistry(servers: serverManager.servers),
-        _removedServerCleanup = RemovedServerCleanup(
-          serverManager: serverManager,
-          roomReadMarkers: roomReadMarkers,
-          serverReadMarkers: serverReadMarkers,
-        );
+        _uploadRegistry =
+            UploadTrackerRegistry(servers: serverManager.servers) {
+    _removedServerCleanup = RemovedServerCleanup(
+      serverManager: serverManager,
+      roomReadMarkers: roomReadMarkers,
+      serverReadMarkers: serverReadMarkers,
+      documentSelections: _documentSelections,
+    );
+    _userSwitchTeardown = UserSwitchTeardown(
+      servers: serverManager.servers,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: _uploadRegistry,
+      documentSelections: _documentSelections,
+    );
+  }
 
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
@@ -55,7 +66,8 @@ class RoomAppModule extends AppModule {
   final DocumentSelections _documentSelections;
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
-  final RemovedServerCleanup _removedServerCleanup;
+  late final RemovedServerCleanup _removedServerCleanup;
+  late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
   String get namespace => 'room';
@@ -122,6 +134,7 @@ class RoomAppModule extends AppModule {
 
   @override
   Future<void> onDispose() async {
+    _userSwitchTeardown.dispose();
     _removedServerCleanup.dispose();
     await runtimeManager.dispose();
     registry.dispose();

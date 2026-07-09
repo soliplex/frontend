@@ -298,13 +298,24 @@ class _RoomScreenState extends State<RoomScreen> {
 
   DocumentSelections get _documentSelections => widget.documentSelections;
 
+  String get _serverId => widget.serverEntry.serverId;
+
   Set<RagDocument> get _selectedDocuments => _filterEnabled
-      ? _documentSelections.get(widget.roomId, widget.threadId)
+      ? _documentSelections.get(
+          serverId: _serverId,
+          roomId: widget.roomId,
+          threadId: widget.threadId,
+        )
       : const {};
 
   void _updateSelection(Set<RagDocument> selection) {
     setState(() {
-      _documentSelections.set(widget.roomId, widget.threadId, selection);
+      _documentSelections.set(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: widget.threadId,
+        docs: selection,
+      );
     });
   }
 
@@ -551,7 +562,8 @@ class _RoomScreenState extends State<RoomScreen> {
       // then clear disk across all users.
       _threadReadTracker.clearThread(threadId);
       _anchorTracker.clearThread(threadId);
-      _documentSelections.clearThread(roomId, threadId);
+      _documentSelections.clearThread(
+          serverId: serverId, roomId: roomId, threadId: threadId);
       unawaited(
         ThreadReadMarkerStorage.clearThread(serverId, roomId, threadId)
             .catchError((Object error, StackTrace st) {
@@ -809,11 +821,17 @@ class _RoomScreenState extends State<RoomScreen> {
       context: context,
       fetchDocuments: () =>
           widget.serverEntry.connection.api.getDocuments(roomId),
-      selected: _documentSelections.get(roomId, threadId),
+      selected: _documentSelections.get(
+          serverId: _serverId, roomId: roomId, threadId: threadId),
     );
     if (result != null && mounted) {
       setState(() {
-        _documentSelections.set(roomId, threadId, result);
+        _documentSelections.set(
+          serverId: _serverId,
+          roomId: roomId,
+          threadId: threadId,
+          docs: result,
+        );
       });
     }
   }
@@ -976,7 +994,10 @@ class _RoomScreenState extends State<RoomScreen> {
         _workdirs.clearCache();
         _markThreadRead(widget.threadId);
         if (_filterEnabled && oldWidget.threadId == null) {
-          _documentSelections.migrateToThread(widget.roomId, widget.threadId!);
+          _documentSelections.migrateToThread(
+              serverId: _serverId,
+              roomId: widget.roomId,
+              threadId: widget.threadId!);
         }
         _state.selectThread(widget.threadId!);
         _beginUnreadTracking(widget.threadId!);
