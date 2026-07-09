@@ -155,8 +155,9 @@ class RunRegistry {
   /// Cancels [session], swallowing and logging any throw. [cancel] runs real
   /// teardown that can throw; both callers cancel in a loop where one throw must
   /// not strand the rest. Eviction also runs synchronously inside a signal
-  /// write (server removal, or a user switch mid-login), where an escape would
-  /// unwind the caller before it deletes the stored session.
+  /// write, where an escape would unwind the caller: on server removal, aborting
+  /// `removeServer` before it deletes the persisted session; on a user switch
+  /// mid-login, unwinding the sign-in.
   void _cancelQuietly(ThreadKey key, AgentSession session) {
     try {
       session.cancel();

@@ -313,5 +313,67 @@ void main() {
           isNotEmpty,
           reason: 'document selections should be retained on a first sign-in');
     });
+
+    test('a failing eviction is logged and the remaining caches still evict',
+        () {
+      final w = wire(initialSub: 'alice');
+      // Wire a runtime manager whose evictServer throws. It is the first of the
+      // four steps, so a guard that wrapped the whole sequence — rather than
+      // each step — would strand runs, uploads, and filters and unwind the
+      // sign-in that recorded the switch.
+      final throwingRuntime = _ThrowingRuntimeManager(
+        platform: TestPlatformConstraints(),
+        toolRegistryResolver: (_) async => const ToolRegistry(),
+        logger: testLogger(),
+        servers: w.manager.servers,
+      );
+      addTearDown(throwingRuntime.dispose);
+      final teardown = UserSwitchTeardown(
+        servers: w.manager.servers,
+        runtimeManager: throwingRuntime,
+        registry: w.registry,
+        uploadRegistry: w.uploadRegistry,
+        documentSelections: w.docs,
+      );
+      addTearDown(teardown.dispose);
+
+      w.registry.register(_key, ManualAgentSession(_key));
+      final tracker =
+          w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
+      w.docs.set(
+          serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
+
+      expect(() {
+        w.entry.auth.logout();
+        _login(w.entry, 'bob');
+      }, returnsNormally,
+          reason: 'a throwing step must not unwind the sign-in');
+
+      expect(w.registry.activeSession(_key), isNull,
+          reason: 'run should be evicted despite the earlier step throwing');
+      expect(
+        identical(w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room'),
+            tracker),
+        isFalse,
+        reason: 'upload tracker should be evicted despite the earlier throw',
+      );
+      expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
+          isEmpty,
+          reason: 'document selections should be cleared despite the throw');
+    });
   });
+}
+
+/// Runtime manager whose [evictServer] throws, to exercise the per-step
+/// teardown guard in [UserSwitchTeardown].
+class _ThrowingRuntimeManager extends AgentRuntimeManager {
+  _ThrowingRuntimeManager({
+    required super.platform,
+    required super.toolRegistryResolver,
+    required super.logger,
+    required super.servers,
+  });
+
+  @override
+  void evictServer(String serverId) => throw StateError('evict boom');
 }

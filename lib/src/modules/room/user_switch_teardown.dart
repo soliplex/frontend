@@ -15,12 +15,15 @@ final Logger _logger =
 ///
 /// Persistent device-local state is partitioned by user identity, so a switch
 /// needs no teardown there. But four in-memory caches would carry the prior
-/// user's state into the new session: [AgentRuntimeManager] and
-/// [UploadTrackerRegistry] cache against the live `ServerConnection`, which
-/// re-auth reuses; [RunRegistry] keys live runs by the stable `serverId`; and
-/// [DocumentSelections] holds document filters in a process-global map that is
-/// not partitioned by user. Without this the next user would reattach to the
-/// prior user's runtime, runs, uploads, and document filters.
+/// user's state into the new session: [AgentRuntimeManager] caches against the
+/// live `ServerConnection`, which re-auth reuses; [RunRegistry] and
+/// [UploadTrackerRegistry] key by the stable `serverId`; and [DocumentSelections]
+/// holds document filters in a single shared map that is not partitioned by
+/// user. Without this the next user would reattach to the prior user's runtime,
+/// runs, uploads, and document filters. `MessageExpansions` is a fifth
+/// module-owned cache left untouched on purpose: its per-message expand/collapse
+/// state is cosmetic, and a cross-user collision would need a shared
+/// server-assigned `messageId`.
 ///
 /// Detection keys off each server's `AuthSession.currentUserId` rather than the
 /// sign-in call sites: that signal is stable across a token refresh (no
@@ -29,9 +32,16 @@ final Logger _logger =
 /// intercepting transitions covers every auth path — including the silent
 /// sign-in that `ServerManager.restoreServers` performs on launch, which the
 /// first effect run records as the baseline without evicting. A `null` identity
-/// (signed out, or an undecodable token) is ignored, so a logout alone tears
+/// (signed out, or an opaque non-JWT token) is ignored, so a logout alone tears
 /// down nothing; the switch is recognised only when a server's identity moves
 /// from one non-null user to a different non-null user.
+///
+/// This leaves a known gap: a server whose IdP issues opaque access tokens has
+/// a `null` identity for *every* user, so a switch between two such users is
+/// undetectable here and the next user inherits the prior user's in-memory
+/// session. That mirrors how those servers already share one unauthenticated
+/// bucket for persistent state (see `AuthSession.currentUserId`); isolating them
+/// would need a credential fingerprint the token doesn't carry.
 ///
 /// Owned by [RoomAppModule] alongside `RemovedServerCleanup`.
 class UserSwitchTeardown {
@@ -49,6 +59,8 @@ class UserSwitchTeardown {
       for (final MapEntry(key: serverId, value: entry)
           in servers.value.entries) {
         final identity = entry.auth.currentUserId.value;
+        // Opaque-token servers report a null identity for every user, so their
+        // switches go undetected here — see the class doc's known-gap note.
         if (identity == null) continue;
         final previous = _lastSeen[serverId];
         _lastSeen[serverId] = identity;
