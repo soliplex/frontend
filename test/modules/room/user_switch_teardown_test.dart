@@ -102,7 +102,7 @@ void main() {
     final runtime = w.runtimeManager.getRuntime(w.entry.connection);
     w.registry.register(_key, ManualAgentSession(_key));
     final tracker = w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
-    w.docs.set('room', 'thread', {_doc});
+    w.docs.set('s1', 'room', 'thread', {_doc});
     return (runtime: runtime, tracker: tracker);
   }
 
@@ -118,7 +118,7 @@ void main() {
       isFalse,
       reason: 'upload tracker should be evicted and rebuilt',
     );
-    expect(w.docs.get('room', 'thread'), isEmpty,
+    expect(w.docs.get('s1', 'room', 'thread'), isEmpty,
         reason: 'document selections should be cleared');
   }
 
@@ -134,7 +134,7 @@ void main() {
       isTrue,
       reason: 'upload tracker should be retained',
     );
-    expect(w.docs.get('room', 'thread'), isNotEmpty,
+    expect(w.docs.get('s1', 'room', 'thread'), isNotEmpty,
         reason: 'document selections should be retained');
   }
 
@@ -189,15 +189,14 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
+      w.docs.set('s2', 'room', 'thread', {_doc});
 
       final captured = populate(w);
       w.entry.auth.logout();
       _login(w.entry, 'bob');
 
       expectEvicted(w, captured.runtime, captured.tracker);
-      // The three server-keyed registries isolate per server; only s1 is torn
-      // down. (DocumentSelections has no server dimension and is cleared
-      // wholesale by design.)
+      // All four caches isolate per server; only s1 is torn down.
       expect(
         identical(w.runtimeManager.getRuntime(other.connection), otherRuntime),
         isTrue,
@@ -211,6 +210,8 @@ void main() {
         isTrue,
         reason: "other server's upload tracker should survive",
       );
+      expect(w.docs.get('s2', 'room', 'thread'), isNotEmpty,
+          reason: "other server's document selections should survive");
     });
 
     test('expiry then a different user signing in evicts the prior state', () {

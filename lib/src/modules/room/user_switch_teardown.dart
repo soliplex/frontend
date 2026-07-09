@@ -10,15 +10,17 @@ import 'upload_tracker_registry.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.user_switch_teardown');
 
-/// Tears down a server's in-memory, session-bound state when a *different*
-/// user signs in on it within the same process.
+/// Tears down a server's in-memory state when a *different* user signs in on it
+/// within the same process.
 ///
 /// Persistent device-local state is partitioned by user identity, so a switch
-/// needs no teardown there. But [AgentRuntimeManager], [RunRegistry],
-/// [UploadTrackerRegistry], and [DocumentSelections] cache state against the
-/// live session, and re-auth reuses the same `ServerConnection` instance — so
-/// without this the next user would reattach to the prior user's runtime,
-/// runs, uploads, and document filters.
+/// needs no teardown there. But four in-memory caches would carry the prior
+/// user's state into the new session: [AgentRuntimeManager], [RunRegistry], and
+/// [UploadTrackerRegistry] cache against the live `ServerConnection`, which
+/// re-auth reuses; and [DocumentSelections] holds document filters in a
+/// process-global map that is not partitioned by user. Without this the next
+/// user would reattach to the prior user's runtime, runs, uploads, and document
+/// filters.
 ///
 /// Detection keys off each server's `AuthSession.currentUserId` rather than the
 /// sign-in call sites: that signal is stable across a token refresh (no
@@ -72,7 +74,7 @@ class UserSwitchTeardown {
     _runtimeManager.evictServer(serverId);
     _registry.evictServer(serverId);
     _uploadRegistry.evictServer(serverId);
-    _documentSelections.clear();
+    _documentSelections.clearServer(serverId);
   }
 
   void dispose() => _dispose();
