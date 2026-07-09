@@ -172,6 +172,28 @@ void main() {
       expectRetained(w, captured.runtime, captured.tracker);
     });
 
+    test('a logout alone evicts nothing', () {
+      final w = wire(initialSub: 'alice');
+      coordinator(w);
+      final captured = populate(w);
+
+      w.entry.auth.logout();
+
+      expectRetained(w, captured.runtime, captured.tracker);
+    });
+
+    test('a disposed coordinator ignores later user switches', () {
+      final w = wire(initialSub: 'alice');
+      final teardown = coordinator(w);
+      final captured = populate(w);
+
+      teardown.dispose();
+      w.entry.auth.logout();
+      _login(w.entry, 'bob');
+
+      expectRetained(w, captured.runtime, captured.tracker);
+    });
+
     test('a switch on one server leaves another server\'s state intact', () {
       final w = wire(initialSub: 'alice');
       w.manager.addServer(
