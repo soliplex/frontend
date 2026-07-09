@@ -38,7 +38,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   an old draft.
 - Removing a server now evicts its in-memory agent runtime and tracked runs
   instead of leaking them until app exit — the runtime's timers and stream are
-  disposed and any live run for the server is cancelled.
+  disposed and any live run for the server is cancelled. Its in-memory
+  document-filter selections are dropped too, so re-adding the same server (ids
+  derive from the URL) starts with an empty filter.
 
 ### Security
 
@@ -61,6 +63,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   own signed-in user. This closes the last device-local read-state leak between
   users. As a one-time effect of the storage-format change, existing lobby
   read state resets on upgrade — every room reads as unread once.
+- When a different user signs in on a server within the same app session, that
+  server's in-memory session state is now torn down — the agent runtime, any
+  tracked runs, in-flight and completed uploads, and document-filter selections
+  — so the new user can't reattach to or observe the previous user's session.
+  Servers whose identity provider issues opaque (non-JWT) access tokens are a
+  known exception: they carry no per-user identity to key on, so the switch
+  can't be detected for them.
 
 ## [0.92.0+65] - 2026-07-02
 
