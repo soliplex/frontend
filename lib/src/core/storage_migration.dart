@@ -13,7 +13,7 @@ const _currentSchemaVersion = 1;
 /// `soliplex_server_read_markers` vs `soliplex_server_read_marker:…`), where a
 /// prefix sweep would take the live data with it. Exact match is used uniformly
 /// so the list stays trivially safe to extend.
-const _legacyExactKeys = <String>[
+const _orphanedExactKeys = <String>[
   'soliplex_thread_read_markers',
   'soliplex_thread_unread_anchors',
   'soliplex_lobby_read_markers',
@@ -38,7 +38,7 @@ Future<void> migrateStorage() async {
     // Each step's literal is the version it brings storage up to (not
     // [_currentSchemaVersion], which is the latest — they diverge once a v2 step
     // exists, and a step must never re-run for an install already past it).
-    if (from < 1) await _sweepLegacyKeys(prefs);
+    if (from < 1) await _sweepOrphanedKeys(prefs);
 
     await prefs.setInt(_schemaVersionKey, _currentSchemaVersion);
   } catch (error, stackTrace) {
@@ -53,19 +53,19 @@ Future<void> migrateStorage() async {
 
 /// v1: removes the orphaned pre-keyed-format keys. The keyed stores no longer
 /// read these, so this clears the leftover plaintext from disk.
-Future<void> _sweepLegacyKeys(SharedPreferences prefs) async {
-  for (final key in _legacyExactKeys) {
+Future<void> _sweepOrphanedKeys(SharedPreferences prefs) async {
+  for (final key in _orphanedExactKeys) {
     await prefs.remove(key);
   }
-  // Legacy composer drafts share the new prefix head but carry a raw '://' (the
-  // un-encoded server origin); a percent-encoded new key never does, because
-  // Uri.encodeComponent escapes it to %3A%2F%2F.
-  final legacyDrafts = prefs
+  // Pre-keyed composer drafts share the new prefix head but carry a raw '://'
+  // (the un-encoded server origin); a percent-encoded new key never does,
+  // because Uri.encodeComponent escapes it to %3A%2F%2F.
+  final orphanedDrafts = prefs
       .getKeys()
       .where((k) =>
           k.startsWith('soliplex_return_to:composer:') && k.contains('://'))
       .toList();
-  for (final key in legacyDrafts) {
+  for (final key in orphanedDrafts) {
     await prefs.remove(key);
   }
 }

@@ -585,9 +585,12 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  /// Whether [threadId] is still in the room's current thread list. A
-  /// just-deleted thread is absent, so an exit re-stamp of it would write an
-  /// orphan marker for a thread that no longer exists.
+  /// Whether [threadId] is present in the room's currently-loaded thread list.
+  /// A just-deleted thread is absent, so an exit re-stamp of it would write an
+  /// orphan marker for a thread that no longer exists — that is the case this
+  /// guards. It also returns false while the list is not `ThreadsLoaded` (a
+  /// mid-refresh load/failure); skipping the stamp then is harmless, as the
+  /// marker re-derives the next time the thread is opened.
   bool _threadStillListed(String threadId) {
     final status = _state.threadList.threads.value;
     return status is ThreadsLoaded &&

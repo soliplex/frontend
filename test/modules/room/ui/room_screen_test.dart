@@ -14,10 +14,12 @@ import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
 import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
+import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
@@ -1510,6 +1512,157 @@ void main() {
           isEmpty,
         );
       });
+    });
+  });
+
+  group('thread disappearance pruning', () {
+    // Opens a thread tile's overflow menu, taps Delete, and confirms the dialog.
+    Future<void> deleteViaMenu(WidgetTester tester, Finder menu) async {
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete')); // overflow-menu item
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last); // confirm-dialog action
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'deleting the open thread does not re-stamp it read on the way out',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+
+      // Routed, because deleting the open thread navigates off it.
+      await tester.pumpWidget(_buildRouted(
+        entry: entry,
+        runtimeManager: runtimeManager,
+        registry: registry,
+        uploadRegistry: uploadRegistry,
+        threadId: 'thread-1',
+      ));
+      await tester.pumpAndSettle();
+
+      // Deleting the open thread leaves it. The exit re-stamp must skip the
+      // just-deleted thread, or it writes an orphan "read" marker for a thread
+      // that no longer exists.
+      await deleteViaMenu(
+        tester,
+        find.descendant(
+          of: find.byType(ThreadSidebar),
+          matching: find.byIcon(Icons.more_vert),
+        ),
+      );
+
+      expect(
+        await ThreadReadMarkerStorage.loadRoom(
+          serverId: entry.serverId,
+          userId: null,
+          roomId: 'room-1',
+        ),
+        isEmpty,
+      );
+    });
+
+    testWidgets(
+        'deleting a thread sweeps its stored markers and anchors, sparing '
+        'the sibling', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      SharedPreferences.setMockInitialValues(const {});
+
+      final signedInEntry =
+          createTestServerEntry(api: api, auth: authWithIdentity());
+      final seen = DateTime.utc(2026, 6, 1);
+      // thread-1 (the delete target) and thread-3 (an untouched sibling) carry
+      // stored read state; thread-2 is only there to stay open, so deleting
+      // thread-1 does not navigate.
+      await ThreadReadMarkerStorage.saveRoom(
+        serverId: signedInEntry.serverId,
+        userId: testUserIdentity,
+        roomId: 'room-1',
+        markers: {'thread-1': seen, 'thread-3': seen},
+      );
+      await ThreadAnchorStorage.saveRoom(
+        serverId: signedInEntry.serverId,
+        userId: testUserIdentity,
+        roomId: 'room-1',
+        anchors: {'thread-1': 'm1', 'thread-3': 'm3'},
+      );
+
+      api.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'First thread',
+          createdAt: DateTime(2026, 3, 3),
+        ),
+        ThreadInfo(
+          id: 'thread-2',
+          roomId: 'room-1',
+          name: 'Second thread',
+          createdAt: DateTime(2026, 3, 2),
+        ),
+        ThreadInfo(
+          id: 'thread-3',
+          roomId: 'room-1',
+          name: 'Third thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: signedInEntry,
+          roomId: 'room-1',
+          threadId: 'thread-2',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Delete the non-open thread-1 from the sidebar (no navigation follows,
+      // since thread-2 stays the active thread).
+      await deleteViaMenu(
+        tester,
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('First thread'),
+            matching: find.byType(ThreadTile),
+          ),
+          matching: find.byIcon(Icons.more_vert),
+        ),
+      );
+
+      final markers = await ThreadReadMarkerStorage.loadRoom(
+        serverId: signedInEntry.serverId,
+        userId: testUserIdentity,
+        roomId: 'room-1',
+      );
+      expect(markers.containsKey('thread-1'), isFalse);
+      expect(markers['thread-3'], seen);
+
+      final anchors = await ThreadAnchorStorage.loadRoom(
+        serverId: signedInEntry.serverId,
+        userId: testUserIdentity,
+        roomId: 'room-1',
+      );
+      expect(anchors.containsKey('thread-1'), isFalse);
+      expect(anchors['thread-3'], 'm3');
     });
   });
 

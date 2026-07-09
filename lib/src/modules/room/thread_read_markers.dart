@@ -132,7 +132,21 @@ abstract final class ThreadReadMarkerStorage {
         if (decoded is! Map || !decoded.containsKey(threadId)) continue;
         decoded.remove(threadId);
         await prefs.setString(k, jsonEncode(decoded));
-      } on FormatException {
+      } on FormatException catch (error, st) {
+        // A corrupt blob can't be stripped, so the thread's marker survives
+        // here; the next loadRoom discards the whole blob and re-logs. Log so
+        // this skip isn't silent, matching the corruption sites elsewhere.
+        _logger.warning(
+          'Skipped corrupt thread read marker blob while clearing a thread',
+          error: error,
+          stackTrace: st,
+          attributes: {
+            'serverId': serverId,
+            'roomId': roomId,
+            'threadId': threadId,
+            'key': k,
+          },
+        );
         continue;
       }
     }

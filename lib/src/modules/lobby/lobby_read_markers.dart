@@ -337,15 +337,15 @@ class RoomReadMarkers {
   /// server-wide, so bumping it on a single-room clear would abort in-flight
   /// loads/persists for other rooms on the server and drop their stamps.
   ///
-  /// The tradeoff is a resurrection window that no real user path opens on the
-  /// current wiring: an in-flight [_load] for this server that read disk before
-  /// the async disk clear finished carries the old value and — with the epoch
-  /// unchanged — commits it, re-adding [roomId] to memory (a later persist then
-  /// rewrites it to disk). Reaching it needs that load still parked when a fetch
-  /// diffs the deletion, but only a non-first fetch prunes, and the only one that
-  /// fires is a silent re-auth into ActiveSession — minutes after connect, where
-  /// the marker load was kicked off alongside the first fetch. By then the local
-  /// SharedPreferences read has long since resolved.
+  /// The tradeoff is a narrow, self-healing resurrection window rather than a
+  /// hard guarantee. An in-flight [_load] or [_persist] for this server that
+  /// captured state before the async disk clear finished can re-add [roomId] to
+  /// memory (and a later persist then rewrites it to disk). Closing it does not
+  /// need the epoch: the disk-level [LobbyReadMarkerStorage.clearRoom] is the
+  /// source of truth, a prune only runs on a non-first fetch (the first seeds
+  /// the baseline, so no cold-start path opens the window), the local
+  /// SharedPreferences reads a prune races against resolve quickly, and a
+  /// re-added marker self-corrects on the next genuine clear.
   void clearRoom(String serverId, String roomId) {
     final next = {..._markers.value}..removeWhere(
         (key, _) => key.serverId == serverId && key.roomId == roomId);
