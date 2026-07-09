@@ -63,10 +63,20 @@ class UploadTrackerRegistry {
   }
 
   void _evictRemoved(Map<String, ServerEntry> snapshot) {
-    if (_isDisposed) return;
     final liveIds = snapshot.keys.toSet();
-    final dead =
-        _trackers.entries.where((e) => !liveIds.contains(e.key.$1)).toList();
+    _evictWhere((serverId) => !liveIds.contains(serverId));
+  }
+
+  /// Disposes and drops every tracker for [serverId], so a different user
+  /// signing in on that server gets a fresh tracker built with their own
+  /// api/auth rather than the prior user's. No-op if none are cached.
+  void evictServer(String serverId) {
+    _evictWhere((id) => id == serverId);
+  }
+
+  void _evictWhere(bool Function(String serverId) shouldEvict) {
+    if (_isDisposed) return;
+    final dead = _trackers.entries.where((e) => shouldEvict(e.key.$1)).toList();
     for (final entry in dead) {
       entry.value.dispose();
       _trackers.remove(entry.key);

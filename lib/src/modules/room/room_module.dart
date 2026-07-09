@@ -15,6 +15,7 @@ import 'run_registry.dart';
 import 'ui/room_info_screen.dart';
 import 'ui/room_screen.dart';
 import 'upload_tracker_registry.dart';
+import 'user_switch_teardown.dart';
 
 class RoomAppModule extends AppModule {
   RoomAppModule({
@@ -33,7 +34,15 @@ class RoomAppModule extends AppModule {
           serverManager: serverManager,
           roomReadMarkers: roomReadMarkers,
           serverReadMarkers: serverReadMarkers,
-        );
+        ) {
+    _userSwitchTeardown = UserSwitchTeardown(
+      servers: serverManager.servers,
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: _uploadRegistry,
+      documentSelections: _documentSelections,
+    );
+  }
 
   final ServerManager serverManager;
   final AgentRuntimeManager runtimeManager;
@@ -56,6 +65,7 @@ class RoomAppModule extends AppModule {
   final MessageExpansions _messageExpansions;
   final UploadTrackerRegistry _uploadRegistry;
   final RemovedServerCleanup _removedServerCleanup;
+  late final UserSwitchTeardown _userSwitchTeardown;
 
   @override
   String get namespace => 'room';
@@ -122,6 +132,7 @@ class RoomAppModule extends AppModule {
 
   @override
   Future<void> onDispose() async {
+    _userSwitchTeardown.dispose();
     _removedServerCleanup.dispose();
     await runtimeManager.dispose();
     registry.dispose();

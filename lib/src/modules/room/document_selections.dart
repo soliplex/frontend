@@ -24,6 +24,12 @@ class DocumentSelections {
     _selections.remove((roomId, threadId));
   }
 
+  /// Drops every selection, so the prior user's in-memory document filters
+  /// don't surface to a different user signing in on the same device.
+  void clear() {
+    _selections.clear();
+  }
+
   /// Moves the selection from the null-thread key to [threadId].
   ///
   /// Used when a user selects documents before a thread exists, then

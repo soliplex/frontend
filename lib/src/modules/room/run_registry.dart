@@ -126,18 +126,27 @@ class RunRegistry {
   /// [snapshot], so a removed server's live session is cancelled and its
   /// captured outcome released instead of lingering until [dispose].
   void _evictRemoved(Map<String, ServerEntry> snapshot) {
-    if (_isDisposed) return;
     final liveIds = snapshot.keys.toSet();
-    final dead =
-        _runs.keys.where((key) => !liveIds.contains(key.serverId)).toList();
+    _evictWhere((key) => !liveIds.contains(key.serverId));
+  }
+
+  /// Cancels and drops every tracked run for [serverId], so a different user
+  /// signing in on that server can't reattach to the prior user's runs or read
+  /// their captured outcomes. No-op if the server has no tracked runs.
+  void evictServer(String serverId) {
+    _evictWhere((key) => key.serverId == serverId);
+  }
+
+  void _evictWhere(bool Function(ThreadKey key) shouldEvict) {
+    if (_isDisposed) return;
+    final dead = _runs.keys.where(shouldEvict).toList();
     if (dead.isEmpty) return;
     for (final key in dead) {
       final session = _runs.remove(key)?.session;
       if (session != null) _cancelQuietly(key, session);
     }
-    final nextActive = _activeKeys.value
-        .where((key) => liveIds.contains(key.serverId))
-        .toSet();
+    final nextActive =
+        _activeKeys.value.where((key) => !shouldEvict(key)).toSet();
     if (nextActive.length != _activeKeys.value.length) {
       _activeKeys.value = nextActive;
     }
