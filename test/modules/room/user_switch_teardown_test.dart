@@ -102,7 +102,8 @@ void main() {
     final runtime = w.runtimeManager.getRuntime(w.entry.connection);
     w.registry.register(_key, ManualAgentSession(_key));
     final tracker = w.uploadRegistry.trackerFor(entry: w.entry, roomId: 'room');
-    w.docs.set('s1', 'room', 'thread', {_doc});
+    w.docs
+        .set(serverId: 's1', roomId: 'room', threadId: 'thread', docs: {_doc});
     return (runtime: runtime, tracker: tracker);
   }
 
@@ -118,7 +119,8 @@ void main() {
       isFalse,
       reason: 'upload tracker should be evicted and rebuilt',
     );
-    expect(w.docs.get('s1', 'room', 'thread'), isEmpty,
+    expect(
+        w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'), isEmpty,
         reason: 'document selections should be cleared');
   }
 
@@ -134,7 +136,8 @@ void main() {
       isTrue,
       reason: 'upload tracker should be retained',
     );
-    expect(w.docs.get('s1', 'room', 'thread'), isNotEmpty,
+    expect(w.docs.get(serverId: 's1', roomId: 'room', threadId: 'thread'),
+        isNotEmpty,
         reason: 'document selections should be retained');
   }
 
@@ -211,7 +214,8 @@ void main() {
       w.registry.register(otherKey, ManualAgentSession(otherKey));
       final otherTracker =
           w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
-      w.docs.set('s2', 'room', 'thread', {_doc});
+      w.docs.set(
+          serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
 
       final captured = populate(w);
       w.entry.auth.logout();
@@ -232,7 +236,8 @@ void main() {
         isTrue,
         reason: "other server's upload tracker should survive",
       );
-      expect(w.docs.get('s2', 'room', 'thread'), isNotEmpty,
+      expect(w.docs.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
+          isNotEmpty,
           reason: "other server's document selections should survive");
     });
 
@@ -247,6 +252,66 @@ void main() {
 
       _login(w.entry, 'bob');
       expectEvicted(w, captured.runtime, captured.tracker);
+    });
+
+    test('switching back to a prior user evicts again (baseline advances)', () {
+      final w = wire(initialSub: 'alice');
+      coordinator(w);
+
+      // alice -> bob evicts alice's state.
+      var captured = populate(w);
+      w.entry.auth.logout();
+      _login(w.entry, 'bob');
+      expectEvicted(w, captured.runtime, captured.tracker);
+
+      // bob -> alice must evict again: the baseline has to have advanced to bob,
+      // not stayed at the original alice.
+      captured = populate(w);
+      w.entry.auth.logout();
+      _login(w.entry, 'alice');
+      expectEvicted(w, captured.runtime, captured.tracker);
+    });
+
+    test('a server signing in after wiring records a baseline, not a switch',
+        () {
+      final w = wire(initialSub: 'alice');
+      coordinator(w);
+
+      // A second server appears while the coordinator is already subscribed.
+      w.manager.addServer(
+        serverId: 's2',
+        serverUrl: Uri.parse('http://s2.test'),
+      );
+      final other = w.manager.servers.value['s2']!;
+
+      // Live state on s2 before its first sign-in.
+      final otherRuntime = w.runtimeManager.getRuntime(other.connection);
+      const otherKey = (serverId: 's2', roomId: 'room', threadId: 'thread');
+      w.registry.register(otherKey, ManualAgentSession(otherKey));
+      final otherTracker =
+          w.uploadRegistry.trackerFor(entry: other, roomId: 'room');
+      w.docs.set(
+          serverId: 's2', roomId: 'room', threadId: 'thread', docs: {_doc});
+
+      // First sign-in on a newly-seen server is a baseline, not a switch.
+      _login(other, 'carol');
+
+      expect(
+        identical(w.runtimeManager.getRuntime(other.connection), otherRuntime),
+        isTrue,
+        reason: 'runtime should be retained on a first sign-in',
+      );
+      expect(w.registry.activeSession(otherKey), isNotNull,
+          reason: 'run should be retained on a first sign-in');
+      expect(
+        identical(w.uploadRegistry.trackerFor(entry: other, roomId: 'room'),
+            otherTracker),
+        isTrue,
+        reason: 'upload tracker should be retained on a first sign-in',
+      );
+      expect(w.docs.get(serverId: 's2', roomId: 'room', threadId: 'thread'),
+          isNotEmpty,
+          reason: 'document selections should be retained on a first sign-in');
     });
   });
 }

@@ -71,10 +71,26 @@ class UserSwitchTeardown {
       'Different user signed in on $serverId; '
       'tearing down the prior in-memory session',
     );
-    _runtimeManager.evictServer(serverId);
-    _registry.evictServer(serverId);
-    _uploadRegistry.evictServer(serverId);
-    _documentSelections.clearServer(serverId);
+    // Each step is isolated: eviction runs synchronously inside the auth signal
+    // write that recorded the switch, so a throw escaping here would strand the
+    // remaining caches (leaking the prior user's state) and unwind the sign-in.
+    _step(() => _runtimeManager.evictServer(serverId), 'runtime', serverId);
+    _step(() => _registry.evictServer(serverId), 'runs', serverId);
+    _step(() => _uploadRegistry.evictServer(serverId), 'uploads', serverId);
+    _step(() => _documentSelections.clearServer(serverId), 'filters', serverId);
+  }
+
+  void _step(void Function() evict, String what, String serverId) {
+    try {
+      evict();
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'Failed to tear down $what for $serverId',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {'serverId': serverId},
+      );
+    }
   }
 
   void dispose() => _dispose();

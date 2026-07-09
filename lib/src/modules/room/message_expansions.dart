@@ -5,8 +5,12 @@ import 'compute_display_messages.dart' show loadingMessageId;
 /// are open. Owned by `roomModule()`; outlives widget rebuilds, thread
 /// switches, and room navigations within the room module.
 ///
-/// Identity is `(roomId, messageId)`. [loadingMessageId] is rejected,
-/// because it is reused across runs and state written under it would
+/// Identity is `(roomId, messageId)`. Unlike the module's other per-server
+/// caches this carries no `serverId`; adding it — for full isolation between
+/// servers that share a `roomId` — is a possible future enhancement, deferred
+/// because a collision also needs a shared `messageId` and would only swap
+/// cosmetic expand/collapse state between two messages. [loadingMessageId] is
+/// rejected, because it is reused across runs and state written under it would
 /// leak into the next response.
 ///
 /// Retention is capped at [maxEntries]; once reached, the oldest-inserted

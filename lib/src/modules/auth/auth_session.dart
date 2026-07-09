@@ -26,12 +26,9 @@ class AuthSession implements TokenRefresher {
   /// changes and yields the same value across a same-user refresh, so watchers
   /// don't churn. Raw (un-encoded); key builders percent-encode it downstream.
   ///
-  /// Keyed on the access token, not the id token. The id token is the
-  /// conventional identity assertion, but the backend does not forward it to
-  /// the web client, whereas the access token reaches every platform. The
-  /// backend authenticates that access token by verifying its JWT signature
-  /// locally (RS256, no remote introspection), so a token it accepts is a
-  /// non-opaque JWT carrying `iss`/`sub`.
+  /// Keyed on the access token, not the id token: the access token is the one
+  /// credential available on every platform. We only decode it — never verify
+  /// its signature — because the backend already validated it cryptographically.
   ///
   /// A `null` on an *authenticated* session (an opaque access token carrying no
   /// `iss`/`sub`) is expected, not an error: user-scoped device-local state

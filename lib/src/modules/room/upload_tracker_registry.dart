@@ -88,16 +88,7 @@ class UploadTrackerRegistry {
     final dead = _trackers.entries.where((e) => shouldEvict(e.key.$1)).toList();
     for (final entry in dead) {
       _trackers.remove(entry.key);
-      try {
-        entry.value.dispose();
-      } on Object catch (error, stackTrace) {
-        _logger.error(
-          'Failed to dispose upload tracker',
-          error: error,
-          stackTrace: stackTrace,
-          attributes: {'serverId': entry.key.$1, 'roomId': entry.key.$2},
-        );
-      }
+      _disposeQuietly(entry.key, entry.value);
     }
   }
 
@@ -105,9 +96,25 @@ class UploadTrackerRegistry {
     if (_isDisposed) return;
     _isDisposed = true;
     _unsubscribe();
-    for (final tracker in _trackers.values) {
-      tracker.dispose();
+    for (final entry in _trackers.entries) {
+      _disposeQuietly(entry.key, entry.value);
     }
     _trackers.clear();
+  }
+
+  /// Disposes [tracker], swallowing and logging any throw so one tracker's
+  /// failing teardown can't strand the rest — whether it runs inside the
+  /// synchronous eviction signal write or the disposal loop.
+  void _disposeQuietly((String, String) key, UploadTracker tracker) {
+    try {
+      tracker.dispose();
+    } on Object catch (error, stackTrace) {
+      _logger.error(
+        'Failed to dispose upload tracker',
+        error: error,
+        stackTrace: stackTrace,
+        attributes: {'serverId': key.$1, 'roomId': key.$2},
+      );
+    }
   }
 }
