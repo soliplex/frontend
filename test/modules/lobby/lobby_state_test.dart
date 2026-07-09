@@ -14,6 +14,9 @@ import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/core/activity_read.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
+import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
+import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
+import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 
 import '../../helpers/fakes.dart';
 import '../../helpers/test_server_entry.dart';
@@ -29,6 +32,154 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('LobbyState', () {
+    group('room disappearance pruning', () {
+      const alice = 'iss#alice';
+      final t = DateTime.utc(2026, 6, 1);
+
+      Future<void> seedRoom(String roomId) async {
+        await ThreadReadMarkerStorage.saveRoom(
+            serverId: 'local',
+            userId: alice,
+            roomId: roomId,
+            markers: {'th-$roomId': t});
+        await ThreadAnchorStorage.saveRoom(
+            serverId: 'local',
+            userId: alice,
+            roomId: roomId,
+            anchors: {'th-$roomId': 'm-$roomId'});
+      }
+
+      test('prunes a vanished room across users, keeps siblings and drafts',
+          () async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        await seedRoom('room-1');
+        await seedRoom('room-2');
+        await ReturnToStorage.saveComposer(
+            serverId: 'local',
+            userId: alice,
+            roomId: 'room-1',
+            unsentText: 'unsent');
+        // Lobby read markers for both rooms, so the prune's clearRoom on the
+        // shared model is observable (not a no-op false pass).
+        final roomMarkers = RoomReadMarkers()
+          ..markRead(serverId: 'local', userId: null, roomId: 'room-1', at: t)
+          ..markRead(serverId: 'local', userId: null, roomId: 'room-2', at: t);
+
+        final fakeApi = FakeSoliplexApi();
+        fakeApi.nextRooms = const [
+          Room(id: 'room-1', name: 'One'),
+          Room(id: 'room-2', name: 'Two'),
+        ];
+        final state = LobbyState(
+          serverManager: manager,
+          apiResolver: (_) => fakeApi,
+          roomReadMarkers: roomMarkers,
+        );
+        await Future<void>.delayed(Duration.zero); // first load = baseline
+
+        // room-1 disappears from the server's list.
+        fakeApi.nextRooms = const [Room(id: 'room-2', name: 'Two')];
+        state.refresh('local');
+        await Future<void>.delayed(Duration.zero);
+
+        // room-1's read markers + anchors are gone (any user); room-2 kept.
+        expect(
+            await ThreadReadMarkerStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            isEmpty);
+        expect(
+            await ThreadAnchorStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            isEmpty);
+        expect(
+            await ThreadReadMarkerStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-2'),
+            {'th-room-2': t});
+        // The draft is deliberately preserved (self-expires; cleared on server
+        // removal) — a passive list diff must not destroy unsent text.
+        expect(
+            await ReturnToStorage.loadComposer(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            'unsent');
+        // The lobby's in-memory room marker for the vanished room is dropped too;
+        // the surviving room's marker is kept.
+        expect(
+            roomMarkers.value.keys.where((k) => k.roomId == 'room-1'), isEmpty);
+        expect(roomMarkers.value.keys.where((k) => k.roomId == 'room-2'),
+            isNotEmpty);
+        state.dispose();
+      });
+
+      test('a failed refetch after a loaded baseline prunes nothing', () async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        await seedRoom('room-1');
+        await seedRoom('room-2');
+
+        final fakeApi = FakeSoliplexApi();
+        fakeApi.nextRooms = const [
+          Room(id: 'room-1', name: 'One'),
+          Room(id: 'room-2', name: 'Two'),
+        ];
+        final state =
+            LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+        await Future<void>.delayed(Duration.zero); // baseline loaded
+
+        // The refetch fails (a transient network/permission blip). A failure
+        // must never read as "these rooms disappeared" and prune read state.
+        fakeApi.nextError =
+            const PermissionDeniedException(message: 'forbidden');
+        state.refresh('local');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.roomsByServer.value['local'], isA<RoomsFailed>());
+        expect(
+            await ThreadReadMarkerStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            {'th-room-1': t});
+        expect(
+            await ThreadAnchorStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            {'th-room-1': 'm-room-1'});
+        state.dispose();
+      });
+
+      test('a room absent from the first fetch is not pruned (no baseline)',
+          () async {
+        final manager = _createManager();
+        manager.addServer(
+          serverId: 'local',
+          serverUrl: Uri.parse('http://localhost:8000'),
+          requiresAuth: false,
+        );
+        await seedRoom('room-1');
+
+        final fakeApi = FakeSoliplexApi();
+        // room-1 is not in the very first list — but with no prior RoomsLoaded
+        // to diff against, its state must survive (never mass-prune on a cold
+        // load).
+        fakeApi.nextRooms = const [Room(id: 'room-2', name: 'Two')];
+        final state =
+            LobbyState(serverManager: manager, apiResolver: (_) => fakeApi);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+            await ThreadReadMarkerStorage.loadRoom(
+                serverId: 'local', userId: alice, roomId: 'room-1'),
+            {'th-room-1': t});
+        state.dispose();
+      });
+    });
+
     group('room fetching on init', () {
       test('fetches rooms from all connected servers', () async {
         final manager = _createManager();

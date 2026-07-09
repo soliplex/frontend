@@ -207,6 +207,55 @@ void main() {
       store.dispose();
     });
 
+    test('clearRoom drops one room across users, keeps siblings, and persists',
+        () async {
+      final store = RoomReadMarkers();
+      store.markRead(serverId: s, userId: u1, roomId: 'r1', at: at);
+      store.markRead(serverId: s, userId: u1, roomId: 'r2', at: at);
+      store.markRead(serverId: s, userId: u2, roomId: 'r1', at: at);
+      await Future<void>.delayed(Duration.zero);
+
+      store.clearRoom(s, 'r1');
+
+      // In-memory: r1 gone for both users, r2 sibling intact.
+      expect(store.value[key(s, u1, 'r1')], isNull);
+      expect(store.value[key(s, u2, 'r1')], isNull);
+      expect(store.value[key(s, u1, 'r2')], at);
+
+      // Persisted across users.
+      await Future<void>.delayed(Duration.zero);
+      final reloaded = RoomReadMarkers();
+      await reloaded.ensureLoaded(serverId: s, userId: u1);
+      await reloaded.ensureLoaded(serverId: s, userId: u2);
+      expect(reloaded.value[key(s, u1, 'r1')], isNull);
+      expect(reloaded.value[key(s, u1, 'r2')], at);
+      expect(reloaded.value[key(s, u2, 'r1')], isNull);
+      store.dispose();
+      reloaded.dispose();
+    });
+
+    test('clearRoom does not discard an in-flight load for the same server',
+        () async {
+      // clearRoom must NOT bump the server-wide epoch: doing so would abort an
+      // in-flight load/persist for OTHER rooms on this server and silently drop
+      // their read stamps (RoomReadMarkers has no dirty-retry).
+      await SharedPreferences.getInstance();
+      await LobbyReadMarkerStorage.saveServer(
+          serverId: s, userId: u1, markers: {'other': at});
+
+      final store = RoomReadMarkers();
+      final loading = store.ensureLoaded(serverId: s, userId: u1);
+      // A different room on the same server is cleared while the load is parked.
+      store.clearRoom(s, 'gone');
+      await loading;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(store.value[key(s, u1, 'other')], at,
+          reason:
+              'clearRoom must not discard the same server\'s in-flight load');
+      store.dispose();
+    });
+
     test('a load resolving after dispose does not throw', () async {
       await SharedPreferences.getInstance();
       await LobbyReadMarkerStorage.saveServer(

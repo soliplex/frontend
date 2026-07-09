@@ -123,6 +123,30 @@ void main() {
           isEmpty);
     });
 
+    test('clearThread skips a corrupt user blob but strips valid siblings',
+        () async {
+      final corruptKey = 'soliplex_thread_anchor:${Uri.encodeComponent(s)}:'
+          '${Uri.encodeComponent(u2)}:${Uri.encodeComponent(r)}';
+      SharedPreferences.setMockInitialValues({corruptKey: 'not json{'});
+      // A valid sibling user carrying the target thread plus another.
+      await ThreadAnchorStorage.saveRoom(
+          serverId: s,
+          userId: u1,
+          roomId: r,
+          anchors: {'th1': 'm1', 'th2': 'm2'});
+
+      await ThreadAnchorStorage.clearThread(s, r, 'th1');
+
+      // The valid user's th1 is stripped and th2 kept; the corrupt blob can't be
+      // stripped, so it is left intact on disk rather than dropped.
+      expect(
+          await ThreadAnchorStorage.loadRoom(
+              serverId: s, userId: u1, roomId: r),
+          {'th2': 'm2'});
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(corruptKey), 'not json{');
+    });
+
     test('discards a corrupt blob and returns empty', () async {
       SharedPreferences.setMockInitialValues({
         'soliplex_thread_anchor:${Uri.encodeComponent(s)}:'

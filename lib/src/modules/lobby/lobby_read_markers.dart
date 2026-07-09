@@ -128,6 +128,36 @@ abstract final class LobbyReadMarkerStorage {
       await prefs.remove(k);
     }
   }
+
+  /// Removes [roomId] from every user's blob for [serverId], leaving sibling
+  /// rooms intact. Sweeps this class's `(serverId, userId)` keys; unrelated keys
+  /// are untouched.
+  static Future<void> clearRoom(String serverId, String roomId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sweep = serverKeyPrefix(_prefix, serverId);
+    for (final k
+        in prefs.getKeys().where((k) => k.startsWith(sweep)).toList()) {
+      final raw = prefs.getString(k);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map || !decoded.containsKey(roomId)) continue;
+        decoded.remove(roomId);
+        await prefs.setString(k, jsonEncode(decoded));
+      } on FormatException catch (error, st) {
+        // A corrupt blob can't be stripped, so the room's marker survives here;
+        // the next loadServer discards the whole blob and re-logs. Log so this
+        // skip isn't silent, matching the other corruption sites in this class.
+        _logger.warning(
+          'Skipped corrupt room read marker blob while clearing a room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId, 'key': k},
+        );
+        continue;
+      }
+    }
+  }
 }
 
 /// In-memory, reactive source of truth for per-room read markers, shared by the
@@ -296,6 +326,39 @@ class RoomReadMarkers {
           error: error,
           stackTrace: st,
           attributes: {'serverId': serverId},
+        );
+      }),
+    );
+  }
+
+  /// Drops [roomId] for every user on [serverId] from memory and disk, so a
+  /// disappeared room doesn't read as read if re-created under the same id.
+  /// Unlike [clearServer] this does not bump [_generation]: the epoch is
+  /// server-wide, so bumping it on a single-room clear would abort in-flight
+  /// loads/persists for other rooms on the server and drop their stamps.
+  ///
+  /// The tradeoff is a narrow, self-healing resurrection window rather than a
+  /// hard guarantee. An in-flight [_load] or [_persist] for this server that
+  /// captured state before the async disk clear finished can re-add [roomId] to
+  /// memory (and a later persist then rewrites it to disk). Closing it does not
+  /// need the epoch: the disk-level [LobbyReadMarkerStorage.clearRoom] is the
+  /// source of truth, a prune only runs on a non-first fetch (the first seeds
+  /// the baseline, so no cold-start path opens the window), the local
+  /// SharedPreferences reads a prune races against resolve quickly from the
+  /// in-memory cache, and a re-added marker self-corrects on the next genuine
+  /// clear.
+  void clearRoom(String serverId, String roomId) {
+    final next = {..._markers.value}..removeWhere(
+        (key, _) => key.serverId == serverId && key.roomId == roomId);
+    if (next.length != _markers.value.length) _markers.value = next;
+    unawaited(
+      LobbyReadMarkerStorage.clearRoom(serverId, roomId)
+          .catchError((Object error, StackTrace st) {
+        _logger.error(
+          'Failed to clear room read markers for removed room',
+          error: error,
+          stackTrace: st,
+          attributes: {'serverId': serverId, 'roomId': roomId},
         );
       }),
     );

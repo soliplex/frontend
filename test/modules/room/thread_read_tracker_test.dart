@@ -35,6 +35,23 @@ void main() {
       expect(t.markers[_key('a')], _at(3));
     });
 
+    test('clearThread drops the thread from memory and persists without it',
+        () async {
+      disk = {_key('a'): _at(1), _key('b'): _at(2)};
+      final t = make();
+      await t.loadFromDisk();
+
+      t.clearThread('a');
+      await pumpEventQueue();
+
+      // Gone from memory AND from the persisted snapshot, so a later flush can't
+      // resurrect the deleted thread; the sibling survives.
+      expect(t.markers.containsKey(_key('a')), isFalse);
+      expect(t.markers[_key('b')], _at(2));
+      expect(saves.last.containsKey(_key('a')), isFalse);
+      expect(saves.last[_key('b')], _at(2));
+    });
+
     test('stamp before load does not persist and does not wipe other threads',
         () async {
       disk = {_key('a'): _at(1), _key('b'): _at(2)};

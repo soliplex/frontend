@@ -513,14 +513,88 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  /// The thread ids last seen in this room's list, for the disappearance diff.
+  /// Null until the first `ThreadsLoaded` establishes a baseline, and reset on
+  /// room change so a new room never diffs against the previous room's ids.
+  Set<String>? _knownThreadIds;
+
   /// Subscribes the room read marker to thread-list changes. The subscription
   /// fires immediately with the current value, so this also performs the
-  /// initial recompute.
+  /// initial recompute and seeds the disappearance baseline.
   void _watchRoomRead() {
     _roomReadUnsub?.call();
-    _roomReadUnsub = _state.threadList.threads.subscribe((_) {
-      if (mounted) _recomputeRoomRead();
+    _knownThreadIds = null; // new room (or first mount) rebuilds the baseline
+    _roomReadUnsub = _state.threadList.threads.subscribe((status) {
+      if (!mounted) return;
+      _pruneVanishedThreads(status);
+      _recomputeRoomRead();
     });
+  }
+
+  /// Prunes device-local state for threads that vanished from this room's list
+  /// (an explicit delete or a refresh that dropped one). Diffs the new loaded set
+  /// against the last seen. A non-loaded status is ignored, so the baseline
+  /// survives a refresh's loading phase; a null baseline (first load) seeds it and
+  /// prunes nothing — a cold load never mass-prunes. A thread deleted while this
+  /// room isn't open isn't caught (no baseline on the next open); its stale
+  /// markers are harmless and re-derive.
+  void _pruneVanishedThreads(ThreadListStatus status) {
+    if (status is! ThreadsLoaded) return;
+    final live = status.threads.map((t) => t.id).toSet();
+    final known = _knownThreadIds;
+    _knownThreadIds = live;
+    if (known == null) return;
+    final serverId = widget.serverEntry.serverId;
+    final roomId = widget.roomId;
+    for (final threadId in known.where((id) => !live.contains(id))) {
+      // Drop from the live trackers first so a later flush can't re-persist it,
+      // then clear disk across all users.
+      _threadReadTracker.clearThread(threadId);
+      _anchorTracker.clearThread(threadId);
+      _documentSelections.clearThread(roomId, threadId);
+      unawaited(
+        ThreadReadMarkerStorage.clearThread(serverId, roomId, threadId)
+            .catchError((Object error, StackTrace st) {
+          _logger.error(
+            'Failed to clear thread read markers for removed thread',
+            error: error,
+            stackTrace: st,
+            attributes: {
+              'serverId': serverId,
+              'roomId': roomId,
+              'threadId': threadId,
+            },
+          );
+        }),
+      );
+      unawaited(
+        ThreadAnchorStorage.clearThread(serverId, roomId, threadId)
+            .catchError((Object error, StackTrace st) {
+          _logger.warning(
+            'Failed to clear thread anchors for removed thread',
+            error: error,
+            stackTrace: st,
+            attributes: {
+              'serverId': serverId,
+              'roomId': roomId,
+              'threadId': threadId,
+            },
+          );
+        }),
+      );
+    }
+  }
+
+  /// Whether [threadId] is present in the room's currently-loaded thread list.
+  /// A just-deleted thread is absent, so an exit re-stamp of it would write an
+  /// orphan marker for a thread that no longer exists — that is the case this
+  /// guards. It also returns false while the list is not `ThreadsLoaded` (a
+  /// mid-refresh load/failure); skipping the stamp then is harmless, as the
+  /// marker re-derives the next time the thread is opened.
+  bool _threadStillListed(String threadId) {
+    final status = _state.threadList.threads.value;
+    return status is ThreadsLoaded &&
+        status.threads.any((t) => t.id == threadId);
   }
 
   /// Refetches the server's room-activity batch whenever a run on this server
@@ -605,6 +679,9 @@ class _RoomScreenState extends State<RoomScreen> {
   void _markPreviousThreadRead(RoomScreen oldWidget) {
     final threadId = oldWidget.threadId;
     if (threadId == null) return;
+    // A just-deleted thread has already left the list; re-stamping it would
+    // write an orphan read marker for a thread that no longer exists.
+    if (!_threadStillListed(threadId)) return;
     _stampThreadRead(
       (
         serverId: oldWidget.serverEntry.serverId,
@@ -1038,8 +1115,9 @@ class _RoomScreenState extends State<RoomScreen> {
     // Stamp the open thread read on the way out, as the deselect path does:
     // the user has seen this thread's activity, so it must not surface a false
     // unread dot when they return. Save-only — no setState while disposing.
+    // Skip a just-deleted thread: stamping it would write an orphan marker.
     final threadId = widget.threadId;
-    if (threadId != null) {
+    if (threadId != null && _threadStillListed(threadId)) {
       _threadReadTracker.stamp(
         (
           serverId: widget.serverEntry.serverId,

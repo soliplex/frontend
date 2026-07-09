@@ -41,6 +41,21 @@ void main() {
       expect(saves.last[_key('a')], 'm3');
     });
 
+    test('clearThread drops the anchor from memory and persists without it',
+        () async {
+      disk = {_key('a'): 'm1', _key('b'): 'm2'};
+      final t = make();
+      await t.loadFromDisk();
+
+      t.clearThread('a');
+      await pumpEventQueue();
+
+      // The persisted snapshot no longer contains the deleted thread (so a later
+      // flush can't resurrect it); the sibling anchor survives.
+      expect(saves.last.containsKey(_key('a')), isFalse);
+      expect(saves.last[_key('b')], 'm2');
+    });
+
     test('cold load of a caught-up thread does not re-save on first advance',
         () async {
       disk = {_key('a'): 'm3'};

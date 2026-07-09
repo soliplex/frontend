@@ -8,6 +8,7 @@ import '../core/app_identity.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
+import '../core/storage_migration.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
 import '../modules/auth/auth_module.dart';
@@ -95,6 +96,7 @@ Future<ShellConfig> standard({
 
   final serverStorage = SecureServerStorage();
   await clearServersIfFreshInstall(serverStorage);
+  await migrateStorage();
 
   final serverManager = ServerManager(
     authFactory: buildAuth,
