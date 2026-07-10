@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
@@ -1312,14 +1313,27 @@ class SoliplexApi {
   Future<ChunkVisualization> getChunkVisualization(
     String roomId,
     String chunkId, {
+    List<String>? refs,
+    bool expand = true,
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(chunkId, 'chunkId');
 
+    final queryParameters = <String, String>{};
+    if (refs != null && refs.isNotEmpty) {
+      queryParameters['refs'] = jsonEncode(refs);
+    }
+    if (!expand) {
+      queryParameters['expand'] = 'false';
+    }
+
     return _transport.request<ChunkVisualization>(
       'GET',
-      _urlBuilder.build(pathSegments: ['rooms', roomId, 'chunk', chunkId]),
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'chunk', chunkId],
+        queryParameters: queryParameters,
+      ),
       cancelToken: cancelToken,
       fromJson: ChunkVisualization.fromJson,
     );

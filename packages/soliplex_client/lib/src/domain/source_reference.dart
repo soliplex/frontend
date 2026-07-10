@@ -17,6 +17,7 @@ class SourceReference {
     this.documentTitle,
     this.headings = const [],
     this.pageNumbers = const [],
+    this.docItemRefs = const [],
     this.index,
   });
 
@@ -41,6 +42,10 @@ class SourceReference {
   /// Page numbers where this content appears.
   final List<int> pageNumbers;
 
+  /// The doc-item refs the model saw for this citation, passed to the
+  /// visualization endpoint so the highlight matches the cited content.
+  final List<String> docItemRefs;
+
   /// Display index for numbered citations.
   final int? index;
 
@@ -56,6 +61,7 @@ class SourceReference {
         documentTitle == other.documentTitle &&
         listEquals.equals(headings, other.headings) &&
         listEquals.equals(pageNumbers, other.pageNumbers) &&
+        listEquals.equals(docItemRefs, other.docItemRefs) &&
         index == other.index;
   }
 
@@ -68,6 +74,7 @@ class SourceReference {
         documentTitle,
         const ListEquality<String>().hash(headings),
         const ListEquality<int>().hash(pageNumbers),
+        const ListEquality<String>().hash(docItemRefs),
         index,
       );
 

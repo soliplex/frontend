@@ -83,6 +83,7 @@ class Rag {
 class Citation {
   final String chunkId;
   final String content;
+  final List<String>? docItemRefs;
   final String documentId;
   final String? documentTitle;
   final String documentUri;
@@ -93,6 +94,7 @@ class Citation {
   Citation({
     required this.chunkId,
     required this.content,
+    this.docItemRefs,
     required this.documentId,
     this.documentTitle,
     required this.documentUri,
@@ -104,6 +106,9 @@ class Citation {
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
         chunkId: json["chunk_id"],
         content: json["content"],
+        docItemRefs: json["doc_item_refs"] == null
+            ? []
+            : List<String>.from(json["doc_item_refs"]!.map((x) => x)),
         documentId: json["document_id"],
         documentTitle: json["document_title"],
         documentUri: json["document_uri"],
@@ -119,6 +124,9 @@ class Citation {
   Map<String, dynamic> toJson() => {
         "chunk_id": chunkId,
         "content": content,
+        "doc_item_refs": docItemRefs == null
+            ? []
+            : List<dynamic>.from(docItemRefs!.map((x) => x)),
         "document_id": documentId,
         "document_title": documentTitle,
         "document_uri": documentUri,
