@@ -52,8 +52,8 @@ class SourceReference {
   /// render the cited figures inline. Empty for text-only citations.
   final List<String> pictureRefs;
 
-  /// Ids of all chunks whose expansion merged into this citation (always
-  /// includes [chunkId]) — merge provenance sent by the backend.
+  /// Ids of all chunks whose expansion merged into this citation — merge
+  /// provenance from the backend, which includes [chunkId] in the list.
   ///
   /// Parsed and carried through so no backend field is silently dropped, but
   /// intentionally not shown in the UI: visualization grounds off
