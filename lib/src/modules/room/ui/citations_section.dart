@@ -19,6 +19,10 @@ const double _figureThumbnailSize = 120;
 /// Fallback label shown when a cited figure can't be fetched or decoded.
 const String _figureUnavailableLabel = 'Figure unavailable';
 
+/// Fallback label shown when a cited figure genuinely doesn't exist (404).
+/// Distinct from [_figureUnavailableLabel] because retrying won't help.
+const String _figureNotFoundLabel = 'Figure not found';
+
 /// Fetches the raw bytes of a cited picture ([pictureRef]) belonging to
 /// [ref]'s document. Returns the image bytes or throws on failure.
 typedef PictureFetcher = Future<Uint8List> Function(
@@ -366,7 +370,19 @@ class _FigureThumbnail extends StatefulWidget {
 }
 
 class _FigureThumbnailState extends State<_FigureThumbnail> {
-  late final Future<Uint8List> _future = _fetch();
+  late Future<Uint8List> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetch();
+  }
+
+  void _retry() {
+    setState(() {
+      _future = _fetch();
+    });
+  }
 
   Future<Uint8List> _fetch() async {
     _logger.debug(
@@ -389,6 +405,15 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
         },
       );
       return bytes;
+    } on NotFoundException catch (error) {
+      // A dangling picture_ref is a backend data issue, not a client fault
+      // and not retryable — log at warning to avoid Sentry noise.
+      _logger.warning(
+        'cited figure not found',
+        error: error,
+        attributes: {'pictureRef': widget.pictureRef},
+      );
+      rethrow;
     } catch (error, stack) {
       _logger.error(
         'cited figure fetch failed',
@@ -426,13 +451,21 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
 
   /// Broken-figure placeholder sized to fit the thumbnail strip. Scaled down
   /// so the FailedImage icon+label doesn't overflow the fixed strip height.
-  Widget _fallback() => const SizedBox(
-        width: _figureThumbnailSize,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: FailedImage(label: _figureUnavailableLabel),
-        ),
-      );
+  /// When [retryable], the placeholder taps to re-run the fetch.
+  Widget _fallback({required bool retryable, required String label}) {
+    final failed = SizedBox(
+      width: _figureThumbnailSize,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: FailedImage(label: label),
+      ),
+    );
+    if (!retryable) return failed;
+    return Tooltip(
+      message: 'Tap to retry',
+      child: InkWell(onTap: _retry, child: failed),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +484,12 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
               );
             }
             if (snapshot.hasError || snapshot.data == null) {
-              return _fallback();
+              final notFound = snapshot.error is NotFoundException;
+              return _fallback(
+                retryable: !notFound,
+                label:
+                    notFound ? _figureNotFoundLabel : _figureUnavailableLabel,
+              );
             }
             final bytes = snapshot.data!;
             return InkWell(
@@ -465,7 +503,10 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
                     error: error,
                     attributes: {'pictureRef': widget.pictureRef},
                   );
-                  return _fallback();
+                  return _fallback(
+                    retryable: false,
+                    label: _figureUnavailableLabel,
+                  );
                 },
               ),
             );

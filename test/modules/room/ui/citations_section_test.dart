@@ -141,6 +141,82 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('a NotFoundException shows "not found" with no retry',
+        (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CitationsSection(
+                sourceReferences: [
+                  _ref(index: 1, title: 'Alpha', pictureRefs: ['#/pictures/0']),
+                ],
+                onFetchPicture: (ref, pictureRef) async {
+                  calls++;
+                  throw const NotFoundException(message: 'missing');
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump(); // build thumbnail, start fetch
+      await tester.pump(); // resolve the failing future
+
+      // A missing figure is permanent — distinct label, no retry affordance.
+      expect(find.text('Figure not found'), findsOneWidget);
+      expect(find.byTooltip('Tap to retry'), findsNothing);
+
+      // Tapping the fallback does not re-fetch.
+      await tester.tap(find.byType(FailedImage));
+      await tester.pump();
+      expect(calls, 1);
+    });
+
+    testWidgets('a transient failure offers retry and re-fetches on tap',
+        (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CitationsSection(
+                sourceReferences: [
+                  _ref(index: 1, title: 'Alpha', pictureRefs: ['#/pictures/0']),
+                ],
+                onFetchPicture: (ref, pictureRef) async {
+                  calls++;
+                  if (calls == 1) throw Exception('transient');
+                  return _pngBytes;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump(); // build thumbnail, start fetch
+      await tester.pump(); // resolve the failing future
+
+      expect(find.text('Figure unavailable'), findsOneWidget);
+      expect(calls, 1);
+
+      // Tapping retry re-runs the fetch (back to the loading slot).
+      await tester.tap(find.byTooltip('Tap to retry'));
+      await tester.pump();
+      expect(calls, 2);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('does not fetch when pictureRefs is empty', (tester) async {
       var fetchCount = 0;
       await tester.pumpWidget(_wrap(
