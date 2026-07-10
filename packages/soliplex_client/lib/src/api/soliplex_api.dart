@@ -1339,7 +1339,7 @@ class SoliplexApi {
     );
   }
 
-  /// Fetches the raw PNG bytes of a single cited picture item.
+  /// Fetches the raw bytes of a single cited picture item.
   ///
   /// [ref] is a picture item's `self_ref` (e.g. `#/pictures/0`) — one of a
   /// citation's `pictureRefs`. It is sent as the `ref` query parameter so

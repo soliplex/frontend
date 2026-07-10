@@ -142,6 +142,36 @@ void main() {
       expect(snapshot.resolveCitation('b'), isNull);
     });
 
+    test('keeps a citation whose optional field is malformed', () {
+      // A wrong-typed *optional* field degrades in Citation.fromJson rather
+      // than throwing, so the citation survives alongside its clean sibling
+      // (unlike a malformed *required* field, which drops the entry).
+      final json = <String, dynamic>{
+        'citations': <dynamic>[
+          {
+            'chunk_id': 'a',
+            'content': 't',
+            'document_id': 'd',
+            'document_uri': 'u',
+          },
+          {
+            'chunk_id': 'b',
+            'content': 't',
+            'document_id': 'd',
+            'document_uri': 'u',
+            'index': 'not-an-int', // malformed optional field
+            'picture_refs': [1, '#/pictures/0'], // one bad element
+          },
+        ],
+      };
+      final snapshot = RagSnapshot.fromJson(json);
+      expect(snapshot.citationIds, equals(['a', 'b']));
+      final b = snapshot.resolveCitation('b');
+      expect(b, isNotNull);
+      expect(b!.index, isNull); // degraded, not thrown
+      expect(b.pictureRefs, equals(['#/pictures/0'])); // bad element dropped
+    });
+
     test(
       'empty citations with qa_history falls back to v040 with empty ids',
       () {

@@ -378,6 +378,18 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
     _future = _fetch();
   }
 
+  @override
+  void didUpdateWidget(_FigureThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The strip is a keyless list, so a thumbnail's State can be reused for a
+    // different ref when the list changes. Re-fetch when the target moves.
+    if (oldWidget.pictureRef != widget.pictureRef ||
+        oldWidget.sourceReference.documentId !=
+            widget.sourceReference.documentId) {
+      _future = _fetch();
+    }
+  }
+
   void _retry() {
     setState(() {
       _future = _fetch();

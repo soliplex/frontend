@@ -112,6 +112,65 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('fetches each pictureRef independently when several are cited',
+        (tester) async {
+      final calls = <String>[];
+      await tester.pumpWidget(_wrap(
+        CitationsSection(
+          sourceReferences: [
+            _ref(
+              index: 1,
+              title: 'Alpha',
+              pictureRefs: ['#/pictures/0', '#/pictures/1'],
+            ),
+          ],
+          onFetchPicture: (ref, pictureRef) async {
+            calls.add(pictureRef);
+            return _pngBytes;
+          },
+        ),
+      ));
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+
+      // Each thumbnail in the strip fetches its own ref.
+      expect(calls, containsAll(['#/pictures/0', '#/pictures/1']));
+      expect(calls.length, 2);
+    });
+
+    testWidgets('re-fetches when the pictureRef at a strip position changes',
+        (tester) async {
+      final calls = <String>[];
+      Widget build(List<String> refs) => _wrap(
+            CitationsSection(
+              sourceReferences: [
+                _ref(index: 1, title: 'Alpha', pictureRefs: refs),
+              ],
+              onFetchPicture: (ref, pictureRef) async {
+                calls.add(pictureRef);
+                return _pngBytes;
+              },
+            ),
+          );
+
+      await tester.pumpWidget(build(['#/pictures/0']));
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+      expect(calls, ['#/pictures/0']);
+
+      // The thumbnail State is reused positionally in a keyless list; a changed
+      // ref at the same position must re-fetch, not keep the stale figure.
+      await tester.pumpWidget(build(['#/pictures/1']));
+      await tester.pump();
+      expect(calls, ['#/pictures/0', '#/pictures/1']);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('shows a fallback when a figure fetch fails', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

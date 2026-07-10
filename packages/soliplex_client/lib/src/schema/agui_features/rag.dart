@@ -1,6 +1,7 @@
 // Dart types mirroring the backend haiku.rag `rag` namespace schema. The
-// lint suppressions below keep the wire-oriented (double-quoted, field-ordered)
-// style of these schema mirrors intact.
+// lint suppressions below keep the wire-oriented parsing and layout
+// (double-quoted keys, field order, dynamic JSON access) of these schema
+// mirrors intact.
 // ignore_for_file: sort_constructors_first
 // ignore_for_file: prefer_single_quotes
 // ignore_for_file: always_put_required_named_parameters_first
@@ -9,6 +10,8 @@
 // ignore_for_file: avoid_dynamic_calls
 // ignore_for_file: inference_failure_on_untyped_parameter
 // ignore_for_file: inference_failure_on_collection_literal
+
+import 'dart:developer' as developer;
 
 import 'package:soliplex_client/src/errors/exceptions.dart';
 
@@ -81,22 +84,66 @@ String _requiredString(dynamic value, String field) {
   );
 }
 
-/// An optional string field: a wrong-typed value degrades to null rather than
-/// throwing, so one malformed field never takes down the rest of the object.
-String? _stringOrNull(dynamic value) => value is String ? value : null;
+void _logDropped(String message) => developer.log(
+      message,
+      name: 'soliplex_client.rag',
+      level: 900,
+    );
 
-/// An optional int field: a wrong-typed value degrades to null.
-int? _intOrNull(dynamic value) => value is int ? value : null;
+/// An optional string field: a present-but-wrong-typed value degrades to null
+/// (logged) rather than throwing, so one malformed field never takes down the
+/// rest of the object. An absent field is normal and silent.
+String? _stringOrNull(dynamic value, String field) {
+  if (value == null || value is String) return value as String?;
+  _logDropped('Citation field "$field": expected string, '
+      'got ${value.runtimeType}; dropped.');
+  return null;
+}
 
-/// An optional list-of-strings field: a non-list degrades to empty and any
-/// non-string element is dropped, isolating malformed input to this field.
-List<String> _stringList(dynamic value) =>
-    value is List ? value.whereType<String>().toList() : const [];
+/// An optional int field: a present-but-wrong-typed value degrades to null
+/// (logged). An absent field is normal and silent.
+int? _intOrNull(dynamic value, String field) {
+  if (value == null || value is int) return value as int?;
+  _logDropped('Citation field "$field": expected int, '
+      'got ${value.runtimeType}; dropped.');
+  return null;
+}
 
-/// An optional list-of-ints field: a non-list degrades to empty and any
-/// non-int element is dropped.
-List<int> _intList(dynamic value) =>
-    value is List ? value.whereType<int>().toList() : const [];
+/// An optional list-of-strings field: a present-but-non-list degrades to empty
+/// and any non-string element is dropped, isolating malformed input to this
+/// field. Both cases are logged; an absent field is normal and silent.
+List<String> _stringList(dynamic value, String field) {
+  if (value == null) return const [];
+  if (value is! List) {
+    _logDropped('Citation field "$field": expected list, '
+        'got ${value.runtimeType}; using empty.');
+    return const [];
+  }
+  final result = value.whereType<String>().toList();
+  if (result.length != value.length) {
+    _logDropped('Citation field "$field": dropped '
+        '${value.length - result.length} non-string element(s).');
+  }
+  return result;
+}
+
+/// An optional list-of-ints field: a present-but-non-list degrades to empty and
+/// any non-int element is dropped. Both cases are logged; an absent field is
+/// normal and silent.
+List<int> _intList(dynamic value, String field) {
+  if (value == null) return const [];
+  if (value is! List) {
+    _logDropped('Citation field "$field": expected list, '
+        'got ${value.runtimeType}; using empty.');
+    return const [];
+  }
+  final result = value.whereType<int>().toList();
+  if (result.length != value.length) {
+    _logDropped('Citation field "$field": dropped '
+        '${value.length - result.length} non-int element(s).');
+  }
+  return result;
+}
 
 ///Resolved citation with full metadata for display/visual grounding.
 ///
@@ -131,16 +178,16 @@ class Citation {
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
         chunkId: _requiredString(json["chunk_id"], "chunk_id"),
-        chunkIds: _stringList(json["chunk_ids"]),
+        chunkIds: _stringList(json["chunk_ids"], "chunk_ids"),
         content: _requiredString(json["content"], "content"),
-        docItemRefs: _stringList(json["doc_item_refs"]),
+        docItemRefs: _stringList(json["doc_item_refs"], "doc_item_refs"),
         documentId: _requiredString(json["document_id"], "document_id"),
-        documentTitle: _stringOrNull(json["document_title"]),
+        documentTitle: _stringOrNull(json["document_title"], "document_title"),
         documentUri: _requiredString(json["document_uri"], "document_uri"),
-        headings: _stringList(json["headings"]),
-        index: _intOrNull(json["index"]),
-        pageNumbers: _intList(json["page_numbers"]),
-        pictureRefs: _stringList(json["picture_refs"]),
+        headings: _stringList(json["headings"], "headings"),
+        index: _intOrNull(json["index"], "index"),
+        pageNumbers: _intList(json["page_numbers"], "page_numbers"),
+        pictureRefs: _stringList(json["picture_refs"], "picture_refs"),
       );
 
   Map<String, dynamic> toJson() => {
