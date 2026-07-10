@@ -2,17 +2,17 @@
 
 import 'dart:convert';
 
+import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:test/test.dart';
 
-/// Contract tests for rag.dart generated types.
+/// Contract tests for the rag.dart schema types.
 ///
 /// These tests document and enforce the API surface that consuming code depends
 /// on. They will fail to compile if required fields are renamed or removed,
-/// alerting us to update consuming code.
-///
-/// These are NOT tests of JSON parsing correctness (that's quicktype's job).
-/// They are tests of the SHAPE of the API we consume.
+/// alerting us to update consuming code. They also pin the parsing resilience
+/// contract: a malformed optional field degrades to its default without taking
+/// down the rest of the object.
 void main() {
   group('Rag contract', () {
     group('fields matching backend RAGState', () {
@@ -232,6 +232,69 @@ void main() {
         expect(json.containsKey('document_id'), isTrue);
         expect(json.containsKey('document_uri'), isTrue);
         expect(json.containsKey('picture_refs'), isTrue);
+      });
+    });
+
+    group('malformed-field resilience', () {
+      Map<String, dynamic> validBase() => {
+            'chunk_id': 'c1',
+            'content': 'text',
+            'document_id': 'd1',
+            'document_uri': 'uri',
+          };
+
+      test('malformed picture_refs degrades to empty, other fields survive',
+          () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'picture_refs': 'not-a-list',
+        });
+
+        expect(citation.pictureRefs, isEmpty);
+        expect(citation.content, equals('text'));
+        expect(citation.documentId, equals('d1'));
+      });
+
+      test('picture_refs drops non-string elements, keeps the valid ones', () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'picture_refs': ['#/pictures/0', 123, '#/pictures/1'],
+        });
+
+        expect(citation.pictureRefs, equals(['#/pictures/0', '#/pictures/1']));
+      });
+
+      test('page_numbers drops non-int elements', () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'page_numbers': [1, 'two', 3],
+        });
+
+        expect(citation.pageNumbers, equals([1, 3]));
+      });
+
+      test('malformed optional scalar degrades to null', () {
+        final citation = Citation.fromJson({
+          ...validBase(),
+          'index': 'not-an-int',
+          'document_title': 42,
+        });
+
+        expect(citation.index, isNull);
+        expect(citation.documentTitle, isNull);
+        expect(citation.content, equals('text'));
+      });
+
+      test('malformed required field still throws (entry is dropped)', () {
+        expect(
+          () => Citation.fromJson({
+            'chunk_id': 'c1',
+            'content': 42,
+            'document_id': 'd1',
+            'document_uri': 'uri',
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
       });
     });
 

@@ -10,15 +10,7 @@
 // ignore_for_file: inference_failure_on_untyped_parameter
 // ignore_for_file: inference_failure_on_collection_literal
 
-// To parse this JSON data, do
-//
-//     final rag = ragFromJson(jsonString);
-
-import 'dart:convert';
-
-Rag ragFromJson(String str) => Rag.fromJson(json.decode(str));
-
-String ragToJson(Rag data) => json.encode(data.toJson());
+import 'package:soliplex_client/src/errors/exceptions.dart';
 
 class Rag {
   final Map<String, Citation>? citationIndex;
@@ -78,6 +70,34 @@ class Rag {
       };
 }
 
+/// A required string field: throws [MalformedResponseException] when absent
+/// or not a string, so the caller can drop just this entry (its siblings are
+/// parsed independently) instead of the whole batch.
+String _requiredString(dynamic value, String field) {
+  if (value is String) return value;
+  throw MalformedResponseException(
+    message: 'Citation field "$field" must be a string, '
+        'got ${value.runtimeType}',
+  );
+}
+
+/// An optional string field: a wrong-typed value degrades to null rather than
+/// throwing, so one malformed field never takes down the rest of the object.
+String? _stringOrNull(dynamic value) => value is String ? value : null;
+
+/// An optional int field: a wrong-typed value degrades to null.
+int? _intOrNull(dynamic value) => value is int ? value : null;
+
+/// An optional list-of-strings field: a non-list degrades to empty and any
+/// non-string element is dropped, isolating malformed input to this field.
+List<String> _stringList(dynamic value) =>
+    value is List ? value.whereType<String>().toList() : const [];
+
+/// An optional list-of-ints field: a non-list degrades to empty and any
+/// non-int element is dropped.
+List<int> _intList(dynamic value) =>
+    value is List ? value.whereType<int>().toList() : const [];
+
 ///Resolved citation with full metadata for display/visual grounding.
 ///
 ///Used by research graph and chat applications. The optional index field
@@ -110,27 +130,17 @@ class Citation {
   });
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
-        chunkId: json["chunk_id"],
-        chunkIds: json["chunk_ids"] == null
-            ? []
-            : List<String>.from(json["chunk_ids"]!.map((x) => x)),
-        content: json["content"],
-        docItemRefs: json["doc_item_refs"] == null
-            ? []
-            : List<String>.from(json["doc_item_refs"]!.map((x) => x)),
-        documentId: json["document_id"],
-        documentTitle: json["document_title"],
-        documentUri: json["document_uri"],
-        headings: json["headings"] == null
-            ? []
-            : List<String>.from(json["headings"]!.map((x) => x)),
-        index: json["index"],
-        pageNumbers: json["page_numbers"] == null
-            ? []
-            : List<int>.from(json["page_numbers"]!.map((x) => x)),
-        pictureRefs: json["picture_refs"] == null
-            ? []
-            : List<String>.from(json["picture_refs"]!.map((x) => x)),
+        chunkId: _requiredString(json["chunk_id"], "chunk_id"),
+        chunkIds: _stringList(json["chunk_ids"]),
+        content: _requiredString(json["content"], "content"),
+        docItemRefs: _stringList(json["doc_item_refs"]),
+        documentId: _requiredString(json["document_id"], "document_id"),
+        documentTitle: _stringOrNull(json["document_title"]),
+        documentUri: _requiredString(json["document_uri"], "document_uri"),
+        headings: _stringList(json["headings"]),
+        index: _intOrNull(json["index"]),
+        pageNumbers: _intList(json["page_numbers"]),
+        pictureRefs: _stringList(json["picture_refs"]),
       );
 
   Map<String, dynamic> toJson() => {
