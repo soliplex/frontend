@@ -1339,6 +1339,46 @@ class SoliplexApi {
     );
   }
 
+  /// Fetches the raw PNG bytes of a single cited picture item.
+  ///
+  /// [ref] is a picture item's `self_ref` (e.g. `#/pictures/0`) — one of a
+  /// citation's `pictureRefs`. It is sent as the `ref` query parameter so
+  /// path-unsafe characters (`#`, `/`) are preserved.
+  ///
+  /// Parameters:
+  /// - [roomId]: The room ID (must not be empty)
+  /// - [documentId]: The document ID (must not be empty)
+  /// - [ref]: The picture item's self_ref (must not be empty)
+  ///
+  /// Returns the raw image bytes.
+  ///
+  /// Throws:
+  /// - [ArgumentError] if any parameter is empty
+  /// - [NotFoundException] if the picture is not found (404)
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<Uint8List> getDocumentPicture(
+    String roomId,
+    String documentId,
+    String ref, {
+    CancelToken? cancelToken,
+  }) {
+    _requireNonEmpty(roomId, 'roomId');
+    _requireNonEmpty(documentId, 'documentId');
+    _requireNonEmpty(ref, 'ref');
+
+    return _transport.requestBytes(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['rooms', roomId, 'document', documentId, 'picture'],
+        queryParameters: {'ref': ref},
+      ),
+      cancelToken: cancelToken,
+    );
+  }
+
   // ============================================================
   // Installation Info
   // ============================================================

@@ -196,6 +196,7 @@ void main() {
       test('snake_case keys match backend', () {
         final json = {
           'chunk_id': 'c1',
+          'chunk_ids': ['c1', 'c2'],
           'content': 'text',
           'document_id': 'd1',
           'document_uri': 'uri',
@@ -203,14 +204,17 @@ void main() {
           'headings': ['H1'],
           'index': 5,
           'page_numbers': [1],
+          'picture_refs': ['#/pictures/0'],
         };
 
         final citation = Citation.fromJson(json);
         expect(citation.chunkId, equals('c1'));
+        expect(citation.chunkIds, equals(['c1', 'c2']));
         expect(citation.documentTitle, equals('Title'));
         expect(citation.headings, equals(['H1']));
         expect(citation.index, equals(5));
         expect(citation.pageNumbers, equals([1]));
+        expect(citation.pictureRefs, equals(['#/pictures/0']));
       });
 
       test('toJson produces expected keys', () {
@@ -223,9 +227,11 @@ void main() {
 
         final json = citation.toJson();
         expect(json.containsKey('chunk_id'), isTrue);
+        expect(json.containsKey('chunk_ids'), isTrue);
         expect(json.containsKey('content'), isTrue);
         expect(json.containsKey('document_id'), isTrue);
         expect(json.containsKey('document_uri'), isTrue);
+        expect(json.containsKey('picture_refs'), isTrue);
       });
     });
 
@@ -240,6 +246,9 @@ void main() {
           index: 1,
           headings: ['Section 1'],
           pageNumbers: [1, 2],
+          docItemRefs: ['#/texts/1'],
+          pictureRefs: ['#/pictures/0'],
+          chunkIds: ['c1', 'c2'],
         );
 
         final jsonString = jsonEncode(original.toJson());
@@ -255,6 +264,9 @@ void main() {
         expect(decoded.index, equals(original.index));
         expect(decoded.headings, equals(original.headings));
         expect(decoded.pageNumbers, equals(original.pageNumbers));
+        expect(decoded.docItemRefs, equals(original.docItemRefs));
+        expect(decoded.pictureRefs, equals(original.pictureRefs));
+        expect(decoded.chunkIds, equals(original.chunkIds));
       });
     });
   });

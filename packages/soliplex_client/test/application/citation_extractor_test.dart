@@ -18,6 +18,8 @@ void main() {
         String? documentTitle,
         List<String>? headings,
         List<int>? pageNumbers,
+        List<String>? pictureRefs,
+        List<String>? chunkIds,
         int? index,
       }) {
         return {
@@ -28,6 +30,8 @@ void main() {
           if (documentTitle != null) 'document_title': documentTitle,
           if (headings != null) 'headings': headings,
           if (pageNumbers != null) 'page_numbers': pageNumbers,
+          if (pictureRefs != null) 'picture_refs': pictureRefs,
+          if (chunkIds != null) 'chunk_ids': chunkIds,
           if (index != null) 'index': index,
         };
       }
@@ -77,6 +81,8 @@ void main() {
               documentTitle: 'Test Doc',
               headings: ['Chapter 1'],
               pageNumbers: [1, 2],
+              pictureRefs: ['#/pictures/0', '#/pictures/1'],
+              chunkIds: ['chunk-1', 'chunk-2'],
               index: 1,
             ),
           },
@@ -93,6 +99,8 @@ void main() {
         expect(refs[0].documentTitle, 'Test Doc');
         expect(refs[0].headings, ['Chapter 1']);
         expect(refs[0].pageNumbers, [1, 2]);
+        expect(refs[0].pictureRefs, ['#/pictures/0', '#/pictures/1']);
+        expect(refs[0].chunkIds, ['chunk-1', 'chunk-2']);
         expect(refs[0].index, 1);
       });
 
@@ -219,6 +227,8 @@ void main() {
         String? documentTitle,
         List<String>? headings,
         List<int>? pageNumbers,
+        List<String>? pictureRefs,
+        List<String>? chunkIds,
         int? index,
       }) {
         return {
@@ -229,6 +239,8 @@ void main() {
           if (documentTitle != null) 'document_title': documentTitle,
           if (headings != null) 'headings': headings,
           if (pageNumbers != null) 'page_numbers': pageNumbers,
+          if (pictureRefs != null) 'picture_refs': pictureRefs,
+          if (chunkIds != null) 'chunk_ids': chunkIds,
           if (index != null) 'index': index,
         };
       }

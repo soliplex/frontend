@@ -132,11 +132,31 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Future<List<PageImage>> _fetchAndDecode() async {
+    final refCount = widget.docItemRefs.length;
+    final grounded = refCount > 0;
+    _logger.debug(
+      'fetching chunk visualization',
+      attributes: {
+        'roomId': widget.roomId,
+        'chunkId': widget.chunkId,
+        'refCount': refCount,
+        'grounded': grounded,
+      },
+    );
     try {
       final viz = await widget.api.getChunkVisualization(
         widget.roomId,
         widget.chunkId,
         refs: widget.docItemRefs,
+      );
+      _logger.debug(
+        'chunk visualization fetched',
+        attributes: {
+          'chunkId': widget.chunkId,
+          'refCount': refCount,
+          'grounded': grounded,
+          'pageCount': viz.imagesBase64.length,
+        },
       );
       return viz.imagesBase64.map(_decodePageImage).toList();
     } catch (error, stack) {
@@ -144,7 +164,12 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         'chunk visualization fetch failed',
         error: error,
         stackTrace: stack,
-        attributes: {'errorType': error.runtimeType.toString()},
+        attributes: {
+          'errorType': error.runtimeType.toString(),
+          'chunkId': widget.chunkId,
+          'refCount': refCount,
+          'grounded': grounded,
+        },
       );
       rethrow;
     }

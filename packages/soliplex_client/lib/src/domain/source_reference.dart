@@ -18,6 +18,8 @@ class SourceReference {
     this.headings = const [],
     this.pageNumbers = const [],
     this.docItemRefs = const [],
+    this.pictureRefs = const [],
+    this.chunkIds = const [],
     this.index,
   });
 
@@ -46,6 +48,20 @@ class SourceReference {
   /// visualization endpoint so the highlight matches the cited content.
   final List<String> docItemRefs;
 
+  /// Self-refs of the picture items in the cited content, used to fetch and
+  /// render the cited figures inline. Empty for text-only citations.
+  final List<String> pictureRefs;
+
+  /// Ids of all chunks whose expansion merged into this citation (always
+  /// includes [chunkId]) — merge provenance sent by the backend.
+  ///
+  /// Parsed and carried through so no backend field is silently dropped, but
+  /// intentionally not shown in the UI: visualization grounds off
+  /// [docItemRefs], which already spans the merged content, so `chunk_ids` is
+  /// redundant for rendering. Kept for a future consumer (e.g. multi-chunk
+  /// visualization).
+  final List<String> chunkIds;
+
   /// Display index for numbered citations.
   final int? index;
 
@@ -62,6 +78,8 @@ class SourceReference {
         listEquals.equals(headings, other.headings) &&
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
+        listEquals.equals(pictureRefs, other.pictureRefs) &&
+        listEquals.equals(chunkIds, other.chunkIds) &&
         index == other.index;
   }
 
@@ -75,6 +93,8 @@ class SourceReference {
         const ListEquality<String>().hash(headings),
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
+        const ListEquality<String>().hash(pictureRefs),
+        const ListEquality<String>().hash(chunkIds),
         index,
       );
 

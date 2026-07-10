@@ -9,6 +9,7 @@ import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
 import '../unread_boundary.dart';
+import 'citations_section.dart';
 import 'day_divider.dart';
 import 'message_tile.dart';
 import 'scroll/anchored_scroll_controller.dart';
@@ -29,6 +30,7 @@ class MessageTimeline extends StatefulWidget {
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
+    this.onFetchPicture,
     this.onFetchWorkdirFiles,
     this.onDownloadWorkdirFile,
     this.onPreviewWorkdirFile,
@@ -47,6 +49,7 @@ class MessageTimeline extends StatefulWidget {
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
+  final PictureFetcher? onFetchPicture;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
   final DownloadWorkdirFile? onDownloadWorkdirFile;
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
@@ -433,6 +436,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                           onInspect: widget.onInspect,
                           onShowChunkVisualization:
                               widget.onShowChunkVisualization,
+                          onFetchPicture: widget.onFetchPicture,
                           onFetchWorkdirFiles: widget.onFetchWorkdirFiles,
                           onDownloadWorkdirFile: widget.onDownloadWorkdirFile,
                           onPreviewWorkdirFile: widget.onPreviewWorkdirFile,

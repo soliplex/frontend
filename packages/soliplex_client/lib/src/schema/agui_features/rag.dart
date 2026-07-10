@@ -82,6 +82,7 @@ class Rag {
 ///supports UI display ordering in chat contexts.
 class Citation {
   final String chunkId;
+  final List<String>? chunkIds;
   final String content;
   final List<String>? docItemRefs;
   final String documentId;
@@ -90,9 +91,11 @@ class Citation {
   final List<String>? headings;
   final int? index;
   final List<int>? pageNumbers;
+  final List<String>? pictureRefs;
 
   Citation({
     required this.chunkId,
+    this.chunkIds,
     required this.content,
     this.docItemRefs,
     required this.documentId,
@@ -101,10 +104,14 @@ class Citation {
     this.headings,
     this.index,
     this.pageNumbers,
+    this.pictureRefs,
   });
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
         chunkId: json["chunk_id"],
+        chunkIds: json["chunk_ids"] == null
+            ? []
+            : List<String>.from(json["chunk_ids"]!.map((x) => x)),
         content: json["content"],
         docItemRefs: json["doc_item_refs"] == null
             ? []
@@ -119,10 +126,15 @@ class Citation {
         pageNumbers: json["page_numbers"] == null
             ? []
             : List<int>.from(json["page_numbers"]!.map((x) => x)),
+        pictureRefs: json["picture_refs"] == null
+            ? []
+            : List<String>.from(json["picture_refs"]!.map((x) => x)),
       );
 
   Map<String, dynamic> toJson() => {
         "chunk_id": chunkId,
+        "chunk_ids":
+            chunkIds == null ? [] : List<dynamic>.from(chunkIds!.map((x) => x)),
         "content": content,
         "doc_item_refs": docItemRefs == null
             ? []
@@ -136,6 +148,9 @@ class Citation {
         "page_numbers": pageNumbers == null
             ? []
             : List<dynamic>.from(pageNumbers!.map((x) => x)),
+        "picture_refs": pictureRefs == null
+            ? []
+            : List<dynamic>.from(pictureRefs!.map((x) => x)),
       };
 }
 

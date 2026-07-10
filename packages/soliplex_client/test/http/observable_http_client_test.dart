@@ -904,6 +904,87 @@ void main() {
       });
 
       test(
+          'binary response body yields a size marker without a redaction '
+          'failure', () async {
+        // A binary content-type (e.g. image/png) is not text; it must not be
+        // UTF-8 decoded (which would throw and be logged as a spurious
+        // redaction failure). Observers get a size marker instead.
+        final diagnostics = <String>[];
+        final observableClient = ObservableHttpClient(
+          client: mockClient,
+          observers: [recorder],
+          onDiagnostic: (_, __, {required message}) => diagnostics.add(message),
+        );
+
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(
+            statusCode: 200,
+            // Invalid UTF-8 bytes that would throw if decoded as text.
+            bodyBytes: Uint8List.fromList(const [0x89, 0x50, 0x4E, 0x47]),
+            headers: const {'content-type': 'image/png'},
+          ),
+        );
+
+        await observableClient.request(
+          'GET',
+          Uri.parse('https://example.com/picture'),
+        );
+
+        final responses = recorder.eventsOfType<HttpResponseEvent>();
+        expect(responses, hasLength(1));
+        expect(responses.single.body, '<binary body: 4 bytes>');
+        expect(diagnostics, isEmpty);
+
+        observableClient.close();
+      });
+
+      test('image/svg+xml is redacted as text, not marker-ized', () async {
+        // SVG is XML text that can carry sensitive data, so it must go
+        // through the text redactor rather than the binary size marker.
+        const body = 'token=secret123&data=value';
+        final observableClient = ObservableHttpClient(
+          client: mockClient,
+          observers: [recorder],
+        );
+
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(body.codeUnits),
+            headers: const {'content-type': 'image/svg+xml'},
+          ),
+        );
+
+        await observableClient.request(
+          'GET',
+          Uri.parse('https://example.com/logo.svg'),
+        );
+
+        final responseEvent = recorder.eventsOfType<HttpResponseEvent>().single;
+        expect(responseEvent.body, contains('data=value'));
+        expect(responseEvent.body, isNot(contains('secret123')));
+        expect(responseEvent.body, isNot(contains('binary body')));
+
+        observableClient.close();
+      });
+
+      test(
           'request completes when the diagnostic handler itself throws — the '
           'safety wrapper must contain a broken sink', () async {
         // ThrowingObserver forces the decorator to call _onDiagnostic.

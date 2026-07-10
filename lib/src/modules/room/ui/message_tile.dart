@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../execution_tracker.dart';
+import 'citations_section.dart';
 import 'dropped_event_message_tile.dart';
 import 'error_message_tile.dart';
 import 'gen_ui_tile.dart';
@@ -22,6 +23,7 @@ class MessageTile extends StatelessWidget {
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
+    this.onFetchPicture,
     this.onFetchWorkdirFiles,
     this.onDownloadWorkdirFile,
     this.onPreviewWorkdirFile,
@@ -37,6 +39,7 @@ class MessageTile extends StatelessWidget {
       onFeedbackSubmit;
   final void Function(String runId)? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
+  final PictureFetcher? onFetchPicture;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
   final DownloadWorkdirFile? onDownloadWorkdirFile;
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
@@ -61,6 +64,7 @@ class MessageTile extends StatelessWidget {
                 ? () => onInspect!(runId!)
                 : null,
             onShowChunkVisualization: onShowChunkVisualization,
+            onFetchPicture: onFetchPicture,
             onFetchWorkdirFiles: onFetchWorkdirFiles,
             onDownloadWorkdirFile: onDownloadWorkdirFile,
             onPreviewWorkdirFile: onPreviewWorkdirFile,

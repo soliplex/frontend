@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
+import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 SourceReference _ref({
   required int index,
@@ -12,6 +15,7 @@ SourceReference _ref({
   List<String> headings = const [],
   String content = 'Test content',
   List<int> pageNumbers = const [],
+  List<String> pictureRefs = const [],
 }) =>
     SourceReference(
       documentId: 'doc-$index',
@@ -21,8 +25,15 @@ SourceReference _ref({
       documentTitle: title ?? 'Document $index',
       headings: headings,
       pageNumbers: pageNumbers,
+      pictureRefs: pictureRefs,
       index: index,
     );
+
+// 1x1 red PNG pixel (minimal valid PNG).
+final _pngBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4'
+  '2mP8/58BAwAI/AL+hc2rNAAAAABJRU5ErkJggg==',
+);
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -66,6 +77,110 @@ void main() {
     ));
 
     expect(find.text('2 sources'), findsOneWidget);
+  });
+
+  group('cited figures', () {
+    // Note: assertions target the fetch wiring + the thumbnail's loading slot
+    // (a CircularProgressIndicator), not the decoded image — image decoding
+    // does not run in widget tests without runAsync, so the painted bytes are
+    // framework territory, not our logic.
+    testWidgets('fetches a figure per pictureRef when a fetcher is provided',
+        (tester) async {
+      final calls = <(String, String)>[];
+      await tester.pumpWidget(_wrap(
+        CitationsSection(
+          sourceReferences: [
+            _ref(index: 1, title: 'Alpha', pictureRefs: ['#/pictures/0']),
+          ],
+          onFetchPicture: (ref, pictureRef) async {
+            calls.add((ref.documentId, pictureRef));
+            return _pngBytes;
+          },
+        ),
+      ));
+
+      // Expand the section, then the citation row, to reveal figures.
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+
+      // The fetcher ran with the citation's document id + picture ref, and the
+      // thumbnail rendered its loading slot while the fetch is in flight.
+      expect(calls, [('doc-1', '#/pictures/0')]);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('shows a fallback when a figure fetch fails', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CitationsSection(
+                sourceReferences: [
+                  _ref(index: 1, title: 'Alpha', pictureRefs: ['#/pictures/0']),
+                ],
+                onFetchPicture: (ref, pictureRef) async =>
+                    throw Exception('fetch failed'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump(); // build thumbnail, start fetch
+      await tester.pump(); // resolve the failing future
+
+      // The failed fetch surfaces the broken-image fallback, and the
+      // rethrown error is handled by the FutureBuilder (not an uncaught throw).
+      expect(find.byType(FailedImage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('does not fetch when pictureRefs is empty', (tester) async {
+      var fetchCount = 0;
+      await tester.pumpWidget(_wrap(
+        CitationsSection(
+          sourceReferences: [_ref(index: 1, title: 'Alpha')],
+          onFetchPicture: (ref, pictureRef) async {
+            fetchCount++;
+            return _pngBytes;
+          },
+        ),
+      ));
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+
+      expect(fetchCount, 0);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('renders no figures when no fetcher is provided',
+        (tester) async {
+      await tester.pumpWidget(_wrap(
+        CitationsSection(
+          sourceReferences: [
+            _ref(index: 1, title: 'Alpha', pictureRefs: ['#/pictures/0']),
+          ],
+        ),
+      ));
+
+      await tester.tap(find.text('1 source'));
+      await tester.pump();
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+
+      // No fetcher → the figures strip is not built (no loading slot).
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('header shows singular for one source', (tester) async {
