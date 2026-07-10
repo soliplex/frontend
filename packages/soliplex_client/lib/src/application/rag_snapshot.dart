@@ -34,7 +34,7 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
 ///   `reports` fields. See `rag_v040.dart`.
 /// - **haiku.rag 0.42+** emits `citations` as a list of chunk ids, with a
 ///   separate `citation_index` map resolving each id to a [Citation]. See
-///   `rag.dart` (the generated schema).
+///   `rag.dart`.
 ///
 /// [RagSnapshot.fromJson] dispatches on wire shape today because the
 /// backend has no explicit `schema_version` field. When that field is
@@ -148,10 +148,10 @@ class RagV040Snapshot implements RagSnapshot {
 /// [RagSnapshot] backed by the haiku.rag 0.42 wire shape.
 ///
 /// Parses `citations` and `citation_index` entry-by-entry rather than
-/// delegating to the generated [Rag.fromJson]: the generated code uses
-/// hard casts (`List<String>.from(...)` /
-/// `Map<String, Citation>.from(...)`) that throw on any malformed
-/// entry, which would take down an otherwise-valid snapshot. The
+/// delegating to [Rag.fromJson], which uses hard casts
+/// (`List<String>.from(...)` / `Map<String, Citation>.from(...)`) that
+/// throw on any malformed entry, taking down an otherwise-valid
+/// snapshot. The
 /// snapshot contract is narrow (just `citationIds` + `resolveCitation`),
 /// so a resilient per-entry parse is correct here. Other 0.42 fields
 /// are still reachable via [Rag.fromJson] in `rag.dart`.

@@ -3,7 +3,7 @@ import 'package:meta/meta.dart';
 
 /// A stable, frontend-owned citation reference.
 ///
-/// Unlike schema types (which are generated from backend and may change),
+/// Unlike schema types (which mirror the backend wire format and may change),
 /// SourceReference is controlled by the frontend and provides a stable API
 /// for UI components to display citation information.
 @immutable

@@ -1,4 +1,6 @@
-// Generated code from quicktype - ignoring style issues
+// Dart types mirroring the backend haiku.rag `rag` namespace schema. The
+// lint suppressions below keep the wire-oriented (double-quoted, field-ordered)
+// style of these schema mirrors intact.
 // ignore_for_file: sort_constructors_first
 // ignore_for_file: prefer_single_quotes
 // ignore_for_file: always_put_required_named_parameters_first
