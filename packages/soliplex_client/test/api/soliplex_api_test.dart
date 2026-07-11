@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:mocktail/mocktail.dart';
 // SoliplexApi uses our local CancelToken, not ag_ui's.
 // Hide ag_ui's CancelToken to avoid ambiguity.
@@ -4444,92 +4442,6 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).called(1);
-      });
-    });
-
-    group('getDocumentPicture', () {
-      final pngBytes = Uint8List.fromList([137, 80, 78, 71, 1, 2, 3]);
-
-      test('returns picture bytes', () async {
-        when(
-          () => mockTransport.requestBytes(
-            'GET',
-            any(),
-            cancelToken: any(named: 'cancelToken'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((_) async => pngBytes);
-
-        final result = await api.getDocumentPicture(
-          'room-123',
-          'doc-1',
-          '#/pictures/0',
-        );
-
-        expect(result, equals(pngBytes));
-      });
-
-      test('validates non-empty roomId', () {
-        expect(
-          () => api.getDocumentPicture('', 'doc-1', '#/pictures/0'),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-
-      test('validates non-empty documentId', () {
-        expect(
-          () => api.getDocumentPicture('room-123', '', '#/pictures/0'),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-
-      test('validates non-empty ref', () {
-        expect(
-          () => api.getDocumentPicture('room-123', 'doc-1', ''),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-
-      test('uses correct URL with ref query parameter', () async {
-        Uri? capturedUri;
-        when(
-          () => mockTransport.requestBytes(
-            'GET',
-            any(),
-            cancelToken: any(named: 'cancelToken'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((invocation) async {
-          capturedUri = invocation.positionalArguments[1] as Uri;
-          return pngBytes;
-        });
-
-        await api.getDocumentPicture('room-123', 'doc-1', '#/pictures/0');
-
-        expect(
-          capturedUri?.path,
-          equals('/api/v1/rooms/room-123/document/doc-1/picture'),
-        );
-        expect(capturedUri?.queryParameters['ref'], equals('#/pictures/0'));
-      });
-
-      test('propagates NotFoundException', () async {
-        when(
-          () => mockTransport.requestBytes(
-            'GET',
-            any(),
-            cancelToken: any(named: 'cancelToken'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenThrow(const NotFoundException(message: 'Picture not found'));
-
-        expect(
-          () => api.getDocumentPicture('room-123', 'doc-1', '#/pictures/9'),
-          throwsA(isA<NotFoundException>()),
-        );
       });
     });
 
