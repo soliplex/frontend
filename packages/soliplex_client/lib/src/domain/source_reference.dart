@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
@@ -19,6 +21,7 @@ class SourceReference {
     this.pageNumbers = const [],
     this.docItemRefs = const [],
     this.pictureRefs = const [],
+    this.pictureBytes = const {},
     this.chunkIds = const [],
     this.index,
   });
@@ -52,6 +55,14 @@ class SourceReference {
   /// render the cited figures inline. Empty for text-only citations.
   final List<String> pictureRefs;
 
+  /// Decoded bytes for the subset of [pictureRefs] the backend actually
+  /// shipped (directly-retrieved "stage-1" figures). Keyed by picture
+  /// self_ref. Expansion-introduced refs are absent — those stay viewable
+  /// via chunk visualization. Only the *keys* (which refs resolved to bytes)
+  /// participate in == / hashCode, so a change in which figures are available
+  /// triggers a rebuild without comparing megabytes of image data.
+  final Map<String, Uint8List> pictureBytes;
+
   /// Ids of all chunks whose expansion merged into this citation — merge
   /// provenance from the backend, which includes [chunkId] in the list.
   ///
@@ -79,6 +90,10 @@ class SourceReference {
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
         listEquals.equals(pictureRefs, other.pictureRefs) &&
+        const SetEquality<String>().equals(
+          pictureBytes.keys.toSet(),
+          other.pictureBytes.keys.toSet(),
+        ) &&
         listEquals.equals(chunkIds, other.chunkIds) &&
         index == other.index;
   }
@@ -94,6 +109,7 @@ class SourceReference {
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
         const ListEquality<String>().hash(pictureRefs),
+        const SetEquality<String>().hash(pictureBytes.keys.toSet()),
         const ListEquality<String>().hash(chunkIds),
         index,
       );
