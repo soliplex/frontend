@@ -24,7 +24,6 @@ class TextMessageTile extends StatelessWidget {
     this.onFeedbackSubmit,
     this.onInspect,
     this.onShowChunkVisualization,
-    this.onFetchPicture,
     this.onFetchWorkdirFiles,
     this.onDownloadWorkdirFile,
     this.onPreviewWorkdirFile,
@@ -39,7 +38,6 @@ class TextMessageTile extends StatelessWidget {
   final void Function(FeedbackType feedback, String? reason)? onFeedbackSubmit;
   final VoidCallback? onInspect;
   final void Function(SourceReference)? onShowChunkVisualization;
-  final PictureFetcher? onFetchPicture;
   final FetchWorkdirFiles? onFetchWorkdirFiles;
   final DownloadWorkdirFile? onDownloadWorkdirFile;
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
@@ -118,7 +116,6 @@ class TextMessageTile extends StatelessWidget {
           CitationsSection(
             sourceReferences: sourceReferences!,
             onShowChunkVisualization: onShowChunkVisualization,
-            onFetchPicture: onFetchPicture,
           ),
         if (!isUser &&
             runId != null &&

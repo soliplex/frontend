@@ -1982,13 +1982,6 @@ class _RoomScreenState extends State<RoomScreen> {
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
                           ),
-                          onFetchPicture: (ref, pictureRef) => widget
-                              .serverEntry.connection.api
-                              .getDocumentPicture(
-                            widget.roomId,
-                            ref.documentId,
-                            pictureRef,
-                          ),
                           onFetchWorkdirFiles: (runId) =>
                               _workdirs.fetchFiles(threadView.threadId, runId),
                           onDownloadWorkdirFile: (runId, file) =>

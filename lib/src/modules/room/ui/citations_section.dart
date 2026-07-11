@@ -16,34 +16,18 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.citations');
 /// Not on the spacing scale — a component dimension, kept in one place.
 const double _figureThumbnailSize = 120;
 
-/// Fallback label shown when a cited figure can't be fetched or decoded.
+/// Fallback label shown when a cited figure can't be decoded.
 const String _figureUnavailableLabel = 'Figure unavailable';
-
-/// Fallback label shown when a cited figure genuinely doesn't exist (404).
-/// Distinct from [_figureUnavailableLabel] because retrying won't help.
-const String _figureNotFoundLabel = 'Figure not found';
-
-/// Fetches the raw bytes of a cited picture ([pictureRef]) belonging to
-/// [ref]'s document. Returns the image bytes or throws on failure.
-typedef PictureFetcher = Future<Uint8List> Function(
-  SourceReference ref,
-  String pictureRef,
-);
 
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
     super.key,
     required this.sourceReferences,
     this.onShowChunkVisualization,
-    this.onFetchPicture,
   });
 
   final List<SourceReference> sourceReferences;
   final void Function(SourceReference)? onShowChunkVisualization;
-
-  /// Fetches bytes for a citation's cited figures. When null, figures are
-  /// not rendered even if a citation carries `pictureRefs`.
-  final PictureFetcher? onFetchPicture;
 
   @override
   State<CitationsSection> createState() => _CitationsSectionState();
@@ -133,7 +117,6 @@ class _CitationsSectionState extends State<CitationsSection> {
                 }
               }),
               onShowChunkVisualization: widget.onShowChunkVisualization,
-              onFetchPicture: widget.onFetchPicture,
             );
           }),
         ],
@@ -149,7 +132,6 @@ class _SourceReferenceRow extends StatelessWidget {
     required this.isExpanded,
     required this.onToggle,
     this.onShowChunkVisualization,
-    this.onFetchPicture,
   });
 
   final SourceReference sourceReference;
@@ -157,7 +139,6 @@ class _SourceReferenceRow extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggle;
   final void Function(SourceReference)? onShowChunkVisualization;
-  final PictureFetcher? onFetchPicture;
 
   @override
   Widget build(BuildContext context) {
@@ -307,43 +288,39 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
               ),
             ),
-          if (sourceReference.pictureRefs.isNotEmpty && onFetchPicture != null)
-            _CitationFigures(
-              sourceReference: sourceReference,
-              onFetchPicture: onFetchPicture!,
-            ),
+          if (sourceReference.pictureBytes.isNotEmpty)
+            _CitationFigures(sourceReference: sourceReference),
         ],
       ),
     );
   }
 }
 
-/// A horizontally-scrolling strip of the figures a citation cited, one
-/// thumbnail per entry in [SourceReference.pictureRefs].
+/// A horizontally-scrolling strip of the cited figures whose bytes the
+/// backend shipped in state. Refs without bytes (expansion-introduced) are
+/// skipped — they remain viewable via chunk visualization.
 class _CitationFigures extends StatelessWidget {
-  const _CitationFigures({
-    required this.sourceReference,
-    required this.onFetchPicture,
-  });
+  const _CitationFigures({required this.sourceReference});
 
   final SourceReference sourceReference;
-  final PictureFetcher onFetchPicture;
 
   @override
   Widget build(BuildContext context) {
+    final refs = sourceReference.pictureRefs
+        .where(sourceReference.pictureBytes.containsKey)
+        .toList();
     return Padding(
       padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       child: SizedBox(
         height: _figureThumbnailSize,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: sourceReference.pictureRefs.length,
+          itemCount: refs.length,
           separatorBuilder: (_, __) =>
               const SizedBox(width: SoliplexSpacing.s2),
           itemBuilder: (context, index) => _FigureThumbnail(
-            sourceReference: sourceReference,
-            pictureRef: sourceReference.pictureRefs[index],
-            onFetchPicture: onFetchPicture,
+            pictureRef: refs[index],
+            bytes: sourceReference.pictureBytes[refs[index]]!,
           ),
         ),
       ),
@@ -351,93 +328,15 @@ class _CitationFigures extends StatelessWidget {
   }
 }
 
-/// One cited-figure thumbnail. Lazily fetches its bytes; shows a spinner
-/// while loading and a broken-image fallback on failure. Tapping opens a
-/// zoomable full-size view.
-class _FigureThumbnail extends StatefulWidget {
-  const _FigureThumbnail({
-    required this.sourceReference,
-    required this.pictureRef,
-    required this.onFetchPicture,
-  });
+/// One cited-figure thumbnail rendered from in-state bytes. Tapping opens a
+/// zoomable full-size view. A decode failure shows a broken-image fallback.
+class _FigureThumbnail extends StatelessWidget {
+  const _FigureThumbnail({required this.pictureRef, required this.bytes});
 
-  final SourceReference sourceReference;
   final String pictureRef;
-  final PictureFetcher onFetchPicture;
+  final Uint8List bytes;
 
-  @override
-  State<_FigureThumbnail> createState() => _FigureThumbnailState();
-}
-
-class _FigureThumbnailState extends State<_FigureThumbnail> {
-  late Future<Uint8List> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _fetch();
-  }
-
-  @override
-  void didUpdateWidget(_FigureThumbnail oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // The strip is a keyless list, so a thumbnail's State can be reused for a
-    // different ref when the list changes. Re-fetch when the target moves.
-    if (oldWidget.pictureRef != widget.pictureRef ||
-        oldWidget.sourceReference.documentId !=
-            widget.sourceReference.documentId) {
-      _future = _fetch();
-    }
-  }
-
-  void _retry() {
-    setState(() {
-      _future = _fetch();
-    });
-  }
-
-  Future<Uint8List> _fetch() async {
-    _logger.debug(
-      'fetching cited figure',
-      attributes: {
-        'documentId': widget.sourceReference.documentId,
-        'pictureRef': widget.pictureRef,
-      },
-    );
-    try {
-      final bytes = await widget.onFetchPicture(
-        widget.sourceReference,
-        widget.pictureRef,
-      );
-      _logger.debug(
-        'cited figure fetched',
-        attributes: {
-          'pictureRef': widget.pictureRef,
-          'numBytes': bytes.length,
-        },
-      );
-      return bytes;
-    } on NotFoundException catch (error) {
-      // A dangling picture_ref is a backend data issue, not a client fault
-      // and not retryable — log at warning to avoid Sentry noise.
-      _logger.warning(
-        'cited figure not found',
-        error: error,
-        attributes: {'pictureRef': widget.pictureRef},
-      );
-      rethrow;
-    } catch (error, stack) {
-      _logger.error(
-        'cited figure fetch failed',
-        error: error,
-        stackTrace: stack,
-        attributes: {'pictureRef': widget.pictureRef},
-      );
-      rethrow;
-    }
-  }
-
-  void _openFullSize(Uint8List bytes) {
+  void _openFullSize(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (context) => Dialog(
@@ -451,7 +350,7 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
               _logger.warning(
                 'cited figure decode failed (full-size)',
                 error: error,
-                attributes: {'pictureRef': widget.pictureRef},
+                attributes: {'pictureRef': pictureRef},
               );
               return const FailedImage(label: _figureUnavailableLabel);
             },
@@ -461,65 +360,29 @@ class _FigureThumbnailState extends State<_FigureThumbnail> {
     );
   }
 
-  /// Broken-figure placeholder sized to fit the thumbnail strip. Scaled down
-  /// so the FailedImage icon+label doesn't overflow the fixed strip height.
-  /// When [retryable], the placeholder taps to re-run the fetch.
-  Widget _fallback({required bool retryable, required String label}) {
-    final failed = SizedBox(
-      width: _figureThumbnailSize,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: FailedImage(label: label),
-      ),
-    );
-    if (!retryable) return failed;
-    return Tooltip(
-      message: 'Tap to retry',
-      child: InkWell(onTap: _retry, child: failed),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ClipRRect(
+    return InkWell(
+      onTap: () => _openFullSize(context),
       borderRadius: BorderRadius.circular(context.radii.md),
-      child: ColoredBox(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: FutureBuilder<Uint8List>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox(
-                width: _figureThumbnailSize,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (snapshot.hasError || snapshot.data == null) {
-              final notFound = snapshot.error is NotFoundException;
-              return _fallback(
-                retryable: !notFound,
-                label:
-                    notFound ? _figureNotFoundLabel : _figureUnavailableLabel,
-              );
-            }
-            final bytes = snapshot.data!;
-            return InkWell(
-              onTap: () => _openFullSize(bytes),
-              child: Image.memory(
-                bytes,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stack) {
-                  _logger.warning(
-                    'cited figure decode failed',
-                    error: error,
-                    attributes: {'pictureRef': widget.pictureRef},
-                  );
-                  return _fallback(
-                    retryable: false,
-                    label: _figureUnavailableLabel,
-                  );
-                },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(context.radii.md),
+        child: Image.memory(
+          bytes,
+          width: _figureThumbnailSize,
+          height: _figureThumbnailSize,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stack) {
+            _logger.warning(
+              'cited figure decode failed',
+              error: error,
+              attributes: {'pictureRef': pictureRef},
+            );
+            return const SizedBox(
+              width: _figureThumbnailSize,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: FailedImage(label: _figureUnavailableLabel),
               ),
             );
           },
