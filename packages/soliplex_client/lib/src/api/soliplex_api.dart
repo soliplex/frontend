@@ -1537,7 +1537,9 @@ class SoliplexApi {
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    final uri = _urlBuilder.build(pathSegments: ['uploads', roomId, threadId]);
+    final uri = _urlBuilder.build(
+        pathSegments: ['uploads', roomId, 'thread', threadId],
+    );
     if (webFileBlob != null) {
       await _transport.request<void>(
         'POST',

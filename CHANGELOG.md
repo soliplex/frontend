@@ -15,6 +15,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- Update route for thread-specific file uploads to stay current with
+  backend release
+  [v0.72.1](https://github.com/soliplex/soliplex/releases/tag/v0.72.1).
 - Device-local cleanup on server removal is driven by an explicit
   `ServerManager.onServerRemoved` event instead of diffing the servers signal.
   Only a genuine removal clears a server's read state, unread-divider anchors,
