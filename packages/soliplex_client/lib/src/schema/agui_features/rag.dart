@@ -222,6 +222,7 @@ class SearchResult {
   final String? documentTitle;
   final String? documentUri;
   final List<String>? headings;
+  final Map<String, String>? imageData;
   final List<String>? labels;
   final int order;
   final List<int>? pageNumbers;
@@ -235,6 +236,7 @@ class SearchResult {
     this.documentTitle,
     this.documentUri,
     this.headings,
+    this.imageData,
     this.labels,
     this.order = 0,
     this.pageNumbers,
@@ -253,6 +255,9 @@ class SearchResult {
         headings: json["headings"] == null
             ? []
             : List<String>.from(json["headings"]!.map((x) => x)),
+        imageData: json["image_data"] == null
+            ? null
+            : Map<String, String>.from(json["image_data"]!),
         labels: json["labels"] == null
             ? []
             : List<String>.from(json["labels"]!.map((x) => x)),
@@ -274,6 +279,7 @@ class SearchResult {
         "document_uri": documentUri,
         "headings":
             headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
+        "image_data": imageData,
         "labels":
             labels == null ? [] : List<dynamic>.from(labels!.map((x) => x)),
         "order": order,
