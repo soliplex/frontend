@@ -10,6 +10,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- Room: a citation's cited figures now render inline as thumbnails, tapped to
+  view full-size, using the picture bytes the backend already ships in the rag
+  state. Figures without shipped bytes are not shown inline; they remain
+  viewable via the citation's source (chunk visualization) button.
 - Lobby: an "Unread first" sort option groups a server's rooms into an Unread
   section above a Read section, each ordered by recent activity.
 
