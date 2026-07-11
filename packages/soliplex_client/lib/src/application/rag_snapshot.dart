@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 
 import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
@@ -23,6 +25,67 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
       _ragDocumentFilterKey: filter,
     },
   };
+}
+
+/// Composite key for the picture-bytes index: document id + picture self_ref.
+String _pictureKey(String documentId, String ref) => '$documentId $ref';
+
+/// Builds a base64 picture-bytes index from a `rag` state's `searches`.
+///
+/// Keyed by [_pictureKey]. Only directly-retrieved ("stage-1") pictures carry
+/// bytes here; expansion-introduced refs are absent. Malformed search entries
+/// are logged and skipped so one bad row can't take down the index.
+Map<String, String> _indexPictureBytes(Map<String, dynamic> json) {
+  final index = <String, String>{};
+  final raw = json['searches'];
+  if (raw is! Map) return index;
+  for (final entry in raw.values) {
+    if (entry is! List) continue;
+    for (final item in entry) {
+      if (item is! Map<String, dynamic>) continue;
+      SearchResult sr;
+      try {
+        sr = SearchResult.fromJson(item);
+      } on Object catch (error, stackTrace) {
+        developer.log(
+          'RagSnapshot: skipping malformed search result in picture index.',
+          name: 'soliplex_client.rag_snapshot',
+          level: 900,
+          error: error,
+          stackTrace: stackTrace,
+        );
+        continue;
+      }
+      final docId = sr.documentId;
+      final imageData = sr.imageData;
+      if (docId == null || imageData == null) continue;
+      imageData.forEach(
+        (ref, b64) => index.putIfAbsent(_pictureKey(docId, ref), () => b64),
+      );
+    }
+  }
+  return index;
+}
+
+/// Decodes an indexed picture ref to bytes, or null when absent / undecodable.
+Uint8List? _decodePicture(
+  Map<String, String> index,
+  String documentId,
+  String ref,
+) {
+  final b64 = index[_pictureKey(documentId, ref)];
+  if (b64 == null) return null;
+  try {
+    return base64Decode(b64);
+  } on FormatException catch (error) {
+    developer.log(
+      'RagSnapshot: picture ref "$ref" has undecodable base64; dropped.',
+      name: 'soliplex_client.rag_snapshot',
+      level: 900,
+      error: error,
+    );
+    return null;
+  }
 }
 
 /// Version-agnostic view of the backend's `rag`-namespaced AG-UI state.
@@ -54,6 +117,10 @@ abstract class RagSnapshot {
 
   /// Resolves a chunk id to a full [Citation], or null if not present.
   Citation? resolveCitation(String id);
+
+  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null
+  /// when the state carries no bytes for it (stage-2 / unknown).
+  Uint8List? pictureBytes(String documentId, String ref);
 
   /// Parses a `rag`-namespaced state map into the appropriate variant.
   ///
@@ -98,7 +165,7 @@ bool _isV040(Map<String, dynamic> json) {
 /// inline [Citation] objects). Other 0.40 fields are accessible via
 /// `RagV040.fromJson` in `rag_v040.dart`.
 class RagV040Snapshot implements RagSnapshot {
-  RagV040Snapshot._(this._byId);
+  RagV040Snapshot._(this._byId, this._pictureIndex);
 
   /// Parses inline Citations from 0.40-shaped JSON. Malformed entries
   /// (non-Map or invalid Citation payloads) are logged and skipped so
@@ -133,16 +200,21 @@ class RagV040Snapshot implements RagSnapshot {
         }
       }
     }
-    return RagV040Snapshot._(byId);
+    return RagV040Snapshot._(byId, _indexPictureBytes(json));
   }
 
   final Map<String, Citation> _byId;
+  final Map<String, String> _pictureIndex;
 
   @override
   List<String> get citationIds => _byId.keys.toList();
 
   @override
   Citation? resolveCitation(String id) => _byId[id];
+
+  @override
+  Uint8List? pictureBytes(String documentId, String ref) =>
+      _decodePicture(_pictureIndex, documentId, ref);
 }
 
 /// [RagSnapshot] backed by the haiku.rag 0.42 wire shape.
@@ -156,7 +228,7 @@ class RagV040Snapshot implements RagSnapshot {
 /// so a resilient per-entry parse is correct here. Other 0.42 fields
 /// are still reachable via [Rag.fromJson] in `rag.dart`.
 class RagV042Snapshot implements RagSnapshot {
-  RagV042Snapshot._(this._citationIds, this._index);
+  RagV042Snapshot._(this._citationIds, this._index, this._pictureIndex);
 
   /// Parses a 0.42-shaped payload with per-entry resilience: malformed
   /// entries in `citations` / `citation_index` are logged and skipped.
@@ -218,17 +290,22 @@ class RagV042Snapshot implements RagSnapshot {
       }
     }
 
-    return RagV042Snapshot._(ids, index);
+    return RagV042Snapshot._(ids, index, _indexPictureBytes(json));
   }
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
+  final Map<String, String> _pictureIndex;
 
   @override
   List<String> get citationIds => _citationIds;
 
   @override
   Citation? resolveCitation(String id) => _index[id];
+
+  @override
+  Uint8List? pictureBytes(String documentId, String ref) =>
+      _decodePicture(_pictureIndex, documentId, ref);
 }
 
 /// Projects a [RagSnapshot] from the full agent-state map.
