@@ -15,6 +15,10 @@ class ChunkVisualization {
   }) : imagesBase64 = List.unmodifiable(imagesBase64);
 
   /// Creates a ChunkVisualization from JSON.
+  ///
+  /// Throws [MalformedResponseException] when `chunk_id` is missing or not a
+  /// string, `document_uri` is present but not a string, or `images_base_64`
+  /// is not a list of strings.
   factory ChunkVisualization.fromJson(Map<String, dynamic> json) {
     final chunkId = json['chunk_id'];
     if (chunkId is! String) {
