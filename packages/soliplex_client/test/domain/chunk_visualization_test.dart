@@ -75,6 +75,60 @@ void main() {
 
         expect(visualization.imagesBase64, isEmpty);
       });
+
+      test('throws MalformedResponseException when chunk_id is missing', () {
+        expect(
+          () => ChunkVisualization.fromJson(const {
+            'document_uri': 'doc.pdf',
+            'images_base_64': <String>[],
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test('throws MalformedResponseException when chunk_id is not a String',
+          () {
+        expect(
+          () => ChunkVisualization.fromJson(const {
+            'chunk_id': 42,
+            'images_base_64': <String>[],
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test(
+          'throws MalformedResponseException when document_uri is not a String',
+          () {
+        expect(
+          () => ChunkVisualization.fromJson(const {
+            'chunk_id': 'chunk-abc',
+            'document_uri': 42,
+            'images_base_64': <String>[],
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test('throws MalformedResponseException when images_base_64 is missing',
+          () {
+        expect(
+          () => ChunkVisualization.fromJson(const {'chunk_id': 'chunk-abc'}),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test(
+          'throws MalformedResponseException when an images_base_64 entry is '
+          'not a String', () {
+        expect(
+          () => ChunkVisualization.fromJson(const {
+            'chunk_id': 'chunk-abc',
+            'images_base_64': [1, 2],
+          }),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
     });
 
     group('toJson', () {
