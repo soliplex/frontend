@@ -30,7 +30,19 @@ class HttpResponse {
   final String? reasonPhrase;
 
   /// The response body decoded as a UTF-8 string.
+  ///
+  /// Strict: throws [FormatException] on malformed bytes. Used for success
+  /// payloads, where a non-UTF-8 body is a genuine malformed response rather
+  /// than something to paper over.
   String get body => utf8.decode(bodyBytes);
+
+  /// The response body decoded as UTF-8, substituting the replacement
+  /// character for malformed byte sequences instead of throwing.
+  ///
+  /// Used for error bodies (human-readable diagnostics only): a non-UTF-8
+  /// error payload must never mask the HTTP status, or it would defeat
+  /// retry / re-auth classification.
+  String get bodyLenient => utf8.decode(bodyBytes, allowMalformed: true);
 
   /// Whether this response indicates success (2xx status code).
   bool get isSuccess => statusCode >= 200 && statusCode < 300;

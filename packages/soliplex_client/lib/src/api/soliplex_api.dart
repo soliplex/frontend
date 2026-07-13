@@ -197,13 +197,7 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    final token = response['mcp_token'] as String?;
-    if (token == null) {
-      throw FormatException(
-        'Response missing "mcp_token" field for room $roomId',
-      );
-    }
-    return token;
+    return _requireString(response, 'mcp_token', 'getMcpToken(room $roomId)');
   }
 
   /// Gets documents available for narrowing RAG in a room.
@@ -286,10 +280,26 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
     // Backend returns {"threads": [...]} - extract the threads array
-    final threads = response['threads'] as List<dynamic>;
-    return threads
-        .map((e) => threadInfoFromJson(e as Map<String, dynamic>))
-        .toList();
+    final rawThreads = response['threads'];
+    if (rawThreads is! List) {
+      throw MalformedResponseException(
+        message: 'getThreads: expected a list "threads", '
+            'got ${rawThreads.runtimeType}.',
+      );
+    }
+    try {
+      return rawThreads
+          .map((e) => threadInfoFromJson(e as Map<String, dynamic>))
+          .toList();
+    } on SoliplexException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      throw MalformedResponseException(
+        message: 'getThreads: malformed thread entry: $error',
+        originalError: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   /// Gets last-activity stats for the user's accessible rooms in one request.
@@ -440,7 +450,7 @@ class SoliplexApi {
     // Prefer the backend's server `created`; fall back to the client clock if
     // the response omits it or the value is malformed.
     final threadInfo = ThreadInfo(
-      id: response['thread_id'] as String,
+      id: _requireString(response, 'thread_id', 'createThread'),
       roomId: roomId,
       initialRunId: initialRunId ?? '',
       name: threadName,
@@ -552,7 +562,7 @@ class SoliplexApi {
     // backend's server `created`; fall back to the client clock if the response
     // omits it or the value is malformed.
     return RunInfo(
-      id: response['run_id'] as String,
+      id: _requireString(response, 'run_id', 'createRun'),
       threadId: threadId,
       createdAt: _createdOrNow(response['created']),
     );
@@ -1383,9 +1393,24 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    final schemas = response['schemas'] as Map<String, dynamic>?;
-    if (schemas == null) return {};
-    return schemas.map((k, v) => MapEntry(k, v as String));
+    final rawSchemas = response['schemas'];
+    // An absent "schemas" is a legitimate "no schemas configured" — empty map.
+    if (rawSchemas == null) return {};
+    if (rawSchemas is! Map<String, dynamic>) {
+      throw MalformedResponseException(
+        message: 'getMontySchemas: expected a map "schemas", '
+            'got ${rawSchemas.runtimeType}.',
+      );
+    }
+    return rawSchemas.map((k, v) {
+      if (v is! String) {
+        throw MalformedResponseException(
+          message: 'getMontySchemas: expected a String value for "$k", '
+              'got ${v.runtimeType}.',
+        );
+      }
+      return MapEntry(k, v);
+    });
   }
 
   // ============================================================
@@ -1690,6 +1715,22 @@ class SoliplexApi {
     if (value.isEmpty) {
       throw ArgumentError.value(value, name, 'must not be empty');
     }
+  }
+
+  /// Reads a required String [key] from a decoded JSON [response], raising a
+  /// (non-retryable) [MalformedResponseException] instead of a raw `TypeError`
+  /// when the field is missing, null, or not a String. [context] names the
+  /// calling endpoint in the message.
+  String _requireString(
+    Map<String, dynamic> response,
+    String key,
+    String context,
+  ) {
+    final value = response[key];
+    if (value is String) return value;
+    throw MalformedResponseException(
+      message: '$context: expected a String "$key", got ${value.runtimeType}.',
+    );
   }
 
   /// Extracts typed entries from a list field in a JSON response.

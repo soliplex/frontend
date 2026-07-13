@@ -437,6 +437,54 @@ void main() {
         expect(threads, isEmpty);
       });
 
+      test(
+        'throws MalformedResponseException when "threads" is not a list',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'threads': 'not-a-list'});
+
+          await expectLater(
+            api.getThreads('room-123'),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+
+      test(
+        'throws MalformedResponseException when a "threads" entry is not a map',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'threads': [1, 2],
+            },
+          );
+
+          await expectLater(
+            api.getThreads('room-123'),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+
       test('validates non-empty roomId', () {
         expect(() => api.getThreads(''), throwsA(isA<ArgumentError>()));
       });
@@ -907,6 +955,117 @@ void main() {
         await api.createThread('room-123');
 
         expect(capturedUri?.path, equals('/api/v1/rooms/room-123/agui'));
+      });
+
+      test(
+        'throws MalformedResponseException when "thread_id" is missing',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'POST',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => <String, dynamic>{});
+
+          await expectLater(
+            api.createThread('room-123'),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+    });
+
+    group('getMontySchemas', () {
+      test(
+        'throws MalformedResponseException when a schema value is not a String',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'schemas': {'monty': 42},
+            },
+          );
+
+          await expectLater(
+            api.getMontySchemas(),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+
+      test(
+        'throws MalformedResponseException when "schemas" is not a map',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'schemas': 'not-a-map'});
+
+          await expectLater(
+            api.getMontySchemas(),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+
+      test('returns an empty map when "schemas" is absent', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => <String, dynamic>{});
+
+        expect(await api.getMontySchemas(), isEmpty);
+      });
+
+      test('returns the schema map for a well-formed response', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'schemas': {'monty': 'schema-yaml'},
+          },
+        );
+
+        expect(
+          await api.getMontySchemas(),
+          equals({'monty': 'schema-yaml'}),
+        );
       });
     });
 
@@ -4643,24 +4802,27 @@ void main() {
         expect(() => api.getMcpToken(''), throwsA(isA<ArgumentError>()));
       });
 
-      test('throws FormatException when response lacks mcp_token', () async {
-        when(
-          () => mockTransport.request<Map<String, dynamic>>(
-            'GET',
-            any(),
-            cancelToken: any(named: 'cancelToken'),
-            fromJson: any(named: 'fromJson'),
-            body: any(named: 'body'),
-            headers: any(named: 'headers'),
-            timeout: any(named: 'timeout'),
-          ),
-        ).thenAnswer((_) async => {'room_id': 'room-123'});
+      test(
+        'throws MalformedResponseException when response lacks mcp_token',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              any(),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'room_id': 'room-123'});
 
-        expect(
-          () => api.getMcpToken('room-123'),
-          throwsA(isA<FormatException>()),
-        );
-      });
+          expect(
+            () => api.getMcpToken('room-123'),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
     });
   });
 }

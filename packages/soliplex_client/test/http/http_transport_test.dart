@@ -1513,5 +1513,117 @@ void main() {
         expect(captured, containsPair('X-Trace-Id', 'abc123'));
       });
     });
+
+    group('request - malformed response hardening', () {
+      void stubResponse(HttpResponse response) {
+        when(
+          () => mockClient.request(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => response);
+      }
+
+      // 0xFF is never a valid leading UTF-8 byte.
+      final invalidUtf8 = Uint8List.fromList([0xff, 0xfe, 0xff]);
+
+      test(
+        'non-UTF-8 error body preserves the status (ApiException), not a '
+        'decode error that would defeat retry/re-auth classification',
+        () async {
+          stubResponse(HttpResponse(statusCode: 500, bodyBytes: invalidUtf8));
+          await expectLater(
+            transport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+            ),
+            throwsA(
+              isA<ApiException>()
+                  .having((e) => e.statusCode, 'statusCode', 500),
+            ),
+          );
+        },
+      );
+
+      test('non-UTF-8 success body throws MalformedResponseException',
+          () async {
+        stubResponse(
+          HttpResponse(
+            statusCode: 200,
+            bodyBytes: invalidUtf8,
+            headers: const {'content-type': 'application/json'},
+          ),
+        );
+        await expectLater(
+          transport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse('https://api.example.com'),
+          ),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test(
+        'undecodable JSON body throws MalformedResponseException whose message '
+        'carries the underlying decode error',
+        () async {
+          stubResponse(textResponse(200, '{"broken": '));
+          await expectLater(
+            transport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+            ),
+            throwsA(
+              isA<MalformedResponseException>().having(
+                (e) => e.message,
+                'message',
+                contains('FormatException'),
+              ),
+            ),
+          );
+        },
+      );
+
+      test(
+        'empty body with a non-nullable expected type throws '
+        'MalformedResponseException',
+        () async {
+          stubResponse(emptyResponse(200));
+          await expectLater(
+            transport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+            ),
+            throwsA(isA<MalformedResponseException>()),
+          );
+        },
+      );
+
+      test(
+        'a SoliplexException from the fromJson mapper is not downgraded to '
+        'MalformedResponseException',
+        () async {
+          stubResponse(
+            HttpResponse(
+              statusCode: 200,
+              bodyBytes: Uint8List.fromList(utf8.encode('{"x": 1}')),
+              headers: const {'content-type': 'application/json'},
+            ),
+          );
+          await expectLater(
+            transport.request<Room>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+              fromJson: (_) =>
+                  throw const AuthException(message: 'boom', statusCode: 401),
+            ),
+            throwsA(isA<AuthException>()),
+          );
+        },
+      );
+    });
   });
 }
