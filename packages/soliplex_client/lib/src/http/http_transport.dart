@@ -331,7 +331,9 @@ class HttpTransport {
       return; // Success
     }
 
-    final body = response.body;
+    // Lenient: an error body is diagnostic text only, and a non-UTF-8 payload
+    // must not throw here or it would mask the status (breaking retry/re-auth).
+    final body = response.bodyLenient;
     final serverMessage = _extractErrorMessage(body);
     final message = serverMessage ?? 'HTTP $statusCode';
 
@@ -391,33 +393,50 @@ class HttpTransport {
     HttpResponse response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
-    final body = response.body;
+    // Every failure below — non-UTF-8 bytes, a `null`/`body`/`decoded` cast
+    // that doesn't match T, invalid JSON, or a throwing fromJson mapper —
+    // is a malformed *payload* on an otherwise well-formed HTTP response, so
+    // it surfaces as a (non-retryable) MalformedResponseException rather than a
+    // raw TypeError/FormatException. A SoliplexException from the mapper passes
+    // through unchanged.
+    try {
+      final body = response.body;
 
-    // Handle empty body
-    if (body.isEmpty) {
-      return null as T;
+      // Empty body is legitimate for a nullable/void T (e.g. 204); a failed
+      // cast here means the caller expected a body that never arrived.
+      if (body.isEmpty) {
+        return null as T;
+      }
+
+      // Check if response is JSON
+      final contentType = response.contentType ?? '';
+      final isJson = contentType.contains('application/json') ||
+          body.trimLeft().startsWith('{') ||
+          body.trimLeft().startsWith('[');
+
+      if (!isJson) {
+        // Return raw string
+        return body as T;
+      }
+
+      // Decode JSON
+      final decoded = jsonDecode(body);
+
+      // If fromJson is provided and response is a Map, use it
+      if (fromJson != null && decoded is Map<String, dynamic>) {
+        return fromJson(decoded);
+      }
+
+      // Return decoded JSON as-is
+      return decoded as T;
+    } on SoliplexException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      throw MalformedResponseException(
+        message: 'Could not decode the response body as $T.',
+        originalError: error,
+        stackTrace: stackTrace,
+      );
     }
-
-    // Check if response is JSON
-    final contentType = response.contentType ?? '';
-    final isJson = contentType.contains('application/json') ||
-        body.trimLeft().startsWith('{') ||
-        body.trimLeft().startsWith('[');
-
-    if (!isJson) {
-      // Return raw string
-      return body as T;
-    }
-
-    // Decode JSON
-    final decoded = jsonDecode(body);
-
-    // If fromJson is provided and response is a Map, use it
-    if (fromJson != null && decoded is Map<String, dynamic>) {
-      return fromJson(decoded);
-    }
-
-    // Return decoded JSON as-is
-    return decoded as T;
   }
 }
