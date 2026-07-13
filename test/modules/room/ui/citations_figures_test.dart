@@ -113,6 +113,25 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
+  testWidgets('tapping a thumbnail opens the zoomable full-size view',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      pictureRefs: ['#/pictures/0'],
+      pictureBytes: {'#/pictures/0': _png},
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+
+    expect(find.byType(InteractiveViewer), findsNothing);
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+  });
+
   testWidgets('renders no figure strip when no ref has bytes', (tester) async {
     await tester.pumpWidget(host(_ref(
       pictureRefs: ['#/pictures/0'],

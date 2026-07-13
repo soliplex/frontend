@@ -45,6 +45,22 @@ void main() {
       expect(snap.pictureBytes('doc-2', '#/pictures/0'), isNull);
     });
 
+    test('returns null for an undecodable base64 image_data value', () {
+      final bad = Map<String, dynamic>.from(rag);
+      bad['searches'] = {
+        'q': [
+          {
+            'content': 'x',
+            'score': 0.1,
+            'document_id': 'doc-1',
+            'image_data': {'#/pictures/0': '%%%not-base64%%%'},
+          },
+        ],
+      };
+      final snap = RagSnapshot.fromJson(bad);
+      expect(snap.pictureBytes('doc-1', '#/pictures/0'), isNull);
+    });
+
     test('skips a malformed search entry without throwing', () {
       final bad = Map<String, dynamic>.from(rag);
       bad['searches'] = {

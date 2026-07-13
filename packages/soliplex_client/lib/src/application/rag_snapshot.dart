@@ -28,15 +28,16 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
 }
 
 /// Composite key for the picture-bytes index: document id + picture self_ref.
-String _pictureKey(String documentId, String ref) => '$documentId $ref';
+(String, String) _pictureKey(String documentId, String ref) =>
+    (documentId, ref);
 
 /// Builds a base64 picture-bytes index from a `rag` state's `searches`.
 ///
 /// Keyed by [_pictureKey]. Only directly-retrieved ("stage-1") pictures carry
 /// bytes here; expansion-introduced refs are absent. Malformed search entries
 /// are logged and skipped so one bad row can't take down the index.
-Map<String, String> _indexPictureBytes(Map<String, dynamic> json) {
-  final index = <String, String>{};
+Map<(String, String), String> _indexPictureBytes(Map<String, dynamic> json) {
+  final index = <(String, String), String>{};
   final raw = json['searches'];
   if (raw is! Map) return index;
   for (final entry in raw.values) {
@@ -69,7 +70,7 @@ Map<String, String> _indexPictureBytes(Map<String, dynamic> json) {
 
 /// Decodes an indexed picture ref to bytes, or null when absent / undecodable.
 Uint8List? _decodePicture(
-  Map<String, String> index,
+  Map<(String, String), String> index,
   String documentId,
   String ref,
 ) {
@@ -204,7 +205,7 @@ class RagV040Snapshot implements RagSnapshot {
   }
 
   final Map<String, Citation> _byId;
-  final Map<String, String> _pictureIndex;
+  final Map<(String, String), String> _pictureIndex;
 
   @override
   List<String> get citationIds => _byId.keys.toList();
@@ -295,7 +296,7 @@ class RagV042Snapshot implements RagSnapshot {
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
-  final Map<String, String> _pictureIndex;
+  final Map<(String, String), String> _pictureIndex;
 
   @override
   List<String> get citationIds => _citationIds;
