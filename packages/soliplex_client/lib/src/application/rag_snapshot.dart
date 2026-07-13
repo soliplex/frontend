@@ -1,8 +1,12 @@
-import 'dart:developer' as developer;
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag_v040.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final _logger = LogManager.instance.getLogger('soliplex_client.rag_snapshot');
 
 /// The AG-UI state namespace key for RAG state.
 ///
@@ -25,6 +29,107 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
   };
 }
 
+/// Composite key for the picture-bytes index: document id + picture self_ref.
+///
+/// A named record so the two same-typed components can't be transposed at a
+/// call site.
+typedef _PictureKey = ({String documentId, String ref});
+
+_PictureKey _pictureKey(String documentId, String ref) =>
+    (documentId: documentId, ref: ref);
+
+/// The two picture indexes built from a `rag` state's `searches`, both keyed
+/// by [_pictureKey]: base64 `bytes` for directly-retrieved figures and their
+/// `captions`. Captions are indexed only for rows that carry `image_data`, so
+/// a caption only surfaces for a figure that renders inline.
+typedef _PictureIndex = ({
+  Map<_PictureKey, String> bytes,
+  Map<_PictureKey, String> captions,
+});
+
+/// Builds the picture indexes from a `rag` state's `searches`.
+///
+/// The builder reads only the fields it needs — `document_id` (raw),
+/// `image_data`, and `picture_captions` (via the shared parsers) — rather than
+/// building a whole [SearchResult], so an unrelated malformed field on a row
+/// can't drop that row's figures. A malformed shape is skipped and logged; a
+/// row that simply carries no `image_data` is silently ignored (the normal
+/// figure-less case).
+_PictureIndex _indexPictures(Map<String, dynamic> json) {
+  final bytes = <_PictureKey, String>{};
+  final captions = <_PictureKey, String>{};
+  final raw = json['searches'];
+  if (raw is! Map) {
+    if (raw != null) {
+      _logger.warning(
+        'RagSnapshot: expected `searches` to be a Map, '
+        'got ${raw.runtimeType}; no cited-figure bytes indexed.',
+      );
+    }
+    return (bytes: bytes, captions: captions);
+  }
+  for (final search in raw.entries) {
+    final results = search.value;
+    if (results is! List) {
+      _logger.warning(
+        'RagSnapshot: skipping searches[${search.key}] with non-List value '
+        '(runtimeType=${results.runtimeType}).',
+      );
+      continue;
+    }
+    for (var i = 0; i < results.length; i++) {
+      final item = results[i];
+      if (item is! Map<String, dynamic>) {
+        _logger.warning(
+          'RagSnapshot: skipping non-Map searches[${search.key}][$i] '
+          '(runtimeType=${item.runtimeType}).',
+        );
+        continue;
+      }
+      final imageData = SearchResult.parseImageData(item['image_data']);
+      if (imageData.isEmpty) continue;
+      final docId = item['document_id'];
+      if (docId is! String) {
+        _logger.warning(
+          'RagSnapshot: dropping figures on searches[${search.key}][$i] '
+          'with non-String document_id (runtimeType=${docId.runtimeType}).',
+        );
+        continue;
+      }
+      final captionData =
+          SearchResult.parsePictureCaptions(item['picture_captions']);
+      imageData.forEach((ref, b64) {
+        bytes.putIfAbsent(_pictureKey(docId, ref), () => b64);
+      });
+      captionData.forEach((ref, text) {
+        if (text.isNotEmpty) {
+          captions.putIfAbsent(_pictureKey(docId, ref), () => text);
+        }
+      });
+    }
+  }
+  return (bytes: bytes, captions: captions);
+}
+
+/// Decodes an indexed picture ref to bytes, or null when absent / undecodable.
+Uint8List? _decodePicture(
+  Map<_PictureKey, String> index,
+  String documentId,
+  String ref,
+) {
+  final b64 = index[_pictureKey(documentId, ref)];
+  if (b64 == null) return null;
+  try {
+    return base64Decode(b64);
+  } on FormatException catch (error) {
+    _logger.warning(
+      'RagSnapshot: picture ref "$ref" has undecodable base64; dropped.',
+      error: error,
+    );
+    return null;
+  }
+}
+
 /// Version-agnostic view of the backend's `rag`-namespaced AG-UI state.
 ///
 /// The backend ships two wire shapes today:
@@ -34,7 +139,7 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
 ///   `reports` fields. See `rag_v040.dart`.
 /// - **haiku.rag 0.42+** emits `citations` as a list of chunk ids, with a
 ///   separate `citation_index` map resolving each id to a [Citation]. See
-///   `rag.dart` (the generated schema).
+///   `rag.dart`.
 ///
 /// [RagSnapshot.fromJson] dispatches on wire shape today because the
 /// backend has no explicit `schema_version` field. When that field is
@@ -54,6 +159,14 @@ abstract class RagSnapshot {
 
   /// Resolves a chunk id to a full [Citation], or null if not present.
   Citation? resolveCitation(String id);
+
+  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null
+  /// when the state carries no bytes for it (stage-2 / unknown).
+  Uint8List? pictureBytes(String documentId, String ref);
+
+  /// Caption text for a directly-retrieved picture ref, or null when the state
+  /// carries none.
+  String? pictureCaption(String documentId, String ref);
 
   /// Parses a `rag`-namespaced state map into the appropriate variant.
   ///
@@ -98,7 +211,7 @@ bool _isV040(Map<String, dynamic> json) {
 /// inline [Citation] objects). Other 0.40 fields are accessible via
 /// `RagV040.fromJson` in `rag_v040.dart`.
 class RagV040Snapshot implements RagSnapshot {
-  RagV040Snapshot._(this._byId);
+  RagV040Snapshot._(this._byId, this._pictures);
 
   /// Parses inline Citations from 0.40-shaped JSON. Malformed entries
   /// (non-Map or invalid Citation payloads) are logged and skipped so
@@ -110,11 +223,9 @@ class RagV040Snapshot implements RagSnapshot {
       for (var i = 0; i < raw.length; i++) {
         final entry = raw[i];
         if (entry is! Map<String, dynamic>) {
-          developer.log(
+          _logger.warning(
             'RagV040Snapshot: skipping non-Map citations[$i] '
             '(runtimeType=${entry.runtimeType}).',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
           );
           continue;
         }
@@ -122,41 +233,48 @@ class RagV040Snapshot implements RagSnapshot {
           final citation = Citation.fromJson(entry);
           byId[citation.chunkId] = citation;
         } on Object catch (error, stackTrace) {
-          developer.log(
+          _logger.warning(
             'RagV040Snapshot: failed to parse citations[$i] as Citation; '
             'present keys: ${entry.keys.toList()}.',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
             error: error,
             stackTrace: stackTrace,
           );
         }
       }
     }
-    return RagV040Snapshot._(byId);
+    return RagV040Snapshot._(byId, _indexPictures(json));
   }
 
   final Map<String, Citation> _byId;
+  final _PictureIndex _pictures;
 
   @override
   List<String> get citationIds => _byId.keys.toList();
 
   @override
   Citation? resolveCitation(String id) => _byId[id];
+
+  @override
+  Uint8List? pictureBytes(String documentId, String ref) =>
+      _decodePicture(_pictures.bytes, documentId, ref);
+
+  @override
+  String? pictureCaption(String documentId, String ref) =>
+      _pictures.captions[_pictureKey(documentId, ref)];
 }
 
 /// [RagSnapshot] backed by the haiku.rag 0.42 wire shape.
 ///
 /// Parses `citations` and `citation_index` entry-by-entry rather than
-/// delegating to the generated [Rag.fromJson]: the generated code uses
-/// hard casts (`List<String>.from(...)` /
-/// `Map<String, Citation>.from(...)`) that throw on any malformed
-/// entry, which would take down an otherwise-valid snapshot. The
+/// delegating to [Rag.fromJson], which uses hard casts
+/// (`List<String>.from(...)` / `Map<String, Citation>.from(...)`) that
+/// throw on any malformed entry, taking down an otherwise-valid
+/// snapshot. The
 /// snapshot contract is narrow (just `citationIds` + `resolveCitation`),
 /// so a resilient per-entry parse is correct here. Other 0.42 fields
 /// are still reachable via [Rag.fromJson] in `rag.dart`.
 class RagV042Snapshot implements RagSnapshot {
-  RagV042Snapshot._(this._citationIds, this._index);
+  RagV042Snapshot._(this._citationIds, this._index, this._pictures);
 
   /// Parses a 0.42-shaped payload with per-entry resilience: malformed
   /// entries in `citations` / `citation_index` are logged and skipped.
@@ -169,11 +287,9 @@ class RagV042Snapshot implements RagSnapshot {
         if (entry is String) {
           ids.add(entry);
         } else {
-          developer.log(
+          _logger.warning(
             'RagV042Snapshot: skipping non-String citations[$i] '
             '(runtimeType=${entry.runtimeType}).',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
           );
         }
       }
@@ -186,31 +302,25 @@ class RagV042Snapshot implements RagSnapshot {
         final key = entry.key;
         final value = entry.value;
         if (key is! String) {
-          developer.log(
+          _logger.warning(
             'RagV042Snapshot: skipping non-String citation_index key '
             '(runtimeType=${key.runtimeType}).',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
           );
           continue;
         }
         if (value is! Map<String, dynamic>) {
-          developer.log(
+          _logger.warning(
             'RagV042Snapshot: skipping citation_index[$key] with '
             'non-Map value (runtimeType=${value.runtimeType}).',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
           );
           continue;
         }
         try {
           index[key] = Citation.fromJson(value);
         } on Object catch (error, stackTrace) {
-          developer.log(
+          _logger.warning(
             'RagV042Snapshot: failed to parse citation_index[$key] as '
             'Citation; present keys: ${value.keys.toList()}.',
-            name: 'soliplex_client.rag_snapshot',
-            level: 900,
             error: error,
             stackTrace: stackTrace,
           );
@@ -218,17 +328,26 @@ class RagV042Snapshot implements RagSnapshot {
       }
     }
 
-    return RagV042Snapshot._(ids, index);
+    return RagV042Snapshot._(ids, index, _indexPictures(json));
   }
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
+  final _PictureIndex _pictures;
 
   @override
   List<String> get citationIds => _citationIds;
 
   @override
   Citation? resolveCitation(String id) => _index[id];
+
+  @override
+  Uint8List? pictureBytes(String documentId, String ref) =>
+      _decodePicture(_pictures.bytes, documentId, ref);
+
+  @override
+  String? pictureCaption(String documentId, String ref) =>
+      _pictures.captions[_pictureKey(documentId, ref)];
 }
 
 /// Projects a [RagSnapshot] from the full agent-state map.

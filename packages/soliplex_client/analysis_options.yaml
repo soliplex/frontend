@@ -2,7 +2,8 @@ include: package:very_good_analysis/analysis_options.6.0.0.yaml
 
 analyzer:
   exclude:
-    # Generated files from quicktype - maintained in backend repo
+    # Hand-maintained wire-format schema mirrors: double-quoted keys and
+    # field layout intentionally diverge from the lint rules.
     - lib/src/schema/agui_features/*
 
 linter:

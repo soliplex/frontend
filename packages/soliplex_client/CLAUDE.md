@@ -55,7 +55,7 @@ lib/src/
   domain/        Immutable data models
   errors/        SoliplexException hierarchy
   http/          Transport layer (decorator chain)
-  schema/        Generated AG-UI schemas
+  schema/        AG-UI schema mirrors
   utils/         CancelToken, UrlBuilder
 ```
 
@@ -85,7 +85,8 @@ dedicated export `package:soliplex_client/cancel_token.dart`.
 
 ## What NOT to Touch
 
-- `lib/src/schema/`: generated code, do not edit manually
+- `lib/src/schema/`: AG-UI schema mirrors; edit carefully to match the backend
+  wire format
 - Observer event redaction in `http_redactor.dart`: security-critical
 - Exception hierarchy in `errors/exceptions.dart`: widely consumed,
   changes cascade to all packages and the Flutter app

@@ -1,13 +1,15 @@
 // Hand-written types for the haiku.rag 0.40 `rag` namespace state shape.
 //
-// The 0.42 shape (see `rag.dart`) is the target schema and generated from
-// quicktype. These types capture the 0.40 wire format so clients can still
-// parse state emitted by backends pinned to haiku.rag 0.40 and replay
-// 0.40-era thread history.
+// The 0.42 shape (see `rag.dart`) is the target schema. These types capture
+// the 0.40 wire format so clients can still parse state emitted by backends
+// pinned to haiku.rag 0.40 and replay 0.40-era thread history.
 //
 // Shared types (`Citation`, `SearchResult`) are imported from `rag.dart`
-// because their Pydantic definitions are byte-identical between 0.40 and
-// 0.42. This file adds only the 0.40-exclusive types:
+// rather than redefined: both wire shapes carry the same per-row citation and
+// search structure, differing only in the surrounding envelope. The shared
+// Dart types treat fields newer backends added (e.g. `picture_refs`,
+// `image_data`) as optional, so 0.40 state that omits them still parses.
+// This file adds only the 0.40-exclusive types:
 //
 // - `QaHistoryEntry` (`qa_history` list entries)
 // - `DocumentInfo`   (`documents` list entries)

@@ -386,6 +386,13 @@ class ObservableHttpClient implements SoliplexHttpClient {
   dynamic _redactResponseBodyInner(HttpResponse response, Uri uri) {
     final contentType = response.headers['content-type'] ?? '';
 
+    // Binary payloads (images, downloads) are not text — decoding them as
+    // UTF-8 would throw and be reported as a spurious redaction failure. Emit
+    // a size marker instead, which also keeps binary content out of logs.
+    if (_isBinaryContentType(contentType)) {
+      return '<binary body: ${response.bodyBytes.length} bytes>';
+    }
+
     if (contentType.contains('application/json')) {
       try {
         final parsed = jsonDecode(response.body);
@@ -396,6 +403,22 @@ class ObservableHttpClient implements SoliplexHttpClient {
     }
 
     return HttpRedactor.redactString(response.body, uri);
+  }
+
+  /// Whether [contentType] denotes a binary media payload whose body should
+  /// not be decoded as text for observation/redaction.
+  ///
+  /// Deliberately limited to `image`/`audio`/`video`. Ambiguous types like
+  /// `application/octet-stream` are left to the text path so sensitive
+  /// string content (e.g. form fields) is still redacted. `image/svg+xml` is
+  /// excluded too — SVG is XML text that can carry sensitive data, so it must
+  /// go through the text redactor rather than a size marker.
+  static bool _isBinaryContentType(String contentType) {
+    final ct = contentType.toLowerCase();
+    if (ct.startsWith('image/svg')) return false;
+    return ct.startsWith('image/') ||
+        ct.startsWith('audio/') ||
+        ct.startsWith('video/');
   }
 
   /// Safely notifies all observers. Observer exceptions are caught and

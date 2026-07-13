@@ -1,9 +1,42 @@
+import 'dart:typed_data';
+
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
+/// A cited figure the backend shipped inline: a picture [ref] with its decoded
+/// [bytes] and optional [caption].
+///
+/// Equality compares [ref] and [caption] by value but deliberately excludes
+/// [bytes]: a picture self_ref is content-addressed, so an equal ref implies
+/// equal bytes, and comparing them would diff megabytes of image data to gate
+/// a widget rebuild. (If the backend ever reissued different bytes for an
+/// unchanged ref, a rebuild-gated widget could show a stale figure.)
+@immutable
+class Figure {
+  /// Creates a cited figure.
+  const Figure({required this.ref, required this.bytes, this.caption});
+
+  /// Picture self_ref (e.g. `#/pictures/0`).
+  final String ref;
+
+  /// Decoded image bytes.
+  final Uint8List bytes;
+
+  /// Caption text, or null when the backend shipped none.
+  final String? caption;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Figure && other.ref == ref && other.caption == caption;
+
+  @override
+  int get hashCode => Object.hash(ref, caption);
+}
+
 /// A stable, frontend-owned citation reference.
 ///
-/// Unlike schema types (which are generated from backend and may change),
+/// Unlike schema types (which mirror the backend wire format and may change),
 /// SourceReference is controlled by the frontend and provides a stable API
 /// for UI components to display citation information.
 @immutable
@@ -18,6 +51,8 @@ class SourceReference {
     this.headings = const [],
     this.pageNumbers = const [],
     this.docItemRefs = const [],
+    this.figures = const [],
+    this.chunkIds = const [],
     this.index,
   });
 
@@ -46,6 +81,23 @@ class SourceReference {
   /// visualization endpoint so the highlight matches the cited content.
   final List<String> docItemRefs;
 
+  /// The cited figures the backend shipped inline (a picture ref with its
+  /// decoded bytes and optional caption). Only figures that resolved to
+  /// in-state bytes appear here; refs without bytes remain viewable via chunk
+  /// visualization. Empty for text-only citations.
+  final List<Figure> figures;
+
+  /// Ids of all chunks whose expansion merged into this citation — merge
+  /// provenance from the backend, which typically includes [chunkId] in the
+  /// list. Not enforced or relied on by the frontend.
+  ///
+  /// Parsed and carried through so no backend field is silently dropped, but
+  /// intentionally not shown in the UI: visualization grounds off
+  /// [docItemRefs], which already spans the merged content, so `chunk_ids` is
+  /// redundant for rendering. Kept for a future consumer (e.g. multi-chunk
+  /// visualization).
+  final List<String> chunkIds;
+
   /// Display index for numbered citations.
   final int? index;
 
@@ -62,6 +114,8 @@ class SourceReference {
         listEquals.equals(headings, other.headings) &&
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
+        const ListEquality<Figure>().equals(figures, other.figures) &&
+        listEquals.equals(chunkIds, other.chunkIds) &&
         index == other.index;
   }
 
@@ -75,6 +129,8 @@ class SourceReference {
         const ListEquality<String>().hash(headings),
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
+        const ListEquality<Figure>().hash(figures),
+        const ListEquality<String>().hash(chunkIds),
         index,
       );
 

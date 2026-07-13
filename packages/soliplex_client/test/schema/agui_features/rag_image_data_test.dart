@@ -1,0 +1,47 @@
+import 'package:soliplex_client/src/schema/agui_features/rag.dart';
+import 'package:test/test.dart';
+
+void main() {
+  group('SearchResult.imageData', () {
+    test('parses image_data from JSON', () {
+      final sr = SearchResult.fromJson({
+        'content': 'a figure caption',
+        'score': 0.9,
+        'document_id': 'doc-1',
+        'doc_item_refs': ['#/texts/24', '#/pictures/0'],
+        'image_data': {'#/pictures/0': 'aGVsbG8='},
+      });
+      expect(sr.imageData, {'#/pictures/0': 'aGVsbG8='});
+    });
+
+    test('absent image_data is an empty map', () {
+      final sr = SearchResult.fromJson({'content': 'x', 'score': 0.1});
+      expect(sr.imageData, isEmpty);
+    });
+
+    test('round-trips image_data through toJson', () {
+      final sr = SearchResult.fromJson({
+        'content': 'x',
+        'score': 0.1,
+        'image_data': {'#/pictures/1': 'd29ybGQ='},
+      });
+      expect(sr.toJson()['image_data'], {'#/pictures/1': 'd29ybGQ='});
+    });
+  });
+
+  group('SearchResult.parseImageData', () {
+    test('drops non-string keys and values', () {
+      final parsed = SearchResult.parseImageData({
+        '#/pictures/0': 'aGVsbG8=',
+        '#/pictures/1': 42,
+        7: 'Zm9v',
+      });
+      expect(parsed, {'#/pictures/0': 'aGVsbG8='});
+    });
+
+    test('returns an empty map for a non-map value', () {
+      expect(SearchResult.parseImageData('not-a-map'), isEmpty);
+      expect(SearchResult.parseImageData(null), isEmpty);
+    });
+  });
+}
