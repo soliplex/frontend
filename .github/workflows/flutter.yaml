@@ -132,7 +132,7 @@ jobs:
 
       - name: Notify Slack on failure
         if: failure() && env.SLACK_NOTIFY_URL != ''
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v3.0.5
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           REF: ${{ github.ref }}
@@ -170,7 +170,7 @@ jobs:
 
       - name: Notify Slack on failure
         if: failure() && env.SLACK_NOTIFY_URL != ''
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v3.0.5
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           REF: ${{ github.ref }}
