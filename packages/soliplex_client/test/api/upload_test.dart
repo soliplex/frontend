@@ -86,7 +86,7 @@ void main() {
 
   group('uploadFileToThread', () {
     test(
-      'sends streamed multipart POST to /uploads/{roomId}/{threadId}',
+      'sends streamed multipart POST to /uploads/{roomId}/thread/{threadId}',
       () async {
         when(
           () => mockTransport.request<void>(
@@ -119,7 +119,7 @@ void main() {
         ).captured;
 
         final uri = captured[0] as Uri;
-        expect(uri.path, contains('/uploads/room-123/thread-456'));
+        expect(uri.path, contains('/uploads/room-123/thread/thread-456'));
 
         final body = captured[1] as Stream<List<int>>;
         final bytes = await body.fold<List<int>>(
