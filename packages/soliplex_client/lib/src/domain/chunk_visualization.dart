@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/errors/exceptions.dart';
 
 /// Page images for a chunk, with chunk text highlighted.
 ///
@@ -14,13 +15,46 @@ class ChunkVisualization {
   }) : imagesBase64 = List.unmodifiable(imagesBase64);
 
   /// Creates a ChunkVisualization from JSON.
+  ///
+  /// Throws [MalformedResponseException] when `chunk_id` is missing or not a
+  /// string, `document_uri` is present but not a string, or `images_base_64`
+  /// is not a list of strings.
   factory ChunkVisualization.fromJson(Map<String, dynamic> json) {
+    final chunkId = json['chunk_id'];
+    if (chunkId is! String) {
+      throw MalformedResponseException(
+        message: 'ChunkVisualization: expected a String "chunk_id", '
+            'got ${chunkId.runtimeType}.',
+      );
+    }
+    final documentUri = json['document_uri'];
+    if (documentUri != null && documentUri is! String) {
+      throw MalformedResponseException(
+        message: 'ChunkVisualization: expected a String or null '
+            '"document_uri", got ${documentUri.runtimeType}.',
+      );
+    }
+    final rawImages = json['images_base_64'];
+    if (rawImages is! List) {
+      throw MalformedResponseException(
+        message: 'ChunkVisualization: expected a list "images_base_64", '
+            'got ${rawImages.runtimeType}.',
+      );
+    }
+    final images = <String>[];
+    for (final entry in rawImages) {
+      if (entry is! String) {
+        throw MalformedResponseException(
+          message: 'ChunkVisualization: expected String entries in '
+              '"images_base_64", got ${entry.runtimeType}.',
+        );
+      }
+      images.add(entry);
+    }
     return ChunkVisualization(
-      chunkId: json['chunk_id'] as String,
-      documentUri: json['document_uri'] as String?,
-      imagesBase64: (json['images_base_64'] as List<dynamic>)
-          .map((e) => e as String)
-          .toList(),
+      chunkId: chunkId,
+      documentUri: documentUri as String?,
+      imagesBase64: images,
     );
   }
 

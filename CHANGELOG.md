@@ -36,6 +36,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A malformed chunk-visualization payload — a wrong-typed or missing
+  `chunk_id`, `document_uri`, or `images_base_64` field — now surfaces as a
+  non-retryable error instead of an uncaught type error, consistent with the
+  HTTP transport hardening.
 - A malformed backend response no longer crashes the client: a payload whose
   shape doesn't match the contract (a wrong-typed or missing field, non-UTF-8
   or undecodable JSON body) now surfaces as a non-retryable error carrying the

@@ -16,82 +16,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_client.rag');
 
-/// Full mirror of the backend `rag` namespace.
-///
-/// This type and its `fromJson` decode the *whole* shape in one call. The
-/// citation/figure feature does not use them — resilient consumers read
-/// through `RagSnapshot` (`rag_snapshot.dart`), which parses `citations` /
-/// `citation_index` per-entry and skips malformed rows. `Rag` exists for a
-/// consumer that needs a field `RagSnapshot` does not expose, chiefly:
-///
-/// - [searches]: the full stage-1 retrieval set — every chunk retrieved,
-///   including ones that were never cited (see [SearchResult] for the
-///   per-result ranking/labels only this path surfaces).
-/// - [documentFilter]: the active document filter echoed back in state.
-///
-/// Parsing contract: [Rag.fromJson] and [SearchResult.fromJson] use hard casts
-/// and throw on the first malformed field — all-or-nothing by design. A future
-/// consumer should decode inside a try/catch (as `citation_extractor` already
-/// does around `RagSnapshot.fromJson`) and expect one bad field to fail the
-/// whole decode.
-class Rag {
-  final Map<String, Citation>? citationIndex;
-  final List<String>? citations;
-  final String? documentFilter;
-  final Map<String, List<SearchResult>>? searches;
-
-  Rag({
-    this.citationIndex,
-    this.citations,
-    this.documentFilter,
-    this.searches,
-  });
-
-  factory Rag.fromJson(Map<String, dynamic> json) => Rag(
-        citationIndex: json["citation_index"] == null
-            ? {}
-            : Map<String, Citation>.from(
-                Map.from(json["citation_index"]!).map(
-                  (k, v) => MapEntry<String, Citation>(k, Citation.fromJson(v)),
-                ),
-              ),
-        citations: json["citations"] == null
-            ? []
-            : List<String>.from(json["citations"]!.map((x) => x)),
-        documentFilter: json["document_filter"],
-        searches: json["searches"] == null
-            ? null
-            : Map.from(json["searches"]!).map(
-                (k, v) => MapEntry<String, List<SearchResult>>(
-                  k,
-                  List<SearchResult>.from(
-                    v.map((x) => SearchResult.fromJson(x)),
-                  ),
-                ),
-              ),
-      );
-
-  Map<String, dynamic> toJson() => {
-        "citation_index": citationIndex == null
-            ? {}
-            : Map.from(citationIndex!).map(
-                (k, v) => MapEntry<String, dynamic>(k, v.toJson()),
-              ),
-        "citations": citations == null
-            ? []
-            : List<dynamic>.from(citations!.map((x) => x)),
-        "document_filter": documentFilter,
-        "searches": searches == null
-            ? null
-            : Map.from(searches!).map(
-                (k, v) => MapEntry<String, dynamic>(
-                  k,
-                  List<dynamic>.from(v.map((x) => x.toJson())),
-                ),
-              ),
-      };
-}
-
 /// A required string field: throws [MalformedResponseException] when absent
 /// or not a string, so the caller can drop just this entry (its siblings are
 /// parsed independently) instead of the whole batch.
@@ -264,9 +188,10 @@ class Citation {
 /// - [labels]: backend classification tags.
 ///
 /// The cited-figure path never builds a [SearchResult]; it reads `image_data`
-/// + `document_id` straight off the raw row via [parseImageData]. Only build a
-/// [SearchResult] when a consumer needs the telemetry above — and see the
-/// all-or-nothing parsing contract on [Rag].
+/// + `document_id` straight off the raw row via [parseImageData]. This type is
+/// retained as a value model for a future consumer of the `searches` retrieval
+/// set; it carries no JSON parser — such a consumer builds it through a
+/// resilient per-entry reader (as `RagSnapshot` does for [Citation]).
 class SearchResult {
   final String? chunkId;
   final String content;
@@ -307,50 +232,4 @@ class SearchResult {
   /// map. Delegates to [_parseStringMap].
   static Map<String, String> parsePictureCaptions(Object? raw) =>
       _parseStringMap(raw, 'picture_captions');
-
-  factory SearchResult.fromJson(Map<String, dynamic> json) => SearchResult(
-        chunkId: json["chunk_id"],
-        content: json["content"],
-        docItemRefs: json["doc_item_refs"] == null
-            ? []
-            : List<String>.from(json["doc_item_refs"]!.map((x) => x)),
-        documentId: json["document_id"],
-        documentTitle: json["document_title"],
-        documentUri: json["document_uri"],
-        headings: json["headings"] == null
-            ? []
-            : List<String>.from(json["headings"]!.map((x) => x)),
-        imageData: parseImageData(json["image_data"]),
-        labels: json["labels"] == null
-            ? []
-            : List<String>.from(json["labels"]!.map((x) => x)),
-        order: json["order"] ?? 0,
-        pageNumbers: json["page_numbers"] == null
-            ? []
-            : List<int>.from(json["page_numbers"]!.map((x) => x)),
-        pictureCaptions: parsePictureCaptions(json["picture_captions"]),
-        score: json["score"]?.toDouble(),
-      );
-
-  Map<String, dynamic> toJson() => {
-        "chunk_id": chunkId,
-        "content": content,
-        "doc_item_refs": docItemRefs == null
-            ? []
-            : List<dynamic>.from(docItemRefs!.map((x) => x)),
-        "document_id": documentId,
-        "document_title": documentTitle,
-        "document_uri": documentUri,
-        "headings":
-            headings == null ? [] : List<dynamic>.from(headings!.map((x) => x)),
-        "image_data": imageData,
-        "labels":
-            labels == null ? [] : List<dynamic>.from(labels!.map((x) => x)),
-        "order": order,
-        "page_numbers": pageNumbers == null
-            ? []
-            : List<dynamic>.from(pageNumbers!.map((x) => x)),
-        "picture_captions": pictureCaptions,
-        "score": score,
-      };
 }
