@@ -3,6 +3,37 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
+/// A cited figure the backend shipped inline: a picture [ref] with its decoded
+/// [bytes] and optional [caption].
+///
+/// Equality compares [ref] and [caption] by value but deliberately excludes
+/// [bytes]: a picture self_ref is content-addressed, so an equal ref implies
+/// equal bytes, and comparing them would diff megabytes of image data to gate
+/// a widget rebuild. (If the backend ever reissued different bytes for an
+/// unchanged ref, a rebuild-gated widget could show a stale figure.)
+@immutable
+class Figure {
+  /// Creates a cited figure.
+  const Figure({required this.ref, required this.bytes, this.caption});
+
+  /// Picture self_ref (e.g. `#/pictures/0`).
+  final String ref;
+
+  /// Decoded image bytes.
+  final Uint8List bytes;
+
+  /// Caption text, or null when the backend shipped none.
+  final String? caption;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Figure && other.ref == ref && other.caption == caption;
+
+  @override
+  int get hashCode => Object.hash(ref, caption);
+}
+
 /// A stable, frontend-owned citation reference.
 ///
 /// Unlike schema types (which mirror the backend wire format and may change),

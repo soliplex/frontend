@@ -141,6 +141,35 @@ void main() {
     });
   });
 
+  group('Figure', () {
+    final png = Uint8List.fromList([1, 2, 3]);
+
+    test('same ref and caption but different bytes are equal', () {
+      final a = Figure(ref: '#/pictures/0', bytes: png, caption: 'c');
+      final b = Figure(
+        ref: '#/pictures/0',
+        bytes: Uint8List.fromList([9, 9]),
+        caption: 'c',
+      );
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('different caption makes figures unequal', () {
+      expect(
+        Figure(ref: '#/pictures/0', bytes: png, caption: 'a'),
+        isNot(equals(Figure(ref: '#/pictures/0', bytes: png, caption: 'b'))),
+      );
+    });
+
+    test('different ref makes figures unequal', () {
+      expect(
+        Figure(ref: '#/pictures/0', bytes: png),
+        isNot(equals(Figure(ref: '#/pictures/1', bytes: png))),
+      );
+    });
+  });
+
   group('SourceReferenceFormatting', () {
     group('formattedPageNumbers', () {
       test('returns null for empty page numbers', () {
