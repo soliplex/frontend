@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
+import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 // 1x1 transparent PNG.
 final _png = Uint8List.fromList(const [
@@ -130,6 +131,26 @@ void main() {
 
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.byType(InteractiveViewer), findsOneWidget);
+  });
+
+  testWidgets('a thumbnail whose bytes fail to decode shows a fallback',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      pictureRefs: ['#/pictures/0'],
+      pictureBytes: {
+        '#/pictures/0': Uint8List.fromList(const [1, 2, 3, 4])
+      },
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+
+    // Image decoding runs on the real event loop; let it fail, then rebuild.
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    expect(find.byType(FailedImage), findsOneWidget);
   });
 
   testWidgets('renders no figure strip when no ref has bytes', (tester) async {

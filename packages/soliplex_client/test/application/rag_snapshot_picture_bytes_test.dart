@@ -79,6 +79,32 @@ void main() {
       expect(snap.pictureBytes('doc-1', '#/pictures/0'), isNull);
     });
 
+    test('drops only the figures of a row whose document_id is not a string',
+        () {
+      final bad = Map<String, dynamic>.from(rag);
+      bad['searches'] = {
+        'q': [
+          {
+            // A non-String document_id can't key the picture index, so this
+            // row's figure is dropped — but its sibling's must survive.
+            'content': 'x',
+            'score': 0.1,
+            'document_id': 42,
+            'image_data': {'#/pictures/0': 'aGVsbG8='},
+          },
+          {
+            'content': 'y',
+            'score': 0.2,
+            'document_id': 'doc-1',
+            'image_data': {'#/pictures/1': 'd29ybGQ='}, // "world"
+          },
+        ],
+      };
+      final snap = RagSnapshot.fromJson(bad);
+      expect(snap.pictureBytes('doc-1', '#/pictures/0'), isNull);
+      expect(snap.pictureBytes('doc-1', '#/pictures/1'), utf8.encode('world'));
+    });
+
     test('skips a malformed search entry without throwing', () {
       final bad = Map<String, dynamic>.from(rag);
       bad['searches'] = {
