@@ -36,6 +36,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- Cancelling or resetting an agent run while it was resuming after a tool call
+  could execute the tool a second time (or repeatedly, when resetting), causing
+  duplicate tool side effects. The run now stops cleanly without re-running the
+  tool.
+- A frontend decoding bug is no longer misreported as a backend
+  malformed-response error: a run failure now classifies by its underlying
+  cause, so an internal type error is surfaced and logged as internal rather
+  than blamed on the server.
 - A malformed chunk-visualization payload — a wrong-typed or missing
   `chunk_id`, `document_uri`, or `images_base_64` field — now surfaces as a
   non-retryable error instead of an uncaught type error, consistent with the

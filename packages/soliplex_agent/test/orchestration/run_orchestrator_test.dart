@@ -1596,10 +1596,12 @@ void main() {
       // Block the tool executor so the test can re-stub createRun before
       // _resumeStream fires.
       final toolExecutorTrigger = Completer<void>();
+      var toolExecutorCallCount = 0;
       final runFuture = orchestrator.runToCompletion(
         key: _key,
         userMessage: 'Weather?',
         toolExecutor: (_) async {
+          toolExecutorCallCount++;
           await toolExecutorTrigger.future;
           return _executedTools();
         },
@@ -1641,6 +1643,98 @@ void main() {
         reason: 'orchestrator must drain the abandoned LlmRunHandle.events '
             'stream so the underlying SSE socket releases — without the '
             'subscribe-then-cancel, the HTTP transport would hold it open',
+      );
+      expect(
+        toolExecutorCallCount,
+        equals(1),
+        reason: 'the tool must execute exactly once — after the resume drains '
+            'on cancel, the loop must not re-enter the tool executor on the '
+            'stale ToolYieldingState held by the consumed completer',
+      );
+    });
+
+    test('reset during _resumeStream createRun await runs the tool once',
+        () async {
+      // Sibling to the cancelRun-during-resume test: pressing reset (via
+      // syncToThread(null) in production) while a tool-yield resume is
+      // awaiting createRun must abandon the run without re-executing the
+      // tool. reset transitions to the non-terminal IdleState, so without
+      // re-minting the consumed completer the loop spins on the stale
+      // ToolYieldingState, re-running the tool up to maxToolDepth times
+      // before failing on the depth guard.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var runAgentCallCount = 0;
+      final resumeStreamController = StreamController<BaseEvent>();
+      addTearDown(resumeStreamController.close);
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        runAgentCallCount++;
+        if (runAgentCallCount == 1) {
+          return _wrap(Stream.fromIterable(_toolCallEvents()));
+        }
+        return _wrap(resumeStreamController.stream);
+      });
+
+      final toolExecutorTrigger = Completer<void>();
+      var toolExecutorCallCount = 0;
+      final runFuture = orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Weather?',
+        toolExecutor: (_) async {
+          toolExecutorCallCount++;
+          await toolExecutorTrigger.future;
+          return _executedTools();
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      final resumeCreateRun = Completer<RunInfo>();
+      when(
+        () => api.createRun(any(), any()),
+      ).thenAnswer((_) => resumeCreateRun.future);
+
+      toolExecutorTrigger.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<ToolYieldingState>());
+
+      orchestrator.reset();
+      expect(
+        orchestrator.currentState,
+        isA<IdleState>(),
+        reason: 'reset must transition to IdleState immediately',
+      );
+
+      resumeCreateRun.complete(_runInfo());
+      final result = await runFuture;
+
+      expect(
+        result,
+        isA<IdleState>(),
+        reason: 'reset abandons the run; the loop must settle on IdleState '
+            'rather than spinning to a depth-exceeded FailedState',
+      );
+      expect(
+        toolExecutorCallCount,
+        equals(1),
+        reason: 'the tool must execute exactly once — after reset the loop '
+            'must not re-run the tool on the stale ToolYieldingState held by '
+            'the consumed completer',
       );
     });
   });

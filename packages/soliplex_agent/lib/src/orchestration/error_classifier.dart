@@ -16,6 +16,12 @@ FailureReason classifyError(Object error) {
   if (error is NetworkException && error.originalError != null) {
     return classifyError(error.originalError!);
   }
+  // Unwrap the decode cause so a frontend fromJson/mapper bug (a wrapped
+  // TypeError) is classified by its real origin rather than blamed on a
+  // backend malformation.
+  if (error is MalformedResponseException && error.originalError != null) {
+    return classifyError(error.originalError!);
+  }
   if (error is AuthException) return FailureReason.authExpired;
   if (error is PermissionDeniedException) {
     return FailureReason.permissionDenied;

@@ -64,6 +64,37 @@ void main() {
       });
     });
 
+    group('MalformedResponseException unwrap', () {
+      test('unwraps to the original cause classification', () {
+        const original = AuthException(message: '401');
+        const wrapped = MalformedResponseException(
+          message: 'decode failed',
+          originalError: original,
+        );
+        expect(classifyError(wrapped), equals(FailureReason.authExpired));
+      });
+
+      test('a wrapped TypeError from a frontend mapper bug is internalError',
+          () {
+        Object? typeError;
+        try {
+          <Object?>['not a number'].cast<int>().first;
+        } on Object catch (e) {
+          typeError = e;
+        }
+        final wrapped = MalformedResponseException(
+          message: 'fromJson threw',
+          originalError: typeError,
+        );
+        expect(classifyError(wrapped), equals(FailureReason.internalError));
+      });
+
+      test('falls back to internalError when originalError is null', () {
+        const wrapped = MalformedResponseException(message: 'no cause');
+        expect(classifyError(wrapped), equals(FailureReason.internalError));
+      });
+    });
+
     group('unknown errors', () {
       test('FormatException maps to internalError', () {
         const error = FormatException('bad json');

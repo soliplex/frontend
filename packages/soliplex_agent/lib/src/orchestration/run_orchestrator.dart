@@ -541,18 +541,25 @@ class RunOrchestrator {
       cancelToken: _cancelToken,
       onReconnectStatus: _activeOnReconnectStatus,
     );
-    // Cancel/dispose during the await leaves state as CancelledState (or
-    // disposed). Subscribing here would overwrite that with RunningState
-    // and silently resume the run after the user pressed Stop. Drain
-    // the unowned event stream so the underlying SSE socket releases.
+    // Cancel/reset/dispose during the await leaves state as CancelledState,
+    // IdleState, or disposed. Subscribing here would overwrite that with
+    // RunningState and silently resume the run after the user pressed Stop
+    // (or synced away). Drain the unowned event stream so the underlying
+    // SSE socket releases, then re-mint the terminal completer holding the
+    // current state: `_setState` already consumed the old completer with
+    // the now-stale ToolYieldingState, so without this `_driveToolLoop`'s
+    // next await would return that yield and re-run the tool.
     if (_disposed || _currentState is! ToolYieldingState) {
-      if (!_disposed && _currentState is! CancelledState) {
+      if (!_disposed &&
+          _currentState is! CancelledState &&
+          _currentState is! IdleState) {
         _logger.warning(
           'resumeStream aborted: unexpected post-await state '
           '(state=${_currentState.runtimeType})',
         );
       }
       _drainUnownedStream(handle.events, 'Resume drain failed');
+      _terminalCompleter = Completer<RunState>()..complete(_currentState);
       return;
     }
     _subscribeToStream(
