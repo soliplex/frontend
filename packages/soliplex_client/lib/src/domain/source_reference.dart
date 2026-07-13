@@ -51,16 +51,24 @@ class SourceReference {
   /// visualization endpoint so the highlight matches the cited content.
   final List<String> docItemRefs;
 
-  /// Self-refs of the picture items in the cited content, used to fetch and
-  /// render the cited figures inline. Empty for text-only citations.
+  /// Self-refs of the picture items in the cited content. Those that resolved
+  /// to in-state bytes (see [pictureBytes]) are rendered inline; the rest stay
+  /// viewable via chunk visualization. Empty for text-only citations.
   final List<String> pictureRefs;
 
   /// Decoded bytes for the subset of [pictureRefs] the backend actually
   /// shipped (directly-retrieved "stage-1" figures). Keyed by picture
   /// self_ref. Expansion-introduced refs are absent — those stay viewable
-  /// via chunk visualization. Only the *keys* (which refs resolved to bytes)
-  /// participate in == / hashCode, so a change in which figures are available
-  /// triggers a rebuild without comparing megabytes of image data.
+  /// via chunk visualization.
+  ///
+  /// Only the *keys* (which refs resolved to bytes) participate in
+  /// == / hashCode. This is sound because a picture self_ref is
+  /// content-addressed: the same ref always resolves to the same bytes, so an
+  /// equal key set implies equal bytes. Comparing keys instead of values thus
+  /// triggers a rebuild when the set of available figures changes without
+  /// diffing megabytes of image data. (If the backend ever reissued different
+  /// bytes for an unchanged ref, a rebuild-gated widget could show a stale
+  /// figure.)
   final Map<String, Uint8List> pictureBytes;
 
   /// Ids of all chunks whose expansion merged into this citation — merge

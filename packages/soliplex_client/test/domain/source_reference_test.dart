@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:test/test.dart';
 
@@ -77,6 +79,64 @@ void main() {
         );
 
         expect(ref1, isNot(equals(ref2)));
+      });
+
+      SourceReference figureRef({
+        List<String> pictureRefs = const ['#/pictures/0'],
+        Map<String, Uint8List> pictureBytes = const {},
+        List<String> chunkIds = const [],
+      }) =>
+          SourceReference(
+            documentId: 'doc-1',
+            documentUri: 'https://example.com/doc.pdf',
+            content: 'Test content',
+            chunkId: 'chunk-1',
+            pictureRefs: pictureRefs,
+            pictureBytes: pictureBytes,
+            chunkIds: chunkIds,
+          );
+
+      test('same pictureBytes keys with different bytes are equal', () {
+        final bytesA = {
+          '#/pictures/0': Uint8List.fromList([1, 2, 3]),
+        };
+        final bytesB = {
+          '#/pictures/0': Uint8List.fromList([9, 9, 9]),
+        };
+
+        expect(
+          figureRef(pictureBytes: bytesA),
+          equals(figureRef(pictureBytes: bytesB)),
+        );
+        expect(
+          figureRef(pictureBytes: bytesA).hashCode,
+          equals(figureRef(pictureBytes: bytesB).hashCode),
+        );
+      });
+
+      test('different pictureBytes keys make references unequal', () {
+        final bytes = {
+          '#/pictures/0': Uint8List.fromList([1]),
+        };
+
+        expect(
+          figureRef(pictureBytes: bytes),
+          isNot(equals(figureRef())),
+        );
+      });
+
+      test('different pictureRefs make references unequal', () {
+        expect(
+          figureRef(),
+          isNot(equals(figureRef(pictureRefs: const ['#/pictures/1']))),
+        );
+      });
+
+      test('different chunkIds make references unequal', () {
+        expect(
+          figureRef(chunkIds: const ['chunk-1']),
+          isNot(equals(figureRef(chunkIds: const ['chunk-1', 'chunk-2']))),
+        );
       });
     });
   });
