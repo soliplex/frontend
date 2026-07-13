@@ -38,21 +38,26 @@ typedef _PictureKey = ({String documentId, String ref});
 _PictureKey _pictureKey(String documentId, String ref) =>
     (documentId: documentId, ref: ref);
 
-/// Builds a base64 picture-bytes index from a `rag` state's `searches`.
+/// The two picture indexes built from a `rag` state's `searches`, both keyed
+/// by [_pictureKey]: base64 `bytes` for directly-retrieved figures and their
+/// `captions`. Captions are indexed only for rows that carry `image_data`, so
+/// a caption only surfaces for a figure that renders inline.
+typedef _PictureIndex = ({
+  Map<_PictureKey, String> bytes,
+  Map<_PictureKey, String> captions,
+});
+
+/// Builds the picture indexes from a `rag` state's `searches`.
 ///
-/// Keyed by [_pictureKey]. Only directly-retrieved ("stage-1") pictures carry
-/// bytes here; expansion-introduced refs are absent. The index reads only the
-/// two fields it needs — `document_id` (raw) and `image_data` (via
-/// [SearchResult.parseImageData], the shared field interpreter) — rather than
+/// The builder reads only the fields it needs — `document_id` (raw),
+/// `image_data`, and `picture_captions` (via the shared parsers) — rather than
 /// building a whole [SearchResult], so an unrelated malformed field on a row
-/// can't drop that row's figures.
-///
-/// A malformed shape is skipped and logged so a missing inline figure leaves a
-/// diagnostic thread, matching the per-entry logging in the citation parsers.
-/// A row that simply carries no `image_data` is silently ignored — that is the
-/// normal figure-less case, not an anomaly.
-Map<_PictureKey, String> _indexPictureBytes(Map<String, dynamic> json) {
-  final index = <_PictureKey, String>{};
+/// can't drop that row's figures. A malformed shape is skipped and logged; a
+/// row that simply carries no `image_data` is silently ignored (the normal
+/// figure-less case).
+_PictureIndex _indexPictures(Map<String, dynamic> json) {
+  final bytes = <_PictureKey, String>{};
+  final captions = <_PictureKey, String>{};
   final raw = json['searches'];
   if (raw is! Map) {
     if (raw != null) {
@@ -61,7 +66,7 @@ Map<_PictureKey, String> _indexPictureBytes(Map<String, dynamic> json) {
         'got ${raw.runtimeType}; no cited-figure bytes indexed.',
       );
     }
-    return index;
+    return (bytes: bytes, captions: captions);
   }
   for (final search in raw.entries) {
     final results = search.value;
@@ -91,12 +96,19 @@ Map<_PictureKey, String> _indexPictureBytes(Map<String, dynamic> json) {
         );
         continue;
       }
+      final captionData =
+          SearchResult.parsePictureCaptions(item['picture_captions']);
       imageData.forEach((ref, b64) {
-        index.putIfAbsent(_pictureKey(docId, ref), () => b64);
+        bytes.putIfAbsent(_pictureKey(docId, ref), () => b64);
+      });
+      captionData.forEach((ref, text) {
+        if (text.isNotEmpty) {
+          captions.putIfAbsent(_pictureKey(docId, ref), () => text);
+        }
       });
     }
   }
-  return index;
+  return (bytes: bytes, captions: captions);
 }
 
 /// Decodes an indexed picture ref to bytes, or null when absent / undecodable.
@@ -152,6 +164,10 @@ abstract class RagSnapshot {
   /// when the state carries no bytes for it (stage-2 / unknown).
   Uint8List? pictureBytes(String documentId, String ref);
 
+  /// Caption text for a directly-retrieved picture ref, or null when the state
+  /// carries none.
+  String? pictureCaption(String documentId, String ref);
+
   /// Parses a `rag`-namespaced state map into the appropriate variant.
   ///
   /// Detection is shape-based today. When the backend adds a
@@ -195,7 +211,7 @@ bool _isV040(Map<String, dynamic> json) {
 /// inline [Citation] objects). Other 0.40 fields are accessible via
 /// `RagV040.fromJson` in `rag_v040.dart`.
 class RagV040Snapshot implements RagSnapshot {
-  RagV040Snapshot._(this._byId, this._pictureIndex);
+  RagV040Snapshot._(this._byId, this._pictures);
 
   /// Parses inline Citations from 0.40-shaped JSON. Malformed entries
   /// (non-Map or invalid Citation payloads) are logged and skipped so
@@ -226,11 +242,11 @@ class RagV040Snapshot implements RagSnapshot {
         }
       }
     }
-    return RagV040Snapshot._(byId, _indexPictureBytes(json));
+    return RagV040Snapshot._(byId, _indexPictures(json));
   }
 
   final Map<String, Citation> _byId;
-  final Map<_PictureKey, String> _pictureIndex;
+  final _PictureIndex _pictures;
 
   @override
   List<String> get citationIds => _byId.keys.toList();
@@ -240,7 +256,11 @@ class RagV040Snapshot implements RagSnapshot {
 
   @override
   Uint8List? pictureBytes(String documentId, String ref) =>
-      _decodePicture(_pictureIndex, documentId, ref);
+      _decodePicture(_pictures.bytes, documentId, ref);
+
+  @override
+  String? pictureCaption(String documentId, String ref) =>
+      _pictures.captions[_pictureKey(documentId, ref)];
 }
 
 /// [RagSnapshot] backed by the haiku.rag 0.42 wire shape.
@@ -254,7 +274,7 @@ class RagV040Snapshot implements RagSnapshot {
 /// so a resilient per-entry parse is correct here. Other 0.42 fields
 /// are still reachable via [Rag.fromJson] in `rag.dart`.
 class RagV042Snapshot implements RagSnapshot {
-  RagV042Snapshot._(this._citationIds, this._index, this._pictureIndex);
+  RagV042Snapshot._(this._citationIds, this._index, this._pictures);
 
   /// Parses a 0.42-shaped payload with per-entry resilience: malformed
   /// entries in `citations` / `citation_index` are logged and skipped.
@@ -308,12 +328,12 @@ class RagV042Snapshot implements RagSnapshot {
       }
     }
 
-    return RagV042Snapshot._(ids, index, _indexPictureBytes(json));
+    return RagV042Snapshot._(ids, index, _indexPictures(json));
   }
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
-  final Map<_PictureKey, String> _pictureIndex;
+  final _PictureIndex _pictures;
 
   @override
   List<String> get citationIds => _citationIds;
@@ -323,7 +343,11 @@ class RagV042Snapshot implements RagSnapshot {
 
   @override
   Uint8List? pictureBytes(String documentId, String ref) =>
-      _decodePicture(_pictureIndex, documentId, ref);
+      _decodePicture(_pictures.bytes, documentId, ref);
+
+  @override
+  String? pictureCaption(String documentId, String ref) =>
+      _pictures.captions[_pictureKey(documentId, ref)];
 }
 
 /// Projects a [RagSnapshot] from the full agent-state map.
