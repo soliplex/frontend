@@ -136,13 +136,12 @@ Uint8List? _decodePicture(
 /// snapshot exposes only what citation extraction and figure rendering
 /// need: the citation ids, id → [Citation] resolution, and inline picture
 /// bytes / captions. Other fields (e.g. `searches`, `document_filter`) are
-/// reachable via [Rag.fromJson] in `rag.dart` when a consumer needs them.
+/// read through a resilient per-entry reader when a consumer needs them.
 ///
 /// [RagSnapshot.fromJson] parses `citations` and `citation_index`
-/// entry-by-entry rather than delegating to [Rag.fromJson], whose hard casts
-/// (`List<String>.from(...)` / `Map<String, Citation>.from(...)`) throw on any
-/// malformed entry and take down an otherwise-valid snapshot. The snapshot
-/// contract is narrow, so a resilient per-entry parse is the right trade here.
+/// entry-by-entry so one malformed entry is logged and skipped rather than
+/// taking down an otherwise-valid snapshot. The snapshot contract is narrow,
+/// so a resilient per-entry parse is the right trade here.
 class RagSnapshot {
   RagSnapshot._(this._citationIds, this._index, this._pictures);
 
