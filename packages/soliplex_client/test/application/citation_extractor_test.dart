@@ -99,7 +99,8 @@ void main() {
         expect(refs[0].documentTitle, 'Test Doc');
         expect(refs[0].headings, ['Chapter 1']);
         expect(refs[0].pageNumbers, [1, 2]);
-        expect(refs[0].pictureRefs, ['#/pictures/0', '#/pictures/1']);
+        // picture_refs without in-state bytes produce no figures.
+        expect(refs[0].figures, isEmpty);
         expect(refs[0].chunkIds, ['chunk-1', 'chunk-2']);
         expect(refs[0].index, 1);
       });

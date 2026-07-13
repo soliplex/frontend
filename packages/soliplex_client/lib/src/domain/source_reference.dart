@@ -51,8 +51,7 @@ class SourceReference {
     this.headings = const [],
     this.pageNumbers = const [],
     this.docItemRefs = const [],
-    this.pictureRefs = const [],
-    this.pictureBytes = const {},
+    this.figures = const [],
     this.chunkIds = const [],
     this.index,
   });
@@ -82,25 +81,11 @@ class SourceReference {
   /// visualization endpoint so the highlight matches the cited content.
   final List<String> docItemRefs;
 
-  /// Self-refs of the picture items in the cited content. Those that resolved
-  /// to in-state bytes (see [pictureBytes]) are rendered inline; the rest stay
-  /// viewable via chunk visualization. Empty for text-only citations.
-  final List<String> pictureRefs;
-
-  /// Decoded bytes for the subset of [pictureRefs] the backend actually
-  /// shipped (directly-retrieved "stage-1" figures). Keyed by picture
-  /// self_ref. Expansion-introduced refs are absent — those stay viewable
-  /// via chunk visualization.
-  ///
-  /// Only the *keys* (which refs resolved to bytes) participate in
-  /// == / hashCode. This is sound because a picture self_ref is
-  /// content-addressed: the same ref always resolves to the same bytes, so an
-  /// equal key set implies equal bytes. Comparing keys instead of values thus
-  /// triggers a rebuild when the set of available figures changes without
-  /// diffing megabytes of image data. (If the backend ever reissued different
-  /// bytes for an unchanged ref, a rebuild-gated widget could show a stale
-  /// figure.)
-  final Map<String, Uint8List> pictureBytes;
+  /// The cited figures the backend shipped inline (a picture ref with its
+  /// decoded bytes and optional caption). Only figures that resolved to
+  /// in-state bytes appear here; refs without bytes remain viewable via chunk
+  /// visualization. Empty for text-only citations.
+  final List<Figure> figures;
 
   /// Ids of all chunks whose expansion merged into this citation — merge
   /// provenance from the backend, which typically includes [chunkId] in the
@@ -129,11 +114,7 @@ class SourceReference {
         listEquals.equals(headings, other.headings) &&
         listEquals.equals(pageNumbers, other.pageNumbers) &&
         listEquals.equals(docItemRefs, other.docItemRefs) &&
-        listEquals.equals(pictureRefs, other.pictureRefs) &&
-        const SetEquality<String>().equals(
-          pictureBytes.keys.toSet(),
-          other.pictureBytes.keys.toSet(),
-        ) &&
+        const ListEquality<Figure>().equals(figures, other.figures) &&
         listEquals.equals(chunkIds, other.chunkIds) &&
         index == other.index;
   }
@@ -148,8 +129,7 @@ class SourceReference {
         const ListEquality<String>().hash(headings),
         const ListEquality<int>().hash(pageNumbers),
         const ListEquality<String>().hash(docItemRefs),
-        const ListEquality<String>().hash(pictureRefs),
-        const SetEquality<String>().hash(pictureBytes.keys.toSet()),
+        const ListEquality<Figure>().hash(figures),
         const ListEquality<String>().hash(chunkIds),
         index,
       );

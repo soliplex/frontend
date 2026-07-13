@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
@@ -289,7 +287,7 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
               ),
             ),
-          if (sourceReference.pictureBytes.isNotEmpty)
+          if (sourceReference.figures.isNotEmpty)
             _CitationFigures(sourceReference: sourceReference),
         ],
       ),
@@ -307,22 +305,18 @@ class _CitationFigures extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final refs = sourceReference.pictureRefs
-        .where(sourceReference.pictureBytes.containsKey)
-        .toList();
+    final figures = sourceReference.figures;
     return Padding(
       padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
       child: SizedBox(
         height: _figureThumbnailSize,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: refs.length,
+          itemCount: figures.length,
           separatorBuilder: (_, __) =>
               const SizedBox(width: SoliplexSpacing.s2),
-          itemBuilder: (context, index) => _FigureThumbnail(
-            pictureRef: refs[index],
-            bytes: sourceReference.pictureBytes[refs[index]]!,
-          ),
+          itemBuilder: (context, index) =>
+              _FigureThumbnail(figure: figures[index]),
         ),
       ),
     );
@@ -332,10 +326,9 @@ class _CitationFigures extends StatelessWidget {
 /// One cited-figure thumbnail rendered from in-state bytes. Tapping opens a
 /// zoomable full-size view. A decode failure shows a broken-image fallback.
 class _FigureThumbnail extends StatelessWidget {
-  const _FigureThumbnail({required this.pictureRef, required this.bytes});
+  const _FigureThumbnail({required this.figure});
 
-  final String pictureRef;
-  final Uint8List bytes;
+  final Figure figure;
 
   void _openFullSize(BuildContext context) {
     showDialog<void>(
@@ -345,13 +338,13 @@ class _FigureThumbnail extends StatelessWidget {
         child: InteractiveViewer(
           maxScale: 5,
           child: Image.memory(
-            bytes,
+            figure.bytes,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stack) {
               _logger.warning(
                 'cited figure decode failed (full-size)',
                 error: error,
-                attributes: {'pictureRef': pictureRef},
+                attributes: {'pictureRef': figure.ref},
               );
               return const FailedImage(label: _figureUnavailableLabel);
             },
@@ -369,7 +362,7 @@ class _FigureThumbnail extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(context.radii.md),
         child: Image.memory(
-          bytes,
+          figure.bytes,
           width: _figureThumbnailSize,
           height: _figureThumbnailSize,
           fit: BoxFit.cover,
@@ -377,7 +370,7 @@ class _FigureThumbnail extends StatelessWidget {
             _logger.warning(
               'cited figure decode failed',
               error: error,
-              attributes: {'pictureRef': pictureRef},
+              attributes: {'pictureRef': figure.ref},
             );
             return const SizedBox(
               width: _figureThumbnailSize,

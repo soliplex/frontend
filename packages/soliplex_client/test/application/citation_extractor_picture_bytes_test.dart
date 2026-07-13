@@ -37,9 +37,9 @@ void main() {
 
     expect(refs, hasLength(1));
     final ref = refs.single;
-    // Ref strings still carry both; only stage-1 has bytes.
-    expect(ref.pictureRefs, ['#/pictures/0', '#/pictures/1']);
-    expect(ref.pictureBytes.keys, ['#/pictures/0']);
-    expect(ref.pictureBytes['#/pictures/0'], utf8.encode('hello'));
+    expect(ref.figures, hasLength(1));
+    expect(ref.figures.single.ref, '#/pictures/0');
+    expect(ref.figures.single.bytes, utf8.encode('hello'));
+    expect(ref.figures.single.caption, isNull);
   });
 }

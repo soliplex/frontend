@@ -12,7 +12,6 @@ SourceReference _ref({
   List<String> headings = const [],
   String content = 'Test content',
   List<int> pageNumbers = const [],
-  List<String> pictureRefs = const [],
 }) =>
     SourceReference(
       documentId: 'doc-$index',
@@ -22,7 +21,6 @@ SourceReference _ref({
       documentTitle: title ?? 'Document $index',
       headings: headings,
       pageNumbers: pageNumbers,
-      pictureRefs: pictureRefs,
       index: index,
     );
 

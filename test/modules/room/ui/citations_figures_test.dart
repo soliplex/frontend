@@ -78,17 +78,12 @@ final _png = Uint8List.fromList(const [
   0x82,
 ]);
 
-SourceReference _ref({
-  required List<String> pictureRefs,
-  required Map<String, Uint8List> pictureBytes,
-}) =>
-    SourceReference(
+SourceReference _ref({required List<Figure> figures}) => SourceReference(
       documentId: 'doc-1',
       documentUri: 'file:///doc-1.pdf',
       content: 'cited content',
       chunkId: 'chunk-A',
-      pictureRefs: pictureRefs,
-      pictureBytes: pictureBytes,
+      figures: figures,
     );
 
 void main() {
@@ -98,11 +93,9 @@ void main() {
         ),
       );
 
-  testWidgets('renders a thumbnail only for refs that have bytes',
-      (tester) async {
+  testWidgets('renders a thumbnail per figure', (tester) async {
     await tester.pumpWidget(host(_ref(
-      pictureRefs: ['#/pictures/0', '#/pictures/1'],
-      pictureBytes: {'#/pictures/0': _png}, // only ref 0 has bytes
+      figures: [Figure(ref: '#/pictures/0', bytes: _png)],
     )));
     // Expand the citations section, then the citation row (title falls back
     // to the document URI's filename since documentTitle isn't set).
@@ -117,8 +110,7 @@ void main() {
   testWidgets('tapping a thumbnail opens the zoomable full-size view',
       (tester) async {
     await tester.pumpWidget(host(_ref(
-      pictureRefs: ['#/pictures/0'],
-      pictureBytes: {'#/pictures/0': _png},
+      figures: [Figure(ref: '#/pictures/0', bytes: _png)],
     )));
     await tester.tap(find.text('1 source'));
     await tester.pump();
@@ -136,10 +128,10 @@ void main() {
   testWidgets('a thumbnail whose bytes fail to decode shows a fallback',
       (tester) async {
     await tester.pumpWidget(host(_ref(
-      pictureRefs: ['#/pictures/0'],
-      pictureBytes: {
-        '#/pictures/0': Uint8List.fromList(const [1, 2, 3, 4])
-      },
+      figures: [
+        Figure(
+            ref: '#/pictures/0', bytes: Uint8List.fromList(const [1, 2, 3, 4])),
+      ],
     )));
     await tester.tap(find.text('1 source'));
     await tester.pump();
@@ -153,11 +145,9 @@ void main() {
     expect(find.byType(FailedImage), findsOneWidget);
   });
 
-  testWidgets('renders no figure strip when no ref has bytes', (tester) async {
-    await tester.pumpWidget(host(_ref(
-      pictureRefs: ['#/pictures/0'],
-      pictureBytes: const {},
-    )));
+  testWidgets('renders no figure strip when there are no figures',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(figures: const [])));
     await tester.tap(find.text('1 source'));
     await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));

@@ -81,9 +81,10 @@ void main() {
         expect(ref1, isNot(equals(ref2)));
       });
 
+      final png = Uint8List.fromList([1, 2, 3]);
+
       SourceReference figureRef({
-        List<String> pictureRefs = const ['#/pictures/0'],
-        Map<String, Uint8List> pictureBytes = const {},
+        List<Figure> figures = const [],
         List<String> chunkIds = const [],
       }) =>
           SourceReference(
@@ -91,44 +92,44 @@ void main() {
             documentUri: 'https://example.com/doc.pdf',
             content: 'Test content',
             chunkId: 'chunk-1',
-            pictureRefs: pictureRefs,
-            pictureBytes: pictureBytes,
+            figures: figures,
             chunkIds: chunkIds,
           );
 
-      test('same pictureBytes keys with different bytes are equal', () {
-        final bytesA = {
-          '#/pictures/0': Uint8List.fromList([1, 2, 3]),
-        };
-        final bytesB = {
-          '#/pictures/0': Uint8List.fromList([9, 9, 9]),
-        };
-
+      test('figures differing only in bytes are equal', () {
         expect(
-          figureRef(pictureBytes: bytesA),
-          equals(figureRef(pictureBytes: bytesB)),
-        );
-        expect(
-          figureRef(pictureBytes: bytesA).hashCode,
-          equals(figureRef(pictureBytes: bytesB).hashCode),
+          figureRef(figures: [Figure(ref: '#/pictures/0', bytes: png)]),
+          equals(
+            figureRef(
+              figures: [Figure(ref: '#/pictures/0', bytes: Uint8List(1))],
+            ),
+          ),
         );
       });
 
-      test('different pictureBytes keys make references unequal', () {
-        final bytes = {
-          '#/pictures/0': Uint8List.fromList([1]),
-        };
-
+      test('different figure ref makes references unequal', () {
         expect(
-          figureRef(pictureBytes: bytes),
-          isNot(equals(figureRef())),
+          figureRef(figures: [Figure(ref: '#/pictures/0', bytes: png)]),
+          isNot(
+            equals(
+              figureRef(figures: [Figure(ref: '#/pictures/1', bytes: png)]),
+            ),
+          ),
         );
       });
 
-      test('different pictureRefs make references unequal', () {
+      test('different figure caption makes references unequal', () {
         expect(
-          figureRef(),
-          isNot(equals(figureRef(pictureRefs: const ['#/pictures/1']))),
+          figureRef(figures: [Figure(ref: '#/pictures/0', bytes: png)]),
+          isNot(
+            equals(
+              figureRef(
+                figures: [
+                  Figure(ref: '#/pictures/0', bytes: png, caption: 'c'),
+                ],
+              ),
+            ),
+          ),
         );
       });
 

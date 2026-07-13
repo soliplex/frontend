@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
@@ -76,11 +74,18 @@ class CitationExtractor {
   }
 
   SourceReference _citationToSourceReference(Citation c, RagSnapshot rag) {
-    final pictureRefs = c.pictureRefs ?? const <String>[];
-    final pictureBytes = <String, Uint8List>{};
-    for (final ref in pictureRefs) {
+    final figures = <Figure>[];
+    for (final ref in c.pictureRefs ?? const <String>[]) {
       final bytes = rag.pictureBytes(c.documentId, ref);
-      if (bytes != null) pictureBytes[ref] = bytes;
+      if (bytes == null) continue;
+      final caption = rag.pictureCaption(c.documentId, ref);
+      figures.add(
+        Figure(
+          ref: ref,
+          bytes: bytes,
+          caption: caption != null && caption.isNotEmpty ? caption : null,
+        ),
+      );
     }
     return SourceReference(
       documentId: c.documentId,
@@ -91,8 +96,7 @@ class CitationExtractor {
       headings: c.headings ?? [],
       pageNumbers: c.pageNumbers ?? [],
       docItemRefs: c.docItemRefs ?? [],
-      pictureRefs: pictureRefs,
-      pictureBytes: pictureBytes,
+      figures: figures,
       chunkIds: c.chunkIds ?? [],
       index: c.index,
     );
