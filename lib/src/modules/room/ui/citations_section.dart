@@ -18,6 +18,9 @@ const double _figureThumbnailSize = 120;
 /// Fallback label shown when a cited figure can't be decoded.
 const String _figureUnavailableLabel = 'Figure unavailable';
 
+/// Fallback semantic label for a cited figure that has no caption.
+const String _figureSemanticLabel = 'Cited figure';
+
 class CitationsSection extends StatefulWidget {
   const CitationsSection({
     super.key,
@@ -331,23 +334,39 @@ class _FigureThumbnail extends StatelessWidget {
   final Figure figure;
 
   void _openFullSize(BuildContext context) {
+    final caption = figure.caption;
     showDialog<void>(
       context: context,
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
-        child: InteractiveViewer(
-          maxScale: 5,
-          child: Image.memory(
-            figure.bytes,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stack) {
-              _logger.warning(
-                'cited figure decode failed (full-size)',
-                error: error,
-                attributes: {'pictureRef': figure.ref},
-              );
-              return const FailedImage(label: _figureUnavailableLabel);
-            },
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 800,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: InteractiveViewer(
+                  maxScale: 5,
+                  child: Image.memory(
+                    figure.bytes,
+                    fit: BoxFit.contain,
+                    semanticLabel: caption ?? _figureSemanticLabel,
+                    errorBuilder: (context, error, stack) {
+                      _logger.warning(
+                        'cited figure decode failed (full-size)',
+                        error: error,
+                        attributes: {'pictureRef': figure.ref},
+                      );
+                      return const FailedImage(label: _figureUnavailableLabel);
+                    },
+                  ),
+                ),
+              ),
+              if (caption != null) _FigureCaption(caption: caption),
+            ],
           ),
         ),
       ),
@@ -366,6 +385,7 @@ class _FigureThumbnail extends StatelessWidget {
           width: _figureThumbnailSize,
           height: _figureThumbnailSize,
           fit: BoxFit.cover,
+          semanticLabel: figure.caption ?? _figureSemanticLabel,
           errorBuilder: (context, error, stack) {
             _logger.warning(
               'cited figure decode failed',
@@ -383,6 +403,94 @@ class _FigureThumbnail extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A cited figure's caption beneath the full-size image. Collapses to two
+/// lines with a `more` toggle; the toggle appears only when the text actually
+/// overflows. Expanded text scrolls within a bounded band so a long caption
+/// never pushes the image off-screen.
+class _FigureCaption extends StatefulWidget {
+  const _FigureCaption({required this.caption});
+
+  final String caption;
+
+  @override
+  State<_FigureCaption> createState() => _FigureCaptionState();
+}
+
+class _FigureCaptionState extends State<_FigureCaption> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final textScaler = MediaQuery.textScalerOf(context);
+    return Padding(
+      padding: const EdgeInsets.all(SoliplexSpacing.s3),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final overflows = _overflowsTwoLines(
+            widget.caption,
+            style,
+            constraints.maxWidth,
+            Directionality.of(context),
+            textScaler,
+          );
+          final text = Text(
+            widget.caption,
+            style: style,
+            maxLines: _expanded ? null : 2,
+            overflow: _expanded ? TextOverflow.clip : TextOverflow.ellipsis,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_expanded)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: SingleChildScrollView(child: text),
+                )
+              else
+                text,
+              if (overflows)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
+                    child: Text(
+                      _expanded ? 'less' : 'more',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.primary),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static bool _overflowsTwoLines(
+    String text,
+    TextStyle? style,
+    double maxWidth,
+    TextDirection direction,
+    TextScaler textScaler,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 2,
+      textDirection: direction,
+      textScaler: textScaler,
+    )..layout(maxWidth: maxWidth);
+    return painter.didExceedMaxLines;
   }
 }
 

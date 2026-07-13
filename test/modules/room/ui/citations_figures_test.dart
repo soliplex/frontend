@@ -155,4 +155,73 @@ void main() {
 
     expect(find.byType(Image), findsNothing);
   });
+
+  testWidgets('shows the caption in the full-size view when present',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      figures: [
+        Figure(ref: '#/pictures/0', bytes: _png, caption: 'Figure 1: revenue'),
+      ],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Figure 1: revenue'), findsOneWidget);
+  });
+
+  testWidgets('shows no caption footer when the figure has no caption',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      figures: [Figure(ref: '#/pictures/0', bytes: _png)],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(Text)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a long caption collapses to a more toggle that expands',
+      (tester) async {
+    final long = 'Figure 1: ${'a long description ' * 20}';
+    await tester.pumpWidget(host(_ref(
+      figures: [Figure(ref: '#/pictures/0', bytes: _png, caption: long)],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(find.text('more'), findsOneWidget);
+    await tester.tap(find.text('more'));
+    await tester.pumpAndSettle();
+    expect(find.text('less'), findsOneWidget);
+  });
+
+  testWidgets('the thumbnail carries the caption as its semantic label',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      figures: [
+        Figure(ref: '#/pictures/0', bytes: _png, caption: 'Figure 1: revenue'),
+      ],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+
+    expect(find.bySemanticsLabel('Figure 1: revenue'), findsWidgets);
+  });
 }
