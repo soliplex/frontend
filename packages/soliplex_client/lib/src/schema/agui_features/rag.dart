@@ -222,7 +222,7 @@ class SearchResult {
   final String? documentTitle;
   final String? documentUri;
   final List<String>? headings;
-  final Map<String, String>? imageData;
+  final Map<String, String> imageData;
   final List<String>? labels;
   final int order;
   final List<int>? pageNumbers;
@@ -236,12 +236,25 @@ class SearchResult {
     this.documentTitle,
     this.documentUri,
     this.headings,
-    this.imageData,
+    this.imageData = const {},
     this.labels,
     this.order = 0,
     this.pageNumbers,
     required this.score,
   });
+
+  /// Reads a raw `image_data` JSON value into a picture-ref → base64 map,
+  /// dropping any non-string key or value. The single interpreter of the
+  /// field: [SearchResult.fromJson] and the cited-figure picture index both
+  /// call it so they read `image_data` identically.
+  static Map<String, String> parseImageData(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, String>{};
+    raw.forEach((key, value) {
+      if (key is String && value is String) out[key] = value;
+    });
+    return out;
+  }
 
   factory SearchResult.fromJson(Map<String, dynamic> json) => SearchResult(
         chunkId: json["chunk_id"],
@@ -255,9 +268,7 @@ class SearchResult {
         headings: json["headings"] == null
             ? []
             : List<String>.from(json["headings"]!.map((x) => x)),
-        imageData: json["image_data"] == null
-            ? null
-            : Map<String, String>.from(json["image_data"]!),
+        imageData: parseImageData(json["image_data"]),
         labels: json["labels"] == null
             ? []
             : List<String>.from(json["labels"]!.map((x) => x)),

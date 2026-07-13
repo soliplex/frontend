@@ -45,6 +45,24 @@ void main() {
       expect(snap.pictureBytes('doc-2', '#/pictures/0'), isNull);
     });
 
+    test('indexes image_data even when unrelated fields are malformed', () {
+      final bad = Map<String, dynamic>.from(rag);
+      bad['searches'] = {
+        'q': [
+          {
+            // No 'content'/'score' (required on the full SearchResult) and a
+            // wrong-typed unrelated field: none of this should drop the row's
+            // figures, since the index reads only document_id + image_data.
+            'document_id': 'doc-1',
+            'doc_item_refs': 'not-a-list',
+            'image_data': {'#/pictures/0': 'aGVsbG8='},
+          },
+        ],
+      };
+      final snap = RagSnapshot.fromJson(bad);
+      expect(snap.pictureBytes('doc-1', '#/pictures/0'), utf8.encode('hello'));
+    });
+
     test('returns null for an undecodable base64 image_data value', () {
       final bad = Map<String, dynamic>.from(rag);
       bad['searches'] = {

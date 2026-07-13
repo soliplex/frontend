@@ -14,9 +14,9 @@ void main() {
       expect(sr.imageData, {'#/pictures/0': 'aGVsbG8='});
     });
 
-    test('absent image_data is null', () {
+    test('absent image_data is an empty map', () {
       final sr = SearchResult.fromJson({'content': 'x', 'score': 0.1});
-      expect(sr.imageData, isNull);
+      expect(sr.imageData, isEmpty);
     });
 
     test('round-trips image_data through toJson', () {
@@ -26,6 +26,22 @@ void main() {
         'image_data': {'#/pictures/1': 'd29ybGQ='},
       });
       expect(sr.toJson()['image_data'], {'#/pictures/1': 'd29ybGQ='});
+    });
+  });
+
+  group('SearchResult.parseImageData', () {
+    test('drops non-string keys and values', () {
+      final parsed = SearchResult.parseImageData({
+        '#/pictures/0': 'aGVsbG8=',
+        '#/pictures/1': 42,
+        7: 'Zm9v',
+      });
+      expect(parsed, {'#/pictures/0': 'aGVsbG8='});
+    });
+
+    test('returns an empty map for a non-map value', () {
+      expect(SearchResult.parseImageData('not-a-map'), isEmpty);
+      expect(SearchResult.parseImageData(null), isEmpty);
     });
   });
 }

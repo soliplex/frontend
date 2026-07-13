@@ -34,8 +34,11 @@ Map<String, dynamic> buildRagDocumentFilterOverlay(String? filter) {
 /// Builds a base64 picture-bytes index from a `rag` state's `searches`.
 ///
 /// Keyed by [_pictureKey]. Only directly-retrieved ("stage-1") pictures carry
-/// bytes here; expansion-introduced refs are absent. Malformed search entries
-/// are logged and skipped so one bad row can't take down the index.
+/// bytes here; expansion-introduced refs are absent. The index reads only the
+/// two fields it needs — `document_id` (raw) and `image_data` (via
+/// [SearchResult.parseImageData], the shared field interpreter) — rather than
+/// building a whole [SearchResult], so an unrelated malformed field on a row
+/// can't drop that row's figures.
 Map<(String, String), String> _indexPictureBytes(Map<String, dynamic> json) {
   final index = <(String, String), String>{};
   final raw = json['searches'];
@@ -44,25 +47,11 @@ Map<(String, String), String> _indexPictureBytes(Map<String, dynamic> json) {
     if (entry is! List) continue;
     for (final item in entry) {
       if (item is! Map<String, dynamic>) continue;
-      SearchResult sr;
-      try {
-        sr = SearchResult.fromJson(item);
-      } on Object catch (error, stackTrace) {
-        developer.log(
-          'RagSnapshot: skipping malformed search result in picture index.',
-          name: 'soliplex_client.rag_snapshot',
-          level: 900,
-          error: error,
-          stackTrace: stackTrace,
-        );
-        continue;
-      }
-      final docId = sr.documentId;
-      final imageData = sr.imageData;
-      if (docId == null || imageData == null) continue;
-      imageData.forEach(
-        (ref, b64) => index.putIfAbsent(_pictureKey(docId, ref), () => b64),
-      );
+      final docId = item['document_id'];
+      if (docId is! String) continue;
+      SearchResult.parseImageData(item['image_data']).forEach((ref, b64) {
+        index.putIfAbsent(_pictureKey(docId, ref), () => b64);
+      });
     }
   }
   return index;
