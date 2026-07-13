@@ -72,7 +72,8 @@ class SourceReference {
   final Map<String, Uint8List> pictureBytes;
 
   /// Ids of all chunks whose expansion merged into this citation — merge
-  /// provenance from the backend, which includes [chunkId] in the list.
+  /// provenance from the backend, which typically includes [chunkId] in the
+  /// list. Not enforced or relied on by the frontend.
   ///
   /// Parsed and carried through so no backend field is silently dropped, but
   /// intentionally not shown in the UI: visualization grounds off

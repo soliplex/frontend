@@ -1,15 +1,18 @@
-import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_client.citation_extractor');
 
 /// Extracts new [SourceReference]s by comparing AG-UI state snapshots.
 ///
 /// **Schema firewall**: this file and [RagSnapshot] in
-/// `rag_snapshot.dart` are the only places that import the generated
-/// schema types in `rag.dart` / `rag_v040.dart`. When backend schemas
+/// `rag_snapshot.dart` are the only places that import the schema-mirror
+/// types in `rag.dart` / `rag_v040.dart`. When backend schemas
 /// change, updates are confined to `rag_snapshot.dart`'s detector and
 /// implementations.
 ///
@@ -54,21 +57,17 @@ class CitationExtractor {
     final raw = state[ragStateKey];
     if (raw == null) return null;
     if (raw is! Map<String, dynamic>) {
-      developer.log(
+      _logger.warning(
         'Expected rag state to be Map<String, dynamic>, '
         'got ${raw.runtimeType}.',
-        name: 'soliplex_client.citation_extractor',
-        level: 900,
       );
       return null;
     }
     try {
       return RagSnapshot.fromJson(raw);
     } on Object catch (error, stackTrace) {
-      developer.log(
+      _logger.warning(
         'Failed to parse rag state as either wire shape.',
-        name: 'soliplex_client.citation_extractor',
-        level: 900,
         error: error,
         stackTrace: stackTrace,
       );

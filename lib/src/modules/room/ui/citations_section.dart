@@ -12,7 +12,8 @@ import 'markdown/flutter_markdown_plus_renderer.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.citations');
 
-/// Fixed height (and error-slot width) of a cited-figure thumbnail.
+/// Fixed size of a cited-figure thumbnail — its width and height, the figure
+/// strip's height, and the error-slot width.
 /// Not on the spacing scale — a component dimension, kept in one place.
 const double _figureThumbnailSize = 120;
 

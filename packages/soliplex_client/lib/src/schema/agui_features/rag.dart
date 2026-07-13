@@ -11,10 +11,29 @@
 // ignore_for_file: inference_failure_on_untyped_parameter
 // ignore_for_file: inference_failure_on_collection_literal
 
-import 'dart:developer' as developer;
-
 import 'package:soliplex_client/src/errors/exceptions.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
+final _logger = LogManager.instance.getLogger('soliplex_client.rag');
+
+/// Full mirror of the backend `rag` namespace.
+///
+/// This type and its `fromJson` decode the *whole* shape in one call. The
+/// citation/figure feature does not use them — resilient consumers read
+/// through `RagSnapshot` (`rag_snapshot.dart`), which parses `citations` /
+/// `citation_index` per-entry and skips malformed rows. `Rag` exists for a
+/// consumer that needs a field `RagSnapshot` does not expose, chiefly:
+///
+/// - [searches]: the full stage-1 retrieval set — every chunk retrieved,
+///   including ones that were never cited (see [SearchResult] for the
+///   per-result ranking/labels only this path surfaces).
+/// - [documentFilter]: the active document filter echoed back in state.
+///
+/// Parsing contract: [Rag.fromJson] and [SearchResult.fromJson] use hard casts
+/// and throw on the first malformed field — all-or-nothing by design. A future
+/// consumer should decode inside a try/catch (as `citation_extractor` already
+/// does around `RagSnapshot.fromJson`) and expect one bad field to fail the
+/// whole decode.
 class Rag {
   final Map<String, Citation>? citationIndex;
   final List<String>? citations;
@@ -84,11 +103,7 @@ String _requiredString(dynamic value, String field) {
   );
 }
 
-void _logDropped(String message) => developer.log(
-      message,
-      name: 'soliplex_client.rag',
-      level: 900,
-    );
+void _logDropped(String message) => _logger.warning(message);
 
 /// An optional string field: a present-but-wrong-typed value degrades to null
 /// (logged) rather than throwing, so one malformed field never takes down the
@@ -213,7 +228,21 @@ class Citation {
       };
 }
 
-///Search result with optional provenance information for citations.
+/// One row of a `searches` entry — a chunk from the stage-1 retrieval set,
+/// cited or not.
+///
+/// Beyond the provenance a [Citation] already carries (document, headings,
+/// page numbers, doc-item refs, `image_data`), a search result exposes
+/// retrieval telemetry available *nowhere else* in the state:
+///
+/// - [score]: relevance score for the query.
+/// - [order]: rank within the search.
+/// - [labels]: backend classification tags.
+///
+/// The cited-figure path never builds a [SearchResult]; it reads `image_data`
+/// + `document_id` straight off the raw row via [parseImageData]. Only build a
+/// [SearchResult] when a consumer needs the telemetry above — and see the
+/// all-or-nothing parsing contract on [Rag].
 class SearchResult {
   final String? chunkId;
   final String content;
@@ -244,15 +273,27 @@ class SearchResult {
   });
 
   /// Reads a raw `image_data` JSON value into a picture-ref → base64 map,
-  /// dropping any non-string key or value. The single interpreter of the
-  /// field: [SearchResult.fromJson] and the cited-figure picture index both
-  /// call it so they read `image_data` identically.
+  /// dropping (and logging) any non-string key or value. The single
+  /// interpreter of the field: [SearchResult.fromJson] and the cited-figure
+  /// picture index both call it so they read `image_data` identically. An
+  /// absent field is normal and silent.
   static Map<String, String> parseImageData(Object? raw) {
-    if (raw is! Map) return const {};
+    if (raw is! Map) {
+      if (raw != null) {
+        _logDropped('SearchResult field "image_data": expected map, '
+            'got ${raw.runtimeType}; using empty.');
+      }
+      return const {};
+    }
     final out = <String, String>{};
     raw.forEach((key, value) {
       if (key is String && value is String) out[key] = value;
     });
+    if (out.length != raw.length) {
+      _logDropped('SearchResult field "image_data": dropped '
+          '${raw.length - out.length} non-string entr'
+          '${raw.length - out.length == 1 ? 'y' : 'ies'}.');
+    }
     return out;
   }
 
