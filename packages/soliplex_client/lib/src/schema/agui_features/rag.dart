@@ -160,6 +160,30 @@ List<int> _intList(dynamic value, String field) {
   return result;
 }
 
+/// Reads a raw JSON value into a string→string map, dropping (and logging) any
+/// non-string key or value. The single interpreter for `image_data` and
+/// `picture_captions`, which share this wire shape, so both read identically.
+/// An absent field is normal and silent.
+Map<String, String> _parseStringMap(Object? raw, String field) {
+  if (raw is! Map) {
+    if (raw != null) {
+      _logDropped('SearchResult field "$field": expected map, '
+          'got ${raw.runtimeType}; using empty.');
+    }
+    return const {};
+  }
+  final out = <String, String>{};
+  raw.forEach((key, value) {
+    if (key is String && value is String) out[key] = value;
+  });
+  final dropped = raw.length - out.length;
+  if (dropped != 0) {
+    _logDropped('SearchResult field "$field": dropped $dropped '
+        'non-string entr${dropped == 1 ? 'y' : 'ies'}.');
+  }
+  return out;
+}
+
 ///Resolved citation with full metadata for display/visual grounding.
 ///
 ///Used by research graph and chat applications. The optional index field
@@ -255,6 +279,7 @@ class SearchResult {
   final List<String>? labels;
   final int order;
   final List<int>? pageNumbers;
+  final Map<String, String> pictureCaptions;
   final double score;
 
   SearchResult({
@@ -269,33 +294,19 @@ class SearchResult {
     this.labels,
     this.order = 0,
     this.pageNumbers,
+    this.pictureCaptions = const {},
     required this.score,
   });
 
-  /// Reads a raw `image_data` JSON value into a picture-ref → base64 map,
-  /// dropping (and logging) any non-string key or value. The single
-  /// interpreter of the field: [SearchResult.fromJson] and the cited-figure
-  /// picture index both call it so they read `image_data` identically. An
-  /// absent field is normal and silent.
-  static Map<String, String> parseImageData(Object? raw) {
-    if (raw is! Map) {
-      if (raw != null) {
-        _logDropped('SearchResult field "image_data": expected map, '
-            'got ${raw.runtimeType}; using empty.');
-      }
-      return const {};
-    }
-    final out = <String, String>{};
-    raw.forEach((key, value) {
-      if (key is String && value is String) out[key] = value;
-    });
-    if (out.length != raw.length) {
-      _logDropped('SearchResult field "image_data": dropped '
-          '${raw.length - out.length} non-string entr'
-          '${raw.length - out.length == 1 ? 'y' : 'ies'}.');
-    }
-    return out;
-  }
+  /// Reads a raw `image_data` JSON value into a picture-ref → base64 map.
+  /// Delegates to [_parseStringMap]; see it for the shared parsing contract.
+  static Map<String, String> parseImageData(Object? raw) =>
+      _parseStringMap(raw, 'image_data');
+
+  /// Reads a raw `picture_captions` JSON value into a picture-ref → caption
+  /// map. Delegates to [_parseStringMap].
+  static Map<String, String> parsePictureCaptions(Object? raw) =>
+      _parseStringMap(raw, 'picture_captions');
 
   factory SearchResult.fromJson(Map<String, dynamic> json) => SearchResult(
         chunkId: json["chunk_id"],
@@ -317,6 +328,7 @@ class SearchResult {
         pageNumbers: json["page_numbers"] == null
             ? []
             : List<int>.from(json["page_numbers"]!.map((x) => x)),
+        pictureCaptions: parsePictureCaptions(json["picture_captions"]),
         score: json["score"]?.toDouble(),
       );
 
@@ -338,6 +350,7 @@ class SearchResult {
         "page_numbers": pageNumbers == null
             ? []
             : List<dynamic>.from(pageNumbers!.map((x) => x)),
+        "picture_captions": pictureCaptions,
         "score": score,
       };
 }
