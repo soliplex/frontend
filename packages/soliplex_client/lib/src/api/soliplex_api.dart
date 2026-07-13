@@ -1538,7 +1538,7 @@ class SoliplexApi {
     CancelToken? cancelToken,
   }) async {
     final uri = _urlBuilder.build(
-        pathSegments: ['uploads', roomId, 'thread', threadId],
+      pathSegments: ['uploads', roomId, 'thread', threadId],
     );
     if (webFileBlob != null) {
       await _transport.request<void>(
