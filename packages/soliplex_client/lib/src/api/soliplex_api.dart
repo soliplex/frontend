@@ -295,7 +295,7 @@ class SoliplexApi {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: 'getThreads: malformed thread entry.',
+        message: 'getThreads: malformed thread entry: $error',
         originalError: error,
         stackTrace: stackTrace,
       );

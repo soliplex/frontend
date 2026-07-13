@@ -1028,6 +1028,45 @@ void main() {
           );
         },
       );
+
+      test('returns an empty map when "schemas" is absent', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => <String, dynamic>{});
+
+        expect(await api.getMontySchemas(), isEmpty);
+      });
+
+      test('returns the schema map for a well-formed response', () async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'schemas': {'monty': 'schema-yaml'},
+          },
+        );
+
+        expect(
+          await api.getMontySchemas(),
+          equals({'monty': 'schema-yaml'}),
+        );
+      });
     });
 
     group('deleteThread', () {

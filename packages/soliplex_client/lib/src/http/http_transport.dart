@@ -393,12 +393,11 @@ class HttpTransport {
     HttpResponse response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
-    // Every failure below — non-UTF-8 bytes, a `null`/`body`/`decoded` cast
-    // that doesn't match T, invalid JSON, or a throwing fromJson mapper —
-    // is a malformed *payload* on an otherwise well-formed HTTP response, so
-    // it surfaces as a (non-retryable) MalformedResponseException rather than a
-    // raw TypeError/FormatException. A SoliplexException from the mapper passes
-    // through unchanged.
+    // Any failure decoding the body of an otherwise well-formed HTTP response
+    // (bad bytes, a cast that doesn't match T, invalid JSON, or a throwing
+    // fromJson mapper) is a malformed *payload*, surfaced as a (non-retryable)
+    // MalformedResponseException rather than a raw TypeError/FormatException. A
+    // SoliplexException from the mapper passes through unchanged.
     try {
       final body = response.body;
 
@@ -433,7 +432,7 @@ class HttpTransport {
       rethrow;
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
-        message: 'Could not decode the response body as $T.',
+        message: 'Could not decode the response body as $T: $error',
         originalError: error,
         stackTrace: stackTrace,
       );

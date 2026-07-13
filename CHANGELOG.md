@@ -36,6 +36,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A malformed backend response no longer crashes the client: a payload whose
+  shape doesn't match the contract (a wrong-typed or missing field, non-UTF-8
+  or undecodable JSON body) now surfaces as a non-retryable error carrying the
+  underlying cause instead of an uncaught type/format error. A non-UTF-8 *error*
+  body can no longer mask the HTTP status, so retry and re-auth still classify
+  correctly.
 - Deleting the open thread no longer writes a stale "read" marker for it on the
   way out (via dispose, or the auto-navigate to a sibling thread), so a thread
   later re-created under the same id no longer appears already-read.

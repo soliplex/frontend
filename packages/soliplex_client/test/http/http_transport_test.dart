@@ -1566,16 +1566,26 @@ void main() {
         );
       });
 
-      test('undecodable JSON body throws MalformedResponseException', () async {
-        stubResponse(textResponse(200, '{"broken": '));
-        await expectLater(
-          transport.request<Map<String, dynamic>>(
-            'GET',
-            Uri.parse('https://api.example.com'),
-          ),
-          throwsA(isA<MalformedResponseException>()),
-        );
-      });
+      test(
+        'undecodable JSON body throws MalformedResponseException whose message '
+        'carries the underlying decode error',
+        () async {
+          stubResponse(textResponse(200, '{"broken": '));
+          await expectLater(
+            transport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse('https://api.example.com'),
+            ),
+            throwsA(
+              isA<MalformedResponseException>().having(
+                (e) => e.message,
+                'message',
+                contains('FormatException'),
+              ),
+            ),
+          );
+        },
+      );
 
       test(
         'empty body with a non-nullable expected type throws '
