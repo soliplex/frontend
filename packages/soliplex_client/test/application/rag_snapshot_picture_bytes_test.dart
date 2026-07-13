@@ -4,7 +4,7 @@ import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('RagSnapshot.pictureBytes (0.42 shape)', () {
+  group('RagSnapshot.pictureBytes', () {
     final rag = {
       'citations': ['chunk-A'],
       'citation_index': {

@@ -10,15 +10,12 @@ final _logger =
 ///
 /// **Schema firewall**: this file and [RagSnapshot] in
 /// `rag_snapshot.dart` are the only places that import the schema-mirror
-/// types in `rag.dart` / `rag_v040.dart`. When backend schemas
-/// change, updates are confined to `rag_snapshot.dart`'s detector and
-/// implementations.
+/// types in `rag.dart`. When the backend `rag` shape changes, updates are
+/// confined to `rag_snapshot.dart`.
 ///
-/// The algorithm is version-agnostic: resolve each state into a
-/// [RagSnapshot], take the difference of `citationIds`, and resolve
-/// each new id back to a full [Citation]. The two wire shapes differ
-/// only in how ids and Citations are laid out — both expose the same
-/// two operations via [RagSnapshot].
+/// The algorithm: resolve each state into a [RagSnapshot], take the
+/// difference of `citationIds`, and resolve each new id back to a full
+/// [Citation].
 class CitationExtractor {
   /// Extracts source references added since [previousState].
   ///
@@ -49,8 +46,7 @@ class CitationExtractor {
   }
 
   /// Resolves [state]'s `rag` namespace into a [RagSnapshot], or null
-  /// when the key is absent, not a Map, or fails to parse as either
-  /// wire shape.
+  /// when the key is absent, not a Map, or fails to parse.
   RagSnapshot? _snapshot(Map<String, dynamic> state) {
     final raw = state[ragStateKey];
     if (raw == null) return null;
@@ -65,7 +61,7 @@ class CitationExtractor {
       return RagSnapshot.fromJson(raw);
     } on Object catch (error, stackTrace) {
       _logger.warning(
-        'Failed to parse rag state as either wire shape.',
+        'Failed to parse rag state.',
         error: error,
         stackTrace: stackTrace,
       );

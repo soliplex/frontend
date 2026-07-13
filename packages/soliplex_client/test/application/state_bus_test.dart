@@ -108,7 +108,7 @@ void main() {
             'citations': <String>[],
           },
         });
-        expect(ragSignal.value, isA<RagV042Snapshot>());
+        expect(ragSignal.value, isA<RagSnapshot>());
         bus.dispose();
       },
     );

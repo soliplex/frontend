@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
-import 'package:soliplex_client/src/schema/agui_features/rag_v040.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_client.rag_snapshot');
@@ -130,155 +129,27 @@ Uint8List? _decodePicture(
   }
 }
 
-/// Version-agnostic view of the backend's `rag`-namespaced AG-UI state.
+/// A read-model view of the backend's `rag`-namespaced AG-UI state.
 ///
-/// The backend ships two wire shapes today:
+/// The `rag` state carries `citations` as a list of chunk ids and a
+/// `citation_index` map resolving each id to a full [Citation]. This
+/// snapshot exposes only what citation extraction and figure rendering
+/// need: the citation ids, id → [Citation] resolution, and inline picture
+/// bytes / captions. Other fields (e.g. `searches`, `document_filter`) are
+/// reachable via [Rag.fromJson] in `rag.dart` when a consumer needs them.
 ///
-/// - **haiku.rag 0.40** emits `citations` as a list of inline [Citation]
-///   objects, alongside deprecated `qa_history`, `documents`, and
-///   `reports` fields. See `rag_v040.dart`.
-/// - **haiku.rag 0.42+** emits `citations` as a list of chunk ids, with a
-///   separate `citation_index` map resolving each id to a [Citation]. See
-///   `rag.dart`.
-///
-/// [RagSnapshot.fromJson] dispatches on wire shape today because the
-/// backend has no explicit `schema_version` field. When that field is
-/// added, only [RagSnapshot.fromJson] needs to change — everything above
-/// this interface continues to depend on the two operations below and is
-/// unaffected.
-///
-/// Version-specific fields (e.g. `qaHistory` on 0.40, `searches` on either
-/// version) are reachable via the concrete schema types
-/// ([RagV040] in `rag_v040.dart`, [Rag] in `rag.dart`) and are out of
-/// scope for this interface until a consumer needs them.
-abstract class RagSnapshot {
-  /// Chunk ids of citations present in the current state. Under 0.42
-  /// lifecycle these are cleared at each invocation start; under 0.40
-  /// they accumulate across the thread.
-  List<String> get citationIds;
+/// [RagSnapshot.fromJson] parses `citations` and `citation_index`
+/// entry-by-entry rather than delegating to [Rag.fromJson], whose hard casts
+/// (`List<String>.from(...)` / `Map<String, Citation>.from(...)`) throw on any
+/// malformed entry and take down an otherwise-valid snapshot. The snapshot
+/// contract is narrow, so a resilient per-entry parse is the right trade here.
+class RagSnapshot {
+  RagSnapshot._(this._citationIds, this._index, this._pictures);
 
-  /// Resolves a chunk id to a full [Citation], or null if not present.
-  Citation? resolveCitation(String id);
-
-  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null
-  /// when the state carries no bytes for it (stage-2 / unknown).
-  Uint8List? pictureBytes(String documentId, String ref);
-
-  /// Caption text for a directly-retrieved picture ref, or null when the state
-  /// carries none.
-  String? pictureCaption(String documentId, String ref);
-
-  /// Parses a `rag`-namespaced state map into the appropriate variant.
-  ///
-  /// Detection is shape-based today. When the backend adds a
-  /// `schema_version` field the body of this factory becomes a switch on
-  /// that field, with shape-sniffing retained only as a legacy fallback.
-  static RagSnapshot fromJson(Map<String, dynamic> json) {
-    return _isV040(json)
-        ? RagV040Snapshot.fromJson(json)
-        : RagV042Snapshot.fromJson(json);
-  }
-}
-
-/// Returns true if [json] carries the 0.40 RAG state shape.
-///
-/// Signals, in order of decisiveness:
-/// 1. `citations` is a non-empty list whose first element is a Map —
-///    conclusive, since 0.42's `citations` holds strings.
-/// 2. `citation_index` is present — conclusive for 0.42 (0.40 has no
-///    such field).
-/// 3. Any of `qa_history`, `documents`, `reports` is present —
-///    0.40-exclusive fields (removed in 0.42). Covers cases where
-///    `citations` is empty/absent.
-/// 4. Default to 0.42 (the target schema).
-bool _isV040(Map<String, dynamic> json) {
-  final citations = json['citations'];
-  if (citations is List && citations.isNotEmpty && citations.first is Map) {
-    return true;
-  }
-  if (json.containsKey('citation_index')) return false;
-  if (json.containsKey('qa_history') ||
-      json.containsKey('documents') ||
-      json.containsKey('reports')) {
-    return true;
-  }
-  return false;
-}
-
-/// [RagSnapshot] backed by the haiku.rag 0.40 wire shape.
-///
-/// The snapshot deliberately consumes only `citations` (as a list of
-/// inline [Citation] objects). Other 0.40 fields are accessible via
-/// `RagV040.fromJson` in `rag_v040.dart`.
-class RagV040Snapshot implements RagSnapshot {
-  RagV040Snapshot._(this._byId, this._pictures);
-
-  /// Parses inline Citations from 0.40-shaped JSON. Malformed entries
-  /// (non-Map or invalid Citation payloads) are logged and skipped so
-  /// that one bad entry does not take down an otherwise-valid snapshot.
-  factory RagV040Snapshot.fromJson(Map<String, dynamic> json) {
-    final raw = json['citations'];
-    final byId = <String, Citation>{};
-    if (raw is List) {
-      for (var i = 0; i < raw.length; i++) {
-        final entry = raw[i];
-        if (entry is! Map<String, dynamic>) {
-          _logger.warning(
-            'RagV040Snapshot: skipping non-Map citations[$i] '
-            '(runtimeType=${entry.runtimeType}).',
-          );
-          continue;
-        }
-        try {
-          final citation = Citation.fromJson(entry);
-          byId[citation.chunkId] = citation;
-        } on Object catch (error, stackTrace) {
-          _logger.warning(
-            'RagV040Snapshot: failed to parse citations[$i] as Citation; '
-            'present keys: ${entry.keys.toList()}.',
-            error: error,
-            stackTrace: stackTrace,
-          );
-        }
-      }
-    }
-    return RagV040Snapshot._(byId, _indexPictures(json));
-  }
-
-  final Map<String, Citation> _byId;
-  final _PictureIndex _pictures;
-
-  @override
-  List<String> get citationIds => _byId.keys.toList();
-
-  @override
-  Citation? resolveCitation(String id) => _byId[id];
-
-  @override
-  Uint8List? pictureBytes(String documentId, String ref) =>
-      _decodePicture(_pictures.bytes, documentId, ref);
-
-  @override
-  String? pictureCaption(String documentId, String ref) =>
-      _pictures.captions[_pictureKey(documentId, ref)];
-}
-
-/// [RagSnapshot] backed by the haiku.rag 0.42 wire shape.
-///
-/// Parses `citations` and `citation_index` entry-by-entry rather than
-/// delegating to [Rag.fromJson], which uses hard casts
-/// (`List<String>.from(...)` / `Map<String, Citation>.from(...)`) that
-/// throw on any malformed entry, taking down an otherwise-valid
-/// snapshot. The
-/// snapshot contract is narrow (just `citationIds` + `resolveCitation`),
-/// so a resilient per-entry parse is correct here. Other 0.42 fields
-/// are still reachable via [Rag.fromJson] in `rag.dart`.
-class RagV042Snapshot implements RagSnapshot {
-  RagV042Snapshot._(this._citationIds, this._index, this._pictures);
-
-  /// Parses a 0.42-shaped payload with per-entry resilience: malformed
-  /// entries in `citations` / `citation_index` are logged and skipped.
-  factory RagV042Snapshot.fromJson(Map<String, dynamic> json) {
+  /// Parses a `rag`-namespaced state map, with per-entry resilience:
+  /// malformed entries in `citations` / `citation_index` are logged and
+  /// skipped so one bad entry does not take down the whole snapshot.
+  factory RagSnapshot.fromJson(Map<String, dynamic> json) {
     final ids = <String>[];
     final rawCitations = json['citations'];
     if (rawCitations is List) {
@@ -288,7 +159,7 @@ class RagV042Snapshot implements RagSnapshot {
           ids.add(entry);
         } else {
           _logger.warning(
-            'RagV042Snapshot: skipping non-String citations[$i] '
+            'RagSnapshot: skipping non-String citations[$i] '
             '(runtimeType=${entry.runtimeType}).',
           );
         }
@@ -303,14 +174,14 @@ class RagV042Snapshot implements RagSnapshot {
         final value = entry.value;
         if (key is! String) {
           _logger.warning(
-            'RagV042Snapshot: skipping non-String citation_index key '
+            'RagSnapshot: skipping non-String citation_index key '
             '(runtimeType=${key.runtimeType}).',
           );
           continue;
         }
         if (value is! Map<String, dynamic>) {
           _logger.warning(
-            'RagV042Snapshot: skipping citation_index[$key] with '
+            'RagSnapshot: skipping citation_index[$key] with '
             'non-Map value (runtimeType=${value.runtimeType}).',
           );
           continue;
@@ -319,7 +190,7 @@ class RagV042Snapshot implements RagSnapshot {
           index[key] = Citation.fromJson(value);
         } on Object catch (error, stackTrace) {
           _logger.warning(
-            'RagV042Snapshot: failed to parse citation_index[$key] as '
+            'RagSnapshot: failed to parse citation_index[$key] as '
             'Citation; present keys: ${value.keys.toList()}.',
             error: error,
             stackTrace: stackTrace,
@@ -328,35 +199,38 @@ class RagV042Snapshot implements RagSnapshot {
       }
     }
 
-    return RagV042Snapshot._(ids, index, _indexPictures(json));
+    return RagSnapshot._(ids, index, _indexPictures(json));
   }
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
   final _PictureIndex _pictures;
 
-  @override
+  /// Chunk ids of the citations present in the current state. The backend's
+  /// state lifecycle clears these at each invocation start.
   List<String> get citationIds => _citationIds;
 
-  @override
+  /// Resolves a chunk id to a full [Citation], or null if not present.
   Citation? resolveCitation(String id) => _index[id];
 
-  @override
+  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null
+  /// when the state carries no bytes for it (stage-2 / unknown).
   Uint8List? pictureBytes(String documentId, String ref) =>
       _decodePicture(_pictures.bytes, documentId, ref);
 
-  @override
+  /// Caption text for a directly-retrieved picture ref, or null when the state
+  /// carries none.
   String? pictureCaption(String documentId, String ref) =>
       _pictures.captions[_pictureKey(documentId, ref)];
 }
 
 /// Projects a [RagSnapshot] from the full agent-state map.
 ///
-/// Reads the [`ragStateKey`] slice and dispatches to the
-/// version-aware [RagSnapshot.fromJson]. Returns null when the
-/// namespace is absent or malformed (rather than a sentinel empty
-/// snapshot) so consumers can distinguish "no rag activity yet"
-/// from "rag activity but zero citations."
+/// Reads the [`ragStateKey`] slice and delegates to
+/// [RagSnapshot.fromJson]. Returns null when the namespace is absent or
+/// malformed (rather than a sentinel empty snapshot) so consumers can
+/// distinguish "no rag activity yet" from "rag activity but zero
+/// citations."
 ///
 /// This is the first conformance of the [StateProjection] contract
 /// against existing pre-projection code in `soliplex_client`. The
