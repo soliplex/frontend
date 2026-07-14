@@ -23,6 +23,23 @@ Set<RagDocument> resolveSelectionFromFilter(
   };
 }
 
+/// Whether a hydration result should be applied to the selection store.
+///
+/// Applies only when the resolution is for the still-active thread, the resolved
+/// selection is non-empty, and the user has not already made a selection for
+/// that thread during the async load (local edit wins).
+bool shouldApplyHydratedSelection({
+  required String resolvedThreadId,
+  required String? activeThreadId,
+  required bool resolvedSelectionIsEmpty,
+  required bool currentSelectionIsEmpty,
+}) {
+  if (resolvedThreadId != activeThreadId) return false;
+  if (resolvedSelectionIsEmpty) return false;
+  if (!currentSelectionIsEmpty) return false;
+  return true;
+}
+
 /// Coordinates the two async inputs hydration needs — the room's document
 /// corpus and the thread's stored filter — and resolves the selection once per
 /// thread, whichever arrives last. The corpus is room-scoped; the hydrator is

@@ -853,14 +853,19 @@ class _RoomScreenState extends State<RoomScreen> {
   /// (local edit wins).
   void _applyHydratedSelection(String threadId, Set<RagDocument> selection) {
     if (!mounted) return;
-    if (threadId != widget.threadId) return;
-    if (selection.isEmpty) return;
     final current = _documentSelections.get(
       serverId: _serverId,
       roomId: widget.roomId,
       threadId: threadId,
     );
-    if (current.isNotEmpty) return; // user edited, or already hydrated
+    if (!shouldApplyHydratedSelection(
+      resolvedThreadId: threadId,
+      activeThreadId: widget.threadId,
+      resolvedSelectionIsEmpty: selection.isEmpty,
+      currentSelectionIsEmpty: current.isEmpty,
+    )) {
+      return;
+    }
     setState(() {
       _documentSelections.set(
         serverId: _serverId,

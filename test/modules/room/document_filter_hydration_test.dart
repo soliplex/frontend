@@ -114,4 +114,68 @@ void main() {
       expect(resolved.last.selection.single.id, equals('b'));
     });
   });
+
+  group('shouldApplyHydratedSelection', () {
+    test(
+        'applies for the active thread with a non-empty result and empty store',
+        () {
+      expect(
+        shouldApplyHydratedSelection(
+          resolvedThreadId: 't1',
+          activeThreadId: 't1',
+          resolvedSelectionIsEmpty: false,
+          currentSelectionIsEmpty: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('rejects when the resolution is for a different thread', () {
+      expect(
+        shouldApplyHydratedSelection(
+          resolvedThreadId: 't1',
+          activeThreadId: 't2',
+          resolvedSelectionIsEmpty: false,
+          currentSelectionIsEmpty: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects when no thread is active', () {
+      expect(
+        shouldApplyHydratedSelection(
+          resolvedThreadId: 't1',
+          activeThreadId: null,
+          resolvedSelectionIsEmpty: false,
+          currentSelectionIsEmpty: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects an empty resolved selection', () {
+      expect(
+        shouldApplyHydratedSelection(
+          resolvedThreadId: 't1',
+          activeThreadId: 't1',
+          resolvedSelectionIsEmpty: true,
+          currentSelectionIsEmpty: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects when the user already has a selection (local edit wins)', () {
+      expect(
+        shouldApplyHydratedSelection(
+          resolvedThreadId: 't1',
+          activeThreadId: 't1',
+          resolvedSelectionIsEmpty: false,
+          currentSelectionIsEmpty: false,
+        ),
+        isFalse,
+      );
+    });
+  });
 }
