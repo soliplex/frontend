@@ -22,6 +22,45 @@ String buildDocumentFilter(List<RagDocument> documents) {
   return "id IN (${escaped.map((id) => "'$id'").join(', ')})";
 }
 
+/// Parses the id list out of a WHERE clause produced by [buildDocumentFilter].
+///
+/// Extracts every SQL single-quoted literal in order, unescaping doubled
+/// quotes (`''` -> `'`), which recovers the ids from both shapes the builder
+/// emits (`id = '<id>'` and `id IN ('<id>', ...)`). Any other or empty input
+/// yields `const []`; this never throws, so a malformed stored filter degrades
+/// to "no selection" rather than crashing hydration.
+List<String> parseDocumentFilter(String filter) {
+  final ids = <String>[];
+  var i = 0;
+  while (i < filter.length) {
+    if (filter[i] != "'") {
+      i++;
+      continue;
+    }
+    i++; // consume the opening quote
+    final buffer = StringBuffer();
+    var foundClosingQuote = false;
+    while (i < filter.length) {
+      if (filter[i] == "'") {
+        if (i + 1 < filter.length && filter[i + 1] == "'") {
+          buffer.write("'"); // escaped quote
+          i += 2;
+          continue;
+        }
+        i++; // consume the closing quote
+        foundClosingQuote = true;
+        break;
+      }
+      buffer.write(filter[i]);
+      i++;
+    }
+    if (foundClosingQuote) {
+      ids.add(buffer.toString());
+    }
+  }
+  return ids;
+}
+
 /// Represents a document available for narrowing RAG searches.
 ///
 /// Documents are fetched from a room and can be selected to limit

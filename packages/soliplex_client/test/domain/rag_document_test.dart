@@ -92,5 +92,57 @@ void main() {
         );
       });
     });
+
+    group('parseDocumentFilter', () {
+      test('parses a single-id equality filter', () {
+        expect(parseDocumentFilter("id = 'abc-123'"), equals(['abc-123']));
+      });
+
+      test('parses a multi-id IN filter', () {
+        expect(
+          parseDocumentFilter("id IN ('abc-123', 'def-456')"),
+          equals(['abc-123', 'def-456']),
+        );
+      });
+
+      test('unescapes doubled single quotes', () {
+        expect(parseDocumentFilter("id = 'id''inject'"), equals(["id'inject"]));
+      });
+
+      test('round-trips buildDocumentFilter output', () {
+        const docs = [
+          RagDocument(id: 'abc-123', title: 'A'),
+          RagDocument(id: 'def-456', title: 'B'),
+        ];
+        expect(
+          parseDocumentFilter(buildDocumentFilter(docs)),
+          equals(['abc-123', 'def-456']),
+        );
+      });
+
+      test('returns empty list for empty or unrecognized input', () {
+        expect(parseDocumentFilter(''), isEmpty);
+        expect(parseDocumentFilter('   '), isEmpty);
+        expect(parseDocumentFilter('not a filter'), isEmpty);
+      });
+
+      test('returns empty list for unterminated quote', () {
+        expect(parseDocumentFilter("id = 'abc"), isEmpty);
+      });
+
+      test('returns empty list for lone quote', () {
+        expect(parseDocumentFilter("'"), isEmpty);
+      });
+
+      test('round-trips id containing escaped quote', () {
+        const docs = [
+          RagDocument(id: "a'b", title: 'X'),
+        ];
+        expect(
+          parseDocumentFilter(buildDocumentFilter(docs)),
+          equals(["a'b"]),
+        );
+      });
+    });
   });
 }
