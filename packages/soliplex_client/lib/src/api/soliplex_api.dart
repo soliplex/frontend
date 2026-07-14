@@ -703,6 +703,7 @@ class SoliplexApi {
     final runs =
         rawRuns is Map<String, dynamic> ? rawRuns : const <String, dynamic>{};
     if (runs.isEmpty) return ThreadHistory(messages: const []);
+    final documentFilter = _extractLatestDocumentFilter(runs);
 
     // 2. Walk runs in creation order, collecting:
     //    - completed run ids → fetched in parallel below
@@ -745,7 +746,7 @@ class SoliplexApi {
     }
 
     if (completedRunIds.isEmpty && preFetchDrops.isEmpty) {
-      return ThreadHistory(messages: const []);
+      return ThreadHistory(messages: const [], documentFilter: documentFilter);
     }
 
     // 3. Fetch all run events in parallel (cache handles duplicates)
@@ -821,7 +822,7 @@ class SoliplexApi {
     }
 
     // 5. Replay events to reconstruct history (messages + AG-UI state)
-    return _replayEventsToHistory(eventsPerRun, threadId);
+    return _replayEventsToHistory(eventsPerRun, threadId, documentFilter);
   }
 
   /// Fetches events for a single run, using cache for completed runs.
@@ -916,6 +917,33 @@ class SoliplexApi {
     ];
   }
 
+  /// The `document_filter` from the newest run that carries one in its
+  /// persisted input state. The backend returns runs in ascending creation
+  /// order (`Thread.runs` is `order_by="Run.created"`), and that order is
+  /// preserved through the JSON dict into [runs], so the last entry carrying
+  /// the key is the newest — no dependence on any per-run `created` value.
+  /// Each run stores the complete filter it was sent (the client re-asserts it
+  /// every run; the backend keeps no merged state), so the newest run's value
+  /// IS the current filter — there is nothing to accumulate. An explicit null
+  /// on the newest carrying run means "cleared" and wins over older runs.
+  /// Resilient: malformed entries are skipped. See U3.
+  String? _extractLatestDocumentFilter(Map<String, dynamic> runs) {
+    for (final entry in runs.entries.toList().reversed) {
+      final value = entry.value;
+      if (value is! Map<String, dynamic>) continue;
+      final runInput = value['run_input'];
+      if (runInput is! Map<String, dynamic>) continue;
+      final state = runInput['state'];
+      if (state is! Map<String, dynamic>) continue;
+      final rag = state['rag'];
+      if (rag is! Map<String, dynamic>) continue;
+      if (!rag.containsKey('document_filter')) continue;
+      final filter = rag['document_filter'];
+      return filter is String ? filter : null;
+    }
+    return null;
+  }
+
   /// Replays events to reconstruct thread history (messages + AG-UI state).
   ///
   /// Processes events per-run to properly correlate citations with user
@@ -931,8 +959,11 @@ class SoliplexApi {
             })>
         eventsPerRun,
     String threadId,
+    String? documentFilter,
   ) {
-    if (eventsPerRun.isEmpty) return ThreadHistory(messages: const []);
+    if (eventsPerRun.isEmpty) {
+      return ThreadHistory(messages: const [], documentFilter: documentFilter);
+    }
 
     var conversation = Conversation.empty(threadId: threadId);
     var streaming = const AwaitingText() as StreamingState;
@@ -1114,6 +1145,7 @@ class SoliplexApi {
       aguiState: conversation.aguiState,
       messageStates: messageStates,
       runs: runs,
+      documentFilter: documentFilter,
     );
   }
 

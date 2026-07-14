@@ -4207,6 +4207,198 @@ void main() {
       });
     });
 
+    group('getThreadHistory document filter', () {
+      void stubRun(String runId) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/$runId',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'run_id': runId, 'events': <dynamic>[]});
+      }
+
+      void stubThread(Map<String, dynamic> runs) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => {'runs': runs});
+      }
+
+      test('surfaces the filter from a run input state', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id IN ('a', 'b')"},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, equals("id IN ('a', 'b')"));
+      });
+
+      test('picks the last run in the map (newest)', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'old'"},
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'new'"},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, equals("id = 'new'"));
+      });
+
+      test('newest run (map-last) with no created still wins', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'old'"},
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'new'"},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, equals("id = 'new'"));
+      });
+
+      test('an earlier run with no created does not win', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'stray'"},
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'new'"},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, equals("id = 'new'"));
+      });
+
+      test('explicit null on the newest run wins over an older run', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': "id = 'old'"},
+              },
+            },
+          },
+          'run-2': {
+            'run_id': 'run-2',
+            'created': '2026-01-07T02:00:00.000Z',
+            'finished': '2026-01-07T02:01:00.000Z',
+            'run_input': {
+              'state': {
+                'rag': {'document_filter': null},
+              },
+            },
+          },
+        });
+        stubRun('run-1');
+        stubRun('run-2');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, isNull);
+      });
+
+      test('is null when the newest run has no rag filter', () async {
+        stubThread({
+          'run-1': {
+            'run_id': 'run-1',
+            'created': '2026-01-07T01:00:00.000Z',
+            'finished': '2026-01-07T01:01:00.000Z',
+            'run_input': {'state': <String, dynamic>{}},
+          },
+        });
+        stubRun('run-1');
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.documentFilter, isNull);
+      });
+    });
+
     group('getRun', () {
       test('returns run by ID', () async {
         when(

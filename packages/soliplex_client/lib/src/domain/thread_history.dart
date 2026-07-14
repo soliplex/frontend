@@ -15,6 +15,7 @@ class ThreadHistory {
     Map<String, dynamic> aguiState = const {},
     Map<String, MessageState> messageStates = const {},
     List<RunEventBundle> runs = const [],
+    this.documentFilter,
   })  : messages = List.unmodifiable(messages),
         aguiState = Map.unmodifiable(aguiState),
         messageStates = Map.unmodifiable(messageStates),
@@ -43,6 +44,12 @@ class ThreadHistory {
   /// and citations are still derived from [messages] / [messageStates];
   /// [runs] is an additive surface for execution-tracker replay.
   final List<RunEventBundle> runs;
+
+  /// The document-filter WHERE clause the client last asserted for this thread,
+  /// read from the newest run's `run_input.state.rag.document_filter`. `null`
+  /// when no run carries one. The backend keeps no merged filter state, so this
+  /// (not any state event) is the only record of the thread's active filter.
+  final String? documentFilter;
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.
