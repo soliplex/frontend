@@ -20,6 +20,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnecting,
         Room,
         SourceReferenceFormatting,
+        ThreadHistory,
         buildDocumentFilter;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -37,6 +38,7 @@ import '../thread_anchor_storage.dart';
 import '../thread_read_markers.dart';
 import '../thread_read_tracker.dart';
 import '../unread_boundary.dart';
+import '../document_filter_hydration.dart';
 import '../document_selections.dart';
 import '../pick_file.dart';
 import '../agent_runtime_manager.dart';
@@ -291,6 +293,8 @@ class _RoomScreenState extends State<RoomScreen> {
 
   CancelToken? _filterDocsCancelToken;
 
+  late DocumentFilterHydrator _filterHydrator;
+
   /// Show the filter button only when filtering is enabled and there is
   /// something to filter (or we failed to find out).
   bool get _showDocumentFilter =>
@@ -331,6 +335,7 @@ class _RoomScreenState extends State<RoomScreen> {
         .getDocuments(widget.roomId, cancelToken: token)
         .then((docs) {
       if (!mounted || token != _filterDocsCancelToken) return;
+      _filterHydrator.setCorpus(docs);
       setState(() {
         _hasFilterableDocuments = docs.isNotEmpty;
         _filterDocsLoadFailed = false;
@@ -836,9 +841,36 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  // TODO: If a selected document is deleted server-side before send,
-  // the backend silently returns empty results. Consider reconciling
-  // selections against the fetched document list.
+  /// Feeds the thread's last-run filter to the hydrator on history load.
+  void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
+    if (!_filterEnabled) return;
+    if (threadId != widget.threadId) return; // stale fetch for another thread
+    _filterHydrator.setFilter(threadId, history.documentFilter);
+  }
+
+  /// Seeds the resolved selection — but only if the thread is still active and
+  /// the user hasn't already made a selection for it during the async load
+  /// (local edit wins).
+  void _applyHydratedSelection(String threadId, Set<RagDocument> selection) {
+    if (!mounted) return;
+    if (threadId != widget.threadId) return;
+    if (selection.isEmpty) return;
+    final current = _documentSelections.get(
+      serverId: _serverId,
+      roomId: widget.roomId,
+      threadId: threadId,
+    );
+    if (current.isNotEmpty) return; // user edited, or already hydrated
+    setState(() {
+      _documentSelections.set(
+        serverId: _serverId,
+        roomId: widget.roomId,
+        threadId: threadId,
+        docs: selection,
+      );
+    });
+  }
+
   Map<String, dynamic>? _buildStateOverlay() {
     if (!_filterEnabled) return null;
     final selected = _selectedDocuments;
@@ -858,6 +890,8 @@ class _RoomScreenState extends State<RoomScreen> {
     _serverReadMarkers = widget.serverReadMarkers ?? ServerReadMarkers();
     _userId = widget.serverEntry.auth.currentUserId.value;
     _state = _createRoomState();
+    _filterHydrator =
+        DocumentFilterHydrator(onResolved: _applyHydratedSelection);
     _workdirs = _createWorkdirController();
     _refreshFilterableDocuments();
     _fetchServerRooms();
@@ -963,6 +997,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _threadReadTracker = _createThreadReadTracker();
       _hasFilterableDocuments = false;
       _filterDocsLoadFailed = false;
+      _filterHydrator =
+          DocumentFilterHydrator(onResolved: _applyHydratedSelection);
       _refreshFilterableDocuments();
       _watchRoomRead();
       _markThreadRead(widget.threadId);
@@ -1032,6 +1068,7 @@ class _RoomScreenState extends State<RoomScreen> {
         registry: widget.registry,
         uploadRegistry: widget.uploadRegistry,
         onNavigateToThread: (id) => _navigateToThread(id),
+        onHistoryLoaded: _onThreadHistoryLoaded,
       );
 
   WorkdirController _createWorkdirController() => WorkdirController(

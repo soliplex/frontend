@@ -24,47 +24,49 @@ Set<RagDocument> resolveSelectionFromFilter(
 }
 
 /// Coordinates the two async inputs hydration needs — the room's document
-/// corpus and the thread's stored filter — and resolves the selection exactly
-/// once per thread, whichever input arrives last. The corpus is room-scoped
-/// and survives thread switches; [beginThread] resets the per-thread filter
-/// state so the next thread re-resolves.
+/// corpus and the thread's stored filter — and resolves the selection once per
+/// thread, whichever arrives last. The corpus is room-scoped; the hydrator is
+/// recreated on room change (so there is no cross-room state to invalidate).
+/// [setFilter] carries the thread id so a resolution can be attributed to the
+/// thread it is for, and switching threads re-arms resolution.
 class DocumentFilterHydrator {
   DocumentFilterHydrator({required this.onResolved});
 
-  /// Fired once per thread with the resolved selection. The caller decides
-  /// whether to apply it (e.g. skip if the user already edited the selection).
-  final void Function(Set<RagDocument> selection) onResolved;
+  /// Fired once per thread with the thread id and its resolved selection. The
+  /// caller applies it only if that thread is still active and the user has not
+  /// edited the selection (local edit wins).
+  final void Function(String threadId, Set<RagDocument> selection) onResolved;
 
   Map<String, RagDocument> _corpusById = const {};
   bool _hasCorpus = false;
+  String? _threadId;
   String? _filter;
   bool _hasFilter = false;
   bool _resolved = false;
 
-  /// Room-scoped corpus; survives [beginThread].
+  /// Room-scoped corpus.
   void setCorpus(List<RagDocument> corpus) {
     _corpusById = {for (final doc in corpus) doc.id: doc};
     _hasCorpus = true;
     _tryResolve();
   }
 
-  /// Resets per-thread filter state on thread (re)open; keeps the corpus.
-  void beginThread() {
-    _filter = null;
-    _hasFilter = false;
-    _resolved = false;
-  }
-
-  /// The thread's last-run filter (may be null = unfiltered).
-  void setFilter(String? filter) {
+  /// The thread's last-run filter (may be null = unfiltered). Switching to a new
+  /// thread re-arms resolution for it.
+  void setFilter(String threadId, String? filter) {
+    if (threadId != _threadId) {
+      _threadId = threadId;
+      _resolved = false;
+    }
     _filter = filter;
     _hasFilter = true;
     _tryResolve();
   }
 
   void _tryResolve() {
-    if (_resolved || !_hasCorpus || !_hasFilter) return;
+    final threadId = _threadId;
+    if (_resolved || !_hasCorpus || !_hasFilter || threadId == null) return;
     _resolved = true;
-    onResolved(resolveSelectionFromFilter(_filter, _corpusById));
+    onResolved(threadId, resolveSelectionFromFilter(_filter, _corpusById));
   }
 }

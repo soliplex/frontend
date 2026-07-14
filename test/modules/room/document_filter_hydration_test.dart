@@ -41,61 +41,77 @@ void main() {
     ];
 
     test('resolves once when corpus arrives before filter', () {
-      final resolved = <Set<RagDocument>>[];
-      DocumentFilterHydrator(onResolved: resolved.add)
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      )
         ..setCorpus(corpus)
-        ..beginThread()
-        ..setFilter("id = 'a'");
+        ..setFilter('t1', "id = 'a'");
       expect(resolved, hasLength(1));
-      expect(resolved.single.single.id, equals('a'));
+      expect(resolved.single.threadId, equals('t1'));
+      expect(resolved.single.selection.single.id, equals('a'));
     });
 
     test('resolves when filter arrives before corpus', () {
-      final resolved = <Set<RagDocument>>[];
-      DocumentFilterHydrator(onResolved: resolved.add)
-        ..beginThread()
-        ..setFilter("id = 'b'")
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      )
+        ..setFilter('t1', "id = 'b'")
         ..setCorpus(corpus);
-      expect(resolved.single.single.id, equals('b'));
+      expect(resolved.single.threadId, equals('t1'));
+      expect(resolved.single.selection.single.id, equals('b'));
     });
 
-    test('does not resolve with only one input', () {
-      final resolved = <Set<RagDocument>>[];
-      DocumentFilterHydrator(onResolved: resolved.add).setCorpus(corpus);
+    test('does not resolve with only corpus (no filter)', () {
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      ).setCorpus(corpus);
+      expect(resolved, isEmpty);
+    });
+
+    test('does not resolve with only filter (no corpus)', () {
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      ).setFilter('t1', "id = 'a'");
       expect(resolved, isEmpty);
     });
 
     test('resolves a null filter to an empty selection', () {
-      final resolved = <Set<RagDocument>>[];
-      DocumentFilterHydrator(onResolved: resolved.add)
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      )
         ..setCorpus(corpus)
-        ..beginThread()
-        ..setFilter(null);
+        ..setFilter('t1', null);
       expect(resolved, hasLength(1));
-      expect(resolved.single, isEmpty);
+      expect(resolved.single.selection, isEmpty);
     });
 
-    test('resolves only once even if the filter is set twice', () {
-      final resolved = <Set<RagDocument>>[];
-      DocumentFilterHydrator(onResolved: resolved.add)
+    test('resolves only once for the same thread', () {
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      )
         ..setCorpus(corpus)
-        ..beginThread()
-        ..setFilter("id = 'a'")
-        ..setFilter("id = 'b'");
+        ..setFilter('t1', "id = 'a'")
+        ..setFilter('t1', "id = 'b'");
       expect(resolved, hasLength(1));
     });
 
-    test('beginThread lets a new thread resolve with the retained corpus', () {
-      final resolved = <Set<RagDocument>>[];
-      final hydrator = DocumentFilterHydrator(onResolved: resolved.add)
+    test('switching thread re-resolves with the retained corpus', () {
+      final resolved = <({String threadId, Set<RagDocument> selection})>[];
+      DocumentFilterHydrator(
+        onResolved: (t, s) => resolved.add((threadId: t, selection: s)),
+      )
         ..setCorpus(corpus)
-        ..beginThread()
-        ..setFilter("id = 'a'");
-      hydrator
-        ..beginThread()
-        ..setFilter("id = 'b'");
+        ..setFilter('t1', "id = 'a'")
+        ..setFilter('t2', "id = 'b'");
       expect(resolved, hasLength(2));
-      expect(resolved.last.single.id, equals('b'));
+      expect(resolved.last.threadId, equals('t2'));
+      expect(resolved.last.selection.single.id, equals('b'));
     });
   });
 }
