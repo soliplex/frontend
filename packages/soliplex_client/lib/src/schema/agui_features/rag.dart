@@ -11,102 +11,7 @@
 // ignore_for_file: inference_failure_on_untyped_parameter
 // ignore_for_file: inference_failure_on_collection_literal
 
-import 'package:soliplex_client/src/errors/exceptions.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
-
-final _logger = LogManager.instance.getLogger('soliplex_client.rag');
-
-/// A required string field: throws [MalformedResponseException] when absent
-/// or not a string, so the caller can drop just this entry (its siblings are
-/// parsed independently) instead of the whole batch.
-String _requiredString(dynamic value, String field) {
-  if (value is String) return value;
-  throw MalformedResponseException(
-    message: 'Citation field "$field" must be a string, '
-        'got ${value.runtimeType}',
-  );
-}
-
-void _logDropped(String message) => _logger.warning(message);
-
-/// An optional string field: a present-but-wrong-typed value degrades to null
-/// (logged) rather than throwing, so one malformed field never takes down the
-/// rest of the object. An absent field is normal and silent.
-String? _stringOrNull(dynamic value, String field) {
-  if (value == null || value is String) return value as String?;
-  _logDropped('Citation field "$field": expected string, '
-      'got ${value.runtimeType}; dropped.');
-  return null;
-}
-
-/// An optional int field: a present-but-wrong-typed value degrades to null
-/// (logged). An absent field is normal and silent.
-int? _intOrNull(dynamic value, String field) {
-  if (value == null || value is int) return value as int?;
-  _logDropped('Citation field "$field": expected int, '
-      'got ${value.runtimeType}; dropped.');
-  return null;
-}
-
-/// An optional list-of-strings field: a present-but-non-list degrades to empty
-/// and any non-string element is dropped, isolating malformed input to this
-/// field. Both cases are logged; an absent field is normal and silent.
-List<String> _stringList(dynamic value, String field) {
-  if (value == null) return const [];
-  if (value is! List) {
-    _logDropped('Citation field "$field": expected list, '
-        'got ${value.runtimeType}; using empty.');
-    return const [];
-  }
-  final result = value.whereType<String>().toList();
-  if (result.length != value.length) {
-    _logDropped('Citation field "$field": dropped '
-        '${value.length - result.length} non-string element(s).');
-  }
-  return result;
-}
-
-/// An optional list-of-ints field: a present-but-non-list degrades to empty and
-/// any non-int element is dropped. Both cases are logged; an absent field is
-/// normal and silent.
-List<int> _intList(dynamic value, String field) {
-  if (value == null) return const [];
-  if (value is! List) {
-    _logDropped('Citation field "$field": expected list, '
-        'got ${value.runtimeType}; using empty.');
-    return const [];
-  }
-  final result = value.whereType<int>().toList();
-  if (result.length != value.length) {
-    _logDropped('Citation field "$field": dropped '
-        '${value.length - result.length} non-int element(s).');
-  }
-  return result;
-}
-
-/// Reads a raw JSON value into a string→string map, dropping (and logging) any
-/// non-string key or value. The single interpreter for `image_data` and
-/// `picture_captions`, which share this wire shape, so both read identically.
-/// An absent field is normal and silent.
-Map<String, String> _parseStringMap(Object? raw, String field) {
-  if (raw is! Map) {
-    if (raw != null) {
-      _logDropped('SearchResult field "$field": expected map, '
-          'got ${raw.runtimeType}; using empty.');
-    }
-    return const {};
-  }
-  final out = <String, String>{};
-  raw.forEach((key, value) {
-    if (key is String && value is String) out[key] = value;
-  });
-  final dropped = raw.length - out.length;
-  if (dropped != 0) {
-    _logDropped('SearchResult field "$field": dropped $dropped '
-        'non-string entr${dropped == 1 ? 'y' : 'ies'}.');
-  }
-  return out;
-}
+import 'package:soliplex_client/src/utils/parse_utils.dart';
 
 ///Resolved citation with full metadata for display/visual grounding.
 ///
@@ -140,17 +45,17 @@ class Citation {
   });
 
   factory Citation.fromJson(Map<String, dynamic> json) => Citation(
-        chunkId: _requiredString(json["chunk_id"], "chunk_id"),
-        chunkIds: _stringList(json["chunk_ids"], "chunk_ids"),
-        content: _requiredString(json["content"], "content"),
-        docItemRefs: _stringList(json["doc_item_refs"], "doc_item_refs"),
-        documentId: _requiredString(json["document_id"], "document_id"),
-        documentTitle: _stringOrNull(json["document_title"], "document_title"),
-        documentUri: _requiredString(json["document_uri"], "document_uri"),
-        headings: _stringList(json["headings"], "headings"),
-        index: _intOrNull(json["index"], "index"),
-        pageNumbers: _intList(json["page_numbers"], "page_numbers"),
-        pictureRefs: _stringList(json["picture_refs"], "picture_refs"),
+        chunkId: requireString(json["chunk_id"], "chunk_id"),
+        chunkIds: stringList(json["chunk_ids"], "chunk_ids"),
+        content: requireString(json["content"], "content"),
+        docItemRefs: stringList(json["doc_item_refs"], "doc_item_refs"),
+        documentId: requireString(json["document_id"], "document_id"),
+        documentTitle: stringOrNull(json["document_title"], "document_title"),
+        documentUri: requireString(json["document_uri"], "document_uri"),
+        headings: stringList(json["headings"], "headings"),
+        index: intOrNull(json["index"], "index"),
+        pageNumbers: intList(json["page_numbers"], "page_numbers"),
+        pictureRefs: stringList(json["picture_refs"], "picture_refs"),
       );
 
   Map<String, dynamic> toJson() => {
@@ -224,12 +129,12 @@ class SearchResult {
   });
 
   /// Reads a raw `image_data` JSON value into a picture-ref → base64 map.
-  /// Delegates to [_parseStringMap]; see it for the shared parsing contract.
+  /// Delegates to [stringMap]; see it for the shared parsing contract.
   static Map<String, String> parseImageData(Object? raw) =>
-      _parseStringMap(raw, 'image_data');
+      stringMap(raw, 'image_data');
 
   /// Reads a raw `picture_captions` JSON value into a picture-ref → caption
-  /// map. Delegates to [_parseStringMap].
+  /// map. Delegates to [stringMap].
   static Map<String, String> parsePictureCaptions(Object? raw) =>
-      _parseStringMap(raw, 'picture_captions');
+      stringMap(raw, 'picture_captions');
 }

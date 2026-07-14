@@ -13,6 +13,7 @@ import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
+import 'package:soliplex_client/src/utils/parse_utils.dart';
 
 // ============================================================
 // Timestamp helpers
@@ -83,9 +84,8 @@ BackendVersionInfo backendVersionInfoFromJson(Map<String, dynamic> json) {
 RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
   final kind = json['kind'] as String? ?? '';
   final id = _requireString(json, 'id', 'agent');
-  final aguiFeatureNames = _parseStringList(
-    json['agui_feature_names'] as List<dynamic>?,
-  );
+  final aguiFeatureNames =
+      stringList(json['agui_feature_names'], 'agui_feature_names');
 
   // Backend omits kind for default agents; infer from model_name presence
   final effectiveKind =
@@ -131,9 +131,8 @@ RoomTool roomToolFromJson(String name, Map<String, dynamic> json) {
     allowMcp: json['allow_mcp'] as bool? ?? false,
     extraParameters:
         (json['extra_parameters'] as Map<String, dynamic>?) ?? const {},
-    aguiFeatureNames: _parseStringList(
-      json['agui_feature_names'] as List<dynamic>?,
-    ),
+    aguiFeatureNames:
+        stringList(json['agui_feature_names'], 'agui_feature_names'),
   );
 }
 
@@ -204,13 +203,6 @@ DateTime? _tryParseTimestamp(
     );
     return null;
   }
-}
-
-/// Parses a dynamic list into a list of strings,
-/// filtering out non-string items.
-List<String> _parseStringList(List<dynamic>? raw) {
-  if (raw == null) return const [];
-  return raw.whereType<String>().toList();
 }
 
 /// Creates a [Room] from JSON.
@@ -340,9 +332,8 @@ Room roomFromJson(Map<String, dynamic> json) {
     tools: tools,
     mcpClientToolsets: mcpClientToolsets,
     toolDefinitions: toolDefinitions,
-    aguiFeatureNames: _parseStringList(
-      json['agui_feature_names'] as List<dynamic>?,
-    ),
+    aguiFeatureNames:
+        stringList(json['agui_feature_names'], 'agui_feature_names'),
   );
 }
 
