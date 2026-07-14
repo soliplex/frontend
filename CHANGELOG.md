@@ -19,6 +19,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   button.
 - Lobby: an "Unread first" sort option groups a server's rooms into an Unread
   section above a Read section, each ordered by recent activity.
+- Room: the document filter now survives a reload. On thread open the selection
+  is restored from the thread's run history (the last-sent filter), so reopening
+  a thread no longer drops the filter and silently searches the whole corpus. A
+  filtered document that has since been deleted shows as an "Unavailable
+  document" chip and is still applied, so results stay correctly scoped.
 
 ### Changed
 

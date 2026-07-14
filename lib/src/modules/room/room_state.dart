@@ -40,6 +40,7 @@ class RoomState {
     required RunRegistry registry,
     required UploadTrackerRegistry uploadRegistry,
     this.onNavigateToThread,
+    this.onHistoryLoaded,
   })  : _connection = serverEntry.connection,
         _auth = serverEntry.auth,
         _roomId = roomId,
@@ -87,6 +88,11 @@ class RoomState {
   final AgentRuntimeManager _runtimeManager;
   final RunRegistry _registry;
   final void Function(String? threadId)? onNavigateToThread;
+
+  /// Invoked after a thread's history loads, so the host can react to the
+  /// fetched state (e.g. hydrate the document filter). Fires in addition to
+  /// the internal runtime seeding below.
+  final void Function(String threadId, ThreadHistory history)? onHistoryLoaded;
 
   /// Snapshot of the registry's active keys, to detect active→terminal
   /// transitions. Seeded before subscribing so the immediate first emission is
@@ -197,6 +203,7 @@ class RoomState {
           ),
           history,
         );
+        onHistoryLoaded?.call(id, history);
       },
     );
     // Thread switch → force a refresh for the same reasons as room

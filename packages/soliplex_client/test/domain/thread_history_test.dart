@@ -133,6 +133,15 @@ void main() {
 
       expect(history.runs, hasLength(1));
     });
+
+    test('documentFilter defaults to null and carries a provided value', () {
+      expect(ThreadHistory(messages: const []).documentFilter, isNull);
+      expect(
+        ThreadHistory(messages: const [], documentFilter: "id = 'x'")
+            .documentFilter,
+        equals("id = 'x'"),
+      );
+    });
   });
 
   group('RunEventBundle', () {
