@@ -1721,6 +1721,12 @@ class SoliplexApi {
   /// (non-retryable) [MalformedResponseException] instead of a raw `TypeError`
   /// when the field is missing, null, or not a String. [context] names the
   /// calling endpoint in the message.
+  ///
+  /// [MalformedResponseException] (not [FormatException]) is deliberate: these
+  /// are top-level response fields whose absence makes the whole response
+  /// unusable, so the failure is hard rather than skippable. Contrast the
+  /// per-entry `_requireString` in `mappers.dart`, which throws
+  /// [FormatException] so an enclosing loop can skip one malformed entry.
   String _requireString(
     Map<String, dynamic> response,
     String key,

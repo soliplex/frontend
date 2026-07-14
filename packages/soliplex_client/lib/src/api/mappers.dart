@@ -113,6 +113,14 @@ RoomAgent roomAgentFromJson(Map<String, dynamic> json) {
 
 /// Extracts a required string field, throwing [FormatException] if missing
 /// or not a string.
+///
+/// [FormatException] (not MalformedResponseException) is deliberate: these
+/// reads sit inside per-entry parsing that an enclosing fail-soft loop —
+/// `roomFromJson`'s agent parse, `_parseFileList`'s per-row parse — catches on
+/// [FormatException] to skip just the malformed entry. A hard
+/// MalformedResponseException would fail the whole response instead. Contrast
+/// the top-level required-field reads in `SoliplexApi`, which throw
+/// MalformedResponseException by design.
 String _requireString(Map<String, dynamic> json, String field, String context) {
   final value = json[field];
   if (value is! String) {
