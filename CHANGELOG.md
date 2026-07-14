@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.93.0+66] - 2026-07-13
+
 ### Added
 
 - Room: a citation's cited figures now render inline as thumbnails, tapped to
@@ -20,6 +22,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The chat "generating" placeholder and running agent step labels now animate
+  with a light-sweep shimmer instead of static spinners, giving clearer
+  in-progress feedback without a layout shift.
 - Update route for thread-specific file uploads to stay current with
   backend release
   [v0.72.1](https://github.com/soliplex/soliplex/releases/tag/v0.72.1).
