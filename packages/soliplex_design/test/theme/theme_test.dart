@@ -155,8 +155,8 @@ void main() {
       expect(cs.outline, lightSoliplexColors.outline);
       expect(cs.outlineVariant, lightSoliplexColors.outlineVariant);
       // Inverse
-      expect(cs.inverseSurface, lightSoliplexColors.primary);
-      expect(cs.onInverseSurface, lightSoliplexColors.onPrimary);
+      expect(cs.inverseSurface, lightSoliplexColors.foreground);
+      expect(cs.onInverseSurface, lightSoliplexColors.background);
       expect(cs.inversePrimary, lightSoliplexColors.inversePrimary);
     });
 
@@ -180,6 +180,50 @@ void main() {
         (shape! as RoundedRectangleBorder).borderRadius,
         BorderRadius.circular(radii.md),
       );
+    });
+  });
+
+  // Regression: component backgrounds were painted with `onPrimary`, whose
+  // contrast guarantee holds only against `primary`. The shipped palettes hide
+  // it — their `primary` is an inverse neutral, so `onPrimary` lands on a
+  // plausible surface tone by coincidence. A brand that keeps a saturated
+  // primary in dark mode must set `onPrimary` white for its button labels, and
+  // every surface borrowing that slot then rendered white. See issue #418.
+  group('surfaces never borrow onPrimary', () {
+    // A saturated brand primary in dark mode, with the white onPrimary its own
+    // button labels require.
+    final colors = darkSoliplexColors.copyWith(
+      primary: const Color(0xFF0A7AFF),
+      onPrimary: const Color(0xFFFFFFFF),
+    );
+    final theme = soliplexDarkTheme(colors: colors);
+
+    test('app bar, popup menu and expanded tile take surface roles', () {
+      expect(theme.appBarTheme.backgroundColor, colors.background);
+      expect(theme.appBarTheme.foregroundColor, colors.foreground);
+      expect(theme.popupMenuTheme.color, colors.inputBackground);
+      expect(theme.expansionTileTheme.backgroundColor, colors.background);
+    });
+
+    test('inverse surface pair stays neutral', () {
+      expect(theme.colorScheme.inverseSurface, colors.foreground);
+      expect(theme.colorScheme.onInverseSurface, colors.background);
+    });
+
+    test('every painted surface still reads as dark', () {
+      final surfaces = <String, Color?>{
+        'appBar': theme.appBarTheme.backgroundColor,
+        'popupMenu': theme.popupMenuTheme.color,
+        'expansionTile': theme.expansionTileTheme.backgroundColor,
+      };
+
+      for (final MapEntry(key: role, value: color) in surfaces.entries) {
+        expect(
+          ThemeData.estimateBrightnessForColor(color!),
+          Brightness.dark,
+          reason: '$role must not render light in dark mode',
+        );
+      }
     });
   });
 

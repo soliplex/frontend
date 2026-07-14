@@ -76,8 +76,11 @@ ThemeData buildSoliplexThemeData({
     surfaceBright: colors.background,
     outline: colors.outline,
     outlineVariant: colors.outlineVariant,
-    inverseSurface: colors.primary,
-    onInverseSurface: colors.onPrimary,
+    // Inverting the neutral pair gives an opposite-brightness surface whose
+    // foreground is legible by construction, for any brand. Deriving it from
+    // `primary` only works while `primary` is itself an inverse neutral.
+    inverseSurface: colors.foreground,
+    onInverseSurface: colors.background,
     inversePrimary: colors.inversePrimary,
     shadow: const Color(0xFF000000),
     scrim: const Color(0xFF000000),
@@ -93,8 +96,8 @@ ThemeData buildSoliplexThemeData({
     brightness: brightness,
     colorScheme: colorScheme,
     appBarTheme: AppBarTheme(
-      backgroundColor: colors.onPrimary,
-      foregroundColor: colors.primary,
+      backgroundColor: colors.background,
+      foregroundColor: colors.foreground,
       elevation: 0,
       actionsPadding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s2,
@@ -197,7 +200,9 @@ ThemeData buildSoliplexThemeData({
         borderRadius: BorderRadius.circular(radii.md),
       ),
       collapsedBackgroundColor: colors.inputBackground,
-      backgroundColor: colors.onPrimary,
+      // Expanded, the body opens onto the page surface; the collapsed header
+      // keeps the raised container fill.
+      backgroundColor: colors.background,
     ),
     chipTheme: ChipThemeData(
       backgroundColor: colors.inputBackground,
@@ -254,7 +259,10 @@ ThemeData buildSoliplexThemeData({
       ),
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: colors.onPrimary,
+      // `surfaceContainer` — the M3 role for a floating menu. It sits above the
+      // page on the tonal ladder in both brightnesses, so the menu reads as
+      // elevated without an elevation shadow.
+      color: colors.inputBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radii.md),
       ),
