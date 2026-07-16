@@ -8,6 +8,7 @@ import '../core/app_identity.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
 import '../core/shell_config.dart';
+import '../core/status_message_config.dart';
 import '../core/storage_migration.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
@@ -50,6 +51,8 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
+  String maintenanceFilePath = StatusMessageConfig.defaultFilePath,
+  Duration maintenancePollInterval = StatusMessageConfig.defaultPollInterval,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
   final lightTheme = lowerBrandTheme(
@@ -170,6 +173,10 @@ Future<ShellConfig> standard({
     inactivity: InactivityConfig(
       warningDuration: inactivityWarningDuration,
       graceDuration: inactivityGraceDuration,
+    ),
+    maintenance: StatusMessageConfig(
+      filePath: maintenanceFilePath,
+      pollInterval: maintenancePollInterval,
     ),
     modules: [
       DiagnosticsAppModule(

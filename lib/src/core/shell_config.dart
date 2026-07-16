@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'app_module.dart';
 import 'inactivity/inactivity_config.dart';
 import 'router.dart';
+import 'status_message_config.dart';
 
 class ShellConfig {
   final String appName;
@@ -14,6 +15,7 @@ class ShellConfig {
   final String initialRoute;
   final Listenable? refreshListenable;
   final InactivityConfig inactivity;
+  final StatusMessageConfig maintenance;
 
   /// Tears down every module's `onDispose` in reverse registration order.
   ///
@@ -40,6 +42,7 @@ class ShellConfig {
     required List<GoRouterRedirect> redirects,
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
+    this.maintenance = const StatusMessageConfig(),
     this.dispose,
   })  : _routes = routes,
         _overrides = overrides,
@@ -68,6 +71,7 @@ class ShellConfig {
     String initialRoute = '/',
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
+    StatusMessageConfig maintenance = const StatusMessageConfig(),
   }) async {
     final coordinator = _AppModuleCoordinator(modules);
     return ShellConfig._internal(
@@ -81,6 +85,7 @@ class ShellConfig {
       redirects: coordinator.redirects,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
+      maintenance: maintenance,
       dispose: coordinator.disposeAll,
     );
   }
