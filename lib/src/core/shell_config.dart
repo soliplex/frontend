@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import 'app_module.dart';
 import 'inactivity/inactivity_config.dart';
@@ -69,6 +70,14 @@ class ShellConfig {
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
   }) async {
+    if (lightTheme.extension<SoliplexTheme>() == null ||
+        (darkTheme != null && darkTheme.extension<SoliplexTheme>() == null)) {
+      throw StateError(
+        'ThemeData passed to ShellConfig.fromModules is missing the SoliplexTheme '
+        'extension. Build it with buildSoliplexThemeData(...), not a bare '
+        'ThemeData(...).',
+      );
+    }
     final coordinator = _AppModuleCoordinator(modules);
     return ShellConfig._internal(
       appName: appName,
