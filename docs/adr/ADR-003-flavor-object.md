@@ -252,8 +252,8 @@ construction, failing even earlier with the same message. Deferred until the
 - Two blessed ways to reach `ShellConfig` during the transition (direct
   `fromModules`, and `Flavor.build()`); mitigated by §3.5's "new capability
   lands on `Flavor`" rule.
-- `docs/authoring-a-flavor.md` and the barrels need a follow-up edit once
-  accepted (kept out of the sketch to avoid churning #426's content).
+- `docs/authoring-a-flavor.md` is rewritten around the new API in this
+  change; the CHANGELOG entry follows acceptance.
 
 ---
 
