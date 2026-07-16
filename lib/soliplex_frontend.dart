@@ -28,6 +28,7 @@ export 'package:soliplex_design/soliplex_design.dart'
         soliplexTextTheme;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 export 'src/core/app_identity.dart' show AppIdentity, BrandLogo;
+export 'src/core/flavor.dart' show Flavor, FlavorTheme;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
 export 'src/core/shell.dart' show runSoliplexShell;
 export 'src/core/shell_config.dart' show ShellConfig;
