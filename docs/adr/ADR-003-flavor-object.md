@@ -245,6 +245,11 @@ construction, failing even earlier with the same message. Deferred until the
   a single owner; `themeMode` rejoins the theme.
 - ADR-002's amended boundary is written down (§1.3) instead of implicit in a
   PR diff.
+- The `src/composition/` / `src/flavors/` split (§1.2 #6) collapses:
+  `buildStandardModules` moves beside `standard.dart` as the standard flavor's
+  two files — the module-graph kit and its assembly, kept separate by the same
+  altitude argument that rejects folding them (§8). The barrel's grab-bag shape
+  (the other half of §1.2 #6) stands until `Flavor` becomes the headline export.
 
 **Negative / cost**
 

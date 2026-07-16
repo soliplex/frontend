@@ -8,7 +8,7 @@ import '../core/shell_config.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/callback_params.dart';
-import '../composition/standard_modules.dart';
+import 'standard_modules.dart';
 
 /// Builds the standard [Flavor]: the full module set on shared session
 /// state, ready to [Flavor.build] — or to compose first.

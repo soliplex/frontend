@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart'; // AppIdentity
-import 'package:soliplex_frontend/src/composition/standard_modules.dart';
+import 'package:soliplex_frontend/src/flavors/standard_modules.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
 import 'package:soliplex_frontend/src/modules/room/room_module.dart';
