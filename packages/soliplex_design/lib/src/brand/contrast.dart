@@ -20,7 +20,7 @@ const double minContrast = 4.5;
 const double minMutedContrast = 3;
 
 final Logger _contrastLog =
-    LogManager.instance.getLogger('soliplex_design.contrast');
+    LogManager.instance.getLogger('soliplex_design.BrandTheme');
 
 /// Warns for each foreground/background pair below its contrast floor. Runs for
 /// every theme built via `buildSoliplexThemeData`, so both the curated and the
