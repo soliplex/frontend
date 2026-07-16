@@ -8,6 +8,32 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Flavor authoring: `buildStandardModules` builds the standard module graph and
+  its shared session state, so a fork can author its own flavor — with full
+  theme and module control — using only a `soliplex_frontend` dependency.
+  `standard()` is now a thin wrapper over it. See `docs/authoring-a-flavor.md`.
+- The flavor-authoring surface is reachable from the `soliplex_frontend`
+  barrels: the full-control theme types (`SoliplexColors`,
+  `buildSoliplexThemeData`, `lightSoliplexColors`, `darkSoliplexColors`,
+  `SoliplexRadii`, `soliplexTextTheme`) and the kit (`buildStandardModules`,
+  `StandardModules`), so a fork needs no direct `soliplex_design` dependency.
+- `buildStandardModules` surfaces `enableDocumentFilter` (default on) as a
+  flavor knob.
+
+### Changed
+
+- `buildSoliplexThemeData` now runs the contrast check on every theme it builds
+  — both the curated `BrandTheme` path and a fork's direct full-color path —
+  logging a warning for a low-contrast foreground/background pair rather than
+  silently shipping an illegible pairing.
+- `ShellConfig.fromModules` now fails fast, throwing a clear `StateError` at
+  boot when a supplied `ThemeData` is missing the required `SoliplexTheme`
+  extension (for example a bare `ThemeData()` instead of
+  `buildSoliplexThemeData(...)`), replacing a deep crash in the first branded
+  widget rendered.
+
 ## [0.93.1+67] - 2026-07-14
 
 ### Added
