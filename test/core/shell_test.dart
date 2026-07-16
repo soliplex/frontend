@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/core/app_module.dart';
 import 'package:soliplex_frontend/src/core/shell.dart';
 import 'package:soliplex_frontend/src/core/shell_config.dart';
@@ -10,6 +11,11 @@ import 'package:soliplex_frontend/src/core/shell_config.dart';
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
+
+ThemeData _testTheme() => buildSoliplexThemeData(
+      colors: lightSoliplexColors,
+      brightness: Brightness.light,
+    );
 
 class _TestModule extends AppModule {
   _TestModule({
@@ -39,7 +45,7 @@ void main() {
     test('throws ArgumentError on invalid config', () async {
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        lightTheme: ThemeData(),
+        lightTheme: _testTheme(),
         modules: [],
       );
 
@@ -54,7 +60,7 @@ void main() {
 
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        lightTheme: ThemeData(),
+        lightTheme: _testTheme(),
         initialRoute: '/check',
         modules: [
           _TestModule(
@@ -91,7 +97,7 @@ void main() {
     testWidgets('first non-null redirect wins', (tester) async {
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        lightTheme: ThemeData(),
+        lightTheme: _testTheme(),
         initialRoute: '/a',
         modules: [
           _TestModule(
@@ -133,7 +139,7 @@ void main() {
       expect(
         () => ShellConfig.fromModules(
           appName: 'Test',
-          lightTheme: ThemeData(),
+          lightTheme: _testTheme(),
           modules: [
             _TestModule(namespace: 'same'),
             _TestModule(namespace: 'same'),
@@ -147,7 +153,7 @@ void main() {
       // Should not throw even though both modules have empty namespace.
       await ShellConfig.fromModules(
         appName: 'Test',
-        lightTheme: ThemeData(),
+        lightTheme: _testTheme(),
         modules: [
           _TestModule(
             routes: [
@@ -164,7 +170,7 @@ void main() {
 
       final config = await ShellConfig.fromModules(
         appName: 'Test',
-        lightTheme: ThemeData(),
+        lightTheme: _testTheme(),
         modules: [
           _LifecycleModule('a', log),
           _LifecycleModule('b', log),
@@ -182,7 +188,7 @@ void main() {
 
         final config = await ShellConfig.fromModules(
           appName: 'Test',
-          lightTheme: ThemeData(),
+          lightTheme: _testTheme(),
           modules: [_LifecycleModule('x', log)],
         );
 
