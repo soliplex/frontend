@@ -17,9 +17,15 @@ export 'package:soliplex_design/soliplex_design.dart'
         ClassificationTheme,
         FontResolver,
         ResolvedFont,
+        SoliplexColors,
+        SoliplexRadii,
         TintSource,
         TypeScaleOverride,
-        lowerBrandTheme;
+        buildSoliplexThemeData,
+        darkSoliplexColors,
+        lightSoliplexColors,
+        lowerBrandTheme,
+        soliplexTextTheme;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 export 'src/core/app_identity.dart' show AppIdentity, BrandLogo;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
