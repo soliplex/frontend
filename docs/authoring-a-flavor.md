@@ -1,21 +1,34 @@
 # Authoring your own flavor
 
 `standard()` is the opinionated default. To customize beyond the curated
-`BrandTheme` — full color control, extra modules — write your own flavor with
-`buildStandardModules`. You need only a `soliplex_frontend` dependency.
+`BrandTheme` — full color control, extra modules — compose your own `Flavor`
+with `standardFlavor()`. You need only a `soliplex_frontend` dependency.
+The design record is `docs/adr/ADR-003-flavor-object.md`.
+
+A `Flavor` is the complete declaration of an app variant — identity, theme,
+modules, boot knobs — as an immutable value. `Flavor.build()` lowers it to
+the boot-ready `ShellConfig`, owning the assembly (identity threading, brand
+lowering, kit-field forwarding) so your flavor never transcribes it.
 
 ## Theme paths
 
-- `standard()` lowers a curated `BrandTheme` via `lowerBrandTheme`, which ends at
-  `buildSoliplexThemeData`.
-- A custom flavor calls `buildSoliplexThemeData` directly with a full
-  `SoliplexColors` — typically `lightSoliplexColors` / `darkSoliplexColors` with
-  the slots you need overridden. Both attach the `SoliplexTheme` extension and
-  run the contrast check; the direct path has no on-color auto-derivation, so you
-  own legibility (a warning fires for low-contrast foreground/background role
+`FlavorTheme` is the theme half of a flavor, one slot wrapping both public
+theming paths (and it carries `themeMode`):
+
+- `FlavorTheme.brand(BrandTheme, ...)` — the curated contract. Lowered via
+  `lowerBrandTheme` when the flavor builds; unset on-colors are derived to
+  clear WCAG AA by construction.
+- `FlavorTheme.themeData(light:, dark:)` — full token control. Build each
+  `ThemeData` with `buildSoliplexThemeData` and a full `SoliplexColors` —
+  typically `lightSoliplexColors` / `darkSoliplexColors` with the slots you
+  need overridden. This path has no on-color auto-derivation, so you own
+  legibility (a warning fires for low-contrast foreground/background role
   pairs — but `link` is contrast-checked only when building through
   `lowerBrandTheme` (from a `BrandTheme`); the direct `buildSoliplexThemeData`
   path never checks `link`, so verify a custom `link` color yourself).
+
+Both paths end at `buildSoliplexThemeData`, which attaches the `SoliplexTheme`
+extension and runs the contrast check.
 
 ## Example
 
@@ -24,13 +37,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/flavors.dart';
 
-Future<ShellConfig> myFlavor() async {
-  final identity = AppIdentity.soliplex; // or your own AppIdentity
-  final standardModules = await buildStandardModules(
-    identity: identity,
-    defaultBackendUrl: 'https://api.mybrand.com',
-  );
-
+Future<Flavor> myFlavor() {
   final light = buildSoliplexThemeData(
       colors: lightSoliplexColors.copyWith(primary: const Color(0xFF0A7AFF)),
       brightness: Brightness.light);
@@ -38,29 +45,43 @@ Future<ShellConfig> myFlavor() async {
       colors: darkSoliplexColors.copyWith(primary: const Color(0xFF0A7AFF)),
       brightness: Brightness.dark);
 
-  return ShellConfig.fromModules(
-    appName: identity.appName,
-    lightTheme: light,
-    darkTheme: dark,
-    themeMode: ThemeMode.system,
-    initialRoute: standardModules.initialRoute,
-    refreshListenable: standardModules.refreshListenable,
-    inactivity: standardModules.inactivity,
-    modules: [
-      ...standardModules.modules,
-      // MyCustomModule(standardModules.serverManager),
-    ],
+  return standardFlavor(
+    identity: AppIdentity.soliplex, // or your own AppIdentity
+    defaultBackendUrl: 'https://api.mybrand.com',
+    theme: FlavorTheme.themeData(light: light, dark: dark),
+    // Custom modules receive the composition kit, so they can share the
+    // standard flavor's session state:
+    // extraModules: (kit) => [MyCustomModule(kit.serverManager)],
   );
 }
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final flavor = await myFlavor();
+  runSoliplexShell(await flavor.build());
+}
 ```
+
+Deriving a variant is a value operation — no re-assembly:
+
+```dart
+final base = await standardFlavor();
+final darkOnly = base.copyWith(
+  theme: FlavorTheme.themeData(light: light, dark: dark, mode: ThemeMode.dark),
+);
+```
+
+For compositions that diverge further than `standardFlavor` allows, drop one
+level: call `buildStandardModules` yourself and construct a `Flavor` from its
+kit (see ADR-003 §3.3).
 
 ## Rules
 
 - Build the theme with `buildSoliplexThemeData` (never a bare `ThemeData`) — the
-  `SoliplexTheme` extension is required and `ShellConfig.fromModules` throws
-  without it.
-- Composition is append-only: add your own modules; do not drop standard ones
-  (Room depends on Lobby, and modules share session state).
+  `SoliplexTheme` extension is required and `Flavor.build()` (via
+  `ShellConfig.fromModules`) throws without it.
+- Composition is append-only: add your own modules via `extraModules`; do not
+  drop standard ones (Room depends on Lobby, and modules share session state).
 - Contrast checks only warn, never block. The warnings go through `LogManager`,
   so attach a log sink in your app's `main()` to see them — with no sink
   attached they drop silently.
