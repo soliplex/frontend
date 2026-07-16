@@ -13,8 +13,9 @@
   the slots you need overridden. Both attach the `SoliplexTheme` extension and
   run the contrast check; the direct path has no on-color auto-derivation, so you
   own legibility (a warning fires for low-contrast foreground/background role
-  pairs — but `link` is contrast-checked only on the curated `standard()` path,
-  so verify a custom `link` color yourself).
+  pairs — but `link` is contrast-checked only when building through
+  `lowerBrandTheme` (from a `BrandTheme`); the direct `buildSoliplexThemeData`
+  path never checks `link`, so verify a custom `link` color yourself).
 
 ## Example
 
@@ -24,7 +25,7 @@ import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/flavors.dart';
 
 Future<ShellConfig> myFlavor() async {
-  const identity = AppIdentity.soliplex; // or your own AppIdentity
+  final identity = AppIdentity.soliplex; // or your own AppIdentity
   final standardModules = await buildStandardModules(
     identity: identity,
     defaultBackendUrl: 'https://api.mybrand.com',
@@ -60,3 +61,6 @@ Future<ShellConfig> myFlavor() async {
   without it.
 - Composition is append-only: add your own modules; do not drop standard ones
   (Room depends on Lobby, and modules share session state).
+- Contrast checks only warn, never block. The warnings go through `LogManager`,
+  so attach a log sink in your app's `main()` to see them — with no sink
+  attached they drop silently.

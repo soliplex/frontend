@@ -15,6 +15,20 @@ void main() {
       );
     });
 
+    test('throws when darkTheme lacks the SoliplexTheme extension', () {
+      final light = buildSoliplexThemeData(
+          colors: lightSoliplexColors, brightness: Brightness.light);
+      expect(
+        ShellConfig.fromModules(
+          modules: const [],
+          appName: 'Test',
+          lightTheme: light,
+          darkTheme: ThemeData(), // bare dark theme, no extension
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('succeeds with a buildSoliplexThemeData theme', () async {
       final theme = buildSoliplexThemeData(
           colors: lightSoliplexColors, brightness: Brightness.light);

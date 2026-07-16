@@ -9,8 +9,8 @@ void main() {
         lightSoliplexColors.copyWith(primary: const Color(0xFF0A7AFF));
     final theme =
         buildSoliplexThemeData(colors: colors, brightness: Brightness.light);
-    // Extension attachment is covered by shell_config_test (Task 2); here we
-    // only verify the flavor-authoring symbols resolve via the barrel.
+    // Extension attachment is covered by shell_config_test; here we only
+    // verify the flavor-authoring symbols resolve via the barrel.
     expect(theme, isA<ThemeData>());
     expect(darkSoliplexColors, isA<SoliplexColors>());
     expect(const SoliplexRadii(sm: 6, md: 12, lg: 16, xl: 24), isNotNull);

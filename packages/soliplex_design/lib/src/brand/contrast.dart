@@ -14,6 +14,8 @@ double contrastRatio(Color a, Color b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/// Minimum WCAG AA contrast for normal text; an explicit pair below it is used
+/// as-is and logged, not altered.
 const double minContrast = 4.5;
 
 /// Contrast floor for de-emphasized (`mutedForeground`) text (WCAG 3:1 UI bar).

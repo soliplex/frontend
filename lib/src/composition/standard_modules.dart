@@ -158,7 +158,7 @@ Future<StandardModules> buildStandardModules({
           : AppRoutes.home);
 
   return (
-    modules: <AppModule>[
+    modules: List<AppModule>.unmodifiable(<AppModule>[
       DiagnosticsAppModule(
         appName: identity.appName,
         logo: brandLogo,
@@ -188,7 +188,7 @@ Future<StandardModules> buildStandardModules({
         logo: brandLogo,
         serverManager: serverManager,
       ),
-    ],
+    ]),
     refreshListenable: authMod.refreshListenable,
     initialRoute: initialRoute,
     inactivity: InactivityConfig(

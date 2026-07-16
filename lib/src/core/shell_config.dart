@@ -70,12 +70,18 @@ class ShellConfig {
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
   }) async {
-    if (lightTheme.extension<SoliplexTheme>() == null ||
-        (darkTheme != null && darkTheme.extension<SoliplexTheme>() == null)) {
+    if (lightTheme.extension<SoliplexTheme>() == null) {
       throw StateError(
-        'ThemeData passed to ShellConfig.fromModules is missing the SoliplexTheme '
-        'extension. Build it with buildSoliplexThemeData(...), not a bare '
-        'ThemeData(...).',
+        'lightTheme passed to ShellConfig.fromModules is missing the '
+        'SoliplexTheme extension. Build it with buildSoliplexThemeData(...), '
+        'not a bare ThemeData(...).',
+      );
+    }
+    if (darkTheme != null && darkTheme.extension<SoliplexTheme>() == null) {
+      throw StateError(
+        'darkTheme passed to ShellConfig.fromModules is missing the '
+        'SoliplexTheme extension. Build it with buildSoliplexThemeData(...), '
+        'not a bare ThemeData(...).',
       );
     }
     final coordinator = _AppModuleCoordinator(modules);
