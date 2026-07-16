@@ -12,56 +12,59 @@ import 'shell_config.dart';
 /// policy travels with the themes it selects between:
 ///
 /// - [FlavorTheme.brand] — the curated [BrandTheme] contract (ADR-002). The
-///   brand is held as-is and lowered when the flavor builds, so constructing
-///   a flavor stays cheap and `const`-friendly.
-/// - [FlavorTheme.themeData] — prebuilt [ThemeData] from
+///   brand is held as-is and lowered when the flavor builds, so this slot
+///   stays cheap to construct and `const`-friendly.
+/// - [FlavorTheme.themeData] — [ThemeData] that must be built with
 ///   `buildSoliplexThemeData`, for a fork taking full token control
-///   (ADR-003 §1.3).
+///   (ADR-003 §1.3). A bare `ThemeData()` compiles but is rejected when the
+///   flavor builds, since it lacks the required [SoliplexTheme] extension.
 class FlavorTheme {
   const FlavorTheme.brand(
-    BrandTheme this.brand, {
-    this.fontResolver = const BundledFontResolver(),
-    this.classifications,
+    BrandTheme this._brand, {
+    FontResolver fontResolver = const BundledFontResolver(),
+    ClassificationTheme? classifications,
     this.mode = ThemeMode.system,
-  })  : _light = null,
+  })  : _fontResolver = fontResolver,
+        _classifications = classifications,
+        _light = null,
         _dark = null;
 
   const FlavorTheme.themeData({
     required ThemeData light,
     ThemeData? dark,
     this.mode = ThemeMode.system,
-  })  : brand = null,
-        fontResolver = null,
-        classifications = null,
+  })  : _brand = null,
+        _fontResolver = const BundledFontResolver(),
+        _classifications = null,
         _light = light,
         _dark = dark;
 
-  final BrandTheme? brand;
-  final FontResolver? fontResolver;
-  final ClassificationTheme? classifications;
+  final BrandTheme? _brand;
   final ThemeMode mode;
+  final FontResolver _fontResolver;
+  final ClassificationTheme? _classifications;
   final ThemeData? _light;
   final ThemeData? _dark;
 
   /// Lowers to the concrete light/dark pair. Brand lowering happens here —
-  /// once, at build time — so flavors can be composed and copied freely
-  /// without paying for it, and both brightnesses are guaranteed to lower
-  /// with the same resolver and classifications.
-  ({ThemeData light, ThemeData? dark}) resolve() {
-    final brand = this.brand;
+  /// once, at build time — so flavors can be composed freely without paying
+  /// for it, and both brightnesses are guaranteed to lower with the same
+  /// resolver and classifications.
+  ({ThemeData light, ThemeData? dark}) _resolve() {
+    final brand = _brand;
     if (brand == null) return (light: _light!, dark: _dark);
     return (
       light: lowerBrandTheme(
         brand,
         Brightness.light,
-        fontResolver: fontResolver!,
-        classifications: classifications,
+        fontResolver: _fontResolver,
+        classifications: _classifications,
       ),
       dark: lowerBrandTheme(
         brand,
         Brightness.dark,
-        fontResolver: fontResolver!,
-        classifications: classifications,
+        fontResolver: _fontResolver,
+        classifications: _classifications,
       ),
     );
   }
@@ -69,23 +72,23 @@ class FlavorTheme {
 
 /// The complete declaration of a Soliplex app variant — who it is
 /// ([identity]), how it looks ([theme]), what it does ([modules]), and how
-/// it boots — as a first-class value.
+/// it boots — as a single-use assembly declaration, built once.
 ///
-/// A flavor used to be a calling convention: any `Future<ShellConfig>`
-/// function, each transcribing the same assembly ritual (thread
-/// `identity.appName`, lower the brand twice, forward the composition kit's
-/// fields) with each line failable. [build] owns that ritual in one place;
-/// forks customize by composing a value ([copyWith]) instead of
-/// re-implementing it. See ADR-003.
+/// [build] owns the assembly ritual in one place — thread `identity.appName`,
+/// resolve [theme] to a light/dark pair (lowering the brand when present) and
+/// carry [FlavorTheme.mode], forward the boot knobs
+/// ([initialRoute], [refreshListenable], [inactivity]) and [modules] into the
+/// [ShellConfig] — so a flavor never re-implements each failable line.
+/// Customize by composing with `standardFlavor`. See ADR-003.
 class Flavor {
-  const Flavor({
+  Flavor({
     required this.identity,
     required this.theme,
-    required this.modules,
+    required List<AppModule> modules,
     this.initialRoute = '/',
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
-  });
+  }) : modules = List.unmodifiable(modules);
 
   final AppIdentity identity;
   final FlavorTheme theme;
@@ -96,27 +99,27 @@ class Flavor {
   final Listenable? refreshListenable;
   final InactivityConfig inactivity;
 
-  Flavor copyWith({
-    AppIdentity? identity,
-    FlavorTheme? theme,
-    List<AppModule>? modules,
-    String? initialRoute,
-    Listenable? refreshListenable,
-    InactivityConfig? inactivity,
-  }) =>
-      Flavor(
-        identity: identity ?? this.identity,
-        theme: theme ?? this.theme,
-        modules: modules ?? this.modules,
-        initialRoute: initialRoute ?? this.initialRoute,
-        refreshListenable: refreshListenable ?? this.refreshListenable,
-        inactivity: inactivity ?? this.inactivity,
-      );
+  bool _built = false;
 
-  /// Lowers the declaration to a boot-ready [ShellConfig] — the single place
+  /// Lowers the declaration to a boot-ready [ShellConfig] — the blessed place
   /// identity, theme, and the module graph meet.
-  Future<ShellConfig> build() {
-    final themes = theme.resolve();
+  ///
+  /// The returned config's [ShellConfig.dispose] is the caller's to invoke;
+  /// the shell widget never calls it. Embedders that unmount the shell must
+  /// retain the config and await `dispose` themselves.
+  ///
+  /// Throws [StateError] on a second call: [modules] are live instances, so
+  /// building again would re-run [AppModule.build] on them and hand back a
+  /// second [ShellConfig.dispose] over the same modules.
+  ShellConfig build() {
+    if (_built) {
+      throw StateError(
+        'Flavor.build() was already called. A flavor owns live modules and '
+        'may be built only once; construct a fresh flavor to build again.',
+      );
+    }
+    _built = true;
+    final themes = theme._resolve();
     return ShellConfig.fromModules(
       appName: identity.appName,
       lightTheme: themes.light,

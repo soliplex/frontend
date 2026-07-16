@@ -1,6 +1,7 @@
 import 'dart:math' as math;
+import 'dart:ui' show Brightness;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 
 import 'package:soliplex_design/src/tokens/colors.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -26,9 +27,8 @@ final Logger _contrastLog =
 
 /// Warns for each foreground/background pair below its contrast floor. Runs for
 /// every theme built via `buildSoliplexThemeData`, so both the curated and the
-/// direct (fork) paths are checked. `link` is checked separately in
-/// `lowerBrandTheme` (only when a brand sets it). Colors are used as-is
-/// regardless; warnings drop silently if no LogManager sink is attached.
+/// direct (fork) paths are checked. Colors are used as-is regardless; warnings
+/// drop silently if no LogManager sink is attached.
 void warnLowContrast(SoliplexColors c, Brightness brightness) {
   void check(String role, Color fg, Color bg, {double min = minContrast}) {
     final ratio = contrastRatio(fg, bg);
@@ -51,6 +51,7 @@ void warnLowContrast(SoliplexColors c, Brightness brightness) {
   check('onInfoContainer', c.onInfoContainer, c.infoContainer);
   check('foreground', c.foreground, c.background);
   check('mutedForeground', c.mutedForeground, c.muted, min: minMutedContrast);
+  check('link', c.link, c.background);
 }
 
 // Softest-first foreground cascades. Each side ends in a pure tone whose

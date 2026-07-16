@@ -84,12 +84,13 @@ String _canonicalPath(String path) {
   return normalized;
 }
 
-/// Creates a [GoRouter] from a validated [ShellConfig].
+/// Creates a [GoRouter] from a [ShellConfig].
 ///
 /// All module redirects collapse into a single GoRouter redirect slot —
 /// they are evaluated in module order and the first non-null result wins.
 ///
-/// Expects routes to be non-empty (enforced by [validateRoutes]).
+/// Routes are non-empty and consistent with `initialRoute` by construction:
+/// [ShellConfig.fromModules] rejects configs that fail [validateRoutes].
 GoRouter buildRouter(ShellConfig config) {
   return GoRouter(
     initialLocation: config.initialRoute,

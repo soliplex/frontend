@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
-import 'package:soliplex_frontend/flavors.dart';
 
+/// Pins the public export contract at compile time: if the barrel stops
+/// exporting one of these symbols, this file stops compiling. The runtime
+/// expectations are incidental.
 void main() {
-  test('flavor-authoring surface is reachable via the barrel', () {
+  test('the flavor-authoring surface is reachable via the main barrel', () {
     final colors =
         lightSoliplexColors.copyWith(primary: const Color(0xFF0A7AFF));
-    final theme =
-        buildSoliplexThemeData(colors: colors, brightness: Brightness.light);
-    // Extension attachment is covered by shell_config_test; here we only
-    // verify the flavor-authoring symbols resolve via the barrel.
-    expect(theme, isA<ThemeData>());
+    // Each reference is the pin — a dropped export fails to compile here. The
+    // full-control theme surface a fork needs, and the flavor catalog it builds
+    // on, both resolve through the single `soliplex_frontend` barrel.
+    expect(buildSoliplexThemeData(colors: colors, brightness: Brightness.light),
+        isA<ThemeData>());
     expect(darkSoliplexColors, isA<SoliplexColors>());
     expect(const SoliplexRadii(sm: 6, md: 12, lg: 16, xl: 24), isNotNull);
     expect(soliplexTextTheme(colors), isA<TextTheme>());
-    // Kit symbol is a reachable type reference:
-    expect(buildStandardModules, isA<Function>());
+    expect(standard, isA<Function>());
+    expect(standardFlavor, isA<Function>());
+    expect(buildStandardKit, isA<Function>());
   });
 }

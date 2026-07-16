@@ -18,7 +18,7 @@ class _HomeModule extends AppModule {
 
 void main() {
   testWidgets('app boots and renders home screen', (tester) async {
-    final config = await ShellConfig.fromModules(
+    final config = ShellConfig.fromModules(
       appName: 'Soliplex',
       lightTheme: buildSoliplexThemeData(
         colors: lightSoliplexColors,

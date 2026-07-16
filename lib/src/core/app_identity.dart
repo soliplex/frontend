@@ -14,7 +14,8 @@ class AppIdentity {
     required this.logoLight,
     this.logoDark,
     this.logoGlow,
-  }) : assert(
+  })  : assert(appName != '', 'appName must not be empty.'),
+        assert(
           logoGlow == null || logoDark == null,
           'logoGlow styles the dark-mode glow fallback and is ignored when '
           'logoDark is provided; set one or the other.',
