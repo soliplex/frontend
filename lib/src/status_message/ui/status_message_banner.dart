@@ -49,10 +49,21 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
   Timer? _ticker;
   bool _minimized = false;
 
+  /// Reads the shell-provided config. The banner is self-contained and may be
+  /// dropped into any tree; outside a shell (e.g. a widget test that doesn't
+  /// install the shell scope) there is no provider, so the banner stays inert.
+  StatusMessageConfig _readConfig() {
+    try {
+      return ref.read(statusMessageConfigProvider);
+    } on StateError {
+      return StatusMessageConfig.disabled;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    final config = ref.read(statusMessageConfigProvider);
+    final config = _readConfig();
     final fetcher = widget.fetcher ??
         serverStatusMessageFetcher(
           baseUrl: widget.baseUrl!,
@@ -61,9 +72,11 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
         );
     _controller = StatusMessageController(fetcher: fetcher, config: config)
       ..start();
-    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    if (config.isEnabled) {
+      _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override

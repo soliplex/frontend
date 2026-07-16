@@ -28,6 +28,7 @@ import '../../../core/activity_read.dart' show currentUserRoomMarkers;
 import '../../../core/keyed_storage.dart' show storageUser;
 import '../../../core/util/debouncer.dart';
 import '../../../core/routes.dart';
+import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
 import '../../lobby/lobby_read_markers.dart';
@@ -1573,6 +1574,11 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return Column(
       children: [
+        StatusMessageBanner(
+          key: ValueKey(widget.serverEntry.serverUrl),
+          baseUrl: widget.serverEntry.serverUrl,
+          client: widget.serverEntry.httpClient,
+        ),
         _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
         Expanded(child: _capWidth(body)),
