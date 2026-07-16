@@ -12,16 +12,6 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _log = LogManager.instance.getLogger('soliplex_design.BrandTheme');
 
-/// Minimum WCAG AA contrast for normal text. On-colors a fork leaves unset are
-/// derived to clear this by construction; an explicitly-supplied pair below it
-/// is used as-is and logged as a warning — its legibility is the fork's call.
-const _minContrast = 4.5;
-
-/// Contrast floor for de-emphasized (`mutedForeground`) text. Held to WCAG's
-/// 3:1 large-text/UI bar, not AA 4.5: muted text is intentionally low-emphasis
-/// and the shipped dark pair sits at ~4.19:1 against the muted surface.
-const _minMutedContrast = 3.0;
-
 /// Lowers a public [BrandTheme] onto the internal token system for the given
 /// [brightness], producing a ready `ThemeData`.
 ///
@@ -193,45 +183,23 @@ Color? _tintHue(BrandTint tint, BrandColorScheme brand, Color surface) {
   );
 }
 
-/// Logs a warning for each role whose foreground/background pair falls below
-/// its contrast floor ([_minContrast], or [_minMutedContrast] for muted text).
-/// Derived on-colors clear it by construction, so only a fork's own explicit
-/// choices ever warn. The colors are used as-is regardless.
+/// Warns if a brand-supplied `link` color is below AA against its background.
+/// The other role pairs are checked in `buildSoliplexThemeData` via
+/// `warnLowContrast`; `link` stays here because it fires only when the brand
+/// set it explicitly.
 void _warnLowContrast(
   SoliplexColors c,
   BrandColorScheme brand,
   Brightness brightness,
 ) {
-  void check(
-    String role,
-    Color foreground,
-    Color background, {
-    double min = _minContrast,
-  }) {
-    final ratio = contrastRatio(foreground, background);
-    if (ratio >= min) return;
-    _log.warning(
-      'BrandTheme "$role" contrast is ${ratio.toStringAsFixed(2)}:1 in the '
-      '${brightness.name} palette, below ${min.toStringAsFixed(1)}:1. The '
-      'supplied color is used as-is; verify it is legible.',
-      attributes: {'role': role, 'ratio': ratio, 'brightness': brightness.name},
-    );
-  }
-
-  check('onPrimary', c.onPrimary, c.primary);
-  check('onSecondary', c.onSecondary, c.secondary);
-  check('onTertiary', c.onTertiary, c.tertiary);
-  check('onError', c.onDestructive, c.destructive);
-  check('onErrorContainer', c.onErrorContainer, c.errorContainer);
-  check('onSuccessContainer', c.onSuccessContainer, c.successContainer);
-  check('onWarningContainer', c.onWarningContainer, c.warningContainer);
-  check('onInfoContainer', c.onInfoContainer, c.infoContainer);
-  check('foreground', c.foreground, c.background);
-  check('mutedForeground', c.mutedForeground, c.muted, min: _minMutedContrast);
-
-  // [link] has no on-color — it is foreground drawn on the background — and is
-  // checked only when the fork set it. An unset link keeps the base default,
-  // whose legibility against a fork's own [background] override is the fork's
-  // concern, not a role it chose.
-  if (brand.link != null) check('link', c.link, c.background);
+  if (brand.link == null) return;
+  final ratio = contrastRatio(c.link, c.background);
+  if (ratio >= minContrast) return;
+  _log.warning(
+    'BrandTheme "link" contrast is ${ratio.toStringAsFixed(2)}:1 in the '
+    '${brightness.name} palette, below '
+    '${minContrast.toStringAsFixed(1)}:1. The supplied color is used as-is; '
+    'verify it is legible.',
+    attributes: {'role': 'link', 'ratio': ratio, 'brightness': brightness.name},
+  );
 }
