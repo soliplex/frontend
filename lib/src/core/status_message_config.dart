@@ -13,7 +13,7 @@ class StatusMessageConfig {
     this.pollInterval = defaultPollInterval,
   });
 
-  static const String defaultFilePath = '/maintenance.json';
+  static const String defaultFilePath = '/messages/status.json';
   static const Duration defaultPollInterval = Duration(minutes: 5);
   static const StatusMessageConfig disabled =
       StatusMessageConfig(pollInterval: Duration.zero);

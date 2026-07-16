@@ -8,6 +8,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- Room and lobby: a per-server status banner, chiefly an upcoming-maintenance
+  warning with a live countdown, that operators post or cancel by dropping or
+  deleting a static JSON file on the backend — no app rebuild. It is scoped to
+  the in-context server, minimizes to a thin strip (never fully dismissible),
+  and auto-hides once a maintenance window ends. A missing file or fetch error
+  resolves silently to "no message". The file location and poll interval are
+  flavor-configurable.
+
 ## [0.93.1+67] - 2026-07-14
 
 ### Added
