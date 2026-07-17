@@ -17,17 +17,9 @@ import 'status_message_config.dart';
 
 /// Boots the Soliplex shell from a [ShellConfig].
 ///
-/// Validates routes before calling [runApp]. Throws [ArgumentError] if the
-/// route configuration is invalid (e.g. duplicate paths).
-///
 /// Uses [UniqueKey] so that hot restart (which re-runs main) creates a fresh
 /// widget tree. Hot reload does not re-run main, so this is safe.
 void runSoliplexShell(ShellConfig config) {
-  final errors = config.validate();
-  if (errors.isNotEmpty) {
-    throw ArgumentError('Invalid route configuration:\n${errors.join('\n')}');
-  }
-
   _clearFilePickerTempCacheOnMobile();
   runApp(SoliplexShell(key: UniqueKey(), config: config));
 }

@@ -5,6 +5,7 @@
 - **Authors:** Jaemin Jo
 - **Supersedes:** —
 - **Superseded by:** —
+- **Amended by:** ADR-003 §1.3 (barrel boundary; link contrast policy)
 
 ---
 
@@ -298,11 +299,18 @@ sees is stable even if the internal palette is refactored.
 `lowerBrandTheme` fills any unspecified `on*` color with `readableOn(...)`, then
 **logs a warning** for any pair below its floor: **4.5:1** (AA) for the `on*`
 pairs and body `foreground`/`background`, **3:1** for de-emphasized
-`mutedForeground`/`muted`. `link` (no on-color) is checked against `background`,
-and only when the brand sets it — so overriding `background` alone can't fault an
-untouched link. The warning fires in **all build modes** but the color is used
-as-is — a diagnostic, not a gate. So it fires only for hand-built pairs; the
-exact checked set, and what is deliberately *not* checked, is in §5.2.
+`mutedForeground`/`muted`. `link` (no on-color) is checked against `background`.
+The warning fires in **all build modes** but the color is used as-is — a
+diagnostic, not a gate. The exact checked set, and what is deliberately *not*
+checked, is in §5.2.
+
+> **Amended (PR #430):** the `link` check now runs on the *resolved* link — the
+> Soliplex default when a fork leaves it unset — so overriding `background` alone
+> can now fault an otherwise-untouched link, reversing the original "checked only
+> when the brand sets `link`" policy. Rationale: contrast is a property of the
+> rendered pair and a fork authors half of it (the `background`), so a default
+> link over a custom background can still be illegible and should warn. Recorded
+> per ADR-003 §1.3.
 
 **`readableOn` is a softest-first cascade.** Instead of pure black/white it
 prefers a soft **near-black `#212427`** (or **near-white `#FAFAFA`**), stepping
@@ -404,8 +412,9 @@ These are real and intentional, but a fork author must know them. Listed worst-f
    partial.** It validates the `primary`/`secondary`/`tertiary` pairs, the
    `error` pair, the four status-container pairs, body `foreground`/`background`,
    and `mutedForeground`/`muted` (at the 3:1 floor), plus `link` against
-   `background` (only when the brand sets `link`). It is logged in **all build
-   modes**, but the supplied color is always used as-is — it never blocks a build.
+   `background` (on the resolved link, including the Soliplex default when a fork
+   leaves it unset — amended, see §3.9). It is logged in **all build modes**, but
+   the supplied color is always used as-is — it never blocks a build.
    By design it does **not** check the `danger`/`success`/`warning`/`info`
    *signal* colors: they tint iconography on whatever surface a call site picks,
    so there is no single background to validate against, and checking against

@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/soliplex_frontend.dart';
-import 'package:soliplex_frontend/flavors.dart';
 import 'package:soliplex_frontend/src/core/log_sinks.dart';
 
 Future<void> main() async {

@@ -684,8 +684,7 @@ void main() {
     });
   });
 
-  group('lowerBrandTheme contrast warning scopes link and covers foreground',
-      () {
+  group('lowerBrandTheme contrast warning covers link and foreground', () {
     BrandTheme badLight(BrandColorScheme Function(BrandColorScheme) edit) =>
         BrandTheme(
           light: edit(const BrandTheme.soliplex().light),
@@ -700,16 +699,15 @@ void main() {
       expect(roleWarnings('link'), hasLength(1));
     });
 
-    test('does not warn on an unset link, even with an off-white background',
-        () {
-      // A fork lightens only the background; the *default* link would be
-      // sub-AA against it, but link is not a role this fork set, so it is not
-      // the fork's responsibility and must not warn.
+    test('warns when a lightened background makes the default link sub-AA', () {
+      // The fork lightens only the background and leaves link to the default.
+      // Contrast is a property of the rendered pair, and the fork authored
+      // half of it, so the illegible result warns like any other role.
       loweredColors(
         badLight((b) => b.copyWith(background: const Color(0xFFEEEEEE))),
         Brightness.light,
       );
-      expect(roleWarnings('link'), isEmpty);
+      expect(roleWarnings('link'), hasLength(1));
     });
 
     test('warns on a sub-threshold foreground / background pair', () {

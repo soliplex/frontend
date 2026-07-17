@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 void main() {
   group('soliplexLightTheme', () {
@@ -299,6 +300,59 @@ void main() {
       expect(
         soliplexDarkTheme().extension<MarkdownThemeExtension>(),
         isNotNull,
+      );
+    });
+  });
+
+  group('buildSoliplexThemeData contrast guardrail', () {
+    late MemorySink logs;
+    setUp(() {
+      logs = MemorySink();
+      LogManager.instance.addSink(logs);
+    });
+    tearDown(LogManager.instance.reset);
+
+    test('warns when an explicit on/fill pair is below AA', () {
+      // onPrimary == primary => contrast 1.0, far below 4.5.
+      final colors = lightSoliplexColors.copyWith(
+        primary: const Color(0xFF0A7AFF),
+        onPrimary: const Color(0xFF0A7AFF),
+      );
+      buildSoliplexThemeData(colors: colors, brightness: Brightness.light);
+      final warnings =
+          logs.records.where((r) => r.level == LogLevel.warning).toList();
+      expect(
+        warnings.any((r) => r.message.contains('onPrimary')),
+        isTrue,
+        reason: 'onPrimary/primary below AA should warn',
+      );
+    });
+
+    test('the shipped palette produces no contrast warnings', () {
+      buildSoliplexThemeData(
+        colors: lightSoliplexColors,
+        brightness: Brightness.light,
+      );
+      buildSoliplexThemeData(
+        colors: darkSoliplexColors,
+        brightness: Brightness.dark,
+      );
+      expect(
+        logs.records.where((r) => r.level == LogLevel.warning),
+        isEmpty,
+      );
+    });
+
+    test('warns on a link below AA against the background', () {
+      final colors = lightSoliplexColors.copyWith(
+        link: lightSoliplexColors.background,
+      );
+      buildSoliplexThemeData(colors: colors, brightness: Brightness.light);
+      expect(
+        logs.records.where(
+          (r) => r.level == LogLevel.warning && r.message.contains('link'),
+        ),
+        hasLength(1),
       );
     });
   });
