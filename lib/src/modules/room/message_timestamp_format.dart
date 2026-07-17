@@ -1,35 +1,13 @@
 // Pure formatting for chat message time captions and day dividers.
 //
 // All inputs are converted to the viewer's local zone before any calendar
-// field is read. `now` is injectable for testing. No `intl` — the 12-hour
-// clock and weekday/month names are built by hand.
+// field is read. `now` is injectable for testing. The 12-hour clock,
+// weekday/month names, and same-day check come from the shared, dependency-free
+// local-time helpers.
+
+import '../../shared/local_time_format.dart';
 
 enum _DayBucket { today, yesterday, weekday, thisYear, older }
-
-const _weekdayNames = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-
-const _monthNames = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
 
 /// Whole calendar days between two local dates, computed DST-immune by flooring
 /// each to a UTC midnight (UTC has no DST, so the diff is always whole days).
@@ -51,22 +29,6 @@ _DayBucket _bucketFor(DateTime localT, DateTime localNow) {
   return localT.year == localNow.year ? _DayBucket.thisYear : _DayBucket.older;
 }
 
-/// 12-hour clock: midnight → `12:xx AM`, noon → `12:xx PM`, minute zero-padded,
-/// hour unpadded.
-String _clock(DateTime local) {
-  final h = local.hour;
-  final hour12 = h % 12 == 0 ? 12 : h % 12;
-  final period = h < 12 ? 'AM' : 'PM';
-  final mm = local.minute.toString().padLeft(2, '0');
-  return '$hour12:$mm $period';
-}
-
-String _weekdayAbbrev(DateTime local) =>
-    _weekdayNames[local.weekday - 1].substring(0, 3);
-
-String _monthAbbrev(DateTime local) =>
-    _monthNames[local.month - 1].substring(0, 3);
-
 /// Muted caption under a message bubble. Today shows just the time (the day
 /// divider carries the day); older buckets stay self-describing.
 ///
@@ -78,14 +40,14 @@ String _monthAbbrev(DateTime local) =>
 String formatMessageCaption(DateTime time, {DateTime? now}) {
   final local = time.toLocal();
   final localNow = (now ?? DateTime.now()).toLocal();
-  final clock = _clock(local);
+  final clock = formatClock12(local);
   return switch (_bucketFor(local, localNow)) {
     _DayBucket.today => clock,
     _DayBucket.yesterday => 'Yesterday · $clock',
-    _DayBucket.weekday => '${_weekdayAbbrev(local)} · $clock',
-    _DayBucket.thisYear => '${_monthAbbrev(local)} ${local.day} · $clock',
+    _DayBucket.weekday => '${weekdayAbbrev(local)} · $clock',
+    _DayBucket.thisYear => '${monthAbbrev(local)} ${local.day} · $clock',
     _DayBucket.older =>
-      '${_monthAbbrev(local)} ${local.day}, ${local.year} · $clock',
+      '${monthAbbrev(local)} ${local.day}, ${local.year} · $clock',
   };
 }
 
@@ -101,8 +63,8 @@ String formatMessageCaption(DateTime time, {DateTime? now}) {
 String formatDayDivider(DateTime time, {DateTime? now}) {
   final local = time.toLocal();
   final localNow = (now ?? DateTime.now()).toLocal();
-  final weekday = _weekdayNames[local.weekday - 1];
-  final month = _monthNames[local.month - 1];
+  final weekday = weekdayNames[local.weekday - 1];
+  final month = monthNames[local.month - 1];
   return switch (_bucketFor(local, localNow)) {
     _DayBucket.today => 'Today',
     _DayBucket.yesterday => 'Yesterday',
@@ -110,12 +72,4 @@ String formatDayDivider(DateTime time, {DateTime? now}) {
     _DayBucket.thisYear => '$month ${local.day}',
     _DayBucket.older => '$month ${local.day}, ${local.year}',
   };
-}
-
-/// Whether [a] and [b] fall on the same local calendar day. Component equality
-/// (no arithmetic), so it is DST-safe. Used for the day-divider boundary.
-bool isSameCalendarDay(DateTime a, DateTime b) {
-  final la = a.toLocal();
-  final lb = b.toLocal();
-  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
 }
