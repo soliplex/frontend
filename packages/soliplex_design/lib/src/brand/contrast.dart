@@ -1,6 +1,10 @@
 import 'dart:math' as math;
+import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
+
+import 'package:soliplex_design/src/tokens/colors.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// WCAG relative-luminance contrast ratio between [a] and [b], in `[1, 21]`.
 double contrastRatio(Color a, Color b) {
@@ -11,7 +15,44 @@ double contrastRatio(Color a, Color b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const double _minContrast = 4.5;
+/// Minimum WCAG AA contrast for normal text; an explicit pair below it is used
+/// as-is and logged, not altered.
+const double minContrast = 4.5;
+
+/// Contrast floor for de-emphasized (`mutedForeground`) text (WCAG 3:1 UI bar).
+const double minMutedContrast = 3;
+
+final Logger _contrastLog =
+    LogManager.instance.getLogger('soliplex_design.BrandTheme');
+
+/// Warns for each foreground/background pair below its contrast floor. Runs for
+/// every theme built via `buildSoliplexThemeData`, so both the curated and the
+/// direct (fork) paths are checked. Colors are used as-is regardless; warnings
+/// drop silently if no LogManager sink is attached.
+void warnLowContrast(SoliplexColors c, Brightness brightness) {
+  void check(String role, Color fg, Color bg, {double min = minContrast}) {
+    final ratio = contrastRatio(fg, bg);
+    if (ratio >= min) return;
+    _contrastLog.warning(
+      'BrandTheme "$role" contrast is ${ratio.toStringAsFixed(2)}:1 in the '
+      '${brightness.name} palette, below ${min.toStringAsFixed(1)}:1. The '
+      'supplied color is used as-is; verify it is legible.',
+      attributes: {'role': role, 'ratio': ratio, 'brightness': brightness.name},
+    );
+  }
+
+  check('onPrimary', c.onPrimary, c.primary);
+  check('onSecondary', c.onSecondary, c.secondary);
+  check('onTertiary', c.onTertiary, c.tertiary);
+  check('onError', c.onDestructive, c.destructive);
+  check('onErrorContainer', c.onErrorContainer, c.errorContainer);
+  check('onSuccessContainer', c.onSuccessContainer, c.successContainer);
+  check('onWarningContainer', c.onWarningContainer, c.warningContainer);
+  check('onInfoContainer', c.onInfoContainer, c.infoContainer);
+  check('foreground', c.foreground, c.background);
+  check('mutedForeground', c.mutedForeground, c.muted, min: minMutedContrast);
+  check('link', c.link, c.background);
+}
 
 // Softest-first foreground cascades. Each side ends in a pure tone whose
 // contrast against any surface it is chosen for never drops below ≈4.58:1 (the
@@ -51,7 +92,7 @@ Color readableOn(Color surface, {Color? tintHue, double tintStrength = 0}) {
   final tinted = _tinted(cascade.first, tintHue, tintStrength);
   final candidates = tinted == null ? cascade : <Color>[tinted, ...cascade];
   for (final tone in candidates) {
-    if (contrastRatio(tone, surface) >= _minContrast) return tone;
+    if (contrastRatio(tone, surface) >= minContrast) return tone;
   }
   return cascade.last;
 }

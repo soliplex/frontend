@@ -20,11 +20,15 @@ class ModuleRoutes {
 /// declare routes and overrides via [build] and release owned resources
 /// in [onDispose].
 abstract class AppModule {
+  /// Identifier for this module. [ShellConfig.fromModules] rejects duplicates
+  /// at construction; the empty string is exempt, so anonymous modules may
+  /// coexist.
   String get namespace;
 
   /// Declares the routes and overrides this module contributes.
   ModuleRoutes build();
 
-  /// Called when the shell is disposed, in reverse registration order.
+  /// Releases resources this module owns. [ShellConfig.dispose] calls it in
+  /// reverse registration order; the shell widget never does.
   Future<void> onDispose() async {}
 }

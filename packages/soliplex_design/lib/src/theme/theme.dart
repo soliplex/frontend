@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:soliplex_design/src/brand/contrast.dart';
 import 'package:soliplex_design/src/theme/classification_theme.dart';
 import 'package:soliplex_design/src/theme/markdown_theme_extension.dart';
 import 'package:soliplex_design/src/theme/theme_extensions.dart';
@@ -43,6 +44,7 @@ ThemeData buildSoliplexThemeData({
   TextTheme? textTheme,
   ClassificationTheme? classifications,
 }) {
+  warnLowContrast(colors, brightness);
   textTheme ??= soliplexTextTheme(colors);
   final monospaceFamily =
       monospace ?? monospaceFontFamily(defaultTargetPlatform);

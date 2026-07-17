@@ -8,6 +8,51 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- `Flavor` and `FlavorTheme`: an app variant is now a declaration object
+  (identity, theme, modules, boot knobs) that `Flavor.build()` lowers to a
+  `ShellConfig`. `standardFlavor()` composes the standard variant for a fork to
+  customize (theme, `extraModules`) before building; `standard()` is that
+  flavor, lowered. `FlavorTheme` wraps the two theming paths (`.brand` /
+  `.themeData`). A flavor holds live modules and builds once — a second
+  `build()` throws `StateError`. See `docs/authoring-a-flavor.md`.
+- Flavor authoring: `buildStandardKit` builds the standard module graph and
+  its shared session state, so a fork can author its own flavor — with full
+  theme and module control — using only a `soliplex_frontend` dependency.
+  `standard()` now delegates through `standardFlavor` to it. See
+  `docs/authoring-a-flavor.md`.
+- The flavor-authoring surface is reachable from the `soliplex_frontend`
+  barrel: `Flavor`, `FlavorTheme`, `standardFlavor`, the full-control theme
+  types (`SoliplexColors`, `buildSoliplexThemeData`, `lightSoliplexColors`,
+  `darkSoliplexColors`, `SoliplexRadii`, `soliplexTextTheme`) and the kit
+  (`buildStandardKit`, `StandardKit`), so a fork needs no direct
+  `soliplex_design` dependency.
+- `buildStandardKit` surfaces `enableDocumentFilter` (default on) as a
+  flavor knob.
+
+### Changed
+
+- `buildSoliplexThemeData` now runs the contrast check on every theme it builds
+  — both the curated `BrandTheme` path and a fork's direct full-color path —
+  logging a warning for any low-contrast foreground/background pair, including
+  the `link` role, rather than silently shipping an illegible pairing.
+- `ShellConfig.fromModules` now fails fast, throwing a clear `ArgumentError` at
+  boot when a supplied `ThemeData` is missing the required `SoliplexTheme`
+  extension (for example a bare `ThemeData()` instead of
+  `buildSoliplexThemeData(...)`), replacing a deep crash in the first branded
+  widget rendered.
+- `AppIdentity` now asserts a non-empty `appName`, catching the mistake at
+  construction rather than letting a blank name reach `MaterialApp.title` and
+  the auth and versions surfaces.
+
+### Removed
+
+- The redundant `package:soliplex_frontend/flavors.dart` entrypoint. Its exports
+  (`standard`, `standardFlavor`, `buildStandardKit`, `StandardKit`) now come from
+  the main `soliplex_frontend` barrel; a fork importing `flavors.dart` should
+  switch to `package:soliplex_frontend/soliplex_frontend.dart`.
+
 ## [0.93.1+67] - 2026-07-14
 
 ### Added
