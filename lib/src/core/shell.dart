@@ -71,7 +71,7 @@ class _SoliplexShellState extends State<SoliplexShell> {
         ...widget.config.overrides,
         inactivityConfigProvider.overrideWithValue(widget.config.inactivity),
         statusMessageConfigProvider
-            .overrideWithValue(widget.config.maintenance),
+            .overrideWithValue(widget.config.statusMessage),
       ],
       child: _ShellRoot(config: widget.config, router: _router),
     );

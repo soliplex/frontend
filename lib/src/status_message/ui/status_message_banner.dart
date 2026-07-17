@@ -16,8 +16,8 @@ import '../status_message_window_format.dart';
 
 /// Callers that can change target server while staying mounted (the lobby's
 /// selected server) MUST pass `key: ValueKey(baseUrl)` so Flutter recreates
-/// the state — and thus the controller — when the URL changes. The mounts
-/// below do this.
+/// the state — and thus the controller — when the URL changes. The lobby and
+/// room mounts do this.
 class StatusMessageBanner extends ConsumerStatefulWidget {
   const StatusMessageBanner({
     required Uri baseUrl,
@@ -51,7 +51,8 @@ class StatusMessageBanner extends ConsumerStatefulWidget {
 
   /// Which server this message is about, shown in the expanded view for
   /// disambiguation. The mounts pass `ServerEntry.displayName` (the server's
-  /// name, or a cleaned host label when unnamed). Null → no label.
+  /// name, or the formatted address `scheme://host[:port]` when unnamed).
+  /// Null → no label.
   final String? serverLabel;
 
   @override
@@ -65,9 +66,11 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
   bool _expanded = false;
   StatusMessageDismissals? _dismissals;
 
-  /// Reads the shell-provided config. The banner is self-contained and may be
-  /// dropped into any tree; outside a shell (e.g. a widget test that doesn't
-  /// install the shell scope) there is no provider, so the banner stays inert.
+  /// Reads the config. `statusMessageConfigProvider` has an enabled default, so
+  /// under any `ProviderScope` (with or without the shell's override) the banner
+  /// runs live. The `StateError` guard only covers being mounted with no
+  /// `ProviderScope` at all (e.g. the room/lobby host widget tests), where it
+  /// falls back to disabled and the banner stays inert.
   StatusMessageConfig _readConfig() {
     try {
       return ref.read(statusMessageConfigProvider);
@@ -76,8 +79,9 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
     }
   }
 
-  /// Reads the session dismiss store. Guarded like the config: outside a shell
-  /// there is no provider, so treat it as "nothing dismissed".
+  /// Reads the session dismiss store. Guarded like the config: only when
+  /// mounted with no `ProviderScope` at all is there no store to read, in which
+  /// case treat it as "nothing dismissed".
   StatusMessageDismissals? _readDismissals() {
     try {
       return ref.read(statusMessageDismissalsProvider);
@@ -283,7 +287,10 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                 window.end,
                 stacked: constraints.maxWidth < SoliplexBreakpoints.tablet,
               ),
-              style: theme.textTheme.labelMedium?.copyWith(color: fg),
+              // A malformed window (end before start) is flagged in error
+              // colour so the operator mistake is visible.
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: window.isValid ? fg : context.danger),
             ),
           ),
         ],

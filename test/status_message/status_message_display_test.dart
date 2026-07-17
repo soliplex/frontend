@@ -51,6 +51,18 @@ void main() {
               now: end.add(const Duration(hours: 1))),
           isA<MessageHidden>());
     });
+    test('a reversed window (end before start) is persistent, not a countdown',
+        () {
+      // Malformed operator window: end precedes start. No sensible countdown,
+      // so it shows as a plain persistent notice (and is flagged/logged
+      // elsewhere) rather than a garbage MessageUpcoming/MessageActive.
+      final reversed = _windowed(end, start); // start=22:00, end=20:00
+      expect(reversed.window!.isValid, isFalse);
+      expect(
+          resolveVisibility(reversed,
+              now: start.subtract(const Duration(hours: 1))),
+          isA<MessagePersistent>());
+    });
   });
 
   group('formatCountdown', () {

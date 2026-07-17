@@ -16,13 +16,24 @@ Future<StatusMessage?> fetchStatusMessage({
   final uri = baseUrl.resolve(path);
   try {
     final json = await transport.request<Map<String, dynamic>>('GET', uri);
-    return StatusMessage.fromJson(json);
+    final message = StatusMessage.fromJson(json);
+    final window = message.window;
+    if (window != null && !window.isValid) {
+      // Operator-authored `end` precedes `start`. Surface the mistake (the
+      // banner flags the range in error colour) rather than dropping the
+      // message.
+      _logger.warning('Status message window end precedes start at $uri');
+    }
+    return message;
   } on NotFoundException {
     return null; // No file configured — the steady state.
   } on FormatException catch (e) {
     _logger.warning('Malformed status message at $uri', error: e);
     return null;
   } on Object catch (e) {
+    // Transient failures (offline, 5xx, an HTML error page) are the expected
+    // noise here, so log at debug and degrade to "no message" — never surface
+    // a fetch error to the user for an auxiliary banner.
     _logger.debug('Status message fetch failed for $uri', error: e);
     return null;
   }

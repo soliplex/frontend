@@ -15,7 +15,7 @@ class ShellConfig {
   final String initialRoute;
   final Listenable? refreshListenable;
   final InactivityConfig inactivity;
-  final StatusMessageConfig maintenance;
+  final StatusMessageConfig statusMessage;
 
   /// Tears down every module's `onDispose` in reverse registration order.
   ///
@@ -42,7 +42,7 @@ class ShellConfig {
     required List<GoRouterRedirect> redirects,
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
-    this.maintenance = const StatusMessageConfig(),
+    this.statusMessage = const StatusMessageConfig(),
     this.dispose,
   })  : _routes = routes,
         _overrides = overrides,
@@ -71,7 +71,7 @@ class ShellConfig {
     String initialRoute = '/',
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
-    StatusMessageConfig maintenance = const StatusMessageConfig(),
+    StatusMessageConfig statusMessage = const StatusMessageConfig(),
   }) async {
     final coordinator = _AppModuleCoordinator(modules);
     return ShellConfig._internal(
@@ -85,7 +85,7 @@ class ShellConfig {
       redirects: coordinator.redirects,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
-      maintenance: maintenance,
+      statusMessage: statusMessage,
       dispose: coordinator.disposeAll,
     );
   }

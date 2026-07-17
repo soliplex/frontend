@@ -59,4 +59,34 @@ void main() {
       );
     });
   });
+
+  group('value equality', () {
+    // Load-bearing: the controller republishes a Signal<StatusMessage?> on
+    // each poll, and value equality is what suppresses rebuilds when the file
+    // is unchanged.
+    StatusMessage build({String id = 'm', MessageWindow? window}) =>
+        StatusMessage(
+          id: id,
+          title: 't',
+          body: 'b',
+          intent: MessageIntent.warning,
+          category: MessageCategory.maintenance,
+          window: window,
+        );
+
+    test('equal when all fields (incl. window) match', () {
+      final w1 = MessageWindow(
+          start: DateTime.utc(2026, 6, 28, 20),
+          end: DateTime.utc(2026, 6, 28, 22));
+      final w2 = MessageWindow(
+          start: DateTime.utc(2026, 6, 28, 20),
+          end: DateTime.utc(2026, 6, 28, 22));
+      expect(build(window: w1), build(window: w2));
+      expect(build(window: w1).hashCode, build(window: w2).hashCode);
+    });
+
+    test('differ in one field are not equal', () {
+      expect(build(id: 'a'), isNot(build(id: 'b')));
+    });
+  });
 }

@@ -51,8 +51,8 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
-  String maintenanceFilePath = StatusMessageConfig.defaultFilePath,
-  Duration maintenancePollInterval = StatusMessageConfig.defaultPollInterval,
+  String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
+  Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
   final lightTheme = lowerBrandTheme(
@@ -174,9 +174,9 @@ Future<ShellConfig> standard({
       warningDuration: inactivityWarningDuration,
       graceDuration: inactivityGraceDuration,
     ),
-    maintenance: StatusMessageConfig(
-      filePath: maintenanceFilePath,
-      pollInterval: maintenancePollInterval,
+    statusMessage: StatusMessageConfig(
+      filePath: statusMessageFilePath,
+      pollInterval: statusMessagePollInterval,
     ),
     modules: [
       DiagnosticsAppModule(

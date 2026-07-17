@@ -9,6 +9,18 @@ class MessageWindow {
   const MessageWindow({required this.start, required this.end});
   final DateTime start;
   final DateTime end;
+
+  /// False when [end] precedes [start] — a malformed operator window. The
+  /// message is still shown (the invalid range is flagged in error color and
+  /// logged) rather than silently dropped.
+  bool get isValid => !end.isBefore(start);
+
+  @override
+  bool operator ==(Object other) =>
+      other is MessageWindow && other.start == start && other.end == end;
+
+  @override
+  int get hashCode => Object.hash(start, end);
 }
 
 @immutable
@@ -20,7 +32,10 @@ class StatusMessage {
     required this.intent,
     required this.category,
     this.window,
-  });
+  }) : assert(
+          id.length > 0 && title.length > 0 && body.length > 0,
+          'id, title, and body must be non-empty',
+        );
 
   final String id;
   final String title;
@@ -65,4 +80,17 @@ class StatusMessage {
       window: parseWindow(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      other is StatusMessage &&
+      other.id == id &&
+      other.title == title &&
+      other.body == body &&
+      other.intent == intent &&
+      other.category == category &&
+      other.window == window;
+
+  @override
+  int get hashCode => Object.hash(id, title, body, intent, category, window);
 }

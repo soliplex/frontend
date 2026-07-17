@@ -21,6 +21,7 @@ class StatusMessageController with WidgetsBindingObserver {
 
   Timer? _timer;
   bool _started = false;
+  bool _disposed = false;
 
   void start() {
     if (_started || !config.isEnabled) return;
@@ -31,7 +32,12 @@ class StatusMessageController with WidgetsBindingObserver {
   }
 
   Future<void> _fetch() async {
-    _message.value = await _fetcher();
+    final message = await _fetcher();
+    // The banner (keyed by server URL) can dispose this controller while a
+    // fetch is in flight — e.g. switching servers or navigating away. Writing a
+    // disposed signal throws, so bail before the assignment.
+    if (_disposed) return;
+    _message.value = message;
   }
 
   @override
@@ -40,6 +46,7 @@ class StatusMessageController with WidgetsBindingObserver {
   }
 
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
     if (_started) WidgetsBinding.instance.removeObserver(this);
     _message.dispose();

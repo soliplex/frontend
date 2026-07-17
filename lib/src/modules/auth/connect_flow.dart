@@ -240,8 +240,20 @@ class ConnectFlow {
     DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
     await SelectedServerStorage.save(serverId);
     if (!_isCancelled(gen)) {
-      onServerConnected?.call(probeResult.serverUrl);
+      _notifyConnected(probeResult.serverUrl);
       state.value = const Connected();
+    }
+  }
+
+  /// Fires [onServerConnected], isolating any throw so a misbehaving callback
+  /// can neither escape as an unhandled async error nor bounce an
+  /// already-connected user to the error state.
+  void _notifyConnected(Uri serverUrl) {
+    try {
+      onServerConnected?.call(serverUrl);
+    } on Object catch (e, st) {
+      _logger.warning('ConnectFlow: onServerConnected callback failed',
+          error: e, stackTrace: st);
     }
   }
 
@@ -301,7 +313,7 @@ class ConnectFlow {
         ),
       );
 
-      onServerConnected?.call(probeResult.serverUrl);
+      if (!_isCancelled(gen)) _notifyConnected(probeResult.serverUrl);
 
       // Post-login housekeeping is best-effort: the user is already
       // signed in, so a storage failure here must not bounce them to the

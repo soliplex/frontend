@@ -4,20 +4,20 @@ sealed class MessageDisplay {
   const MessageDisplay();
 }
 
-class MessageHidden extends MessageDisplay {
+final class MessageHidden extends MessageDisplay {
   const MessageHidden();
 }
 
-class MessagePersistent extends MessageDisplay {
+final class MessagePersistent extends MessageDisplay {
   const MessagePersistent();
 }
 
-class MessageUpcoming extends MessageDisplay {
+final class MessageUpcoming extends MessageDisplay {
   const MessageUpcoming(this.remaining);
   final Duration remaining;
 }
 
-class MessageActive extends MessageDisplay {
+final class MessageActive extends MessageDisplay {
   const MessageActive(this.remaining);
   final Duration remaining;
 }
@@ -25,7 +25,9 @@ class MessageActive extends MessageDisplay {
 MessageDisplay resolveVisibility(StatusMessage message,
     {required DateTime now}) {
   final window = message.window;
-  if (window == null) return const MessagePersistent();
+  // A windowless message — or a malformed window (end before start) — shows as
+  // a plain persistent notice; a reversed window has no sensible countdown.
+  if (window == null || !window.isValid) return const MessagePersistent();
   if (!now.isBefore(window.end)) return const MessageHidden();
   if (now.isBefore(window.start)) {
     return MessageUpcoming(window.start.difference(now));
