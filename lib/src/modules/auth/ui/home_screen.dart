@@ -6,6 +6,7 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
 import '../../../shared/markdown/prose_markdown.dart';
+import '../../../status_message/status_message_dismissals.dart';
 import '../auth_providers.dart';
 import '../connect_flow.dart';
 import '../consent_notice.dart';
@@ -71,6 +72,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       authFlow: ref.read(authFlowProvider),
       inactivityLogoutFlags: ref.read(inactivityLogoutFlagsProvider),
       consentNotice: ref.read(consentNoticeProvider),
+      // A fresh connection re-surfaces a maintenance banner the user dismissed
+      // earlier in the session for this server.
+      onServerConnected: (url) => ref
+          .read(statusMessageDismissalsProvider)
+          .clear(serverKey: url.toString()),
     );
 
     _urlController.addListener(_onUrlChanged);

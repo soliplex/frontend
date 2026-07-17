@@ -283,8 +283,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                 window.end,
                 stacked: constraints.maxWidth < SoliplexBreakpoints.tablet,
               ),
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: fg, fontWeight: FontWeight.w500),
+              style: theme.textTheme.labelMedium?.copyWith(color: fg),
             ),
           ),
         ],
