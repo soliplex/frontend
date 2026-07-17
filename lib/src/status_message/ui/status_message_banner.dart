@@ -93,9 +93,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
       if (message == null) return const SizedBox.shrink();
       final display = resolveVisibility(message, now: DateTime.now());
       if (display is MessageHidden) return const SizedBox.shrink();
-      return _minimized
-          ? _buildMinimized(context, message, display)
-          : _buildExpanded(context, message, display);
+      return _buildBanner(context, message, display);
     });
   }
 
@@ -138,11 +136,14 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
     );
   }
 
-  Widget _buildExpanded(
+  Widget _buildBanner(
       BuildContext context, StatusMessage message, MessageDisplay display) {
     final (bg, fg) = _colors(context, message.intent);
     final theme = Theme.of(context);
     final pill = _pill(context, message, display);
+    // The header row (icon, title, pill, toggle) is identical whether expanded
+    // or minimized; the body only appears below it when expanded. This keeps
+    // the toggle button pinned in place across the transition.
     return Container(
       color: bg,
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
@@ -167,6 +168,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                     Flexible(
                       child: Text(
                         message.title,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(color: fg),
                       ),
                     ),
@@ -176,57 +178,21 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                     ],
                   ],
                 ),
-                const SizedBox(height: SoliplexSpacing.s1),
-                Text(
-                  message.body,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: fg),
-                ),
+                if (!_minimized) ...[
+                  const SizedBox(height: SoliplexSpacing.s1),
+                  Text(
+                    message.body,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+                  ),
+                ],
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.expand_less),
+            icon: Icon(_minimized ? Icons.expand_more : Icons.expand_less),
             color: fg,
-            tooltip: 'Minimize',
-            onPressed: () => setState(() => _minimized = true),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMinimized(
-      BuildContext context, StatusMessage message, MessageDisplay display) {
-    final (bg, fg) = _colors(context, message.intent);
-    final theme = Theme.of(context);
-    final pill = _pill(context, message, display);
-    return Container(
-      color: bg,
-      padding: const EdgeInsets.symmetric(
-        horizontal: SoliplexSpacing.s3,
-        vertical: SoliplexSpacing.s1,
-      ),
-      child: Row(
-        children: [
-          Icon(_icon(message.category), color: fg, size: 18),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Flexible(
-            child: Text(
-              message.title,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(color: fg),
-            ),
-          ),
-          if (pill != null) ...[
-            const SizedBox(width: SoliplexSpacing.s2),
-            pill,
-          ],
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.expand_more),
-            color: fg,
-            tooltip: 'Expand',
-            onPressed: () => setState(() => _minimized = false),
+            tooltip: _minimized ? 'Expand' : 'Minimize',
+            onPressed: () => setState(() => _minimized = !_minimized),
           ),
         ],
       ),
