@@ -97,4 +97,11 @@ void main() {
       throwsA(isA<AssertionError>()),
     );
   });
+
+  test('rejects an empty appName', () {
+    expect(
+      () => AppIdentity(appName: '', logoLight: const Text('L')),
+      throwsA(isA<AssertionError>()),
+    );
+  });
 }

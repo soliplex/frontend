@@ -33,9 +33,10 @@ import '../modules/room/run_registry.dart';
 import '../modules/room/tool_calls_extension.dart';
 import '../modules/versions/versions_module.dart';
 
-/// The module graph and derived [ShellConfig] inputs produced by
-/// [buildStandardModules].
-typedef StandardModules = ({
+/// The module graph and derived boot inputs (`initialRoute`,
+/// `refreshListenable`, `inactivity`) produced by [buildStandardKit],
+/// plus `serverManager` — the shared-state handle custom modules build on.
+typedef StandardKit = ({
   List<AppModule> modules,
   Listenable refreshListenable,
   String initialRoute,
@@ -46,10 +47,10 @@ typedef StandardModules = ({
 /// Builds the standard flavor's module graph and shared state.
 ///
 /// Owns construction order and cross-module wiring (auth, server discovery,
-/// agent runtime, read markers). `standard()` lowers this into a
-/// [ShellConfig]; flavor authors can call this directly to build their own
-/// module set on top of the same shared state.
-Future<StandardModules> buildStandardModules({
+/// agent runtime, read markers). `standardFlavor` maps this onto a `Flavor`;
+/// flavor authors can call this directly to build their own module set on
+/// top of the same shared state.
+Future<StandardKit> buildStandardKit({
   required AppIdentity identity,
   String redirectScheme = 'ai.soliplex.client',
   String defaultBackendUrl = 'http://localhost:8000',

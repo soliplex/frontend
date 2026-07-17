@@ -342,5 +342,18 @@ void main() {
         isEmpty,
       );
     });
+
+    test('warns on a link below AA against the background', () {
+      final colors = lightSoliplexColors.copyWith(
+        link: lightSoliplexColors.background,
+      );
+      buildSoliplexThemeData(colors: colors, brightness: Brightness.light);
+      expect(
+        logs.records.where(
+          (r) => r.level == LogLevel.warning && r.message.contains('link'),
+        ),
+        hasLength(1),
+      );
+    });
   });
 }

@@ -8,9 +8,6 @@ import 'package:soliplex_design/src/theme/theme.dart';
 import 'package:soliplex_design/src/tokens/colors.dart';
 import 'package:soliplex_design/src/tokens/radii.dart';
 import 'package:soliplex_design/src/tokens/typography.dart';
-import 'package:soliplex_logging/soliplex_logging.dart';
-
-final Logger _log = LogManager.instance.getLogger('soliplex_design.BrandTheme');
 
 /// Lowers a public [BrandTheme] onto the internal token system for the given
 /// [brightness], producing a ready `ThemeData`.
@@ -24,7 +21,7 @@ final Logger _log = LogManager.instance.getLogger('soliplex_design.BrandTheme');
 /// to the base. Font families resolve through [fontResolver].
 ///
 /// Contrast warnings go to the `soliplex_design.BrandTheme` logger; attach a
-/// [LogManager] sink before lowering or they are dropped silently.
+/// LogManager sink before lowering or they are dropped silently.
 ThemeData lowerBrandTheme(
   BrandTheme theme,
   Brightness brightness, {
@@ -33,8 +30,6 @@ ThemeData lowerBrandTheme(
 }) {
   final brand = brightness == Brightness.light ? theme.light : theme.dark;
   final colors = _lowerColors(brand, brightness, theme.tint);
-
-  _warnLowContrast(colors, brand, brightness);
 
   final typography = theme.typography;
   final mono = _lowerMonospace(typography, fontResolver);
@@ -180,26 +175,5 @@ Color? _tintHue(BrandTint tint, BrandColorScheme brand, Color surface) {
   return (
     family: resolved.fontFamily ?? brand,
     fallback: resolved.fontFamilyFallback,
-  );
-}
-
-/// Warns if a brand-supplied `link` color is below AA against its background.
-/// The other role pairs are checked in `buildSoliplexThemeData` via
-/// `warnLowContrast`; `link` stays here because it fires only when the brand
-/// set it explicitly.
-void _warnLowContrast(
-  SoliplexColors c,
-  BrandColorScheme brand,
-  Brightness brightness,
-) {
-  if (brand.link == null) return;
-  final ratio = contrastRatio(c.link, c.background);
-  if (ratio >= minContrast) return;
-  _log.warning(
-    'BrandTheme "link" contrast is ${ratio.toStringAsFixed(2)}:1 in the '
-    '${brightness.name} palette, below '
-    '${minContrast.toStringAsFixed(1)}:1. The supplied color is used as-is; '
-    'verify it is legible.',
-    attributes: {'role': 'link', 'ratio': ratio, 'brightness': brightness.name},
   );
 }

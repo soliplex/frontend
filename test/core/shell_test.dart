@@ -41,24 +41,12 @@ class _TestModule extends AppModule {
 // ---------------------------------------------------------------------------
 
 void main() {
-  group('runSoliplexShell', () {
-    test('throws ArgumentError on invalid config', () async {
-      final config = await ShellConfig.fromModules(
-        appName: 'Test',
-        lightTheme: _testTheme(),
-        modules: [],
-      );
-
-      expect(() => runSoliplexShell(config), throwsArgumentError);
-    });
-  });
-
   group('SoliplexShell', () {
     testWidgets('overrides from multiple modules compose', (tester) async {
       final greeting = Provider<String>((_) => 'default greeting');
       final farewell = Provider<String>((_) => 'default farewell');
 
-      final config = await ShellConfig.fromModules(
+      final config = ShellConfig.fromModules(
         appName: 'Test',
         lightTheme: _testTheme(),
         initialRoute: '/check',
@@ -95,7 +83,7 @@ void main() {
 
   group('redirect composition', () {
     testWidgets('first non-null redirect wins', (tester) async {
-      final config = await ShellConfig.fromModules(
+      final config = ShellConfig.fromModules(
         appName: 'Test',
         lightTheme: _testTheme(),
         initialRoute: '/a',
@@ -135,7 +123,7 @@ void main() {
   });
 
   group('AppModuleCoordinator', () {
-    test('duplicate namespace throws StateError', () async {
+    test('duplicate namespace throws ArgumentError', () async {
       expect(
         () => ShellConfig.fromModules(
           appName: 'Test',
@@ -145,13 +133,13 @@ void main() {
             _TestModule(namespace: 'same'),
           ],
         ),
-        throwsStateError,
+        throwsArgumentError,
       );
     });
 
     test('empty namespace skips uniqueness check', () async {
       // Should not throw even though both modules have empty namespace.
-      await ShellConfig.fromModules(
+      ShellConfig.fromModules(
         appName: 'Test',
         lightTheme: _testTheme(),
         modules: [
@@ -168,16 +156,19 @@ void main() {
     test('onDispose is called in reverse registration order', () async {
       final log = <String>[];
 
-      final config = await ShellConfig.fromModules(
+      final config = ShellConfig.fromModules(
         appName: 'Test',
         lightTheme: _testTheme(),
         modules: [
+          _TestModule(
+            routes: [GoRoute(path: '/', builder: (_, __) => const SizedBox())],
+          ),
           _LifecycleModule('a', log),
           _LifecycleModule('b', log),
         ],
       );
 
-      await config.dispose?.call();
+      await config.dispose();
       expect(log, ['dispose:b', 'dispose:a']);
     });
 
@@ -186,10 +177,17 @@ void main() {
       (tester) async {
         final log = <String>[];
 
-        final config = await ShellConfig.fromModules(
+        final config = ShellConfig.fromModules(
           appName: 'Test',
           lightTheme: _testTheme(),
-          modules: [_LifecycleModule('x', log)],
+          modules: [
+            _TestModule(
+              routes: [
+                GoRoute(path: '/', builder: (_, __) => const SizedBox()),
+              ],
+            ),
+            _LifecycleModule('x', log),
+          ],
         );
 
         await tester.pumpWidget(SoliplexShell(config: config));
@@ -202,7 +200,7 @@ void main() {
           reason: 'widget unmount must not dispose modules',
         );
 
-        await config.dispose?.call();
+        await config.dispose();
         expect(
           log,
           ['dispose:x'],

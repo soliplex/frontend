@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import '../core/app_identity.dart';
 import '../core/app_module.dart';
 import '../core/flavor.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/shell_config.dart';
-import 'package:soliplex_design/soliplex_design.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/callback_params.dart';
-import '../composition/standard_modules.dart';
+import 'standard_kit.dart';
 
 /// Builds the standard [Flavor]: the full module set on shared session
 /// state, ready to [Flavor.build] — or to compose first.
 ///
 /// This is the customization point ADR-003 blesses: swap [theme] for full
-/// color control, pass [extraModules] to add features (the callback receives
+/// color control, or pass [extraModules] to add features (the callback receives
 /// the composition kit, so a custom module can share state such as
-/// `kit.serverManager`), or `copyWith` the returned value. The kit-field
-/// forwarding that flavor authors previously transcribed by hand lives here
-/// and in [Flavor.build], once.
+/// `kit.serverManager`). Mapping the kit's fields onto the [Flavor] lives here;
+/// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
+/// transcribed at the call site.
 Future<Flavor> standardFlavor({
   AppIdentity? identity,
   FlavorTheme theme = const FlavorTheme.brand(BrandTheme.soliplex()),
@@ -29,10 +29,10 @@ Future<Flavor> standardFlavor({
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
-  List<AppModule> Function(StandardModules kit)? extraModules,
+  List<AppModule> Function(StandardKit kit)? extraModules,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
-  final kit = await buildStandardModules(
+  final kit = await buildStandardKit(
     identity: effectiveIdentity,
     redirectScheme: redirectScheme,
     defaultBackendUrl: defaultBackendUrl,
@@ -52,9 +52,8 @@ Future<Flavor> standardFlavor({
   );
 }
 
-/// The opinionated default: the standard [Flavor], lowered. Kept
-/// signature-compatible; customization beyond a [BrandTheme] goes through
-/// [standardFlavor].
+/// The opinionated default: the standard [Flavor], lowered. Customization
+/// beyond a [BrandTheme] goes through [standardFlavor].
 Future<ShellConfig> standard({
   AppIdentity? identity,
   BrandTheme theme = const BrandTheme.soliplex(),

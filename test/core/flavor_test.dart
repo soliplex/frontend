@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart' show SoliplexTheme;
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 
+import 'route_module.dart';
+
 void main() {
   AppIdentity identity() =>
       AppIdentity(appName: 'Test', logoLight: const SizedBox());
 
   group('Flavor.build', () {
-    test('threads every declaration field into the ShellConfig', () async {
+    test('threads every declaration field into the ShellConfig', () {
       final light = buildSoliplexThemeData(
         colors: lightSoliplexColors,
         brightness: Brightness.light,
@@ -20,14 +22,16 @@ void main() {
       final refresh = ValueNotifier(0);
       addTearDown(refresh.dispose);
 
-      final config = await Flavor(
+      final config = Flavor(
         identity: identity(),
         theme: FlavorTheme.themeData(
           light: light,
           dark: dark,
           mode: ThemeMode.dark,
         ),
-        modules: const [],
+        modules: [
+          RouteModule(const ['/somewhere'])
+        ],
         initialRoute: '/somewhere',
         refreshListenable: refresh,
         inactivity: InactivityConfig.disabled,
@@ -42,11 +46,13 @@ void main() {
       expect(config.inactivity, InactivityConfig.disabled);
     });
 
-    test('lowers a BrandTheme once per brightness at build time', () async {
-      final config = await Flavor(
+    test('brand path lowers both brightnesses through the same pipeline', () {
+      final config = Flavor(
         identity: identity(),
         theme: const FlavorTheme.brand(BrandTheme.soliplex()),
-        modules: const [],
+        modules: [
+          RouteModule(const ['/'])
+        ],
       ).build();
 
       // Lowered themes carry the extension, so the fromModules guard passes
@@ -55,27 +61,30 @@ void main() {
       expect(config.darkTheme!.extension<SoliplexTheme>(), isNotNull);
       expect(config.themeMode, ThemeMode.system);
     });
-  });
 
-  group('Flavor.copyWith', () {
-    test('derives a variant without disturbing unrelated fields', () {
-      final base = Flavor(
+    test('rejects a bare ThemeData that lacks the SoliplexTheme extension', () {
+      final flavor = Flavor(
+        identity: identity(),
+        theme: FlavorTheme.themeData(light: ThemeData()),
+        modules: [
+          RouteModule(const ['/'])
+        ],
+      );
+
+      expect(flavor.build, throwsArgumentError);
+    });
+
+    test('throws on a second build so live modules are never re-consumed', () {
+      final flavor = Flavor(
         identity: identity(),
         theme: const FlavorTheme.brand(BrandTheme.soliplex()),
-        modules: const [],
-        initialRoute: '/base',
+        modules: [
+          RouteModule(const ['/'])
+        ],
       );
 
-      final light = buildSoliplexThemeData(
-        colors: lightSoliplexColors,
-        brightness: Brightness.light,
-      );
-      final variant = base.copyWith(theme: FlavorTheme.themeData(light: light));
-
-      expect(variant.theme.brand, isNull);
-      expect(variant.initialRoute, '/base');
-      expect(variant.identity, same(base.identity));
-      expect(variant.modules, same(base.modules));
+      flavor.build();
+      expect(flavor.build, throwsStateError);
     });
   });
 }

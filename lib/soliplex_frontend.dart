@@ -32,6 +32,8 @@ export 'src/core/flavor.dart' show Flavor, FlavorTheme;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
 export 'src/core/shell.dart' show runSoliplexShell;
 export 'src/core/shell_config.dart' show ShellConfig;
+export 'src/flavors/standard.dart' show standard, standardFlavor;
+export 'src/flavors/standard_kit.dart' show buildStandardKit, StandardKit;
 export 'src/interfaces/auth_state.dart'
     show AuthState, Authenticated, Unauthenticated;
 export 'src/modules/auth/auth_providers.dart'
