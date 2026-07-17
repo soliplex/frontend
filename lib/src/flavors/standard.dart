@@ -1,13 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 
 import '../core/app_identity.dart';
+import '../core/app_module.dart';
+import '../core/flavor.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/shell_config.dart';
-import 'package:soliplex_design/soliplex_design.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/callback_params.dart';
-import '../composition/standard_modules.dart';
+import 'standard_kit.dart';
 
+/// Builds the standard [Flavor]: the full module set on shared session
+/// state, ready to [Flavor.build] — or to compose first.
+///
+/// This is the customization point ADR-003 blesses: swap [theme] for full
+/// color control, or pass [extraModules] to add features (the callback receives
+/// the composition kit, so a custom module can share state such as
+/// `kit.serverManager`). Mapping the kit's fields onto the [Flavor] lives here;
+/// [Flavor.build] assembles that [Flavor] into a [ShellConfig] — neither is
+/// transcribed at the call site.
+Future<Flavor> standardFlavor({
+  AppIdentity? identity,
+  FlavorTheme theme = const FlavorTheme.brand(BrandTheme.soliplex()),
+  String redirectScheme = 'ai.soliplex.client',
+  String defaultBackendUrl = 'http://localhost:8000',
+  CallbackParams callbackParams = const NoCallbackParams(),
+  ConsentNotice? consentNotice,
+  Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
+  Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
+  bool enableDocumentFilter = true,
+  List<AppModule> Function(StandardKit kit)? extraModules,
+}) async {
+  final effectiveIdentity = identity ?? AppIdentity.soliplex;
+  final kit = await buildStandardKit(
+    identity: effectiveIdentity,
+    redirectScheme: redirectScheme,
+    defaultBackendUrl: defaultBackendUrl,
+    callbackParams: callbackParams,
+    consentNotice: consentNotice,
+    inactivityWarningDuration: inactivityWarningDuration,
+    inactivityGraceDuration: inactivityGraceDuration,
+    enableDocumentFilter: enableDocumentFilter,
+  );
+  return Flavor(
+    identity: effectiveIdentity,
+    theme: theme,
+    modules: [...kit.modules, ...?extraModules?.call(kit)],
+    initialRoute: kit.initialRoute,
+    refreshListenable: kit.refreshListenable,
+    inactivity: kit.inactivity,
+  );
+}
+
+/// The opinionated default: the standard [Flavor], lowered. Customization
+/// beyond a [BrandTheme] goes through [standardFlavor].
 Future<ShellConfig> standard({
   AppIdentity? identity,
   BrandTheme theme = const BrandTheme.soliplex(),
@@ -24,9 +70,14 @@ Future<ShellConfig> standard({
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
 }) async {
-  final effectiveIdentity = identity ?? AppIdentity.soliplex;
-  final standardModules = await buildStandardModules(
-    identity: effectiveIdentity,
+  final flavor = await standardFlavor(
+    identity: identity,
+    theme: FlavorTheme.brand(
+      theme,
+      fontResolver: fontResolver,
+      classifications: classifications,
+      mode: themeMode,
+    ),
     redirectScheme: redirectScheme,
     defaultBackendUrl: defaultBackendUrl,
     callbackParams: callbackParams,
@@ -34,26 +85,5 @@ Future<ShellConfig> standard({
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,
   );
-  final lightTheme = lowerBrandTheme(
-    theme,
-    Brightness.light,
-    fontResolver: fontResolver,
-    classifications: classifications,
-  );
-  final darkTheme = lowerBrandTheme(
-    theme,
-    Brightness.dark,
-    fontResolver: fontResolver,
-    classifications: classifications,
-  );
-  return ShellConfig.fromModules(
-    appName: effectiveIdentity.appName,
-    lightTheme: lightTheme,
-    darkTheme: darkTheme,
-    themeMode: themeMode,
-    initialRoute: standardModules.initialRoute,
-    refreshListenable: standardModules.refreshListenable,
-    inactivity: standardModules.inactivity,
-    modules: standardModules.modules,
-  );
+  return flavor.build();
 }

@@ -40,10 +40,10 @@ Each module subclasses `AppModule` and implements:
   redirect
 - `Future<void> onDispose()` — resource cleanup (optional)
 
-Flavor functions construct concrete `AppModule` instances and pass them to
-`ShellConfig.fromModules(...)`. Modules are built in registration order and
-disposed in reverse. The shell flattens routes and collects overrides into a
-single root `ProviderScope`.
+A `Flavor` declares the module list (plus identity, theme, and boot knobs);
+`Flavor.build()` lowers it to a `ShellConfig` via `ShellConfig.fromModules(...)`.
+Modules are built in registration order and disposed in reverse. The shell
+flattens routes and collects overrides into a single root `ProviderScope`.
 
 ### State Management
 
@@ -68,22 +68,35 @@ Mental model: `Watch` is to signals what `StreamBuilder` is to streams.
 
 ### Theming
 
-A flavor's visual theme is a **`BrandTheme`** — the public customization contract
-(colors per brightness, fonts, corner radii) built from plain Flutter types.
-`standard()` takes a `BrandTheme` (defaulting to `const BrandTheme.soliplex()`), an
-`AppIdentity` (app name + logos), and a `FontResolver`, then lowers the brand to
-`ThemeData` via `lowerBrandTheme(theme, brightness)`. Whitelabel forks customize by
-passing `BrandTheme.fromSeed(...)` / `.fromAccents(...)` or a fully-specified
-`BrandTheme`; the internal token system stays private behind that lowering boundary.
-Spacing and breakpoints are fixed. The brand tokens live in the `soliplex_design`
-workspace package (`packages/soliplex_design/`) — see the **Design system** section
-below and `packages/soliplex_design/README.md` before writing UI code.
+A flavor's visual theme is a **`FlavorTheme`** wrapping one of two public tiers
+(ADR-003 §1.3):
+
+- **Curated (default): `BrandTheme`** — the customization contract (colors per
+  brightness, fonts, corner radii) built from plain Flutter types. `standard()`
+  takes one (defaulting to `const BrandTheme.soliplex()`), an `AppIdentity`
+  (app name + logos), and a `FontResolver`, then lowers the brand to
+  `ThemeData` via `lowerBrandTheme(theme, brightness)`. Whitelabel forks
+  customize by passing `BrandTheme.fromSeed(...)` / `.fromAccents(...)` or a
+  fully-specified `BrandTheme`. Unset on-colors are derived to clear WCAG AA.
+- **Full token control (explicit opt-in): `FlavorTheme.themeData(...)`** with
+  themes built by `buildSoliplexThemeData` from a complete `SoliplexColors`.
+  The barrel re-exports `SoliplexColors` and `buildSoliplexThemeData` for forks
+  whose brand needs slots the curated façade does not carry; there is no
+  on-color derivation on this tier, so the fork owns legibility (contrast
+  checks warn, never block).
+
+Spacing and breakpoints are fixed on both tiers. The brand tokens live in the
+`soliplex_design` workspace package (`packages/soliplex_design/`) — see the
+**Design system** section below and `packages/soliplex_design/README.md` before
+writing UI code.
 
 ### Flavors
 
-Flavors are functions that construct `AppModule` instances and call
-`ShellConfig.fromModules(...)`. Modules are included/excluded by presence in the
-flavor — no enum or toggle framework.
+A `Flavor` is the declaration of an app variant — identity, theme, modules,
+boot knobs — lowered to a `ShellConfig` by `Flavor.build()`. `standardFlavor()`
+composes the standard one; `standard()` is that flavor, lowered. Modules are
+included/excluded by presence in the flavor — no enum or toggle framework. See
+`docs/authoring-a-flavor.md`.
 
 ## Design system
 
