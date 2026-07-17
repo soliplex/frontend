@@ -11,6 +11,7 @@ import '../status_message.dart';
 import '../status_message_controller.dart';
 import '../status_message_display.dart';
 import '../status_message_fetcher.dart';
+import '../status_message_window_format.dart';
 
 /// Callers that can change target server while staying mounted (the lobby's
 /// selected server) MUST pass `key: ValueKey(baseUrl)` so Flutter recreates
@@ -47,7 +48,7 @@ class StatusMessageBanner extends ConsumerStatefulWidget {
 class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
   late final StatusMessageController _controller;
   Timer? _ticker;
-  bool _minimized = false;
+  bool _expanded = false;
 
   /// Reads the shell-provided config. The banner is self-contained and may be
   /// dropped into any tree; outside a shell (e.g. a widget test that doesn't
@@ -117,7 +118,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
       BuildContext context, StatusMessage message, MessageDisplay display) {
     final text = switch (display) {
       MessageUpcoming(:final remaining) =>
-        'BEGINS IN ${formatCountdown(remaining)}',
+        'STARTS IN ${formatCountdown(remaining)}',
       MessageActive(:final remaining) =>
         'ENDS IN ${formatCountdown(remaining)}',
       _ => null,
@@ -139,63 +140,112 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
   Widget _buildBanner(
       BuildContext context, StatusMessage message, MessageDisplay display) {
     final (bg, fg) = _colors(context, message.intent);
-    final theme = Theme.of(context);
     final pill = _pill(context, message, display);
-    // The header row (icon, title, pill, toggle) is identical whether expanded
-    // or minimized; the body only appears below it when expanded. This keeps
-    // the toggle button pinned in place across the transition.
+    final window = message.window;
     return Container(
       color: bg,
       padding: const EdgeInsets.all(SoliplexSpacing.s3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(SoliplexSpacing.s2),
-            decoration: BoxDecoration(
-              color: fg.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(context.radii.md),
-            ),
-            child: Icon(_icon(message.category), color: fg),
-          ),
-          const SizedBox(width: SoliplexSpacing.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        message.title,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(color: fg),
-                      ),
-                    ),
-                    if (pill != null) ...[
-                      const SizedBox(width: SoliplexSpacing.s2),
-                      pill,
-                    ],
-                  ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(SoliplexSpacing.s2),
+                decoration: BoxDecoration(
+                  color: fg.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(context.radii.md),
                 ),
-                if (!_minimized) ...[
-                  const SizedBox(height: SoliplexSpacing.s1),
-                  Text(
-                    message.body,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: fg),
-                  ),
-                ],
-              ],
-            ),
+                child: Icon(_icon(message.category), color: fg),
+              ),
+              const SizedBox(width: SoliplexSpacing.s3),
+              Expanded(
+                child: _expanded
+                    ? _expandedContent(context, message, pill, window, fg)
+                    : _collapsedContent(context, message, pill, fg),
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(_minimized ? Icons.expand_more : Icons.expand_less),
-            color: fg,
-            tooltip: _minimized ? 'Expand' : 'Minimize',
-            onPressed: () => setState(() => _minimized = !_minimized),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SoliplexButton.text(
+              isCompact: true,
+              onPressed: () => setState(() => _expanded = !_expanded),
+              child: Text(_expanded ? 'Show less' : 'Details'),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _collapsedContent(
+      BuildContext context, StatusMessage message, Widget? pill, Color fg) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                message.title,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(color: fg),
+              ),
+            ),
+            if (pill != null) ...[
+              const SizedBox(width: SoliplexSpacing.s2),
+              pill,
+            ],
+          ],
+        ),
+        const SizedBox(height: SoliplexSpacing.s1),
+        Text(
+          message.body,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+        ),
+      ],
+    );
+  }
+
+  Widget _expandedContent(BuildContext context, StatusMessage message,
+      Widget? pill, MessageWindow? window, Color fg) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          message.title,
+          style: theme.textTheme.titleSmall?.copyWith(color: fg),
+        ),
+        if (pill != null) ...[
+          const SizedBox(height: SoliplexSpacing.s2),
+          Align(alignment: Alignment.centerLeft, child: pill),
+        ],
+        if (window != null) ...[
+          const SizedBox(height: SoliplexSpacing.s2),
+          LayoutBuilder(
+            builder: (context, constraints) => Text(
+              formatWindowRange(
+                window.start,
+                window.end,
+                stacked: constraints.maxWidth < SoliplexBreakpoints.tablet,
+              ),
+              style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+            ),
+          ),
+        ],
+        const SizedBox(height: SoliplexSpacing.s2),
+        Text(
+          message.body,
+          style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+        ),
+      ],
     );
   }
 }

@@ -12,42 +12,60 @@ Widget _wrap(Widget child) => ProviderScope(
       ),
     );
 
+StatusMessage _upcoming() => StatusMessage(
+      id: 'm',
+      title: 'Scheduled maintenance',
+      body: 'Save your work.',
+      intent: MessageIntent.warning,
+      category: MessageCategory.maintenance,
+      window: MessageWindow(
+        start: DateTime.now().toUtc().add(const Duration(hours: 3)),
+        end: DateTime.now().toUtc().add(const Duration(hours: 5)),
+      ),
+    );
+
 void main() {
-  final upcoming = StatusMessage(
-    id: 'm',
-    title: 'Scheduled maintenance',
-    body: 'Save your work.',
-    intent: MessageIntent.warning,
-    category: MessageCategory.maintenance,
-    window: MessageWindow(
-      start: DateTime.now().toUtc().add(const Duration(hours: 3)),
-      end: DateTime.now().toUtc().add(const Duration(hours: 5)),
-    ),
-  );
-
-  testWidgets('renders an upcoming maintenance banner, then minimizes',
-      (tester) async {
+  testWidgets('collapsed by default, expands via Details', (tester) async {
     await tester.pumpWidget(_wrap(
-      StatusMessageBanner.withFetcher(fetcher: () async => upcoming),
+      StatusMessageBanner.withFetcher(fetcher: () async => _upcoming()),
     ));
-    await tester.pump(); // resolve the fetch future
-
-    expect(find.text('Scheduled maintenance'), findsOneWidget);
-    expect(find.text('Save your work.'), findsOneWidget);
-    expect(find.textContaining('BEGINS IN'), findsOneWidget);
-
-    await tester.tap(find.byIcon(Icons.expand_less));
     await tester.pump();
 
-    expect(find.text('Save your work.'), findsNothing); // body hidden minimized
-    expect(find.text('Scheduled maintenance'), findsOneWidget); // title stays
+    // Collapsed: title, countdown, one-line body, Details; no window range.
+    expect(find.text('Scheduled maintenance'), findsOneWidget);
+    expect(find.textContaining('STARTS IN'), findsOneWidget);
+    expect(find.text('Save your work.'), findsOneWidget);
+    expect(find.text('Details'), findsOneWidget);
+    expect(find.textContaining('·'), findsNothing);
+
+    await tester.tap(find.text('Details'));
+    await tester.pump();
+
+    // Expanded: the window range line appears, Show less replaces Details.
+    expect(find.textContaining('·'), findsOneWidget);
+    expect(find.text('Show less'), findsOneWidget);
+    expect(find.text('Details'), findsNothing);
   });
 
-  testWidgets('renders nothing when there is no message', (tester) async {
+  testWidgets('windowless message shows no pill and no window range',
+      (tester) async {
+    final windowless = StatusMessage(
+      id: 'n',
+      title: 'Heads up',
+      body: 'A general notice.',
+      intent: MessageIntent.info,
+      category: MessageCategory.general,
+    );
     await tester.pumpWidget(_wrap(
-      StatusMessageBanner.withFetcher(fetcher: () async => null),
+      StatusMessageBanner.withFetcher(fetcher: () async => windowless),
     ));
     await tester.pump();
+
+    expect(find.text('Heads up'), findsOneWidget);
     expect(find.byType(SoliplexBadge), findsNothing);
+    await tester.tap(find.text('Details'));
+    await tester.pump();
+    expect(find.textContaining('·'), findsNothing);
+    expect(find.text('A general notice.'), findsOneWidget);
   });
 }
