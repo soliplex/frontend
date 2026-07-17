@@ -508,6 +508,7 @@ class _RoomContent extends StatelessWidget {
                 key: ValueKey(selectedEntry.serverUrl),
                 baseUrl: selectedEntry.serverUrl,
                 client: selectedEntry.httpClient,
+                serverLabel: selectedEntry.displayName,
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,

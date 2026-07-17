@@ -1578,6 +1578,7 @@ class _RoomScreenState extends State<RoomScreen> {
           key: ValueKey(widget.serverEntry.serverUrl),
           baseUrl: widget.serverEntry.serverUrl,
           client: widget.serverEntry.httpClient,
+          serverLabel: widget.serverEntry.displayName,
         ),
         _buildRoomHeader(room, roomStatus, threadStatus),
         if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),

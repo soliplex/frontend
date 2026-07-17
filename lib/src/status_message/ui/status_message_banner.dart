@@ -9,6 +9,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../core/status_message_config.dart';
 import '../status_message.dart';
 import '../status_message_controller.dart';
+import '../status_message_dismissals.dart';
 import '../status_message_display.dart';
 import '../status_message_fetcher.dart';
 import '../status_message_window_format.dart';
@@ -21,24 +22,37 @@ class StatusMessageBanner extends ConsumerStatefulWidget {
   const StatusMessageBanner({
     required Uri baseUrl,
     required SoliplexHttpClient client,
+    String? serverLabel,
     Key? key,
-  }) : this._(baseUrl: baseUrl, client: client, key: key);
+  }) : this._(
+          baseUrl: baseUrl,
+          client: client,
+          serverLabel: serverLabel,
+          key: key,
+        );
 
   const StatusMessageBanner.withFetcher({
     required StatusMessageFetcher fetcher,
+    String? serverLabel,
     Key? key,
-  }) : this._(fetcher: fetcher, key: key);
+  }) : this._(fetcher: fetcher, serverLabel: serverLabel, key: key);
 
   const StatusMessageBanner._({
     this.baseUrl,
     this.client,
     this.fetcher,
+    this.serverLabel,
     super.key,
   });
 
   final Uri? baseUrl;
   final SoliplexHttpClient? client;
   final StatusMessageFetcher? fetcher;
+
+  /// Which server this message is about, shown in the expanded view for
+  /// disambiguation. The mounts pass `ServerEntry.displayName` (the server's
+  /// name, or a cleaned host label when unnamed). Null → no label.
+  final String? serverLabel;
 
   @override
   ConsumerState<StatusMessageBanner> createState() =>
@@ -49,6 +63,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
   late final StatusMessageController _controller;
   Timer? _ticker;
   bool _expanded = false;
+  StatusMessageDismissals? _dismissals;
 
   /// Reads the shell-provided config. The banner is self-contained and may be
   /// dropped into any tree; outside a shell (e.g. a widget test that doesn't
@@ -60,6 +75,18 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
       return StatusMessageConfig.disabled;
     }
   }
+
+  /// Reads the session dismiss store. Guarded like the config: outside a shell
+  /// there is no provider, so treat it as "nothing dismissed".
+  StatusMessageDismissals? _readDismissals() {
+    try {
+      return ref.read(statusMessageDismissalsProvider);
+    } on StateError {
+      return null;
+    }
+  }
+
+  String get _serverKey => widget.baseUrl?.toString() ?? '';
 
   @override
   void initState() {
@@ -73,6 +100,7 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
         );
     _controller = StatusMessageController(fetcher: fetcher, config: config)
       ..start();
+    _dismissals = _readDismissals();
     if (config.isEnabled) {
       _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
         if (mounted) setState(() {});
@@ -92,6 +120,9 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
     return Watch((context) {
       final message = _controller.message.value;
       if (message == null) return const SizedBox.shrink();
+      if (_dismissals?.isDismissed(_serverKey, message.id) ?? false) {
+        return const SizedBox.shrink();
+      }
       final display = resolveVisibility(message, now: DateTime.now());
       if (display is MessageHidden) return const SizedBox.shrink();
       return _buildBanner(context, message, display);
@@ -166,6 +197,15 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                     ? _expandedContent(context, message, pill, window, fg)
                     : _collapsedContent(context, message, pill, fg),
               ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                color: fg,
+                tooltip: 'Dismiss',
+                onPressed: () {
+                  _dismissals?.markDismissed(_serverKey, message.id);
+                  setState(() {});
+                },
+              ),
             ],
           ),
           Align(
@@ -223,6 +263,13 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
           message.title,
           style: theme.textTheme.titleSmall?.copyWith(color: fg),
         ),
+        if (widget.serverLabel case final label? when label.isNotEmpty) ...[
+          const SizedBox(height: SoliplexSpacing.s1),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(color: fg),
+          ),
+        ],
         if (pill != null) ...[
           const SizedBox(height: SoliplexSpacing.s2),
           Align(alignment: Alignment.centerLeft, child: pill),
@@ -236,7 +283,8 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                 window.end,
                 stacked: constraints.maxWidth < SoliplexBreakpoints.tablet,
               ),
-              style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: fg, fontWeight: FontWeight.w500),
             ),
           ),
         ],

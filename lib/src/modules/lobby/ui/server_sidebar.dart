@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../version.dart';
 import '../../../core/app_identity.dart';
+import '../../../status_message/status_message_dismissals.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
@@ -427,6 +428,9 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         authFlow: ref.read(authFlowProvider),
         probeClient: ref.read(probeClientProvider),
       );
+      ref
+          .read(statusMessageDismissalsProvider)
+          .clear(serverKey: widget.entry.serverUrl.toString());
       switch (then) {
         case _AfterLogout.keep:
           break;
