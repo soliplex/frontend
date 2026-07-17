@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import '../../../shared/local_time_format.dart' show isSameCalendarDay;
 import '../compute_display_messages.dart';
 import '../execution_tracker.dart';
 import '../message_timestamp_format.dart';

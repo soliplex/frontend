@@ -6,6 +6,7 @@ import '../core/app_module.dart';
 import '../core/flavor.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/shell_config.dart';
+import '../core/status_message_config.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/callback_params.dart';
 import 'standard_kit.dart';
@@ -29,6 +30,8 @@ Future<Flavor> standardFlavor({
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
+  String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
+  Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
   List<AppModule> Function(StandardKit kit)? extraModules,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
@@ -41,6 +44,8 @@ Future<Flavor> standardFlavor({
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,
     enableDocumentFilter: enableDocumentFilter,
+    statusMessageFilePath: statusMessageFilePath,
+    statusMessagePollInterval: statusMessagePollInterval,
   );
   return Flavor(
     identity: effectiveIdentity,
@@ -49,6 +54,7 @@ Future<Flavor> standardFlavor({
     initialRoute: kit.initialRoute,
     refreshListenable: kit.refreshListenable,
     inactivity: kit.inactivity,
+    statusMessage: kit.statusMessage,
   );
 }
 
@@ -69,6 +75,8 @@ Future<ShellConfig> standard({
   ConsentNotice? consentNotice,
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
+  String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
+  Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
 }) async {
   final flavor = await standardFlavor(
     identity: identity,
@@ -84,6 +92,8 @@ Future<ShellConfig> standard({
     consentNotice: consentNotice,
     inactivityWarningDuration: inactivityWarningDuration,
     inactivityGraceDuration: inactivityGraceDuration,
+    statusMessageFilePath: statusMessageFilePath,
+    statusMessagePollInterval: statusMessagePollInterval,
   );
   return flavor.build();
 }

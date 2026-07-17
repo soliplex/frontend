@@ -90,6 +90,7 @@ class ConnectFlow {
     required this.authFlow,
     required this.inactivityLogoutFlags,
     this.consentNotice,
+    this.onServerConnected,
   });
 
   final ServerManager serverManager;
@@ -98,6 +99,11 @@ class ConnectFlow {
   final AuthFlow authFlow;
   final InactivityLogoutFlagStorage inactivityLogoutFlags;
   final ConsentNotice? consentNotice;
+
+  /// Fired when a server establishes a fresh connection — after an OIDC login
+  /// or when a no-auth server is added. Lets the app layer react (e.g. reset a
+  /// server's dismissed status messages) without this flow depending on it.
+  final void Function(Uri serverUrl)? onServerConnected;
 
   final Signal<ConnectState> state = Signal<ConnectState>(const UrlInput());
 
@@ -233,7 +239,22 @@ class ConnectFlow {
     );
     DefaultBackendUrlStorage.save(probeResult.serverUrl.toString());
     await SelectedServerStorage.save(serverId);
-    if (!_isCancelled(gen)) state.value = const Connected();
+    if (!_isCancelled(gen)) {
+      _notifyConnected(probeResult.serverUrl);
+      state.value = const Connected();
+    }
+  }
+
+  /// Fires [onServerConnected], isolating any throw so a misbehaving callback
+  /// can neither escape as an unhandled async error nor bounce an
+  /// already-connected user to the error state.
+  void _notifyConnected(Uri serverUrl) {
+    try {
+      onServerConnected?.call(serverUrl);
+    } on Object catch (e, st) {
+      _logger.warning('ConnectFlow: onServerConnected callback failed',
+          error: e, stackTrace: st);
+    }
   }
 
   Future<void> _authenticate(
@@ -291,6 +312,8 @@ class ConnectFlow {
           idToken: authResult.idToken,
         ),
       );
+
+      if (!_isCancelled(gen)) _notifyConnected(probeResult.serverUrl);
 
       // Post-login housekeeping is best-effort: the user is already
       // signed in, so a storage failure here must not bounce them to the

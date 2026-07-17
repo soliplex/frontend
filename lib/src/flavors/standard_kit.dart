@@ -7,6 +7,7 @@ import '../core/app_identity.dart';
 import '../core/app_module.dart';
 import '../core/inactivity/inactivity_config.dart';
 import '../core/routes.dart';
+import '../core/status_message_config.dart';
 import '../core/storage_migration.dart';
 import '../interfaces/auth_state.dart' show Authenticated;
 import '../modules/auth/auth_module.dart';
@@ -34,13 +35,15 @@ import '../modules/room/tool_calls_extension.dart';
 import '../modules/versions/versions_module.dart';
 
 /// The module graph and derived boot inputs (`initialRoute`,
-/// `refreshListenable`, `inactivity`) produced by [buildStandardKit],
-/// plus `serverManager` — the shared-state handle custom modules build on.
+/// `refreshListenable`, `inactivity`, `statusMessage`) produced by
+/// [buildStandardKit], plus `serverManager` — the shared-state handle custom
+/// modules build on.
 typedef StandardKit = ({
   List<AppModule> modules,
   Listenable refreshListenable,
   String initialRoute,
   InactivityConfig inactivity,
+  StatusMessageConfig statusMessage,
   ServerManager serverManager,
 });
 
@@ -59,6 +62,8 @@ Future<StandardKit> buildStandardKit({
   Duration inactivityWarningDuration = InactivityConfig.defaultWarningDuration,
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   bool enableDocumentFilter = true,
+  String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
+  Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
 }) async {
   final brandLogo = BrandLogo(identity: identity);
 
@@ -195,6 +200,10 @@ Future<StandardKit> buildStandardKit({
     inactivity: InactivityConfig(
       warningDuration: inactivityWarningDuration,
       graceDuration: inactivityGraceDuration,
+    ),
+    statusMessage: StatusMessageConfig(
+      filePath: statusMessageFilePath,
+      pollInterval: statusMessagePollInterval,
     ),
     serverManager: serverManager,
   );

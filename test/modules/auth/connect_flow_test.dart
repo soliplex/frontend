@@ -32,6 +32,7 @@ ConnectFlow _createFlow({
   InactivityLogoutFlagStorage? inactivityLogoutFlags,
   ServerManager? serverManager,
   DiscoverProviders? discover,
+  void Function(Uri serverUrl)? onServerConnected,
 }) =>
     ConnectFlow(
       serverManager: serverManager ?? _createManager(),
@@ -40,6 +41,7 @@ ConnectFlow _createFlow({
       authFlow: authFlow,
       inactivityLogoutFlags:
           inactivityLogoutFlags ?? InMemoryInactivityLogoutFlagStorage(),
+      onServerConnected: onServerConnected,
     );
 
 AuthResult _successResult() => AuthResult(
@@ -216,6 +218,49 @@ void main() {
         await SelectedServerStorage.load(),
         manager.servers.value.keys.single,
       );
+    });
+  });
+
+  group('ConnectFlow — onServerConnected', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('fires once with the server URL after an OIDC login', () async {
+      final manager = _createManager();
+      Uri? connected;
+      var calls = 0;
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow()..nextResult = _successResult(),
+        serverManager: manager,
+        onServerConnected: (url) {
+          connected = url;
+          calls++;
+        },
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(calls, 1);
+      expect(
+        connected.toString(),
+        manager.servers.value.values.single.serverUrl.toString(),
+      );
+    });
+
+    test('fires when a no-auth server is added', () async {
+      var calls = 0;
+      final flow = _createFlow(
+        authFlow: FakeAuthFlow(),
+        discover: (_, __) async => [],
+        onServerConnected: (_) => calls++,
+      );
+
+      await flow.connect('https://server.example.com');
+      await pumpEventQueue();
+
+      expect(calls, 1);
     });
   });
 }

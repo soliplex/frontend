@@ -9,6 +9,7 @@ import '../../../core/activity_read.dart';
 import '../../../core/app_identity.dart';
 import '../../../core/routes.dart';
 import '../../../shared/mark_read_context_menu.dart';
+import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
@@ -498,8 +499,17 @@ class _RoomContent extends StatelessWidget {
         // the persisted choice is honoured again once the pane is wide enough.
         final allowGrid = constraints.maxWidth >= SoliplexBreakpoints.tablet;
         final effectiveViewMode = allowGrid ? viewMode : LobbyViewMode.list;
+        final selectedEntry =
+            selectedServerId == null ? null : servers[selectedServerId];
         return Column(
           children: [
+            if (selectedEntry != null)
+              StatusMessageBanner(
+                key: ValueKey(selectedEntry.serverUrl),
+                baseUrl: selectedEntry.serverUrl,
+                client: selectedEntry.httpClient,
+                serverLabel: selectedEntry.displayName,
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
                   SoliplexSpacing.s2, SoliplexSpacing.s4, 0),

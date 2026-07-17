@@ -13,6 +13,7 @@ import 'inactivity/inactivity_monitor.dart';
 import 'inactivity/inactivity_provider.dart';
 import 'router.dart';
 import 'shell_config.dart';
+import 'status_message_config.dart';
 
 /// Boots the Soliplex shell from a [ShellConfig].
 ///
@@ -61,6 +62,8 @@ class _SoliplexShellState extends State<SoliplexShell> {
       overrides: [
         ...widget.config.overrides,
         inactivityConfigProvider.overrideWithValue(widget.config.inactivity),
+        statusMessageConfigProvider
+            .overrideWithValue(widget.config.statusMessage),
       ],
       child: _ShellRoot(config: widget.config, router: _router),
     );

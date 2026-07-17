@@ -107,17 +107,4 @@ void main() {
       );
     });
   });
-
-  group('isSameCalendarDay', () {
-    test('true within a local calendar day, false across midnight', () {
-      expect(
-        isSameCalendarDay(DateTime(2026, 3, 15, 1), DateTime(2026, 3, 15, 23)),
-        isTrue,
-      );
-      expect(
-        isSameCalendarDay(DateTime(2026, 3, 15, 23), DateTime(2026, 3, 16, 1)),
-        isFalse,
-      );
-    });
-  });
 }

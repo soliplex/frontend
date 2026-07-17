@@ -5,6 +5,7 @@ import 'app_identity.dart';
 import 'app_module.dart';
 import 'inactivity/inactivity_config.dart';
 import 'shell_config.dart';
+import 'status_message_config.dart';
 
 /// The theme half of a [Flavor]: what the app looks like, before lowering.
 ///
@@ -77,8 +78,9 @@ class FlavorTheme {
 /// [build] owns the assembly ritual in one place — thread `identity.appName`,
 /// resolve [theme] to a light/dark pair (lowering the brand when present) and
 /// carry [FlavorTheme.mode], forward the boot knobs
-/// ([initialRoute], [refreshListenable], [inactivity]) and [modules] into the
-/// [ShellConfig] — so a flavor never re-implements each failable line.
+/// ([initialRoute], [refreshListenable], [inactivity], [statusMessage]) and
+/// [modules] into the [ShellConfig] — so a flavor never re-implements each
+/// failable line.
 /// Customize by composing with `standardFlavor`. See ADR-003.
 class Flavor {
   Flavor({
@@ -88,6 +90,7 @@ class Flavor {
     this.initialRoute = '/',
     this.refreshListenable,
     this.inactivity = const InactivityConfig(),
+    this.statusMessage = const StatusMessageConfig(),
   }) : modules = List.unmodifiable(modules);
 
   final AppIdentity identity;
@@ -98,6 +101,7 @@ class Flavor {
   /// Re-evaluates router redirects when it notifies (e.g. on auth changes).
   final Listenable? refreshListenable;
   final InactivityConfig inactivity;
+  final StatusMessageConfig statusMessage;
 
   bool _built = false;
 
@@ -128,6 +132,7 @@ class Flavor {
       initialRoute: initialRoute,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
+      statusMessage: statusMessage,
       modules: modules,
     );
   }

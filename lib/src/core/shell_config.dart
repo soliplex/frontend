@@ -6,6 +6,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'app_module.dart';
 import 'inactivity/inactivity_config.dart';
 import 'router.dart';
+import 'status_message_config.dart';
 
 class ShellConfig {
   final String appName;
@@ -15,6 +16,7 @@ class ShellConfig {
   final String initialRoute;
   final Listenable? refreshListenable;
   final InactivityConfig inactivity;
+  final StatusMessageConfig statusMessage;
 
   /// Tears down every module's `onDispose` in reverse registration order.
   ///
@@ -41,6 +43,7 @@ class ShellConfig {
     required List<GoRouterRedirect> redirects,
     required this.refreshListenable,
     required this.inactivity,
+    required this.statusMessage,
     required this.dispose,
   })  : _routes = List.unmodifiable(routes),
         _overrides = List.unmodifiable(overrides),
@@ -73,6 +76,7 @@ class ShellConfig {
     String initialRoute = '/',
     Listenable? refreshListenable,
     InactivityConfig inactivity = const InactivityConfig(),
+    StatusMessageConfig statusMessage = const StatusMessageConfig(),
   }) {
     if (lightTheme.extension<SoliplexTheme>() == null) {
       throw ArgumentError(
@@ -108,6 +112,7 @@ class ShellConfig {
       redirects: coordinator.redirects,
       refreshListenable: refreshListenable,
       inactivity: inactivity,
+      statusMessage: statusMessage,
       dispose: coordinator.disposeAll,
     );
   }
