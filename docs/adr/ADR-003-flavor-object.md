@@ -4,7 +4,8 @@
 - **Date:** 2026-07-16
 - **Authors:** William Karol Di Cioccio
 - **Supersedes:** —
-- **Amends:** ADR-002 §2 (records the barrel-boundary change shipped in #426)
+- **Amends:** ADR-002 §2 (barrel-boundary change shipped in #426) and §3.9/§5.2
+  (link contrast policy)
 - **Superseded by:** —
 
 ---
@@ -109,6 +110,12 @@ records that amendment so ADR-002 does not read as silently violated:
 **the barrel now carries two tiers — the curated façade (unchanged, still
 recommended) and the full-control tier (explicitly opt-in, welded to token
 names by choice).** The §8 rejection stands for the *default* path only.
+
+This PR makes a second, smaller amendment to ADR-002, recorded here for the
+same reason: the `link` contrast check now runs on the resolved link for every
+theme (both tiers), so it warns on a default link over a fork-overridden
+`background` — reversing ADR-002 §3.9/§5.2's "checked only when the brand sets
+`link`" policy. The rationale and the amended wording live at ADR-002 §3.9.
 
 ---
 
@@ -221,11 +228,14 @@ construction, failing even earlier with the same message. Deferred until the
 
 ## 5. Known Limitations and Open Questions
 
-1. **Naming.** `Flavor` collides with the informal use of "flavor" for the
-   functions themselves; alternatives: `FlavorSpec`, `AppVariant`,
-   `SoliplexApp`. `FlavorTheme` could be `ThemeSource`. Bikeshed explicitly
-   before accepting. The kit half is settled: this change renames #426's
-   `StandardModules` / `buildStandardModules` record and builder to
+1. **Naming — resolved.** `Flavor` collides with the informal use of "flavor"
+   for the functions themselves, and the alternatives (`FlavorSpec`,
+   `AppVariant`, `SoliplexApp`; `FlavorTheme` → `ThemeSource`) were weighed and
+   declined. This change ships `Flavor` / `FlavorTheme` as the names — they now
+   appear in the CHANGELOG, `CLAUDE.md`, and the authoring guide as public API,
+   so the question is settled by adoption, not left open for a rename after the
+   names are in a release. The kit half is likewise settled: this change renames
+   #426's `StandardModules` / `buildStandardModules` record and builder to
    `StandardKit` / `buildStandardKit`, aligning the type names with the "kit"
    vocabulary.
 2. **`appName` duplication survives** (§1.2 #4): `Flavor.build()` threads
