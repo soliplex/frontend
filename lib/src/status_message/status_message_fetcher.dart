@@ -18,7 +18,12 @@ Future<StatusMessage?> fetchStatusMessage({
     final json = await transport.request<Map<String, dynamic>>('GET', uri);
     final message = StatusMessage.fromJson(json);
     final window = message.window;
-    if (window != null && !window.isValid) {
+    if (json['window'] != null && window == null) {
+      // Operator authored a window we couldn't use (not an object, unparseable,
+      // or a non-UTC bound). Surface it; the message still shows windowless.
+      _logger.warning('Status message has a malformed window at $uri; '
+          'showing the message without it.');
+    } else if (window != null && !window.isValid) {
       // Operator-authored `end` precedes `start`. Surface the mistake (the
       // banner flags the range in error colour) rather than dropping the
       // message.
@@ -27,14 +32,21 @@ Future<StatusMessage?> fetchStatusMessage({
     return message;
   } on NotFoundException {
     return null; // No file configured — the steady state.
+  } on NetworkException catch (e) {
+    // Offline, timeout, a connection refused mid-flight — the expected
+    // transient noise for an auxiliary banner. Log quietly and degrade to
+    // "no message"; the next poll recovers.
+    _logger.debug('Status message fetch failed for $uri', error: e);
+    return null;
   } on FormatException catch (e) {
     _logger.warning('Malformed status message at $uri', error: e);
     return null;
   } on Object catch (e) {
-    // Transient failures (offline, 5xx, an HTML error page) are the expected
-    // noise here, so log at debug and degrade to "no message" — never surface
-    // a fetch error to the user for an auxiliary banner.
-    _logger.debug('Status message fetch failed for $uri', error: e);
+    // A persistent misconfiguration — an auth wall, a permission error, a 5xx,
+    // a wrong content type, or HTML served in place of the JSON. Surface it so
+    // an operator can tell "no message posted" from "message posted but
+    // broken"; still degrade to "no message" for the user.
+    _logger.warning('Status message fetch failed for $uri', error: e);
     return null;
   }
 }

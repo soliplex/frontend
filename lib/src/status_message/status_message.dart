@@ -6,7 +6,8 @@ enum MessageCategory { general, maintenance }
 
 @immutable
 class MessageWindow {
-  const MessageWindow({required this.start, required this.end});
+  MessageWindow({required this.start, required this.end})
+      : assert(start.isUtc && end.isUtc, 'window bounds must be UTC');
   final DateTime start;
   final DateTime end;
 
@@ -53,20 +54,24 @@ class StatusMessage {
       return value;
     }
 
+    // A present-but-malformed window (not an object, unparseable bounds, or a
+    // non-UTC bound that would silently shift per viewer) degrades to null —
+    // the message still shows, windowless — rather than discarding the whole
+    // announcement. The fetcher warns so the operator can spot the mistake.
+    // Only id/title/body are load-bearing enough to reject the message.
     MessageWindow? parseWindow() {
       final raw = json['window'];
-      if (raw == null) return null;
-      if (raw is! Map) {
-        throw const FormatException('status message: invalid "window"');
-      }
+      if (raw is! Map) return null;
+      final DateTime start;
+      final DateTime end;
       try {
-        return MessageWindow(
-          start: DateTime.parse(raw['start'] as String).toUtc(),
-          end: DateTime.parse(raw['end'] as String).toUtc(),
-        );
-      } on Object catch (e) {
-        throw FormatException('status message: invalid window bounds: $e');
+        start = DateTime.parse(raw['start'] as String);
+        end = DateTime.parse(raw['end'] as String);
+      } on Object {
+        return null;
       }
+      if (!start.isUtc || !end.isUtc) return null;
+      return MessageWindow(start: start, end: end);
     }
 
     return StatusMessage(

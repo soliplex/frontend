@@ -14,8 +14,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   warning with a live countdown, that operators post or cancel by dropping or
   deleting a static JSON file on the backend — no app rebuild. It is scoped to
   the in-context server and auto-hides once a maintenance window ends. A missing
-  file or fetch error resolves silently to "no message". The file location and
-  poll interval are flavor-configurable.
+  file or fetch error resolves silently to "no message"; a message whose
+  maintenance window is malformed still shows, just without the window. The file
+  location and poll interval are flavor-configurable.
 - The banner starts collapsed (title + countdown + one body line) and expands on
   demand to show the server name, the maintenance window as a range in the
   viewer's local time (stacked onto two lines on narrow screens), and the full

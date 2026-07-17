@@ -47,16 +47,31 @@ void main() {
           throwsFormatException);
     });
 
-    test('malformed window throws FormatException', () {
+    // A malformed window degrades to windowless — the message text still shows
+    // rather than the whole announcement being dropped.
+    StatusMessage windowed(Object? window) => StatusMessage.fromJson(
+        {'id': 'x', 'title': 't', 'body': 'b', 'window': window});
+
+    test('a non-object window drops to windowless, keeping the message', () {
+      final msg = windowed('soon');
+      expect(msg.window, isNull);
+      expect(msg.title, 't');
+    });
+
+    test('an unparseable window bound drops to windowless', () {
       expect(
-        () => StatusMessage.fromJson({
-          'id': 'x',
-          'title': 't',
-          'body': 'b',
-          'window': {'start': 'not-a-date'}
-        }),
-        throwsFormatException,
-      );
+          windowed({'start': 'not-a-date', 'end': '2026-06-28T22:16:00Z'})
+              .window,
+          isNull);
+    });
+
+    test('a naive (non-UTC) window bound drops to windowless', () {
+      expect(
+          windowed({
+            'start': '2026-06-28T20:16:00',
+            'end': '2026-06-28T22:16:00Z'
+          }).window,
+          isNull);
     });
   });
 

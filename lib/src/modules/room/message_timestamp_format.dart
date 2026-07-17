@@ -1,9 +1,8 @@
 // Pure formatting for chat message time captions and day dividers.
 //
 // All inputs are converted to the viewer's local zone before any calendar
-// field is read. `now` is injectable for testing. The 12-hour clock,
-// weekday/month names, and same-day check come from the shared, dependency-free
-// local-time helpers.
+// field is read. `now` is injectable for testing. The 12-hour clock and
+// weekday/month names come from the shared, dependency-free local-time helpers.
 
 import '../../shared/local_time_format.dart';
 
