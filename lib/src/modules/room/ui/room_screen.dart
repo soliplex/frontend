@@ -1441,7 +1441,7 @@ class _RoomScreenState extends State<RoomScreen> {
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
-              title: Text(roomName),
+              title: _roomTitle(roomName),
             ),
             drawer: Drawer(
               child: Builder(
@@ -1618,14 +1618,7 @@ class _RoomScreenState extends State<RoomScreen> {
           // space and pins the trailing buttons to the right edge. A Flexible
           // beside a Spacer would split the free space and leave the buttons
           // stranded mid-row.
-          Expanded(
-            child: Text(
-              roomName,
-              style: theme.textTheme.titleMedium,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Expanded(child: _roomTitle(roomName)),
           if (documentsButton != null) documentsButton,
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -1635,6 +1628,31 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// The header title: the room name over the server it lives on, so a user
+  /// with several servers connected can see which one this room belongs to.
+  Widget _roomTitle(String roomName) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          roomName,
+          style: theme.textTheme.titleMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          widget.serverEntry.displayName,
+          style: theme.textTheme.labelSmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 

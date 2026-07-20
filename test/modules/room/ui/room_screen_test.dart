@@ -284,6 +284,96 @@ void main() {
     expect(find.byIcon(Icons.menu), findsOneWidget);
   });
 
+  group('server label in header', () {
+    testWidgets('shows the server name beside the room name', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: namedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('General'), findsOneWidget);
+      expect(find.text('Prod API'), findsOneWidget);
+    });
+
+    testWidgets('falls back to the server address when the server is unnamed',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+      // The default `entry` carries no name, so the header shows its address.
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('http://test-server:8000'), findsOneWidget);
+    });
+
+    testWidgets(
+        'narrow AppBar fits the stacked room and server title without overflow',
+        (tester) async {
+      tester.view.physicalSize = const Size(500, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: namedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // The two-line title sits in the fixed-height AppBar toolbar; both lines
+      // must fit without a RenderFlex overflow.
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('General')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('Prod API')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets(
       'narrow layout: tapping drawer icon opens drawer with thread list',
       (tester) async {

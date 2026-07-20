@@ -280,6 +280,28 @@ void main() {
       },
     );
 
+    testWidgets('names the selected server in a pane header', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // On a narrow viewport the sidebar lives in a closed drawer, so the
+      // selected server's address shows only in the pane header.
+      expect(find.text('http://localhost:8000'), findsOneWidget);
+    });
+
     testWidgets('toggle switches loaded rooms from list to grid cards',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);

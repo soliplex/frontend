@@ -503,13 +503,32 @@ class _RoomContent extends StatelessWidget {
             selectedServerId == null ? null : servers[selectedServerId];
         return Column(
           children: [
-            if (selectedEntry != null)
+            if (selectedEntry != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
+                    SoliplexSpacing.s3, SoliplexSpacing.s4, SoliplexSpacing.s2),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    selectedEntry.displayName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
               StatusMessageBanner(
                 key: ValueKey(selectedEntry.serverUrl),
                 baseUrl: selectedEntry.serverUrl,
                 client: selectedEntry.httpClient,
                 serverLabel: selectedEntry.displayName,
               ),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
                   SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
