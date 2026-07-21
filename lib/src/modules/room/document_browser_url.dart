@@ -33,8 +33,9 @@ typedef DocumentBrowserUrlResolver = Uri? Function(String documentUri);
 /// // standardFlavor(extraModules: (kit) => [DocumentLinkModule()])
 /// ```
 ///
-/// DELETE this provider, its `citations_section.dart` call site, and any fork
-/// module overriding it once the backend surfaces `source_url` on citations;
-/// the citation line then reads the field like the document surfaces do.
+/// DELETE this provider, its call sites (`citations_section.dart` and
+/// `chunk_visualization_page.dart`), and any fork module overriding it once the
+/// backend surfaces `source_url` on citations / chunks; those surfaces then
+/// read the field like the document surfaces do.
 final documentBrowserUrlResolverProvider =
     Provider<DocumentBrowserUrlResolver>((_) => (_) => null);
