@@ -31,9 +31,15 @@ Future<void> _pump(WidgetTester tester,
 }
 
 void main() {
-  testWidgets('no link with the default resolver', (tester) async {
+  testWidgets('no link and no raw path with the default resolver',
+      (tester) async {
     await _pump(tester);
     expect(find.byType(BrowserUrlLink), findsNothing);
+    // The internal file path is not shown when no link resolves.
+    expect(
+      find.textContaining('file:///x/foo.pdf', findRichText: true),
+      findsNothing,
+    );
   });
 
   testWidgets('renders a link when a resolver is injected', (tester) async {

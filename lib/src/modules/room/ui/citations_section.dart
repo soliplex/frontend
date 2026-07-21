@@ -260,24 +260,20 @@ class _SourceReferenceRow extends StatelessWidget {
         children: [
           // TEMPORARY: citations don't yet carry the backend `source_url`, so the
           // browser link is derived from `documentUri` via the injected resolver.
-          // Remove this Consumer (and revert to reading a citation `source_url` field)
-          // once the backend surfaces `source_url` on citations. See
+          // The internal path is never shown here (the row header already carries
+          // the document name); only the resolved browser link appears. Remove
+          // this Consumer (and read a citation `source_url` field) once the
+          // backend surfaces `source_url` on citations. See
           // documentBrowserUrlResolverProvider.
           Consumer(
             builder: (context, ref, _) {
               final url = ref.watch(documentBrowserUrlResolverProvider)(
                   sourceReference.documentUri);
-              if (url != null) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
-                  child: BrowserUrlLink(url: url),
-                );
-              }
-              if (sourceReference.documentUri.isNotEmpty) {
-                return _metaLine(
-                    context, theme, 'document', sourceReference.documentUri);
-              }
-              return const SizedBox.shrink();
+              if (url == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+                child: BrowserUrlLink(url: url),
+              );
             },
           ),
           _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
