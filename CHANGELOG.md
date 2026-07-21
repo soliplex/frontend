@@ -10,6 +10,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- Document origin URLs (`source_url`) render as clickable links in the room's
+  document listing and document filter; citations show the link when a
+  deployment provides a browser-url resolver.
 - Room and lobby: the current server's name (or its address when unnamed) now
   shows alongside the room name in the room view header, and as a title band at
   the top of the lobby's room pane, so a user connected to several servers can
