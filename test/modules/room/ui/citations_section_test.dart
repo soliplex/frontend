@@ -148,6 +148,21 @@ void main() {
     expect(find.text('Preview text here'), findsOneWidget);
   });
 
+  testWidgets('expanded row shows the chunk id', (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [_ref(index: 1, title: 'Doc')],
+      ),
+    ));
+
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('Doc'));
+    await tester.pump();
+
+    expect(find.textContaining('chunk-1'), findsOneWidget);
+  });
+
   testWidgets('shows page numbers when present', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(
@@ -207,6 +222,7 @@ void main() {
         'Chapter 1 > Section 2\n'
         'p.5-6\n'
         'file://doc-1.txt\n'
+        'chunk id: chunk-1\n'
         '\n'
         'Preview text here',
       );
@@ -224,7 +240,7 @@ void main() {
         index: 1,
       );
 
-      expect(formatCitationForClipboard(ref), 'Doc');
+      expect(formatCitationForClipboard(ref), 'Doc\nchunk id: chunk-1');
     });
   });
 

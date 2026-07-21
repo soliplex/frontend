@@ -256,18 +256,10 @@ class _SourceReferenceRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (sourceReference.documentUri.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
-              child: Text(
-                sourceReference.documentUri,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (sourceReference.headings.isNotEmpty)
+            _metaLine(context, theme, 'document', sourceReference.documentUri),
+          _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
+          if (sourceReference.headings.isNotEmpty) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
             Padding(
               padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
               child: Text(
@@ -279,6 +271,7 @@ class _SourceReferenceRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+          ],
           if (sourceReference.content.isNotEmpty)
             Container(
               constraints: const BoxConstraints(maxHeight: 250),
@@ -297,6 +290,39 @@ class _SourceReferenceRow extends StatelessWidget {
           if (sourceReference.figures.isNotEmpty)
             _CitationFigures(sourceReference: sourceReference),
         ],
+      ),
+    );
+  }
+
+  /// A single provenance line: a muted-bold [label] lead-in followed by a
+  /// monospace [value] that wraps to the margin, so the full uri / chunk id
+  /// stays visible without a hanging indent.
+  Widget _metaLine(
+    BuildContext context,
+    ThemeData theme,
+    String label,
+    String value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+      child: Text.rich(
+        TextSpan(
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          children: [
+            TextSpan(text: '$label  '),
+            TextSpan(
+              text: value,
+              style: context.monospaceOn(
+                theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -505,6 +531,7 @@ String formatCitationForClipboard(SourceReference ref) {
   if (ref.documentUri.isNotEmpty) {
     lines.add(ref.documentUri);
   }
+  lines.add('chunk id: ${ref.chunkId}');
   if (ref.content.isNotEmpty) {
     lines
       ..add('')

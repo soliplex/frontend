@@ -6,6 +6,7 @@ import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
 import 'paged_zoomable_images.dart';
@@ -45,16 +46,26 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.api,
     required this.roomId,
     required this.chunkId,
-    required this.documentTitle,
     required this.pageNumbers,
     required this.useDialogLayout,
+    this.documentTitle,
+    this.documentUri,
     this.docItemRefs = const [],
   });
 
   final SoliplexApi api;
   final String roomId;
   final String chunkId;
-  final String documentTitle;
+
+  /// The document's display name for the title bar, when the caller knows it
+  /// (citations). Null for a bare chunk-id lookup, where the title falls back
+  /// to a neutral label.
+  final String? documentTitle;
+
+  /// The document uri shown in the detail block, when the caller knows it
+  /// (citations). Null for a bare chunk-id lookup, where the detail block
+  /// falls back to the uri returned by the fetch (which may itself be absent).
+  final String? documentUri;
   final List<int> pageNumbers;
   final bool useDialogLayout;
 
@@ -67,8 +78,9 @@ class ChunkVisualizationPage extends StatefulWidget {
     required SoliplexApi api,
     required String roomId,
     required String chunkId,
-    required String documentTitle,
     required List<int> pageNumbers,
+    String? documentTitle,
+    String? documentUri,
     List<String> docItemRefs = const [],
   }) {
     final useDialog =
@@ -78,6 +90,7 @@ class ChunkVisualizationPage extends StatefulWidget {
       roomId: roomId,
       chunkId: chunkId,
       documentTitle: documentTitle,
+      documentUri: documentUri,
       pageNumbers: pageNumbers,
       useDialogLayout: useDialog,
       docItemRefs: docItemRefs,
@@ -110,8 +123,15 @@ class ChunkVisualizationPage extends StatefulWidget {
   State<ChunkVisualizationPage> createState() => _ChunkVisualizationPageState();
 }
 
+/// The decoded pages plus the document uri the backend reported for the
+/// chunk, surfaced together so the detail block can show provenance.
+typedef _VizResult = ({List<PageImage> pages, String? documentUri});
+
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
-  late Future<List<PageImage>> _future;
+  /// Title shown when the caller has no document name (bare chunk-id lookup).
+  static const _fallbackTitle = 'Chunk preview';
+
+  late Future<_VizResult> _future;
   // Bumped on retry so the pager remounts with fresh rotation/page state.
   int _reloadNonce = 0;
 
@@ -125,7 +145,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     _future = _fetchAndDecode();
   }
 
-  Future<List<PageImage>> _fetchAndDecode() async {
+  Future<_VizResult> _fetchAndDecode() async {
     final refCount = widget.docItemRefs.length;
     final grounded = refCount > 0;
     _logger.debug(
@@ -152,7 +172,10 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           'pageCount': viz.imagesBase64.length,
         },
       );
-      return viz.imagesBase64.map(_decodePageImage).toList();
+      return (
+        pages: viz.imagesBase64.map(_decodePageImage).toList(),
+        documentUri: viz.documentUri,
+      );
     } catch (error, stack) {
       _logger.error(
         'chunk visualization fetch failed',
@@ -204,7 +227,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Widget _buildContent(BuildContext context) {
-    return FutureBuilder<List<PageImage>>(
+    return FutureBuilder<_VizResult>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -213,7 +236,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         if (snapshot.hasError) {
           return _buildError(context, snapshot.error!);
         }
-        return _buildImages(context, snapshot.data ?? const []);
+        final result = snapshot.data!;
+        return _buildLoaded(context, result.pages, result.documentUri);
       },
     );
   }
@@ -241,7 +265,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.documentTitle),
+        title: Text(widget.documentTitle ?? _fallbackTitle),
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
       // Without SafeArea, the system gesture inset (iOS home indicator,
@@ -264,7 +288,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         children: [
           Expanded(
             child: Text(
-              widget.documentTitle,
+              widget.documentTitle ?? _fallbackTitle,
               style: theme.textTheme.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -291,12 +315,80 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             'Failed to load visualization',
             style: theme.textTheme.bodyMedium,
           ),
+          const SizedBox(height: SoliplexSpacing.s3),
+          _detailField(context, 'chunk id', widget.chunkId),
           const SizedBox(height: SoliplexSpacing.s4),
           SoliplexButton.filled(
             onPressed: _retry,
             icon: const Icon(Icons.refresh),
             child: const Text('Retry'),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// A labelled metadata field with a copy button and a selectable monospace
+  /// value, copyable in one tap or selectable directly. Used for the chunk id
+  /// (detail block and error state) and the document uri (detail block only).
+  Widget _detailField(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: labelStyle),
+            const SizedBox(width: SoliplexSpacing.s1),
+            // Match the copy icon to the label's type-scale size so the two
+            // read as one line rather than the icon overpowering the label.
+            CopyButton(
+              text: value,
+              tooltip: 'Copy $label',
+              iconSize: labelStyle?.fontSize ?? 12,
+            ),
+          ],
+        ),
+        SelectableText(
+          value,
+          style: context.monospaceOn(theme.textTheme.bodySmall),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetails(BuildContext context, String? fetchedDocumentUri) {
+    // Prefer the caller's uri (citations), treating empty as absent so a blank
+    // citation uri doesn't shadow a real fetched one; fall back to the fetched
+    // uri for a bare chunk-id lookup. Absent in both (null/empty) → the row is
+    // hidden and only the chunk id shows.
+    final callerUri = widget.documentUri;
+    final document = (callerUri != null && callerUri.isNotEmpty)
+        ? callerUri
+        : fetchedDocumentUri;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SoliplexSpacing.s4,
+        0,
+        SoliplexSpacing.s4,
+        SoliplexSpacing.s2,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Divider(color: Theme.of(context).colorScheme.outline),
+          _detailField(context, 'chunk id', widget.chunkId),
+          if (document != null && document.isNotEmpty) ...[
+            const SizedBox(height: SoliplexSpacing.s2),
+            _detailField(context, 'document', document),
+          ],
         ],
       ),
     );
@@ -327,21 +419,34 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     };
   }
 
-  Widget _buildImages(BuildContext context, List<PageImage> pages) {
-    if (pages.isEmpty) {
-      return const Center(child: Text('No page images available'));
-    }
-
-    return PagedZoomableImages(
-      key: ValueKey(_reloadNonce),
-      itemCount: pages.length,
-      pageBuilder: (context, index, rotation) => _buildPageImage(
-          pages[index], rotation.quarterTurns, rotation.onRotate),
-      footerBuilder: (context, index) => Text(
-        _pageLabel(index, pages.length),
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-      dotLabelForIndex: (i) => 'Page ${i + 1}',
+  Widget _buildLoaded(
+    BuildContext context,
+    List<PageImage> pages,
+    String? documentUri,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: pages.isEmpty
+              ? const Center(child: Text('No page images available'))
+              : PagedZoomableImages(
+                  key: ValueKey(_reloadNonce),
+                  itemCount: pages.length,
+                  pageBuilder: (context, index, rotation) => _buildPageImage(
+                    pages[index],
+                    rotation.quarterTurns,
+                    rotation.onRotate,
+                  ),
+                  footerBuilder: (context, index) => Text(
+                    _pageLabel(index, pages.length),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  dotLabelForIndex: (i) => 'Page ${i + 1}',
+                ),
+        ),
+        _buildDetails(context, documentUri),
+      ],
     );
   }
 }
