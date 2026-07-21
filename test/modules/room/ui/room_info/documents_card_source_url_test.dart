@@ -13,27 +13,29 @@ Widget _card(List<RagDocument> docs) => MaterialApp(
       ),
     );
 
+const _doc = RagDocument(
+  id: 'd1',
+  title: 'RAW-TITLE',
+  uri: 'file:///x/foo.pdf',
+  metadata: {'source_url': 'https://example.test/foo.pdf/view'},
+);
+
 void main() {
-  testWidgets('shows a browser link and keeps the raw uri when source_url set',
+  testWidgets('expanded detail shows the browser link, not the raw uri',
       (tester) async {
-    await tester.pumpWidget(_card([
-      const RagDocument(
-        id: 'd1',
-        title: 'Doc',
-        uri: 'file:///x/foo.pdf',
-        metadata: {'source_url': 'https://example.test/foo.pdf/view'},
-      ),
-    ]));
+    await tester.pumpWidget(_card([_doc]));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('foo.pdf')); // display name expands the tile
     await tester.pumpAndSettle();
 
     expect(find.byType(BrowserUrlLink), findsOneWidget);
-    expect(find.text('file:///x/foo.pdf'), findsOneWidget); // raw uri retained
+    // Internal file path is not shown in the expanded detail.
+    expect(find.text('file:///x/foo.pdf'), findsNothing);
   });
 
-  testWidgets('shows no link when source_url absent', (tester) async {
+  testWidgets('no link and no raw uri in detail when source_url absent',
+      (tester) async {
     await tester.pumpWidget(_card([
       const RagDocument(id: 'd1', title: 'Doc', uri: 'file:///x/foo.pdf'),
     ]));
@@ -43,6 +45,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BrowserUrlLink), findsNothing);
+    expect(find.text('file:///x/foo.pdf'), findsNothing);
+  });
+
+  testWidgets('metadata dialog carries the file uri and a friendly title',
+      (tester) async {
+    await tester.pumpWidget(_card([_doc]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('foo.pdf'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Show metadata'));
+    await tester.pumpAndSettle();
+
+    // The internal path lives in the metadata dialog.
     expect(find.text('file:///x/foo.pdf'), findsOneWidget);
+    expect(find.text('uri'), findsOneWidget);
+    // Dialog is titled with the display name, not the raw doc.title.
+    expect(find.text('RAW-TITLE'), findsNothing);
   });
 }

@@ -225,25 +225,14 @@ class _DocumentsCardState extends State<DocumentsCard> {
               doc.id,
               style: context.monospaceOn(valueStyle),
             ),
-            if (doc.uri.isNotEmpty || dateFields.isNotEmpty)
-              const SizedBox(height: SoliplexSpacing.s2),
-            if (doc.uri.isNotEmpty) ...[
-              Text('uri', style: labelStyle),
-              const SizedBox(height: SoliplexSpacing.s1),
-              SelectableText(
-                doc.uri,
-                style: context.monospaceOn(valueStyle),
-              ),
-              if (dateFields.isNotEmpty)
-                const SizedBox(height: SoliplexSpacing.s2),
-            ],
             if (sourceUrl != null) ...[
               const SizedBox(height: SoliplexSpacing.s2),
               Text('link', style: labelStyle),
               const SizedBox(height: SoliplexSpacing.s1),
               BrowserUrlLink(url: sourceUrl),
             ],
-            if (dateFields.isNotEmpty)
+            if (dateFields.isNotEmpty) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
               Wrap(
                 spacing: SoliplexSpacing.s4,
                 runSpacing: SoliplexSpacing.s2,
@@ -265,20 +254,24 @@ class _DocumentsCardState extends State<DocumentsCard> {
                     ),
                 ],
               ),
-            if (doc.metadata.isNotEmpty)
+            ],
+            if (doc.metadata.isNotEmpty) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
               Align(
                 alignment: Alignment.centerRight,
                 child: SoliplexButton.text(
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (_) => MetadataDialog(
-                      title: doc.title,
+                      title: documentDisplayName(doc),
+                      uri: doc.uri,
                       metadata: doc.metadata,
                     ),
                   ),
                   child: const Text('Show metadata'),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -299,17 +292,39 @@ class MetadataDialog extends StatelessWidget {
   const MetadataDialog({
     super.key,
     required this.title,
+    required this.uri,
     required this.metadata,
   });
 
   final String title;
+
+  /// The document's internal source path. Shown here — the metadata view — is
+  /// the one place this path is surfaced; the friendly link lives in the
+  /// document detail.
+  final String uri;
+
   final Map<String, dynamic> metadata;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final entries = metadata.entries.toList();
+
+    final rows = <Widget>[
+      if (uri.isNotEmpty)
+        _card(
+          context,
+          'uri',
+          SelectableText(uri,
+              style: context.monospaceOn(theme.textTheme.bodySmall)),
+        ),
+      for (final entry in metadata.entries)
+        _card(
+          context,
+          entry.key,
+          formatDynamicValue(context, entry.value,
+              style: theme.textTheme.bodySmall),
+        ),
+    ];
 
     return AlertDialog(
       title: Text(
@@ -323,35 +338,9 @@ class MetadataDialog extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final entry in entries) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(SoliplexSpacing.s3),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.key,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: SoliplexSpacing.s1),
-                          formatDynamicValue(
-                            context,
-                            entry.value,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                if (entry.key != entries.last.key)
+              for (var i = 0; i < rows.length; i++) ...[
+                rows[i],
+                if (i != rows.length - 1)
                   const SizedBox(height: SoliplexSpacing.s2),
               ],
             ],
@@ -364,6 +353,33 @@ class MetadataDialog extends StatelessWidget {
           child: const Text('Close'),
         ),
       ],
+    );
+  }
+
+  Widget _card(BuildContext context, String label, Widget value) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(SoliplexSpacing.s3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SoliplexSpacing.s1),
+              value,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

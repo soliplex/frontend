@@ -227,7 +227,8 @@ void main() {
       expect(find.text('id'), findsNothing);
     });
 
-    testWidgets('metadata shows document ID and URI', (tester) async {
+    testWidgets('metadata shows document ID but not the internal uri',
+        (tester) async {
       await tester.pumpWidget(wrap(
         DocumentsCard(
           documentsFuture: Future.value(const [docA]),
@@ -240,7 +241,9 @@ void main() {
       await tester.pump();
 
       expect(find.text('id-a'), findsOneWidget);
-      expect(find.text('/files/alpha.pdf'), findsOneWidget);
+      // The internal path is not surfaced in the expanded detail (it lives in
+      // the metadata dialog).
+      expect(find.text('/files/alpha.pdf'), findsNothing);
     });
 
     testWidgets('metadata shows timestamps when present', (tester) async {
