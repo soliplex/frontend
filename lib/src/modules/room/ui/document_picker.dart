@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
+import '../../../shared/browser_url_link.dart';
 import '../../../shared/file_type_icons.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -40,6 +41,18 @@ class _DocumentPickerState extends State<DocumentPicker> {
     final next = Set<RagDocument>.of(widget.selected);
     if (!next.remove(doc)) next.add(doc);
     widget.onChanged(next);
+  }
+
+  Widget? _subtitle(RagDocument doc, ThemeData theme) {
+    final url = doc.sourceUrl;
+    if (url != null) return BrowserUrlLink(url: url);
+    if (doc.uri.isEmpty) return null;
+    return Text(
+      doc.uri,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
   }
 
   @override
@@ -118,14 +131,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
                         documentDisplayName(doc),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: doc.uri.isNotEmpty
-                          ? Text(
-                              doc.uri,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            )
-                          : null,
+                      subtitle: _subtitle(doc, theme),
                       value: selected,
                       onChanged: (_) => _toggle(doc),
                     );
