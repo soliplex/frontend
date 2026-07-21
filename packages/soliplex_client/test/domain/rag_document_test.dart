@@ -144,5 +144,34 @@ void main() {
         );
       });
     });
+
+    group('RagDocument.sourceUrl', () {
+      RagDocument doc(Map<String, dynamic> metadata) =>
+          RagDocument(id: 'd1', title: 'Doc', metadata: metadata);
+
+      test('parses an http(s) source_url', () {
+        expect(
+          doc({'source_url': 'https://example.test/a/view'}).sourceUrl,
+          Uri.parse('https://example.test/a/view'),
+        );
+      });
+
+      test('is null when key absent', () {
+        expect(doc({'other': 'x'}).sourceUrl, isNull);
+      });
+
+      test('is null for empty, non-string, or non-http values', () {
+        expect(doc({'source_url': ''}).sourceUrl, isNull);
+        expect(doc({'source_url': 42}).sourceUrl, isNull);
+        expect(doc({'source_url': 'file:///x/a.pdf'}).sourceUrl, isNull);
+      });
+
+      test('ignores the raw source_uri key', () {
+        expect(
+          doc({'source_uri': 'https://example.test/x'}).sourceUrl,
+          isNull,
+        );
+      });
+    });
   });
 }

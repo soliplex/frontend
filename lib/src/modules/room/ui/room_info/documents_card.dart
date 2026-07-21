@@ -205,7 +205,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
     if (doc.updatedAt != null) {
       dateFields.add(('updated_at', _formatDateTime(doc.updatedAt!)));
     }
-    final sourceUrl = sourceUrlFromMetadata(doc.metadata);
+    final sourceUrl = doc.sourceUrl;
 
     return Padding(
       padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
