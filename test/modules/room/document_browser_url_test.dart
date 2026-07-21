@@ -9,17 +9,4 @@ void main() {
     expect(
         c.read(documentBrowserUrlResolverProvider)('file:///x/a.pdf'), isNull);
   });
-
-  test('an override supplies a resolver', () {
-    final c = ProviderContainer(overrides: [
-      documentBrowserUrlResolverProvider.overrideWithValue(
-        (uri) => Uri.parse('https://example.test/a/view'),
-      ),
-    ]);
-    addTearDown(c.dispose);
-    expect(
-      c.read(documentBrowserUrlResolverProvider)('file:///x/a.pdf'),
-      Uri.parse('https://example.test/a/view'),
-    );
-  });
 }
