@@ -139,7 +139,9 @@ extension RagDocumentMetadataParsing on RagDocument {
     final value = metadata['source_url'];
     if (value is! String || value.isEmpty) return null;
     final uri = Uri.tryParse(value);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
       return null;
     }
     return uri;

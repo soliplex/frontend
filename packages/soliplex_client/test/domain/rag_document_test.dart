@@ -160,10 +160,11 @@ void main() {
         expect(doc({'other': 'x'}).sourceUrl, isNull);
       });
 
-      test('is null for empty, non-string, or non-http values', () {
+      test('is null for empty, non-string, non-http, or hostless values', () {
         expect(doc({'source_url': ''}).sourceUrl, isNull);
         expect(doc({'source_url': 42}).sourceUrl, isNull);
         expect(doc({'source_url': 'file:///x/a.pdf'}).sourceUrl, isNull);
+        expect(doc({'source_url': 'https://'}).sourceUrl, isNull);
       });
 
       test('ignores the raw source_uri key', () {
