@@ -43,16 +43,10 @@ class _DocumentPickerState extends State<DocumentPicker> {
     widget.onChanged(next);
   }
 
-  Widget? _subtitle(RagDocument doc, ThemeData theme) {
+  Widget? _subtitle(RagDocument doc) {
     final url = doc.sourceUrl;
-    if (url != null) return BrowserUrlLink(url: url);
-    if (doc.uri.isEmpty) return null;
-    return Text(
-      doc.uri,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
+    if (url == null) return null;
+    return BrowserUrlLink(url: url);
   }
 
   @override
@@ -131,7 +125,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
                         documentDisplayName(doc),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: _subtitle(doc, theme),
+                      subtitle: _subtitle(doc),
                       value: selected,
                       onChanged: (_) => _toggle(doc),
                     );

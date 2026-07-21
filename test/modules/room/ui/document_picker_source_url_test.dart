@@ -26,13 +26,14 @@ void main() {
     expect(find.text('file:///files/Report.pdf'), findsNothing);
   });
 
-  testWidgets('subtitle falls back to raw uri when source_url absent',
+  testWidgets('no subtitle link or raw uri when source_url absent',
       (tester) async {
     await tester.pumpWidget(_picker([
       const RagDocument(id: '1', title: 'Report.pdf', uri: '/files/Report.pdf'),
     ]));
 
     expect(find.byType(BrowserUrlLink), findsNothing);
-    expect(find.text('/files/Report.pdf'), findsOneWidget);
+    // The internal path is not shown in the picker.
+    expect(find.text('/files/Report.pdf'), findsNothing);
   });
 }
