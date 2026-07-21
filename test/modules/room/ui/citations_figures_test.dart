@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -89,9 +90,11 @@ SourceReference _ref({required List<Figure> figures}) => SourceReference(
     );
 
 void main() {
-  Widget host(SourceReference ref) => MaterialApp(
-        home: Scaffold(
-          body: CitationsSection(sourceReferences: [ref]),
+  Widget host(SourceReference ref) => ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: CitationsSection(sourceReferences: [ref]),
+          ),
         ),
       );
 

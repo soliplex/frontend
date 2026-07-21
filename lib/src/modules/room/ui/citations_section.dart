@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../shared/browser_url_link.dart';
 import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
+import '../document_browser_url.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'markdown/log_source.dart';
 import 'paged_zoomable_images.dart';
@@ -255,9 +258,24 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (sourceReference.documentUri.isNotEmpty)
-            _metaLine(context, theme, 'document', sourceReference.documentUri),
-          _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
+          // TEMPORARY: citations don't yet carry the backend `source_url`, so the
+          // browser link is derived from `documentUri` via the injected resolver.
+          // The internal path is never shown here (the row header already carries
+          // the document name); only the resolved browser link appears. Remove
+          // this Consumer (and read a citation `source_url` field) once the
+          // backend surfaces `source_url` on citations. See
+          // documentBrowserUrlResolverProvider.
+          Consumer(
+            builder: (context, ref, _) {
+              final url = ref.watch(documentBrowserUrlResolverProvider)(
+                  sourceReference.documentUri);
+              if (url == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+                child: BrowserUrlLink(url: url),
+              );
+            },
+          ),
           if (sourceReference.headings.isNotEmpty) ...[
             const SizedBox(height: SoliplexSpacing.s2),
             Padding(
@@ -289,6 +307,8 @@ class _SourceReferenceRow extends StatelessWidget {
             ),
           if (sourceReference.figures.isNotEmpty)
             _CitationFigures(sourceReference: sourceReference),
+          const SizedBox(height: SoliplexSpacing.s2),
+          _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
         ],
       ),
     );

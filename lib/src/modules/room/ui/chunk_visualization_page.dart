@@ -2,13 +2,16 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
+import '../../../shared/browser_url_link.dart';
 import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
+import '../document_browser_url.dart';
 import 'paged_zoomable_images.dart';
 
 final _logger =
@@ -59,12 +62,12 @@ class ChunkVisualizationPage extends StatefulWidget {
 
   /// The document's display name for the title bar, when the caller knows it
   /// (citations). Null for a bare chunk-id lookup, where the title falls back
-  /// to a neutral label.
+  /// to the chunk id so the user sees the id they looked up.
   final String? documentTitle;
 
-  /// The document uri shown in the detail block, when the caller knows it
-  /// (citations). Null for a bare chunk-id lookup, where the detail block
-  /// falls back to the uri returned by the fetch (which may itself be absent).
+  /// The document uri the caller knows (citations); null for a bare chunk-id
+  /// lookup, where the detail block falls back to the uri returned by the
+  /// fetch. Used only to derive the browser link — the raw path is never shown.
   final String? documentUri;
   final List<int> pageNumbers;
   final bool useDialogLayout;
@@ -128,9 +131,6 @@ class ChunkVisualizationPage extends StatefulWidget {
 typedef _VizResult = ({List<PageImage> pages, String? documentUri});
 
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
-  /// Title shown when the caller has no document name (bare chunk-id lookup).
-  static const _fallbackTitle = 'Chunk preview';
-
   late Future<_VizResult> _future;
   // Bumped on retry so the pager remounts with fresh rotation/page state.
   int _reloadNonce = 0;
@@ -265,7 +265,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.documentTitle ?? _fallbackTitle),
+        title: Text(widget.documentTitle ?? widget.chunkId),
         titleTextStyle: Theme.of(context).textTheme.titleMedium,
       ),
       // Without SafeArea, the system gesture inset (iOS home indicator,
@@ -288,7 +288,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         children: [
           Expanded(
             child: Text(
-              widget.documentTitle ?? _fallbackTitle,
+              widget.documentTitle ?? widget.chunkId,
               style: theme.textTheme.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -315,8 +315,6 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
             'Failed to load visualization',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: SoliplexSpacing.s3),
-          _detailField(context, 'chunk id', widget.chunkId),
           const SizedBox(height: SoliplexSpacing.s4),
           SoliplexButton.filled(
             onPressed: _retry,
@@ -328,10 +326,9 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  /// A labelled metadata field with a copy button and a selectable monospace
-  /// value, copyable in one tap or selectable directly. Used for the chunk id
-  /// (detail block and error state) and the document uri (detail block only).
-  Widget _detailField(BuildContext context, String label, String value) {
+  /// The `document` row: a label + copy button and the clickable browser link.
+  /// The copy button copies the full browser url; the raw path is never shown.
+  Widget _documentLink(BuildContext context, Uri url) {
     final theme = Theme.of(context);
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
       fontWeight: FontWeight.w600,
@@ -344,21 +341,18 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: labelStyle),
+            Text('document', style: labelStyle),
             const SizedBox(width: SoliplexSpacing.s1),
             // Match the copy icon to the label's type-scale size so the two
             // read as one line rather than the icon overpowering the label.
             CopyButton(
-              text: value,
-              tooltip: 'Copy $label',
+              text: url.toString(),
+              tooltip: 'Copy document',
               iconSize: labelStyle?.fontSize ?? 12,
             ),
           ],
         ),
-        SelectableText(
-          value,
-          style: context.monospaceOn(theme.textTheme.bodySmall),
-        ),
+        BrowserUrlLink(url: url),
       ],
     );
   }
@@ -366,31 +360,40 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   Widget _buildDetails(BuildContext context, String? fetchedDocumentUri) {
     // Prefer the caller's uri (citations), treating empty as absent so a blank
     // citation uri doesn't shadow a real fetched one; fall back to the fetched
-    // uri for a bare chunk-id lookup. Absent in both (null/empty) → the row is
-    // hidden and only the chunk id shows.
+    // uri for a bare chunk-id lookup.
     final callerUri = widget.documentUri;
-    final document = (callerUri != null && callerUri.isNotEmpty)
+    final documentUri = (callerUri != null && callerUri.isNotEmpty)
         ? callerUri
         : fetchedDocumentUri;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        SoliplexSpacing.s4,
-        0,
-        SoliplexSpacing.s4,
-        SoliplexSpacing.s2,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Divider(color: Theme.of(context).colorScheme.outline),
-          _detailField(context, 'chunk id', widget.chunkId),
-          if (document != null && document.isNotEmpty) ...[
-            const SizedBox(height: SoliplexSpacing.s2),
-            _detailField(context, 'document', document),
-          ],
-        ],
-      ),
+    if (documentUri == null || documentUri.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    // TEMPORARY: the chunk endpoint doesn't carry the backend `source_url`, so
+    // the browser link is derived from the document uri via the injected
+    // resolver. The row disappears when nothing resolves — the raw path is
+    // never shown. Remove this once the backend surfaces `source_url`. See
+    // documentBrowserUrlResolverProvider.
+    return Consumer(
+      builder: (context, ref, _) {
+        final url = ref.watch(documentBrowserUrlResolverProvider)(documentUri);
+        if (url == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4,
+            0,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Divider(color: Theme.of(context).colorScheme.outline),
+              _documentLink(context, url),
+            ],
+          ),
+        );
+      },
     );
   }
 

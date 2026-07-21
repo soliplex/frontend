@@ -1,10 +1,14 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
+import 'package:soliplex_frontend/src/modules/room/document_browser_url.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chunk_visualization_page.dart';
+import 'package:soliplex_frontend/src/shared/browser_url_link.dart';
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
 
 import '../../../helpers/fakes.dart';
@@ -34,7 +38,18 @@ class _ChunkVizApi extends FakeSoliplexApi {
   }
 }
 
-Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+Widget _wrap(Widget child, {List<Override> overrides = const []}) =>
+    ProviderScope(
+      overrides: overrides,
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
+
+// Maps any document uri to a distinguishable browser URL so tests can assert
+// the link renders and which uri fed the resolver.
+Uri _resolveEcho(String uri) => Uri.parse('https://docs.test/$uri');
+final _resolverOverride = <Override>[
+  documentBrowserUrlResolverProvider.overrideWithValue(_resolveEcho),
+];
 
 void main() {
   // Decoded page bytes are a shared imageCache key; clear it between tests so a
@@ -224,16 +239,14 @@ void main() {
         imagesBase64: [_pngBase64],
       );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ChunkVisualizationPage(
-          api: api,
-          roomId: 'room-1',
-          chunkId: 'c1',
-          useDialogLayout: true,
-          documentTitle: 'My Report',
-          pageNumbers: const [1],
-        ),
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: true,
+        documentTitle: 'My Report',
+        pageNumbers: const [1],
       ),
     ));
     await tester.pumpAndSettle();
@@ -304,7 +317,37 @@ void main() {
     expect(rotated.quarterTurns, 1);
   });
 
-  testWidgets('detail block prefers the callers uri over the fetched one',
+  testWidgets('document row shows the resolved link, not the raw uri',
+      (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'file://doc.pdf',
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'My Doc',
+        documentUri: 'file://doc.pdf',
+        pageNumbers: const [1],
+      ),
+      overrides: _resolverOverride,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BrowserUrlLink), findsOneWidget);
+    expect(find.text('document'), findsOneWidget);
+    // Neither the raw path nor the chunk id appears in the detail block.
+    expect(find.text('file://doc.pdf'), findsNothing);
+    expect(find.text('chunk id'), findsNothing);
+  });
+
+  testWidgets('document link prefers the callers uri over the fetched one',
       (tester) async {
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
@@ -323,18 +366,16 @@ void main() {
         documentUri: 'file://caller.pdf',
         pageNumbers: const [1],
       ),
+      overrides: _resolverOverride,
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('c1'), findsOneWidget);
-    // Name is the title (once); the detail block shows the caller's uri, not
-    // the fetched one.
-    expect(find.text('My Doc'), findsOneWidget);
-    expect(find.text('file://caller.pdf'), findsOneWidget);
-    expect(find.text('file://fetched.pdf'), findsNothing);
+    final link = tester.widget<BrowserUrlLink>(find.byType(BrowserUrlLink));
+    expect(link.url.toString(), contains('caller'));
+    expect(link.url.toString(), isNot(contains('fetched')));
   });
 
-  testWidgets('detail block treats an empty caller uri as absent',
+  testWidgets('document link falls back to the fetched uri when caller empty',
       (tester) async {
     // A citation whose documentUri is '' must not shadow a real fetched uri.
     final api = _ChunkVizApi()
@@ -353,41 +394,41 @@ void main() {
         documentUri: '',
         pageNumbers: const [1],
       ),
+      overrides: _resolverOverride,
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('file://fetched.pdf'), findsOneWidget);
+    final link = tester.widget<BrowserUrlLink>(find.byType(BrowserUrlLink));
+    expect(link.url.toString(), contains('fetched'));
   });
 
-  testWidgets('empty result still shows the chunk id in the detail block',
+  testWidgets('title falls back to the chunk id for a bare lookup',
       (tester) async {
-    // The lookup flow can produce zero images; the detail block (chunk id)
-    // must still render alongside the empty-state message.
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
-        chunkId: 'c1',
+        chunkId: 'chunk-42',
         documentUri: null,
-        imagesBase64: const [],
+        imagesBase64: [_pngBase64],
       );
 
     await tester.pumpWidget(_wrap(
       ChunkVisualizationPage(
         api: api,
         roomId: 'room-1',
-        chunkId: 'c1',
+        chunkId: 'chunk-42',
         useDialogLayout: false,
-        pageNumbers: const [],
+        pageNumbers: const [1],
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('No page images available'), findsOneWidget);
-    expect(find.text('chunk id'), findsOneWidget);
-    expect(find.text('c1'), findsOneWidget);
+    // No documentTitle → the title shows the looked-up chunk id.
+    expect(find.text('chunk-42'), findsOneWidget);
   });
 
-  testWidgets('detail block falls back to the fetched uri when caller has none',
-      (tester) async {
+  testWidgets('no document row when the uri does not resolve', (tester) async {
+    // Default resolver returns null (standard build): no link, no raw path,
+    // no chunk id in the detail block.
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
         chunkId: 'c1',
@@ -401,25 +442,25 @@ void main() {
         roomId: 'room-1',
         chunkId: 'c1',
         useDialogLayout: false,
+        documentTitle: 'My Doc',
+        documentUri: 'file://doc.pdf',
         pageNumbers: const [1],
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('c1'), findsOneWidget);
-    expect(find.text('file://doc.pdf'), findsOneWidget);
-    expect(find.text('Chunk preview'), findsOneWidget);
+    expect(find.byType(BrowserUrlLink), findsNothing);
+    expect(find.text('document'), findsNothing);
+    expect(find.text('chunk id'), findsNothing);
   });
 
-  testWidgets('detail block hides the document row when no uri is available',
+  testWidgets('empty result shows the empty-state message and no detail block',
       (tester) async {
-    // Bare lookup + backend returns a null document_uri: only the chunk id
-    // shows, no empty "document" label.
     final api = _ChunkVizApi()
       ..nextVisualization = ChunkVisualization(
         chunkId: 'c1',
         documentUri: null,
-        imagesBase64: [_pngBase64],
+        imagesBase64: const [],
       );
 
     await tester.pumpWidget(_wrap(
@@ -428,17 +469,18 @@ void main() {
         roomId: 'room-1',
         chunkId: 'c1',
         useDialogLayout: false,
-        pageNumbers: const [1],
+        documentTitle: 'My Doc',
+        pageNumbers: const [],
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('chunk id'), findsOneWidget);
-    expect(find.text('c1'), findsOneWidget);
+    expect(find.text('No page images available'), findsOneWidget);
+    expect(find.text('chunk id'), findsNothing);
     expect(find.text('document'), findsNothing);
   });
 
-  testWidgets('detail block shows the chunk id in the error state',
+  testWidgets('error state shows failure and retry, without the chunk id',
       (tester) async {
     final api = _ChunkVizApi()..nextVizError = Exception('boom');
 
@@ -455,6 +497,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Failed to load visualization'), findsOneWidget);
-    expect(find.text('c-err'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('c-err'), findsNothing);
   });
 }
