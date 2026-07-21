@@ -8,7 +8,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
-import 'pager_dots.dart';
+import 'paged_zoomable_images.dart';
 
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.chunk_visualization');
@@ -30,7 +30,8 @@ final class PageImageDecoded extends PageImage {
 
 /// A page whose base64 payload could not be decoded. Codec-time failures
 /// (bytes were valid base64 but not a valid image) are not represented here —
-/// they happen during paint and are caught by [Image.memory]'s `errorBuilder`.
+/// they happen during paint and are surfaced by [ZoomableImage]'s decode
+/// fallback.
 @visibleForTesting
 final class PageImageBroken extends PageImage {
   const PageImageBroken({required this.reason});
@@ -111,20 +112,13 @@ class ChunkVisualizationPage extends StatefulWidget {
 
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   late Future<List<PageImage>> _future;
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-  final Map<int, int> _rotations = {};
+  // Bumped on retry so the pager remounts with fresh rotation/page state.
+  int _reloadNonce = 0;
 
   @override
   void initState() {
     super.initState();
     _loadVisualization();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
   }
 
   void _loadVisualization() {
@@ -193,14 +187,8 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
 
   void _retry() {
     setState(() {
-      _rotations.clear();
+      _reloadNonce++;
       _loadVisualization();
-    });
-  }
-
-  void _rotate(int pageIndex) {
-    setState(() {
-      _rotations[pageIndex] = ((_rotations[pageIndex] ?? 0) + 1) % 4;
     });
   }
 
@@ -314,7 +302,11 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  Widget _buildPageImage(PageImage page, int index) {
+  Widget _buildPageImage(
+    PageImage page,
+    int rotationQuarterTurns,
+    VoidCallback onRotate,
+  ) {
     return switch (page) {
       PageImageBroken(:final reason) => Center(
           // FormatException messages are usually short but uncapped; bound
@@ -325,13 +317,12 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
                 '${reason.length <= 80 ? reason : '${reason.substring(0, 80)}…'}',
           ),
         ),
-      PageImageDecoded(:final bytes) => ZoomableImage(
+      PageImageDecoded(:final bytes) => ZoomableImage.controlledRotation(
           bytes: bytes,
-          rotationQuarterTurns: _rotations[index] ?? 0,
-          onRotate: () => _rotate(index),
-          decodeFailureChild: const Center(
-            child: FailedImage(label: 'Page image failed to render'),
-          ),
+          rotationQuarterTurns: rotationQuarterTurns,
+          onRotate: onRotate,
+          decodeFailureChild:
+              const FailedImage(label: 'Page image failed to render'),
         ),
     };
   }
@@ -341,42 +332,16 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
       return const Center(child: Text('No page images available'));
     }
 
-    return Column(
-      children: [
-        Expanded(
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: pages.length,
-            onPageChanged: (index) => setState(() => _currentPage = index),
-            itemBuilder: (context, index) =>
-                _buildPageImage(pages[index], index),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-          child: Column(
-            children: [
-              Text(
-                _pageLabel(_currentPage, pages.length),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (pages.length > 1) ...[
-                const SizedBox(height: SoliplexSpacing.s1),
-                PagerDots(
-                  itemCount: pages.length,
-                  currentIndex: _currentPage,
-                  onGoTo: (index) => _pageController.animateToPage(
-                    index,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                  ),
-                  labelForIndex: (i) => 'Page ${i + 1}',
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+    return PagedZoomableImages(
+      key: ValueKey(_reloadNonce),
+      itemCount: pages.length,
+      pageBuilder: (context, index, rotation) => _buildPageImage(
+          pages[index], rotation.quarterTurns, rotation.onRotate),
+      footerBuilder: (context, index) => Text(
+        _pageLabel(index, pages.length),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      dotLabelForIndex: (i) => 'Page ${i + 1}',
     );
   }
 }

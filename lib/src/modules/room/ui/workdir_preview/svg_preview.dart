@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../../shared/zoomable_view.dart';
+
 final _logger = LogManager.instance.getLogger('soliplex_frontend.svg_preview');
 
-/// Renders an SVG payload inside an [InteractiveViewer]. Falls back to
-/// [fallback] if the bytes don't parse — sized as a peer of the viewer
-/// so its controls aren't pannable/zoomable.
+/// Renders an SVG payload inside a [ZoomableView] (pan/zoom/rotate/reset).
+/// Falls back to [fallback] if the content doesn't parse.
 class SvgPreview extends StatefulWidget {
   const SvgPreview({
     super.key,
@@ -48,19 +49,15 @@ class _SvgPreviewState extends State<SvgPreview> {
   @override
   Widget build(BuildContext context) {
     if (_failed) return widget.fallback;
-    return Center(
-      child: InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 4.0,
-        child: SvgPicture.string(
-          widget.content,
-          fit: BoxFit.contain,
-          placeholderBuilder: (_) => const SizedBox.shrink(),
-          errorBuilder: (_, error, stack) {
-            _markFailed(error, stack);
-            return const SizedBox.shrink();
-          },
-        ),
+    return ZoomableView(
+      child: SvgPicture.string(
+        widget.content,
+        fit: BoxFit.contain,
+        placeholderBuilder: (_) => const SizedBox.shrink(),
+        errorBuilder: (_, error, stack) {
+          _markFailed(error, stack);
+          return const SizedBox.shrink();
+        },
       ),
     );
   }

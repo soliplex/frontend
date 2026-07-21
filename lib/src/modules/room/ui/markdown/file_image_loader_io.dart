@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../shared/failed_image.dart';
+import '../../../../shared/zoomable_image.dart';
 import 'log_source.dart';
 
 final _logger =
@@ -40,5 +41,29 @@ Widget loadFileImage(Uri uri, String rawUri, String? alt) {
       stackTrace: stack,
     );
     return FailedImage(source: rawUri, label: alt);
+  }
+}
+
+/// Full-size zoomable viewer for a `file:` image, shown in the tap-to-zoom
+/// dialog. Routes through [ZoomableImage.provider] so a load failure shows a
+/// bare centered fallback rather than a broken image under zoom/rotate chrome.
+/// A `File.fromUri` construction failure is caught and shown the same way.
+Widget fileImageZoomViewer(Uri uri, String rawUri) {
+  try {
+    return ZoomableImage.provider(
+      FileImage(File.fromUri(uri)),
+      logSource: safeSourceForLog(rawUri),
+      decodeFailureChild: const FailedImage(),
+    );
+  } on UnsupportedError catch (error, stack) {
+    logFailedSourceOnce(
+      _logger,
+      'file: URI could not be converted to a file path: '
+      '${safeSourceForLog(rawUri)}',
+      rawUri,
+      error: error,
+      stackTrace: stack,
+    );
+    return const Center(child: FailedImage());
   }
 }

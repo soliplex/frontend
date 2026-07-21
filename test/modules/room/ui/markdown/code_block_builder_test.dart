@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/workdir_preview/svg_preview.dart';
 
 void main() {
   group('CodeBlockBuilder', () {
@@ -100,6 +102,46 @@ void main() {
       // After tap, shows preview toggle (source is now visible)
       expect(find.byTooltip('Show preview'), findsOneWidget);
       expect(find.byTooltip('Show source'), findsNothing);
+    });
+
+    testWidgets('tapping the SVG preview opens a zoomable dialog',
+        (tester) async {
+      const svgCode = '<svg xmlns="http://www.w3.org/2000/svg">'
+          '<circle cx="50" cy="50" r="40"/>'
+          '</svg>';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FlutterMarkdownPlusRenderer(
+                data: '```svg\n$svgCode\n```',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // The inline preview is not itself the full-size viewer.
+      expect(find.byType(SvgPreview), findsNothing);
+
+      // The preview is laid out at zero size until the SVG rasterizes, so a
+      // hit-test tap misses; invoke the wrapper's onTap directly.
+      final gesture = tester.widget<GestureDetector>(
+        find
+            .ancestor(
+              of: find.byType(SvgPicture),
+              matching: find.byType(GestureDetector),
+            )
+            .first,
+      );
+      gesture.onTap!();
+      await tester.pumpAndSettle();
+
+      // The dialog frames the SVG in the shared zoomable SVG viewer, which owns
+      // its own parse-failure fallback (no zoom/rotate chrome over a failure).
+      expect(find.byType(SvgPreview), findsOneWidget);
     });
   });
 }

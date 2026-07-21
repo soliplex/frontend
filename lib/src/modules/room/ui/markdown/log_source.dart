@@ -18,17 +18,22 @@ String safeSourceForLog(String src, {int max = 120}) {
       : '${src.substring(0, max)}…(${src.length} chars)';
 }
 
-/// Set of source keys already logged once at warning level. Flutter's
+/// Hashes of source keys already logged once at warning level. Flutter's
 /// `errorBuilder` is invoked on every rebuild while the failed image is
-/// mounted; without dedupe a single broken image in chat history can flood
-/// the log sink. Shared across markdown-image callers so a URI that fails
-/// in multiple code paths still logs once total.
-final _loggedSources = <String>{};
+/// mounted; without dedupe a single broken image in chat history can flood the
+/// log sink. Shared across all callers of [logFailedSourceOnce] so a key that
+/// fails in several of those paths logs once total. Only each key's hash is
+/// retained, so a `data:` URI's (potentially multi-megabyte) base64 payload is
+/// not held for the process lifetime.
+final _loggedSources = <int>{};
 
 /// Logs [message] at warning level the first time [key] is seen, otherwise
-/// silently drops it. Keys are URIs for per-source dedupe, or short tags
-/// like `'scheme:ftp'` for per-category dedupe. Pass [logger] so the call
-/// site's logger namespace appears in the output.
+/// silently drops it. Keys are URIs for per-source dedupe, or short tags like
+/// `'scheme:ftp'` for per-category dedupe. Dedupe is best-effort: keyed on
+/// [key]'s hash so large payloads are never retained, at the cost that two keys
+/// whose hashes collide are treated as one — an acceptable, rare miss for log
+/// dedupe. Pass [logger] so the call site's logger namespace appears in the
+/// output.
 void logFailedSourceOnce(
   Logger logger,
   String message,
@@ -36,7 +41,7 @@ void logFailedSourceOnce(
   Object? error,
   StackTrace? stackTrace,
 }) {
-  if (_loggedSources.add(key)) {
+  if (_loggedSources.add(key.hashCode)) {
     logger.warning(message, error: error, stackTrace: stackTrace);
   }
 }

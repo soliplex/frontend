@@ -722,7 +722,7 @@ class _PreviewBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (kind == PreviewKind.image) {
-      return ZoomableImage(
+      return ZoomableImage.controlledRotation(
         bytes: bytes,
         rotationQuarterTurns: rotationQuarterTurns,
         onRotate: onRotate,
