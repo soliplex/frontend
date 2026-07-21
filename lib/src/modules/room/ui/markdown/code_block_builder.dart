@@ -5,9 +5,16 @@ import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
+import '../../../../shared/zoomable_view.dart';
 import '../copy_button.dart';
+import '../workdir_preview/svg_preview.dart';
+import 'log_source.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_frontend.code_block_svg');
 
 class CodeBlockBuilder extends MarkdownElementBuilder {
   CodeBlockBuilder({required this.preferredStyle});
@@ -87,19 +94,50 @@ class _SvgCodeBlockState extends State<_SvgCodeBlock> {
   }
 
   Widget _previewView() {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 400),
-      child: SvgPicture.string(
-        widget.code,
-        placeholderBuilder: (_) => const SizedBox.shrink(),
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.broken_image,
-          size: 48,
-          color: Theme.of(context).colorScheme.outline,
+    // Inline preview; tapping opens the full-size zoomable view, matching
+    // inline images.
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _openFullSize,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: SvgPicture.string(
+            widget.code,
+            placeholderBuilder: (_) => const SizedBox.shrink(),
+            errorBuilder: (_, error, stack) => _brokenIcon(error, stack),
+          ),
         ),
       ),
     );
   }
+
+  void _openFullSize() {
+    showZoomableMediaDialog(
+      context,
+      viewer: SvgPreview(
+        content: widget.code,
+        fallback: Center(child: _brokenIconVisual()),
+      ),
+    );
+  }
+
+  Widget _brokenIcon(Object? error, StackTrace? stack) {
+    logFailedSourceOnce(
+      _logger,
+      'svg code block failed to render',
+      'svg-code-block:${widget.code}',
+      error: error,
+      stackTrace: stack,
+    );
+    return _brokenIconVisual();
+  }
+
+  Widget _brokenIconVisual() => Icon(
+        Icons.broken_image,
+        size: 48,
+        color: Theme.of(context).colorScheme.outline,
+      );
 
   Widget _sourceView() {
     final isDark = Theme.of(context).brightness == Brightness.dark;

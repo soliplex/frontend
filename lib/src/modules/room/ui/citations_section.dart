@@ -6,7 +6,11 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/preview_icon_button.dart';
+import '../../../shared/zoomable_image.dart';
+import '../../../shared/zoomable_view.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
+import 'markdown/log_source.dart';
+import 'paged_zoomable_images.dart';
 
 final _logger = LogManager.instance.getLogger('soliplex_frontend.citations');
 
@@ -306,6 +310,34 @@ class _CitationFigures extends StatelessWidget {
 
   final SourceReference sourceReference;
 
+  void _openBrowser(BuildContext context, int index) {
+    final figures = sourceReference.figures;
+    showZoomableMediaDialog(
+      context,
+      viewer: PagedZoomableImages(
+        itemCount: figures.length,
+        initialIndex: index,
+        autofocus: true,
+        pageBuilder: (context, i, rotation) {
+          final figure = figures[i];
+          return ZoomableImage.controlledRotation(
+            bytes: figure.bytes,
+            semanticLabel: figure.caption ?? _figureSemanticLabel,
+            logSource: figure.ref,
+            rotationQuarterTurns: rotation.quarterTurns,
+            onRotate: rotation.onRotate,
+            decodeFailureChild:
+                const FailedImage(label: _figureUnavailableLabel),
+          );
+        },
+        footerBuilder: (context, i) {
+          final caption = figures[i].caption;
+          return caption != null ? _FigureCaption(caption: caption) : null;
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final figures = sourceReference.figures;
@@ -318,8 +350,10 @@ class _CitationFigures extends StatelessWidget {
           itemCount: figures.length,
           separatorBuilder: (_, __) =>
               const SizedBox(width: SoliplexSpacing.s2),
-          itemBuilder: (context, index) =>
-              _FigureThumbnail(figure: figures[index]),
+          itemBuilder: (context, index) => _FigureThumbnail(
+            figure: figures[index],
+            onTap: () => _openBrowser(context, index),
+          ),
         ),
       ),
     );
@@ -327,56 +361,18 @@ class _CitationFigures extends StatelessWidget {
 }
 
 /// One cited-figure thumbnail rendered from in-state bytes. Tapping opens a
-/// zoomable full-size view. A decode failure shows a broken-image fallback.
+/// zoomable browser over the citation's figures. A decode failure shows a
+/// broken-image fallback.
 class _FigureThumbnail extends StatelessWidget {
-  const _FigureThumbnail({required this.figure});
+  const _FigureThumbnail({required this.figure, required this.onTap});
 
   final Figure figure;
-
-  void _openFullSize(BuildContext context) {
-    final caption = figure.caption;
-    showDialog<void>(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(SoliplexSpacing.s4),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 800,
-            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: InteractiveViewer(
-                  maxScale: 5,
-                  child: Image.memory(
-                    figure.bytes,
-                    fit: BoxFit.contain,
-                    semanticLabel: caption ?? _figureSemanticLabel,
-                    errorBuilder: (context, error, stack) {
-                      _logger.warning(
-                        'cited figure decode failed (full-size)',
-                        error: error,
-                        attributes: {'pictureRef': figure.ref},
-                      );
-                      return const FailedImage(label: _figureUnavailableLabel);
-                    },
-                  ),
-                ),
-              ),
-              if (caption != null) _FigureCaption(caption: caption),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => _openFullSize(context),
+      onTap: onTap,
       borderRadius: BorderRadius.circular(context.radii.md),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(context.radii.md),
@@ -387,10 +383,12 @@ class _FigureThumbnail extends StatelessWidget {
           fit: BoxFit.cover,
           semanticLabel: figure.caption ?? _figureSemanticLabel,
           errorBuilder: (context, error, stack) {
-            _logger.warning(
-              'cited figure decode failed',
+            logFailedSourceOnce(
+              _logger,
+              'cited figure decode failed: ${figure.ref}',
+              figure.ref,
               error: error,
-              attributes: {'pictureRef': figure.ref},
+              stackTrace: stack,
             );
             return const SizedBox(
               width: _figureThumbnailSize,

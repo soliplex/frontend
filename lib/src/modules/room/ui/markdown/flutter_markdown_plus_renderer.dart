@@ -10,6 +10,8 @@ import '../../../../shared/markdown/launch_markdown_link.dart';
 import '../../../../shared/markdown/markdown_renderer.dart';
 import '../../../../shared/markdown/markdown_style_sheet.dart';
 import '../../../../shared/markdown/sanitize_markdown.dart';
+import '../../../../shared/zoomable_image.dart';
+import '../../../../shared/zoomable_view.dart';
 import 'code_block_builder.dart';
 import 'data_uri_image.dart';
 import 'file_image_loader.dart'
@@ -62,7 +64,12 @@ class FlutterMarkdownPlusRenderer extends MarkdownRenderer {
           launchMarkdownLink(href);
         }
       },
-      imageBuilder: _buildImage,
+      imageBuilder: (uri, title, alt) => _MaybeZoomableImage(
+        uri: uri,
+        alt: alt,
+        onImageTap: onImageTap,
+        inline: _buildImage(uri, title, alt),
+      ),
       builders: {
         'code': InlineCodeBuilder(),
         'pre': CodeBlockBuilder(
@@ -88,34 +95,35 @@ Widget _buildImage(Uri uri, String? title, String? alt) {
     'data' => _buildDataImage(uri, alt, rawUri),
     'http' || 'https' => Image.network(
         rawUri,
-        errorBuilder: (_, error, stack) {
-          logFailedSourceOnce(
-            _logger,
-            'http image failed to load: ${safeSourceForLog(rawUri)}',
-            rawUri,
-            error: error,
-            stackTrace: stack,
-          );
-          return FailedImage(source: rawUri, label: alt);
-        },
+        errorBuilder: _loadErrorBuilder(rawUri, alt, 'http'),
       ),
     'resource' => Image.asset(
         uri.path,
-        errorBuilder: (_, error, stack) {
-          logFailedSourceOnce(
-            _logger,
-            'resource image failed to load: ${safeSourceForLog(rawUri)}',
-            rawUri,
-            error: error,
-            stackTrace: stack,
-          );
-          return FailedImage(source: rawUri, label: alt);
-        },
+        errorBuilder: _loadErrorBuilder(rawUri, alt, 'resource'),
       ),
     'file' => loadFileImage(uri, rawUri, alt),
     _ => _unsupportedSchemeFallback(uri, rawUri, alt),
   };
 }
+
+/// Error builder for network/asset image loads: logs the failure once per
+/// source, then renders an inspectable [FailedImage]. [scheme] is the label
+/// used in the log message (e.g. `'http'`, `'resource'`).
+ImageErrorWidgetBuilder _loadErrorBuilder(
+  String rawUri,
+  String? alt,
+  String scheme,
+) =>
+    (_, error, stack) {
+      logFailedSourceOnce(
+        _logger,
+        '$scheme image failed to load: ${safeSourceForLog(rawUri)}',
+        rawUri,
+        error: error,
+        stackTrace: stack,
+      );
+      return FailedImage(source: rawUri, label: alt);
+    };
 
 Widget _unsupportedSchemeFallback(Uri uri, String rawUri, String? alt) {
   logFailedSourceOnce(
@@ -180,4 +188,111 @@ Widget _buildDataImage(Uri uri, String? alt, String rawUri) {
     rawUri,
   );
   return FailedImage(source: rawUri, label: alt);
+}
+
+/// Wraps an inline markdown image so tapping it opens a full-size zoomable
+/// view. Inlines we don't open in a zoom view are returned as-is and left
+/// inert: content not treated as a zoomable image (`text/` data URIs, which
+/// render as [Text], and unsupported schemes — see [_isZoomableImageUri]), and
+/// inlines that already resolved synchronously to a [FailedImage]. Image URIs
+/// that fail asynchronously (http/https/resource/file) render after this
+/// wrapper is built, so they stay tappable and open a dialog around their own
+/// failure fallback. When [onImageTap] is provided the host handles the tap
+/// instead of the default zoom dialog.
+class _MaybeZoomableImage extends StatelessWidget {
+  const _MaybeZoomableImage({
+    required this.uri,
+    required this.alt,
+    required this.onImageTap,
+    required this.inline,
+  });
+
+  final Uri uri;
+  final String? alt;
+  final MarkdownImageHandler? onImageTap;
+  final Widget inline;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isZoomableImageUri(uri) || inline is FailedImage) return inline;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          final handler = onImageTap;
+          if (handler != null) {
+            handler(uri.toString(), alt);
+            return;
+          }
+          final label = alt;
+          showZoomableMediaDialog(
+            context,
+            viewer: _zoomableImageViewerFor(uri),
+            caption: label == null || label.isEmpty
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.all(SoliplexSpacing.s2),
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+          );
+        },
+        child: inline,
+      ),
+    );
+  }
+}
+
+/// Whether [uri] resolves to an image we can open in a zoomable view.
+bool _isZoomableImageUri(Uri uri) => switch (uri.scheme) {
+      'http' || 'https' || 'resource' || 'file' => true,
+      'data' => uri.data?.mimeType.startsWith('image/') ?? false,
+      _ => false,
+    };
+
+/// Builds the full-size, `BoxFit.contain` viewer for [uri] shown in the zoom
+/// dialog. Each scheme routes through a viewer that owns its own load failure
+/// ([ZoomableImage] / [fileImageZoomViewer]), so a broken image shows a bare
+/// centered fallback rather than a broken image under zoom/rotate chrome. The
+/// image's caption is supplied separately by the dialog, so the fallbacks are
+/// intentionally label-less.
+Widget _zoomableImageViewerFor(Uri uri) {
+  final rawUri = uri.toString();
+  return switch (uri.scheme) {
+    'data' => switch (tryDecodeImageDataUri(rawUri)) {
+        final decoded? => ZoomableImage(
+            bytes: decoded.bytes,
+            logSource: safeSourceForLog(rawUri),
+            decodeFailureChild: const FailedImage(),
+          ),
+        _ => _dataDecodeFailure(rawUri),
+      },
+    'http' || 'https' => ZoomableImage.provider(
+        NetworkImage(rawUri),
+        logSource: safeSourceForLog(rawUri),
+        decodeFailureChild: const FailedImage(),
+      ),
+    'resource' => ZoomableImage.provider(
+        AssetImage(uri.path),
+        logSource: safeSourceForLog(rawUri),
+        decodeFailureChild: const FailedImage(),
+      ),
+    'file' => fileImageZoomViewer(uri, rawUri),
+    _ => const Center(child: FailedImage()),
+  };
+}
+
+/// Fallback for a `data:image/*` URI whose payload can't be decoded, mirroring
+/// the inline [_buildDataImage] path so the failure is logged even when it is
+/// only reached via the zoom dialog.
+Widget _dataDecodeFailure(String rawUri) {
+  logFailedSourceOnce(
+    _logger,
+    'data:image/* URI failed to decode: ${safeSourceForLog(rawUri)}',
+    rawUri,
+  );
+  return const Center(child: FailedImage());
 }

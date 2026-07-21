@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/pager_dots.dart';
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
+import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
 
 // 1x1 transparent PNG.
 final _png = Uint8List.fromList(const [
@@ -123,6 +125,54 @@ void main() {
 
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.byType(InteractiveViewer), findsOneWidget);
+    // The dialog reuses the shared ZoomableImage viewer.
+    expect(find.byType(ZoomableImage), findsOneWidget);
+  });
+
+  testWidgets('a multi-figure citation opens a pageable browser',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      figures: [
+        Figure(ref: '#/pictures/0', bytes: _png),
+        Figure(ref: '#/pictures/1', bytes: _png),
+      ],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+
+    // Two thumbnails; tapping the first opens the browser at that figure.
+    await tester.tap(find.byType(Image).first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget);
+    // More than one figure => page-dots navigation is shown.
+    expect(find.byType(PagerDots), findsOneWidget);
+  });
+
+  testWidgets('tapping a figure opens the browser at that figure',
+      (tester) async {
+    await tester.pumpWidget(host(_ref(
+      figures: [
+        Figure(ref: '#/pictures/0', bytes: _png, caption: 'cap-zero'),
+        Figure(ref: '#/pictures/1', bytes: _png, caption: 'cap-one'),
+      ],
+    )));
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('doc-1.pdf'));
+    await tester.pump();
+
+    // Tap the second thumbnail: the browser must open on that figure, not the
+    // first — guarding that the tapped index is threaded into initialIndex.
+    await tester.tap(find.byType(Image).at(1));
+    await tester.pumpAndSettle();
+
+    // The footer shows only the current page's caption.
+    expect(find.text('cap-one'), findsOneWidget);
+    expect(find.text('cap-zero'), findsNothing);
   });
 
   testWidgets('a thumbnail whose bytes fail to decode shows a fallback',

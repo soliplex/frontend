@@ -14,6 +14,18 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   shows alongside the room name in the room view header, and as a title band at
   the top of the lobby's room pane, so a user connected to several servers can
   tell which one they are viewing.
+- Tapping an inline image in chat or other markdown now opens a full-size
+  pan/zoom/rotate view; SVG code blocks open the same view on tap.
+- A citation's figures open in a pageable browser over all of that citation's
+  figures, with previous/next chevrons, page dots, and left/right arrow-key
+  navigation, instead of a single figure at a time.
+
+### Changed
+
+- The image and SVG preview surfaces — chunk visualization, workdir file
+  preview, citation figures, and SVG previews — share a single
+  pan/zoom/rotate/reset viewer, so those interactions behave consistently and
+  zooming out returns to a centered fit.
 
 ## [0.94.0+68] - 2026-07-17
 

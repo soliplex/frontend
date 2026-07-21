@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 import 'package:soliplex_frontend/src/shared/failed_image.dart';
+import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
 
 void main() {
   group('FlutterMarkdownPlusRenderer widget', () {
@@ -134,6 +135,39 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(FailedImage), findsOneWidget);
+    });
+
+    testWidgets(
+        'a data:image that fails to decode synchronously is left inert (no '
+        'tap-to-zoom wrapper)', (tester) async {
+      // An empty base64 payload is rejected by tryDecodeImageDataUri, so the
+      // inline resolves synchronously to a FailedImage. _MaybeZoomableImage must
+      // leave it inert — otherwise tapping a broken image would open a dialog
+      // around another broken image. This guards the `inline is FailedImage`
+      // branch, distinct from the unsupported-scheme branch. The tap wrapper is
+      // uniquely identified by its click-cursor MouseRegion (markdown's own
+      // selection/scroll gesture detectors use different cursors).
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![alt](data:image/png;base64,)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(FailedImage), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byType(FailedImage),
+          matching: find.byWidgetPredicate(
+            (w) => w is MouseRegion && w.cursor == SystemMouseCursors.click,
+          ),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets(
@@ -320,6 +354,119 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(FailedImage), findsOneWidget);
+    });
+
+    // The inline image is laid out at zero size until its bytes decode (which
+    // does not happen under the test scheduler), so hit-test taps miss. We
+    // invoke the wrapper's onTap directly to exercise the tap wiring.
+    VoidCallback imageTapHandler(WidgetTester tester) {
+      final gesture = tester.widget<GestureDetector>(
+        find
+            .ancestor(
+              of: find.byType(Image),
+              matching: find.byType(GestureDetector),
+            )
+            .first,
+      );
+      return gesture.onTap!;
+    }
+
+    testWidgets('tapping a valid image opens a zoomable full-size dialog',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![alt](data:image/png;base64,$pngBase64)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Inline render is a plain image, not the zoomable viewer.
+      expect(find.byType(ZoomableImage), findsNothing);
+
+      imageTapHandler(tester)();
+      await tester.pumpAndSettle();
+
+      // The dialog frames the image in a ZoomableImage.
+      expect(find.byType(ZoomableImage), findsOneWidget);
+    });
+
+    testWidgets('a provided onImageTap overrides the default zoom dialog',
+        (tester) async {
+      String? tappedSrc;
+      String? tappedAlt;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![the alt](data:image/png;base64,$pngBase64)',
+              onImageTap: (src, alt) {
+                tappedSrc = src;
+                tappedAlt = alt;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      imageTapHandler(tester)();
+      await tester.pumpAndSettle();
+
+      expect(tappedSrc, startsWith('data:image/png;base64,'));
+      expect(tappedAlt, 'the alt');
+      // Host handled it; no default dialog opened.
+      expect(find.byType(ZoomableImage), findsNothing);
+    });
+
+    testWidgets(
+        'an http image is tap-wired for zoom (routing is not data-only)',
+        (tester) async {
+      // Guards the http branch of _isZoomableImageUri, which is a separate
+      // switch from the provider routing in _buildImage. We assert on the
+      // first frame (before the network attempt resolves) to avoid racing DNS.
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![alt](https://example.invalid/missing.png)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      // http is a zoomable scheme, so the inline is wrapped for tap-to-zoom;
+      // an inert inline would have no GestureDetector ancestor and the helper
+      // would throw.
+      expect(imageTapHandler(tester), isNotNull);
+    });
+
+    testWidgets('a non-image inline (text data URI) is not tap-to-zoom',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FlutterMarkdownPlusRenderer(
+              data: '![ignored](data:text/plain,Hello%20there)',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Hello there'), findsOneWidget);
+
+      // Tapping a non-image must not open the zoom dialog.
+      await tester.tap(find.text('Hello there'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.byType(ZoomableImage), findsNothing);
     });
   });
 }
