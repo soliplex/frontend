@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
@@ -24,7 +25,9 @@ SourceReference _ref({
       index: index,
     );
 
-Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+Widget _wrap(Widget child) => ProviderScope(
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
 void main() {
   testWidgets(
@@ -34,14 +37,16 @@ void main() {
     // captures the drag gesture itself and drops out of the transcript-wide
     // selection; this proves the citation content renders selectable:false and
     // so joins the surrounding area's selection.
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: SelectionArea(
-          child: SingleChildScrollView(
-            child: CitationsSection(
-              sourceReferences: [
-                _ref(index: 1, title: 'Alpha', content: 'cited body'),
-              ],
+    await tester.pumpWidget(ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: SingleChildScrollView(
+              child: CitationsSection(
+                sourceReferences: [
+                  _ref(index: 1, title: 'Alpha', content: 'cited body'),
+                ],
+              ),
             ),
           ),
         ),
