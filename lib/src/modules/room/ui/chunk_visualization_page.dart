@@ -383,7 +383,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Divider(),
+          Divider(color: Theme.of(context).colorScheme.outline),
           _detailField(context, 'chunk id', widget.chunkId),
           if (document != null && document.isNotEmpty) ...[
             const SizedBox(height: SoliplexSpacing.s2),
