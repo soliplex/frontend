@@ -2046,6 +2046,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             roomId: widget.roomId,
                             chunkId: ref.chunkId,
                             documentTitle: ref.displayTitle,
+                            documentUri: ref.documentUri,
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
                           ),

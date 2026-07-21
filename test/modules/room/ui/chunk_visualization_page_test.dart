@@ -303,4 +303,158 @@ void main() {
     final rotated = tester.widget<RotatedBox>(find.byType(RotatedBox));
     expect(rotated.quarterTurns, 1);
   });
+
+  testWidgets('detail block prefers the callers uri over the fetched one',
+      (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'file://fetched.pdf',
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentTitle: 'My Doc',
+        documentUri: 'file://caller.pdf',
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('c1'), findsOneWidget);
+    // Name is the title (once); the detail block shows the caller's uri, not
+    // the fetched one.
+    expect(find.text('My Doc'), findsOneWidget);
+    expect(find.text('file://caller.pdf'), findsOneWidget);
+    expect(find.text('file://fetched.pdf'), findsNothing);
+  });
+
+  testWidgets('detail block treats an empty caller uri as absent',
+      (tester) async {
+    // A citation whose documentUri is '' must not shadow a real fetched uri.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'file://fetched.pdf',
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        documentUri: '',
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('file://fetched.pdf'), findsOneWidget);
+  });
+
+  testWidgets('empty result still shows the chunk id in the detail block',
+      (tester) async {
+    // The lookup flow can produce zero images; the detail block (chunk id)
+    // must still render alongside the empty-state message.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: null,
+        imagesBase64: const [],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No page images available'), findsOneWidget);
+    expect(find.text('chunk id'), findsOneWidget);
+    expect(find.text('c1'), findsOneWidget);
+  });
+
+  testWidgets('detail block falls back to the fetched uri when caller has none',
+      (tester) async {
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: 'file://doc.pdf',
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('c1'), findsOneWidget);
+    expect(find.text('file://doc.pdf'), findsOneWidget);
+    expect(find.text('Chunk preview'), findsOneWidget);
+  });
+
+  testWidgets('detail block hides the document row when no uri is available',
+      (tester) async {
+    // Bare lookup + backend returns a null document_uri: only the chunk id
+    // shows, no empty "document" label.
+    final api = _ChunkVizApi()
+      ..nextVisualization = ChunkVisualization(
+        chunkId: 'c1',
+        documentUri: null,
+        imagesBase64: [_pngBase64],
+      );
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c1',
+        useDialogLayout: false,
+        pageNumbers: const [1],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('chunk id'), findsOneWidget);
+    expect(find.text('c1'), findsOneWidget);
+    expect(find.text('document'), findsNothing);
+  });
+
+  testWidgets('detail block shows the chunk id in the error state',
+      (tester) async {
+    final api = _ChunkVizApi()..nextVizError = Exception('boom');
+
+    await tester.pumpWidget(_wrap(
+      ChunkVisualizationPage(
+        api: api,
+        roomId: 'room-1',
+        chunkId: 'c-err',
+        useDialogLayout: false,
+        documentTitle: 'Doc',
+        pageNumbers: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to load visualization'), findsOneWidget);
+    expect(find.text('c-err'), findsOneWidget);
+  });
 }

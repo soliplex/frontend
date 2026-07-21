@@ -14,6 +14,7 @@ import '../../auth/server_entry.dart';
 import '../../auth/ui/home_shell.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
+import 'room_info/chunk_lookup_card.dart';
 import 'room_info/client_tools_card.dart';
 import 'room_info/documents_card.dart';
 import 'room_info/expandable_list_card.dart';
@@ -248,6 +249,7 @@ class _RoomInfoBody extends StatelessWidget {
             documentsFuture: documentsFuture,
             onRetry: onRetryDocuments,
           ),
+          ChunkLookupCard(api: api, roomId: roomId),
         ],
       ),
     );

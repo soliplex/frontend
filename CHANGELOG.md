@@ -14,6 +14,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   shows alongside the room name in the room view header, and as a title band at
   the top of the lobby's room pane, so a user connected to several servers can
   tell which one they are viewing.
+- Room info: a "View chunk" card lets you enter a chunk id and open its
+  rendered page images, so a chunk can be viewed directly from an id (e.g. one
+  taken from logs) rather than only by tapping a PDF citation. Expanded
+  citations and the chunk viewer now also surface the chunk id and document
+  provenance, each copyable.
 - Tapping an inline image in chat or other markdown now opens a full-size
   pan/zoom/rotate view; SVG code blocks open the same view on tap.
 - A citation's figures open in a pageable browser over all of that citation's
