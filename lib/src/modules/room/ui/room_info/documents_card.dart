@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
+import '../../../../shared/browser_url_link.dart';
 import '../../../../shared/file_type_icons.dart';
 import 'room_info_widgets.dart';
 import 'package:soliplex_design/soliplex_design.dart';
@@ -204,6 +205,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
     if (doc.updatedAt != null) {
       dateFields.add(('updated_at', _formatDateTime(doc.updatedAt!)));
     }
+    final sourceUrl = sourceUrlFromMetadata(doc.metadata);
 
     return Padding(
       padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
@@ -234,6 +236,12 @@ class _DocumentsCardState extends State<DocumentsCard> {
               ),
               if (dateFields.isNotEmpty)
                 const SizedBox(height: SoliplexSpacing.s2),
+            ],
+            if (sourceUrl != null) ...[
+              const SizedBox(height: SoliplexSpacing.s2),
+              Text('link', style: labelStyle),
+              const SizedBox(height: SoliplexSpacing.s1),
+              BrowserUrlLink(url: sourceUrl),
             ],
             if (dateFields.isNotEmpty)
               Wrap(
