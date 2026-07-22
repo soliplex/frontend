@@ -9,6 +9,7 @@ import '../core/shell_config.dart';
 import '../core/status_message_config.dart';
 import '../modules/auth/consent_notice.dart';
 import '../modules/auth/platform/callback_params.dart';
+import '../modules/room/document_browser_url.dart';
 import 'standard_kit.dart';
 
 /// Builds the standard [Flavor]: the full module set on shared session
@@ -32,6 +33,10 @@ Future<Flavor> standardFlavor({
   bool enableDocumentFilter = true,
   String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
   Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
+  // TEMPORARY: derives the citation / chunk-visualization browser link from a
+  // document uri until the backend carries `source_url` on those responses.
+  // Delete with the seam — see [documentBrowserUrlResolverProvider].
+  DocumentBrowserUrlResolver? documentBrowserUrl,
   List<AppModule> Function(StandardKit kit)? extraModules,
 }) async {
   final effectiveIdentity = identity ?? AppIdentity.soliplex;
@@ -50,7 +55,12 @@ Future<Flavor> standardFlavor({
   return Flavor(
     identity: effectiveIdentity,
     theme: theme,
-    modules: [...kit.modules, ...?extraModules?.call(kit)],
+    modules: [
+      ...kit.modules,
+      if (documentBrowserUrl != null)
+        DocumentBrowserUrlModule(documentBrowserUrl),
+      ...?extraModules?.call(kit),
+    ],
     initialRoute: kit.initialRoute,
     refreshListenable: kit.refreshListenable,
     inactivity: kit.inactivity,
@@ -77,6 +87,10 @@ Future<ShellConfig> standard({
   Duration inactivityGraceDuration = InactivityConfig.defaultGraceDuration,
   String statusMessageFilePath = StatusMessageConfig.defaultFilePath,
   Duration statusMessagePollInterval = StatusMessageConfig.defaultPollInterval,
+  // TEMPORARY: derives the citation / chunk-visualization browser link from a
+  // document uri until the backend carries `source_url` on those responses.
+  // Delete with the seam — see [documentBrowserUrlResolverProvider].
+  DocumentBrowserUrlResolver? documentBrowserUrl,
 }) async {
   final flavor = await standardFlavor(
     identity: identity,
@@ -94,6 +108,7 @@ Future<ShellConfig> standard({
     inactivityGraceDuration: inactivityGraceDuration,
     statusMessageFilePath: statusMessageFilePath,
     statusMessagePollInterval: statusMessagePollInterval,
+    documentBrowserUrl: documentBrowserUrl,
   );
   return flavor.build();
 }
