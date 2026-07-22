@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_grid_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/room_markings_row.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 
 // RoomGridCard fills the height of its grid cell (footer pinned to bottom),
@@ -21,6 +22,18 @@ ClassificationTheme _classifications() => ClassificationTheme(
         ClassificationLevel(
           id: 'internal',
           label: 'INTERNAL',
+          background: Colors.black12,
+          foreground: Colors.black87,
+        ),
+      ],
+    );
+
+ClassificationTheme _longClassifications() => ClassificationTheme(
+      defaultId: 'cui',
+      levels: const [
+        ClassificationLevel(
+          id: 'cui',
+          label: 'CONTROLLED UNCLASSIFIED INFORMATION//SP-EXPT',
           background: Colors.black12,
           foreground: Colors.black87,
         ),
@@ -152,6 +165,67 @@ void main() {
       );
 
       expect(find.text('INTERNAL'), findsOneWidget);
+    });
+
+    testWidgets('keeps the quiz indicator off the title row', (tester) async {
+      await tester.pumpWidget(_harness(
+        RoomGridCard(
+          room: const Room(
+            id: 'r1',
+            name: 'General',
+            quizzes: {'q1': 'Quiz One'},
+          ),
+          onTap: () {},
+          onInfoTap: () {},
+        ),
+      ));
+
+      expect(find.byType(RoomMarkingsRow), findsOneWidget);
+      // The quiz indicator now lives in the dedicated markings row, below the
+      // name, rather than sharing the title row and squeezing it.
+      expect(
+        tester.getRect(find.byIcon(Icons.quiz)).top,
+        greaterThanOrEqualTo(tester.getRect(find.text('General')).bottom),
+      );
+    });
+
+    testWidgets('does not overflow under a large accessibility text scale',
+        (tester) async {
+      const room = Room(
+        id: 'r1',
+        name: 'A room with a deliberately very long name that overflows',
+        description: 'A long description that also needs to wrap gracefully',
+        quizzes: {'q1': 'Quiz'},
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(classifications: _longClassifications()),
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(
+              // Mirror the real grid: a width-bounded cell that sizes its
+              // height to content (IntrinsicHeight), in a scroll view so the
+              // card can grow vertically under large text. That isolates the
+              // guard that matters — no *horizontal* overflow when text scales.
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  width: 240,
+                  child: IntrinsicHeight(
+                    child: RoomGridCard(
+                      room: room,
+                      onTap: () {},
+                      onInfoTap: () {},
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

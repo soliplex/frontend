@@ -729,21 +729,22 @@ class _LobbyControlsState extends State<_LobbyControls> {
             ],
           );
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        // Phones: the labelled dropdown would eat a full row of its own, so
+        // shrink it to an icon button and sit it on the search row. The wide
+        // layout above keeps the roomier labelled dropdown.
+        return Row(
           children: [
-            search,
-            const SizedBox(height: SoliplexSpacing.s2),
-            Row(
-              children: [
-                Expanded(child: sort),
-                busy,
-                if (toggle != null) ...[
-                  const SizedBox(width: SoliplexSpacing.s3),
-                  toggle,
-                ],
-              ],
+            Expanded(child: search),
+            const SizedBox(width: SoliplexSpacing.s2),
+            _CompactSortButton(
+              sortMode: widget.sortMode,
+              onSortModeChanged: widget.onSortModeChanged,
             ),
+            busy,
+            if (toggle != null) ...[
+              const SizedBox(width: SoliplexSpacing.s3),
+              toggle,
+            ],
           ],
         );
       },
@@ -775,6 +776,52 @@ class _ViewModeToggle extends StatelessWidget {
       ],
       selected: {viewMode},
       onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
+}
+
+/// Compact sort control for phone layouts: an icon button that opens a menu of
+/// the sort options, so sorting can share the search row instead of claiming a
+/// full-width dropdown on a line of its own. The wide layout keeps the labelled
+/// [SoliplexDropdown]. The glyph tints to `primary` while a non-default sort is
+/// active, so the current ordering reads at a glance without opening the menu.
+class _CompactSortButton extends StatelessWidget {
+  const _CompactSortButton({
+    required this.sortMode,
+    required this.onSortModeChanged,
+  });
+
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = sortMode != LobbySortMode.none;
+    return PopupMenuButton<LobbySortMode>(
+      icon: Icon(
+        Icons.sort,
+        color: active ? scheme.primary : scheme.onSurfaceVariant,
+      ),
+      tooltip: 'Sort rooms',
+      onSelected: onSortModeChanged,
+      itemBuilder: (context) => [
+        CheckedPopupMenuItem(
+          value: LobbySortMode.none,
+          checked: sortMode == LobbySortMode.none,
+          child: const Text('None'),
+        ),
+        CheckedPopupMenuItem(
+          value: LobbySortMode.recentActivity,
+          checked: sortMode == LobbySortMode.recentActivity,
+          child: const Text('Recent activity'),
+        ),
+        CheckedPopupMenuItem(
+          value: LobbySortMode.unreadFirst,
+          checked: sortMode == LobbySortMode.unreadFirst,
+          child: const Text('Unread first'),
+        ),
+      ],
     );
   }
 }
