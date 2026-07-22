@@ -165,6 +165,7 @@ void main() {
       final theme = soliplexLightTheme();
 
       expect(theme.appBarTheme.elevation, 0);
+      expect(theme.appBarTheme.centerTitle, isFalse);
       expect(theme.dividerTheme.thickness, 1);
       expect(theme.cardTheme.elevation, 0);
     });

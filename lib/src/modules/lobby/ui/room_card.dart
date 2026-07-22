@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
+import 'room_markings_row.dart';
 import 'unread_dot.dart';
 
 class RoomCard extends StatelessWidget {
@@ -30,48 +31,72 @@ class RoomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The marking + quiz indicator get their own row below the tile (see
+    // RoomMarkingsRow); keeping them off the trailing edge leaves the room name
+    // the full tile width instead of a few squeezed letters (issue #427). The
+    // badge is always mounted as a seam, so on a stock build (no classification,
+    // no quizzes) the row costs no layout and we skip its padding entirely.
+    final showMarkings = roomHasVisibleMarkings(context, room);
     return Card(
       // The list owns the horizontal gutter; the card owns only the s3
       // inter-row gap, matching the design mockup's list tiles.
       margin: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
-      child: ListTile(
-        // Match RoomGridCard's title/subtitle styles so the two views read
-        // identically: titleMedium name, small muted description.
-        title: Text(
-          room.name,
-          style: theme.textTheme.titleMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: _buildSubtitle(theme),
-        trailing: Row(
+      // The whole card opens the room (mirrors RoomGridCard), so a tap on the
+      // markings row below the tile is a hit rather than dead space.
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(context.radii.md),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isUnread) ...[
-              const UnreadDot(),
-              const SizedBox(width: SoliplexSpacing.s2),
-            ],
-            // Leading marking; renders nothing until a deployment
-            // configures classifications. Backend per-room value wires in
-            // here later via `classification:`.
-            const SoliplexClassificationBadge(),
-            const SizedBox(width: SoliplexSpacing.s2),
-            if (room.hasQuizzes)
-              Tooltip(
-                message: 'Has quizzes',
-                child: Icon(
-                  Icons.quiz,
-                  size: 20,
-                  color: theme.colorScheme.primary,
-                ),
+            ListTile(
+              // Mirror RoomGridCard's name row: the unread dot leads the name on
+              // the title line, so it reads as a status of the room. It sits
+              // inline (not in ListTile.leading, which centers vertically
+              // against the whole tile and would drop the dot beside the
+              // description). Conditional — no reserved gutter — so a read row
+              // keeps its full name width; only unread rows indent.
+              title: Row(
+                children: [
+                  if (isUnread) ...[
+                    const UnreadDot(),
+                    const SizedBox(width: SoliplexSpacing.s2),
+                  ],
+                  // Match RoomGridCard's title style so list and grid read
+                  // identically.
+                  Expanded(
+                    child: Text(
+                      room.name,
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            IconButton(
-              icon: const Icon(Icons.info_outline),
-              onPressed: onInfoTap,
+              subtitle: _buildSubtitle(theme),
+              trailing: IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Room info',
+                onPressed: onInfoTap,
+              ),
             ),
+            if (showMarkings)
+              Padding(
+                // Align with the ListTile's content inset (s4) and leave an s3
+                // gap to the card's bottom edge.
+                padding: const EdgeInsets.fromLTRB(
+                  SoliplexSpacing.s4,
+                  0,
+                  SoliplexSpacing.s4,
+                  SoliplexSpacing.s3,
+                ),
+                child: RoomMarkingsRow(room: room),
+              )
+            else
+              RoomMarkingsRow(room: room),
           ],
         ),
-        onTap: onTap,
       ),
     );
   }

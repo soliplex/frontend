@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/room_card.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/room_markings_row.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
 
 ClassificationTheme _classifications() => ClassificationTheme(
@@ -17,11 +18,26 @@ ClassificationTheme _classifications() => ClassificationTheme(
       ],
     );
 
+// A deliberately long marking to stress the markings row under large text
+// scaling — the sort of value a real "controlled unclassified" deployment uses.
+ClassificationTheme _longClassifications() => ClassificationTheme(
+      defaultId: 'cui',
+      levels: const [
+        ClassificationLevel(
+          id: 'cui',
+          label: 'CONTROLLED UNCLASSIFIED INFORMATION//SP-EXPT',
+          background: Colors.black12,
+          foreground: Colors.black87,
+        ),
+      ],
+    );
+
 Widget _buildCard({
   required Room room,
   VoidCallback? onTap,
   VoidCallback? onInfoTap,
   bool isUnread = false,
+  DateTime? activityTime,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -30,6 +46,7 @@ Widget _buildCard({
         onTap: onTap ?? () {},
         onInfoTap: onInfoTap ?? () {},
         isUnread: isUnread,
+        activityTime: activityTime,
       ),
     ),
   );
@@ -56,6 +73,26 @@ void main() {
       expect(find.byType(UnreadDot), findsOneWidget);
     });
 
+    testWidgets('places the unread dot before the name on the title line',
+        (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room', description: 'A room');
+
+      await tester.pumpWidget(_buildCard(
+        room: room,
+        isUnread: true,
+        activityTime: DateTime(2020),
+      ));
+
+      final dot = tester.getRect(find.byType(UnreadDot));
+      final name = tester.getRect(find.text('Test Room'));
+      // Leading — entirely before the name...
+      expect(dot.right, lessThanOrEqualTo(name.left));
+      // ...and on the title line, not dropped beside the description as
+      // ListTile.leading's vertical centering against the whole tile would do.
+      expect(dot.center.dy, greaterThanOrEqualTo(name.top));
+      expect(dot.center.dy, lessThanOrEqualTo(name.bottom));
+    });
+
     testWidgets('hides description when empty', (tester) async {
       const room = Room(id: 'r1', name: 'Test Room');
 
@@ -76,6 +113,23 @@ void main() {
       ));
 
       await tester.tap(find.byType(ListTile));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('opens the room when the markings row is tapped',
+        (tester) async {
+      var tapped = false;
+      const room = Room(id: 'r1', name: 'Test Room', quizzes: {'q1': 'Quiz'});
+
+      await tester.pumpWidget(_buildCard(
+        room: room,
+        onTap: () => tapped = true,
+      ));
+
+      // The markings row sits outside the ListTile; a tap in that strip must
+      // still open the room (the whole card is the tap target, mirroring
+      // RoomGridCard) rather than landing on dead space.
+      await tester.tapAt(tester.getRect(find.byType(RoomMarkingsRow)).center);
       expect(tapped, isTrue);
     });
 
@@ -130,6 +184,65 @@ void main() {
       );
 
       expect(find.text('INTERNAL'), findsOneWidget);
+    });
+
+    testWidgets('puts the marking and quiz on their own row below the tile',
+        (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room', quizzes: {'q1': 'Quiz'});
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(classifications: _classifications()),
+          home: Scaffold(
+            body: RoomCard(room: room, onTap: () {}, onInfoTap: () {}),
+          ),
+        ),
+      );
+
+      // The markings sit in a dedicated row, not the tile's trailing slot, so
+      // they clear the ListTile's bottom edge instead of squeezing the name.
+      expect(find.byType(RoomMarkingsRow), findsOneWidget);
+      final tileBottom = tester.getRect(find.byType(ListTile)).bottom;
+      expect(
+        tester.getRect(find.byIcon(Icons.quiz)).top,
+        greaterThanOrEqualTo(tileBottom),
+      );
+      expect(
+        tester.getRect(find.text('INTERNAL')).top,
+        greaterThanOrEqualTo(tileBottom),
+      );
+    });
+
+    testWidgets('does not overflow under a large accessibility text scale',
+        (tester) async {
+      const room = Room(
+        id: 'r1',
+        name: 'A room with a deliberately very long name that overflows',
+        description: 'A long description that also needs to wrap gracefully',
+        quizzes: {'q1': 'Quiz'},
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(classifications: _longClassifications()),
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            // Cards live in a scrolling list in production, so vertical growth
+            // is fine; a scroll view here isolates the guard that matters — the
+            // markings row must not overflow *horizontally* when text scales.
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  width: 320,
+                  child: RoomCard(room: room, onTap: () {}, onInfoTap: () {}),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

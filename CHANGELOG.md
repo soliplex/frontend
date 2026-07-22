@@ -33,6 +33,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The lobby's rooms page is more compact on phones: a room's confidentiality
+  marking and quiz indicator move to their own row so the room name keeps the
+  full tile width, the sort control collapses to an icon button that shares the
+  search row (the labelled dropdown stays on tablet and wider viewports), and
+  the selected server's name moves into the app bar. The markings row wraps
+  instead of overflowing at large accessibility text sizes.
+- App bar titles now left-align on every platform. Previously iOS and macOS
+  (and web served to those hosts) centered the title, diverging from the app's
+  left-aligned pane and room headers; titles now match those headers across
+  platforms and viewport sizes.
 - The image and SVG preview surfaces — chunk visualization, workdir file
   preview, citation figures, and SVG previews — share a single
   pan/zoom/rotate/reset viewer, so those interactions behave consistently and

@@ -280,7 +280,7 @@ void main() {
       },
     );
 
-    testWidgets('names the selected server in a pane header', (tester) async {
+    testWidgets('names the selected server in the app bar', (tester) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -298,8 +298,43 @@ void main() {
       await tester.pumpAndSettle();
 
       // On a narrow viewport the sidebar lives in a closed drawer, so the
-      // selected server's address shows only in the pane header.
+      // selected server's address shows only in the AppBar title.
       expect(find.text('http://localhost:8000'), findsOneWidget);
+    });
+
+    testWidgets('app bar names the server at the pane-header text size',
+        (tester) async {
+      // Guards the size-consistency fix: the AppBar title is styled titleMedium
+      // to match the wide layout's pane header, so the name does not jump to the
+      // AppBar's default (larger) title style when the viewport crosses into the
+      // drawer layout.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      final nameInAppBar = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('http://localhost:8000'),
+      );
+      expect(nameInAppBar, findsOneWidget);
+
+      final context = tester.element(find.byType(AppBar));
+      expect(
+        tester.widget<Text>(nameInAppBar).style?.fontSize,
+        Theme.of(context).textTheme.titleMedium!.fontSize,
+      );
     });
 
     testWidgets('toggle switches loaded rooms from list to grid cards',
@@ -414,6 +449,82 @@ void main() {
       expect(find.byType(RoomCard), findsOneWidget);
       expect(find.byType(RoomGridCard), findsNothing);
       expect(find.byIcon(Icons.grid_view), findsNothing);
+    });
+
+    testWidgets(
+        'phones replace the sort dropdown with a compact button on the '
+        'search row', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // The labelled dropdown is gone; a compact sort icon takes its place...
+      expect(find.byType(DropdownMenu<LobbySortMode>), findsNothing);
+      expect(find.byIcon(Icons.sort), findsOneWidget);
+      // ...sharing the search field's row (same vertical band as its icon).
+      expect(
+        tester.getCenter(find.byIcon(Icons.sort)).dy,
+        closeTo(tester.getCenter(find.byIcon(Icons.search)).dy, 4),
+      );
+    });
+
+    testWidgets('phone compact sort menu reorders rooms by recent activity',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [
+          Room(id: 'r1', name: 'General'),
+          Room(id: 'r2', name: 'Random'),
+        ]
+        ..roomsStats = {
+          'r1': RoomStats(lastActivity: DateTime.utc(2026, 1)),
+          'r2': RoomStats(lastActivity: DateTime.utc(2026, 6)),
+        };
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      List<String> roomOrder() => tester
+          .widgetList<RoomCard>(find.byType(RoomCard))
+          .map((c) => c.room.name)
+          .toList();
+
+      // Default sort (none): backend order is preserved.
+      expect(roomOrder(), ['General', 'Random']);
+
+      // Open the compact menu and choose "Recent activity".
+      await tester.tap(find.byIcon(Icons.sort));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(
+          CheckedPopupMenuItem<LobbySortMode>,
+          'Recent activity',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(roomOrder(), ['Random', 'General']);
     });
 
     testWidgets('search filters rooms by name within the section',

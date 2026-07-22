@@ -3,6 +3,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
+import 'room_markings_row.dart';
 import 'unread_dot.dart';
 
 /// Vertical card used for the lobby's grid layout: open on tap, info
@@ -34,6 +35,10 @@ class RoomGridCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final radius = BorderRadius.circular(context.radii.md);
+    // Marking + quiz live on their own row (see RoomMarkingsRow) so the room
+    // name owns the full title row. The badge is always mounted as a seam; only
+    // spend a dedicated row's gap once there's actually a marking or quiz.
+    final showMarkings = roomHasVisibleMarkings(context, room);
     return Card(
       // The grid owns all spacing (s3 gaps between cells and rows); drop the
       // default card margin so each card fills its cell cleanly.
@@ -65,15 +70,6 @@ class RoomGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (room.hasQuizzes)
-                    Tooltip(
-                      message: 'Has quizzes',
-                      child: Icon(
-                        Icons.quiz,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
                 ],
               ),
               if (room.description.isNotEmpty) ...[
@@ -87,16 +83,13 @@ class RoomGridCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
-              // Minimum gap above the footer, then a Spacer so the footer
-              // sits at the bottom of a taller-than-content card.
+              // Minimum gap above the bottom cluster, then a Spacer so it sits
+              // at the bottom of a taller-than-content card.
               const SizedBox(height: SoliplexSpacing.s2),
               const Spacer(),
               Row(
                 children: [
-                  // Bottom-left: relative activity time when known, then the
-                  // marking (which renders nothing until a deployment
-                  // configures classifications — backend per-room value wires
-                  // in here later via `classification:`).
+                  // Bottom-left: relative activity time when known.
                   Expanded(
                     child: activityTime == null
                         ? const SizedBox.shrink()
@@ -126,7 +119,6 @@ class RoomGridCard extends StatelessWidget {
                             ),
                           ),
                   ),
-                  const SoliplexClassificationBadge(),
                   IconButton(
                     icon: const Icon(Icons.info_outline),
                     tooltip: 'Room info',
@@ -134,6 +126,12 @@ class RoomGridCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Dedicated marking + quiz row, kept off the title row and pinned
+              // below the footer so it's the card's bottom-most element (matches
+              // RoomCard). Always mounts the badge seam; only spend the gap above
+              // it when the row actually shows something.
+              if (showMarkings) const SizedBox(height: SoliplexSpacing.s2),
+              RoomMarkingsRow(room: room),
             ],
           ),
         ),

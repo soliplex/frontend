@@ -298,6 +298,9 @@ class _WideLayout extends StatelessWidget {
                 serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
+                // The two-pane layout has no AppBar, so the pane names the
+                // selected server in its own header.
+                showServerHeading: true,
                 onRoomTap: onRoomTap,
                 onMarkRoomRead: onMarkRoomRead,
                 onInfoTap: onInfoTap,
@@ -369,6 +372,8 @@ class _NarrowLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedEntry =
+        selectedServerId == null ? null : servers[selectedServerId];
     return Scaffold(
       appBar: AppBar(
         leading: Builder(
@@ -377,6 +382,19 @@ class _NarrowLayout extends StatelessWidget {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
+        // Name the selected server on the menu-button row rather than in a
+        // header row of its own below the bar. The drawer holds the sidebar,
+        // so the bar would otherwise carry only the menu button.
+        title: selectedEntry == null
+            ? null
+            : Text(
+                selectedEntry.displayName,
+                // Match the wide layout's pane-header text size, so the name
+                // does not resize when the layout crosses the breakpoint.
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
       ),
       drawer: Drawer(
         // A Drawer adds no inset of its own, so SafeArea keeps the brand
@@ -422,6 +440,9 @@ class _NarrowLayout extends StatelessWidget {
           serverReadMarkers: serverReadMarkers,
           activityLoading: activityLoading,
           selectedServerId: selectedServerId,
+          // The AppBar already names the selected server, so the pane skips
+          // its own header row.
+          showServerHeading: false,
           onRoomTap: onRoomTap,
           onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
@@ -448,6 +469,7 @@ class _RoomContent extends StatelessWidget {
     required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
+    required this.showServerHeading,
     required this.onRoomTap,
     required this.onMarkRoomRead,
     required this.onInfoTap,
@@ -468,6 +490,10 @@ class _RoomContent extends StatelessWidget {
   final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
+
+  /// Whether the pane names the selected server in a header of its own. The
+  /// narrow layout names it in the AppBar instead, so it passes false.
+  final bool showServerHeading;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -494,34 +520,42 @@ class _RoomContent extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Grid view is a tablet+/desktop affordance; below the tablet
-        // breakpoint (phones) we force list and hide the view-mode toggle, so
-        // the persisted choice is honoured again once the pane is wide enough.
-        final allowGrid = constraints.maxWidth >= SoliplexBreakpoints.tablet;
-        final effectiveViewMode = allowGrid ? viewMode : LobbyViewMode.list;
+        // At tablet width and up the pane is "wide": the controls show the
+        // roomier labelled sort dropdown and the list/grid toggle, and the
+        // persisted view mode is honoured. Below it the sort collapses to an
+        // icon, the toggle is hidden, and the view is forced to list. Grid
+        // availability equals width today; a future grid-disable flag would
+        // AND into this.
+        final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
+        final effectiveViewMode = isWide ? viewMode : LobbyViewMode.list;
         final selectedEntry =
             selectedServerId == null ? null : servers[selectedServerId];
         return Column(
           children: [
             if (selectedEntry != null) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-                    SoliplexSpacing.s3, SoliplexSpacing.s4, SoliplexSpacing.s2),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    selectedEntry.displayName,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              if (showServerHeading) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s3,
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s2),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      selectedEntry.displayName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ],
               StatusMessageBanner(
                 key: ValueKey(selectedEntry.serverUrl),
                 baseUrl: selectedEntry.serverUrl,
@@ -535,7 +569,7 @@ class _RoomContent extends StatelessWidget {
               child: _LobbyControls(
                 viewMode: viewMode,
                 onViewModeChanged: onViewModeChanged,
-                showViewModeToggle: allowGrid,
+                isWide: isWide,
                 searchQuery: searchQuery,
                 onSearchChanged: onSearchChanged,
                 sortMode: sortMode,
@@ -602,17 +636,18 @@ class _RoomContent extends StatelessWidget {
   }
 }
 
-/// The lobby's control row: a room-name filter and the view-mode toggle.
+/// The lobby's control row: a room-name filter, a sort control, and the
+/// view-mode toggle.
 ///
 /// Stateful so the search field's [TextEditingController] survives the
 /// signal-driven rebuilds (every keystroke updates the query signal) and
-/// the wide/narrow layout switch. On narrow widths the search field takes
-/// the full width and the toggle drops below it.
+/// the wide/narrow layout switch. Below the tablet width the sort control
+/// collapses to an icon button and the toggle is hidden.
 class _LobbyControls extends StatefulWidget {
   const _LobbyControls({
     required this.viewMode,
     required this.onViewModeChanged,
-    required this.showViewModeToggle,
+    required this.isWide,
     required this.searchQuery,
     required this.onSearchChanged,
     required this.sortMode,
@@ -623,9 +658,9 @@ class _LobbyControls extends StatefulWidget {
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
 
-  /// Whether to show the list/grid toggle. Hidden on phones, where the view
-  /// is forced to list.
-  final bool showViewModeToggle;
+  /// Whether the pane is at tablet width or wider — drives the roomier
+  /// labelled sort dropdown and the list/grid toggle together.
+  final bool isWide;
   final String searchQuery;
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
@@ -674,12 +709,6 @@ class _LobbyControlsState extends State<_LobbyControls> {
               onPressed: _controller.clear,
             ),
     );
-    final toggle = widget.showViewModeToggle
-        ? _ViewModeToggle(
-            viewMode: widget.viewMode,
-            onChanged: widget.onViewModeChanged,
-          )
-        : null;
     // "Recent activity" orders rooms by their last activity, which the backend
     // reports via a stats fetch that may still be in flight, so the ordering
     // can take a moment to populate; the dropdown stays live (so the user can
@@ -689,16 +718,9 @@ class _LobbyControlsState extends State<_LobbyControls> {
       initialValue: widget.sortMode,
       onSelected: (mode) =>
           widget.onSortModeChanged(mode ?? LobbySortMode.none),
-      entries: const [
-        SoliplexDropdownEntry(value: LobbySortMode.none, label: 'None'),
-        SoliplexDropdownEntry(
-          value: LobbySortMode.recentActivity,
-          label: 'Recent activity',
-        ),
-        SoliplexDropdownEntry(
-          value: LobbySortMode.unreadFirst,
-          label: 'Unread first',
-        ),
+      entries: [
+        for (final (mode, label) in _sortOptions)
+          SoliplexDropdownEntry(value: mode, label: label),
       ],
     );
     final busy = widget.sortLoading &&
@@ -713,40 +735,35 @@ class _LobbyControlsState extends State<_LobbyControls> {
           )
         : const SizedBox.shrink();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= SoliplexBreakpoints.tablet) {
-          return Row(
-            children: [
-              Expanded(child: search),
-              const SizedBox(width: SoliplexSpacing.s3),
-              SizedBox(width: _sortControlWidth, child: sort),
-              busy,
-              if (toggle != null) ...[
-                const SizedBox(width: SoliplexSpacing.s3),
-                toggle,
-              ],
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            search,
-            const SizedBox(height: SoliplexSpacing.s2),
-            Row(
-              children: [
-                Expanded(child: sort),
-                busy,
-                if (toggle != null) ...[
-                  const SizedBox(width: SoliplexSpacing.s3),
-                  toggle,
-                ],
-              ],
-            ),
-          ],
-        );
-      },
+    // The roomier labelled sort and the list/grid toggle appear together at
+    // tablet width and up (isWide). Below it the sort collapses to an icon
+    // button sharing the search row and the toggle is hidden — one breakpoint
+    // drives both, so they flip at the same point.
+    if (widget.isWide) {
+      return Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: SoliplexSpacing.s3),
+          SizedBox(width: _sortControlWidth, child: sort),
+          busy,
+          const SizedBox(width: SoliplexSpacing.s3),
+          _ViewModeToggle(
+            viewMode: widget.viewMode,
+            onChanged: widget.onViewModeChanged,
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: search),
+        const SizedBox(width: SoliplexSpacing.s2),
+        _CompactSortButton(
+          sortMode: widget.sortMode,
+          onSortModeChanged: widget.onSortModeChanged,
+        ),
+        busy,
+      ],
     );
   }
 }
@@ -775,6 +792,51 @@ class _ViewModeToggle extends StatelessWidget {
       ],
       selected: {viewMode},
       onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
+}
+
+/// The lobby's sort options as (mode, label) pairs, shared by the wide-layout
+/// labelled dropdown and the phone [_CompactSortButton] so the two can't drift.
+const _sortOptions = <(LobbySortMode, String)>[
+  (LobbySortMode.none, 'None'),
+  (LobbySortMode.recentActivity, 'Recent activity'),
+  (LobbySortMode.unreadFirst, 'Unread first'),
+];
+
+/// Compact sort control for phone layouts: an icon button that opens a menu of
+/// the sort options, so sorting can share the search row instead of claiming a
+/// full-width dropdown on a line of its own. The wide layout keeps the labelled
+/// [SoliplexDropdown]. The glyph tints to `primary` while a non-default sort is
+/// active, so the current ordering reads at a glance without opening the menu.
+class _CompactSortButton extends StatelessWidget {
+  const _CompactSortButton({
+    required this.sortMode,
+    required this.onSortModeChanged,
+  });
+
+  final LobbySortMode sortMode;
+  final void Function(LobbySortMode) onSortModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = sortMode != LobbySortMode.none;
+    return PopupMenuButton<LobbySortMode>(
+      icon: Icon(
+        Icons.sort,
+        color: active ? scheme.primary : scheme.onSurfaceVariant,
+      ),
+      tooltip: 'Sort rooms',
+      onSelected: onSortModeChanged,
+      itemBuilder: (context) => [
+        for (final (mode, label) in _sortOptions)
+          CheckedPopupMenuItem(
+            value: mode,
+            checked: sortMode == mode,
+            child: Text(label),
+          ),
+      ],
     );
   }
 }
