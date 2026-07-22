@@ -215,13 +215,14 @@ Don't, without explicit user approval. If a value is genuinely missing:
 
 ## Modules
 
-Five feature modules composed in the standard flavor:
+Six feature modules composed in the standard flavor:
 
 - **auth** — Multi-server OIDC authentication, token refresh, secure storage
 - **lobby** — Server/room discovery with responsive layout
 - **room** — Chat interface, threads, agent execution, file upload, citations, document filtering, feedback
 - **quiz** — Interactive quizzes with multiple-choice and free-text input
 - **diagnostics** — Network inspector for HTTP request/response debugging
+- **versions** — App and backend version display (`/versions`, `/versions/server/:serverAlias`)
 
 ## Workspace Packages
 

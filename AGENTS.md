@@ -5,9 +5,9 @@ Instructions for AI coding agents working with the Soliplex Flutter frontend.
 ## Project Overview
 
 Soliplex Flutter frontend -- a runnable app and importable library built on a
-modular shell architecture. Each feature module is a function returning a
-`ModuleContribution` (routes, Riverpod overrides, optional redirect). Flavors
-compose modules into a `ShellConfig` that boots the app via
+modular shell architecture. Each feature module is an `AppModule` subclass whose
+`build()` returns `ModuleRoutes` (routes, Riverpod overrides, optional redirect).
+A `Flavor` composes modules into a `ShellConfig` that boots the app via
 `runSoliplexShell()`.
 
 ## Setup
@@ -50,11 +50,11 @@ presenting work for review.
 
 ## Modules
 
-Five feature modules composed in the standard flavor (`lib/src/flavors/standard.dart`):
+Six feature modules composed in the standard flavor (`lib/src/flavors/standard.dart`):
 
 - **auth** (`lib/src/modules/auth/`) -- Multi-server OIDC authentication with
   token refresh, secure storage, consent notices, and platform-specific OAuth
-  flows (native and web). Routes: `/`, `/servers`, `/auth/callback`.
+  flows (native and web). Routes: `/`, `/auth/callback`.
 - **lobby** (`lib/src/modules/lobby/`) -- Server and room discovery with
   responsive wide/narrow layouts, user profile display, and server sidebar.
   Route: `/lobby`.
@@ -72,13 +72,15 @@ Five feature modules composed in the standard flavor (`lib/src/flavors/standard.
 - **diagnostics** (`lib/src/modules/diagnostics/`) -- Network inspector for
   HTTP request/response observation, event filtering by run, and SSE stream
   parsing. Route: `/diagnostics/network`.
+- **versions** (`lib/src/modules/versions/`) -- App and backend version
+  display. Routes: `/versions`, `/versions/server/:serverAlias`.
 
 ## Architecture
 
-- **Modules**: Functions taking dependencies via constructor injection,
-  returning `ModuleContribution`. No base class, no registry.
-- **Flavors**: Functions that compose module functions into `ShellConfig`.
-  Add/remove a module by adding/removing a function call.
+- **Modules**: `AppModule` subclasses taking dependencies via constructor
+  injection; `build()` returns `ModuleRoutes`. No registry.
+- **Flavors**: A `Flavor` object composes module instances into a
+  `ShellConfig`. Add/remove a module by adding/removing it from the list.
 - **State management**: Riverpod for DI/service locator only. Reactive state
   via `signals` (from `soliplex_agent` package). No AsyncNotifier or
   FutureProvider chains.
