@@ -116,6 +116,23 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('opens the room when the markings row is tapped',
+        (tester) async {
+      var tapped = false;
+      const room = Room(id: 'r1', name: 'Test Room', quizzes: {'q1': 'Quiz'});
+
+      await tester.pumpWidget(_buildCard(
+        room: room,
+        onTap: () => tapped = true,
+      ));
+
+      // The markings row sits outside the ListTile; a tap in that strip must
+      // still open the room (the whole card is the tap target, mirroring
+      // RoomGridCard) rather than landing on dead space.
+      await tester.tapAt(tester.getRect(find.byType(RoomMarkingsRow)).center);
+      expect(tapped, isTrue);
+    });
+
     testWidgets('shows quiz icon when room has quizzes', (tester) async {
       const room = Room(id: 'r1', name: 'Room 1', quizzes: {'q1': 'Quiz'});
 

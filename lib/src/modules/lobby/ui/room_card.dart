@@ -41,57 +41,62 @@ class RoomCard extends StatelessWidget {
       // The list owns the horizontal gutter; the card owns only the s3
       // inter-row gap, matching the design mockup's list tiles.
       margin: const EdgeInsets.only(bottom: SoliplexSpacing.s3),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            // Mirror RoomGridCard's name row: the unread dot leads the name on
-            // the title line, so it reads as a status of the room. It sits
-            // inline (not in ListTile.leading, which centers vertically against
-            // the whole tile and would drop the dot beside the description).
-            // Conditional — no reserved gutter — so a read row keeps its full
-            // name width; only unread rows indent.
-            title: Row(
-              children: [
-                if (isUnread) ...[
-                  const UnreadDot(),
-                  const SizedBox(width: SoliplexSpacing.s2),
-                ],
-                // Match RoomGridCard's title style so list and grid read
-                // identically.
-                Expanded(
-                  child: Text(
-                    room.name,
-                    style: theme.textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      // The whole card opens the room (mirrors RoomGridCard), so a tap on the
+      // markings row below the tile is a hit rather than dead space.
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(context.radii.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              // Mirror RoomGridCard's name row: the unread dot leads the name on
+              // the title line, so it reads as a status of the room. It sits
+              // inline (not in ListTile.leading, which centers vertically
+              // against the whole tile and would drop the dot beside the
+              // description). Conditional — no reserved gutter — so a read row
+              // keeps its full name width; only unread rows indent.
+              title: Row(
+                children: [
+                  if (isUnread) ...[
+                    const UnreadDot(),
+                    const SizedBox(width: SoliplexSpacing.s2),
+                  ],
+                  // Match RoomGridCard's title style so list and grid read
+                  // identically.
+                  Expanded(
+                    child: Text(
+                      room.name,
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            subtitle: _buildSubtitle(theme),
-            trailing: IconButton(
-              icon: const Icon(Icons.info_outline),
-              tooltip: 'Room info',
-              onPressed: onInfoTap,
-            ),
-            onTap: onTap,
-          ),
-          if (showMarkings)
-            Padding(
-              // Align with the ListTile's content inset (s4) and leave an s3
-              // gap to the card's bottom edge.
-              padding: const EdgeInsets.fromLTRB(
-                SoliplexSpacing.s4,
-                0,
-                SoliplexSpacing.s4,
-                SoliplexSpacing.s3,
+                ],
               ),
-              child: RoomMarkingsRow(room: room),
-            )
-          else
-            RoomMarkingsRow(room: room),
-        ],
+              subtitle: _buildSubtitle(theme),
+              trailing: IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Room info',
+                onPressed: onInfoTap,
+              ),
+            ),
+            if (showMarkings)
+              Padding(
+                // Align with the ListTile's content inset (s4) and leave an s3
+                // gap to the card's bottom edge.
+                padding: const EdgeInsets.fromLTRB(
+                  SoliplexSpacing.s4,
+                  0,
+                  SoliplexSpacing.s4,
+                  SoliplexSpacing.s3,
+                ),
+                child: RoomMarkingsRow(room: room),
+              )
+            else
+              RoomMarkingsRow(room: room),
+          ],
+        ),
       ),
     );
   }
