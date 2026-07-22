@@ -24,6 +24,7 @@ RoomRail _rail({
   void Function(String)? onSelectRoom,
   void Function(String)? onMarkRoomRead,
   VoidCallback? onRetryRooms,
+  VoidCallback? onBackToLobby,
   RoomAccount? account,
   VoidCallback? onNetworkInspector,
   VoidCallback? onVersions,
@@ -37,6 +38,7 @@ RoomRail _rail({
       selectedRoomId: selectedRoomId,
       onSelectRoom: onSelectRoom ?? (_) {},
       onMarkRoomRead: onMarkRoomRead,
+      onBackToLobby: onBackToLobby ?? () {},
       entry: createTestServerEntry(),
       account: account,
       onNetworkInspector: onNetworkInspector ?? () {},
@@ -56,6 +58,28 @@ void main() {
       await tester.pumpWidget(_wrap(_rail(onSelectRoom: (id) => picked = id)));
       await tester.tap(find.text('B'));
       expect(picked, 'r2');
+    });
+
+    testWidgets('home button fires onBackToLobby and carries a tooltip',
+        (tester) async {
+      var backCalled = false;
+      await tester.pumpWidget(
+        _wrap(_rail(onBackToLobby: () => backCalled = true)),
+      );
+
+      expect(find.byTooltip('Back to lobby'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.home_outlined));
+      expect(backCalled, isTrue);
+    });
+
+    testWidgets('surfaces the full room name in a tooltip on each avatar',
+        (tester) async {
+      await tester.pumpWidget(_wrap(_rail()));
+      // Each avatar shows only an initial and a hash-derived color, so the full
+      // room name must be recoverable via a tooltip (hover on desktop,
+      // long-press on touch).
+      expect(find.byTooltip('Alpha'), findsOneWidget);
+      expect(find.byTooltip('Beta'), findsOneWidget);
     });
 
     testWidgets('shows a spinner while rooms are loading', (tester) async {

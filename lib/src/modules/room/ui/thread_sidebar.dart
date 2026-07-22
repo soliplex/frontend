@@ -12,7 +12,6 @@ class ThreadSidebar extends StatelessWidget {
     required this.threadListStatus,
     required this.selectedThreadId,
     required this.onThreadSelected,
-    required this.onBackToLobby,
     required this.onCreateThread,
     required this.runningThreadIds,
     this.unreadThreadIds = const {},
@@ -28,7 +27,6 @@ class ThreadSidebar extends StatelessWidget {
   final ThreadListStatus threadListStatus;
   final String? selectedThreadId;
   final void Function(String threadId) onThreadSelected;
-  final VoidCallback onBackToLobby;
   final VoidCallback onCreateThread;
   final Future<void> Function()? onRetryThreads;
   final VoidCallback? onReauthenticate;
@@ -51,25 +49,12 @@ class ThreadSidebar extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(SoliplexSpacing.s2),
-          child: Row(
-            children: [
-              SoliplexButton.text(
-                onPressed: onBackToLobby,
-                isCompact: true,
-                icon: const Icon(Icons.arrow_back, size: 16),
-                child: const Text('Lobby'),
-              ),
-              const SizedBox(width: SoliplexSpacing.s2),
-              // Filled primary CTA fills the remaining width so the
-              // thread-creation action carries the emphasis it deserves.
-              Expanded(
-                child: SoliplexButton.filled(
-                  onPressed: onCreateThread,
-                  icon: const Icon(Icons.add, size: 16),
-                  child: const Text('New'),
-                ),
-              ),
-            ],
+          // The primary CTA owns the full column width now that "back to lobby"
+          // has moved to the rooms rail — nothing competes with it here.
+          child: SoliplexButton.filled(
+            onPressed: onCreateThread,
+            icon: const Icon(Icons.add, size: 16),
+            child: const Text('New'),
           ),
         ),
         const Divider(height: 1),

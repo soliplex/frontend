@@ -18,7 +18,6 @@ void main() {
           threadListStatus: ThreadsLoaded(const []),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: emptyRunning,
           quizzes: quizzes,

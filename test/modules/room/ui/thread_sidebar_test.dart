@@ -15,7 +15,6 @@ void main() {
           threadListStatus: ThreadsLoading(),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -32,7 +31,6 @@ void main() {
           threadListStatus: ThreadsLoading(),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -66,7 +64,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: 't-1',
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -101,7 +98,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           unreadThreadIds: const {'t-2'},
@@ -131,7 +127,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (id) => selectedId = id,
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -143,16 +138,14 @@ void main() {
     expect(selectedId, 't-1');
   });
 
-  testWidgets('shows back to lobby button', (tester) async {
-    bool backCalled = false;
-
+  testWidgets('no longer hosts a back-to-lobby control (moved to the rail)',
+      (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: ThreadSidebar(
           threadListStatus: ThreadsLoaded(const []),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () => backCalled = true,
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -160,8 +153,11 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('Lobby'));
-    expect(backCalled, isTrue);
+    // "Back to lobby" moved to the rooms rail, so the thread column's top row
+    // is just the "New" CTA — nothing competes with it for width.
+    expect(find.text('Lobby'), findsNothing);
+    expect(find.byTooltip('Back to lobby'), findsNothing);
+    expect(find.text('New'), findsOneWidget);
   });
 
   testWidgets('wraps thread list with RefreshIndicator when callback provided',
@@ -181,7 +177,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -200,7 +195,6 @@ void main() {
           threadListStatus: ThreadsLoaded(const []),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
         ),
@@ -227,7 +221,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},
@@ -263,7 +256,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: running.readonly(),
         ),
@@ -305,7 +297,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: 't-1',
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: running.readonly(),
         ),
@@ -342,7 +333,6 @@ void main() {
           threadListStatus: ThreadsLoaded(threads),
           selectedThreadId: null,
           onThreadSelected: (_) {},
-          onBackToLobby: () {},
           onCreateThread: () {},
           runningThreadIds: _emptyRunning,
           onRetryThreads: () async {},

@@ -1399,7 +1399,6 @@ class _RoomScreenState extends State<RoomScreen> {
               threadListStatus: threadListStatus,
               selectedThreadId: selectedThreadId,
               onThreadSelected: _onThreadSelected,
-              onBackToLobby: _onBackToLobby,
               onCreateThread: _state.createThread,
               onRetryThreads: () => _state.threadList.refresh(),
               onReauthenticate: _onReauthenticate,
@@ -1465,7 +1464,6 @@ class _RoomScreenState extends State<RoomScreen> {
                             Navigator.pop(drawerContext);
                             _onThreadSelected(threadId);
                           },
-                          onBackToLobby: _onBackToLobby,
                           onCreateThread: () {
                             Navigator.pop(drawerContext);
                             _state.createThread();
@@ -1529,6 +1527,10 @@ class _RoomScreenState extends State<RoomScreen> {
         onNavigate?.call();
         if (roomId == widget.roomId) return;
         context.go(AppRoutes.room(widget.serverEntry.alias, roomId));
+      },
+      onBackToLobby: () {
+        onNavigate?.call();
+        _onBackToLobby();
       },
       entry: widget.serverEntry,
       account: _account,
