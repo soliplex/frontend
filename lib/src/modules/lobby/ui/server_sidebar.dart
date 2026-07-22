@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../../../version.dart';
 import '../../../core/app_identity.dart';
+import '../../../core/ui/confirm_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
@@ -386,9 +387,22 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
       case _ServerTileAction.copyAddress:
         await _copyAddress();
       case _ServerTileAction.remove:
+        final signsOut = widget.entry.isConnected && widget.entry.requiresAuth;
+        final confirmed = await showConfirmDialog(
+          context,
+          title: 'Remove server?',
+          message: signsOut
+              ? "You'll be signed out of '${widget.entry.displayName}' and it "
+                  "will be removed. You'll need to add it again to reconnect."
+              : "Remove '${widget.entry.displayName}'? "
+                  "You'll need to add it again to reconnect.",
+          confirmLabel: 'Remove',
+          isDestructive: true,
+        );
+        if (!confirmed || !mounted) return;
         // A connected, authenticated server logs out first so the IdP session
         // doesn't outlive the removed entry; everything else removes outright.
-        if (widget.entry.isConnected && widget.entry.requiresAuth) {
+        if (signsOut) {
           await _runLogout(_AfterLogout.removeOnSuccess);
         } else {
           widget.serverManager.removeServer(widget.entry.serverId);

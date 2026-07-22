@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 
 import '../../../core/routes.dart';
+import '../../../core/ui/confirm_dialog.dart';
 import '../../../shared/markdown/prose_markdown.dart';
 import '../../../status_message/status_message_dismissals.dart';
 import '../auth_providers.dart';
@@ -541,6 +542,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // -- Server section --
 
+  Future<void> _confirmRemoveServer(
+    BuildContext context,
+    ServerEntry entry,
+  ) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Remove server?',
+      message: "Remove '${entry.displayName}'? "
+          "You'll need to add it again to reconnect.",
+      confirmLabel: 'Remove',
+      isDestructive: true,
+    );
+    if (confirmed) widget.serverManager.removeServer(entry.serverId);
+  }
+
   List<Widget> _buildServerSection(
     BuildContext context,
     Map<String, ServerEntry> servers,
@@ -597,7 +613,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Icons.delete_outline,
               color: Theme.of(context).colorScheme.error,
             ),
-            onPressed: () => widget.serverManager.removeServer(entry.serverId),
+            onPressed: () => _confirmRemoveServer(context, entry),
           ),
           onTap: () {
             _urlController.text = entry.serverUrl.toString();

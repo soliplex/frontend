@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_providers.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
@@ -693,7 +694,8 @@ void main() {
       expect(find.text('Show 2 more'), findsNothing);
     });
 
-    testWidgets('delete button removes server from section', (tester) async {
+    testWidgets('delete button removes server after confirmation',
+        (tester) async {
       final serverManager = _createServerManager();
       serverManager.addServer(
         serverId: 'test',
@@ -705,12 +707,38 @@ void main() {
 
       expect(find.text('https://api.example.com'), findsOneWidget);
 
+      // Tapping delete asks first; the server is still there.
       await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove server?'), findsOneWidget);
+      expect(find.text('https://api.example.com'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
       await tester.pumpAndSettle();
 
       expect(find.text('https://api.example.com'), findsNothing);
       // Section heading also gone since no servers remain.
       expect(find.text('Your servers'), findsNothing);
+    });
+
+    testWidgets('delete button keeps server when confirmation is cancelled',
+        (tester) async {
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(SoliplexButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(serverManager.servers.value.containsKey('test'), isTrue);
+      expect(find.text('https://api.example.com'), findsOneWidget);
     });
 
     testWidgets('updates when server is added externally', (tester) async {

@@ -302,6 +302,8 @@ void main() {
 
         await tester.tap(find.text('Remove'));
         await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+        await tester.pumpAndSettle();
         expect(manager.servers.value.containsKey('srv'), isFalse);
       });
 
@@ -663,11 +665,41 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Remove'));
         await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(SoliplexButton, 'Remove'));
+        await tester.pumpAndSettle();
 
         // The IdP session is ended before the entry is dropped, so it can't
         // outlive the removed server.
         expect(flow.endSessionCalled, isTrue);
         expect(manager.servers.value.containsKey('srv'), isFalse);
+      });
+
+      testWidgets(
+          'cancelling the remove confirmation keeps the server and does not '
+          'log out', (tester) async {
+        final manager = _createManager();
+        final entry = manager.addServer(
+          serverId: 'srv',
+          serverUrl: Uri.parse('https://api.example.com'),
+        );
+        signIn(entry);
+        final flow = RecordingAuthFlow();
+
+        await tester.pumpWidget(_buildSidebar(
+          servers: manager.servers.value,
+          serverManager: manager,
+          selectedServerId: 'srv',
+          overrides: overridesFor(flow),
+        ));
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(SoliplexButton, 'Cancel'));
+        await tester.pumpAndSettle();
+
+        expect(flow.endSessionCalled, isFalse);
+        expect(manager.servers.value.containsKey('srv'), isTrue);
       });
     });
 
