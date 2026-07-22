@@ -389,7 +389,8 @@ class _NarrowLayout extends StatelessWidget {
             ? null
             : Text(
                 selectedEntry.displayName,
-                // Match the wide layout's pane-header text size.
+                // Match the wide layout's pane-header text size, so the name
+                // does not resize when the layout crosses the breakpoint.
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
