@@ -1,41 +1,47 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_module.dart';
+
 /// Derives a document's clickable browser URL from its `documentUri`.
 typedef DocumentBrowserUrlResolver = Uri? Function(String documentUri);
 
-/// TEMPORARY citation stopgap. Citations do not yet carry the backend
-/// `source_url` metadata key (search hits omit document metadata), so a
-/// deployment derives the browser link from the citation's `documentUri` by
-/// injecting a resolver. The default resolves nothing, so the standard build
-/// shows no citation link. Document listing and the document filter do NOT use
-/// this — they read `RagDocument.sourceUrl` directly.
+/// TEMPORARY stopgap. Citations and the chunk-visualization page cannot read
+/// the backend `source_url` yet — search hits, `Citation`, and the
+/// chunk-visualization response all omit document metadata — so a deployment
+/// supplies a resolver that derives the browser link from the document's
+/// `documentUri`. The default resolves nothing, so the standard build shows no
+/// link on those surfaces. (Document listing and the document filter do NOT use
+/// this — they read `RagDocument.sourceUrl` directly.)
 ///
-/// A fork injects its rule through a small [AppModule] and
-/// `standardFlavor(extraModules: ...)`; the concrete URL rule lives in the
-/// fork, never here:
+/// A deployment injects its rule through `standard(documentBrowserUrl: ...)` or
+/// `standardFlavor(documentBrowserUrl: ...)`; the concrete URL rule lives in the
+/// deployment, never here.
 ///
-/// ```dart
-/// class DocumentLinkModule extends AppModule {
-///   @override
-///   String get namespace => 'document_link';
-///
-///   @override
-///   ModuleRoutes build() => ModuleRoutes(
-///         overrides: [
-///           documentBrowserUrlResolverProvider.overrideWithValue(_resolve),
-///         ],
-///       );
-///
-///   // Deployment-specific: map an internal `file://…` path to a public
-///   // browser URL, or return null to render no link.
-///   static Uri? _resolve(String documentUri) => null;
-/// }
-/// // standardFlavor(extraModules: (kit) => [DocumentLinkModule()])
-/// ```
-///
-/// DELETE this provider, its call sites (`citations_section.dart` and
-/// `chunk_visualization_page.dart`), and any fork module overriding it once the
-/// backend surfaces `source_url` on citations / chunks; those surfaces then
-/// read the field like the document surfaces do.
+/// DELETE THIS SEAM once the backend carries `source_url` on citation payloads
+/// AND the chunk-visualization response. Remove: this provider, the
+/// [DocumentBrowserUrlModule], the `documentBrowserUrl` params on `standard` /
+/// `standardFlavor`, and the call sites in `citations_section.dart` and
+/// `chunk_visualization_page.dart` — those surfaces then read the field like
+/// the document listing / filter already do.
 final documentBrowserUrlResolverProvider =
     Provider<DocumentBrowserUrlResolver>((_) => (_) => null);
+
+/// TEMPORARY. Installs [resolver] as the app-wide
+/// [documentBrowserUrlResolverProvider] override. Added by `standardFlavor`
+/// when a `documentBrowserUrl` is supplied; delete alongside the provider
+/// (see above).
+class DocumentBrowserUrlModule extends AppModule {
+  DocumentBrowserUrlModule(this.resolver);
+
+  final DocumentBrowserUrlResolver resolver;
+
+  @override
+  String get namespace => 'document_browser_url';
+
+  @override
+  ModuleRoutes build() => ModuleRoutes(
+        overrides: [
+          documentBrowserUrlResolverProvider.overrideWithValue(resolver),
+        ],
+      );
+}

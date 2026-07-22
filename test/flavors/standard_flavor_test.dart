@@ -1,7 +1,9 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/soliplex_frontend.dart';
 import 'package:soliplex_frontend/src/core/routes.dart';
 import 'package:soliplex_frontend/src/modules/auth/platform/callback_params.dart';
+import 'package:soliplex_frontend/src/modules/room/document_browser_url.dart';
 
 import 'platform_mocks.dart';
 
@@ -39,5 +41,31 @@ void main() {
     expect(flavor.inactivity, same(kit.inactivity));
     expect(flavor.modules.sublist(0, kit.modules.length), kit.modules);
     expect(flavor.modules.last, same(extra));
+  });
+
+  test('documentBrowserUrl installs the resolver override', () async {
+    Uri? resolver(String uri) => Uri.parse('https://example.test/x');
+
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+      documentBrowserUrl: resolver,
+    );
+    final container = ProviderContainer(overrides: flavor.build().overrides);
+    addTearDown(container.dispose);
+
+    expect(container.read(documentBrowserUrlResolverProvider), same(resolver));
+  });
+
+  test('no documentBrowserUrl leaves the resolver returning null', () async {
+    final flavor = await standardFlavor(
+      callbackParams: WebCallbackSuccess(accessToken: 'x'),
+    );
+    final container = ProviderContainer(overrides: flavor.build().overrides);
+    addTearDown(container.dispose);
+
+    expect(
+      container.read(documentBrowserUrlResolverProvider)('file:///x/a.pdf'),
+      isNull,
+    );
   });
 }
