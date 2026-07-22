@@ -87,11 +87,6 @@ class RoomGridCard extends StatelessWidget {
               // at the bottom of a taller-than-content card.
               const SizedBox(height: SoliplexSpacing.s2),
               const Spacer(),
-              // Dedicated marking + quiz row, kept off the title row. Always
-              // mounts the badge seam; the gap below is only spent when the
-              // row actually shows something.
-              RoomMarkingsRow(room: room),
-              if (showMarkings) const SizedBox(height: SoliplexSpacing.s2),
               Row(
                 children: [
                   // Bottom-left: relative activity time when known.
@@ -131,6 +126,12 @@ class RoomGridCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Dedicated marking + quiz row, kept off the title row and pinned
+              // below the footer so it's the card's bottom-most element (matches
+              // RoomCard). Always mounts the badge seam; only spend the gap above
+              // it when the row actually shows something.
+              if (showMarkings) const SizedBox(height: SoliplexSpacing.s2),
+              RoomMarkingsRow(room: room),
             ],
           ),
         ),

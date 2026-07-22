@@ -298,6 +298,9 @@ class _WideLayout extends StatelessWidget {
                 serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
+                // The two-pane layout has no AppBar, so the pane names the
+                // selected server in its own header.
+                showServerHeading: true,
                 onRoomTap: onRoomTap,
                 onMarkRoomRead: onMarkRoomRead,
                 onInfoTap: onInfoTap,
@@ -369,6 +372,8 @@ class _NarrowLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedEntry =
+        selectedServerId == null ? null : servers[selectedServerId];
     return Scaffold(
       appBar: AppBar(
         leading: Builder(
@@ -377,6 +382,19 @@ class _NarrowLayout extends StatelessWidget {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
+        // Name the selected server on the menu-button row rather than in a
+        // header row of its own below the bar. The drawer holds the sidebar,
+        // so the bar would otherwise carry only the menu button.
+        title: selectedEntry == null
+            ? null
+            : Text(
+                selectedEntry.displayName,
+                // Match the wide layout's pane-header size so the name doesn't
+                // jump larger when the viewport crosses into the drawer layout.
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
       ),
       drawer: Drawer(
         // A Drawer adds no inset of its own, so SafeArea keeps the brand
@@ -422,6 +440,9 @@ class _NarrowLayout extends StatelessWidget {
           serverReadMarkers: serverReadMarkers,
           activityLoading: activityLoading,
           selectedServerId: selectedServerId,
+          // The AppBar already names the selected server, so the pane skips
+          // its own header row.
+          showServerHeading: false,
           onRoomTap: onRoomTap,
           onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
@@ -448,6 +469,7 @@ class _RoomContent extends StatelessWidget {
     required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
+    required this.showServerHeading,
     required this.onRoomTap,
     required this.onMarkRoomRead,
     required this.onInfoTap,
@@ -468,6 +490,10 @@ class _RoomContent extends StatelessWidget {
   final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
+
+  /// Whether the pane names the selected server in a header of its own. The
+  /// narrow layout names it in the AppBar instead, so it passes false.
+  final bool showServerHeading;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -504,24 +530,29 @@ class _RoomContent extends StatelessWidget {
         return Column(
           children: [
             if (selectedEntry != null) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-                    SoliplexSpacing.s3, SoliplexSpacing.s4, SoliplexSpacing.s2),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    selectedEntry.displayName,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              if (showServerHeading) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s3,
+                      SoliplexSpacing.s4,
+                      SoliplexSpacing.s2),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      selectedEntry.displayName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ],
               StatusMessageBanner(
                 key: ValueKey(selectedEntry.serverUrl),
                 baseUrl: selectedEntry.serverUrl,

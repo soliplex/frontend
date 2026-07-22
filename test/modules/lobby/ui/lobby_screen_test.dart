@@ -280,7 +280,7 @@ void main() {
       },
     );
 
-    testWidgets('names the selected server in a pane header', (tester) async {
+    testWidgets('names the selected server in the app bar', (tester) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -298,7 +298,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // On a narrow viewport the sidebar lives in a closed drawer, so the
-      // selected server's address shows only in the pane header.
+      // selected server's address shows only in the AppBar title.
       expect(find.text('http://localhost:8000'), findsOneWidget);
     });
 

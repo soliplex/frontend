@@ -41,7 +41,11 @@ class RoomMarkingsRow extends StatelessWidget {
       children: [
         const Flexible(child: SoliplexClassificationBadge()),
         if (room.hasQuizzes) ...[
-          const Spacer(),
+          // The badge self-suppresses to zero width when no classification is
+          // configured; only pay the gap when it actually occupies space, so
+          // the quiz icon sits flush left instead of behind a leading gap.
+          if (_classificationConfigured(context))
+            const SizedBox(width: SoliplexSpacing.s2),
           Tooltip(
             message: 'Has quizzes',
             child: Icon(

@@ -45,28 +45,35 @@ class RoomCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            // Match RoomGridCard's title/subtitle styles so the two views read
-            // identically: titleMedium name, small muted description.
-            title: Text(
-              room.name,
-              style: theme.textTheme.titleMedium,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: _buildSubtitle(theme),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+            // Mirror RoomGridCard's name row: the unread dot leads the name on
+            // the title line, so it reads as a status of the room. It sits
+            // inline (not in ListTile.leading, which centers vertically against
+            // the whole tile and would drop the dot beside the description).
+            // Conditional — no reserved gutter — so a read row keeps its full
+            // name width; only unread rows indent.
+            title: Row(
               children: [
                 if (isUnread) ...[
                   const UnreadDot(),
                   const SizedBox(width: SoliplexSpacing.s2),
                 ],
-                IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  tooltip: 'Room info',
-                  onPressed: onInfoTap,
+                // titleMedium name, matching RoomGridCard so the two views read
+                // identically.
+                Expanded(
+                  child: Text(
+                    room.name,
+                    style: theme.textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
+            ),
+            subtitle: _buildSubtitle(theme),
+            trailing: IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'Room info',
+              onPressed: onInfoTap,
             ),
             onTap: onTap,
           ),
