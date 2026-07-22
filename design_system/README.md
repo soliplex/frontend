@@ -237,11 +237,11 @@ List of doc rows with checkbox + filename + page count + last-modified. Selected
 - **Quiz**: lock icon on rooms with quizzes; submit reveals correctness + explanation + 3 sources.
 
 ## State Management
-Riverpod throughout. Each feature module exposes a `ModuleContribution { routes, providers, redirect? }`. Providers are overridden at the shell level — never inside the module — so flavors can swap implementations.
+Riverpod throughout. Each feature module is an `AppModule` subclass whose `build()` returns a `ModuleRoutes { routes, overrides, redirect? }`. Provider overrides are applied at the shell level — never inside the module — so flavors can swap implementations.
 
 ## Architecture
 - `runSoliplexShell(ShellConfig)` boots the app from a single config object.
-- Modules: `auth`, `lobby`, `room`, `quiz`, `diagnostics`.
+- Modules: `auth`, `lobby`, `room`, `quiz`, `diagnostics`, `versions`.
 - Targets: Android, iOS, macOS, Linux, Windows, Web.
 - Theming: `tokens/colors.dart` → `soliplexLightTheme` / `soliplexDarkTheme` → `ThemeExtension<SoliplexTheme>`.
 
