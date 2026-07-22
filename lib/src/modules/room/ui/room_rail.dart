@@ -32,6 +32,7 @@ class RoomRail extends StatelessWidget {
     required this.rooms,
     required this.selectedRoomId,
     required this.onSelectRoom,
+    required this.onBackToLobby,
     required this.entry,
     required this.account,
     required this.onNetworkInspector,
@@ -63,6 +64,11 @@ class RoomRail extends StatelessWidget {
   final String selectedRoomId;
   final void Function(String roomId) onSelectRoom;
 
+  /// Returns to the lobby (server/room picker). Anchors the top of the rail as
+  /// a home button — it lives here, among the room nav, rather than in the
+  /// thread column, so the thread column's full width is free for its CTA.
+  final VoidCallback onBackToLobby;
+
   /// The current server entry; its session drives the Guest/signed-in label.
   final ServerEntry entry;
 
@@ -85,6 +91,17 @@ class RoomRail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Home button anchoring the top of the nav rail. A tooltip names it;
+        // the house glyph reads as "back to the rooms lobby".
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
+          child: IconButton(
+            icon: const Icon(Icons.home_outlined),
+            tooltip: 'Back to lobby',
+            onPressed: onBackToLobby,
+          ),
+        ),
+        const Divider(height: 1),
         Expanded(child: _buildList(context)),
         const Divider(height: 1),
         Padding(
