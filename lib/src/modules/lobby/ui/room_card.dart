@@ -57,7 +57,7 @@ class RoomCard extends StatelessWidget {
                   const UnreadDot(),
                   const SizedBox(width: SoliplexSpacing.s2),
                 ],
-                // titleMedium name, matching RoomGridCard so the two views read
+                // Match RoomGridCard's title style so list and grid read
                 // identically.
                 Expanded(
                   child: Text(

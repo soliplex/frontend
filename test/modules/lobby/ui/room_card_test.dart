@@ -37,6 +37,7 @@ Widget _buildCard({
   VoidCallback? onTap,
   VoidCallback? onInfoTap,
   bool isUnread = false,
+  DateTime? activityTime,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -45,6 +46,7 @@ Widget _buildCard({
         onTap: onTap ?? () {},
         onInfoTap: onInfoTap ?? () {},
         isUnread: isUnread,
+        activityTime: activityTime,
       ),
     ),
   );
@@ -69,6 +71,26 @@ void main() {
 
       await tester.pumpWidget(_buildCard(room: room, isUnread: true));
       expect(find.byType(UnreadDot), findsOneWidget);
+    });
+
+    testWidgets('places the unread dot before the name on the title line',
+        (tester) async {
+      const room = Room(id: 'r1', name: 'Test Room', description: 'A room');
+
+      await tester.pumpWidget(_buildCard(
+        room: room,
+        isUnread: true,
+        activityTime: DateTime(2020),
+      ));
+
+      final dot = tester.getRect(find.byType(UnreadDot));
+      final name = tester.getRect(find.text('Test Room'));
+      // Leading — entirely before the name...
+      expect(dot.right, lessThanOrEqualTo(name.left));
+      // ...and on the title line, not dropped beside the description as
+      // ListTile.leading's vertical centering against the whole tile would do.
+      expect(dot.center.dy, greaterThanOrEqualTo(name.top));
+      expect(dot.center.dy, lessThanOrEqualTo(name.bottom));
     });
 
     testWidgets('hides description when empty', (tester) async {

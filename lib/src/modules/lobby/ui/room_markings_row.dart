@@ -20,9 +20,9 @@ bool _classificationConfigured(BuildContext context) => !identical(
     );
 
 /// A room's confidentiality marking and quiz indicator, laid out on their own
-/// row so a long room name never has to share horizontal space with them
-/// (issue #427: markings were squeezing the title on narrow, and on accessible-
-/// text-scale, viewports).
+/// row so a long room name never has to share horizontal space with them —
+/// which would squeeze the title on narrow or large-text-scale viewports
+/// (issue #427).
 ///
 /// Always mounts [SoliplexClassificationBadge] — it self-suppresses to a
 /// zero-size seam until a deployment configures classifications — so callers can

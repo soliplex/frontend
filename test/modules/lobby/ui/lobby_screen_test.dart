@@ -302,6 +302,41 @@ void main() {
       expect(find.text('http://localhost:8000'), findsOneWidget);
     });
 
+    testWidgets('app bar names the server at the pane-header text size',
+        (tester) async {
+      // Guards the size-consistency fix: the AppBar title is styled titleMedium
+      // to match the wide layout's pane header, so the name does not jump to the
+      // AppBar's default (larger) title style when the viewport crosses into the
+      // drawer layout.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      final nameInAppBar = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('http://localhost:8000'),
+      );
+      expect(nameInAppBar, findsOneWidget);
+
+      final context = tester.element(find.byType(AppBar));
+      expect(
+        tester.widget<Text>(nameInAppBar).style?.fontSize,
+        Theme.of(context).textTheme.titleMedium!.fontSize,
+      );
+    });
+
     testWidgets('toggle switches loaded rooms from list to grid cards',
         (tester) async {
       tester.view.physicalSize = const Size(900, 600);

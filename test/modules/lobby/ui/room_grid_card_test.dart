@@ -189,6 +189,36 @@ void main() {
       );
     });
 
+    testWidgets('places the markings row below the activity-time footer',
+        (tester) async {
+      await tester.pumpWidget(_harness(
+        RoomGridCard(
+          room: const Room(
+            id: 'r1',
+            name: 'General',
+            quizzes: {'q1': 'Quiz One'},
+          ),
+          onTap: () {},
+          onInfoTap: () {},
+          activityTime: DateTime(2020),
+        ),
+      ));
+
+      // The markings row is the card's bottom-most element: below both the
+      // activity time and the info button, not tucked above the footer.
+      final markingsTop = tester.getRect(find.byType(RoomMarkingsRow)).top;
+      expect(
+        markingsTop,
+        greaterThanOrEqualTo(
+            tester.getRect(find.byIcon(Icons.info_outline)).bottom),
+      );
+      expect(
+        markingsTop,
+        greaterThanOrEqualTo(
+            tester.getRect(find.byIcon(Icons.schedule)).bottom),
+      );
+    });
+
     testWidgets('does not overflow under a large accessibility text scale',
         (tester) async {
       const room = Room(
