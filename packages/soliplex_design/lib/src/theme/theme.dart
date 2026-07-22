@@ -101,6 +101,11 @@ ThemeData buildSoliplexThemeData({
       backgroundColor: colors.background,
       foregroundColor: colors.foreground,
       elevation: 0,
+      // Left-align titles on every platform. Left is already the default on
+      // Android/Linux/Windows; iOS/macOS otherwise center the title when the
+      // bar has fewer than two actions (on web this follows the browser's host
+      // OS), which would diverge from the app's left-aligned headers.
+      centerTitle: false,
       actionsPadding: const EdgeInsets.symmetric(
         horizontal: SoliplexSpacing.s2,
       ),

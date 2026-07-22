@@ -33,6 +33,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- App bar titles now left-align on every platform. Previously iOS and macOS
+  (and web served to those hosts) centered the title, diverging from the app's
+  left-aligned pane and room headers; titles now match those headers across
+  platforms and viewport sizes.
 - The image and SVG preview surfaces — chunk visualization, workdir file
   preview, citation figures, and SVG previews — share a single
   pan/zoom/rotate/reset viewer, so those interactions behave consistently and

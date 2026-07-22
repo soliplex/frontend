@@ -385,17 +385,11 @@ class _NarrowLayout extends StatelessWidget {
         // Name the selected server on the menu-button row rather than in a
         // header row of its own below the bar. The drawer holds the sidebar,
         // so the bar would otherwise carry only the menu button.
-        //
-        // Left-align (not the iOS/macOS platform-default centered title) to
-        // match the wide layout's pane header and the left edge of the room
-        // list, so the name holds its position across breakpoints and
-        // platforms instead of jumping to center.
-        centerTitle: false,
         title: selectedEntry == null
             ? null
             : Text(
                 selectedEntry.displayName,
-                // Match the wide layout's pane-header text size, too.
+                // Match the wide layout's pane-header text size.
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
