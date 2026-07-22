@@ -520,11 +520,14 @@ class _RoomContent extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Grid view is a tablet+/desktop affordance; below the tablet
-        // breakpoint (phones) we force list and hide the view-mode toggle, so
-        // the persisted choice is honoured again once the pane is wide enough.
-        final allowGrid = constraints.maxWidth >= SoliplexBreakpoints.tablet;
-        final effectiveViewMode = allowGrid ? viewMode : LobbyViewMode.list;
+        // At tablet width and up the pane is "wide": the controls show the
+        // roomier labelled sort dropdown and the list/grid toggle, and the
+        // persisted view mode is honoured. Below it the sort collapses to an
+        // icon, the toggle is hidden, and the view is forced to list. Grid
+        // availability equals width today; a future grid-disable flag would
+        // AND into this.
+        final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
+        final effectiveViewMode = isWide ? viewMode : LobbyViewMode.list;
         final selectedEntry =
             selectedServerId == null ? null : servers[selectedServerId];
         return Column(
@@ -566,7 +569,7 @@ class _RoomContent extends StatelessWidget {
               child: _LobbyControls(
                 viewMode: viewMode,
                 onViewModeChanged: onViewModeChanged,
-                showViewModeToggle: allowGrid,
+                isWide: isWide,
                 searchQuery: searchQuery,
                 onSearchChanged: onSearchChanged,
                 sortMode: sortMode,
@@ -633,17 +636,18 @@ class _RoomContent extends StatelessWidget {
   }
 }
 
-/// The lobby's control row: a room-name filter and the view-mode toggle.
+/// The lobby's control row: a room-name filter, a sort control, and the
+/// view-mode toggle.
 ///
 /// Stateful so the search field's [TextEditingController] survives the
 /// signal-driven rebuilds (every keystroke updates the query signal) and
-/// the wide/narrow layout switch. On narrow widths the search field takes
-/// the full width and the toggle drops below it.
+/// the wide/narrow layout switch. Below the tablet width the sort control
+/// collapses to an icon button and the toggle is hidden.
 class _LobbyControls extends StatefulWidget {
   const _LobbyControls({
     required this.viewMode,
     required this.onViewModeChanged,
-    required this.showViewModeToggle,
+    required this.isWide,
     required this.searchQuery,
     required this.onSearchChanged,
     required this.sortMode,
@@ -654,9 +658,9 @@ class _LobbyControls extends StatefulWidget {
   final LobbyViewMode viewMode;
   final void Function(LobbyViewMode) onViewModeChanged;
 
-  /// Whether to show the list/grid toggle. Hidden on phones, where the view
-  /// is forced to list.
-  final bool showViewModeToggle;
+  /// Whether the pane is at tablet width or wider — drives the roomier
+  /// labelled sort dropdown and the list/grid toggle together.
+  final bool isWide;
   final String searchQuery;
   final void Function(String) onSearchChanged;
   final LobbySortMode sortMode;
@@ -705,12 +709,6 @@ class _LobbyControlsState extends State<_LobbyControls> {
               onPressed: _controller.clear,
             ),
     );
-    final toggle = widget.showViewModeToggle
-        ? _ViewModeToggle(
-            viewMode: widget.viewMode,
-            onChanged: widget.onViewModeChanged,
-          )
-        : null;
     // "Recent activity" orders rooms by their last activity, which the backend
     // reports via a stats fetch that may still be in flight, so the ordering
     // can take a moment to populate; the dropdown stays live (so the user can
@@ -737,41 +735,35 @@ class _LobbyControlsState extends State<_LobbyControls> {
           )
         : const SizedBox.shrink();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= SoliplexBreakpoints.tablet) {
-          return Row(
-            children: [
-              Expanded(child: search),
-              const SizedBox(width: SoliplexSpacing.s3),
-              SizedBox(width: _sortControlWidth, child: sort),
-              busy,
-              if (toggle != null) ...[
-                const SizedBox(width: SoliplexSpacing.s3),
-                toggle,
-              ],
-            ],
-          );
-        }
-        // Phones: the labelled dropdown would eat a full row of its own, so
-        // shrink it to an icon button and sit it on the search row. The wide
-        // layout above keeps the roomier labelled dropdown.
-        return Row(
-          children: [
-            Expanded(child: search),
-            const SizedBox(width: SoliplexSpacing.s2),
-            _CompactSortButton(
-              sortMode: widget.sortMode,
-              onSortModeChanged: widget.onSortModeChanged,
-            ),
-            busy,
-            if (toggle != null) ...[
-              const SizedBox(width: SoliplexSpacing.s3),
-              toggle,
-            ],
-          ],
-        );
-      },
+    // The roomier labelled sort and the list/grid toggle appear together at
+    // tablet width and up (isWide). Below it the sort collapses to an icon
+    // button sharing the search row and the toggle is hidden — one breakpoint
+    // drives both, so they flip at the same point.
+    if (widget.isWide) {
+      return Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: SoliplexSpacing.s3),
+          SizedBox(width: _sortControlWidth, child: sort),
+          busy,
+          const SizedBox(width: SoliplexSpacing.s3),
+          _ViewModeToggle(
+            viewMode: widget.viewMode,
+            onChanged: widget.onViewModeChanged,
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: search),
+        const SizedBox(width: SoliplexSpacing.s2),
+        _CompactSortButton(
+          sortMode: widget.sortMode,
+          onSortModeChanged: widget.onSortModeChanged,
+        ),
+        busy,
+      ],
     );
   }
 }
