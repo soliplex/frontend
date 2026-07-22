@@ -90,7 +90,6 @@ class RoomCard extends StatelessWidget {
               child: RoomMarkingsRow(room: room),
             )
           else
-            // Nothing to show, but keep the badge seam mounted (zero-size).
             RoomMarkingsRow(room: room),
         ],
       ),

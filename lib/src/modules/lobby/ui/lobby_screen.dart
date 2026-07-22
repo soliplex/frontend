@@ -385,12 +385,17 @@ class _NarrowLayout extends StatelessWidget {
         // Name the selected server on the menu-button row rather than in a
         // header row of its own below the bar. The drawer holds the sidebar,
         // so the bar would otherwise carry only the menu button.
+        //
+        // Left-align (not the iOS/macOS platform-default centered title) to
+        // match the wide layout's pane header and the left edge of the room
+        // list, so the name holds its position across breakpoints and
+        // platforms instead of jumping to center.
+        centerTitle: false,
         title: selectedEntry == null
             ? null
             : Text(
                 selectedEntry.displayName,
-                // Match the wide layout's pane-header size so the name doesn't
-                // jump larger when the viewport crosses into the drawer layout.
+                // Match the wide layout's pane-header text size, too.
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -720,16 +725,9 @@ class _LobbyControlsState extends State<_LobbyControls> {
       initialValue: widget.sortMode,
       onSelected: (mode) =>
           widget.onSortModeChanged(mode ?? LobbySortMode.none),
-      entries: const [
-        SoliplexDropdownEntry(value: LobbySortMode.none, label: 'None'),
-        SoliplexDropdownEntry(
-          value: LobbySortMode.recentActivity,
-          label: 'Recent activity',
-        ),
-        SoliplexDropdownEntry(
-          value: LobbySortMode.unreadFirst,
-          label: 'Unread first',
-        ),
+      entries: [
+        for (final (mode, label) in _sortOptions)
+          SoliplexDropdownEntry(value: mode, label: label),
       ],
     );
     final busy = widget.sortLoading &&
@@ -811,6 +809,14 @@ class _ViewModeToggle extends StatelessWidget {
   }
 }
 
+/// The lobby's sort options as (mode, label) pairs, shared by the wide-layout
+/// labelled dropdown and the phone [_CompactSortButton] so the two can't drift.
+const _sortOptions = <(LobbySortMode, String)>[
+  (LobbySortMode.none, 'None'),
+  (LobbySortMode.recentActivity, 'Recent activity'),
+  (LobbySortMode.unreadFirst, 'Unread first'),
+];
+
 /// Compact sort control for phone layouts: an icon button that opens a menu of
 /// the sort options, so sorting can share the search row instead of claiming a
 /// full-width dropdown on a line of its own. The wide layout keeps the labelled
@@ -837,21 +843,12 @@ class _CompactSortButton extends StatelessWidget {
       tooltip: 'Sort rooms',
       onSelected: onSortModeChanged,
       itemBuilder: (context) => [
-        CheckedPopupMenuItem(
-          value: LobbySortMode.none,
-          checked: sortMode == LobbySortMode.none,
-          child: const Text('None'),
-        ),
-        CheckedPopupMenuItem(
-          value: LobbySortMode.recentActivity,
-          checked: sortMode == LobbySortMode.recentActivity,
-          child: const Text('Recent activity'),
-        ),
-        CheckedPopupMenuItem(
-          value: LobbySortMode.unreadFirst,
-          checked: sortMode == LobbySortMode.unreadFirst,
-          child: const Text('Unread first'),
-        ),
+        for (final (mode, label) in _sortOptions)
+          CheckedPopupMenuItem(
+            value: mode,
+            checked: sortMode == mode,
+            child: Text(label),
+          ),
       ],
     );
   }

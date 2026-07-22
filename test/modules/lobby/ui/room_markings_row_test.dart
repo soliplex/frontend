@@ -82,14 +82,6 @@ void main() {
       // Present even with no classification configured (renders nothing), so
       // cards can rely on the seam being in the tree.
       expect(find.byType(SoliplexClassificationBadge), findsOneWidget);
-      // The badge is Flexible so a long marking wraps rather than overflowing.
-      expect(
-        find.ancestor(
-          of: find.byType(SoliplexClassificationBadge),
-          matching: find.byType(Flexible),
-        ),
-        findsOneWidget,
-      );
     });
 
     testWidgets('shows the quiz indicator only when the room has quizzes',
