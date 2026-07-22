@@ -376,23 +376,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       const SizedBox(height: SoliplexSpacing.s4),
-      Row(
-        children: [
-          Expanded(
-            child: SoliplexButton.outlined(
-              onPressed: _flow.reset,
-              child: const Text('Cancel'),
-            ),
-          ),
-          const SizedBox(width: SoliplexSpacing.s3),
-          Expanded(
-            child: SoliplexButton.filled(
-              intent: ButtonIntent.danger,
-              onPressed: _flow.acceptInsecure,
-              child: const Text('Connect anyway'),
-            ),
-          ),
-        ],
+      SoliplexButton.filled(
+        onPressed: _flow.reset,
+        child: const Text('Cancel'),
+      ),
+      const SizedBox(height: SoliplexSpacing.s3),
+      SoliplexButton.text(
+        intent: ButtonIntent.danger,
+        onPressed: _flow.acceptInsecure,
+        child: const Text('Connect anyway'),
       ),
     ];
   }
