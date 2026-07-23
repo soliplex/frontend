@@ -276,6 +276,8 @@ class _SourceReferenceRow extends StatelessWidget {
               );
             },
           ),
+          if (sourceReference.figures.isNotEmpty)
+            _CitationFigures(sourceReference: sourceReference),
           if (sourceReference.headings.isNotEmpty) ...[
             const SizedBox(height: SoliplexSpacing.s2),
             Padding(
@@ -305,8 +307,6 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
               ),
             ),
-          if (sourceReference.figures.isNotEmpty)
-            _CitationFigures(sourceReference: sourceReference),
           const SizedBox(height: SoliplexSpacing.s2),
           _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
         ],
