@@ -81,6 +81,25 @@ void main() {
         expect(ref1, isNot(equals(ref2)));
       });
 
+      test('different sourceUrl makes references unequal', () {
+        final ref1 = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'https://example.com/doc.pdf',
+          content: 'Test content',
+          chunkId: 'chunk-1',
+          sourceUrl: Uri.parse('https://example.test/a'),
+        );
+        final ref2 = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'https://example.com/doc.pdf',
+          content: 'Test content',
+          chunkId: 'chunk-1',
+          sourceUrl: Uri.parse('https://example.test/b'),
+        );
+
+        expect(ref1, isNot(equals(ref2)));
+      });
+
       final png = Uint8List.fromList([1, 2, 3]);
 
       SourceReference figureRef({
@@ -171,7 +190,7 @@ void main() {
     });
   });
 
-  group('SourceReferenceFormatting', () {
+  group('formatting', () {
     group('formattedPageNumbers', () {
       test('returns null for empty page numbers', () {
         const ref = SourceReference(

@@ -23,6 +23,7 @@ class Citation {
   final String content;
   final List<String>? docItemRefs;
   final String documentId;
+  final Map<String, dynamic> documentMeta;
   final String? documentTitle;
   final String documentUri;
   final List<String>? headings;
@@ -36,6 +37,7 @@ class Citation {
     required this.content,
     this.docItemRefs,
     required this.documentId,
+    this.documentMeta = const {},
     this.documentTitle,
     required this.documentUri,
     this.headings,
@@ -50,6 +52,7 @@ class Citation {
         content: requireString(json["content"], "content"),
         docItemRefs: stringList(json["doc_item_refs"], "doc_item_refs"),
         documentId: requireString(json["document_id"], "document_id"),
+        documentMeta: jsonMap(json["document_meta"], "document_meta"),
         documentTitle: stringOrNull(json["document_title"], "document_title"),
         documentUri: requireString(json["document_uri"], "document_uri"),
         headings: stringList(json["headings"], "headings"),
@@ -67,6 +70,7 @@ class Citation {
             ? []
             : List<dynamic>.from(docItemRefs!.map((x) => x)),
         "document_id": documentId,
+        "document_meta": documentMeta,
         "document_title": documentTitle,
         "document_uri": documentUri,
         "headings":

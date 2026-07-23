@@ -391,7 +391,7 @@ RagDocument ragDocumentFromJson(Map<String, dynamic> json) {
     id: _requireString(json, 'id', 'document'),
     title: title,
     uri: uri,
-    metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
+    metadata: jsonMap(json['metadata'], 'metadata'),
     createdAt: _tryParseTimestamp(createdRaw),
     updatedAt: _tryParseTimestamp(updatedRaw),
   );

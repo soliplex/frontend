@@ -101,4 +101,21 @@ void main() {
       );
     });
   });
+
+  group('jsonMap', () {
+    test('returns an empty map when absent', () {
+      expect(jsonMap(null, 'field'), isEmpty);
+    });
+
+    test('returns an empty map for a non-map value', () {
+      expect(jsonMap(<Object?>['a'], 'field'), isEmpty);
+    });
+
+    test('keeps string keys with arbitrary value types', () {
+      expect(
+        jsonMap(<Object?, Object?>{'a': 1, 'b': 'x', 'c': null}, 'field'),
+        equals({'a': 1, 'b': 'x', 'c': null}),
+      );
+    });
+  });
 }

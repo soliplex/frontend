@@ -2,16 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_design/soliplex_design.dart';
-import '../../../shared/browser_url_link.dart';
-import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
-import '../document_browser_url.dart';
 import 'paged_zoomable_images.dart';
 
 final _logger =
@@ -52,7 +48,6 @@ class ChunkVisualizationPage extends StatefulWidget {
     required this.pageNumbers,
     required this.useDialogLayout,
     this.documentTitle,
-    this.documentUri,
     this.docItemRefs = const [],
   });
 
@@ -64,11 +59,6 @@ class ChunkVisualizationPage extends StatefulWidget {
   /// (citations). Null for a bare chunk-id lookup, where the title falls back
   /// to the chunk id so the user sees the id they looked up.
   final String? documentTitle;
-
-  /// The document uri the caller knows (citations); null for a bare chunk-id
-  /// lookup, where the detail block falls back to the uri returned by the
-  /// fetch. Used only to derive the browser link — the raw path is never shown.
-  final String? documentUri;
   final List<int> pageNumbers;
   final bool useDialogLayout;
 
@@ -83,7 +73,6 @@ class ChunkVisualizationPage extends StatefulWidget {
     required String chunkId,
     required List<int> pageNumbers,
     String? documentTitle,
-    String? documentUri,
     List<String> docItemRefs = const [],
   }) {
     final useDialog =
@@ -93,7 +82,6 @@ class ChunkVisualizationPage extends StatefulWidget {
       roomId: roomId,
       chunkId: chunkId,
       documentTitle: documentTitle,
-      documentUri: documentUri,
       pageNumbers: pageNumbers,
       useDialogLayout: useDialog,
       docItemRefs: docItemRefs,
@@ -126,12 +114,8 @@ class ChunkVisualizationPage extends StatefulWidget {
   State<ChunkVisualizationPage> createState() => _ChunkVisualizationPageState();
 }
 
-/// The decoded pages plus the document uri the backend reported for the
-/// chunk, surfaced together so the detail block can show provenance.
-typedef _VizResult = ({List<PageImage> pages, String? documentUri});
-
 class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
-  late Future<_VizResult> _future;
+  late Future<List<PageImage>> _future;
   // Bumped on retry so the pager remounts with fresh rotation/page state.
   int _reloadNonce = 0;
 
@@ -145,7 +129,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     _future = _fetchAndDecode();
   }
 
-  Future<_VizResult> _fetchAndDecode() async {
+  Future<List<PageImage>> _fetchAndDecode() async {
     final refCount = widget.docItemRefs.length;
     final grounded = refCount > 0;
     _logger.debug(
@@ -172,10 +156,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
           'pageCount': viz.imagesBase64.length,
         },
       );
-      return (
-        pages: viz.imagesBase64.map(_decodePageImage).toList(),
-        documentUri: viz.documentUri,
-      );
+      return viz.imagesBase64.map(_decodePageImage).toList();
     } catch (error, stack) {
       _logger.error(
         'chunk visualization fetch failed',
@@ -227,7 +208,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
   }
 
   Widget _buildContent(BuildContext context) {
-    return FutureBuilder<_VizResult>(
+    return FutureBuilder<List<PageImage>>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -236,8 +217,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
         if (snapshot.hasError) {
           return _buildError(context, snapshot.error!);
         }
-        final result = snapshot.data!;
-        return _buildLoaded(context, result.pages, result.documentUri);
+        return _buildLoaded(context, snapshot.data!);
       },
     );
   }
@@ -326,77 +306,6 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     );
   }
 
-  /// The `document` row: a label + copy button and the clickable browser link.
-  /// The copy button copies the full browser url; the raw path is never shown.
-  Widget _documentLink(BuildContext context, Uri url) {
-    final theme = Theme.of(context);
-    final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      fontWeight: FontWeight.w600,
-      color: theme.colorScheme.onSurfaceVariant,
-    );
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('document', style: labelStyle),
-            const SizedBox(width: SoliplexSpacing.s1),
-            // Match the copy icon to the label's type-scale size so the two
-            // read as one line rather than the icon overpowering the label.
-            CopyButton(
-              text: url.toString(),
-              tooltip: 'Copy document',
-              iconSize: labelStyle?.fontSize ?? 12,
-            ),
-          ],
-        ),
-        BrowserUrlLink(url: url),
-      ],
-    );
-  }
-
-  Widget _buildDetails(BuildContext context, String? fetchedDocumentUri) {
-    // Prefer the caller's uri (citations), treating empty as absent so a blank
-    // citation uri doesn't shadow a real fetched one; fall back to the fetched
-    // uri for a bare chunk-id lookup.
-    final callerUri = widget.documentUri;
-    final documentUri = (callerUri != null && callerUri.isNotEmpty)
-        ? callerUri
-        : fetchedDocumentUri;
-    if (documentUri == null || documentUri.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    // TEMPORARY: the chunk endpoint doesn't carry the backend `source_url`, so
-    // the browser link is derived from the document uri via the injected
-    // resolver. The row disappears when nothing resolves — the raw path is
-    // never shown. Remove this once the backend surfaces `source_url`. See
-    // documentBrowserUrlResolverProvider.
-    return Consumer(
-      builder: (context, ref, _) {
-        final url = ref.watch(documentBrowserUrlResolverProvider)(documentUri);
-        if (url == null) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(
-            SoliplexSpacing.s4,
-            0,
-            SoliplexSpacing.s4,
-            SoliplexSpacing.s2,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Divider(color: Theme.of(context).colorScheme.outline),
-              _documentLink(context, url),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildPageImage(
     PageImage page,
     int rotationQuarterTurns,
@@ -422,34 +331,23 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     };
   }
 
-  Widget _buildLoaded(
-    BuildContext context,
-    List<PageImage> pages,
-    String? documentUri,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: pages.isEmpty
-              ? const Center(child: Text('No page images available'))
-              : PagedZoomableImages(
-                  key: ValueKey(_reloadNonce),
-                  itemCount: pages.length,
-                  pageBuilder: (context, index, rotation) => _buildPageImage(
-                    pages[index],
-                    rotation.quarterTurns,
-                    rotation.onRotate,
-                  ),
-                  footerBuilder: (context, index) => Text(
-                    _pageLabel(index, pages.length),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  dotLabelForIndex: (i) => 'Page ${i + 1}',
-                ),
-        ),
-        _buildDetails(context, documentUri),
-      ],
+  Widget _buildLoaded(BuildContext context, List<PageImage> pages) {
+    if (pages.isEmpty) {
+      return const Center(child: Text('No page images available'));
+    }
+    return PagedZoomableImages(
+      key: ValueKey(_reloadNonce),
+      itemCount: pages.length,
+      pageBuilder: (context, index, rotation) => _buildPageImage(
+        pages[index],
+        rotation.quarterTurns,
+        rotation.onRotate,
+      ),
+      footerBuilder: (context, index) => Text(
+        _pageLabel(index, pages.length),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      dotLabelForIndex: (i) => 'Page ${i + 1}',
     );
   }
 }

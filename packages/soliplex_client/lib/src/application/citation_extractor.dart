@@ -1,6 +1,7 @@
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
+import 'package:soliplex_client/src/utils/source_url.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _logger =
@@ -89,6 +90,7 @@ class CitationExtractor {
       content: c.content,
       chunkId: c.chunkId,
       documentTitle: c.documentTitle,
+      sourceUrl: sourceUrlFromMetadata(c.documentMeta),
       headings: c.headings ?? [],
       pageNumbers: c.pageNumbers ?? [],
       docItemRefs: c.docItemRefs ?? [],

@@ -83,6 +83,30 @@ List<int> intList(Object? value, String field) {
   return result;
 }
 
+/// Reads a raw JSON value into a string-keyed map with arbitrary values,
+/// dropping (and logging) any non-string key. A present-but-non-map value
+/// degrades to empty (logged); an absent field is normal and silent.
+Map<String, dynamic> jsonMap(Object? value, String field) {
+  if (value is! Map) {
+    if (value != null) {
+      _logDropped(
+        'field "$field": expected map, got ${value.runtimeType}; using empty.',
+      );
+    }
+    return const {};
+  }
+  final out = <String, dynamic>{};
+  value.forEach((key, mapValue) {
+    if (key is String) out[key] = mapValue;
+  });
+  final dropped = value.length - out.length;
+  if (dropped != 0) {
+    _logDropped('field "$field": dropped $dropped '
+        'non-string-keyed entr${dropped == 1 ? 'y' : 'ies'}.');
+  }
+  return out;
+}
+
 /// Reads a raw JSON value into a string→string map, dropping (and logging) any
 /// non-string key or value. An absent field is normal and silent.
 Map<String, String> stringMap(Object? value, String field) {

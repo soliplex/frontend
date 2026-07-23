@@ -11,11 +11,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Added
 
 - Document origin URLs (`source_url`) now render as clickable links across the
-  room document listing, document filter, citations, and the chunk-visualization
-  page, replacing the internal file path — which remains only in the document
-  listing's metadata dialog. Where the backend does not yet carry `source_url`
-  (citations, chunks), the link comes from a resolver a deployment injects via
-  `standard(documentBrowserUrl: ...)`.
+  room document listing, document filter, and citations, replacing the internal
+  file path — which remains only in the document listing's metadata dialog.
 - Room and lobby: the current server's name (or its address when unnamed) now
   shows alongside the room name in the room view header, and as a title band at
   the top of the lobby's room pane, so a user connected to several servers can
@@ -23,8 +20,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Room info: a "View chunk" card lets you enter a chunk id and open its
   rendered page images, so a chunk can be viewed directly from an id (e.g. one
   taken from logs) rather than only by tapping a PDF citation. Expanded
-  citations and the chunk viewer now also surface the chunk id and document
-  provenance, each copyable.
+  citations now also surface the chunk id and document provenance, each
+  copyable.
 - Tapping an inline image in chat or other markdown now opens a full-size
   pan/zoom/rotate view; SVG code blocks open the same view on tap.
 - A citation's figures open in a pageable browser over all of that citation's

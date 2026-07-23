@@ -35,11 +35,6 @@ export 'src/core/shell_config.dart' show ShellConfig;
 export 'src/core/status_message_config.dart' show StatusMessageConfig;
 export 'src/flavors/standard.dart' show standard, standardFlavor;
 export 'src/flavors/standard_kit.dart' show buildStandardKit, StandardKit;
-// TEMPORARY: the resolver type for `standard(documentBrowserUrl: ...)`; the
-// provider itself stays internal. Delete with the seam — see
-// `src/modules/room/document_browser_url.dart`.
-export 'src/modules/room/document_browser_url.dart'
-    show DocumentBrowserUrlResolver;
 export 'src/interfaces/auth_state.dart'
     show AuthState, Authenticated, Unauthenticated;
 export 'src/modules/auth/auth_providers.dart'

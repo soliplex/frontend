@@ -21,12 +21,14 @@ void main() {
         List<String>? pictureRefs,
         List<String>? chunkIds,
         int? index,
+        Map<String, dynamic>? documentMeta,
       }) {
         return {
           'chunk_id': chunkId,
           'content': content,
           'document_id': documentId,
           'document_uri': documentUri,
+          if (documentMeta != null) 'document_meta': documentMeta,
           if (documentTitle != null) 'document_title': documentTitle,
           if (headings != null) 'headings': headings,
           if (pageNumbers != null) 'page_numbers': pageNumbers,
@@ -103,6 +105,41 @@ void main() {
         expect(refs[0].figures, isEmpty);
         expect(refs[0].chunkIds, ['chunk-1', 'chunk-2']);
         expect(refs[0].index, 1);
+      });
+
+      test('reads sourceUrl from the citation document_meta', () {
+        final previous = createState();
+        final current = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              documentMeta: {'source_url': 'https://example.test/a/view'},
+            ),
+          },
+          citations: ['c1'],
+        );
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs.single.sourceUrl, Uri.parse('https://example.test/a/view'));
+      });
+
+      test('sourceUrl is null when document_meta carries no usable url', () {
+        final previous = createState();
+        final current = createState(
+          citationIndex: {
+            'c1': createCitation(
+              chunkId: 'c1',
+              documentMeta: {'source_url': 'file:///x/a.pdf'},
+            ),
+            'c2': createCitation(chunkId: 'c2'),
+          },
+          citations: ['c1', 'c2'],
+        );
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs.every((r) => r.sourceUrl == null), isTrue);
       });
 
       test('defaults headings and pageNumbers to empty lists when absent', () {
