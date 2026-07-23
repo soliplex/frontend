@@ -30,6 +30,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A citation's figures open in a pageable browser over all of that citation's
   figures, with previous/next chevrons, page dots, and left/right arrow-key
   navigation, instead of a single figure at a time.
+- Removing a server now asks for confirmation first — on both the home-screen
+  server list and the lobby sidebar's server menu — so a server and its sign-in
+  session can't be dropped by a stray tap. For a signed-in server the prompt
+  notes that removing also signs you out.
 
 ### Changed
 
@@ -47,6 +51,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   preview, citation figures, and SVG previews — share a single
   pan/zoom/rotate/reset viewer, so those interactions behave consistently and
   zooming out returns to a centered fit.
+- The insecure-connection warning ("This connection is not encrypted") stacks
+  its actions vertically — a prominent Cancel above a quieter "Connect anyway"
+  — so the label no longer wraps at a narrow width and the safe choice carries
+  the visual emphasis.
 
 ## [0.94.0+68] - 2026-07-17
 
