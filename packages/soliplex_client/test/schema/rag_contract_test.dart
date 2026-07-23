@@ -90,6 +90,29 @@ void main() {
         expect(citation.pictureRefs, equals(['#/pictures/0']));
       });
 
+      test('document_meta parses into a map, defaulting to empty when absent',
+          () {
+        final withMeta = Citation.fromJson({
+          'chunk_id': 'c1',
+          'content': 'text',
+          'document_id': 'd1',
+          'document_uri': 'uri',
+          'document_meta': {'source_url': 'https://example.test/a'},
+        });
+        expect(
+          withMeta.documentMeta['source_url'],
+          equals('https://example.test/a'),
+        );
+
+        final withoutMeta = Citation.fromJson({
+          'chunk_id': 'c1',
+          'content': 'text',
+          'document_id': 'd1',
+          'document_uri': 'uri',
+        });
+        expect(withoutMeta.documentMeta, isEmpty);
+      });
+
       test('toJson produces expected keys', () {
         final citation = Citation(
           chunkId: 'c1',

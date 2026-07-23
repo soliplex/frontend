@@ -48,6 +48,7 @@ class SourceReference {
     required this.content,
     required this.chunkId,
     this.documentTitle,
+    this.sourceUrl,
     this.headings = const [],
     this.pageNumbers = const [],
     this.docItemRefs = const [],
@@ -70,6 +71,10 @@ class SourceReference {
 
   /// Human-readable document title, if available.
   final String? documentTitle;
+
+  /// The document's clickable origin URL, from its `source_url` metadata.
+  /// Null when the backend shipped no usable web URL for the cited document.
+  final Uri? sourceUrl;
 
   /// Heading hierarchy leading to this content.
   final List<String> headings;
@@ -101,48 +106,6 @@ class SourceReference {
   /// Display index for numbered citations.
   final int? index;
 
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is! SourceReference) return false;
-    const listEquals = ListEquality<dynamic>();
-    return documentId == other.documentId &&
-        documentUri == other.documentUri &&
-        content == other.content &&
-        chunkId == other.chunkId &&
-        documentTitle == other.documentTitle &&
-        listEquals.equals(headings, other.headings) &&
-        listEquals.equals(pageNumbers, other.pageNumbers) &&
-        listEquals.equals(docItemRefs, other.docItemRefs) &&
-        const ListEquality<Figure>().equals(figures, other.figures) &&
-        listEquals.equals(chunkIds, other.chunkIds) &&
-        index == other.index;
-  }
-
-  @override
-  int get hashCode => Object.hash(
-        documentId,
-        documentUri,
-        content,
-        chunkId,
-        documentTitle,
-        const ListEquality<String>().hash(headings),
-        const ListEquality<int>().hash(pageNumbers),
-        const ListEquality<String>().hash(docItemRefs),
-        const ListEquality<Figure>().hash(figures),
-        const ListEquality<String>().hash(chunkIds),
-        index,
-      );
-
-  @override
-  String toString() => 'SourceReference('
-      'documentId: $documentId, '
-      'chunkId: $chunkId, '
-      'index: $index)';
-}
-
-/// Formatting utilities for [SourceReference] display.
-extension SourceReferenceFormatting on SourceReference {
   /// Formats page numbers for display.
   ///
   /// Returns:
@@ -190,4 +153,45 @@ extension SourceReferenceFormatting on SourceReference {
 
   /// Whether this source reference points to a PDF document.
   bool get isPdf => documentUri.toLowerCase().endsWith('.pdf');
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! SourceReference) return false;
+    const listEquals = ListEquality<dynamic>();
+    return documentId == other.documentId &&
+        documentUri == other.documentUri &&
+        content == other.content &&
+        chunkId == other.chunkId &&
+        documentTitle == other.documentTitle &&
+        sourceUrl == other.sourceUrl &&
+        listEquals.equals(headings, other.headings) &&
+        listEquals.equals(pageNumbers, other.pageNumbers) &&
+        listEquals.equals(docItemRefs, other.docItemRefs) &&
+        const ListEquality<Figure>().equals(figures, other.figures) &&
+        listEquals.equals(chunkIds, other.chunkIds) &&
+        index == other.index;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        documentId,
+        documentUri,
+        content,
+        chunkId,
+        documentTitle,
+        sourceUrl,
+        const ListEquality<String>().hash(headings),
+        const ListEquality<int>().hash(pageNumbers),
+        const ListEquality<String>().hash(docItemRefs),
+        const ListEquality<Figure>().hash(figures),
+        const ListEquality<String>().hash(chunkIds),
+        index,
+      );
+
+  @override
+  String toString() => 'SourceReference('
+      'documentId: $documentId, '
+      'chunkId: $chunkId, '
+      'index: $index)';
 }

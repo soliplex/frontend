@@ -171,7 +171,7 @@ void main() {
     });
   });
 
-  group('SourceReferenceFormatting', () {
+  group('formatting', () {
     group('formattedPageNumbers', () {
       test('returns null for empty page numbers', () {
         const ref = SourceReference(

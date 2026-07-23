@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/utils/source_url.dart';
 
 /// Builds a LanceDB WHERE clause for the documents table from [documents].
 ///
@@ -95,6 +96,12 @@ class RagDocument {
   /// When the document was last updated.
   final DateTime? updatedAt;
 
+  /// The document's clickable origin URL, from the `source_url` metadata key.
+  ///
+  /// Null when absent, empty, non-string, or not a web URL — see
+  /// [sourceUrlFromMetadata].
+  Uri? get sourceUrl => sourceUrlFromMetadata(metadata);
+
   /// Creates a copy of this document with the given fields replaced.
   RagDocument copyWith({
     String? id,
@@ -125,25 +132,4 @@ class RagDocument {
 
   @override
   String toString() => 'RagDocument(id: $id, title: $title, uri: $uri)';
-}
-
-/// Derived interpretations of a [RagDocument]'s free-form metadata.
-extension RagDocumentMetadataParsing on RagDocument {
-  /// The document's clickable origin URL, from the `source_url` metadata key.
-  ///
-  /// Null when absent, empty, non-string, or not a web URL — only `http`/
-  /// `https` are accepted, so a raw `file://` path (or the separate
-  /// `source_uri` upstream key) yields null. `source_url` is the backend's
-  /// viewer-ready URL; rejecting a non-web scheme guards its contract.
-  Uri? get sourceUrl {
-    final value = metadata['source_url'];
-    if (value is! String || value.isEmpty) return null;
-    final uri = Uri.tryParse(value);
-    if (uri == null ||
-        (uri.scheme != 'http' && uri.scheme != 'https') ||
-        uri.host.isEmpty) {
-      return null;
-    }
-    return uri;
-  }
 }

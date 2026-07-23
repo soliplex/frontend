@@ -19,7 +19,6 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnected,
         Reconnecting,
         Room,
-        SourceReferenceFormatting,
         ThreadHistory,
         buildDocumentFilter;
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -2048,7 +2047,6 @@ class _RoomScreenState extends State<RoomScreen> {
                             roomId: widget.roomId,
                             chunkId: ref.chunkId,
                             documentTitle: ref.displayTitle,
-                            documentUri: ref.documentUri,
                             pageNumbers: ref.pageNumbers,
                             docItemRefs: ref.docItemRefs,
                           ),
