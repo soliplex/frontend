@@ -292,7 +292,12 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
             ),
           ],
-          if (sourceReference.content.isNotEmpty)
+          if (sourceReference.content.isNotEmpty) ...[
+            // Figures otherwise sit flush on the content card; supply the
+            // section gap the headings block would give when it is absent.
+            if (sourceReference.figures.isNotEmpty &&
+                sourceReference.headings.isEmpty)
+              const SizedBox(height: SoliplexSpacing.s2),
             Container(
               constraints: const BoxConstraints(maxHeight: 250),
               padding: const EdgeInsets.all(SoliplexSpacing.s2),
@@ -307,6 +312,7 @@ class _SourceReferenceRow extends StatelessWidget {
                 ),
               ),
             ),
+          ],
           const SizedBox(height: SoliplexSpacing.s2),
           _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
         ],

@@ -52,9 +52,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   pan/zoom/rotate/reset viewer, so those interactions behave consistently and
   zooming out returns to a centered fit.
 - The insecure-connection warning ("This connection is not encrypted") makes
-  Cancel the prominent action and "Connect anyway" a quieter danger-styled
-  button, and no longer stretches them across a split row that wrapped the
-  "Connect anyway" label onto two lines.
+  Cancel the prominent (filled) action and "Connect anyway" a quieter
+  danger-styled text button, so the safe choice carries the emphasis.
+- In an expanded citation, the cited figures now appear above the source text
+  rather than below it.
 
 ## [0.94.0+68] - 2026-07-17
 
