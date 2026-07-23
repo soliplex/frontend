@@ -41,10 +41,9 @@ void main() {
 
   testWidgets('renders the link when the citation carries a source_url',
       (tester) async {
-    await _pump(
-      tester,
-      _ref(sourceUrl: Uri.parse('https://example.test/foo.pdf/view')),
-    );
-    expect(find.byType(BrowserUrlLink), findsOneWidget);
+    final url = Uri.parse('https://example.test/foo.pdf/view');
+    await _pump(tester, _ref(sourceUrl: url));
+    final link = tester.widget<BrowserUrlLink>(find.byType(BrowserUrlLink));
+    expect(link.url, url);
   });
 }

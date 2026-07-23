@@ -41,8 +41,7 @@ class _ChunkLookupCardState extends State<ChunkLookupCard> {
       roomId: widget.roomId,
       chunkId: id,
       // No document title or page numbers are known for a bare id lookup; the
-      // title bar falls back to a neutral label and the detail block shows the
-      // id and (once fetched) the document uri.
+      // title bar falls back to showing the chunk id.
       pageNumbers: const [],
     );
   }

@@ -72,8 +72,8 @@ class SourceReference {
   /// Human-readable document title, if available.
   final String? documentTitle;
 
-  /// The document's clickable origin URL, from its `source_url` metadata.
-  /// Null when the backend shipped no usable web URL for the cited document.
+  /// The document's clickable origin URL, from the cited document's
+  /// `source_url` metadata. Null when the backend shipped no usable web URL.
   final Uri? sourceUrl;
 
   /// Heading hierarchy leading to this content.
