@@ -14,6 +14,10 @@ import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
+import 'package:soliplex_client/src/utils/source_url.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final _logger = LogManager.instance.getLogger('soliplex_client.mappers');
 
 // ============================================================
 // Timestamp helpers
@@ -385,11 +389,16 @@ RagDocument ragDocumentFromJson(Map<String, dynamic> json) {
   final createdRaw = json['created_at'] as String?;
   final updatedRaw = json['updated_at'] as String?;
 
+  final metadata = jsonMap(json['metadata'], 'metadata');
+  if (hasMalformedSourceUrl(metadata)) {
+    _logger.warning('Document source_url present but not a launchable web URL');
+  }
+
   return RagDocument(
     id: _requireString(json, 'id', 'document'),
     title: title,
     uri: uri,
-    metadata: jsonMap(json['metadata'], 'metadata'),
+    metadata: metadata,
     createdAt: _tryParseTimestamp(createdRaw),
     updatedAt: _tryParseTimestamp(updatedRaw),
   );

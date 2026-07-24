@@ -2,6 +2,10 @@ import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:soliplex_client/src/utils/source_url.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final _logger =
+    LogManager.instance.getLogger('soliplex_client.citation_extractor');
 
 /// Extracts new [SourceReference]s by comparing AG-UI state snapshots.
 ///
@@ -76,6 +80,12 @@ class CitationExtractor {
           bytes: bytes,
           caption: caption != null && caption.isNotEmpty ? caption : null,
         ),
+      );
+    }
+    if (hasMalformedSourceUrl(c.documentMeta)) {
+      _logger.warning(
+        'Citation source_url present but not a launchable web URL '
+        '(document ${c.documentId})',
       );
     }
     return SourceReference(
