@@ -11,11 +11,13 @@ import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart'
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
 
+const _sandboxSkill = RoomSkill(name: sandboxSkillName, description: 'Sandbox');
+
 const _testRoom = Room(
   id: 'room-1',
   name: 'Test Room',
   description: 'A test room',
-  enableAttachments: true,
+  skills: {sandboxSkillName: _sandboxSkill},
   allowMcp: true,
   agent: DefaultRoomAgent(
     id: 'agent-1',
@@ -209,7 +211,8 @@ void main() {
     });
 
     testWidgets('shows empty skills section when no skills', (tester) async {
-      await tester.pumpWidget(_buildScreen());
+      final room = _testRoom.copyWith(skills: const {});
+      await tester.pumpWidget(_buildScreen(room: room));
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(

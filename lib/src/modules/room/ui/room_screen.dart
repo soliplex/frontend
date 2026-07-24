@@ -295,6 +295,12 @@ class _RoomScreenState extends State<RoomScreen> {
 
   late DocumentFilterHydrator _filterHydrator;
 
+  /// Per-thread attachment support hydrated from thread history (the sandbox
+  /// namespace in the thread's AG-UI state). A missing entry means history has
+  /// not loaded, or was bypassed for a registry-restored / just-spawned thread;
+  /// callers fall back to the room's current capability in that case.
+  final Map<String, bool> _threadAttachmentSupport = <String, bool>{};
+
   /// Show the filter button only when filtering is enabled and there is
   /// something to filter (or we failed to find out).
   bool get _showDocumentFilter =>
@@ -841,10 +847,16 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  /// Feeds the thread's last-run filter to the hydrator on history load.
+  /// Records thread-level attachment support and feeds the thread's last-run
+  /// filter to the hydrator on history load.
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
-    if (!_filterEnabled) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
+    if (_threadAttachmentSupport[threadId] != history.supportsAttachments) {
+      setState(() {
+        _threadAttachmentSupport[threadId] = history.supportsAttachments;
+      });
+    }
+    if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
 
@@ -1556,14 +1568,17 @@ class _RoomScreenState extends State<RoomScreen> {
 
   Widget _buildContent(Room? room) {
     final threadView = _state.activeThreadView;
-    final attachEnabled = room?.enableAttachments ?? false;
+    final roomAttachEnabled = room?.supportsAttachments ?? false;
     final messagesStatus = threadView?.messages.watch(context);
 
-    final UploadsStatus roomStatus = attachEnabled
+    final UploadsStatus roomStatus = roomAttachEnabled
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
     final threadId = threadView?.threadId;
-    final UploadsStatus threadStatus = attachEnabled && threadId != null
+    final threadAttachEnabled = threadId != null
+        ? (_threadAttachmentSupport[threadId] ?? roomAttachEnabled)
+        : false;
+    final UploadsStatus threadStatus = threadAttachEnabled
         ? _state.uploadTracker
             .threadUploads(widget.roomId, threadId)
             .watch(context)
@@ -1962,7 +1977,7 @@ class _RoomScreenState extends State<RoomScreen> {
             error: roomError,
             onDismiss: _state.clearError,
           ),
-        if (room?.enableAttachments ?? false)
+        if (room?.supportsAttachments ?? false)
           UploadEventBanner(
             tracker: _state.uploadTracker,
             roomId: widget.roomId,
@@ -1980,7 +1995,8 @@ class _RoomScreenState extends State<RoomScreen> {
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
-    final attachEnabled = room?.enableAttachments ?? false;
+    final attachEnabled = _threadAttachmentSupport[threadView.threadId] ??
+        (room?.supportsAttachments ?? false);
 
     _restoreUnsentText(sendError?.unsentText);
 
@@ -2093,7 +2109,12 @@ class _RoomScreenState extends State<RoomScreen> {
     Room? room,
     ThreadViewStatus? status,
   ) {
-    final attachEnabled = room?.enableAttachments ?? false;
+    final threadId = threadView?.threadId;
+    final attachEnabled = threadId != null
+        ? (_threadAttachmentSupport[threadId] ??
+            room?.supportsAttachments ??
+            false)
+        : (room?.supportsAttachments ?? false);
     VoidCallback? attachCallback(Future<PickFilesResult?> Function() pick) {
       if (!attachEnabled) return null;
       return threadView != null

@@ -31,7 +31,14 @@ void main() {
       final api = FakeSoliplexApi();
       await tester.pumpWidget(wrap(
         FeaturesCard(
-          room: baseRoom.copyWith(enableAttachments: true),
+          room: baseRoom.copyWith(
+            skills: const {
+              sandboxSkillName: RoomSkill(
+                name: sandboxSkillName,
+                description: 'Sandbox',
+              ),
+            },
+          ),
           api: api,
           roomId: 'r1',
         ),
@@ -46,7 +53,7 @@ void main() {
       final api = FakeSoliplexApi();
       await tester.pumpWidget(wrap(
         FeaturesCard(
-          room: baseRoom.copyWith(enableAttachments: false),
+          room: baseRoom,
           api: api,
           roomId: 'r1',
         ),
