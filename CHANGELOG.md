@@ -34,6 +34,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- File attachments now appear based on the `bubble-sandbox` skill — the room's
+  configured skills for room-level (admin) uploads, and a thread's AG-UI state
+  for thread-level uploads — instead of an `enable_attachments` room flag the
+  backend no longer sends. Attachments were effectively unreachable while gated
+  on that flag.
 - The lobby's rooms page is more compact on phones: a room's confidentiality
   marking and quiz indicator move to their own row so the room name keeps the
   full tile width, the sort control collapses to an icon button that shares the

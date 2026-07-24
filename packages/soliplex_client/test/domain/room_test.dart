@@ -13,7 +13,6 @@ void main() {
       expect(room.quizzes, equals(const <String, String>{}));
       expect(room.suggestions, equals(const <String>[]));
       expect(room.welcomeMessage, equals(''));
-      expect(room.enableAttachments, isFalse);
       expect(room.toolDefinitions, equals(const <Map<String, dynamic>>[]));
       expect(room.aguiFeatureNames, equals(const <String>[]));
       expect(room.quizIds, isEmpty);
@@ -51,7 +50,6 @@ void main() {
         quizzes: {'quiz-1': 'Quiz One', 'quiz-2': 'Quiz Two'},
         suggestions: ['How can I help?', 'Tell me more'],
         welcomeMessage: 'Welcome!',
-        enableAttachments: true,
         allowMcp: true,
         agent: agent,
         tools: {'search': tool},
@@ -72,7 +70,6 @@ void main() {
       );
       expect(room.suggestions, equals(['How can I help?', 'Tell me more']));
       expect(room.welcomeMessage, equals('Welcome!'));
-      expect(room.enableAttachments, isTrue);
       expect(room.allowMcp, isTrue);
       expect(room.agent, equals(agent));
       expect(room.tools, equals({'search': tool}));
@@ -108,7 +105,6 @@ void main() {
           quizzes: {'quiz-1': 'Quiz One'},
           suggestions: ['Suggestion 1', 'Suggestion 2'],
           welcomeMessage: 'Hello!',
-          enableAttachments: true,
           toolDefinitions: [
             {'tool_name': 'lookup'},
           ],
@@ -123,7 +119,6 @@ void main() {
         expect(modified.quizIds, equals(['quiz-1']));
         expect(modified.suggestions, equals(['Suggestion 1', 'Suggestion 2']));
         expect(modified.welcomeMessage, equals('Hello!'));
-        expect(modified.enableAttachments, isTrue);
         expect(modified.toolDefinitions, hasLength(1));
         expect(modified.aguiFeatureNames, equals(['streaming']));
       });
@@ -137,7 +132,6 @@ void main() {
           quizzes: {'quiz-1': 'Quiz One'},
           suggestions: ['Suggestion'],
           welcomeMessage: 'Hi',
-          enableAttachments: true,
           toolDefinitions: [
             {'tool_name': 'test'},
           ],
@@ -153,7 +147,6 @@ void main() {
         expect(copy.quizIds, equals(room.quizIds));
         expect(copy.suggestions, equals(room.suggestions));
         expect(copy.welcomeMessage, equals(room.welcomeMessage));
-        expect(copy.enableAttachments, equals(room.enableAttachments));
         expect(copy.toolDefinitions, equals(room.toolDefinitions));
         expect(copy.aguiFeatureNames, equals(room.aguiFeatureNames));
       });
@@ -189,6 +182,38 @@ void main() {
 
       expect(str, contains('room-1'));
       expect(str, contains('Test Room'));
+    });
+
+    group('supportsAttachments', () {
+      test('is true when the sandbox skill is present', () {
+        const room = Room(
+          id: 'r1',
+          name: 'Test',
+          skills: {
+            sandboxSkillName: RoomSkill(
+              name: sandboxSkillName,
+              description: 'Sandbox',
+            ),
+          },
+        );
+        expect(room.supportsAttachments, isTrue);
+      });
+
+      test('is false when the sandbox skill is absent', () {
+        const room = Room(id: 'r1', name: 'Test');
+        expect(room.supportsAttachments, isFalse);
+      });
+
+      test('is false when only a different skill is present', () {
+        const room = Room(
+          id: 'r1',
+          name: 'Test',
+          skills: {
+            'other-skill': RoomSkill(name: 'other-skill', description: 'Other'),
+          },
+        );
+        expect(room.supportsAttachments, isFalse);
+      });
     });
   });
 }

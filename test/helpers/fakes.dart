@@ -459,13 +459,24 @@ class ManualAgentSession implements AgentSession {
   final ThreadKey threadKey;
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
   final Signal<RunState> _runState = Signal<RunState>(const IdleState());
+  final Signal<ReconnectStatus?> _reconnectStatus =
+      Signal<ReconnectStatus?>(null);
   bool cancelCalled = false;
+
+  @override
+  AgentSessionState get state => AgentSessionState.spawning;
 
   @override
   Future<AgentResult> get result => _resultCompleter.future;
 
   @override
   ReadonlySignal<RunState> get runState => _runState;
+
+  @override
+  ReadonlySignal<ReconnectStatus?> get reconnectStatus => _reconnectStatus;
+
+  @override
+  T? getExtension<T extends SessionExtension>() => null;
 
   @override
   void cancel() {

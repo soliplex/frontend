@@ -27,6 +27,8 @@ import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import '../../../helpers/fakes.dart';
 import '../../../helpers/test_server_entry.dart';
 
+const _sandboxSkill = RoomSkill(name: sandboxSkillName, description: 'Sandbox');
+
 class _BlockingThreadsApi extends FakeSoliplexApi {
   final _completer = Completer<List<ThreadInfo>>();
 
@@ -634,7 +636,7 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      enableAttachments: true,
+      skills: {sandboxSkillName: _sandboxSkill},
     );
     api.nextThreads = const [];
     // nextRoomUploads / nextThreadUploads default to empty → the chip
@@ -668,7 +670,7 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      enableAttachments: true,
+      skills: {sandboxSkillName: _sandboxSkill},
     );
     api.nextThreads = const [];
     api.nextRoomUploads = [
@@ -709,7 +711,7 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      enableAttachments: true,
+      skills: {sandboxSkillName: _sandboxSkill},
     );
     api.nextThreads = const [];
     api.nextRoomUploads = [
@@ -746,7 +748,7 @@ void main() {
     api.nextRoom = const Room(
       id: 'room-1',
       name: 'Attachable',
-      enableAttachments: true,
+      skills: {sandboxSkillName: _sandboxSkill},
     );
     api.nextThreads = const [];
     api.nextRoomUploadsError =
@@ -800,6 +802,162 @@ void main() {
     expect(textField.readOnly, isTrue);
 
     blockingApi.completeThreads(blockingApi.nextThreads!);
+  });
+
+  group('attachment detection', () {
+    testWidgets('welcome composer shows attach when room has sandbox skill',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        skills: {sandboxSkillName: _sandboxSkill},
+      );
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
+
+    testWidgets('welcome composer hides attach without the sandbox skill',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsNothing);
+    });
+
+    testWidgets(
+        'active thread shows attach from thread AG-UI state, not room '
+        'skill', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Room WITHOUT the skill; thread state WITH the namespace. Attach must
+      // still appear, proving the active thread reads thread state.
+      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
+      api.nextThreads = const [];
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        aguiState: const {sandboxSkillName: <String, dynamic>{}},
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
+
+    testWidgets(
+        'active thread hides attach when thread state lacks the '
+        'namespace even if the room has the skill', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        skills: {sandboxSkillName: _sandboxSkill},
+      );
+      api.nextThreads = const [];
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsNothing);
+    });
+
+    testWidgets('registry-restored thread falls back to room skill for attach',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Room has the skill; a live session is pre-registered so ThreadViewState
+      // restores from the registry and never fetches history (the sendToNewThread
+      // / return-to-running-thread path). The Map has no entry → the composer
+      // must fall back to room capability and still show attach.
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        skills: {sandboxSkillName: _sandboxSkill},
+      );
+      api.nextThreads = const [];
+      final key =
+          (serverId: entry.serverId, roomId: 'room-1', threadId: 'thread-1');
+      registry.register(key, ManualAgentSession(key));
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
   });
 
   group('document filter button visibility', () {

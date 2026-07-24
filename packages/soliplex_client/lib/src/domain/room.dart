@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'package:soliplex_client/src/domain/attachments.dart';
 import 'package:soliplex_client/src/domain/mcp_client_toolset.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
@@ -17,7 +18,6 @@ class Room {
     this.quizzes = const {},
     this.suggestions = const [],
     this.welcomeMessage = '',
-    this.enableAttachments = false,
     this.allowMcp = false,
     this.agent,
     this.skills = const {},
@@ -48,9 +48,6 @@ class Room {
 
   /// Welcome message shown when entering the room.
   final String welcomeMessage;
-
-  /// Whether file attachments are enabled for this room.
-  final bool enableAttachments;
 
   /// Whether MCP server access is allowed for this room.
   final bool allowMcp;
@@ -97,6 +94,10 @@ class Room {
   /// Whether the room has any AG-UI feature names.
   bool get hasAguiFeatures => aguiFeatureNames.isNotEmpty;
 
+  /// Whether this room is configured for file attachments (it carries the
+  /// [sandboxSkillName] skill).
+  bool get supportsAttachments => skills.containsKey(sandboxSkillName);
+
   /// Creates a copy of this room with the given fields replaced.
   Room copyWith({
     String? id,
@@ -106,7 +107,6 @@ class Room {
     Map<String, String>? quizzes,
     List<String>? suggestions,
     String? welcomeMessage,
-    bool? enableAttachments,
     bool? allowMcp,
     RoomAgent? agent,
     Map<String, RoomSkill>? skills,
@@ -123,7 +123,6 @@ class Room {
       quizzes: quizzes ?? this.quizzes,
       suggestions: suggestions ?? this.suggestions,
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
-      enableAttachments: enableAttachments ?? this.enableAttachments,
       allowMcp: allowMcp ?? this.allowMcp,
       agent: agent ?? this.agent,
       skills: skills ?? this.skills,
