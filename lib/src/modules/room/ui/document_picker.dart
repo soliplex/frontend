@@ -3,8 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
-import '../../../shared/browser_url_link.dart';
 import '../../../shared/file_type_icons.dart';
+import 'document_source.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class DocumentPicker extends StatefulWidget {
@@ -43,11 +43,8 @@ class _DocumentPickerState extends State<DocumentPicker> {
     widget.onChanged(next);
   }
 
-  Widget? _subtitle(RagDocument doc) {
-    final url = doc.sourceUrl;
-    if (url == null) return null;
-    return BrowserUrlLink(url: url);
-  }
+  Widget _subtitle(RagDocument doc) =>
+      DocumentSource(url: doc.sourceUrl, documentUri: doc.uri);
 
   @override
   Widget build(BuildContext context) {

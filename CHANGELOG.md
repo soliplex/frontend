@@ -10,9 +10,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
-- Document origin URLs (`source_url`) now render as clickable links across the
-  room document listing, document filter, and citations, replacing the internal
-  file path — which remains only in the document listing's metadata dialog.
+- A document's source now shows as a clickable link when the backend provides a
+  viewer `source_url`, across the room document listing, document filter, and
+  citations. When `source_url` is absent, the citation link can be derived from
+  the document URI by a resolver a deployment injects via
+  `standard(documentBrowserUrl: ...)`; otherwise the document URI is shown as
+  non-clickable text.
 - Room and lobby: the current server's name (or its address when unnamed) now
   shows alongside the room name in the room view header, and as a title band at
   the top of the lobby's room pane, so a user connected to several servers can
@@ -58,6 +61,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   danger-styled text button, so the safe choice carries the emphasis.
 - In an expanded citation, the cited figures now appear above the source text
   rather than below it.
+- The lobby sort options are shortened to "None", "Recent", and "Unread".
 
 ### Fixed
 

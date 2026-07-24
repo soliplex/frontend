@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
-import '../../../shared/browser_url_link.dart';
 import '../../../shared/copy_button.dart';
 import '../../../shared/failed_image.dart';
 import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
+import '../document_browser_url.dart';
+import 'document_source.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'markdown/log_source.dart';
 import 'paged_zoomable_images.dart';
@@ -256,14 +258,23 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // The cited document's clickable origin link, when the backend
-          // shipped a usable `source_url`. The internal path is never shown
-          // (the row header already carries the document name).
-          if (sourceReference.sourceUrl case final url?)
-            Padding(
-              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
-              child: BrowserUrlLink(url: url),
+          // The cited document's source link: the viewer `source_url`, else a
+          // resolver-derived URL from the document URI, else the raw URI as
+          // text (it is never itself launchable). A fork supplies the resolver
+          // via documentBrowserUrlResolverProvider.
+          Padding(
+            padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+            child: Consumer(
+              builder: (context, ref, _) => DocumentSource(
+                url: resolveDocumentBrowserUrl(
+                  ref.watch(documentBrowserUrlResolverProvider),
+                  sourceUrl: sourceReference.sourceUrl,
+                  documentUri: sourceReference.documentUri,
+                ),
+                documentUri: sourceReference.documentUri,
+              ),
             ),
+          ),
           if (sourceReference.figures.isNotEmpty)
             _CitationFigures(sourceReference: sourceReference),
           if (sourceReference.headings.isNotEmpty) ...[

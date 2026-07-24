@@ -227,7 +227,7 @@ void main() {
       expect(find.text('id'), findsNothing);
     });
 
-    testWidgets('metadata shows document ID but not the internal uri',
+    testWidgets('metadata shows document ID and the document uri as the source',
         (tester) async {
       await tester.pumpWidget(wrap(
         DocumentsCard(
@@ -241,9 +241,9 @@ void main() {
       await tester.pump();
 
       expect(find.text('id-a'), findsOneWidget);
-      // The internal path is not surfaced in the expanded detail (it lives in
-      // the metadata dialog).
-      expect(find.text('/files/alpha.pdf'), findsNothing);
+      // With no source_url, the document uri is shown (non-clickable) as the
+      // document's source.
+      expect(find.text('/files/alpha.pdf'), findsOneWidget);
     });
 
     testWidgets('metadata shows timestamps when present', (tester) async {

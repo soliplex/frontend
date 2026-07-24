@@ -34,7 +34,7 @@ void main() {
     expect(find.text('file:///x/foo.pdf'), findsNothing);
   });
 
-  testWidgets('no link and no raw uri in detail when source_url absent',
+  testWidgets('detail shows the document uri when source_url absent',
       (tester) async {
     await tester.pumpWidget(_card([
       const RagDocument(id: 'd1', title: 'Doc', uri: 'file:///x/foo.pdf'),
@@ -45,7 +45,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BrowserUrlLink), findsNothing);
-    expect(find.text('file:///x/foo.pdf'), findsNothing);
+    expect(find.text('file:///x/foo.pdf'), findsOneWidget);
   });
 
   testWidgets('metadata dialog carries the file uri and a friendly title',

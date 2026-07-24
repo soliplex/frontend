@@ -800,8 +800,8 @@ class _ViewModeToggle extends StatelessWidget {
 /// labelled dropdown and the phone [_CompactSortButton] so the two can't drift.
 const _sortOptions = <(LobbySortMode, String)>[
   (LobbySortMode.none, 'None'),
-  (LobbySortMode.recentActivity, 'Recent activity'),
-  (LobbySortMode.unreadFirst, 'Unread first'),
+  (LobbySortMode.recentActivity, 'Recent'),
+  (LobbySortMode.unreadFirst, 'Unread'),
 ];
 
 /// Compact sort control for phone layouts: an icon button that opens a menu of
@@ -990,11 +990,11 @@ class _ServerSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (parts.unread.isNotEmpty) ...[
-          const _GroupHeader(label: 'Unread'),
+          _GroupHeader(label: 'Unread'),
           _buildBlock(context, parts.unread),
         ],
         if (parts.read.isNotEmpty) ...[
-          const _GroupHeader(label: 'Read'),
+          _GroupHeader(label: 'Read'),
           _buildBlock(context, parts.read),
         ],
       ],
@@ -1142,7 +1142,8 @@ class _RoomGrid extends StatelessWidget {
 /// A recency-bucket section header: a muted label with a trailing rule, used
 /// to separate "Today", "Yesterday", ... groups when sorting by activity.
 class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({required this.label});
+  _GroupHeader({required this.label})
+      : super(key: ValueKey('lobby-section-header-$label'));
 
   final String label;
 
