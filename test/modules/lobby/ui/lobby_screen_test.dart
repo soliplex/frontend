@@ -513,13 +513,13 @@ void main() {
       // Default sort (none): backend order is preserved.
       expect(roomOrder(), ['General', 'Random']);
 
-      // Open the compact menu and choose "Recent activity".
+      // Open the compact menu and choose "Recent".
       await tester.tap(find.byIcon(Icons.sort));
       await tester.pumpAndSettle();
       await tester.tap(
         find.widgetWithText(
           CheckedPopupMenuItem<LobbySortMode>,
-          'Recent activity',
+          'Recent',
         ),
       );
       await tester.pumpAndSettle();
@@ -651,12 +651,12 @@ void main() {
       // Default sort (none): backend order is preserved.
       expect(roomOrder(), ['General', 'Random']);
 
-      // Open the sort dropdown and choose "Recent activity" (the offstage
+      // Open the sort dropdown and choose "Recent" (the offstage
       // measurement copy of the entry isn't hit-testable, so target the
       // on-screen one).
       await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.tap(find.text('Recent').hitTestable());
       await tester.pumpAndSettle();
 
       expect(roomOrder(), ['Random', 'General']);
@@ -718,7 +718,7 @@ void main() {
 
       await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.tap(find.text('Recent').hitTestable());
       await tester.pumpAndSettle();
 
       // Two buckets: today (Fresh) and ~10 days ago (This month).
@@ -767,7 +767,7 @@ void main() {
 
       await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Recent activity').hitTestable());
+      await tester.tap(find.text('Recent').hitTestable());
       await tester.pumpAndSettle();
 
       // Dated rooms first (newest -> oldest), then undated in original order.
@@ -803,18 +803,27 @@ void main() {
       await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
       await tester.pumpAndSettle();
 
+      // The sort control's own "Unread" option shares the section-header
+      // label, so target the header by its key rather than its text.
+      final unreadHeader = find.byKey(
+        const ValueKey('lobby-section-header-Unread'),
+      );
+      final readHeader = find.byKey(
+        const ValueKey('lobby-section-header-Read'),
+      );
+
       // No section headers under the default 'None' sort.
-      expect(find.text('Unread'), findsNothing);
-      expect(find.text('Read'), findsNothing);
+      expect(unreadHeader, findsNothing);
+      expect(readHeader, findsNothing);
 
       await tester.tap(find.byType(DropdownMenu<LobbySortMode>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Unread first').hitTestable());
+      await tester.tap(find.text('Unread').hitTestable());
       await tester.pumpAndSettle();
 
       // Both section headers present.
-      expect(find.text('Unread'), findsOneWidget);
-      expect(find.text('Read'), findsOneWidget);
+      expect(unreadHeader, findsOneWidget);
+      expect(readHeader, findsOneWidget);
 
       // The unread room card sits above the read room card.
       final freshY = tester.getTopLeft(find.text('Fresh')).dy;
