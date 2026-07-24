@@ -225,30 +225,6 @@ void main() {
         expect(room.hasWelcomeMessage, isFalse);
       });
 
-      test('parses enable_attachments', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'enable_attachments': true,
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.enableAttachments, isTrue);
-      });
-
-      test('handles null enable_attachments', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'enable_attachments': null,
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.enableAttachments, isFalse);
-      });
-
       test('parses tools map (backend format)', () {
         final json = <String, dynamic>{
           'id': 'room-1',
@@ -410,7 +386,6 @@ void main() {
         expect(json.containsKey('description'), isFalse);
         expect(json.containsKey('metadata'), isFalse);
         expect(json.containsKey('welcome_message'), isFalse);
-        expect(json.containsKey('enable_attachments'), isFalse);
         expect(json.containsKey('tools'), isFalse);
         expect(json.containsKey('agui_feature_names'), isFalse);
       });
@@ -420,7 +395,6 @@ void main() {
           id: 'room-1',
           name: 'Test Room',
           welcomeMessage: 'Welcome!',
-          enableAttachments: true,
           toolDefinitions: [
             {'tool_name': 'search', 'tool_description': 'Search'},
           ],
@@ -430,7 +404,6 @@ void main() {
         final json = roomToJson(room);
 
         expect(json['welcome_message'], equals('Welcome!'));
-        expect(json['enable_attachments'], isTrue);
         expect(json['tools'], isA<Map<String, dynamic>>());
         final toolsMap = json['tools'] as Map<String, dynamic>;
         final firstTool = toolsMap.values.first as Map<String, dynamic>;
@@ -1857,18 +1830,6 @@ void main() {
         expect(room.welcomeMessage, equals('Welcome!'));
       });
 
-      test('parses enable_attachments', () {
-        final json = <String, dynamic>{
-          'id': 'room-1',
-          'name': 'Test Room',
-          'enable_attachments': true,
-        };
-
-        final room = roomFromJson(json);
-
-        expect(room.enableAttachments, isTrue);
-      });
-
       test('parses allow_mcp', () {
         final json = <String, dynamic>{
           'id': 'room-1',
@@ -1899,7 +1860,6 @@ void main() {
         final room = roomFromJson(json);
 
         expect(room.welcomeMessage, equals(''));
-        expect(room.enableAttachments, isFalse);
         expect(room.allowMcp, isFalse);
         expect(room.aguiFeatureNames, isEmpty);
       });

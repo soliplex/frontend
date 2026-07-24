@@ -18,7 +18,6 @@ class Room {
     this.quizzes = const {},
     this.suggestions = const [],
     this.welcomeMessage = '',
-    this.enableAttachments = false,
     this.allowMcp = false,
     this.agent,
     this.skills = const {},
@@ -49,9 +48,6 @@ class Room {
 
   /// Welcome message shown when entering the room.
   final String welcomeMessage;
-
-  /// Whether file attachments are enabled for this room.
-  final bool enableAttachments;
 
   /// Whether MCP server access is allowed for this room.
   final bool allowMcp;
@@ -111,7 +107,6 @@ class Room {
     Map<String, String>? quizzes,
     List<String>? suggestions,
     String? welcomeMessage,
-    bool? enableAttachments,
     bool? allowMcp,
     RoomAgent? agent,
     Map<String, RoomSkill>? skills,
@@ -128,7 +123,6 @@ class Room {
       quizzes: quizzes ?? this.quizzes,
       suggestions: suggestions ?? this.suggestions,
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
-      enableAttachments: enableAttachments ?? this.enableAttachments,
       allowMcp: allowMcp ?? this.allowMcp,
       agent: agent ?? this.agent,
       skills: skills ?? this.skills,

@@ -333,7 +333,6 @@ Room roomFromJson(Map<String, dynamic> json) {
     quizzes: quizzes,
     suggestions: suggestions,
     welcomeMessage: (json['welcome_message'] as String?) ?? '',
-    enableAttachments: json['enable_attachments'] as bool? ?? false,
     allowMcp: json['allow_mcp'] as bool? ?? false,
     agent: agent,
     skills: skills,
@@ -357,7 +356,6 @@ Map<String, dynamic> roomToJson(Room room) {
     if (room.description.isNotEmpty) 'description': room.description,
     if (room.metadata.isNotEmpty) 'metadata': room.metadata,
     if (room.welcomeMessage.isNotEmpty) 'welcome_message': room.welcomeMessage,
-    if (room.enableAttachments) 'enable_attachments': room.enableAttachments,
     if (room.skills.isNotEmpty)
       'skills': {
         for (final entry in room.skills.entries)
