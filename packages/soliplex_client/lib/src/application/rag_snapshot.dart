@@ -129,14 +129,16 @@ Uint8List? _decodePicture(
   }
 }
 
-/// A read-model view of the backend's `rag`-namespaced AG-UI state.
+/// A read-model view of a RAG skill's AG-UI state slice.
 ///
-/// The `rag` state carries `citations` as a list of chunk ids and a
-/// `citation_index` map resolving each id to a full [Citation]. This
-/// snapshot exposes only what citation extraction and figure rendering
-/// need: the citation ids, id → [Citation] resolution, and inline picture
-/// bytes / captions. Other fields (e.g. `searches`, `document_filter`) are
-/// read through a resilient per-entry reader when a consumer needs them.
+/// Every RAG-producing skill publishes the same citation shape under its
+/// own namespace — `rag` and `analysis` both carry `citations` as a list
+/// of chunk ids and a `citation_index` map resolving each id to a full
+/// [Citation]. This snapshot exposes only what citation extraction and
+/// figure rendering need: the citation ids, id → [Citation] resolution,
+/// and inline picture bytes / captions. Other fields (e.g. `searches`,
+/// `document_filter`, and `analysis`'s `executions`) are read through a
+/// resilient per-entry reader when a consumer needs them, or ignored.
 ///
 /// [RagSnapshot.fromJson] parses `citations` and `citation_index`
 /// entry-by-entry so one malformed entry is logged and skipped rather than
@@ -166,7 +168,7 @@ class RagSnapshot {
     }
 
     final index = <String, Citation>{};
-    final rawIndex = json['citation_index'];
+    final rawIndex = json[_citationIndexKey];
     if (rawIndex is Map) {
       for (final entry in rawIndex.entries) {
         final key = entry.key;
@@ -199,6 +201,38 @@ class RagSnapshot {
     }
 
     return RagSnapshot._(ids, index, _indexPictures(json));
+  }
+
+  /// Wire key marking a citation-bearing skill-state block: the
+  /// `id → Citation` map the extractor needs to render a source.
+  static const _citationIndexKey = 'citation_index';
+
+  /// Every citation-bearing namespace block in a full agent-state map,
+  /// identified by a [`_citationIndexKey`] map. Non-citation namespaces
+  /// (e.g. `bubble-sandbox`) and non-Map or mistyped blocks are skipped,
+  /// so this is the single place that knows how a citation block is shaped.
+  ///
+  /// [RagSnapshot.fromJson] is resilient by construction and should not
+  /// throw, but a block that fails to parse is caught and skipped rather
+  /// than propagated: one malformed namespace must not take down the
+  /// others, nor abort the unguarded replay path that consumes this.
+  static List<RagSnapshot> extractAll(Map<String, dynamic> state) {
+    final snapshots = <RagSnapshot>[];
+    for (final raw in state.values) {
+      if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
+        continue;
+      }
+      try {
+        snapshots.add(RagSnapshot.fromJson(raw));
+      } on Object catch (error, stackTrace) {
+        _logger.warning(
+          'RagSnapshot: skipping a citation namespace that failed to parse.',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    return snapshots;
   }
 
   final List<String> _citationIds;
