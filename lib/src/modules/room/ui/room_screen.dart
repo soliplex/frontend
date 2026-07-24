@@ -850,6 +850,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// Records thread-level attachment support and feeds the thread's last-run
   /// filter to the hydrator on history load.
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
+    if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
     if (_threadAttachmentSupport[threadId] != history.supportsAttachments) {
       setState(() {
