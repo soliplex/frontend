@@ -54,6 +54,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - In an expanded citation, the cited figures now appear above the source text
   rather than below it.
 
+### Fixed
+
+- Citations now appear for agents whose sources arrive under a non-`rag` state
+  namespace (such as the analysis agent). Citation extraction reads every
+  citation-bearing namespace in the agent state rather than only `rag`, so a
+  reply that cites sources renders its citations regardless of which retrieval
+  skill produced them.
+
 ## [0.94.0+68] - 2026-07-17
 
 ### Added

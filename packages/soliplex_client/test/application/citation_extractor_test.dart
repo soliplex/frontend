@@ -350,5 +350,46 @@ void main() {
         },
       );
     });
+
+    group('multiple namespaces', () {
+      Map<String, dynamic> citation(String chunkId) => {
+            'chunk_id': chunkId,
+            'content': 'content for $chunkId',
+            'document_id': 'doc-1',
+            'document_uri': 'https://example.com/doc.pdf',
+          };
+
+      Map<String, dynamic> block(List<String> citations) => {
+            'citation_index': {for (final id in citations) id: citation(id)},
+            'citations': citations,
+          };
+
+      test('extracts citations from the analysis namespace', () {
+        final previous = <String, dynamic>{'analysis': block(const [])};
+        final current = <String, dynamic>{
+          'analysis': block(const ['a1']),
+        };
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs, hasLength(1));
+        expect(refs.single.chunkId, 'a1');
+      });
+
+      test('deduplicates a chunk cited in both rag and analysis', () {
+        final previous = <String, dynamic>{
+          'rag': block(const []),
+          'analysis': block(const []),
+        };
+        final current = <String, dynamic>{
+          'rag': block(const ['shared']),
+          'analysis': block(const ['shared', 'analysis-only']),
+        };
+
+        final refs = extractor.extractNew(previous, current);
+
+        expect(refs.map((r) => r.chunkId), ['shared', 'analysis-only']);
+      });
+    });
   });
 }
