@@ -190,5 +190,37 @@ void main() {
       expect(str, contains('room-1'));
       expect(str, contains('Test Room'));
     });
+
+    group('supportsAttachments', () {
+      test('is true when the sandbox skill is present', () {
+        const room = Room(
+          id: 'r1',
+          name: 'Test',
+          skills: {
+            sandboxSkillName: RoomSkill(
+              name: sandboxSkillName,
+              description: 'Sandbox',
+            ),
+          },
+        );
+        expect(room.supportsAttachments, isTrue);
+      });
+
+      test('is false when the sandbox skill is absent', () {
+        const room = Room(id: 'r1', name: 'Test');
+        expect(room.supportsAttachments, isFalse);
+      });
+
+      test('is false when only a different skill is present', () {
+        const room = Room(
+          id: 'r1',
+          name: 'Test',
+          skills: {
+            'other-skill': RoomSkill(name: 'other-skill', description: 'Other'),
+          },
+        );
+        expect(room.supportsAttachments, isFalse);
+      });
+    });
   });
 }

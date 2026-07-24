@@ -1,4 +1,5 @@
 export 'activity_record.dart';
+export 'attachments.dart';
 export 'auth_provider_config.dart';
 export 'backend_version_info.dart';
 export 'chat_message.dart';

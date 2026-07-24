@@ -1,8 +1,4 @@
-import 'package:ag_ui/ag_ui.dart';
-import 'package:soliplex_client/src/domain/chat_message.dart';
-import 'package:soliplex_client/src/domain/message_state.dart';
-import 'package:soliplex_client/src/domain/source_reference.dart';
-import 'package:soliplex_client/src/domain/thread_history.dart';
+import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -141,6 +137,29 @@ void main() {
             .documentFilter,
         equals("id = 'x'"),
       );
+    });
+
+    group('supportsAttachments', () {
+      test('is true when aguiState carries the sandbox namespace', () {
+        final history = ThreadHistory(
+          messages: const [],
+          aguiState: const {sandboxSkillName: <String, dynamic>{}},
+        );
+        expect(history.supportsAttachments, isTrue);
+      });
+
+      test('is false when aguiState lacks the sandbox namespace', () {
+        final history = ThreadHistory(messages: const []);
+        expect(history.supportsAttachments, isFalse);
+      });
+
+      test('is false when only other namespaces are present', () {
+        final history = ThreadHistory(
+          messages: const [],
+          aguiState: const {'rag': <String, dynamic>{}},
+        );
+        expect(history.supportsAttachments, isFalse);
+      });
     });
   });
 

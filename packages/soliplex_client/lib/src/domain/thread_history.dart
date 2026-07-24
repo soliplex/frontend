@@ -1,6 +1,7 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 
+import 'package:soliplex_client/src/domain/attachments.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/message_state.dart';
 
@@ -50,6 +51,10 @@ class ThreadHistory {
   /// when no run carries one. The backend keeps no merged filter state, so this
   /// (not any state event) is the only record of the thread's active filter.
   final String? documentFilter;
+
+  /// Whether this thread's AG-UI state carries the [sandboxSkillName]
+  /// namespace, i.e. attachments are available for this thread.
+  bool get supportsAttachments => aguiState.containsKey(sandboxSkillName);
 }
 
 /// Decoded AG-UI events for a single run, in arrival order.

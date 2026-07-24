@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'package:soliplex_client/src/domain/attachments.dart';
 import 'package:soliplex_client/src/domain/mcp_client_toolset.dart';
 import 'package:soliplex_client/src/domain/room_agent.dart';
 import 'package:soliplex_client/src/domain/room_skill.dart';
@@ -96,6 +97,10 @@ class Room {
 
   /// Whether the room has any AG-UI feature names.
   bool get hasAguiFeatures => aguiFeatureNames.isNotEmpty;
+
+  /// Whether this room is configured for file attachments (it carries the
+  /// [sandboxSkillName] skill).
+  bool get supportsAttachments => skills.containsKey(sandboxSkillName);
 
   /// Creates a copy of this room with the given fields replaced.
   Room copyWith({
