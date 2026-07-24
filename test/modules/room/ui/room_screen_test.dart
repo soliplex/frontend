@@ -892,12 +892,17 @@ void main() {
     });
 
     testWidgets(
-        'active thread hides attach when thread state lacks the '
-        'namespace even if the room has the skill', (tester) async {
+        'active thread with room skill shows attach when thread history is '
+        'undetermined (falls back to room capability)', (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      // Empty history = undetermined thread state: a freshly created thread
+      // whose only run is unfinished carries no replayable state, and the
+      // backend omits run_input for unfinished runs on GET. The composer must
+      // fall back to the room capability rather than reporting a false
+      // negative and hiding attach.
       api.nextRoom = const Room(
         id: 'room-1',
         name: 'Attachable',
@@ -905,6 +910,44 @@ void main() {
       );
       api.nextThreads = const [];
       api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    });
+
+    testWidgets(
+        'active thread with resolved state lacking the namespace hides attach '
+        'even when the room has the skill', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Resolved (non-empty) thread state that lacks the sandbox namespace is
+      // authoritative: it hides attach even though the room advertises the
+      // skill. Contrast the empty/undetermined case above, which falls back to
+      // the room capability.
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        skills: {sandboxSkillName: _sandboxSkill},
+      );
+      api.nextThreads = const [];
+      api.nextThreadHistory = ThreadHistory(
+        messages: const [],
+        aguiState: const {'rag': <String, dynamic>{}},
+      );
 
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
