@@ -138,6 +138,50 @@ void main() {
       });
     });
 
+    group('getThreadHistory', () {
+      test(
+        'reports undetermined attachment support for a freshly created thread '
+        '(unfinished run, no run_input on GET)',
+        () async {
+          // Real backend shape: the GET history endpoint omits `run_input`
+          // for an unfinished run, so there is no state to judge from. The
+          // capability is undetermined (null) and the caller falls back to
+          // the room-level capability rather than reporting a false negative.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'run_input': null,
+                  'finished': null,
+                },
+              },
+            },
+          );
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.supportsAttachments, isNull);
+          expect(history.messages, isEmpty);
+        },
+      );
+    });
+
     // ============================================================
     // Rooms
     // ============================================================

@@ -295,10 +295,12 @@ class _RoomScreenState extends State<RoomScreen> {
 
   late DocumentFilterHydrator _filterHydrator;
 
-  /// Per-thread attachment support hydrated from thread history (the sandbox
-  /// namespace in the thread's AG-UI state). A missing entry means history has
-  /// not loaded, or was bypassed for a registry-restored / just-spawned thread;
-  /// callers fall back to the room's current capability in that case.
+  /// Per-thread attachment support resolved from thread history (the sandbox
+  /// namespace in the thread's AG-UI state). A missing entry means it could not
+  /// be resolved — history has not loaded, was bypassed for a registry-restored
+  /// / just-spawned thread, or the thread has no finished run yet (the backend
+  /// omits `run_input` for unfinished runs, so history alone cannot tell).
+  /// Callers fall back to the room's current capability in that case.
   final Map<String, bool> _threadAttachmentSupport = <String, bool>{};
 
   /// Show the filter button only when filtering is enabled and there is
@@ -852,14 +854,29 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onThreadHistoryLoaded(String threadId, ThreadHistory history) {
     if (!mounted) return;
     if (threadId != widget.threadId) return; // stale fetch for another thread
-    if (_threadAttachmentSupport[threadId] != history.supportsAttachments) {
+    // Only record a resolved value. When history couldn't resolve state (null,
+    // e.g. an unfinished-only thread), leave the entry unset so the attach gate
+    // falls back to the room capability instead of a false negative.
+    final resolved = history.supportsAttachments;
+    if (resolved != null && _threadAttachmentSupport[threadId] != resolved) {
       setState(() {
-        _threadAttachmentSupport[threadId] = history.supportsAttachments;
+        _threadAttachmentSupport[threadId] = resolved;
       });
     }
     if (!_filterEnabled) return;
     _filterHydrator.setFilter(threadId, history.documentFilter);
   }
+
+  /// Whether attachments are enabled for [threadId] within [room].
+  ///
+  /// Prefers the thread's resolved capability; when it could not be resolved
+  /// (no entry — see [_threadAttachmentSupport]), falls back to the room-level
+  /// capability. An undetermined thread must not collapse to `false` here, as
+  /// that would hide attachments on a thread whose state simply hasn't
+  /// resolved yet.
+  bool _attachEnabledForThread(String threadId, Room? room) =>
+      _threadAttachmentSupport[threadId] ??
+      (room?.supportsAttachments ?? false);
 
   /// Seeds the resolved selection — but only if the thread is still active and
   /// the user hasn't already made a selection for it during the async load
@@ -1576,9 +1593,8 @@ class _RoomScreenState extends State<RoomScreen> {
         ? _state.uploadTracker.roomUploads(widget.roomId).watch(context)
         : const UploadsLoaded(<DisplayUpload>[]);
     final threadId = threadView?.threadId;
-    final threadAttachEnabled = threadId != null
-        ? (_threadAttachmentSupport[threadId] ?? roomAttachEnabled)
-        : false;
+    final threadAttachEnabled =
+        threadId != null && _attachEnabledForThread(threadId, room);
     final UploadsStatus threadStatus = threadAttachEnabled
         ? _state.uploadTracker
             .threadUploads(widget.roomId, threadId)
@@ -1996,8 +2012,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final streaming = threadView.streamingState.watch(context);
     final sendError = threadView.lastSendError.watch(context);
     final reconnectStatus = threadView.reconnectStatus.watch(context);
-    final attachEnabled = _threadAttachmentSupport[threadView.threadId] ??
-        (room?.supportsAttachments ?? false);
+    final attachEnabled = _attachEnabledForThread(threadView.threadId, room);
 
     _restoreUnsentText(sendError?.unsentText);
 
@@ -2112,9 +2127,7 @@ class _RoomScreenState extends State<RoomScreen> {
   ) {
     final threadId = threadView?.threadId;
     final attachEnabled = threadId != null
-        ? (_threadAttachmentSupport[threadId] ??
-            room?.supportsAttachments ??
-            false)
+        ? _attachEnabledForThread(threadId, room)
         : (room?.supportsAttachments ?? false);
     VoidCallback? attachCallback(Future<PickFilesResult?> Function() pick) {
       if (!attachEnabled) return null;

@@ -65,6 +65,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- The file-attachment button no longer disappears on a freshly created thread.
+  A new thread's attachment support cannot be read from its history until its
+  first reply arrives, and that undetermined state was being treated as
+  "unsupported"; the composer now keeps the room's attachment capability in
+  that window instead of hiding the button.
 - Citations now appear for agents whose sources arrive under a non-`rag` state
   namespace (such as the analysis agent). Citation extraction reads every
   citation-bearing namespace in the agent state rather than only `rag`, so a
