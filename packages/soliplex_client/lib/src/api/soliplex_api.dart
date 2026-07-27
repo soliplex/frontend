@@ -20,6 +20,7 @@ import 'package:soliplex_client/src/domain/rag_document.dart';
 import 'package:soliplex_client/src/domain/room.dart';
 import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
+import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
@@ -969,6 +970,9 @@ class SoliplexApi {
     var streaming = const AwaitingText() as StreamingState;
     final extractor = CitationExtractor();
     final messageStates = <String, MessageState>{};
+    // Citation ids accumulated per turn (keyed by the run's last user message
+    // id), unioned across every run of the turn — mirroring the live path.
+    final citationIdsByUserMessage = <String, Set<String>>{};
     final runs = <RunEventBundle>[];
 
     for (final (:runId, :events, :fetchError, :created) in eventsPerRun) {
@@ -992,9 +996,6 @@ class SoliplexApi {
           ),
         );
       }
-
-      // Capture AG-UI state before processing this run
-      final previousAguiState = conversation.aguiState;
 
       // Find user message ID from LAST TEXT_MESSAGE_START with role=user.
       // The run_input.messages contains ALL conversation messages, but the
@@ -1112,6 +1113,27 @@ class SoliplexApi {
               );
               conversation = result.conversation;
               streaming = result.streaming;
+              // Accumulate the citation ids this StateDeltaEvent cited, scoped
+              // to the namespaces it touched, into the turn's set — one skill
+              // invocation's absolute cited set. Snapshots echo the
+              // round-tripped seed and are intentionally not accumulated. Own
+              // fail-soft guard (log-only, never a drop tile): the event
+              // already processed, and citations are a derived projection.
+              if (event is StateDeltaEvent && userMessageId != null) {
+                try {
+                  (citationIdsByUserMessage[userMessageId] ??= <String>{})
+                      .addAll(
+                    extractor.citationIdsInDelta(conversation.aguiState, event),
+                  );
+                } on Object catch (error, stackTrace) {
+                  _logger.error(
+                    'replay: citation id accumulation failed in run $runId of '
+                    'thread $threadId.',
+                    error: error,
+                    stackTrace: stackTrace,
+                  );
+                }
+              }
             } on Object catch (error, stackTrace) {
               appendDrop(
                 source: DropSource.eventProcessing,
@@ -1126,12 +1148,32 @@ class SoliplexApi {
       }
       runs.add(RunEventBundle(runId: runId, events: decodedEvents));
 
-      // Extract new citations by comparing state before/after this run
+      // Resolve the turn's accumulated ids against this run's end-of-turn state
+      // and (re)emit its MessageState — the turn's last run wins, mirroring the
+      // live path's resolve-at-every-terminal. Resolving against the run's own
+      // state is what preserves a turn's inline figure bytes: `searches` is
+      // per-invocation and a later turn overwrites it, while `citation_index`
+      // stays session-cumulative so the ids still resolve. A turn that cited
+      // nothing still gets a MessageState carrying its runId.
       if (userMessageId != null) {
-        final sourceReferences = extractor.extractNew(
-          previousAguiState,
-          conversation.aguiState,
-        );
+        var sourceReferences = const <SourceReference>[];
+        try {
+          sourceReferences = extractor.resolve(
+            citationIdsByUserMessage[userMessageId] ?? const <String>{},
+            conversation.aguiState,
+            logContext: 'run $runId, thread $threadId',
+          );
+        } on Object catch (error, stackTrace) {
+          // Fail-soft, mirroring the live orchestrator path: citations are a
+          // derived projection, so a resolution failure must not abort the
+          // history load. Emit the MessageState with its runId and no refs.
+          _logger.error(
+            'replay: citation resolution failed for run $runId in thread '
+            '$threadId.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
         messageStates[userMessageId] = MessageState(
           userMessageId: userMessageId,
           sourceReferences: sourceReferences,

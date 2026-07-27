@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:mocktail/mocktail.dart';
 // SoliplexApi uses our local CancelToken, not ag_ui's.
 // Hide ag_ui's CancelToken to avoid ambiguity.
@@ -3723,7 +3725,7 @@ void main() {
       });
 
       test(
-        'populates messageStates from per-run STATE_SNAPSHOT events',
+        'populates messageStates from per-run STATE_DELTA events',
         () async {
           // Thread with two completed runs
           when(
@@ -3757,7 +3759,7 @@ void main() {
             },
           );
 
-          // Run 1: user message + STATE_SNAPSHOT with one citation turn
+          // Run 1: user message + STATE_DELTA citing chunk-1
           when(
             () => mockTransport.request<Map<String, dynamic>>(
               'GET',
@@ -3781,20 +3783,24 @@ void main() {
               },
               'events': [
                 {
-                  'type': 'STATE_SNAPSHOT',
-                  'snapshot': {
-                    'rag': {
-                      'citation_index': {
-                        'chunk-1': {
-                          'document_id': 'doc-1',
-                          'chunk_id': 'chunk-1',
-                          'document_uri': 'file:///doc1.pdf',
-                          'content': 'Citation 1 content',
+                  'type': 'STATE_DELTA',
+                  'delta': [
+                    {
+                      'op': 'add',
+                      'path': '/rag',
+                      'value': {
+                        'citation_index': {
+                          'chunk-1': {
+                            'document_id': 'doc-1',
+                            'chunk_id': 'chunk-1',
+                            'document_uri': 'file:///doc1.pdf',
+                            'content': 'Citation 1 content',
+                          },
                         },
+                        'citations': ['chunk-1'],
                       },
-                      'citations': ['chunk-1'],
                     },
-                  },
+                  ],
                 },
                 {
                   'type': 'TEXT_MESSAGE_START',
@@ -3816,7 +3822,7 @@ void main() {
             },
           );
 
-          // Run 2: user message + STATE_SNAPSHOT with citations[0, 1]
+          // Run 2: user message + STATE_DELTA citing chunk-2 (index cumulative)
           when(
             () => mockTransport.request<Map<String, dynamic>>(
               'GET',
@@ -3842,26 +3848,30 @@ void main() {
               },
               'events': [
                 {
-                  'type': 'STATE_SNAPSHOT',
-                  'snapshot': {
-                    'rag': {
-                      'citation_index': {
-                        'chunk-1': {
-                          'document_id': 'doc-1',
-                          'chunk_id': 'chunk-1',
-                          'document_uri': 'file:///doc1.pdf',
-                          'content': 'Citation 1 content',
+                  'type': 'STATE_DELTA',
+                  'delta': [
+                    {
+                      'op': 'add',
+                      'path': '/rag',
+                      'value': {
+                        'citation_index': {
+                          'chunk-1': {
+                            'document_id': 'doc-1',
+                            'chunk_id': 'chunk-1',
+                            'document_uri': 'file:///doc1.pdf',
+                            'content': 'Citation 1 content',
+                          },
+                          'chunk-2': {
+                            'document_id': 'doc-2',
+                            'chunk_id': 'chunk-2',
+                            'document_uri': 'file:///doc2.pdf',
+                            'content': 'Citation 2 content',
+                          },
                         },
-                        'chunk-2': {
-                          'document_id': 'doc-2',
-                          'chunk_id': 'chunk-2',
-                          'document_uri': 'file:///doc2.pdf',
-                          'content': 'Citation 2 content',
-                        },
+                        'citations': ['chunk-2'],
                       },
-                      'citations': ['chunk-2'],
                     },
-                  },
+                  ],
                 },
                 {
                   'type': 'TEXT_MESSAGE_START',
@@ -3906,8 +3916,313 @@ void main() {
         },
       );
 
-      test('messageStates is empty when no STATE_SNAPSHOT events', () async {
-        // Thread with one run, no STATE_SNAPSHOT
+      test(
+        'run 2 keeps a chunk re-cited from run 1 (no cross-run subtraction)',
+        () async {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'finished': '2026-01-07T01:01:00.000Z',
+                },
+                'run-2': {
+                  'run_id': 'run-2',
+                  'created': '2026-01-07T02:00:00.000Z',
+                  'finished': '2026-01-07T02:01:00.000Z',
+                },
+              },
+            },
+          );
+
+          // Run 1 cites chunk-1.
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/'
+                'agui/thread-456/run-1',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'run_id': 'run-1',
+              'run_input': {
+                'messages': [
+                  {'id': 'user-1', 'role': 'user', 'content': 'Question 1'},
+                ],
+              },
+              'events': [
+                {
+                  'type': 'STATE_DELTA',
+                  'delta': [
+                    {
+                      'op': 'add',
+                      'path': '/rag',
+                      'value': {
+                        'citation_index': {
+                          'chunk-1': {
+                            'document_id': 'doc-1',
+                            'chunk_id': 'chunk-1',
+                            'document_uri': 'file:///doc1.pdf',
+                            'content': 'Citation 1 content',
+                          },
+                        },
+                        'citations': ['chunk-1'],
+                      },
+                    },
+                  ],
+                },
+                {'type': 'TEXT_MESSAGE_START', 'messageId': 'asst-1'},
+                {
+                  'type': 'TEXT_MESSAGE_CONTENT',
+                  'messageId': 'asst-1',
+                  'delta': 'Answer 1',
+                },
+                {'type': 'TEXT_MESSAGE_END', 'messageId': 'asst-1'},
+                {
+                  'type': 'RUN_FINISHED',
+                  'thread_id': 'thread-456',
+                  'run_id': 'run-1',
+                },
+              ],
+            },
+          );
+
+          // Run 2 re-cites chunk-1 and adds chunk-2 (index session-cumulative).
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/'
+                'agui/thread-456/run-2',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer(
+            (_) async => {
+              'run_id': 'run-2',
+              'run_input': {
+                'messages': [
+                  {'id': 'user-1', 'role': 'user', 'content': 'Question 1'},
+                  {'id': 'asst-1', 'role': 'assistant', 'content': 'Answer 1'},
+                  {'id': 'user-2', 'role': 'user', 'content': 'Question 2'},
+                ],
+              },
+              'events': [
+                {
+                  'type': 'STATE_DELTA',
+                  'delta': [
+                    {
+                      'op': 'add',
+                      'path': '/rag',
+                      'value': {
+                        'citation_index': {
+                          'chunk-1': {
+                            'document_id': 'doc-1',
+                            'chunk_id': 'chunk-1',
+                            'document_uri': 'file:///doc1.pdf',
+                            'content': 'Citation 1 content',
+                          },
+                          'chunk-2': {
+                            'document_id': 'doc-2',
+                            'chunk_id': 'chunk-2',
+                            'document_uri': 'file:///doc2.pdf',
+                            'content': 'Citation 2 content',
+                          },
+                        },
+                        'citations': ['chunk-1', 'chunk-2'],
+                      },
+                    },
+                  ],
+                },
+                {'type': 'TEXT_MESSAGE_START', 'messageId': 'asst-2'},
+                {
+                  'type': 'TEXT_MESSAGE_CONTENT',
+                  'messageId': 'asst-2',
+                  'delta': 'Answer 2',
+                },
+                {'type': 'TEXT_MESSAGE_END', 'messageId': 'asst-2'},
+                {
+                  'type': 'RUN_FINISHED',
+                  'thread_id': 'thread-456',
+                  'run_id': 'run-2',
+                },
+              ],
+            },
+          );
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(history.messageStates, hasLength(2));
+
+          final state1 = history.messageStates['user-1']!;
+          expect(state1.sourceReferences.map((r) => r.chunkId), ['chunk-1']);
+          expect(state1.runId, 'run-1');
+
+          // Run 2 re-cited chunk-1; it must NOT be subtracted just because
+          // run 1 cited it (Issues 1 + 4).
+          final state2 = history.messageStates['user-2']!;
+          expect(
+            state2.sourceReferences.map((r) => r.chunkId),
+            containsAll(<String>['chunk-1', 'chunk-2']),
+          );
+          expect(state2.sourceReferences, hasLength(2));
+          expect(state2.runId, 'run-2');
+        },
+      );
+
+      test('unions multiple STATE_DELTA events within a single run', () async {
+        // One run, two skill invocations → two deltas; each carries only its
+        // invocation's citations (index session-cumulative). The turn's
+        // resolved set is the union of both deltas, not just the last.
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/'
+              'agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Question 1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'Citation 1 content',
+                        },
+                      },
+                      'citations': ['chunk-1'],
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'Citation 1 content',
+                        },
+                        'chunk-2': {
+                          'document_id': 'doc-2',
+                          'chunk_id': 'chunk-2',
+                          'document_uri': 'file:///doc2.pdf',
+                          'content': 'Citation 2 content',
+                        },
+                      },
+                      'citations': ['chunk-2'],
+                    },
+                  },
+                ],
+              },
+              {'type': 'TEXT_MESSAGE_START', 'messageId': 'asst-1'},
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'asst-1',
+                'delta': 'Answer',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'asst-1'},
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+
+        expect(history.messageStates, hasLength(1));
+        final state = history.messageStates['user-1']!;
+        expect(
+          state.sourceReferences.map((r) => r.chunkId),
+          containsAll(<String>['chunk-1', 'chunk-2']),
+        );
+        expect(state.sourceReferences, hasLength(2));
+      });
+
+      test('messageStates carries runId with no citation events', () async {
+        // Thread with one run, no STATE_DELTA
         when(
           () => mockTransport.request<Map<String, dynamic>>(
             'GET',
@@ -3983,6 +4298,267 @@ void main() {
         expect(history.messageStates, hasLength(1));
         expect(history.messageStates['user-1']!.sourceReferences, isEmpty);
         expect(history.messageStates['user-1']!.runId, 'run-1');
+      });
+
+      group('per-turn citation scoping', () {
+        // Stubs a GET on the room/thread base for [path], returning [response].
+        void stubGet(String path, Map<String, dynamic> response) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/$path',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => response);
+        }
+
+        Map<String, dynamic> twoRunThread() => {
+              'room_id': 'room-123',
+              'thread_id': 'thread-456',
+              'runs': {
+                'run-1': {
+                  'run_id': 'run-1',
+                  'created': '2026-01-07T01:00:00.000Z',
+                  'finished': '2026-01-07T01:01:00.000Z',
+                },
+                'run-2': {
+                  'run_id': 'run-2',
+                  'created': '2026-01-07T02:00:00.000Z',
+                  'finished': '2026-01-07T02:01:00.000Z',
+                },
+              },
+            };
+
+        test('run 2 (analysis only) does not inherit run 1 rag citations',
+            () async {
+          stubGet('thread-456', twoRunThread());
+          // Run 1: the rag skill cites chunk-1.
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'Citation 1',
+                        },
+                      },
+                      'citations': ['chunk-1'],
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          // Run 2: only the analysis skill runs (cites chunk-2). The rebase
+          // snapshot round-trips run 1's rag block (citations=[chunk-1]), which
+          // run 2 never touches — so chunk-1 must not be attributed to run 2.
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+                {'id': 'asst-1', 'role': 'assistant', 'content': 'A1'},
+                {'id': 'user-2', 'role': 'user', 'content': 'Q2'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1': {
+                        'document_id': 'doc-1',
+                        'chunk_id': 'chunk-1',
+                        'document_uri': 'file:///doc1.pdf',
+                        'content': 'Citation 1',
+                      },
+                    },
+                    'citations': ['chunk-1'],
+                  },
+                },
+              },
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/analysis',
+                    'value': {
+                      'citation_index': {
+                        'chunk-2': {
+                          'document_id': 'doc-2',
+                          'chunk_id': 'chunk-2',
+                          'document_uri': 'file:///doc2.pdf',
+                          'content': 'Citation 2',
+                        },
+                      },
+                      'citations': ['chunk-2'],
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.messageStates['user-1']!.sourceReferences
+                .map((r) => r.chunkId),
+            ['chunk-1'],
+          );
+          expect(
+            history.messageStates['user-2']!.sourceReferences
+                .map((r) => r.chunkId),
+            ['chunk-2'],
+          );
+        });
+
+        test(
+            'an earlier turn keeps its figure bytes after a later turn wipes '
+            'searches', () async {
+          stubGet('thread-456', twoRunThread());
+          // Run 1: cites chunk-1, whose figure bytes live in this run's
+          // searches (stage-1 image_data).
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'cites Fig 1',
+                          'picture_refs': ['#/pictures/0'],
+                        },
+                      },
+                      'citations': ['chunk-1'],
+                      'searches': {
+                        'q1': [
+                          {
+                            'content': 'cites Fig 1',
+                            'document_id': 'doc-1',
+                            'image_data': {'#/pictures/0': 'aGVsbG8='},
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          // Run 2: cites chunk-9 and replaces the rag block — citation_index
+          // stays cumulative, but searches now holds only run 2's results, so
+          // chunk-1's figure is gone from the thread's final state. Resolving
+          // run 1 against the final state would drop its figure; resolving
+          // against run 1's own end-of-turn state keeps it.
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+                {'id': 'asst-1', 'role': 'assistant', 'content': 'A1'},
+                {'id': 'user-2', 'role': 'user', 'content': 'Q2'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'cites Fig 1',
+                          'picture_refs': ['#/pictures/0'],
+                        },
+                        'chunk-9': {
+                          'document_id': 'doc-9',
+                          'chunk_id': 'chunk-9',
+                          'document_uri': 'file:///doc9.pdf',
+                          'content': 'Citation 9',
+                        },
+                      },
+                      'citations': ['chunk-9'],
+                      'searches': {
+                        'q2': [
+                          {'content': 'Citation 9', 'document_id': 'doc-9'},
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          final ref = history.messageStates['user-1']!.sourceReferences.single;
+          expect(ref.chunkId, 'chunk-1');
+          expect(ref.figures, hasLength(1));
+          expect(ref.figures.single.ref, '#/pictures/0');
+          expect(ref.figures.single.bytes, base64Decode('aGVsbG8='));
+        });
       });
 
       test('populates runs with decoded events in arrival order', () async {
