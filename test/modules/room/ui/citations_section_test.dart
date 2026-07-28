@@ -153,6 +153,53 @@ void main() {
     expect(find.text('Preview text here'), findsOneWidget);
   });
 
+  testWidgets(
+      'transcript stays collapsed and non-scrolling until asked to expand',
+      (tester) async {
+    // Issue #451: an expanded citation must not trap the thread's scroll. The
+    // transcript preview is non-scrolling by default; only an explicit expand
+    // turns it into an internally-scrollable band.
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, title: 'Doc', content: 'Cited passage body'),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    await tester.tap(find.text('Doc'));
+    await tester.pump();
+
+    SingleChildScrollView transcriptScroller() => tester.widget(
+          find.ancestor(
+            of: find.byType(FlutterMarkdownPlusRenderer),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        );
+
+    // Collapsed: the invite shows and the preview can't consume scroll, so the
+    // thread scrolls straight past it.
+    expect(find.text('Show full transcript'), findsOneWidget);
+    expect(find.text('Show less'), findsNothing);
+    expect(
+      transcriptScroller().physics,
+      isA<NeverScrollableScrollPhysics>(),
+    );
+
+    // Expanded: the reader opts into the inner scroll for this one passage.
+    await tester.tap(find.text('Show full transcript'));
+    await tester.pump();
+
+    expect(find.text('Show less'), findsOneWidget);
+    expect(find.text('Show full transcript'), findsNothing);
+    expect(
+      transcriptScroller().physics,
+      isNot(isA<NeverScrollableScrollPhysics>()),
+    );
+  });
+
   testWidgets('expanded row shows the chunk id', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(

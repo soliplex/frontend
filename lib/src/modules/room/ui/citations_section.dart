@@ -22,6 +22,15 @@ final _logger = LogManager.instance.getLogger('soliplex_frontend.citations');
 /// Not on the spacing scale — a component dimension, kept in one place.
 const double _figureThumbnailSize = 120;
 
+/// Height of the cited transcript when collapsed: a few lines of the passage,
+/// shown *non-scrolling* so scrolling the thread past a run of expanded
+/// citations doesn't get trapped in a nested scrollbox (issue #451).
+/// A component dimension, off the spacing scale, kept beside its expanded peer.
+const double _transcriptCollapsedHeight = 72;
+
+/// Max height of the expanded, internally-scrollable transcript band.
+const double _transcriptExpandedMaxHeight = 250;
+
 /// Fallback label shown when a cited figure can't be decoded.
 const String _figureUnavailableLabel = 'Figure unavailable';
 
@@ -297,20 +306,7 @@ class _SourceReferenceRow extends StatelessWidget {
             if (sourceReference.figures.isNotEmpty &&
                 sourceReference.headings.isEmpty)
               const SizedBox(height: SoliplexSpacing.s2),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 250),
-              padding: const EdgeInsets.all(SoliplexSpacing.s2),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(context.radii.md),
-              ),
-              child: SingleChildScrollView(
-                child: FlutterMarkdownPlusRenderer(
-                  data: sourceReference.content,
-                  selectable: false,
-                ),
-              ),
-            ),
+            _CitationTranscript(content: sourceReference.content),
           ],
           const SizedBox(height: SoliplexSpacing.s2),
           _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
@@ -347,6 +343,103 @@ class _SourceReferenceRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The cited passage's transcript.
+///
+/// Collapsed by default to a few non-scrolling lines, so scrolling the thread
+/// past a run of expanded citations passes straight through instead of getting
+/// trapped in a nested scrollbox (issue #451). Expanding lifts it to a bounded,
+/// internally-scrollable band — the reader opts into the inner scroll only for
+/// the one passage they want to read in full.
+class _CitationTranscript extends StatefulWidget {
+  const _CitationTranscript({required this.content});
+
+  final String content;
+
+  @override
+  State<_CitationTranscript> createState() => _CitationTranscriptState();
+}
+
+class _CitationTranscriptState extends State<_CitationTranscript> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final markdown = FlutterMarkdownPlusRenderer(
+      data: widget.content,
+      selectable: false,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(context.radii.md),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(SoliplexSpacing.s2),
+            child: _expanded
+                ? ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: _transcriptExpandedMaxHeight,
+                    ),
+                    child: SingleChildScrollView(child: markdown),
+                  )
+                : _CollapsedTranscript(child: markdown),
+          ),
+        ),
+        // Toggle mirrors the figure caption's more/less idiom below.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
+            child: Text(
+              _expanded ? 'Show less' : 'Show full transcript',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A fixed-height, non-scrolling preview of the transcript. The
+/// [NeverScrollableScrollPhysics] clips the overflow to the band *without*
+/// consuming scroll gestures, so the surrounding thread keeps scrolling; a
+/// bottom fade signals that the passage continues (issue #451).
+class _CollapsedTranscript extends StatelessWidget {
+  const _CollapsedTranscript({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _transcriptCollapsedHeight,
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black, Colors.black, Colors.transparent],
+          stops: [0.0, 0.6, 1.0],
+        ).createShader(rect),
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: child,
         ),
       ),
     );
