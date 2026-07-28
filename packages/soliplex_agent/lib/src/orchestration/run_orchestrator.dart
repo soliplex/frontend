@@ -84,12 +84,13 @@ class RunOrchestrator {
 
   final CitationExtractor _citationExtractor = CitationExtractor();
 
-  /// Union of citation ids seen in this turn's `StateDeltaEvent`s. Each delta's
-  /// touched namespace holds one skill invocation's absolute cited set (via
-  /// [CitationExtractor.citationIdsInDelta]); the union across the turn is its
-  /// complete set. Cleared at turn start (and on reset/sync). See
-  /// [_extractCitations].
-  final Set<String> _turnCitationIds = <String>{};
+  /// Citations accumulated across this turn's `StateDeltaEvent`s — the union of
+  /// cited ids and inline figures. Each delta's touched namespace holds one
+  /// skill invocation's absolute cited set and figures (via
+  /// [CitationExtractor.accumulate]); the union across the turn is its complete
+  /// set, preserving figures a later invocation's `searches` clear would drop.
+  /// Cleared at turn start (and on reset/sync). See [_extractCitations].
+  TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
   final StreamController<RunState> _controller =
@@ -333,7 +334,7 @@ class RunOrchestrator {
     _guardNotDisposed();
     _cancelToken?.cancel();
     _cleanup();
-    _turnCitationIds.clear();
+    _turnCitations = const TurnCitations.empty();
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -350,7 +351,7 @@ class RunOrchestrator {
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('Cannot sync while a run is active');
     }
-    _turnCitationIds.clear();
+    _turnCitations = const TurnCitations.empty();
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -813,7 +814,7 @@ class RunOrchestrator {
     final baseState = cachedHistory?.aguiState ?? const {};
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
-    _turnCitationIds.clear();
+    _turnCitations = const TurnCitations.empty();
     _userMessageId = userMsg.id;
     return Conversation(
       threadId: key.threadId,
@@ -917,22 +918,21 @@ class RunOrchestrator {
         try {
           final result =
               processEvent(running.conversation, running.streaming, event);
-          // Accumulate the citation ids this StateDeltaEvent cited, scoped to
-          // the namespaces it touched — one skill invocation's absolute cited
-          // set. Snapshots are intentionally not accumulated: they only echo
-          // the round-tripped seed. Fail-soft because citations are a derived
-          // projection.
+          // Accumulate the citations and inline figures this StateDeltaEvent
+          // cited, scoped to the namespaces it touched — one skill invocation's
+          // absolute cited set. Snapshots are intentionally not accumulated:
+          // they only echo the round-tripped seed. Fail-soft because citations
+          // are a derived projection.
           if (event is StateDeltaEvent) {
             try {
-              _turnCitationIds.addAll(
-                _citationExtractor.citationIdsInDelta(
-                  result.conversation.aguiState,
-                  event,
-                ),
+              _turnCitations = _citationExtractor.accumulate(
+                _turnCitations,
+                result.conversation.aguiState,
+                event,
               );
             } on Object catch (e, st) {
               _logger.error(
-                'Citation id accumulation failed on run ${running.runId}',
+                'Citation accumulation failed on run ${running.runId}',
                 error: e,
                 stackTrace: st,
               );
@@ -1085,7 +1085,7 @@ class RunOrchestrator {
     }
   }
 
-  /// Resolves this turn's accumulated citation ids ([_turnCitationIds]) against
+  /// Resolves this turn's accumulated citations ([_turnCitations]) against
   /// the current AG-UI state and writes them to the turn's [MessageState].
   ///
   /// Always creates a [MessageState] with the [runId] so downstream consumers
@@ -1114,7 +1114,7 @@ class RunOrchestrator {
     var citations = const <SourceReference>[];
     try {
       citations = _citationExtractor.resolve(
-        _turnCitationIds,
+        _turnCitations,
         conversation.aguiState,
         logContext: 'run $runId',
       );

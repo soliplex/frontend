@@ -32,17 +32,20 @@ void main() {
 
     test('returns the caption for a captioned ref', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureCaption('doc-1', '#/pictures/0'), 'Figure 1: revenue');
+      expect(
+        snap.figures.pictureCaption('doc-1', '#/pictures/0'),
+        'Figure 1: revenue',
+      );
     });
 
     test('returns null for a ref with bytes but no caption', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureCaption('doc-1', '#/pictures/1'), isNull);
+      expect(snap.figures.pictureCaption('doc-1', '#/pictures/1'), isNull);
     });
 
     test('returns null for the wrong document', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureCaption('doc-2', '#/pictures/0'), isNull);
+      expect(snap.figures.pictureCaption('doc-2', '#/pictures/0'), isNull);
     });
   });
 }

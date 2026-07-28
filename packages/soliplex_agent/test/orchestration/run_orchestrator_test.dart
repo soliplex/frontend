@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -2323,6 +2324,7 @@ void main() {
       String namespace, {
       required Map<String, Map<String, dynamic>> citationIndex,
       required List<String> citations,
+      Map<String, dynamic>? searches,
     }) =>
         StateDeltaEvent(
           delta: [
@@ -2332,6 +2334,7 @@ void main() {
               'value': {
                 'citation_index': citationIndex,
                 'citations': citations,
+                if (searches != null) 'searches': searches,
               },
             },
           ],
@@ -2340,18 +2343,43 @@ void main() {
     StateDeltaEvent ragDelta({
       required Map<String, Map<String, dynamic>> citationIndex,
       required List<String> citations,
+      Map<String, dynamic>? searches,
     }) =>
         namespaceDelta(
           'rag',
           citationIndex: citationIndex,
           citations: citations,
+          searches: searches,
         );
 
-    Map<String, dynamic> citation(String chunkId) => {
+    Map<String, dynamic> citation(
+      String chunkId, {
+      String documentId = 'doc-1',
+      List<String>? pictureRefs,
+    }) =>
+        {
           'chunk_id': chunkId,
           'content': 'Citation text',
-          'document_id': 'doc-1',
+          'document_id': documentId,
           'document_uri': 'https://example.com/doc.pdf',
+          if (pictureRefs != null) 'picture_refs': pictureRefs,
+        };
+
+    /// One retrieval row carrying an inline figure's base64 bytes, shaped like
+    /// a `rag.searches` entry.
+    Map<String, dynamic> figureSearch(
+      String documentId,
+      String ref,
+      String base64Bytes,
+    ) =>
+        {
+          'q': [
+            {
+              'content': 'row',
+              'document_id': documentId,
+              'image_data': {ref: base64Bytes},
+            },
+          ],
         };
 
     List<BaseEvent> citationEvents() => [
@@ -2438,6 +2466,54 @@ void main() {
         refs.map((r) => r.chunkId),
         containsAll(<String>['chunk-1', 'chunk-2']),
       );
+    });
+
+    test('keeps an earlier invocation figure after a later one wipes searches',
+        () async {
+      // Two skill invocations in one run. Invocation 1 cites chunk-1, whose
+      // inline figure bytes ride its searches; invocation 2 cites chunk-2 and
+      // REPLACES the rag block, so searches no longer holds chunk-1's figure.
+      // The turn-level figure accumulator must preserve it.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          ragDelta(
+            citationIndex: {
+              'chunk-1': citation('chunk-1', pictureRefs: ['#/pictures/0']),
+            },
+            citations: ['chunk-1'],
+            searches: figureSearch('doc-1', '#/pictures/0', 'aGVsbG8='),
+          ),
+          ragDelta(
+            citationIndex: {
+              'chunk-1': citation('chunk-1', pictureRefs: ['#/pictures/0']),
+              'chunk-2': citation('chunk-2', documentId: 'doc-2'),
+            },
+            citations: ['chunk-2'],
+            searches: const {
+              'q': [
+                {'content': 'row', 'document_id': 'doc-2'},
+              ],
+            },
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+      final chunk1 = refs.firstWhere((r) => r.chunkId == 'chunk-1');
+      expect(chunk1.figures, hasLength(1));
+      expect(chunk1.figures.single.ref, '#/pictures/0');
+      expect(chunk1.figures.single.bytes, utf8.encode('hello'));
     });
 
     test('excludes a stale sibling namespace this run never invoked', () async {

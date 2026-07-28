@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/domain/surface.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -37,96 +38,127 @@ typedef _PictureKey = ({String documentId, String ref});
 _PictureKey _pictureKey(String documentId, String ref) =>
     (documentId: documentId, ref: ref);
 
-/// The two picture indexes built from a `rag` state's `searches`, both keyed
-/// by [_pictureKey]: base64 `bytes` for directly-retrieved figures and their
-/// `captions`. Captions are indexed only for rows that carry `image_data`, so
-/// a caption only surfaces for a figure that renders inline.
-typedef _PictureIndex = ({
-  Map<_PictureKey, String> bytes,
-  Map<_PictureKey, String> captions,
-});
-
-/// Builds the picture indexes from a `rag` state's `searches`.
+/// A union of inline figure bytes and captions retrieved across some scope,
+/// keyed by [_pictureKey] (`(documentId, ref)`): base64 `bytes` for directly-
+/// retrieved figures and their `captions`. Captions are indexed only for rows
+/// that carry `image_data`, so a caption only surfaces for a figure that
+/// renders inline. The index holds every retrieved figure; the citing subset
+/// is selected later, when a citation's `pictureRefs` are resolved.
 ///
-/// The builder reads only the fields it needs — `document_id` (raw),
-/// `image_data`, and `picture_captions` (via the shared parsers) — rather than
-/// building a whole [SearchResult], so an unrelated malformed field on a row
-/// can't drop that row's figures. A malformed shape is skipped and logged; a
-/// row that simply carries no `image_data` is silently ignored (the normal
-/// figure-less case).
-_PictureIndex _indexPictures(Map<String, dynamic> json) {
-  final bytes = <_PictureKey, String>{};
-  final captions = <_PictureKey, String>{};
-  final raw = json['searches'];
-  if (raw is! Map) {
-    if (raw != null) {
-      _logger.warning(
-        'RagSnapshot: expected `searches` to be a Map, '
-        'got ${raw.runtimeType}; no cited-figure bytes indexed.',
-      );
-    }
-    return (bytes: bytes, captions: captions);
-  }
-  for (final search in raw.entries) {
-    final results = search.value;
-    if (results is! List) {
-      _logger.warning(
-        'RagSnapshot: skipping searches[${search.key}] with non-List value '
-        '(runtimeType=${results.runtimeType}).',
-      );
-      continue;
-    }
-    for (var i = 0; i < results.length; i++) {
-      final item = results[i];
-      if (item is! Map<String, dynamic>) {
-        _logger.warning(
-          'RagSnapshot: skipping non-Map searches[${search.key}][$i] '
-          '(runtimeType=${item.runtimeType}).',
-        );
-        continue;
-      }
-      final imageData = SearchResult.parseImageData(item['image_data']);
-      if (imageData.isEmpty) continue;
-      final docId = item['document_id'];
-      if (docId is! String) {
-        _logger.warning(
-          'RagSnapshot: dropping figures on searches[${search.key}][$i] '
-          'with non-String document_id (runtimeType=${docId.runtimeType}).',
-        );
-        continue;
-      }
-      final captionData =
-          SearchResult.parsePictureCaptions(item['picture_captions']);
-      imageData.forEach((ref, b64) {
-        bytes.putIfAbsent(_pictureKey(docId, ref), () => b64);
-      });
-      captionData.forEach((ref, text) {
-        if (text.isNotEmpty) {
-          captions.putIfAbsent(_pictureKey(docId, ref), () => text);
-        }
-      });
-    }
-  }
-  return (bytes: bytes, captions: captions);
-}
+/// The backend clears a `rag` state's `searches` — the only source of these
+/// bytes — at the start of every skill invocation, so the last invocation's
+/// state carries only its own figures. Accumulating a [CitedFigures] union
+/// across a turn's invocations preserves earlier invocations' figures. Bytes
+/// for a given `(documentId, ref)` are identity-stable, so [merge] is an
+/// unambiguous union (no precedence to resolve).
+@immutable
+class CitedFigures {
+  const CitedFigures._(this._bytes, this._captions);
 
-/// Decodes an indexed picture ref to bytes, or null when absent / undecodable.
-Uint8List? _decodePicture(
-  Map<_PictureKey, String> index,
-  String documentId,
-  String ref,
-) {
-  final b64 = index[_pictureKey(documentId, ref)];
-  if (b64 == null) return null;
-  try {
-    return base64Decode(b64);
-  } on FormatException catch (error) {
-    _logger.warning(
-      'RagSnapshot: picture ref "$ref" has undecodable base64; dropped.',
-      error: error,
-    );
-    return null;
+  /// An empty union — the identity element for [merge].
+  const CitedFigures.empty()
+      : _bytes = const {},
+        _captions = const {};
+
+  /// Builds the figure union from a single `rag` state block's `searches`.
+  ///
+  /// Reads only the fields it needs — `document_id` (raw), `image_data`, and
+  /// `picture_captions` (via the shared parsers) — rather than building a whole
+  /// [SearchResult], so an unrelated malformed field on a row can't drop that
+  /// row's figures. A malformed shape is skipped and logged; a row that simply
+  /// carries no `image_data` is silently ignored (the normal figure-less case).
+  factory CitedFigures.fromSearches(Map<String, dynamic> ragBlock) {
+    final bytes = <_PictureKey, String>{};
+    final captions = <_PictureKey, String>{};
+    final raw = ragBlock['searches'];
+    if (raw is! Map) {
+      if (raw != null) {
+        _logger.warning(
+          'RagSnapshot: expected `searches` to be a Map, '
+          'got ${raw.runtimeType}; no cited-figure bytes indexed.',
+        );
+      }
+      return CitedFigures._(bytes, captions);
+    }
+    for (final search in raw.entries) {
+      final results = search.value;
+      if (results is! List) {
+        _logger.warning(
+          'RagSnapshot: skipping searches[${search.key}] with non-List value '
+          '(runtimeType=${results.runtimeType}).',
+        );
+        continue;
+      }
+      for (var i = 0; i < results.length; i++) {
+        final item = results[i];
+        if (item is! Map<String, dynamic>) {
+          _logger.warning(
+            'RagSnapshot: skipping non-Map searches[${search.key}][$i] '
+            '(runtimeType=${item.runtimeType}).',
+          );
+          continue;
+        }
+        final imageData = SearchResult.parseImageData(item['image_data']);
+        if (imageData.isEmpty) continue;
+        final docId = item['document_id'];
+        if (docId is! String) {
+          _logger.warning(
+            'RagSnapshot: dropping figures on searches[${search.key}][$i] '
+            'with non-String document_id (runtimeType=${docId.runtimeType}).',
+          );
+          continue;
+        }
+        final captionData =
+            SearchResult.parsePictureCaptions(item['picture_captions']);
+        imageData.forEach((ref, b64) {
+          bytes.putIfAbsent(_pictureKey(docId, ref), () => b64);
+        });
+        captionData.forEach((ref, text) {
+          if (text.isNotEmpty) {
+            captions.putIfAbsent(_pictureKey(docId, ref), () => text);
+          }
+        });
+      }
+    }
+    return CitedFigures._(bytes, captions);
   }
+
+  final Map<_PictureKey, String> _bytes;
+  final Map<_PictureKey, String> _captions;
+
+  /// The union of this and [other]. Identity-stable bytes make this
+  /// unambiguous, so an existing entry is kept (first-wins == last-wins).
+  /// Short-circuits when either side is empty.
+  CitedFigures merge(CitedFigures other) {
+    if (other._bytes.isEmpty && other._captions.isEmpty) return this;
+    if (_bytes.isEmpty && _captions.isEmpty) return other;
+    return CitedFigures._(
+      {...other._bytes, ..._bytes},
+      {...other._captions, ..._captions},
+    );
+  }
+
+  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null when
+  /// the union carries no bytes for it (stage-2 / unknown) or they don't decode.
+  Uint8List? pictureBytes(String documentId, String ref) {
+    final b64 = _bytes[_pictureKey(documentId, ref)];
+    if (b64 == null) return null;
+    try {
+      return base64Decode(b64);
+    } on FormatException catch (error) {
+      _logger.warning(
+        'RagSnapshot: picture ref "$ref" for document "$documentId" has '
+        'undecodable base64; dropped.',
+        error: error,
+      );
+      return null;
+    }
+  }
+
+  /// Caption text for a directly-retrieved picture ref, or null when the union
+  /// carries none.
+  String? pictureCaption(String documentId, String ref) =>
+      _captions[_pictureKey(documentId, ref)];
 }
 
 /// A read-model view of a RAG skill's AG-UI state slice.
@@ -145,7 +177,7 @@ Uint8List? _decodePicture(
 /// taking down an otherwise-valid snapshot. The snapshot contract is narrow,
 /// so a resilient per-entry parse is the right trade here.
 class RagSnapshot {
-  RagSnapshot._(this._citationIds, this._index, this._pictures);
+  RagSnapshot._(this._citationIds, this._index, this._figures);
 
   /// Parses a `rag`-namespaced state map, with per-entry resilience:
   /// malformed entries in `citations` / `citation_index` are logged and
@@ -212,7 +244,7 @@ class RagSnapshot {
       }
     }
 
-    return RagSnapshot._(ids, index, _indexPictures(json));
+    return RagSnapshot._(ids, index, CitedFigures.fromSearches(json));
   }
 
   /// Wire key marking a citation-bearing skill-state block: the
@@ -257,7 +289,7 @@ class RagSnapshot {
 
   final List<String> _citationIds;
   final Map<String, Citation> _index;
-  final _PictureIndex _pictures;
+  final CitedFigures _figures;
 
   /// Chunk ids of the citations present in the current state. The backend's
   /// state lifecycle clears these at each invocation start.
@@ -266,15 +298,8 @@ class RagSnapshot {
   /// Resolves a chunk id to a full [Citation], or null if not present.
   Citation? resolveCitation(String id) => _index[id];
 
-  /// Decoded bytes for a directly-retrieved (stage-1) picture ref, or null
-  /// when the state carries no bytes for it (stage-2 / unknown).
-  Uint8List? pictureBytes(String documentId, String ref) =>
-      _decodePicture(_pictures.bytes, documentId, ref);
-
-  /// Caption text for a directly-retrieved picture ref, or null when the state
-  /// carries none.
-  String? pictureCaption(String documentId, String ref) =>
-      _pictures.captions[_pictureKey(documentId, ref)];
+  /// Inline figure bytes and captions carried by this snapshot's `searches`.
+  CitedFigures get figures => _figures;
 }
 
 /// Projects a [RagSnapshot] from the full agent-state map.

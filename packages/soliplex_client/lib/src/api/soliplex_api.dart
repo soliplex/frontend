@@ -970,9 +970,11 @@ class SoliplexApi {
     var streaming = const AwaitingText() as StreamingState;
     final extractor = CitationExtractor();
     final messageStates = <String, MessageState>{};
-    // Citation ids accumulated per turn (keyed by the run's last user message
-    // id), unioned across every run of the turn — mirroring the live path.
-    final citationIdsByUserMessage = <String, Set<String>>{};
+    // Citations accumulated per turn (keyed by the run's last user message id),
+    // unioned across every run of the turn — mirroring the live path. Carries
+    // cited ids and inline figures so an earlier invocation's figure survives a
+    // later invocation's `searches` clear.
+    final turnsByUserMessage = <String, TurnCitations>{};
     final runs = <RunEventBundle>[];
 
     for (final (:runId, :events, :fetchError, :created) in eventsPerRun) {
@@ -1113,21 +1115,24 @@ class SoliplexApi {
               );
               conversation = result.conversation;
               streaming = result.streaming;
-              // Accumulate the citation ids this StateDeltaEvent cited, scoped
-              // to the namespaces it touched, into the turn's set — one skill
-              // invocation's absolute cited set. Snapshots echo the
-              // round-tripped seed and are intentionally not accumulated. Own
-              // fail-soft guard (log-only, never a drop tile): the event
-              // already processed, and citations are a derived projection.
+              // Accumulate the citations and inline figures this
+              // StateDeltaEvent cited, scoped to the namespaces it touched,
+              // into the turn's accumulator — one skill invocation's absolute
+              // cited set. Snapshots echo the round-tripped seed and are
+              // intentionally not accumulated. Own fail-soft guard (log-only,
+              // never a drop tile): the event already processed, and citations
+              // are a derived projection.
               if (event is StateDeltaEvent && userMessageId != null) {
                 try {
-                  (citationIdsByUserMessage[userMessageId] ??= <String>{})
-                      .addAll(
-                    extractor.citationIdsInDelta(conversation.aguiState, event),
+                  turnsByUserMessage[userMessageId] = extractor.accumulate(
+                    turnsByUserMessage[userMessageId] ??
+                        const TurnCitations.empty(),
+                    conversation.aguiState,
+                    event,
                   );
                 } on Object catch (error, stackTrace) {
                   _logger.error(
-                    'replay: citation id accumulation failed in run $runId of '
+                    'replay: citation accumulation failed in run $runId of '
                     'thread $threadId.',
                     error: error,
                     stackTrace: stackTrace,
@@ -1159,7 +1164,7 @@ class SoliplexApi {
         var sourceReferences = const <SourceReference>[];
         try {
           sourceReferences = extractor.resolve(
-            citationIdsByUserMessage[userMessageId] ?? const <String>{},
+            turnsByUserMessage[userMessageId] ?? const TurnCitations.empty(),
             conversation.aguiState,
             logContext: 'run $runId, thread $threadId',
           );

@@ -4559,6 +4559,112 @@ void main() {
           expect(ref.figures.single.ref, '#/pictures/0');
           expect(ref.figures.single.bytes, base64Decode('aGVsbG8='));
         });
+
+        test(
+            'an earlier invocation of one run keeps its figure after a later '
+            'invocation wipes searches', () async {
+          // A single run with TWO skill invocations (two STATE_DELTAs).
+          // Invocation 1 cites chunk-1, whose figure rides its searches;
+          // invocation 2 cites chunk-2 and REPLACES the rag block, so the run's
+          // end state no longer holds chunk-1's figure. The per-turn figure
+          // accumulator must preserve it.
+          stubGet('thread-456', {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          });
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'cites Fig 1',
+                          'picture_refs': ['#/pictures/0'],
+                        },
+                      },
+                      'citations': ['chunk-1'],
+                      'searches': {
+                        'q1': [
+                          {
+                            'content': 'cites Fig 1',
+                            'document_id': 'doc-1',
+                            'image_data': {'#/pictures/0': 'aGVsbG8='},
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'cites Fig 1',
+                          'picture_refs': ['#/pictures/0'],
+                        },
+                        'chunk-2': {
+                          'document_id': 'doc-2',
+                          'chunk_id': 'chunk-2',
+                          'document_uri': 'file:///doc2.pdf',
+                          'content': 'Citation 2',
+                        },
+                      },
+                      'citations': ['chunk-2'],
+                      'searches': {
+                        'q2': [
+                          {'content': 'Citation 2', 'document_id': 'doc-2'},
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          final refs = history.messageStates['user-1']!.sourceReferences;
+          final chunk1 = refs.firstWhere((r) => r.chunkId == 'chunk-1');
+          expect(chunk1.figures, hasLength(1));
+          expect(chunk1.figures.single.ref, '#/pictures/0');
+          expect(chunk1.figures.single.bytes, base64Decode('aGVsbG8='));
+        });
       });
 
       test('populates runs with decoded events in arrival order', () async {

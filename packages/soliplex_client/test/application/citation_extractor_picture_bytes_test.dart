@@ -34,7 +34,8 @@ void main() {
     };
 
     final extractor = CitationExtractor();
-    final refs = extractor.resolve(extractor.citationIds(current), current);
+    final refs =
+        extractor.resolve(extractor.citationsInState(current), current);
 
     expect(refs, hasLength(1));
     final ref = refs.single;
