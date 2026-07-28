@@ -1,4 +1,5 @@
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -83,6 +84,41 @@ void main() {
       expect(snapshot.resolveCitation('c2'), isNotNull);
     });
 
+    test('warns when citations is present but not a List', () {
+      // Container drift (a Map/String where a list is expected) drops every
+      // id for the namespace. Left silent, the source list renders short with
+      // no trace — so it must be surfaced.
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      final snapshot = RagSnapshot.fromJson(<String, dynamic>{
+        'citation_index': <String, dynamic>{},
+        'citations': {'wrong': 'shape'},
+      });
+
+      expect(snapshot.citationIds, isEmpty);
+      expect(sink.records, hasLength(1));
+      expect(sink.records.single.level, LogLevel.warning);
+      expect(sink.records.single.message, contains('citations'));
+    });
+
+    test('warns when citation_index is present but not a Map', () {
+      final sink = _RecordingSink();
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      final snapshot = RagSnapshot.fromJson(<String, dynamic>{
+        'citation_index': ['wrong', 'shape'],
+        'citations': ['a'],
+      });
+
+      expect(snapshot.resolveCitation('a'), isNull);
+      expect(sink.records, hasLength(1));
+      expect(sink.records.single.level, LogLevel.warning);
+      expect(sink.records.single.message, contains('citation_index'));
+    });
+
     test('tolerates malformed citation_index entries', () {
       // One valid entry, one non-Map, one missing required field.
       final json = <String, dynamic>{
@@ -133,4 +169,23 @@ void main() {
       expect(rag.keys, equals(['document_filter']));
     });
   });
+}
+
+/// Captures records from the rag snapshot's logger, ignoring all other log
+/// traffic the singleton sees so assertions stay strict.
+class _RecordingSink implements LogSink {
+  final List<LogRecord> records = [];
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == 'soliplex_client.rag_snapshot') {
+      records.add(record);
+    }
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }

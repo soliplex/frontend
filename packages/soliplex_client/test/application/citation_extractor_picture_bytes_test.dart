@@ -33,7 +33,8 @@ void main() {
       },
     };
 
-    final refs = CitationExtractor().extractNew(const {}, current);
+    final extractor = CitationExtractor();
+    final refs = extractor.resolve(extractor.citationIds(current), current);
 
     expect(refs, hasLength(1));
     final ref = refs.single;

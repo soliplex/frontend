@@ -2314,24 +2314,53 @@ void main() {
   });
 
   group('citation extraction', () {
+    // Each skill invocation emits one StateDeltaEvent whose post-delta
+    // rag.citations is that invocation's absolute set; citation_index is
+    // session-cumulative. Citations never arrive via StateSnapshotEvent (the
+    // only snapshot is the RUN_STARTED rebase echoing the round-tripped seed),
+    // so tests deliver citations exclusively via StateDeltaEvent.
+    StateDeltaEvent namespaceDelta(
+      String namespace, {
+      required Map<String, Map<String, dynamic>> citationIndex,
+      required List<String> citations,
+    }) =>
+        StateDeltaEvent(
+          delta: [
+            {
+              'op': 'add',
+              'path': '/$namespace',
+              'value': {
+                'citation_index': citationIndex,
+                'citations': citations,
+              },
+            },
+          ],
+        );
+
+    StateDeltaEvent ragDelta({
+      required Map<String, Map<String, dynamic>> citationIndex,
+      required List<String> citations,
+    }) =>
+        namespaceDelta(
+          'rag',
+          citationIndex: citationIndex,
+          citations: citations,
+        );
+
+    Map<String, dynamic> citation(String chunkId) => {
+          'chunk_id': chunkId,
+          'content': 'Citation text',
+          'document_id': 'doc-1',
+          'document_uri': 'https://example.com/doc.pdf',
+        };
+
     List<BaseEvent> citationEvents() => [
           const RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
-          const StateSnapshotEvent(
-            snapshot: {
-              'rag': {
-                'citation_index': {
-                  'chunk-1': {
-                    'chunk_id': 'chunk-1',
-                    'content': 'Citation text',
-                    'document_id': 'doc-1',
-                    'document_uri': 'https://example.com/doc.pdf',
-                  },
-                },
-                'citations': ['chunk-1'],
-              },
-            },
+          ragDelta(
+            citationIndex: {'chunk-1': citation('chunk-1')},
+            citations: ['chunk-1'],
           ),
           const TextMessageEndEvent(messageId: 'msg-1'),
           const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
@@ -2372,6 +2401,173 @@ void main() {
       expect(entry.sourceReferences, isEmpty);
     });
 
+    test('unions citations across multiple deltas in one run', () async {
+      // Two skill invocations in a single run. The backend clears citations at
+      // each invocation start, so each delta carries only that invocation's
+      // set; the union is the run's complete cited set (Issue 2).
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          ragDelta(
+            citationIndex: {'chunk-1': citation('chunk-1')},
+            citations: ['chunk-1'],
+          ),
+          ragDelta(
+            citationIndex: {
+              'chunk-1': citation('chunk-1'),
+              'chunk-2': citation('chunk-2'),
+            },
+            citations: ['chunk-2'],
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+      expect(refs, hasLength(2));
+      expect(
+        refs.map((r) => r.chunkId),
+        containsAll(<String>['chunk-1', 'chunk-2']),
+      );
+    });
+
+    test('excludes a stale sibling namespace this run never invoked', () async {
+      // Prior turn left rag.citations=[seed-chunk]; the RUN_STARTED rebase
+      // echoes it (round-tripped seed). This run invokes only the analysis
+      // skill, so its delta touches /analysis alone. rag was never invoked
+      // this run — its stale citations must not be attributed here.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'citation_index': {
+                  'seed-chunk': {
+                    'chunk_id': 'seed-chunk',
+                    'content': 'Seed citation',
+                    'document_id': 'doc-seed',
+                    'document_uri': 'https://example.com/seed.pdf',
+                  },
+                },
+                'citations': ['seed-chunk'],
+              },
+            },
+          ),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          namespaceDelta(
+            'analysis',
+            citationIndex: {'chunk-2': citation('chunk-2')},
+            citations: ['chunk-2'],
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Analyze');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+      expect(refs.map((r) => r.chunkId), ['chunk-2']);
+    });
+
+    test('keeps a chunk re-cited from the round-tripped seed', () async {
+      // The RUN_STARTED rebase snapshot echoes the round-tripped seed (a prior
+      // turn's leftover citations). When the run re-cites one of those chunks
+      // the delta carries it, so it must appear — no baseline subtraction
+      // (Issue 1).
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'citation_index': {
+                  'seed-chunk': {
+                    'chunk_id': 'seed-chunk',
+                    'content': 'Seed citation',
+                    'document_id': 'doc-seed',
+                    'document_uri': 'https://example.com/seed.pdf',
+                  },
+                },
+                'citations': ['seed-chunk'],
+              },
+            },
+          ),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          ragDelta(
+            citationIndex: {'seed-chunk': citation('seed-chunk')},
+            citations: ['seed-chunk'],
+          ),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+      expect(refs.map((r) => r.chunkId), ['seed-chunk']);
+    });
+
+    test('excludes a seed citation the run never re-cites', () async {
+      // A StateSnapshotEvent echoes the round-tripped seed, but the run cites
+      // nothing. Snapshots are not accumulated, so the seed leftover must not
+      // surface as this run's citation.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'citation_index': {
+                  'seed-chunk': {
+                    'chunk_id': 'seed-chunk',
+                    'content': 'Seed citation',
+                    'document_id': 'doc-seed',
+                    'document_uri': 'https://example.com/seed.pdf',
+                  },
+                },
+                'citations': ['seed-chunk'],
+              },
+            },
+          ),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      final completed = orchestrator.currentState as CompletedState;
+      final entry = completed.conversation.messageStates.values.first;
+      expect(entry.runId, _runId);
+      expect(entry.sourceReferences, isEmpty);
+    });
+
     test('extracts citations at ToolYieldingState', () async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
@@ -2385,20 +2581,9 @@ void main() {
 
       final toolCallWithCitations = <BaseEvent>[
         const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-        const StateSnapshotEvent(
-          snapshot: {
-            'rag': {
-              'citation_index': {
-                'chunk-1': {
-                  'chunk_id': 'chunk-1',
-                  'content': 'Citation text',
-                  'document_id': 'doc-1',
-                  'document_uri': 'https://example.com/doc.pdf',
-                },
-              },
-              'citations': ['chunk-1'],
-            },
-          },
+        ragDelta(
+          citationIndex: {'chunk-1': citation('chunk-1')},
+          citations: ['chunk-1'],
         ),
         const ToolCallStartEvent(
           toolCallId: 'tc-1',
@@ -2447,23 +2632,13 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         if (callCount == 1) {
+          // Invocation 1 cites chunk-1.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
               const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              const StateSnapshotEvent(
-                snapshot: {
-                  'rag': {
-                    'citation_index': {
-                      'chunk-1': {
-                        'chunk_id': 'chunk-1',
-                        'content': 'First citation',
-                        'document_id': 'doc-1',
-                        'document_uri': 'https://example.com/doc1.pdf',
-                      },
-                    },
-                    'citations': ['chunk-1'],
-                  },
-                },
+              ragDelta(
+                citationIndex: {'chunk-1': citation('chunk-1')},
+                citations: ['chunk-1'],
               ),
               const ToolCallStartEvent(
                 toolCallId: 'tc-1',
@@ -2478,31 +2653,19 @@ void main() {
             ]),
           );
         }
+        // Invocation 2 clears citations and cites only chunk-2; the index
+        // stays session-cumulative.
         return _wrap(
           Stream<BaseEvent>.fromIterable([
             const RunStartedEvent(threadId: 'thread-1', runId: _runId),
             const TextMessageStartEvent(messageId: 'msg-2'),
             const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
-            const StateSnapshotEvent(
-              snapshot: {
-                'rag': {
-                  'citation_index': {
-                    'chunk-1': {
-                      'chunk_id': 'chunk-1',
-                      'content': 'First citation',
-                      'document_id': 'doc-1',
-                      'document_uri': 'https://example.com/doc1.pdf',
-                    },
-                    'chunk-2': {
-                      'chunk_id': 'chunk-2',
-                      'content': 'Second citation',
-                      'document_id': 'doc-2',
-                      'document_uri': 'https://example.com/doc2.pdf',
-                    },
-                  },
-                  'citations': ['chunk-1', 'chunk-2'],
-                },
+            ragDelta(
+              citationIndex: {
+                'chunk-1': citation('chunk-1'),
+                'chunk-2': citation('chunk-2'),
               },
+              citations: ['chunk-2'],
             ),
             const TextMessageEndEvent(messageId: 'msg-2'),
             const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
@@ -2558,30 +2721,16 @@ void main() {
       ).thenAnswer((_) {
         callCount++;
         if (callCount == 1) {
-          // Segment 1: ask() returns chunk-1 and chunk-2.
+          // Invocation 1 cites chunk-1 and chunk-2.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
               const RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              const StateSnapshotEvent(
-                snapshot: {
-                  'rag': {
-                    'citation_index': {
-                      'chunk-1': {
-                        'chunk_id': 'chunk-1',
-                        'content': 'First',
-                        'document_id': 'doc-1',
-                        'document_uri': 'file:///doc1.pdf',
-                      },
-                      'chunk-2': {
-                        'chunk_id': 'chunk-2',
-                        'content': 'Second',
-                        'document_id': 'doc-1',
-                        'document_uri': 'file:///doc1.pdf',
-                      },
-                    },
-                    'citations': ['chunk-1', 'chunk-2'],
-                  },
+              ragDelta(
+                citationIndex: {
+                  'chunk-1': citation('chunk-1'),
+                  'chunk-2': citation('chunk-2'),
                 },
+                citations: ['chunk-1', 'chunk-2'],
               ),
               const ToolCallStartEvent(
                 toolCallId: 'tc-1',
@@ -2596,7 +2745,7 @@ void main() {
             ]),
           );
         }
-        // Segment 2: ask() returns chunk-2 (duplicate) and chunk-3 (new).
+        // Invocation 2 re-cites chunk-2 (duplicate) and adds chunk-3.
         return _wrap(
           Stream<BaseEvent>.fromIterable([
             const RunStartedEvent(threadId: 'thread-1', runId: _runId),
@@ -2605,32 +2754,13 @@ void main() {
               messageId: 'msg-2',
               delta: 'Done',
             ),
-            const StateSnapshotEvent(
-              snapshot: {
-                'rag': {
-                  'citation_index': {
-                    'chunk-1': {
-                      'chunk_id': 'chunk-1',
-                      'content': 'First',
-                      'document_id': 'doc-1',
-                      'document_uri': 'file:///doc1.pdf',
-                    },
-                    'chunk-2': {
-                      'chunk_id': 'chunk-2',
-                      'content': 'Second',
-                      'document_id': 'doc-1',
-                      'document_uri': 'file:///doc1.pdf',
-                    },
-                    'chunk-3': {
-                      'chunk_id': 'chunk-3',
-                      'content': 'Third',
-                      'document_id': 'doc-2',
-                      'document_uri': 'file:///doc2.pdf',
-                    },
-                  },
-                  'citations': ['chunk-1', 'chunk-2', 'chunk-3'],
-                },
+            ragDelta(
+              citationIndex: {
+                'chunk-1': citation('chunk-1'),
+                'chunk-2': citation('chunk-2'),
+                'chunk-3': citation('chunk-3'),
               },
+              citations: ['chunk-2', 'chunk-3'],
             ),
             const TextMessageEndEvent(messageId: 'msg-2'),
             const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
@@ -2677,6 +2807,48 @@ void main() {
 
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final entry = completed.conversation.messageStates.values.first;
+      expect(entry.sourceReferences, isEmpty);
+    });
+
+    test("does not leak a prior turn's citations into the next turn", () async {
+      // Two turns back-to-back with no reset between them. Turn 1 cites
+      // chunk-1; turn 2 cites nothing, but its RUN_STARTED rebase snapshot
+      // echoes the round-tripped seed (chunk-1 still in the cumulative
+      // citation_index). The turn accumulator is cleared at turn start, so
+      // turn 2 shows no sources — otherwise turn 1's id would resolve against
+      // turn 2's state and leak in. This isolates the turn-start clear: reset
+      // and syncToThread also null _userMessageId (short-circuiting resolve),
+      // so only a back-to-back run exercises it.
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(citationEvents()));
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<CompletedState>());
+
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'citation_index': {'chunk-1': citation('chunk-1')},
+                'citations': ['chunk-1'],
+              },
+            },
+          ),
+          const TextMessageStartEvent(messageId: 'msg-2'),
+          const TextMessageContentEvent(messageId: 'msg-2', delta: 'Answer'),
+          const TextMessageEndEvent(messageId: 'msg-2'),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+      await orchestrator.startRun(key: _key, userMessage: 'Again');
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());

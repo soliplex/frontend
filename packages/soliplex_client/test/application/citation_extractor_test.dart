@@ -1,4 +1,7 @@
+import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
+import 'package:soliplex_client/src/domain/source_reference.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -8,6 +11,11 @@ void main() {
     setUp(() {
       extractor = CitationExtractor();
     });
+
+    /// Resolves every id cited in [state] — the common case where the caller
+    /// has no accumulated set and just wants what the state itself carries.
+    List<SourceReference> extract(Map<String, dynamic> state) =>
+        extractor.resolve(extractor.citationIds(state), state);
 
     group('wire shape', () {
       Map<String, dynamic> createCitation({
@@ -53,29 +61,14 @@ void main() {
         };
       }
 
-      test('returns empty when no state change', () {
+      test('resolves empty when the state has no citations', () {
+        final refs = extract(createState());
+
+        expect(refs, isEmpty);
+      });
+
+      test('resolves a citation with all its fields', () {
         final state = createState(
-          citationIndex: {'c1': createCitation(chunkId: 'c1')},
-          citations: ['c1'],
-        );
-
-        final refs = extractor.extractNew(state, state);
-
-        expect(refs, isEmpty);
-      });
-
-      test('returns empty when previous state is empty', () {
-        final previous = createState();
-        final current = createState();
-
-        final refs = extractor.extractNew(previous, current);
-
-        expect(refs, isEmpty);
-      });
-
-      test('extracts citations when previous is empty', () {
-        final previous = createState();
-        final current = createState(
           citationIndex: {
             'chunk-1': createCitation(
               chunkId: 'chunk-1',
@@ -91,7 +84,7 @@ void main() {
           citations: ['chunk-1'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs, hasLength(1));
         expect(refs[0].chunkId, 'chunk-1');
@@ -108,8 +101,7 @@ void main() {
       });
 
       test('reads sourceUrl from the citation document_meta', () {
-        final previous = createState();
-        final current = createState(
+        final state = createState(
           citationIndex: {
             'c1': createCitation(
               chunkId: 'c1',
@@ -119,14 +111,13 @@ void main() {
           citations: ['c1'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs.single.sourceUrl, Uri.parse('https://example.test/a/view'));
       });
 
       test('sourceUrl is null when document_meta carries no usable url', () {
-        final previous = createState();
-        final current = createState(
+        final state = createState(
           citationIndex: {
             'c1': createCitation(
               chunkId: 'c1',
@@ -137,31 +128,29 @@ void main() {
           citations: ['c1', 'c2'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs.every((r) => r.sourceUrl == null), isTrue);
       });
 
       test('defaults headings and pageNumbers to empty lists when absent', () {
-        final previous = createState();
-        final current = createState(
+        final state = createState(
           citationIndex: {'c1': createCitation(chunkId: 'c1')},
           citations: ['c1'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs, hasLength(1));
         expect(refs[0].headings, isEmpty);
         expect(refs[0].pageNumbers, isEmpty);
       });
 
-      test('extracts only ids not already in previous', () {
-        final previous = createState(
-          citationIndex: {'old-chunk': createCitation(chunkId: 'old-chunk')},
-          citations: ['old-chunk'],
-        );
-        final current = createState(
+      test('resolves a re-cited id — no subtraction of prior ids', () {
+        // A chunk cited in an earlier turn is still resolved when re-cited.
+        // The extractor never subtracts; cross-turn accumulation is the
+        // caller's job.
+        final state = createState(
           citationIndex: {
             'old-chunk': createCitation(chunkId: 'old-chunk'),
             'new-chunk': createCitation(chunkId: 'new-chunk'),
@@ -169,24 +158,21 @@ void main() {
           citations: ['old-chunk', 'new-chunk'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
-        expect(refs, hasLength(1));
-        expect(refs[0].chunkId, 'new-chunk');
+        expect(
+          refs.map((r) => r.chunkId),
+          unorderedEquals(['old-chunk', 'new-chunk']),
+        );
       });
 
-      test('extracts new ids across invocation reset', () {
-        // Prior invocation's citations are cleared by the lifespan hook;
-        // the new invocation's ids should still be extracted even though
-        // the previous snapshot held different ids.
-        final previous = createState(
-          citationIndex: {
-            'a': createCitation(chunkId: 'a'),
-            'b': createCitation(chunkId: 'b'),
-          },
-          citations: ['a', 'b'],
-        );
-        final current = createState(
+      test('resolves accumulated ids absent from the current citations list',
+          () {
+        // The backend clears `citations` per invocation but keeps
+        // `citation_index` session-cumulative. The caller hands resolve() the
+        // full accumulated set; every id still resolves against the index even
+        // though `citations` holds only the last invocation's id.
+        final state = createState(
           citationIndex: {
             'a': createCitation(chunkId: 'a'),
             'b': createCitation(chunkId: 'b'),
@@ -195,15 +181,13 @@ void main() {
           citations: ['c'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extractor.resolve({'a', 'b', 'c'}, state);
 
-        expect(refs, hasLength(1));
-        expect(refs[0].chunkId, 'c');
+        expect(refs.map((r) => r.chunkId), unorderedEquals(['a', 'b', 'c']));
       });
 
-      test('extracts multiple new ids at once', () {
-        final previous = createState();
-        final current = createState(
+      test('resolves multiple ids at once', () {
+        final state = createState(
           citationIndex: {
             'chunk-1': createCitation(chunkId: 'chunk-1'),
             'chunk-2': createCitation(chunkId: 'chunk-2'),
@@ -212,143 +196,293 @@ void main() {
           citations: ['chunk-1', 'chunk-2', 'chunk-3'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
-        expect(refs, hasLength(3));
-        expect(refs.map((r) => r.chunkId), ['chunk-1', 'chunk-2', 'chunk-3']);
+        expect(
+          refs.map((r) => r.chunkId),
+          unorderedEquals(['chunk-1', 'chunk-2', 'chunk-3']),
+        );
       });
 
-      test('returns empty when current has no citations', () {
-        final previous = createState();
-        final current = createState();
-
-        final refs = extractor.extractNew(previous, current);
-
-        expect(refs, isEmpty);
-      });
-
-      test('extracts citations from STATE_DELTA with minimal keys', () {
-        final previous = createState();
-        final current = <String, dynamic>{
+      test('resolves against a minimally-shaped rag block', () {
+        final state = <String, dynamic>{
           'rag': {
             'citation_index': {'c1': createCitation(chunkId: 'c1')},
             'citations': ['c1'],
           },
         };
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs, hasLength(1));
         expect(refs[0].chunkId, 'c1');
       });
 
       test('skips citation ids missing from citation_index', () {
-        final previous = createState();
-        final current = createState(
+        final state = createState(
           citationIndex: {'c1': createCitation(chunkId: 'c1')},
           citations: ['c1', 'missing'],
         );
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs, hasLength(1));
         expect(refs[0].chunkId, 'c1');
       });
     });
 
-    group('edge cases', () {
-      test('returns empty for unknown state format', () {
-        final previous = <String, dynamic>{};
-        final current = <String, dynamic>{'unknown_key': <String, dynamic>{}};
+    group('citationIds', () {
+      Map<String, dynamic> citation(String chunkId) => {
+            'chunk_id': chunkId,
+            'content': 'content for $chunkId',
+            'document_id': 'doc-1',
+            'document_uri': 'https://example.com/doc.pdf',
+          };
 
-        final refs = extractor.extractNew(previous, current);
+      Map<String, dynamic> block(List<String> citations) => {
+            'citation_index': {for (final id in citations) id: citation(id)},
+            'citations': citations,
+          };
 
-        expect(refs, isEmpty);
-      });
-
-      test('returns empty when current citations are a subset of previous', () {
-        // Happens when lifespan resets to empty mid-stream, or when ids from
-        // previous are no longer present in current.
-        final previous = <String, dynamic>{
-          'rag': {
-            'citation_index': <String, dynamic>{},
-            'citations': ['a', 'b'],
-          },
-        };
-        final current = <String, dynamic>{
-          'rag': {
-            'citation_index': <String, dynamic>{},
-            'citations': ['a'],
-          },
+      test('unions ids across every citation-bearing namespace', () {
+        final state = <String, dynamic>{
+          'rag': block(const ['a', 'b']),
+          'analysis': block(const ['b', 'c']),
         };
 
-        final refs = extractor.extractNew(previous, current);
-
-        expect(refs, isEmpty);
+        expect(extractor.citationIds(state), {'a', 'b', 'c'});
       });
 
-      test('returns empty when current citations are cleared', () {
-        final previous = <String, dynamic>{};
-        final current = <String, dynamic>{
-          'rag': {
-            'citation_index': <String, dynamic>{},
-            'citations': <String>[],
-          },
+      test('skips namespaces without a citation_index', () {
+        final state = <String, dynamic>{
+          'rag': block(const ['a']),
+          'bubble-sandbox': {'foo': 'bar'},
         };
 
-        final refs = extractor.extractNew(previous, current);
-        expect(refs, isEmpty);
+        expect(extractor.citationIds(state), {'a'});
       });
 
-      test('returns empty when rag key is not a Map', () {
-        final previous = <String, dynamic>{};
-        final current = <String, dynamic>{'rag': 'not a map'};
-
-        final refs = extractor.extractNew(previous, current);
-        expect(refs, isEmpty);
-      });
-
-      test('treats non-Map previous rag key as empty', () {
-        final previous = <String, dynamic>{'rag': 42};
-        final current = <String, dynamic>{
+      test('tolerates a malformed citations list', () {
+        final state = <String, dynamic>{
           'rag': {
             'citation_index': <String, dynamic>{},
-            'citations': <String>[],
+            'citations': 'not a list',
           },
         };
 
-        // Previous coerced to empty; current has no citations either.
-        final refs = extractor.extractNew(previous, current);
-        expect(refs, isEmpty);
+        expect(extractor.citationIds(state), isEmpty);
       });
 
-      test('returns empty when citations is not a List', () {
-        final previous = <String, dynamic>{};
-        final current = <String, dynamic>{
-          'rag': {'citations': 'not a list'},
-        };
-
-        final refs = extractor.extractNew(previous, current);
-        expect(refs, isEmpty);
+      test('is empty when the state has no citation namespaces', () {
+        expect(extractor.citationIds(const {'unknown': 42}), isEmpty);
       });
+    });
+
+    group('citationIdsInDelta', () {
+      Map<String, dynamic> citation(String chunkId) => {
+            'chunk_id': chunkId,
+            'content': 'content for $chunkId',
+            'document_id': 'doc-1',
+            'document_uri': 'https://example.com/doc.pdf',
+          };
+
+      Map<String, dynamic> block(List<String> citations) => {
+            'citation_index': {for (final id in citations) id: citation(id)},
+            'citations': citations,
+          };
+
+      StateDeltaEvent deltaTouching(List<String> paths) => StateDeltaEvent(
+            delta: [
+              for (final path in paths)
+                {'op': 'add', 'path': path, 'value': 'x'},
+            ],
+          );
 
       test(
-        'tolerates non-string entries in the citations list',
-        () {
-          // citations is supposed to be List<String>. Any other shape
-          // (ints, nulls, nested lists) must not crash the extractor.
-          final previous = <String, dynamic>{};
-          final current = <String, dynamic>{
+          'scopes to the namespace the delta touched, ignoring a stale '
+          'sibling', () {
+        // rag carries a prior turn's citations that ride the rebase snapshot;
+        // this delta invoked only analysis, so rag's ids are not this turn's.
+        final state = <String, dynamic>{
+          'rag': block(const ['a']),
+          'analysis': block(const ['b']),
+        };
+
+        final ids = extractor.citationIdsInDelta(
+          state,
+          deltaTouching(const ['/analysis/citations/-']),
+        );
+
+        expect(ids, {'b'});
+      });
+
+      test('unions across every namespace the delta touched', () {
+        final state = <String, dynamic>{
+          'rag': block(const ['a']),
+          'analysis': block(const ['b']),
+        };
+
+        final ids = extractor.citationIdsInDelta(
+          state,
+          deltaTouching(const ['/rag/citations/0', '/analysis/citations/0']),
+        );
+
+        expect(ids, {'a', 'b'});
+      });
+
+      test('is empty when the delta touches no citation-bearing namespace', () {
+        final state = <String, dynamic>{
+          'rag': block(const ['a']),
+        };
+
+        final ids = extractor.citationIdsInDelta(
+          state,
+          deltaTouching(const ['/document_filter']),
+        );
+
+        expect(ids, isEmpty);
+      });
+
+      test('skips malformed ops with a warning', () {
+        // A non-Map op and a pathless op are both malformed JSON-Patch. They
+        // must be skipped (touching no namespace) and each logged, so a
+        // drifting wire shape can't lose a namespace's citations silently.
+        final sink = _RecordingSink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        // State is never read: malformed ops touch no namespace, so
+        // citationIdsInDelta returns before consulting it.
+        final ids = extractor.citationIdsInDelta(
+          const {},
+          const StateDeltaEvent(
+            delta: [
+              'not-a-map',
+              <String, dynamic>{'op': 'add', 'value': 'x'},
+            ],
+          ),
+        );
+
+        expect(ids, isEmpty);
+        expect(sink.records, hasLength(2));
+        expect(sink.records.every((r) => r.level == LogLevel.warning), isTrue);
+      });
+
+      test('skips a rooted op that names no namespace, with a warning', () {
+        // A valid String path that yields no namespace segment ("/", "") is
+        // degenerate JSON-Patch. Like the other malformed shapes it must be
+        // skipped and logged, not silently dropped.
+        final sink = _RecordingSink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        final ids = extractor.citationIdsInDelta(
+          const {},
+          deltaTouching(const ['/']),
+        );
+
+        expect(ids, isEmpty);
+        expect(sink.records, hasLength(1));
+        expect(sink.records.single.level, LogLevel.warning);
+      });
+    });
+
+    group('resolve', () {
+      Map<String, dynamic> citation(String chunkId) => {
+            'chunk_id': chunkId,
+            'content': 'content for $chunkId',
+            'document_id': 'doc-1',
+            'document_uri': 'https://example.com/doc.pdf',
+          };
+
+      Map<String, dynamic> stateWith(List<String> ids) => {
             'rag': {
-              'citation_index': <String, dynamic>{},
-              'citations': <dynamic>[123, null, <String>[]],
+              'citation_index': {for (final id in ids) id: citation(id)},
+              'citations': ids,
             },
           };
 
-          final refs = extractor.extractNew(previous, current);
-          expect(refs, isEmpty);
-        },
-      );
+      test('dedups repeated ids', () {
+        final refs = extractor.resolve(['a', 'a'], stateWith(['a']));
+
+        expect(refs, hasLength(1));
+        expect(refs.single.chunkId, 'a');
+      });
+
+      test('skips ids absent from every citation_index', () {
+        final refs = extractor.resolve(['a', 'ghost'], stateWith(['a']));
+
+        expect(refs.map((r) => r.chunkId), ['a']);
+      });
+
+      test('warns when a cited id is absent from every citation_index', () {
+        // A cited id missing from the cumulative index means the source list
+        // is silently short — a backend contract violation the caller can't
+        // otherwise see. It must be logged.
+        final sink = _RecordingSink();
+        LogManager.instance.addSink(sink);
+        addTearDown(() => LogManager.instance.removeSink(sink));
+
+        extractor.resolve(['a', 'ghost'], stateWith(['a']));
+
+        expect(sink.records, hasLength(1));
+        expect(sink.records.single.level, LogLevel.warning);
+        expect(sink.records.single.message, contains('ghost'));
+      });
+
+      test('is empty when the state carries no citation namespace', () {
+        final refs = extractor.resolve(['a'], const {'unknown': 42});
+
+        expect(refs, isEmpty);
+      });
+    });
+
+    group('edge cases', () {
+      test('resolves empty for unknown state format', () {
+        final refs = extract(
+          <String, dynamic>{'unknown_key': <String, dynamic>{}},
+        );
+
+        expect(refs, isEmpty);
+      });
+
+      test('resolves empty when the citations list is empty', () {
+        final refs = extract(<String, dynamic>{
+          'rag': {
+            'citation_index': <String, dynamic>{},
+            'citations': <String>[],
+          },
+        });
+
+        expect(refs, isEmpty);
+      });
+
+      test('resolves empty when rag key is not a Map', () {
+        final refs = extract(<String, dynamic>{'rag': 'not a map'});
+
+        expect(refs, isEmpty);
+      });
+
+      test('resolves empty when citations is not a List', () {
+        final refs = extract(<String, dynamic>{
+          'rag': {'citations': 'not a list'},
+        });
+
+        expect(refs, isEmpty);
+      });
+
+      test('tolerates non-string entries in the citations list', () {
+        // citations is supposed to be List<String>. Any other shape
+        // (ints, nulls, nested lists) must not crash the extractor.
+        final refs = extract(<String, dynamic>{
+          'rag': {
+            'citation_index': <String, dynamic>{},
+            'citations': <dynamic>[123, null, <String>[]],
+          },
+        });
+
+        expect(refs, isEmpty);
+      });
     });
 
     group('multiple namespaces', () {
@@ -364,32 +498,49 @@ void main() {
             'citations': citations,
           };
 
-      test('extracts citations from the analysis namespace', () {
-        final previous = <String, dynamic>{'analysis': block(const [])};
-        final current = <String, dynamic>{
+      test('resolves citations from the analysis namespace', () {
+        final state = <String, dynamic>{
           'analysis': block(const ['a1']),
         };
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
         expect(refs, hasLength(1));
         expect(refs.single.chunkId, 'a1');
       });
 
       test('deduplicates a chunk cited in both rag and analysis', () {
-        final previous = <String, dynamic>{
-          'rag': block(const []),
-          'analysis': block(const []),
-        };
-        final current = <String, dynamic>{
+        final state = <String, dynamic>{
           'rag': block(const ['shared']),
           'analysis': block(const ['shared', 'analysis-only']),
         };
 
-        final refs = extractor.extractNew(previous, current);
+        final refs = extract(state);
 
-        expect(refs.map((r) => r.chunkId), ['shared', 'analysis-only']);
+        expect(
+          refs.map((r) => r.chunkId),
+          unorderedEquals(['shared', 'analysis-only']),
+        );
       });
     });
   });
+}
+
+/// Captures records from the citation extractor's logger, ignoring all other
+/// log traffic the singleton sees so assertions stay strict.
+class _RecordingSink implements LogSink {
+  final List<LogRecord> records = [];
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == 'soliplex_client.citation_extractor') {
+      records.add(record);
+    }
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }

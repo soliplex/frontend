@@ -75,6 +75,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   citation-bearing namespace in the agent state rather than only `rag`, so a
   reply that cites sources renders its citations regardless of which retrieval
   skill produced them.
+- A reply now shows every source it cited. Previously a source cited again from
+  an earlier turn could be dropped, and a reply whose agent searched several
+  times kept only its last batch of sources; both now render in full, and a
+  thread shows the same sources live and after a reload.
 
 ## [0.94.0+68] - 2026-07-17
 

@@ -165,11 +165,23 @@ class RagSnapshot {
           );
         }
       }
+    } else if (rawCitations != null) {
+      _logger.warning(
+        'RagSnapshot: `citations` present but not a List '
+        '(runtimeType=${rawCitations.runtimeType}); no citation ids read.',
+      );
     }
 
     final index = <String, Citation>{};
     final rawIndex = json[_citationIndexKey];
-    if (rawIndex is Map) {
+    if (rawIndex is! Map) {
+      if (rawIndex != null) {
+        _logger.warning(
+          'RagSnapshot: `citation_index` present but not a Map '
+          '(runtimeType=${rawIndex.runtimeType}); no citations resolvable.',
+        );
+      }
+    } else {
       for (final entry in rawIndex.entries) {
         final key = entry.key;
         final value = entry.value;
@@ -212,13 +224,21 @@ class RagSnapshot {
   /// (e.g. `bubble-sandbox`) and non-Map or mistyped blocks are skipped,
   /// so this is the single place that knows how a citation block is shaped.
   ///
+  /// When [namespaces] is given, only blocks under those keys are considered;
+  /// otherwise every namespace in [state] is.
+  ///
   /// [RagSnapshot.fromJson] is resilient by construction and should not
   /// throw, but a block that fails to parse is caught and skipped rather
   /// than propagated: one malformed namespace must not take down the
   /// others, nor abort the unguarded replay path that consumes this.
-  static List<RagSnapshot> extractAll(Map<String, dynamic> state) {
+  static List<RagSnapshot> extractAll(
+    Map<String, dynamic> state, {
+    Set<String>? namespaces,
+  }) {
     final snapshots = <RagSnapshot>[];
-    for (final raw in state.values) {
+    for (final entry in state.entries) {
+      if (namespaces != null && !namespaces.contains(entry.key)) continue;
+      final raw = entry.value;
       if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
         continue;
       }

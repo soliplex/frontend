@@ -84,7 +84,12 @@ class RunOrchestrator {
 
   final CitationExtractor _citationExtractor = CitationExtractor();
 
-  Map<String, dynamic> _preRunAguiState = const {};
+  /// Union of citation ids seen in this turn's `StateDeltaEvent`s. Each delta's
+  /// touched namespace holds one skill invocation's absolute cited set (via
+  /// [CitationExtractor.citationIdsInDelta]); the union across the turn is its
+  /// complete set. Cleared at turn start (and on reset/sync). See
+  /// [_extractCitations].
+  final Set<String> _turnCitationIds = <String>{};
   String? _userMessageId;
 
   final StreamController<RunState> _controller =
@@ -328,7 +333,7 @@ class RunOrchestrator {
     _guardNotDisposed();
     _cancelToken?.cancel();
     _cleanup();
-    _preRunAguiState = const {};
+    _turnCitationIds.clear();
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -345,7 +350,7 @@ class RunOrchestrator {
     if (_currentState is RunningState || _currentState is ToolYieldingState) {
       throw StateError('Cannot sync while a run is active');
     }
-    _preRunAguiState = const {};
+    _turnCitationIds.clear();
     _userMessageId = null;
     _setState(const IdleState());
   }
@@ -808,7 +813,7 @@ class RunOrchestrator {
     final baseState = cachedHistory?.aguiState ?? const {};
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
-    _preRunAguiState = aguiState;
+    _turnCitationIds.clear();
     _userMessageId = userMsg.id;
     return Conversation(
       threadId: key.threadId,
@@ -912,6 +917,27 @@ class RunOrchestrator {
         try {
           final result =
               processEvent(running.conversation, running.streaming, event);
+          // Accumulate the citation ids this StateDeltaEvent cited, scoped to
+          // the namespaces it touched — one skill invocation's absolute cited
+          // set. Snapshots are intentionally not accumulated: they only echo
+          // the round-tripped seed. Fail-soft because citations are a derived
+          // projection.
+          if (event is StateDeltaEvent) {
+            try {
+              _turnCitationIds.addAll(
+                _citationExtractor.citationIdsInDelta(
+                  result.conversation.aguiState,
+                  event,
+                ),
+              );
+            } on Object catch (e, st) {
+              _logger.error(
+                'Citation id accumulation failed on run ${running.runId}',
+                error: e,
+                stackTrace: st,
+              );
+            }
+          }
           _mapEventResult(running, result, event);
         } on Object catch (e, st) {
           _appendDropTile(
@@ -1059,68 +1085,53 @@ class RunOrchestrator {
     }
   }
 
-  /// Extracts citations by diffing AG-UI state before/after this run segment.
+  /// Resolves this turn's accumulated citation ids ([_turnCitationIds]) against
+  /// the current AG-UI state and writes them to the turn's [MessageState].
   ///
   /// Always creates a [MessageState] with the [runId] so downstream consumers
   /// (e.g. feedback buttons) can resolve it, even when there are no citations.
-  /// Updates [_preRunAguiState] for the next segment in a tool loop.
   ///
   /// In multi-segment tool loops, [runId] is overwritten each segment so the
   /// final [MessageState] carries the last segment's run ID — the one whose
-  /// output the user sees and may submit feedback on.
+  /// output the user sees and may submit feedback on. The accumulator is
+  /// monotonic across segments, so resolving at every call site (including
+  /// tool-yield boundaries) is safe — the final terminal replaces the
+  /// MessageState with the complete set.
   ///
-  /// `CitationExtractor.extractNew` calls into generated schema types
-  /// (`RagSnapshot.resolveCitation`, `SourceReference`'s ctor on
-  /// non-null fields the wire might omit) — schema drift can surface
-  /// here as `FormatException`, `TypeError` (null on non-null), or
-  /// other generated-type throws. Catching `Object` is deliberate:
-  /// citations are a derived projection, so fail-soft (skip
-  /// citations, complete the run) is the right UX for both
-  /// data-drift and programming bugs — propagating instead would
-  /// abort a working run with no user benefit. Logged at `error`
-  /// with stack trace so Sentry / `BackendLogSink` still surface
-  /// real bugs. The throw bypasses the [_preRunAguiState] update at
-  /// the next line so the next run's diff still resolves against the
-  /// prior baseline; only this segment's citations are skipped. No
-  /// drop tile — citations are a derived projection, not user-facing
-  /// content.
+  /// The `on Object catch` is defensive. `CitationExtractor.resolve` is
+  /// contractually non-throwing — schema drift is absorbed inside
+  /// `RagSnapshot.extractAll`, which skips namespaces that fail to parse — so
+  /// this should not fire on bad data. The guard exists only so a future
+  /// programming bug in resolution fails soft rather than aborting a working
+  /// run: citations are a derived projection, so skipping them and completing
+  /// the run is the right UX. Logged at `error` with stack trace so Sentry /
+  /// `BackendLogSink` still surface real bugs. No drop tile — citations are
+  /// not user-facing content.
   Conversation _extractCitations(Conversation conversation, String runId) {
+    final userMessageId = _userMessageId;
+    if (userMessageId == null) return conversation;
+
+    var citations = const <SourceReference>[];
     try {
-      final userMessageId = _userMessageId;
-      if (userMessageId == null) return conversation;
-
-      final citations = _citationExtractor.extractNew(
-        _preRunAguiState,
+      citations = _citationExtractor.resolve(
+        _turnCitationIds,
         conversation.aguiState,
+        logContext: 'run $runId',
       );
-      _preRunAguiState = conversation.aguiState;
-
-      final existing = conversation.messageStates[userMessageId];
-      final seenChunkIds = <String>{};
-      final mergedCitations = <SourceReference>[];
-      for (final ref in [
-        if (existing != null) ...existing.sourceReferences,
-        ...citations,
-      ]) {
-        if (seenChunkIds.add(ref.chunkId)) {
-          mergedCitations.add(ref);
-        }
-      }
-
-      final messageState = MessageState(
-        userMessageId: userMessageId,
-        sourceReferences: mergedCitations,
-        runId: runId,
-      );
-      return conversation.withMessageState(userMessageId, messageState);
     } on Object catch (e, st) {
       _logger.error(
-        'Citation extraction failed for run $runId',
+        'Citation resolution failed for run $runId',
         error: e,
         stackTrace: st,
       );
-      return conversation;
     }
+
+    final messageState = MessageState(
+      userMessageId: userMessageId,
+      sourceReferences: citations,
+      runId: runId,
+    );
+    return conversation.withMessageState(userMessageId, messageState);
   }
 
   void _onStreamDone() {
