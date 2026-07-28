@@ -252,10 +252,11 @@ class _RoomAvatarTile extends StatelessWidget {
                       Positioned.fill(
                         child: Material(
                           color: bg,
-                          // A selected avatar squares off (smaller radius) so the
-                          // shape shift reinforces the leading bar.
-                          borderRadius: BorderRadius.circular(
-                              selected ? context.radii.md : _avatar / 2),
+                          // Every avatar takes the brand shape (`radii.md`), so
+                          // `BrandShape.square()` squares the rail off. Selection
+                          // is carried by the leading bar and fill, not a
+                          // circle→rounded-square morph (issue #456).
+                          borderRadius: BorderRadius.circular(context.radii.md),
                           clipBehavior: Clip.antiAlias,
                           child: InkWell(
                             onTap: onTap,
