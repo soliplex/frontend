@@ -275,6 +275,24 @@ ThemeData buildSoliplexThemeData({
       ),
       textStyle: textTheme.bodyMedium,
     ),
+    // Dialogs and drawers otherwise fall through to Material's own rounded
+    // defaults (28 / 16), skipping the brand shape. Lower both to `radii.md`
+    // so `BrandShape.square()` squares them off like every other surface
+    // (issue #456).
+    dialogTheme: DialogThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radii.md),
+      ),
+    ),
+    // Round only the trailing edge, mirroring Material's drawer default: the
+    // leading edge is flush to the screen and stays square.
+    drawerTheme: DrawerThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadiusDirectional.horizontal(
+          end: Radius.circular(radii.md),
+        ),
+      ),
+    ),
     scaffoldBackgroundColor: colors.background,
     useMaterial3: true,
     textTheme: textTheme,

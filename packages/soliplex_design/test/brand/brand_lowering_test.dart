@@ -238,6 +238,17 @@ void main() {
         (theme.cardTheme.shape! as RoundedRectangleBorder).borderRadius,
         BorderRadius.circular(0),
       );
+      // Dialogs and drawers lower to the brand shape too, so they square off
+      // with everything else rather than keeping Material's rounded defaults
+      // (issue #456).
+      expect(
+        (theme.dialogTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(0),
+      );
+      expect(
+        (theme.drawerTheme.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadiusDirectional.zero,
+      );
     });
 
     test('body and display families flow into the text theme', () {
