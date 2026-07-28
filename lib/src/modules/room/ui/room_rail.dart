@@ -253,9 +253,9 @@ class _RoomAvatarTile extends StatelessWidget {
                         child: Material(
                           color: bg,
                           // Every avatar takes the brand shape (`radii.md`), so
-                          // `BrandShape.square()` squares the rail off. Selection
-                          // is carried by the leading bar and fill, not a
-                          // circle→rounded-square morph (issue #456).
+                          // `BrandShape.square()` squares the rail off; selection
+                          // is carried by the leading bar, not the avatar shape
+                          // (issue #456).
                           borderRadius: BorderRadius.circular(context.radii.md),
                           clipBehavior: Clip.antiAlias,
                           child: InkWell(
