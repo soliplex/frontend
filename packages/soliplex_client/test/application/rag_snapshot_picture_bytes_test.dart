@@ -32,17 +32,20 @@ void main() {
 
     test('returns decoded bytes for a stage-1 ref', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureBytes('doc-1', '#/pictures/0'), utf8.encode('hello'));
+      expect(
+        snap.figures.pictureBytes('doc-1', '#/pictures/0'),
+        utf8.encode('hello'),
+      );
     });
 
     test('returns null for a stage-2 ref (ref present, no bytes)', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureBytes('doc-1', '#/pictures/1'), isNull);
+      expect(snap.figures.pictureBytes('doc-1', '#/pictures/1'), isNull);
     });
 
     test('returns null for the wrong document', () {
       final snap = RagSnapshot.fromJson(rag);
-      expect(snap.pictureBytes('doc-2', '#/pictures/0'), isNull);
+      expect(snap.figures.pictureBytes('doc-2', '#/pictures/0'), isNull);
     });
 
     test('indexes image_data even when unrelated fields are malformed', () {
@@ -60,7 +63,10 @@ void main() {
         ],
       };
       final snap = RagSnapshot.fromJson(bad);
-      expect(snap.pictureBytes('doc-1', '#/pictures/0'), utf8.encode('hello'));
+      expect(
+        snap.figures.pictureBytes('doc-1', '#/pictures/0'),
+        utf8.encode('hello'),
+      );
     });
 
     test('returns null for an undecodable base64 image_data value', () {
@@ -76,7 +82,7 @@ void main() {
         ],
       };
       final snap = RagSnapshot.fromJson(bad);
-      expect(snap.pictureBytes('doc-1', '#/pictures/0'), isNull);
+      expect(snap.figures.pictureBytes('doc-1', '#/pictures/0'), isNull);
     });
 
     test('drops only the figures of a row whose document_id is not a string',
@@ -101,8 +107,11 @@ void main() {
         ],
       };
       final snap = RagSnapshot.fromJson(bad);
-      expect(snap.pictureBytes('doc-1', '#/pictures/0'), isNull);
-      expect(snap.pictureBytes('doc-1', '#/pictures/1'), utf8.encode('world'));
+      expect(snap.figures.pictureBytes('doc-1', '#/pictures/0'), isNull);
+      expect(
+        snap.figures.pictureBytes('doc-1', '#/pictures/1'),
+        utf8.encode('world'),
+      );
     });
 
     test('skips a malformed search entry without throwing', () {
@@ -119,7 +128,10 @@ void main() {
         ],
       };
       final snap = RagSnapshot.fromJson(bad);
-      expect(snap.pictureBytes('doc-1', '#/pictures/9'), utf8.encode('world'));
+      expect(
+        snap.figures.pictureBytes('doc-1', '#/pictures/9'),
+        utf8.encode('world'),
+      );
     });
   });
 }

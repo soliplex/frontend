@@ -1,4 +1,5 @@
 import 'package:ag_ui/ag_ui.dart';
+import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/schema/agui_features/rag.dart';
@@ -16,46 +17,59 @@ final _logger =
 /// are confined to `rag_snapshot.dart`.
 ///
 /// Each RAG-producing skill (`rag`, `analysis`, …) publishes its own
-/// citation-bearing namespace. [citationIdsInDelta] collects the ids a single
-/// `StateDeltaEvent` cited; [resolve] turns a set of ids into full
-/// [SourceReference]s using the state's session-cumulative `citation_index`.
-/// Neither subtracts a prior turn's ids — accumulation across a turn is the
-/// caller's responsibility.
+/// citation-bearing namespace. [accumulate] folds each `StateDeltaEvent`'s
+/// cited ids and inline figures into a running [TurnCitations]; [resolve] turns
+/// an accumulated [TurnCitations] into full [SourceReference]s using the
+/// state's session-cumulative `citation_index`. No subtraction of a prior
+/// turn's ids is applied — the caller owns the turn-scoped accumulator.
 class CitationExtractor {
-  /// The union of chunk ids cited in [state], restricted to [namespaces] when
-  /// given, else across every citation-bearing namespace.
+  /// The [TurnCitations] carried by [state] across every citation-bearing
+  /// namespace — every cited id and every inline figure the state itself holds.
   ///
-  /// The backend clears a namespace's `citations` list only when that skill is
-  /// invoked, so an untouched namespace's list is a prior turn's. Prefer
-  /// [citationIdsInDelta] during accumulation, which scopes to the namespaces a
-  /// delta actually touched.
-  Set<String> citationIds(
-    Map<String, dynamic> state, {
-    Set<String>? namespaces,
-  }) {
-    return <String>{
-      for (final snapshot
-          in RagSnapshot.extractAll(state, namespaces: namespaces))
-        ...snapshot.citationIds,
-    };
-  }
+  /// This reads the whole state, so a namespace's stale `citations` (left by a
+  /// prior turn and riding the rebase snapshot) is included. Use it only when
+  /// [state] is a self-contained unit to resolve; during a turn's delta stream,
+  /// use [accumulate], which scopes to the namespaces each delta touched.
+  TurnCitations citationsInState(Map<String, dynamic> state) => _extract(state);
 
-  /// The union of chunk ids cited in the namespaces that [delta] modified.
+  /// Folds the citations and figures [delta] contributes into [current],
+  /// returning the extended accumulator.
   ///
-  /// The backend re-emits every namespace's block in `state` — including a
-  /// prior turn's untouched one, whose stale `citations` ride the run's rebase
-  /// snapshot — but clears and repopulates `citations` only in the invoked
-  /// skill's namespace. So a namespace this delta did not touch carries a prior
-  /// turn's ids and must not be attributed to this one. Scoping to the
-  /// delta's touched namespaces is what keeps re-cited chunks and
-  /// multi-invocation runs while not inventing a stale namespace's citations.
-  Set<String> citationIdsInDelta(
+  /// Scoped to the namespaces [delta]'s JSON-Patch touched. The backend
+  /// re-emits every namespace's block in `state` — including a prior turn's
+  /// untouched one, whose stale `citations` ride the run's rebase snapshot —
+  /// but clears and repopulates `citations` and `searches` only in the invoked
+  /// skill's namespace. Scoping keeps re-cited chunks and multi-invocation runs
+  /// while never crediting a namespace this delta did not invoke.
+  ///
+  /// Both ids and figure bytes are read from the same touched-namespace
+  /// snapshots in one pass, so every accumulated id's figure (if any) is
+  /// captured alongside it — even after a later invocation clears `searches`.
+  TurnCitations accumulate(
+    TurnCitations current,
     Map<String, dynamic> state,
     StateDeltaEvent delta,
   ) {
     final namespaces = _touchedNamespaces(delta);
-    if (namespaces.isEmpty) return const <String>{};
-    return citationIds(state, namespaces: namespaces);
+    if (namespaces.isEmpty) return current;
+    return current.merge(_extract(state, namespaces: namespaces));
+  }
+
+  /// One pass over [state]'s citation-bearing namespaces (all, or only
+  /// [namespaces] when given), unioning each snapshot's cited ids and merging
+  /// its inline figures.
+  TurnCitations _extract(
+    Map<String, dynamic> state, {
+    Set<String>? namespaces,
+  }) {
+    final ids = <String>{};
+    var figures = const CitedFigures.empty();
+    for (final snapshot
+        in RagSnapshot.extractAll(state, namespaces: namespaces)) {
+      ids.addAll(snapshot.citationIds);
+      figures = figures.merge(snapshot.figures);
+    }
+    return TurnCitations(ids, figures);
   }
 
   /// The top-level state keys touched by [delta]'s JSON-Patch ops, e.g.
@@ -66,20 +80,20 @@ class CitationExtractor {
     final namespaces = <String>{};
     for (final op in delta.delta) {
       if (op is! Map) {
-        _logger.warning('citationIdsInDelta: skipping non-Map delta op: $op');
+        _logger.warning('_touchedNamespaces: skipping non-Map delta op: $op');
         continue;
       }
       final path = op['path'];
       if (path is! String) {
         _logger.warning(
-          'citationIdsInDelta: skipping delta op with non-String path: $op',
+          '_touchedNamespaces: skipping delta op with non-String path: $op',
         );
         continue;
       }
       final segments = path.split('/').where((s) => s.isNotEmpty);
       if (segments.isEmpty) {
         _logger.warning(
-          'citationIdsInDelta: skipping delta op with no namespace segment '
+          '_touchedNamespaces: skipping delta op with no namespace segment '
           'in path: $op',
         );
         continue;
@@ -89,37 +103,41 @@ class CitationExtractor {
     return namespaces;
   }
 
-  /// Resolves [ids] to full [SourceReference]s against the citation index in
-  /// [state], deduping ids and logging then omitting any absent from every
-  /// namespace's index — an absent cited id signals a backend contract
-  /// violation (the index is cumulative), so it is surfaced, not dropped
-  /// silently.
+  /// Resolves [citations] to full [SourceReference]s: each cited id's text and
+  /// metadata come from the citation index in [finalState], and its inline
+  /// figure bytes from [citations]'s accumulated figure union.
+  ///
+  /// Ids are deduped; any absent from every namespace's index is logged then
+  /// omitted — an absent cited id signals a backend contract violation (the
+  /// index is cumulative), so it is surfaced, not dropped silently.
   ///
   /// Ids are looked up in `citation_index`, which is session-cumulative, so an
   /// id cited in an earlier invocation still resolves even when it is no longer
-  /// in the current `citations` list. No subtraction of any kind is applied.
+  /// in the current `citations` list. Figure bytes come from
+  /// [citations].figures rather than [finalState]'s `searches`, which the
+  /// backend clears each invocation — the accumulated union is a superset, so
+  /// this recovers figures a later invocation would otherwise have wiped. No
+  /// subtraction of any kind is applied.
   ///
   /// Never throws: a namespace whose block fails to parse is skipped by
   /// [RagSnapshot.extractAll], everything after operates on already-parsed
-  /// snapshots, and the one render-time decode ([RagSnapshot.pictureBytes]'s
+  /// snapshots, and the one render-time decode ([CitedFigures.pictureBytes]'s
   /// base64 decode) is itself guarded.
   List<SourceReference> resolve(
-    Iterable<String> ids,
-    Map<String, dynamic> state, {
+    TurnCitations citations,
+    Map<String, dynamic> finalState, {
     String? logContext,
   }) {
-    final snapshots = RagSnapshot.extractAll(state);
+    final snapshots = RagSnapshot.extractAll(finalState);
 
     final refs = <SourceReference>[];
-    final seen = <String>{};
     final unresolved = <String>[];
-    for (final id in ids) {
-      if (!seen.add(id)) continue;
+    for (final id in citations.ids) {
       var resolved = false;
       for (final snapshot in snapshots) {
         final citation = snapshot.resolveCitation(id);
         if (citation != null) {
-          refs.add(_citationToSourceReference(citation, snapshot));
+          refs.add(_citationToSourceReference(citation, citations.figures));
           resolved = true;
           break;
         }
@@ -139,12 +157,12 @@ class CitationExtractor {
     return refs;
   }
 
-  SourceReference _citationToSourceReference(Citation c, RagSnapshot rag) {
+  SourceReference _citationToSourceReference(Citation c, CitedFigures cited) {
     final figures = <Figure>[];
     for (final ref in c.pictureRefs ?? const <String>[]) {
-      final bytes = rag.pictureBytes(c.documentId, ref);
+      final bytes = cited.pictureBytes(c.documentId, ref);
       if (bytes == null) continue;
-      final caption = rag.pictureCaption(c.documentId, ref);
+      final caption = cited.pictureCaption(c.documentId, ref);
       figures.add(
         Figure(
           ref: ref,
@@ -174,4 +192,38 @@ class CitationExtractor {
       index: c.index,
     );
   }
+}
+
+/// A turn's accumulated citations: the union of cited chunk [ids] and the
+/// union of inline [figures] observed across the turn's `StateDeltaEvent`s.
+///
+/// Bundling the two keeps them in lockstep — the live orchestrator and the
+/// history replay both fold with [CitationExtractor.accumulate] and read back
+/// with [CitationExtractor.resolve], so they cannot drift. Immutable; [merge]
+/// returns a new union.
+@immutable
+class TurnCitations {
+  /// Wraps an already-computed [ids] set and [figures] union. [ids] is copied
+  /// into an unmodifiable set so the instance cannot be mutated through the
+  /// reference passed in.
+  TurnCitations(Set<String> ids, this.figures) : ids = Set.unmodifiable(ids);
+
+  /// An empty accumulator — the identity element for [merge] and the turn-start
+  /// value.
+  const TurnCitations.empty()
+      : ids = const {},
+        figures = const CitedFigures.empty();
+
+  /// Chunk ids cited so far this turn.
+  final Set<String> ids;
+
+  /// Inline figure bytes and captions retrieved so far this turn. The citing
+  /// subset is selected later, when a citation's `pictureRefs` are resolved.
+  final CitedFigures figures;
+
+  /// The union of this and [other]'s ids and figures.
+  TurnCitations merge(TurnCitations other) => TurnCitations(
+        {...ids, ...other.ids},
+        figures.merge(other.figures),
+      );
 }

@@ -79,6 +79,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   an earlier turn could be dropped, and a reply whose agent searched several
   times kept only its last batch of sources; both now render in full, and a
   thread shows the same sources live and after a reload.
+- A cited source's inline figures now render even when the reply's agent
+  searched several times. Previously, when a later search reused the retrieval
+  slot, figures for a source found by an earlier search of the same reply were
+  dropped and it rendered text-only; those figures are now preserved, live and
+  after a reload.
 
 ## [0.94.0+68] - 2026-07-17
 

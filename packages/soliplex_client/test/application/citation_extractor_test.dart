@@ -1,5 +1,6 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
+import 'package:soliplex_client/src/application/rag_snapshot.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 import 'package:test/test.dart';
@@ -12,10 +13,15 @@ void main() {
       extractor = CitationExtractor();
     });
 
+    /// A [TurnCitations] over [ids] with no figures — for resolve() cases that
+    /// exercise id resolution against the index, not figure preservation.
+    TurnCitations turnOf(Set<String> ids) =>
+        TurnCitations(ids, const CitedFigures.empty());
+
     /// Resolves every id cited in [state] — the common case where the caller
     /// has no accumulated set and just wants what the state itself carries.
     List<SourceReference> extract(Map<String, dynamic> state) =>
-        extractor.resolve(extractor.citationIds(state), state);
+        extractor.resolve(extractor.citationsInState(state), state);
 
     group('wire shape', () {
       Map<String, dynamic> createCitation({
@@ -181,7 +187,7 @@ void main() {
           citations: ['c'],
         );
 
-        final refs = extractor.resolve({'a', 'b', 'c'}, state);
+        final refs = extractor.resolve(turnOf({'a', 'b', 'c'}), state);
 
         expect(refs.map((r) => r.chunkId), unorderedEquals(['a', 'b', 'c']));
       });
@@ -250,7 +256,7 @@ void main() {
           'analysis': block(const ['b', 'c']),
         };
 
-        expect(extractor.citationIds(state), {'a', 'b', 'c'});
+        expect(extractor.citationsInState(state).ids, {'a', 'b', 'c'});
       });
 
       test('skips namespaces without a citation_index', () {
@@ -259,7 +265,7 @@ void main() {
           'bubble-sandbox': {'foo': 'bar'},
         };
 
-        expect(extractor.citationIds(state), {'a'});
+        expect(extractor.citationsInState(state).ids, {'a'});
       });
 
       test('tolerates a malformed citations list', () {
@@ -270,15 +276,15 @@ void main() {
           },
         };
 
-        expect(extractor.citationIds(state), isEmpty);
+        expect(extractor.citationsInState(state).ids, isEmpty);
       });
 
       test('is empty when the state has no citation namespaces', () {
-        expect(extractor.citationIds(const {'unknown': 42}), isEmpty);
+        expect(extractor.citationsInState(const {'unknown': 42}).ids, isEmpty);
       });
     });
 
-    group('citationIdsInDelta', () {
+    group('accumulate (delta scoping)', () {
       Map<String, dynamic> citation(String chunkId) => {
             'chunk_id': chunkId,
             'content': 'content for $chunkId',
@@ -308,12 +314,13 @@ void main() {
           'analysis': block(const ['b']),
         };
 
-        final ids = extractor.citationIdsInDelta(
+        final turn = extractor.accumulate(
+          const TurnCitations.empty(),
           state,
           deltaTouching(const ['/analysis/citations/-']),
         );
 
-        expect(ids, {'b'});
+        expect(turn.ids, {'b'});
       });
 
       test('unions across every namespace the delta touched', () {
@@ -322,12 +329,13 @@ void main() {
           'analysis': block(const ['b']),
         };
 
-        final ids = extractor.citationIdsInDelta(
+        final turn = extractor.accumulate(
+          const TurnCitations.empty(),
           state,
           deltaTouching(const ['/rag/citations/0', '/analysis/citations/0']),
         );
 
-        expect(ids, {'a', 'b'});
+        expect(turn.ids, {'a', 'b'});
       });
 
       test('is empty when the delta touches no citation-bearing namespace', () {
@@ -335,12 +343,13 @@ void main() {
           'rag': block(const ['a']),
         };
 
-        final ids = extractor.citationIdsInDelta(
+        final turn = extractor.accumulate(
+          const TurnCitations.empty(),
           state,
           deltaTouching(const ['/document_filter']),
         );
 
-        expect(ids, isEmpty);
+        expect(turn.ids, isEmpty);
       });
 
       test('skips malformed ops with a warning', () {
@@ -352,8 +361,9 @@ void main() {
         addTearDown(() => LogManager.instance.removeSink(sink));
 
         // State is never read: malformed ops touch no namespace, so
-        // citationIdsInDelta returns before consulting it.
-        final ids = extractor.citationIdsInDelta(
+        // accumulate returns before consulting it.
+        final turn = extractor.accumulate(
+          const TurnCitations.empty(),
           const {},
           const StateDeltaEvent(
             delta: [
@@ -363,7 +373,7 @@ void main() {
           ),
         );
 
-        expect(ids, isEmpty);
+        expect(turn.ids, isEmpty);
         expect(sink.records, hasLength(2));
         expect(sink.records.every((r) => r.level == LogLevel.warning), isTrue);
       });
@@ -376,12 +386,13 @@ void main() {
         LogManager.instance.addSink(sink);
         addTearDown(() => LogManager.instance.removeSink(sink));
 
-        final ids = extractor.citationIdsInDelta(
+        final turn = extractor.accumulate(
+          const TurnCitations.empty(),
           const {},
           deltaTouching(const ['/']),
         );
 
-        expect(ids, isEmpty);
+        expect(turn.ids, isEmpty);
         expect(sink.records, hasLength(1));
         expect(sink.records.single.level, LogLevel.warning);
       });
@@ -402,15 +413,9 @@ void main() {
             },
           };
 
-      test('dedups repeated ids', () {
-        final refs = extractor.resolve(['a', 'a'], stateWith(['a']));
-
-        expect(refs, hasLength(1));
-        expect(refs.single.chunkId, 'a');
-      });
-
       test('skips ids absent from every citation_index', () {
-        final refs = extractor.resolve(['a', 'ghost'], stateWith(['a']));
+        final refs =
+            extractor.resolve(turnOf({'a', 'ghost'}), stateWith(['a']));
 
         expect(refs.map((r) => r.chunkId), ['a']);
       });
@@ -423,7 +428,7 @@ void main() {
         LogManager.instance.addSink(sink);
         addTearDown(() => LogManager.instance.removeSink(sink));
 
-        extractor.resolve(['a', 'ghost'], stateWith(['a']));
+        extractor.resolve(turnOf({'a', 'ghost'}), stateWith(['a']));
 
         expect(sink.records, hasLength(1));
         expect(sink.records.single.level, LogLevel.warning);
@@ -431,7 +436,7 @@ void main() {
       });
 
       test('is empty when the state carries no citation namespace', () {
-        final refs = extractor.resolve(['a'], const {'unknown': 42});
+        final refs = extractor.resolve(turnOf({'a'}), const {'unknown': 42});
 
         expect(refs, isEmpty);
       });
