@@ -29,6 +29,7 @@ const double _figureThumbnailSize = 120;
 const double _transcriptCollapsedHeight = 72;
 
 /// Max height of the expanded, internally-scrollable transcript band.
+/// Off the spacing scale — a component dimension, like its collapsed peer.
 const double _transcriptExpandedMaxHeight = 250;
 
 /// Fallback label shown when a cited figure can't be decoded.
@@ -397,16 +398,24 @@ class _CitationTranscriptState extends State<_CitationTranscript> {
                 : _CollapsedTranscript(child: markdown),
           ),
         ),
-        // Toggle mirrors the figure caption's more/less idiom below.
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Padding(
-            padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-            child: Text(
-              _expanded ? 'Show less' : 'Show full transcript',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.primary,
+        // Toggle mirrors the figure caption's more/less idiom below. A pointer
+        // cursor and tooltip on hover mark it as the clickable expand control;
+        // the padding both spaces it below the box and gives the hover
+        // highlight a balanced pill around the label.
+        Tooltip(
+          message: _expanded
+              ? 'Collapse the cited passage'
+              : 'Expand the full cited passage',
+          child: InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(context.radii.sm),
+            child: Padding(
+              padding: const EdgeInsets.all(SoliplexSpacing.s1),
+              child: Text(
+                _expanded ? 'Show less' : 'Show full transcript',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
           ),
@@ -416,10 +425,10 @@ class _CitationTranscriptState extends State<_CitationTranscript> {
   }
 }
 
-/// A fixed-height, non-scrolling preview of the transcript. The
-/// [NeverScrollableScrollPhysics] clips the overflow to the band *without*
-/// consuming scroll gestures, so the surrounding thread keeps scrolling; a
-/// bottom fade signals that the passage continues (issue #451).
+/// A fixed-height, non-scrolling preview of the transcript. The fixed-height
+/// box clips the overflow to the band; [NeverScrollableScrollPhysics] keeps the
+/// inner view from consuming scroll gestures, so the surrounding thread keeps
+/// scrolling. A bottom fade signals that the passage continues (issue #451).
 class _CollapsedTranscript extends StatelessWidget {
   const _CollapsedTranscript({required this.child});
 
