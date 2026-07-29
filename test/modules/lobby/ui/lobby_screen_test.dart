@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, RoomStats;
+import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
@@ -477,6 +478,36 @@ void main() {
       expect(
         tester.getCenter(find.byIcon(Icons.sort)).dy,
         closeTo(tester.getCenter(find.byIcon(Icons.search)).dy, 4),
+      );
+    });
+
+    testWidgets('filter row keeps a gutter above the room list (issue #464)',
+        (tester) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // The room list must not butt against the filter row: at least the
+      // list's item gap (s3) of vertical space sits between the search field
+      // and the first card.
+      final searchFieldBottom =
+          tester.getRect(find.widgetWithIcon(TextField, Icons.search)).bottom;
+      final firstCardTop = tester.getRect(find.byType(RoomCard).first).top;
+      expect(
+        firstCardTop - searchFieldBottom,
+        greaterThanOrEqualTo(SoliplexSpacing.s3),
       );
     });
 

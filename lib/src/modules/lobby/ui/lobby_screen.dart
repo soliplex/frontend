@@ -564,8 +564,13 @@ class _RoomContent extends StatelessWidget {
               ),
             ],
             Padding(
+              // A non-scrolling bottom gap (matching the list's item spacing)
+              // so scrolled room titles/descriptions keep a gutter under the
+              // filter row instead of butting flush against it (issue #464).
+              // The ListView's own top padding scrolls away, so the gap has to
+              // live here, outside the scroll view.
               padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-                  SoliplexSpacing.s2, SoliplexSpacing.s4, 0),
+                  SoliplexSpacing.s2, SoliplexSpacing.s4, SoliplexSpacing.s3),
               child: _LobbyControls(
                 viewMode: viewMode,
                 onViewModeChanged: onViewModeChanged,
