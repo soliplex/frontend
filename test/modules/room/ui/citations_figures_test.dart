@@ -102,10 +102,9 @@ void main() {
     await tester.pumpWidget(host(_ref(
       figures: [Figure(ref: '#/pictures/0', bytes: _png)],
     )));
-    // Expand the citations section, then the citation row (title falls back
-    // to the document URI's filename since documentTitle isn't set).
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
+    // The section is expanded by default (issue #463); open the citation row
+    // (title falls back to the document URI's filename since documentTitle
+    // isn't set).
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -117,8 +116,6 @@ void main() {
     await tester.pumpWidget(host(_ref(
       figures: [Figure(ref: '#/pictures/0', bytes: _png)],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -140,8 +137,6 @@ void main() {
         Figure(ref: '#/pictures/1', bytes: _png),
       ],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -163,8 +158,6 @@ void main() {
         Figure(ref: '#/pictures/1', bytes: _png, caption: 'cap-one'),
       ],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -186,8 +179,6 @@ void main() {
             ref: '#/pictures/0', bytes: Uint8List.fromList(const [1, 2, 3, 4])),
       ],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -201,8 +192,6 @@ void main() {
   testWidgets('renders no figure strip when there are no figures',
       (tester) async {
     await tester.pumpWidget(host(_ref(figures: const [])));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 
@@ -216,8 +205,6 @@ void main() {
         Figure(ref: '#/pictures/0', bytes: _png, caption: 'Figure 1: revenue'),
       ],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
     await tester.tap(find.byType(Image));
@@ -231,8 +218,6 @@ void main() {
     await tester.pumpWidget(host(_ref(
       figures: [Figure(ref: '#/pictures/0', bytes: _png)],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
     await tester.tap(find.byType(Image));
@@ -250,8 +235,6 @@ void main() {
     await tester.pumpWidget(host(_ref(
       figures: [Figure(ref: '#/pictures/0', bytes: _png, caption: long)],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
     await tester.tap(find.byType(Image));
@@ -270,8 +253,6 @@ void main() {
         Figure(ref: '#/pictures/0', bytes: _png, caption: 'Figure 1: revenue'),
       ],
     )));
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('doc-1.pdf'));
     await tester.pump();
 

@@ -53,8 +53,8 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
+    // The section is expanded by default (issue #463), so the source title is
+    // visible without a tap; tapping it opens the row to render the content.
     await tester.tap(find.text('Alpha'));
     await tester.pump();
 
@@ -81,7 +81,8 @@ void main() {
     expect(find.text('1 source'), findsOneWidget);
   });
 
-  testWidgets('tapping header expands to show source titles', (tester) async {
+  testWidgets('sources are expanded and visible by default (issue #463)',
+      (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(
         sourceReferences: [
@@ -91,27 +92,28 @@ void main() {
       ),
     ));
 
-    expect(find.text('Alpha'), findsNothing);
-
-    await tester.tap(find.text('2 sources'));
-    await tester.pump();
-
+    // No tap needed — each source's filename shows immediately.
     expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('Beta'), findsOneWidget);
   });
 
-  testWidgets('tapping header again collapses section', (tester) async {
+  testWidgets('tapping the header collapses then re-expands the section',
+      (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(sourceReferences: [_ref(index: 1, title: 'Alpha')]),
     ));
 
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
+    // Starts expanded (issue #463); the header still toggles it closed...
     expect(find.text('Alpha'), findsOneWidget);
 
     await tester.tap(find.text('1 source'));
     await tester.pump();
     expect(find.text('Alpha'), findsNothing);
+
+    // ...and back open.
+    await tester.tap(find.text('1 source'));
+    await tester.pump();
+    expect(find.text('Alpha'), findsOneWidget);
   });
 
   testWidgets('displays badge number from SourceReference.index',
@@ -119,9 +121,6 @@ void main() {
     await tester.pumpWidget(_wrap(
       CitationsSection(sourceReferences: [_ref(index: 4, title: 'Fourth')]),
     ));
-
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
 
     expect(find.text('4'), findsOneWidget);
   });
@@ -141,9 +140,8 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
-
+    // Section expanded by default (issue #463); the row's heading breadcrumb
+    // stays hidden until the row itself is tapped open.
     expect(find.text('Chapter 1 > Section 2'), findsNothing);
 
     await tester.tap(find.text('Doc'));
@@ -167,8 +165,7 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
+    // Expanded by default (issue #463); open the single source's row.
     await tester.tap(find.text('Doc'));
     await tester.pump();
 
@@ -207,8 +204,6 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
     await tester.tap(find.text('Doc'));
     await tester.pump();
 
@@ -223,9 +218,6 @@ void main() {
         ],
       ),
     ));
-
-    await tester.tap(find.text('1 source'));
-    await tester.pump();
 
     expect(find.text('p.5-6'), findsOneWidget);
   });
@@ -244,10 +236,7 @@ void main() {
       ),
     ));
 
-    // Expand section
-    await tester.tap(find.text('2 sources'));
-    await tester.pump();
-
+    // Section is expanded by default (issue #463), so both rows are visible.
     // Only the PDF source exposes the eye affordance, and it sits in
     // the source's header row (no need to expand the row to reveal it).
     expect(find.byTooltip('View source PDF'), findsOneWidget);
