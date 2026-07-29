@@ -1,3 +1,14 @@
+// Four upstream types are deprecated, scheduled for removal in ag_ui 1.0.0:
+// THINKING_TEXT_MESSAGE_{START,CONTENT,END} and THINKING_CONTENT.
+// `ThinkingStartEvent` and `ThinkingEndEvent` are NOT deprecated and their arms
+// stay regardless — a removal sweep grepping "THINKING" must not touch them.
+// The THINKING_TEXT_MESSAGE_* arms stay because stored threads still decode to
+// them; the THINKING_CONTENT arm stays only to keep `bridgeBaseEvent`'s switch
+// over sealed `BaseEvent` exhaustive (upstream documents it as Dart-only legacy
+// that was never part of the canonical protocol). Suppressed per line so the
+// 1.0.0 sweep can enumerate them and an unrelated deprecation here still
+// raises.
+
 import 'dart:async';
 
 import 'package:meta/meta.dart';
@@ -633,12 +644,18 @@ List<ActivityRecord> conversationActivitiesOf(RunState runState) =>
 ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
   return switch (event) {
     TextMessageContentEvent(:final delta) => TextDelta(delta: delta),
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageStartEvent() ||
     ReasoningMessageStartEvent() =>
       const ThinkingStarted(),
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageContentEvent(:final delta) ||
     ReasoningMessageContentEvent(:final delta) =>
       ThinkingContent(delta: delta),
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageEndEvent() ||
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
@@ -653,7 +670,7 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     ActivitySnapshotEvent(
       :final messageId,
       :final activityType,
-      :final content,
+      content: final Map<String, dynamic> content,
       :final timestamp,
       :final replace,
     ) =>
@@ -673,15 +690,27 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     // patch to `Conversation.activities`, and the tracker observes
     // activities reactively via the resulting signal. Bridging the
     // delta into an `ExecutionEvent` would duplicate that work.
+    //
+    // The bare `ActivitySnapshotEvent` reaches here only when `content` is not
+    // a `Map<String, dynamic>`, which AG-UI's `Object?` typing permits. Such a
+    // snapshot is dropped rather than synthesized into an empty one: the
+    // tracker must not hold an entry with no matching `ActivityRecord`. The
+    // live path never reaches this arm — `processEvent` throws on that shape
+    // and the orchestrator returns before republishing the event. Historical
+    // replay does reach it and drops silently by design, because the
+    // chat-message side already mints one tile for the same event.
     RunStartedEvent() ||
     TextMessageStartEvent() ||
     TextMessageEndEvent() ||
     ThinkingStartEvent() ||
+    // Deprecated upstream; arm only keeps the sealed switch exhaustive.
+    // ignore: deprecated_member_use
     ThinkingContentEvent() ||
     ToolCallArgsEvent() ||
     ToolCallEndEvent() ||
     StateSnapshotEvent() ||
     StateDeltaEvent() ||
+    ActivitySnapshotEvent() ||
     StepFinishedEvent() ||
     TextMessageChunkEvent() ||
     ToolCallChunkEvent() ||

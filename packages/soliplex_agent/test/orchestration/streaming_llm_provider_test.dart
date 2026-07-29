@@ -27,7 +27,7 @@ void main() {
 
         final handle = await provider.startRun(
           key: key,
-          input: const SimpleRunAgentInput(
+          input: SimpleRunAgentInput(
             messages: [UserMessage(id: 'u1', content: 'Hi')],
           ),
         );
@@ -72,9 +72,9 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Run code')],
-          tools: [
+          tools: const [
             Tool(name: 'execute_python', description: 'Execute Python code'),
           ],
         ),
@@ -109,7 +109,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
       );
@@ -140,7 +140,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
       );
@@ -167,7 +167,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
       );
@@ -195,7 +195,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
       );
@@ -225,7 +225,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
       );
@@ -251,11 +251,11 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [
-            SystemMessage(id: 's1', content: 'Be helpful'),
+            const SystemMessage(id: 's1', content: 'Be helpful'),
             UserMessage(id: 'u1', content: 'Hello'),
-            AssistantMessage(
+            const AssistantMessage(
               id: 'a1',
               content: 'I will search',
               toolCalls: [
@@ -268,7 +268,7 @@ void main() {
                 ),
               ],
             ),
-            ToolMessage(
+            const ToolMessage(
               id: 't1',
               toolCallId: 'tc_1',
               content: 'Found 5 results',
@@ -294,6 +294,48 @@ void main() {
       expect(toolResult.output, 'Found 5 results');
     });
 
+    test('multimodal user content projects to a null content', () async {
+      // `LlmUserMessage` carries text only. A multimodal message has no
+      // text projection, and reporting `''` would claim the user sent an
+      // empty message; null says "not text" so the provider decides.
+      List<LlmChatMessage>? receivedMessages;
+      final provider = StreamingLlmProvider(
+        chatFn: ({
+          required messages,
+          tools,
+          systemPrompt,
+          maxTokens,
+          abortTrigger,
+        }) async* {
+          receivedMessages = messages;
+          yield const LlmDone();
+        },
+      );
+
+      final handle = await provider.startRun(
+        key: key,
+        input: SimpleRunAgentInput(
+          messages: [
+            UserMessage.multimodal(
+              id: 'u1',
+              parts: const [
+                TextInputContent('what is this?'),
+                ImageInputContent(
+                  source: UrlSource(value: 'https://example.com/cat.png'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await handle.events.drain<void>();
+
+      expect(receivedMessages, hasLength(1));
+      expect(receivedMessages![0], isA<LlmUserMessage>());
+      expect((receivedMessages![0] as LlmUserMessage).content, isNull);
+    });
+
     test('converts AG-UI tools to LlmToolDef correctly', () async {
       List<LlmToolDef>? receivedTools;
       final provider = StreamingLlmProvider(
@@ -311,9 +353,9 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
-          tools: [
+          tools: const [
             Tool(
               name: 'execute_python',
               description: 'Execute Python code',
@@ -359,7 +401,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
         cancelToken: token,
@@ -394,7 +436,7 @@ void main() {
 
       final handle = await provider.startRun(
         key: key,
-        input: const SimpleRunAgentInput(
+        input: SimpleRunAgentInput(
           messages: [UserMessage(id: 'u1', content: 'Hi')],
         ),
         existingRunId: 'existing-123',

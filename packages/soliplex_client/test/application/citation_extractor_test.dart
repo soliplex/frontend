@@ -352,10 +352,10 @@ void main() {
         expect(turn.ids, isEmpty);
       });
 
-      test('skips malformed ops with a warning', () {
-        // A non-Map op and a pathless op are both malformed JSON-Patch. They
-        // must be skipped (touching no namespace) and each logged, so a
-        // drifting wire shape can't lose a namespace's citations silently.
+      test('skips a pathless op with a warning', () {
+        // An op with no `path` is malformed JSON-Patch. It must be skipped
+        // (touching no namespace) and logged, so a drifting wire shape
+        // can't lose a namespace's citations silently.
         final sink = _RecordingSink();
         LogManager.instance.addSink(sink);
         addTearDown(() => LogManager.instance.removeSink(sink));
@@ -367,15 +367,14 @@ void main() {
           const {},
           const StateDeltaEvent(
             delta: [
-              'not-a-map',
               <String, dynamic>{'op': 'add', 'value': 'x'},
             ],
           ),
         );
 
         expect(turn.ids, isEmpty);
-        expect(sink.records, hasLength(2));
-        expect(sink.records.every((r) => r.level == LogLevel.warning), isTrue);
+        expect(sink.records, hasLength(1));
+        expect(sink.records.single.level, LogLevel.warning);
       });
 
       test('skips a rooted op that names no namespace, with a warning', () {

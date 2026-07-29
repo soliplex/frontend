@@ -39,7 +39,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello world'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -151,7 +151,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
       );
@@ -183,7 +183,7 @@ void main() {
 
       await session.start(userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -225,7 +225,7 @@ void main() {
 
       await session.start(userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
       expect(session.sessionState.value, equals(AgentSessionState.running));
@@ -241,7 +241,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
       );
@@ -273,7 +273,7 @@ void main() {
 
       await session.start(userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -302,7 +302,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StateSnapshotEvent(
             snapshot: {
               'ui': {
@@ -339,7 +339,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StateSnapshotEvent(
             snapshot: {
               'ui': {'narrations': <dynamic>[]},

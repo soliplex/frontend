@@ -42,7 +42,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -192,7 +192,7 @@ void main() {
       );
 
       // Move both to running state
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       parent.cancel();
@@ -296,7 +296,7 @@ void main() {
       final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
       await runtime.spawn(roomId: _roomA, prompt: 'Sub-task', parent: parent);
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await runtime.cancelAll();
@@ -354,7 +354,7 @@ void main() {
         parent: parent,
       );
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       grandparent.cancel();

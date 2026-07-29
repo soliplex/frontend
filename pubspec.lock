@@ -12,12 +12,11 @@ packages:
   ag_ui:
     dependency: transitive
     description:
-      path: "sdks/community/dart"
-      ref: d4552e3ad0d5e33e34a3df5325260d88ede8bff9
-      resolved-ref: d4552e3ad0d5e33e34a3df5325260d88ede8bff9
-      url: "https://github.com/ag-ui-protocol/ag-ui.git"
-    source: git
-    version: "0.1.0"
+      name: ag_ui
+      sha256: f963810252e5c080af0ff779b03949ac8d45362042bf2ec2b7c711737d3e6457
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
   analyzer:
     dependency: transitive
     description:

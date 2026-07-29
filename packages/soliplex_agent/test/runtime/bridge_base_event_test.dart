@@ -1,3 +1,8 @@
+// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
+// events, exercising the arms kept for replaying stored threads that predate
+// REASONING_*. The backend emits REASONING_* live, never THINKING_*. Removal at
+// ag_ui 1.0.0 surfaces as a compile error at these constructors.
+
 import 'package:soliplex_agent/src/orchestration/execution_event.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
 import 'package:soliplex_client/soliplex_client.dart';
@@ -22,17 +27,23 @@ void main() {
     });
 
     test('routes ThinkingTextMessageStartEvent to ThinkingStarted', () {
+      // Deprecated upstream; exercises the pre-REASONING_* replay path.
+      // ignore: deprecated_member_use
       const event = ThinkingTextMessageStartEvent();
       expect(bridgeBaseEvent(event), const ThinkingStarted());
     });
 
     test('routes ThinkingTextMessageContentEvent delta to ThinkingContent', () {
+      // Deprecated upstream; exercises the pre-REASONING_* replay path.
+      // ignore: deprecated_member_use
       const event = ThinkingTextMessageContentEvent(delta: 'hmm');
       expect(bridgeBaseEvent(event), const ThinkingContent(delta: 'hmm'));
     });
 
     test('routes all four thinking-end variants to ThinkingEnded', () {
       const events = <BaseEvent>[
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         ThinkingTextMessageEndEvent(),
         ThinkingEndEvent(),
         ReasoningEndEvent(messageId: 'reas-1'),
@@ -58,6 +69,40 @@ void main() {
       );
 
       expect(bridgeBaseEvent(event), isNull);
+    });
+
+    test('ActivitySnapshotEvent with non-object content returns null', () {
+      // AG-UI types `content` as `Object?`; `ActivitySnapshot.content` is
+      // a map, so a non-object payload does not bridge. This arm logs nothing:
+      // on the live path `processEvent` throws on that shape before the event
+      // reaches here, and historical replay logs it separately when it folds
+      // the same event through `applyActivityEvent`.
+      const event = ActivitySnapshotEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: 'not-a-map',
+      );
+
+      expect(bridgeBaseEvent(event), isNull);
+    });
+
+    test('ActivitySnapshotEvent with object content bridges', () {
+      const event = ActivitySnapshotEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'tool_name': 'ask'},
+        timestamp: 7,
+      );
+
+      expect(
+        bridgeBaseEvent(event),
+        const ActivitySnapshot(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: {'tool_name': 'ask'},
+          timestamp: 7,
+        ),
+      );
     });
   });
 }

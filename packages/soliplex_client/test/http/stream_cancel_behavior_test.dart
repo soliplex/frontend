@@ -5,8 +5,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 
-// ignore: implementation_imports
-import 'package:ag_ui/src/sse/sse_parser.dart';
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
@@ -121,7 +119,7 @@ void main() {
           .asFuture<void>();
 
       // Parse to verify we got events.
-      final sseMessages = SseParser().parseBytes(Stream.value(allBytes));
+      final sseMessages = SseClient().parseStream(Stream.value(allBytes));
       final eventTypes = <String>[];
       await for (final msg in sseMessages) {
         if (msg.data == null || msg.data!.isEmpty) continue;
@@ -150,7 +148,7 @@ void main() {
 
       expect(response.statusCode, 200);
 
-      final sseMessages = SseParser().parseBytes(response.body);
+      final sseMessages = SseClient().parseStream(response.body);
       const decoder = EventDecoder();
       final eventTypes = <String>[];
       var cancelledAfterFinish = false;

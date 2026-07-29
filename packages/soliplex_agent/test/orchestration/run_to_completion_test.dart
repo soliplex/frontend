@@ -43,7 +43,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -51,7 +51,7 @@ List<BaseEvent> _happyPathEvents() => [
     ];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
       const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
       const ToolCallEndEvent(toolCallId: 'tc-1'),
@@ -59,7 +59,7 @@ List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
     ];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-2'),
       const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
       const TextMessageEndEvent(messageId: 'msg-2'),
@@ -183,7 +183,7 @@ void main() {
       );
 
       controller
-        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const TextMessageStartEvent(messageId: 'msg-1'))
         ..add(const TextMessageContentEvent(messageId: 'msg-1', delta: 'Done'))
         ..add(const TextMessageEndEvent(messageId: 'msg-1'))
@@ -323,7 +323,7 @@ void main() {
 
       // Emit RunStarted so we're in RunningState.
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -477,7 +477,7 @@ void main() {
       );
 
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -518,7 +518,7 @@ void main() {
       );
 
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -625,7 +625,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream<BaseEvent>.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
       );

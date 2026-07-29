@@ -184,8 +184,17 @@ class StreamingLlmProvider implements AgentLlmProvider {
           );
         case final SystemMessage m:
           result.add(LlmSystemMessage(m.content));
-        default:
-          break;
+        // Listed explicitly so a new upstream `Message` subtype is a compile
+        // error rather than a silent omission from the transcript.
+        case DeveloperMessage() || ActivityMessage() || ReasoningMessage():
+          _logger.warning(
+            '${msg.runtimeType} not projected into the LLM transcript; '
+            'dropped (messageId: ${msg.id})',
+            attributes: {
+              'messageType': msg.runtimeType.toString(),
+              'messageId': msg.id,
+            },
+          );
       }
     }
     return result;

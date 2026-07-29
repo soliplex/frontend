@@ -38,7 +38,7 @@ ThreadInfo _threadInfo() =>
     ThreadInfo(id: _threadId, roomId: _roomId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents(String text) => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       TextMessageContentEvent(messageId: 'msg-1', delta: text),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -155,7 +155,7 @@ void main() {
       ).thenAnswer((_) => _wrap(controller.stream));
 
       final handle = await agentApi.spawnAgent(_roomId, 'test');
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await agentApi.cancelAgent(handle);
@@ -206,7 +206,7 @@ void main() {
       ).thenAnswer((_) => _wrap(controller.stream));
 
       final handle = await agentApi.spawnAgent(_roomId, 'test');
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await agentApi.cancelAgent(handle);

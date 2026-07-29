@@ -69,6 +69,20 @@ Stream<List<int>> sseByteStreamThenError(
   return controller.stream;
 }
 
+/// Emits [raw] SSE text verbatim, then errors. For bodies the JSON-encoding
+/// helpers cannot express, such as an `id:` paired with an empty `data:`.
+Stream<List<int>> sseRawThenError(String raw, Object error) {
+  final controller = StreamController<List<int>>();
+  Future<void>(() async {
+    controller.add(utf8.encode(raw));
+    // Yield so the parser can process before we inject the error.
+    await Future<void>.delayed(Duration.zero);
+    controller.addError(error);
+    await controller.close();
+  });
+  return controller.stream;
+}
+
 /// Fast policy for unit tests — minimal backoff, no jitter.
 const _fastPolicy = ResumePolicy(
   initialBackoff: Duration(milliseconds: 1),
@@ -363,6 +377,51 @@ void main() {
         );
         expect(result[1], isA<DecodedEvent>());
         expect((result[1] as DecodedEvent).event, isA<RunStartedEvent>());
+      });
+
+      test('yields DecodeFailed for a body that ends mid-event', () async {
+        // A body closing cleanly part-way through an event: the parser flushes
+        // the buffered `data:` at end-of-stream, so the truncated payload
+        // surfaces as a drop tile. It must not be discarded silently — a clean
+        // close leaves no stream error, so no resume is attempted, making this
+        // the only signal that the backend sent something that was lost.
+        final truncated = StringBuffer()
+          ..writeln(
+            'data: ${json.encode({
+                  'type': 'RUN_STARTED',
+                  'threadId': 't-1',
+                  'runId': 'r-1',
+                })}',
+          )
+          ..writeln()
+          // No trailing blank line: this event is never terminated.
+          ..write('data: {"type":"TEXT_MESSAGE_CON');
+
+        when(
+          () => mockTransport.requestStream(
+            any(),
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => StreamedHttpResponse(
+            statusCode: 200,
+            body: Stream.value(utf8.encode(truncated.toString())),
+          ),
+        );
+
+        final result = await client.runAgent(endpoint, input).toList();
+
+        expect(result, hasLength(2));
+        expect(result[0], isA<DecodedEvent>());
+        expect((result[0] as DecodedEvent).event, isA<RunStartedEvent>());
+        expect(result[1], isA<DecodeFailed>());
+        expect(
+          (result[1] as DecodeFailed).rawData,
+          equals('{"type":"TEXT_MESSAGE_CON'),
+        );
       });
 
       test(
@@ -982,6 +1041,171 @@ void main() {
               cancelToken: any(named: 'cancelToken'),
             ),
           ).called(1);
+        },
+      );
+
+      test(
+        'a mid-stream parse failure is retried and keeps the parser detail',
+        () async {
+          // A FormatException out of the parser is not classified apart from a
+          // network drop: the same exception is raised both by the per-event
+          // `data:` cap and by a response that closes cleanly mid-multi-byte
+          // character, and the latter is recoverable by resume. So it retries,
+          // and the parser's message must survive into the final error so an
+          // oversized event is still diagnosable.
+          final resumeClient = AgUiStreamClient(
+            httpTransport: mockTransport,
+            urlBuilder: UrlBuilder(baseUrl),
+            resumePolicy: _fastPolicy,
+          );
+          addTearDown(resumeClient.close);
+
+          Stream<List<int>> parseFailingBody() async* {
+            // An id is emitted first, so a cursor exists and the resume path
+            // is eligible. Every attempt fails the same way.
+            yield utf8.encode(
+              'id: e1\ndata: ${json.encode({
+                    'type': 'RUN_STARTED',
+                    'threadId': 't-1',
+                    'runId': 'r-1',
+                  })}\n\n',
+            );
+            throw const FormatException(
+              'SSE data field exceeds 8388608-code-unit limit',
+            );
+          }
+
+          when(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer(
+            (_) async => StreamedHttpResponse(
+              statusCode: 200,
+              body: parseFailingBody(),
+            ),
+          );
+
+          await expectLater(
+            resumeClient.runAgent(endpoint, input).toList(),
+            throwsA(
+              isA<StreamResumeFailedException>()
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    allOf(
+                      startsWith(streamResumeFailedPrefix),
+                      // The cap and its overage stay visible for diagnosis.
+                      contains('8388608-code-unit limit'),
+                    ),
+                  )
+                  .having(
+                    (e) => e.originalError,
+                    'originalError',
+                    isA<FormatException>(),
+                  ),
+            ),
+          );
+
+          // The initial attempt plus the full resume budget.
+          verify(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).called(_fastPolicy.maxAttempts + 1);
+        },
+      );
+
+      test(
+        'a resume that advances the cursor without decoding anything earns '
+        'a fresh budget',
+        () async {
+          // The budget is keyed to the resume cursor, not to decodable
+          // output. A message carrying an `id:` with an empty `data:` moves
+          // the cursor while yielding no outcome, so the drop after it is a
+          // new failure point and earns a full budget. Only an attempt that
+          // ends on the cursor it started from is treated as permanent.
+          final resumeClient = AgUiStreamClient(
+            httpTransport: mockTransport,
+            urlBuilder: UrlBuilder(baseUrl),
+            resumePolicy: _fastPolicy,
+          );
+          addTearDown(resumeClient.close);
+
+          var callCount = 0;
+          when(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer((_) async {
+            callCount++;
+            if (callCount == 1) {
+              return StreamedHttpResponse(
+                statusCode: 200,
+                body: sseByteStreamThenError(
+                  [
+                    (
+                      'e1',
+                      {
+                        'type': 'RUN_STARTED',
+                        'threadId': 't-1',
+                        'runId': 'r-1',
+                      },
+                    ),
+                  ],
+                  const NetworkException(message: 'drop at e1'),
+                ),
+              );
+            }
+            if (callCount == 2) {
+              // Cursor e1 → e2 with nothing decodable in between.
+              return StreamedHttpResponse(
+                statusCode: 200,
+                body: sseRawThenError(
+                  'id: e2\ndata:\n\n',
+                  const NetworkException(message: 'drop at e2'),
+                ),
+              );
+            }
+            // Emits no id, so the cursor stays at e2 from here on and the
+            // budget counts down to exhaustion.
+            return StreamedHttpResponse(
+              statusCode: 200,
+              body: sseByteStreamThenError(
+                const [],
+                const NetworkException(message: 'stuck at e2'),
+              ),
+            );
+          });
+
+          await expectLater(
+            resumeClient.runAgent(endpoint, input).toList(),
+            throwsA(isA<StreamResumeFailedException>()),
+          );
+
+          // The initial attempt, the cursor-advancing resume that reset the
+          // budget, then the full budget spent at a cursor that never moves.
+          verify(
+            () => mockTransport.requestStream(
+              any(),
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).called(_fastPolicy.maxAttempts + 2);
         },
       );
 

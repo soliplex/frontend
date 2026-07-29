@@ -31,7 +31,7 @@ List<ActivityRecord> applyActivityEvent(
 }) {
   final log = logger ?? _defaultLogger;
   return switch (event) {
-    ActivitySnapshotEvent() => _applySnapshot(current, event),
+    ActivitySnapshotEvent() => _applySnapshot(current, event, log),
     ActivityDeltaEvent() => _applyDelta(current, event, log),
     _ => current,
   };
@@ -40,13 +40,36 @@ List<ActivityRecord> applyActivityEvent(
 List<ActivityRecord> _applySnapshot(
   List<ActivityRecord> current,
   ActivitySnapshotEvent event,
+  Logger log,
 ) {
+  // `content` is `Object?` upstream, but `ActivityRecord.content` is a
+  // `Map<String, dynamic>`. This fold stays non-throwing, so it warns and
+  // leaves the list untouched. A caller that needs a non-object payload
+  // surfaced to the user checks `content` before folding.
+  final eventContent = event.content;
+  if (eventContent is! Map<String, dynamic>) {
+    log.warning(
+      'ActivitySnapshotEvent dropped: content is '
+      '${eventContent.runtimeType}, not a Map<String, dynamic> '
+      '(messageId: ${event.messageId}, activityType: ${event.activityType})',
+      attributes: {
+        'messageId': event.messageId,
+        'activityType': event.activityType,
+        'contentType': eventContent.runtimeType.toString(),
+      },
+    );
+    return current;
+  }
   final resolvedTimestamp =
       event.timestamp ?? DateTime.now().millisecondsSinceEpoch;
   final idx = current.indexWhere((a) => a.messageId == event.messageId);
   if (idx >= 0) {
     if (!event.replace) return current;
-    final content = _mergeContentAcrossReplace(current[idx], event);
+    final content = _mergeContentAcrossReplace(
+      current[idx],
+      event.activityType,
+      eventContent,
+    );
     return [...current]..[idx] = ActivityRecord(
         messageId: event.messageId,
         activityType: event.activityType,
@@ -59,7 +82,7 @@ List<ActivityRecord> _applySnapshot(
     ActivityRecord(
       messageId: event.messageId,
       activityType: event.activityType,
-      content: event.content,
+      content: eventContent,
       timestamp: resolvedTimestamp,
     ),
   ];
@@ -72,14 +95,15 @@ List<ActivityRecord> _applySnapshot(
 /// the inputs that produced the result.
 Map<String, dynamic> _mergeContentAcrossReplace(
   ActivityRecord prior,
-  ActivitySnapshotEvent event,
+  String activityType,
+  Map<String, dynamic> content,
 ) {
-  if (event.activityType != kSkillToolResultActivityType) return event.content;
-  if (prior.activityType != kSkillToolCallActivityType) return event.content;
-  if (event.content.containsKey('args')) return event.content;
+  if (activityType != kSkillToolResultActivityType) return content;
+  if (prior.activityType != kSkillToolCallActivityType) return content;
+  if (content.containsKey('args')) return content;
   final priorArgs = prior.content['args'];
-  if (priorArgs == null) return event.content;
-  return {...event.content, 'args': priorArgs};
+  if (priorArgs == null) return content;
+  return {...content, 'args': priorArgs};
 }
 
 // AG-UI protocol violations on the delta path (missing prior snapshot,

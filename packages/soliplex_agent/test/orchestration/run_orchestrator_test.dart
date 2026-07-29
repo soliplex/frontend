@@ -1,3 +1,8 @@
+// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
+// and THINKING_CONTENT events, exercising handling that is kept because a
+// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
+// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -38,7 +43,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -46,7 +51,7 @@ List<BaseEvent> _happyPathEvents() => [
     ];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
       const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
       const ToolCallEndEvent(toolCallId: 'tc-1'),
@@ -54,7 +59,7 @@ List<BaseEvent> _toolCallEvents({String toolName = 'weather'}) => [
     ];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+      RunStartedEvent(threadId: 'thread-1', runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-2'),
       const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
       const TextMessageEndEvent(messageId: 'msg-2'),
@@ -193,7 +198,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(
+          RunStartedEvent(
             threadId: 'thread-1',
             runId: _runId,
             timestamp: startMs,
@@ -224,7 +229,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
       );
@@ -282,7 +287,7 @@ void main() {
         stubCreateRun();
         stubRunAgent(
           stream: Stream.fromIterable([
-            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            RunStartedEvent(threadId: 'thread-1', runId: _runId),
             const TextMessageStartEvent(messageId: 'msg-1'),
           ]),
         );
@@ -321,7 +326,7 @@ void main() {
         await orchestrator.startRun(key: _key, userMessage: 'Hi');
 
         controller
-          ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+          ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
           ..add(const TextMessageStartEvent(messageId: 'msg-1'))
           ..add(const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hi'))
           ..add(const TextMessageEndEvent(messageId: 'msg-1'))
@@ -389,10 +394,16 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const ThinkingStartEvent(),
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const ThinkingTextMessageStartEvent(),
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const ThinkingTextMessageContentEvent(delta: 'partial reasoning'),
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const ThinkingTextMessageEndEvent(),
           const RunErrorEvent(message: 'boom'),
         ]),
@@ -419,7 +430,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'rate limited'),
         ]),
       );
@@ -442,7 +453,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(messageId: 'msg-1', delta: 'partial'),
           const RunErrorEvent(message: 'connection lost'),
@@ -473,7 +484,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(
             messageId: 'msg-1',
@@ -506,7 +517,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -545,7 +556,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable([
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const RunErrorEvent(message: 'backend error'),
         ]),
       );
@@ -566,7 +577,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -589,14 +600,20 @@ void main() {
       final staleTs = DateTime.utc(2026).millisecondsSinceEpoch;
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller
-        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const ThinkingStartEvent())
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         ..add(const ThinkingTextMessageStartEvent())
         ..add(
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const ThinkingTextMessageContentEvent(
             delta: 'considering options',
           ),
         )
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         ..add(ThinkingTextMessageEndEvent(timestamp: staleTs));
       await Future<void>.delayed(Duration.zero);
 
@@ -633,7 +650,7 @@ void main() {
       final lastChunkTime = DateTime.utc(2026, 1, 1, 12);
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller
-        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const TextMessageStartEvent(messageId: 'reply-1'))
         ..add(
           const TextMessageContentEvent(
@@ -683,7 +700,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1944,7 +1961,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -1973,7 +1990,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Hi');
       controller
-        ..add(const RunStartedEvent(threadId: 'thread-1', runId: _runId))
+        ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const RunErrorEvent(message: 'backend error'));
       await Future<void>.delayed(Duration.zero);
 
@@ -2065,7 +2082,7 @@ void main() {
             // First run: emit state snapshot + tool call.
             return _wrap(
               Stream<BaseEvent>.fromIterable([
-                const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+                RunStartedEvent(threadId: 'thread-1', runId: _runId),
                 const StateSnapshotEvent(
                   snapshot: {'rag_context': 'doc-42', 'turn': 1},
                 ),
@@ -2138,7 +2155,7 @@ void main() {
           // Run 1: set initial state + yield tool.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
-              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
               const StateSnapshotEvent(
                 snapshot: {'turn': 1, 'docs': <String>[]},
               ),
@@ -2159,7 +2176,7 @@ void main() {
           // Run 2: update state via new snapshot + yield tool again.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
-              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
               const StateSnapshotEvent(
                 snapshot: {
                   'turn': 2,
@@ -2383,7 +2400,7 @@ void main() {
         };
 
     List<BaseEvent> citationEvents() => [
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
           ragDelta(
@@ -2436,7 +2453,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
           ragDelta(
@@ -2477,7 +2494,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const TextMessageStartEvent(messageId: 'msg-1'),
           const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
           ragDelta(
@@ -2524,7 +2541,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StateSnapshotEvent(
             snapshot: {
               'rag': {
@@ -2569,7 +2586,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StateSnapshotEvent(
             snapshot: {
               'rag': {
@@ -2612,7 +2629,7 @@ void main() {
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           const StateSnapshotEvent(
             snapshot: {
               'rag': {
@@ -2656,7 +2673,7 @@ void main() {
       stubCreateRun();
 
       final toolCallWithCitations = <BaseEvent>[
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
         ragDelta(
           citationIndex: {'chunk-1': citation('chunk-1')},
           citations: ['chunk-1'],
@@ -2711,7 +2728,7 @@ void main() {
           // Invocation 1 cites chunk-1.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
-              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
               ragDelta(
                 citationIndex: {'chunk-1': citation('chunk-1')},
                 citations: ['chunk-1'],
@@ -2733,7 +2750,7 @@ void main() {
         // stays session-cumulative.
         return _wrap(
           Stream<BaseEvent>.fromIterable([
-            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            RunStartedEvent(threadId: 'thread-1', runId: _runId),
             const TextMessageStartEvent(messageId: 'msg-2'),
             const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
             ragDelta(
@@ -2800,7 +2817,7 @@ void main() {
           // Invocation 1 cites chunk-1 and chunk-2.
           return _wrap(
             Stream<BaseEvent>.fromIterable([
-              const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
               ragDelta(
                 citationIndex: {
                   'chunk-1': citation('chunk-1'),
@@ -2824,7 +2841,7 @@ void main() {
         // Invocation 2 re-cites chunk-2 (duplicate) and adds chunk-3.
         return _wrap(
           Stream<BaseEvent>.fromIterable([
-            const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            RunStartedEvent(threadId: 'thread-1', runId: _runId),
             const TextMessageStartEvent(messageId: 'msg-2'),
             const TextMessageContentEvent(
               messageId: 'msg-2',
@@ -2909,7 +2926,7 @@ void main() {
 
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
-          const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
           StateSnapshotEvent(
             snapshot: {
               'rag': {
@@ -2937,7 +2954,7 @@ void main() {
       stubCreateRun();
 
       final events = <BaseEvent>[
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
         const TextMessageStartEvent(messageId: 'msg-1'),
         const TextMessageContentEvent(messageId: 'msg-1', delta: 'Partial'),
         const RunErrorEvent(message: 'server error'),
@@ -2962,7 +2979,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Search');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -2986,7 +3003,7 @@ void main() {
 
       await orchestrator.startRun(key: _key, userMessage: 'Search');
       controller.add(
-        const RunStartedEvent(threadId: 'thread-1', runId: _runId),
+        RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -3028,9 +3045,9 @@ void main() {
         // structurally-valid text turn, then RunFinished.
         controller
           ..add(
-            const DecodedEvent(
+            DecodedEvent(
               RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              {'type': 'RUN_STARTED'},
+              const {'type': 'RUN_STARTED'},
             ),
           )
           ..add(
@@ -3130,9 +3147,9 @@ void main() {
         await orchestrator.startRun(key: _key, userMessage: 'Hi');
         controller
           ..add(
-            const DecodedEvent(
+            DecodedEvent(
               RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              {'type': 'RUN_STARTED'},
+              const {'type': 'RUN_STARTED'},
             ),
           )
           // Non-Map snapshot triggers the cast throw inside
@@ -3227,9 +3244,9 @@ void main() {
         await orchestrator.startRun(key: _key, userMessage: 'Hi');
         controller
           ..add(
-            const DecodedEvent(
+            DecodedEvent(
               RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              {'type': 'RUN_STARTED'},
+              const {'type': 'RUN_STARTED'},
             ),
           )
           ..add(
@@ -3285,9 +3302,9 @@ void main() {
         // 3 STATE_SNAPSHOT (throws inside processEvent), 4 RunFinished.
         controller
           ..add(
-            const DecodedEvent(
+            DecodedEvent(
               RunStartedEvent(threadId: 'thread-1', runId: _runId),
-              {'type': 'RUN_STARTED'},
+              const {'type': 'RUN_STARTED'},
             ),
           )
           ..add(

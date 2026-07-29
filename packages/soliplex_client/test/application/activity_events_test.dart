@@ -149,6 +149,44 @@ void main() {
       expect(result.single.content['tool_name'], 'first');
       expect(result.single.timestamp, 100);
     });
+
+    test('skips a snapshot whose content is not a JSON object', () {
+      // AG-UI types `content` as `Object?`, so the protocol permits any
+      // JSON shape. `ActivityRecord.content` is a map, so a non-object
+      // payload is dropped with a warning rather than crashing the stream.
+      final sink = _RecordingSink(forLoggerName: 'test.activity_events');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const initial = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'tool_name': 'ask'},
+        timestamp: 100,
+      );
+      const event = ActivitySnapshotEvent(
+        messageId: 'rag:call_2',
+        activityType: 'skill_tool_call',
+        content: 'not-a-map',
+        timestamp: 200,
+      );
+
+      final current = [initial];
+      final result = applyActivityEvent(current, event, logger: logger);
+
+      // Identity, not just equality: callers short-circuit on
+      // `identical(updatedActivities, conversation.activities)` to avoid
+      // minting a new Conversation, so returning a fresh copy would cause
+      // silent rebuild churn downstream. This input reaches the fold only from
+      // historical replay — `_processActivitySnapshot` throws on a non-object
+      // `content` before folding.
+      expect(result, same(current));
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['messageId'], 'rag:call_2');
+      expect(record.attributes['contentType'], 'String');
+    });
   });
 
   group('applyActivityEvent — delta', () {
