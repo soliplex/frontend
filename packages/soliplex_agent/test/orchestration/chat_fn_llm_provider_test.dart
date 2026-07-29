@@ -9,7 +9,7 @@ void main() {
       return SimpleRunAgentInput(
         threadId: key.threadId,
         runId: 'run-1',
-        messages: messages ?? [const UserMessage(id: 'u1', content: 'Hello')],
+        messages: messages ?? [UserMessage(id: 'u1', content: 'Hello')],
         tools: tools,
       );
     }
@@ -198,7 +198,7 @@ Let me check.
     });
 
     test('converts AG-UI messages to role/content pairs', () async {
-      List<({String role, String content})>? capturedMessages;
+      List<({String role, String? content})>? capturedMessages;
       final provider = ChatFnLlmProvider(
         chatFn: (messages, {systemPrompt, maxTokens}) async {
           capturedMessages = messages;
@@ -208,9 +208,9 @@ Let me check.
 
       final input = input0(
         messages: [
-          const UserMessage(id: 'u1', content: 'Hello'),
+          UserMessage(id: 'u1', content: 'Hello'),
           const AssistantMessage(id: 'a1', content: 'Hi there'),
-          const UserMessage(id: 'u2', content: 'Thanks'),
+          UserMessage(id: 'u2', content: 'Thanks'),
         ],
       );
 
@@ -229,8 +229,70 @@ Let me check.
       expect(capturedMessages![2].content, 'Thanks');
     });
 
+    test('multimodal user content projects to a null content', () async {
+      // The record carries text only, so a list-encoded content has no text
+      // projection. Reporting `''` would claim the user sent an empty message
+      // — itself a sendable value — so null is passed through instead and the
+      // ChatFn decides what to do.
+      List<({String role, String? content})>? capturedMessages;
+      final provider = ChatFnLlmProvider(
+        chatFn: (messages, {systemPrompt, maxTokens}) async {
+          capturedMessages = messages;
+          return 'ok';
+        },
+      );
+
+      final input = input0(
+        messages: [
+          UserMessage.multimodal(
+            id: 'u1',
+            parts: const [
+              TextInputContent('what is this?'),
+              ImageInputContent(
+                source: UrlSource(value: 'https://example.com/cat.png'),
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final handle = await provider.startRun(key: key, input: input);
+      await handle.events.drain<void>();
+
+      expect(capturedMessages, hasLength(1));
+      expect(capturedMessages![0].role, 'user');
+      expect(capturedMessages![0].content, isNull);
+    });
+
+    test('assistant with neither text nor tool calls projects to null',
+        () async {
+      // Not coalesced to `''`: that would pre-decide what the callback should
+      // decide, and several chat APIs reject an empty assistant `content`.
+      // Mirrors `LlmAssistantMessage.content`, which is nullable. Reachable in
+      // production: `convertToAgui` emits an AssistantMessage carrying only
+      // toolCalls, so an empty toolCalls list lands here.
+      List<({String role, String? content})>? capturedMessages;
+      final provider = ChatFnLlmProvider(
+        chatFn: (messages, {systemPrompt, maxTokens}) async {
+          capturedMessages = messages;
+          return 'ok';
+        },
+      );
+
+      final input = input0(
+        messages: [const AssistantMessage(id: 'a1')],
+      );
+
+      final handle = await provider.startRun(key: key, input: input);
+      await handle.events.drain<void>();
+
+      expect(capturedMessages, hasLength(1));
+      expect(capturedMessages![0].role, 'assistant');
+      expect(capturedMessages![0].content, isNull);
+    });
+
     test('tool result messages formatted with prefix', () async {
-      List<({String role, String content})>? capturedMessages;
+      List<({String role, String? content})>? capturedMessages;
       final provider = ChatFnLlmProvider(
         chatFn: (messages, {systemPrompt, maxTokens}) async {
           capturedMessages = messages;

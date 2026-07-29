@@ -59,8 +59,14 @@ class LlmUserMessage extends LlmChatMessage {
   /// Creates an [LlmUserMessage].
   const LlmUserMessage(this.content);
 
-  /// The message text.
-  final String content;
+  /// The message text, or `null` when the source message has no plain-text
+  /// projection — AG-UI reports null for a `content` encoded as a list of
+  /// parts, even one holding only text.
+  ///
+  /// This type carries text only, so a null says nothing about what the message
+  /// held. It is distinct from `''`, which is a sendable empty message: a
+  /// consumer substitutes a placeholder or rejects the turn.
+  final String? content;
 }
 
 /// An assistant message, optionally with tool calls.

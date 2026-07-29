@@ -427,9 +427,9 @@ void main() {
       );
 
       // Let runs start.
-      prodCtl.add(const RunStartedEvent(threadId: 'prod-t1', runId: _runId));
+      prodCtl.add(RunStartedEvent(threadId: 'prod-t1', runId: _runId));
       stagingCtl.add(
-        const RunStartedEvent(threadId: 'staging-t1', runId: _runId),
+        RunStartedEvent(threadId: 'staging-t1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 

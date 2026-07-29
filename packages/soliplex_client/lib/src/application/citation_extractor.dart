@@ -79,10 +79,6 @@ class CitationExtractor {
   Set<String> _touchedNamespaces(StateDeltaEvent delta) {
     final namespaces = <String>{};
     for (final op in delta.delta) {
-      if (op is! Map) {
-        _logger.warning('_touchedNamespaces: skipping non-Map delta op: $op');
-        continue;
-      }
       final path = op['path'];
       if (path is! String) {
         _logger.warning(

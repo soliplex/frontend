@@ -1,3 +1,14 @@
+// Four upstream types are deprecated, scheduled for removal in ag_ui 1.0.0:
+// THINKING_TEXT_MESSAGE_{START,CONTENT,END} and THINKING_CONTENT.
+// `ThinkingStartEvent` and `ThinkingEndEvent` are NOT deprecated and their arms
+// stay regardless — a removal sweep grepping "THINKING" must not touch them.
+// The THINKING_TEXT_MESSAGE_* arms stay because stored threads still decode to
+// them; the THINKING_CONTENT arm stays only to keep `processEvent`'s switch
+// over sealed `BaseEvent` exhaustive (upstream documents it as Dart-only legacy
+// that was never part of the canonical protocol). Suppressed per line so the
+// 1.0.0 sweep can enumerate them and an unrelated deprecation here still
+// raises.
+
 import 'package:ag_ui/ag_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/activity_events.dart';
@@ -9,6 +20,7 @@ import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
 import 'package:soliplex_client/src/domain/skill_tool_call_activity.dart'
     show kSkillToolCallActivityType, kSkillToolCallActivityTypes;
+import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger =
@@ -78,6 +90,8 @@ EventProcessingResult processEvent(
     // idempotent handlers.
     ThinkingStartEvent() ||
     ReasoningStartEvent() ||
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageStartEvent() ||
     ReasoningMessageStartEvent() =>
       _processThinkingStart(
@@ -86,9 +100,13 @@ EventProcessingResult processEvent(
       ),
     ThinkingEndEvent() ||
     ReasoningEndEvent() ||
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageEndEvent() ||
     ReasoningMessageEndEvent() =>
       _processThinkingEnd(conversation, streaming),
+    // Deprecated upstream; retained to decode stored threads.
+    // ignore: deprecated_member_use
     ThinkingTextMessageContentEvent(:final delta) ||
     ReasoningMessageContentEvent(
       :final delta,
@@ -171,13 +189,16 @@ EventProcessingResult processEvent(
     // mirroring how StateDeltaEvent patches aguiState.
     ActivityDeltaEvent() =>
       _processActivityDelta(conversation, streaming, event),
+    MessagesSnapshotEvent(:final messages) =>
+      _processMessagesSnapshot(conversation, streaming, messages),
 
     // Unhandled event types — pass through unchanged.
     // Explicit cases ensure a compile error if ag_ui adds new event types.
+    // Deprecated upstream; arm only keeps the sealed switch exhaustive.
+    // ignore: deprecated_member_use
     ThinkingContentEvent() ||
     TextMessageChunkEvent() ||
     ToolCallChunkEvent() ||
-    MessagesSnapshotEvent() ||
     StepStartedEvent() ||
     StepFinishedEvent() ||
     RawEvent() ||
@@ -188,6 +209,34 @@ EventProcessingResult processEvent(
         streaming: streaming,
       ),
   };
+}
+
+/// Passes the snapshot through unreconciled.
+///
+/// AG-UI treats `MESSAGES_SNAPSHOT` as the authoritative message list, but this
+/// client does not rebuild `conversation.messages` from it, so a server-side
+/// prune or rewrite of history diverges here. Logged rather than surfaced as a
+/// drop tile: a producer that emits snapshots routinely would mint a tile on
+/// every run.
+EventProcessingResult _processMessagesSnapshot(
+  Conversation conversation,
+  StreamingState streaming,
+  List<Message> messages,
+) {
+  _logger.warning(
+    'MessagesSnapshotEvent received but not reconciled against '
+    'conversation.messages; client may now hold a divergent history '
+    '(snapshot: ${messages.length} messages, local: '
+    '${conversation.messages.length})',
+    attributes: {
+      'snapshotMessageCount': messages.length,
+      'localMessageCount': conversation.messages.length,
+    },
+  );
+  return EventProcessingResult(
+    conversation: conversation,
+    streaming: streaming,
+  );
 }
 
 EventProcessingResult _processThinkingStart(
@@ -462,6 +511,21 @@ EventProcessingResult _processActivitySnapshot(
   StreamingState streaming,
   ActivitySnapshotEvent event,
 ) {
+  // `content` is `Object?` upstream, but `ActivityRecord.content` is a
+  // `Map<String, dynamic>`, so a non-object payload has nowhere to go. Thrown
+  // so the caller mints a drop tile, which is the only thing on screen saying
+  // the event arrived at all. It does not settle the row the event belonged to:
+  // a dropped `skill_tool_result` leaves its `skill_tool_call` record at
+  // `inProgress`, and nothing later rewrites it.
+  final content = event.content;
+  if (content is! Map<String, dynamic>) {
+    throw MalformedResponseException(
+      message: 'ActivitySnapshotEvent content must be a JSON object, got '
+          '${content.runtimeType} (messageId: ${event.messageId}, '
+          'activityType: ${event.activityType})',
+    );
+  }
+
   final updatedActivities = applyActivityEvent(
     conversation.activities,
     event,
@@ -473,7 +537,7 @@ EventProcessingResult _processActivitySnapshot(
           : conversation.copyWith(activities: updatedActivities);
 
   if (event.activityType == kSkillToolCallActivityType) {
-    final toolName = event.content['tool_name'];
+    final toolName = content['tool_name'];
     // Pass through if tool_name is missing or not a String — the backend
     // contract requires it, so this guards against schema drift.
     if (toolName is! String) {
@@ -499,9 +563,13 @@ EventProcessingResult _processActivitySnapshot(
   // streaming phase untouched (the call phase already set it).
   if (!kSkillToolCallActivityTypes.contains(event.activityType)) {
     _logger.info(
-      'ActivitySnapshotEvent: activityType has no decoder; '
-      'persisted to conversation.activities only',
-      attributes: {'activityType': event.activityType},
+      'ActivitySnapshotEvent: activityType has no decoder',
+      attributes: {
+        'activityType': event.activityType,
+        // False when the fold kept an existing record for this messageId
+        // instead of storing this snapshot (a repeat with `replace: false`).
+        'persisted': !identical(updatedActivities, conversation.activities),
+      },
     );
   }
   return EventProcessingResult(

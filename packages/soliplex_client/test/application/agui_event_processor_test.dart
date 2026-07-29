@@ -1,3 +1,8 @@
+// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
+// and THINKING_CONTENT events, exercising handling that is kept because a
+// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
+// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
+
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/no_response_synthesis.dart';
@@ -8,6 +13,7 @@ import 'package:soliplex_client/src/application/streaming_state.dart'
 import 'package:soliplex_client/src/domain/activity_record.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
+import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:test/test.dart';
 
 const _defaultUser = ChatUser.assistant;
@@ -24,7 +30,7 @@ void main() {
 
     group('run lifecycle events', () {
       test('RunStartedEvent sets status to Running', () {
-        const event = RunStartedEvent(threadId: 'thread-1', runId: 'run-1');
+        final event = RunStartedEvent(threadId: 'thread-1', runId: 'run-1');
 
         final result = processEvent(conversation, streaming, event);
 
@@ -1497,6 +1503,59 @@ void main() {
         expect(result.conversation.activities, hasLength(1));
         expect(result.conversation.activities.first.messageId, 'rag:call_x');
       });
+
+      test('non-object content throws so the caller mints a drop tile', () {
+        // AG-UI types `content` as `Object?`, but a non-object payload can
+        // neither be stored in `ActivityRecord.content` nor decoded into a
+        // tool-call phase — the activity is lost. Throwing is what makes that
+        // visible: both callers wrap `processEvent` and turn a throw into a
+        // `DropSource.eventProcessing` tile. Skipping instead would strand a
+        // `skill_tool_call` row at in-progress with nothing on screen.
+        const event = ActivitySnapshotEvent(
+          messageId: 'rag:call_bad',
+          activityType: 'skill_tool_call',
+          content: 42,
+          timestamp: 9,
+        );
+
+        expect(
+          () => processEvent(conversation, streaming, event),
+          throwsA(
+            isA<MalformedResponseException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('int'), contains('rag:call_bad')),
+            ),
+          ),
+        );
+      });
+
+      test('non-object content on a result snapshot also throws', () {
+        // The `skill_tool_result` path is the one that strands a row: the prior
+        // `skill_tool_call` record survives with its old activityType, so
+        // without a throw the tool row sits at in-progress forever.
+        final seeded = conversation.copyWith(
+          activities: [
+            const ActivityRecord(
+              messageId: 'rag:call_1',
+              activityType: 'skill_tool_call',
+              content: {'tool_name': 'ask'},
+              timestamp: 100,
+            ),
+          ],
+        );
+        const event = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_result',
+          content: 'not-a-map',
+          timestamp: 200,
+        );
+
+        expect(
+          () => processEvent(seeded, streaming, event),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
     });
 
     group('activity delta events', () {
@@ -1639,6 +1698,8 @@ void main() {
       test(
         'ThinkingTextMessageStartEvent sets isThinkingStreaming and phase',
         () {
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const event = ThinkingTextMessageStartEvent();
 
           final result = processEvent(conversation, streaming, event);
@@ -1656,6 +1717,8 @@ void main() {
         const startedState = app_streaming.AwaitingText(
           isThinkingStreaming: true,
         );
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         const event = ThinkingTextMessageContentEvent(delta: 'Thinking...');
 
         final result = processEvent(conversation, startedState, event);
@@ -1669,6 +1732,8 @@ void main() {
           isThinkingStreaming: true,
           bufferedThinkingText: 'Part 1. ',
         );
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         const event = ThinkingTextMessageContentEvent(delta: 'Part 2.');
 
         final result = processEvent(conversation, startedState, event);
@@ -1684,6 +1749,8 @@ void main() {
           isThinkingStreaming: true,
           bufferedThinkingText: 'Done thinking',
         );
+        // Deprecated upstream; exercises the pre-REASONING_* replay path.
+        // ignore: deprecated_member_use
         const event = ThinkingTextMessageEndEvent();
 
         final result = processEvent(conversation, startedState, event);
@@ -1723,6 +1790,8 @@ void main() {
             thinkingText: 'Initial thinking',
             isThinkingStreaming: true,
           );
+          // Deprecated upstream; exercises the pre-REASONING_* replay path.
+          // ignore: deprecated_member_use
           const event = ThinkingTextMessageContentEvent(
             delta: ' more thinking',
           );

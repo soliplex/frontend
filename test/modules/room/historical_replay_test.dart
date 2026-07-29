@@ -1,3 +1,8 @@
+// These fixtures construct ag_ui 0.3.0's deprecated THINKING_TEXT_MESSAGE_*
+// and THINKING_CONTENT events, exercising handling that is kept because a
+// producer negotiating ag-ui-protocol below 0.1.13 emits that family live.
+// Removal at ag_ui 1.0.0 surfaces as a compile error at these constructors.
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
@@ -26,12 +31,12 @@ void main() {
       final runs = [
         RunEventBundle(
           runId: 'run-1',
-          events: const [
+          events: [
             RunStartedEvent(threadId: 't-1', runId: 'run-1'),
-            TextMessageStartEvent(messageId: 'msg-1'),
-            TextMessageContentEvent(messageId: 'msg-1', delta: 'hi'),
-            TextMessageEndEvent(messageId: 'msg-1'),
-            RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
+            const TextMessageStartEvent(messageId: 'msg-1'),
+            const TextMessageContentEvent(messageId: 'msg-1', delta: 'hi'),
+            const TextMessageEndEvent(messageId: 'msg-1'),
+            const RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
           ],
         ),
       ];
@@ -151,8 +156,14 @@ void main() {
               role: TextMessageRole.user,
             ),
             TextMessageEndEvent(messageId: 'user-1'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageStartEvent(),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageContentEvent(delta: 'reasoning'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageEndEvent(),
             RunFinishedEvent(threadId: 't', runId: 'run-1'),
           ],
@@ -174,8 +185,14 @@ void main() {
         RunEventBundle(
           runId: 'run-yield',
           events: const [
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageStartEvent(),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageEndEvent(),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
@@ -221,8 +238,14 @@ void main() {
         RunEventBundle(
           runId: 'run-yield-only',
           events: const [
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageStartEvent(),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageEndEvent(),
             ToolCallStartEvent(
               toolCallId: 'tc-1',
@@ -260,8 +283,14 @@ void main() {
         RunEventBundle(
           runId: 'run-yield',
           events: const [
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageStartEvent(),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageContentEvent(delta: 'pre-tool'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageEndEvent(),
             ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'search'),
             ToolCallEndEvent(toolCallId: 'tc-1'),
@@ -275,8 +304,14 @@ void main() {
         RunEventBundle(
           runId: 'run-no-response',
           events: const [
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageStartEvent(),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageContentEvent(delta: 'mid'),
+            // Deprecated upstream; exercises the pre-REASONING_* replay path.
+            // ignore: deprecated_member_use
             ThinkingTextMessageEndEvent(),
             RunFinishedEvent(threadId: 't', runId: 'run-no-response'),
           ],
@@ -340,21 +375,27 @@ void main() {
         final runs = [
           RunEventBundle(
             runId: 'run-1',
-            events: const [
+            events: [
               RunStartedEvent(threadId: 't-1', runId: 'run-1'),
-              ReasoningMessageStartEvent(messageId: 'think-1'),
-              ReasoningMessageContentEvent(
+              const ReasoningMessageStartEvent(messageId: 'think-1'),
+              const ReasoningMessageContentEvent(
                 messageId: 'think-1',
                 delta: 'reasoning…',
               ),
-              ReasoningMessageEndEvent(messageId: 'think-1'),
-              TextMessageStartEvent(messageId: 'asst-1'),
+              const ReasoningMessageEndEvent(messageId: 'think-1'),
+              const TextMessageStartEvent(messageId: 'asst-1'),
               // The bridger throws on this delta.
-              TextMessageContentEvent(messageId: 'asst-1', delta: 'poison'),
+              const TextMessageContentEvent(
+                messageId: 'asst-1',
+                delta: 'poison',
+              ),
               // Subsequent events must still bridge.
-              TextMessageContentEvent(messageId: 'asst-1', delta: 'survives'),
-              TextMessageEndEvent(messageId: 'asst-1'),
-              RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
+              const TextMessageContentEvent(
+                messageId: 'asst-1',
+                delta: 'survives',
+              ),
+              const TextMessageEndEvent(messageId: 'asst-1'),
+              const RunFinishedEvent(threadId: 't-1', runId: 'run-1'),
             ],
           ),
         ];

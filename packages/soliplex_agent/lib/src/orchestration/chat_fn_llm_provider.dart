@@ -24,8 +24,24 @@ final Logger _logger =
 ///       ollama.chat(msgs, systemPrompt: systemPrompt, maxTokens: maxTokens),
 /// );
 /// ```
+///
+/// `role` is one of `user`, `assistant`, or `system`. Tool results are
+/// deliberately flattened into `user` turns carrying an interpolated
+/// `[Tool result for …]` string, so a `user` role does not always mean the
+/// human spoke.
+///
+/// A null `content` arises two ways, and `role` tells them apart: a `user` turn
+/// whose content was a list of parts rather than text, or an `assistant` turn
+/// carrying neither text nor a tool call. Every other case is non-null by
+/// construction — system and tool messages carry a non-nullable `String`
+/// upstream, the flattened tool arm interpolates, and a tool-calling assistant
+/// turn is synthesized into a `[Called tool …]` string. A producer arm added
+/// here must keep `content` non-null or extend this contract.
+///
+/// A null is distinct from `''`, which is a sendable empty message: the
+/// callback substitutes a placeholder or rejects the turn.
 typedef ChatFn = Future<String> Function(
-  List<({String role, String content})> messages, {
+  List<({String role, String? content})> messages, {
   String? systemPrompt,
   int? maxTokens,
 });
@@ -142,10 +158,10 @@ class ChatFnLlmProvider implements AgentLlmProvider {
 
   /// Converts AG-UI messages to simple role/content pairs for the
   /// [ChatFn].
-  List<({String role, String content})> _convertMessages(
+  List<({String role, String? content})> _convertMessages(
     SimpleRunAgentInput input,
   ) {
-    final result = <({String role, String content})>[];
+    final result = <({String role, String? content})>[];
     final messages = input.messages;
     if (messages == null) return result;
     for (final msg in messages) {
@@ -164,7 +180,7 @@ class ChatFnLlmProvider implements AgentLlmProvider {
               ),
             );
           } else {
-            result.add((role: 'assistant', content: m.content ?? ''));
+            result.add((role: 'assistant', content: m.content));
           }
         case final ToolMessage m:
           result.add(
@@ -177,8 +193,17 @@ class ChatFnLlmProvider implements AgentLlmProvider {
           result.add(
             (role: 'system', content: m.content),
           );
-        default:
-          break;
+        // Listed explicitly so a new upstream `Message` subtype is a compile
+        // error rather than a silent omission from the transcript.
+        case DeveloperMessage() || ActivityMessage() || ReasoningMessage():
+          _logger.warning(
+            '${msg.runtimeType} not projected into the ChatFn transcript; '
+            'dropped (messageId: ${msg.id})',
+            attributes: {
+              'messageType': msg.runtimeType.toString(),
+              'messageId': msg.id,
+            },
+          );
       }
     }
     return result;

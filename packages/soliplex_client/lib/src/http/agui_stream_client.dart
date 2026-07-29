@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
-// ignore: implementation_imports
-import 'package:ag_ui/src/sse/sse_parser.dart';
 import 'package:meta/meta.dart';
 import 'package:soliplex_client/src/application/decode_outcome.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
@@ -19,6 +17,19 @@ import 'package:soliplex_client/src/utils/url_builder.dart';
 /// readability; consumers should match on [StreamResumeFailedException]
 /// rather than this string.
 const String streamResumeFailedPrefix = 'Stream resume failed:';
+
+/// Byte-stream-to-[SseMessage] parser, reached through the public [SseClient]
+/// façade because ag_ui does not export `SseParser` itself.
+///
+/// Shared because [SseClient.parseStream] is stateless — it builds a fresh
+/// parser per call — while each `SseClient` allocates an `http.Client` that
+/// parsing never uses. One instance for the process beats one per request.
+///
+/// `maxDataCodeUnits` is left at ag_ui's default: ~8M UTF-16 code units per
+/// event, roughly 6 MB of binary after base64. It bounds inbound events that
+/// echo conversation state — a `MESSAGES_SNAPSHOT` or `TOOL_CALL_RESULT`
+/// carrying image data. Outbound attachments travel in the request body.
+final SseClient _sseParser = SseClient();
 
 /// Streams AG-UI events using the Soliplex HTTP stack directly.
 ///
@@ -81,6 +92,7 @@ class AgUiStreamClient {
 
     while (true) {
       final isResumeRequest = lastEventId != null;
+      final resumedFrom = lastEventId;
       final StreamedHttpResponse response;
       try {
         response = await _attempt(uri, body, lastEventId, cancelToken);
@@ -117,10 +129,7 @@ class AgUiStreamClient {
       StackTrace? streamErrorStack;
 
       try {
-        // Construct the parser inside the try so a synchronous throw
-        // from `parseBytes` is caught by the same handler as mid-stream
-        // errors.
-        final messages = SseParser().parseBytes(response.body);
+        final messages = _sseParser.parseStream(response.body);
         await for (final message in messages) {
           if (message.id != null && message.id!.isNotEmpty) {
             lastEventId = message.id;
@@ -134,7 +143,6 @@ class AgUiStreamClient {
             _logSuccess(attempt, lastEventId);
             onReconnectStatus?.call(Reconnected(attempt: attempt));
             announcedResume = true;
-            attempt = 0;
           }
           for (final outcome in outcomes) {
             if (outcome is DecodedEvent) {
@@ -172,6 +180,17 @@ class AgUiStreamClient {
           streamErrorStack ?? StackTrace.current,
         );
       }
+
+      // The retry budget is spent per failure point, not per run. An attempt
+      // that advanced the cursor hit a fresh failure, so it earns a full
+      // budget; one that ended where it began cannot be distinguished from a
+      // permanent failure (an event the parser rejects outright, such as one
+      // over its size cap, is re-sent verbatim on every resume) and must be
+      // allowed to exhaust. The cursor is the only progress signal available
+      // here, and it is imperfect: a server that emits `id:` sparsely charges
+      // real progress against the budget, as does a drop that lands before the
+      // first new id.
+      if (lastEventId != resumedFrom) attempt = 0;
 
       if (!_canRetry(policy, attempt)) {
         onReconnectStatus?.call(

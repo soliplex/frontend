@@ -35,7 +35,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -125,7 +125,7 @@ void main() {
 
       expect(runtime.sessions.value, hasLength(1));
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await controller.close();
     });
 
@@ -161,7 +161,7 @@ void main() {
 
       expect(runtime.sessions.value, equals(runtime.activeSessions));
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await controller.close();
     });
 

@@ -129,7 +129,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -137,7 +137,7 @@ List<BaseEvent> _happyPathEvents() => [
     ];
 
 List<BaseEvent> _toolCallEvents({String toolName = 'execute_python'}) => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: toolName),
       const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{}'),
       const ToolCallEndEvent(toolCallId: 'tc-1'),
@@ -145,7 +145,7 @@ List<BaseEvent> _toolCallEvents({String toolName = 'execute_python'}) => [
     ];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-2'),
       const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
       const TextMessageEndEvent(messageId: 'msg-2'),

@@ -37,6 +37,73 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The `ag_ui` dependency moved to hosted `^0.3.0` (from a git ref on 0.1.0),
+  which adds multimodal `UserMessage` input, fractional `timestamp` coercion,
+  and `encryptedValue` snake_case parity. On the SSE path this app uses, 0.3.0
+  also flushes a final unterminated event at end-of-stream, corrects WHATWG
+  handling of an empty leading `data:` line and of repeated `event:` lines, and
+  strips a byte-order mark only at the start of the stream rather than from
+  every line.
+- **Breaking (library consumers):** `LlmUserMessage.content` and the `content`
+  field of `ChatFn`'s message records are now `String?`. A null means a **user**
+  message whose wire content was a parts list rather than text (AG-UI returns
+  null for any such message, keeping the parts on
+  `UserMessage.messageContent`), or — in `ChatFn`'s records only — an
+  **assistant** turn carrying neither text nor tool calls. Neither coalesces to
+  `''`, which is itself a sendable message that several chat APIs reject:
+  callers substitute a placeholder or reject the turn. The app itself is
+  unaffected — it neither implements `ChatFn` nor reads `LlmUserMessage`.
+- An activity snapshot whose `content` is not a JSON object still surfaces as a
+  dropped-event tile. 0.3.0 widened `ActivitySnapshotEvent.content` to `Object?`
+  and dropped the decoder's Map validation, so a payload that 0.1.0 rejected at
+  the wire boundary now decodes cleanly; Soliplex stores activity content as a
+  JSON object, so it has nowhere to go. The guard moved to the application seam
+  to keep the tile. Without it the row would strand — a dropped
+  `skill_tool_result` leaves its `skill_tool_call` at in-progress with nothing on
+  screen saying why.
+- A `MESSAGES_SNAPSHOT` event is now logged on arrival. It carries AG-UI's
+  authoritative message list, which this client does not reconcile against, so a
+  server-side prune or rewrite of history would otherwise leave a divergent view
+  with no trace.
+- A response body that closes cleanly part-way through an SSE event no longer
+  discards the partial payload: 0.3.0's parser flushes it at end-of-stream, so
+  it surfaces as a dropped-event tile. If the cut lands mid-multi-byte
+  character the stream errors instead, which resume recovers from when a
+  `Last-Event-ID` cursor is available.
+- AG-UI messages the in-process LLM providers do not project into their text
+  transcript (`DeveloperMessage`, `ActivityMessage`, `ReasoningMessage`) are now
+  logged when dropped, and the conversion switches enumerate every `Message`
+  subtype so a type added upstream is a compile error rather than a silent
+  omission. `ReasoningMessage` is new in 0.3.0; on 0.1.0 the role did not exist,
+  so such a message failed to decode and became a drop tile.
+- SSE parsing now goes through AG-UI's public `SseClient` rather than a deep
+  import of its private `src/sse/sse_parser.dart`, so this package depends only
+  on ag_ui's semver-covered surface. Both routes reach the same parser, so the
+  swap changes nothing beyond the `data:` cap described below.
+- A single SSE event's `data:` is now capped at roughly 8M UTF-16 code units
+  (ag_ui's default; 0.1.0 had no cap). The cap bounds **inbound** events that
+  carry conversation state — a `MESSAGES_SNAPSHOT` or `TOOL_CALL_RESULT`
+  echoing image data — and leaves room for roughly 6 MB of binary after base64.
+  Outbound attachments travel in the request body and are unaffected.
+- A stream that fails at the same point on every resume attempt now ends after
+  the retry budget instead of reconnecting forever. The budget resets only when
+  an attempt advances the `Last-Event-ID` cursor, so a drop that follows fresh
+  progress gets a full budget while a permanently rejected event — one over the
+  new `data:` cap, which the server re-sends verbatim on each resume — is
+  allowed to exhaust it and surface as a resume failure carrying the parser's
+  message. The cursor is an imperfect proxy for progress: a server that emits
+  `id:` sparsely charges real progress against the budget, as does a drop that
+  lands before the first new id.
+- **Breaking (library consumers), transitively:** `soliplex_client`'s barrel
+  re-exports `package:ag_ui/ag_ui.dart` (less `CancelToken`), so every ag_ui
+  0.3.0 breaking change reaches anything importing it — not just the two `String?`
+  types above. Notably `RunStartedEvent` and `UserMessage`'s text constructor
+  are no longer `const` (`UserMessage.fromContent` still is),
+  `ActivitySnapshotEvent.content` widened to `Object?`, and
+  `StateDeltaEvent.delta` / `ActivityDeltaEvent.patch` narrowed to
+  `List<Map<String, dynamic>>`. Library code here needed no changes for the
+  `const` break; forks should expect it to reach their tests and any
+  `const`-constructed events.
 - File attachments now appear based on the `bubble-sandbox` skill — the room's
   configured skills for room-level (admin) uploads, and a thread's AG-UI state
   for thread-level uploads — instead of an `enable_attachments` room flag the

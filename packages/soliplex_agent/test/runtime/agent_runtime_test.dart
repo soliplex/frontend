@@ -82,7 +82,7 @@ RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _threadId, createdAt: DateTime(2026));
 
 List<BaseEvent> _happyPathEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-1'),
       const TextMessageContentEvent(messageId: 'msg-1', delta: 'Hello'),
       const TextMessageEndEvent(messageId: 'msg-1'),
@@ -90,7 +90,7 @@ List<BaseEvent> _happyPathEvents() => [
     ];
 
 List<BaseEvent> _toolCallEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const ToolCallStartEvent(toolCallId: 'tc-1', toolCallName: 'weather'),
       const ToolCallArgsEvent(toolCallId: 'tc-1', delta: '{"city":"NYC"}'),
       const ToolCallEndEvent(toolCallId: 'tc-1'),
@@ -98,7 +98,7 @@ List<BaseEvent> _toolCallEvents() => [
     ];
 
 List<BaseEvent> _resumeTextEvents() => [
-      const RunStartedEvent(threadId: _threadId, runId: _runId),
+      RunStartedEvent(threadId: _threadId, runId: _runId),
       const TextMessageStartEvent(messageId: 'msg-2'),
       const TextMessageContentEvent(messageId: 'msg-2', delta: 'Sunny'),
       const TextMessageEndEvent(messageId: 'msg-2'),
@@ -326,7 +326,7 @@ void main() {
 
       expect(runtime.activeSessions, contains(session));
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await controller.close();
@@ -405,7 +405,7 @@ void main() {
       final found = runtime.getSession(session.threadKey);
       expect(found, equals(session));
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await controller.close();
       await session.result;
     });
@@ -448,7 +448,7 @@ void main() {
       expect(runtime.sessions.value, contains(session));
       expect(runtime.sessions.value, equals(runtime.activeSessions));
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await controller.close();
       await session.result;
     });
@@ -756,7 +756,7 @@ void main() {
       stubDeleteThread();
       // Stream that never completes — session stays running until timeout
       final controller = StreamController<BaseEvent>.broadcast()
-        ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+        ..add(RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
       final session = await runtime.spawn(roomId: _roomId, prompt: 'Slow');
@@ -812,7 +812,7 @@ void main() {
       stubCreateRun();
       stubDeleteThread();
       final controller = StreamController<BaseEvent>.broadcast()
-        ..add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+        ..add(RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
       final parent = await runtime.spawn(roomId: _roomId, prompt: 'Parent');
@@ -876,7 +876,7 @@ void main() {
       final s1 = await runtime.spawn(roomId: _roomId, prompt: 'A');
       final s2 = await runtime.spawn(roomId: _roomId, prompt: 'B');
 
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await runtime.cancelAll();
@@ -915,7 +915,7 @@ void main() {
       stubRunAgent(stream: controller.stream);
 
       await runtime.spawn(roomId: _roomId, prompt: 'A', ephemeral: true);
-      controller.add(const RunStartedEvent(threadId: _threadId, runId: _runId));
+      controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
       await runtime.dispose();
@@ -977,7 +977,7 @@ void main() {
       // Deliver partial events then error
       controller1
         ..add(
-          const RunStartedEvent(
+          RunStartedEvent(
             threadId: 'thread-fail',
             runId: _runId,
           ),
@@ -1011,7 +1011,7 @@ void main() {
             invocation.positionalArguments[1] as SimpleRunAgentInput;
         return _wrap(
           Stream<BaseEvent>.fromIterable([
-            const RunStartedEvent(
+            RunStartedEvent(
               threadId: 'thread-fail',
               runId: 'run-2',
             ),
@@ -1185,7 +1185,7 @@ void main() {
         return callCount == 1
             ? _wrap(
                 Stream<BaseEvent>.fromIterable([
-                  const RunStartedEvent(threadId: _threadId, runId: _runId),
+                  RunStartedEvent(threadId: _threadId, runId: _runId),
                   const ToolCallStartEvent(
                     toolCallId: 'tc-py',
                     toolCallName: 'execute_python',
