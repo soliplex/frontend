@@ -53,7 +53,11 @@ class CitationsSection extends StatefulWidget {
 }
 
 class _CitationsSectionState extends State<CitationsSection> {
-  bool _sectionExpanded = false;
+  // Expanded by default so each source's filename and page numbers are visible
+  // without a click — there are only ever a handful of citations (issue #463).
+  // Each individual transcript still starts collapsed; the reader opts into a
+  // single passage's full text on demand.
+  bool _sectionExpanded = true;
   final Set<int> _expandedIndices = {};
 
   @override

@@ -28,9 +28,8 @@ Future<void> _pump(
       home: Scaffold(body: CitationsSection(sourceReferences: [ref])),
     ),
   ));
-  await tester.tap(find.text('1 source')); // expand the section
-  await tester.pump();
-  await tester.tap(find.text('Alpha')); // expand the row
+  // The section is expanded by default (issue #463); open the row.
+  await tester.tap(find.text('Alpha'));
   await tester.pump();
 }
 
