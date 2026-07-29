@@ -1421,7 +1421,12 @@ class _RoomScreenState extends State<RoomScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
-          final content = _buildContent(room);
+          // Wide layouts have no AppBar, so the in-page header carries the room
+          // title. Narrow layouts already show the title in the AppBar, so they
+          // drop the in-page header and take its actions into the AppBar
+          // instead (issue #465).
+          final built = _buildContent(room, showHeader: isWide);
+          final content = built.content;
 
           if (isWide) {
             final sidebar = ThreadSidebar(
@@ -1470,6 +1475,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
               ),
               title: _roomTitle(roomName),
+              actions: built.headerActions,
             ),
             drawer: Drawer(
               child: Builder(
@@ -1584,7 +1590,15 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  Widget _buildContent(Room? room) {
+  /// Builds the chat content column together with the header's trailing
+  /// actions (documents toggle + room info). [showHeader] draws the in-page
+  /// header inside the column on wide layouts; narrow layouts pass `false` and
+  /// hand the returned [headerActions] to the AppBar instead, so the room
+  /// title isn't rendered twice (issue #465).
+  ({Widget content, List<Widget> headerActions}) _buildContent(
+    Room? room, {
+    required bool showHeader,
+  }) {
     final threadView = _state.activeThreadView;
     final roomAttachEnabled = room?.supportsAttachments ?? false;
     final messagesStatus = threadView?.messages.watch(context);
@@ -1605,19 +1619,23 @@ class _RoomScreenState extends State<RoomScreen> {
         ? _buildNoThreadBody(room)
         : _buildThreadBody(threadView, room, messagesStatus);
 
-    return Column(
-      children: [
-        StatusMessageBanner(
-          key: ValueKey(widget.serverEntry.serverUrl),
-          baseUrl: widget.serverEntry.serverUrl,
-          client: widget.serverEntry.httpClient,
-          serverLabel: widget.serverEntry.displayName,
-        ),
-        _buildRoomHeader(room, roomStatus, threadStatus),
-        if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
-        Expanded(child: _capWidth(body)),
-        _capWidth(_buildChatInput(threadView, room, messagesStatus)),
-      ],
+    return (
+      content: Column(
+        children: [
+          StatusMessageBanner(
+            key: ValueKey(widget.serverEntry.serverUrl),
+            baseUrl: widget.serverEntry.serverUrl,
+            client: widget.serverEntry.httpClient,
+            serverLabel: widget.serverEntry.displayName,
+          ),
+          if (showHeader) _buildRoomHeader(room, roomStatus, threadStatus),
+          if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
+          Expanded(child: _capWidth(body)),
+          _capWidth(_buildChatInput(threadView, room, messagesStatus)),
+        ],
+      ),
+      headerActions:
+          _buildRoomHeaderActions(roomStatus, threadStatus, Theme.of(context)),
     );
   }
 
@@ -1638,8 +1656,6 @@ class _RoomScreenState extends State<RoomScreen> {
   ) {
     final theme = Theme.of(context);
     final roomName = room?.name ?? widget.roomId;
-    final documentsButton =
-        _buildDocumentsButton(roomStatus, threadStatus, theme);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -1652,16 +1668,32 @@ class _RoomScreenState extends State<RoomScreen> {
           // beside a Spacer would split the free space and leave the buttons
           // stranded mid-row.
           Expanded(child: _roomTitle(roomName)),
-          if (documentsButton != null) documentsButton,
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Room info',
-            onPressed: _onRoomInfo,
-            visualDensity: VisualDensity.compact,
-          ),
+          ..._buildRoomHeaderActions(roomStatus, threadStatus, theme),
         ],
       ),
     );
+  }
+
+  /// The header's trailing controls: the attached-files toggle (only when a
+  /// scope has files) and the room-info button. Shared so wide layouts place
+  /// them in the in-page header while narrow layouts hoist them into the
+  /// AppBar, beside the room title (issue #465).
+  List<Widget> _buildRoomHeaderActions(
+    UploadsStatus roomStatus,
+    UploadsStatus threadStatus,
+    ThemeData theme,
+  ) {
+    final documentsButton =
+        _buildDocumentsButton(roomStatus, threadStatus, theme);
+    return [
+      if (documentsButton != null) documentsButton,
+      IconButton(
+        icon: const Icon(Icons.info_outline),
+        tooltip: 'Room info',
+        onPressed: _onRoomInfo,
+        visualDensity: VisualDensity.compact,
+      ),
+    ];
   }
 
   /// The header title: the room name over the server it lives on, so a user

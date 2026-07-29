@@ -376,6 +376,78 @@ void main() {
     });
   });
 
+  group('duplicate header (issue #465)', () {
+    testWidgets(
+        'narrow layout draws the room title once and hoists actions into the '
+        'AppBar', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: namedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // The title lives only in the AppBar — no second in-page header below it.
+      expect(find.text('General'), findsOneWidget);
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('General')),
+        findsOneWidget,
+      );
+      // The room-info action moves into the AppBar with the title.
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byIcon(Icons.info_outline),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'wide layout keeps the in-page header carrying the title and info '
+        'action', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: namedEntry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // No AppBar on wide, so the in-page header is the sole title and the
+      // info action stays in the body.
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.text('General'), findsOneWidget);
+      expect(find.byIcon(Icons.info_outline), findsOneWidget);
+    });
+  });
+
   testWidgets(
       'narrow layout: tapping drawer icon opens drawer with thread list',
       (tester) async {
