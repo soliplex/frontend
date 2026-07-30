@@ -8,32 +8,7 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
-### Added
-
-- A document's source now shows as a clickable link when the backend provides a
-  viewer `source_url`, across the room document listing, document filter, and
-  citations. When `source_url` is absent, the citation link can be derived from
-  the document URI by a resolver a deployment injects via
-  `standard(documentBrowserUrl: ...)`; otherwise the document URI is shown as
-  non-clickable text.
-- Room and lobby: the current server's name (or its address when unnamed) now
-  shows alongside the room name in the room view header, and as a title band at
-  the top of the lobby's room pane, so a user connected to several servers can
-  tell which one they are viewing.
-- Room info: a "View chunk" card lets you enter a chunk id and open its
-  rendered page images, so a chunk can be viewed directly from an id (e.g. one
-  taken from logs) rather than only by tapping a PDF citation. Expanded
-  citations now also surface the chunk id and document provenance, each
-  copyable.
-- Tapping an inline image in chat or other markdown now opens a full-size
-  pan/zoom/rotate view; SVG code blocks open the same view on tap.
-- A citation's figures open in a pageable browser over all of that citation's
-  figures, with previous/next chevrons, page dots, and left/right arrow-key
-  navigation, instead of a single figure at a time.
-- Removing a server now asks for confirmation first — on both the home-screen
-  server list and the lobby sidebar's server menu — so a server and its sign-in
-  session can't be dropped by a stray tap. For a signed-in server the prompt
-  notes that removing also signs you out.
+## [0.98.0+76] - 2026-07-30
 
 ### Changed
 
@@ -104,11 +79,98 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `List<Map<String, dynamic>>`. Library code here needed no changes for the
   `const` break; forks should expect it to reach their tests and any
   `const`-constructed events.
+- A message's sources now start expanded, so each cited source's filename and
+  pages are readable without opening the "N sources" section first. The header
+  still collapses the section, and an individual source's transcript still
+  starts collapsed.
+- A room's welcome screen no longer repeats the room name above its welcome
+  message — the room header already carries the name directly above it. Its
+  sections (welcome message, suggestions, quizzes) are now separated only from
+  one another, so a room without a welcome message no longer opens with an
+  extra gap above its first section.
+
+### Fixed
+
+- The chat screen no longer shows the room title twice at phone and narrow web
+  widths. The app bar title was repeated by an in-page header directly beneath
+  it; narrow layouts now drop that header and move its controls — the
+  attached-files toggle and room info — up beside the app bar title. Wide
+  layouts, which have no app bar, keep the in-page header as before.
+- An expanded citation's transcript no longer traps thread scrolling. The
+  transcript now renders as a short, non-scrolling preview with a bottom fade,
+  and a "Show full transcript" toggle lifts it into a bounded, internally
+  scrollable band, so the reader opts into the inner scroll for one passage
+  rather than every expanded citation swallowing the thread's scroll. The
+  toggle shows a pointer cursor, a tooltip, and a hover highlight.
+- The lobby's "Filter rooms" row now keeps a gutter above the room list once
+  the list is scrolled, so room titles and descriptions no longer butt flush
+  against the filter row and read as clipped.
+- Dialogs, the mobile drawer, and the room rail's avatars now take their corner
+  radius from the brand shape instead of keeping Material's rounded defaults,
+  so a square brand squares them. Rail avatars previously mixed a full circle
+  when unselected with a squared selected one.
+
+## [0.97.2+75] - 2026-07-28
+
+### Fixed
+
+- A reply now shows every source it cited. Previously a source cited again from
+  an earlier turn could be dropped, and a reply whose agent searched several
+  times kept only its last batch of sources; both now render in full, and a
+  thread shows the same sources live and after a reload.
+- A cited source's inline figures now render even when the reply's agent
+  searched several times. Previously, when a later search reused the retrieval
+  slot, figures for a source found by an earlier search of the same reply were
+  dropped and it rendered text-only; those figures are now preserved, live and
+  after a reload.
+
+## [0.97.1+74] - 2026-07-24
+
+### Fixed
+
+- The file-attachment button no longer disappears on a freshly created thread.
+  A new thread's attachment support cannot be read from its history until its
+  first reply arrives, and that undetermined state was being treated as
+  "unsupported"; the composer now keeps the room's attachment capability in
+  that window instead of hiding the button.
+
+## [0.97.0+73] - 2026-07-24
+
+### Changed
+
+- A document's source link is now derived from the document URI when the
+  backend provides no `source_url`, with a deployment-injected resolver
+  (`standard(documentBrowserUrl: ...)`) as the fallback. A document with
+  neither shows its document URI as non-clickable text.
 - File attachments now appear based on the `bubble-sandbox` skill — the room's
   configured skills for room-level (admin) uploads, and a thread's AG-UI state
   for thread-level uploads — instead of an `enable_attachments` room flag the
   backend no longer sends. Attachments were effectively unreachable while gated
   on that flag.
+- The lobby sort options are shortened to "None", "Recent", and "Unread".
+
+### Fixed
+
+- Citations now appear for agents whose sources arrive under a non-`rag` state
+  namespace (such as the analysis agent). Citation extraction reads every
+  citation-bearing namespace in the agent state rather than only `rag`, so a
+  reply that cites sources renders its citations regardless of which retrieval
+  skill produced them.
+
+## [0.96.0+72] - 2026-07-23
+
+### Added
+
+- Removing a server now asks for confirmation first — on both the home-screen
+  server list and the lobby sidebar's server menu — so a server and its sign-in
+  session can't be dropped by a stray tap. For a signed-in server the prompt
+  notes that removing also signs you out.
+
+### Changed
+
+- A citation's source link now comes from the backend document's `source_url`
+  metadata when the backend carries it, rather than only from the
+  deployment-injected resolver.
 - The lobby's rooms page is more compact on phones: a room's confidentiality
   marking and quiz indicator move to their own row so the room name keeps the
   full tile width, the sort control collapses to an icon button that shares the
@@ -119,48 +181,48 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   (and web served to those hosts) centered the title, diverging from the app's
   left-aligned pane and room headers; titles now match those headers across
   platforms and viewport sizes.
-- The image and SVG preview surfaces — chunk visualization, workdir file
-  preview, citation figures, and SVG previews — share a single
-  pan/zoom/rotate/reset viewer, so those interactions behave consistently and
-  zooming out returns to a centered fit.
 - The insecure-connection warning ("This connection is not encrypted") makes
   Cancel the prominent (filled) action and "Connect anyway" a quieter
   danger-styled text button, so the safe choice carries the emphasis.
 - In an expanded citation, the cited figures now appear above the source text
   rather than below it.
-- The lobby sort options are shortened to "None", "Recent", and "Unread".
-- A room's welcome screen no longer repeats the room name above its welcome
-  message — the room header already carries the name directly above it. Its
-  sections (welcome message, suggestions, quizzes) are now separated only from
-  one another, so a room without a welcome message no longer opens with an
-  extra gap above its first section.
 
-### Fixed
+## [0.95.0+71] - 2026-07-21
 
-- The file-attachment button no longer disappears on a freshly created thread.
-  A new thread's attachment support cannot be read from its history until its
-  first reply arrives, and that undetermined state was being treated as
-  "unsupported"; the composer now keeps the room's attachment capability in
-  that window instead of hiding the button.
-- Citations now appear for agents whose sources arrive under a non-`rag` state
-  namespace (such as the analysis agent). Citation extraction reads every
-  citation-bearing namespace in the agent state rather than only `rag`, so a
-  reply that cites sources renders its citations regardless of which retrieval
-  skill produced them.
-- A reply now shows every source it cited. Previously a source cited again from
-  an earlier turn could be dropped, and a reply whose agent searched several
-  times kept only its last batch of sources; both now render in full, and a
-  thread shows the same sources live and after a reload.
-- A cited source's inline figures now render even when the reply's agent
-  searched several times. Previously, when a later search reused the retrieval
-  slot, figures for a source found by an earlier search of the same reply were
-  dropped and it rendered text-only; those figures are now preserved, live and
-  after a reload.
-- The chat screen no longer shows the room title twice at phone and narrow web
-  widths. The app bar title was repeated by an in-page header directly beneath
-  it; narrow layouts now drop that header and move its controls — the
-  attached-files toggle and room info — up beside the app bar title. Wide
-  layouts, which have no app bar, keep the in-page header as before.
+### Added
+
+- Document origin URLs (`source_url`) now render as clickable links across the
+  room document listing, document filter, citations, and the
+  chunk-visualization page, replacing the internal file path — which remains
+  only in the document listing's metadata dialog. Where the backend does not
+  yet carry `source_url` (citations, chunks), the link comes from a resolver a
+  deployment injects via `standard(documentBrowserUrl: ...)`.
+
+## [0.94.2+70] - 2026-07-21
+
+### Added
+
+- Room and lobby: the current server's name (or its address when unnamed) now
+  shows alongside the room name in the room view header, and as a title band at
+  the top of the lobby's room pane, so a user connected to several servers can
+  tell which one they are viewing.
+- Room info: a "View chunk" card lets you enter a chunk id and open its
+  rendered page images, so a chunk can be viewed directly from an id (e.g. one
+  taken from logs) rather than only by tapping a PDF citation. Expanded
+  citations now also surface the chunk id and document provenance, each
+  copyable.
+- Tapping an inline image in chat or other markdown now opens a full-size
+  pan/zoom/rotate view; SVG code blocks open the same view on tap.
+- A citation's figures open in a pageable browser over all of that citation's
+  figures, with previous/next chevrons, page dots, and left/right arrow-key
+  navigation, instead of a single figure at a time.
+
+### Changed
+
+- The image and SVG preview surfaces — chunk visualization, workdir file
+  preview, citation figures, and SVG previews — share a single
+  pan/zoom/rotate/reset viewer, so those interactions behave consistently and
+  zooming out returns to a centered fit.
 
 ## [0.94.0+68] - 2026-07-17
 
