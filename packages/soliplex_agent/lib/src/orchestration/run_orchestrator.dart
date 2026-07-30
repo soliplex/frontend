@@ -91,6 +91,16 @@ class RunOrchestrator {
   /// [CitationExtractor.accumulate]). The union across the turn is its complete
   /// set, preserving figures a later run's `searches` clear would drop. Cleared
   /// at turn start (and on reset/sync). See [_extractCitations].
+  ///
+  /// Spanning more than one run is what makes the union load-bearing rather
+  /// than incidental: `citation_index` is session-cumulative so an earlier
+  /// run's ids still resolve, but `searches` — the sole source of inline figure
+  /// bytes — is cleared per run, so only this accumulator carries an earlier
+  /// run's figures to [_extractCitations]. A turn spans several runs only when
+  /// the model calls a client-side tool and the run yields for
+  /// [submitToolOutputs]. Hosts registering an empty [ToolRegistry] never
+  /// reach that path, so it is exercised only by hosts that register tools;
+  /// verify figures survive the yield/resume boundary when adding one.
   TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
@@ -948,9 +958,15 @@ class RunOrchestrator {
             }
           } else if (event is StateSnapshotEvent) {
             try {
+              final before = _turnCitations.ids.length;
               _turnCitations = _citationExtractor.accumulateSnapshot(
                 _turnCitations,
                 result.conversation.aguiState,
+              );
+              _logger.debug(
+                'Citations: state snapshot on run ${running.runId} took the '
+                'turn from $before to ${_turnCitations.ids.length} '
+                'cited id(s).',
               );
             } on Object catch (e, st) {
               _logger.error(
@@ -1147,6 +1163,11 @@ class RunOrchestrator {
         stackTrace: st,
       );
     }
+    _logger.info(
+      'Citations: run $runId resolved ${citations.length} source(s) from '
+      '${_turnCitations.ids.length} cited id(s), '
+      '${citations.where((c) => c.figures.isNotEmpty).length} with figures.',
+    );
 
     final messageState = MessageState(
       userMessageId: userMessageId,
