@@ -129,6 +129,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - In an expanded citation, the cited figures now appear above the source text
   rather than below it.
 - The lobby sort options are shortened to "None", "Recent", and "Unread".
+- A room's welcome screen no longer repeats the room name above its welcome
+  message — the room header already carries the name directly above it. Its
+  sections (welcome message, suggestions, quizzes) are now separated only from
+  one another, so a room without a welcome message no longer opens with an
+  extra gap above its first section.
 
 ### Fixed
 
@@ -151,6 +156,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   slot, figures for a source found by an earlier search of the same reply were
   dropped and it rendered text-only; those figures are now preserved, live and
   after a reload.
+- The chat screen no longer shows the room title twice at phone and narrow web
+  widths. The app bar title was repeated by an in-page header directly beneath
+  it; narrow layouts now drop that header and move its controls — the
+  attached-files toggle and room info — up beside the app bar title. Wide
+  layouts, which have no app bar, keep the in-page header as before.
 
 ## [0.94.0+68] - 2026-07-17
 

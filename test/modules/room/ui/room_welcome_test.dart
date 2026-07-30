@@ -98,8 +98,9 @@ void main() {
         fallback: Text('fallback'),
       ),
     ));
-    expect(find.text('Research Bot'), findsOneWidget);
     expect(find.text('Welcome! Ask me anything.'), findsOneWidget);
+    // The room name is not repeated here — the room header already carries it.
+    expect(find.text('Research Bot'), findsNothing);
   });
 
   testWidgets('shows suggestion chips when room has suggestions',
