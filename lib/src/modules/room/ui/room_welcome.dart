@@ -34,34 +34,28 @@ class RoomWelcome extends StatelessWidget {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(SoliplexSpacing.s6),
+        // Spacing sits on the Column so gaps fall only between the sections
+        // that actually render — any of them can be absent.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
+          spacing: SoliplexSpacing.s6,
           children: [
-            if (currentRoom.name.isNotEmpty)
-              Text(
-                currentRoom.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            if (currentRoom.hasWelcomeMessage) ...[
-              const SizedBox(height: SoliplexSpacing.s2),
+            // The room name is not repeated here: the room header carries it
+            // in every layout, and this block sits directly beneath it.
+            if (currentRoom.hasWelcomeMessage)
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: FlutterMarkdownPlusRenderer(
                   data: currentRoom.welcomeMessage,
                 ),
               ),
-            ],
-            if (currentRoom.hasSuggestions) ...[
-              const SizedBox(height: SoliplexSpacing.s6),
+            if (currentRoom.hasSuggestions)
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: SoliplexSpacing.s2,
+                  runSpacing: SoliplexSpacing.s2,
                   alignment: WrapAlignment.center,
                   children: [
                     for (final suggestion in currentRoom.suggestions)
@@ -74,12 +68,11 @@ class RoomWelcome extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-            if (currentRoom.hasQuizzes) ...[
-              const SizedBox(height: SoliplexSpacing.s6),
+            if (currentRoom.hasQuizzes)
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Column(
+                  spacing: SoliplexSpacing.s2,
                   children: [
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -95,10 +88,9 @@ class RoomWelcome extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: SoliplexSpacing.s2),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: SoliplexSpacing.s2,
+                      runSpacing: SoliplexSpacing.s2,
                       alignment: WrapAlignment.center,
                       children: [
                         for (final entry in currentRoom.quizzes.entries)
@@ -118,7 +110,6 @@ class RoomWelcome extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
           ],
         ),
       ),
