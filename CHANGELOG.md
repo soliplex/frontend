@@ -27,8 +27,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   a room that routes more than one retrieval capability: its stored snapshot
   really does echo a prior run's `citations`, and nothing in the record
   distinguishes that echo from a genuine retrieval, so a turn whose namespace
-  was never invoked can show one extra stale source. Rooms with a single
-  retrieval capability are unaffected.
+  was never invoked can show the stale sources that namespace last cited. Rooms
+  with a single retrieval capability are unaffected.
 
 ## [0.98.0+76] - 2026-07-30
 

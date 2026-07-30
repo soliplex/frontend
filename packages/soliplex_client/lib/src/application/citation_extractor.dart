@@ -28,11 +28,12 @@ class CitationExtractor {
   /// namespace — every cited id and every inline figure the state itself holds.
   ///
   /// This reads the whole state unscoped, so a namespace's `citations` is
-  /// credited whoever populated it. Use it only when [state] is a
-  /// self-contained unit to resolve — a run's terminal snapshot seeded via
-  /// [RagSnapshot.withEmptyRunScopedKeys] is one, which is what
-  /// [accumulateSnapshot] relies on. During a delta stream use [accumulate],
-  /// which scopes to the namespaces each delta touched.
+  /// credited no matter which turn populated it — including a prior turn's,
+  /// when [state] carries one. Use it only when [state] is a self-contained
+  /// unit to resolve: a run's terminal snapshot is one, because the turn seeds
+  /// the run-scoped keys empty via [RagSnapshot.withEmptyRunScopedKeys], which
+  /// is what [accumulateSnapshot] relies on. During a delta stream use
+  /// [accumulate], which scopes to the namespaces each delta touched.
   TurnCitations citationsInState(Map<String, dynamic> state) => _extract(state);
 
   /// Folds the citations and figures [delta] contributes into [current],
@@ -59,12 +60,15 @@ class CitationExtractor {
   /// Folds the citations and figures [snapshot] contributes into [current].
   ///
   /// Unlike [accumulate], this credits every citation-bearing namespace rather
-  /// than scoping to the ones a delta touched. That is safe because the turn is
-  /// seeded via [RagSnapshot.withEmptyRunScopedKeys]: a namespace the model did
-  /// not invoke arrives back with an empty `citations`, so it contributes
-  /// nothing. Merging (rather than replacing) is what keeps a turn spanning
-  /// several runs complete — `citation_index` is session-cumulative, so ids
-  /// from an earlier run still resolve.
+  /// than scoping to the ones a delta touched. That is safe because the
+  /// guarantee is turn-scoped: the turn's first run is seeded via
+  /// [RagSnapshot.withEmptyRunScopedKeys], and a continuation run inherits that
+  /// turn's own state, so a non-empty `citations` in any of the turn's
+  /// snapshots was populated during the turn. A namespace the model never
+  /// invoked arrives back empty and contributes nothing. Merging (rather than
+  /// replacing) is what keeps a turn spanning several runs complete —
+  /// `citation_index` is session-cumulative, so ids from an earlier run still
+  /// resolve.
   TurnCitations accumulateSnapshot(
     TurnCitations current,
     Map<String, dynamic> snapshot,
@@ -207,11 +211,12 @@ class CitationExtractor {
 }
 
 /// A turn's accumulated citations: the union of cited chunk [ids] and the
-/// union of inline [figures] observed across the turn's `StateDeltaEvent`s.
+/// union of inline [figures] observed across the turn's state events.
 ///
 /// Bundling the two keeps them in lockstep — the live orchestrator and the
-/// history replay both fold with [CitationExtractor.accumulate] and read back
-/// with [CitationExtractor.resolve], so they cannot drift. Immutable; [merge]
+/// history replay both fold with [CitationExtractor.accumulateSnapshot] or
+/// [CitationExtractor.accumulate] and read back with
+/// [CitationExtractor.resolve], so they cannot drift. Immutable; [merge]
 /// returns a new union.
 @immutable
 class TurnCitations {

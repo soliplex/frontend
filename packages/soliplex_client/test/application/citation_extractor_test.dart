@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
 import 'package:soliplex_client/src/application/rag_snapshot.dart';
@@ -429,6 +431,39 @@ void main() {
         });
 
         expect(turn.ids, {'a', 'b'});
+      });
+
+      test("carries a snapshot's inline figure bytes into the turn", () {
+        // The snapshot is the carrier for figure bytes as well as ids, and
+        // `searches` is the only source of them. Crediting the ids while
+        // dropping the figures renders a citation with its text intact and its
+        // image missing — no error, nothing logged.
+        final turn = extractor.accumulateSnapshot(const TurnCitations.empty(), {
+          'rag': {
+            'citation_index': {
+              'a': {
+                ...citation('a'),
+                'picture_refs': ['#/pictures/0'],
+              },
+            },
+            'citations': ['a'],
+            'searches': {
+              'q': [
+                {
+                  'content': 'row',
+                  'document_id': 'doc-1',
+                  'image_data': {'#/pictures/0': 'aGVsbG8='},
+                },
+              ],
+            },
+          },
+        });
+
+        expect(turn.ids, {'a'});
+        expect(
+          turn.figures.pictureBytes('doc-1', '#/pictures/0'),
+          base64Decode('aGVsbG8='),
+        );
       });
 
       test('credits nothing for a namespace with an empty citations list', () {

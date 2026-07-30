@@ -4527,7 +4527,7 @@ void main() {
           );
         });
 
-        test('run 2 (analysis only) does not inherit run 1 rag citations',
+        test('credits nothing for a namespace whose citations came back empty',
             () async {
           // The same two-capability thread as above, recorded with the
           // run-scoped keys seeded empty: rag's block comes back carrying its
