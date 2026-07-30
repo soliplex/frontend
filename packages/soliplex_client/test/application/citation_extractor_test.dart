@@ -397,6 +397,53 @@ void main() {
       });
     });
 
+    group('accumulateSnapshot', () {
+      Map<String, dynamic> citation(String chunkId) => {
+            'chunk_id': chunkId,
+            'content': 'content for $chunkId',
+            'document_id': 'doc-1',
+            'document_uri': 'https://example.com/doc.pdf',
+          };
+
+      /// A citation-bearing namespace block whose cumulative [indexed] index
+      /// resolves every id, and whose run-scoped `citations` is [cited].
+      Map<String, dynamic> block({
+        required List<String> indexed,
+        required List<String> cited,
+      }) =>
+          {
+            'citation_index': {for (final id in indexed) id: citation(id)},
+            'citations': cited,
+          };
+
+      test("unions cited ids across a turn's runs", () {
+        var turn = const TurnCitations.empty();
+
+        turn = extractor.accumulateSnapshot(turn, {
+          'rag': block(indexed: const ['a'], cited: const ['a']),
+        });
+        // The next run's snapshot carries only its own `citations`, while
+        // `citation_index` keeps growing — merging is what keeps 'a'.
+        turn = extractor.accumulateSnapshot(turn, {
+          'rag': block(indexed: const ['a', 'b'], cited: const ['b']),
+        });
+
+        expect(turn.ids, {'a', 'b'});
+      });
+
+      test('credits nothing for a namespace with an empty citations list', () {
+        // The over-crediting guard: a deferred capability the model never
+        // invoked echoes back the seed, which was cleared, so its stale index
+        // entries must not be credited to this turn.
+        final turn = extractor.accumulateSnapshot(const TurnCitations.empty(), {
+          'rag': block(indexed: const ['a'], cited: const ['a']),
+          'analysis': block(indexed: const ['stale'], cited: const []),
+        });
+
+        expect(turn.ids, {'a'});
+      });
+    });
+
     group('resolve', () {
       Map<String, dynamic> citation(String chunkId) => {
             'chunk_id': chunkId,

@@ -46,9 +46,9 @@ _PictureKey _pictureKey(String documentId, String ref) =>
 /// is selected later, when a citation's `pictureRefs` are resolved.
 ///
 /// The backend clears a `rag` state's `searches` — the only source of these
-/// bytes — at the start of every skill invocation, so the last invocation's
-/// state carries only its own figures. Accumulating a [CitedFigures] union
-/// across a turn's invocations preserves earlier invocations' figures. Bytes
+/// bytes — at the start of every run, so a run's state carries only its own
+/// figures. Accumulating a [CitedFigures] union across a turn's runs preserves
+/// earlier runs' figures. Bytes
 /// for a given `(documentId, ref)` are identity-stable, so [merge] is an
 /// unambiguous union (no precedence to resolve).
 @immutable
@@ -70,7 +70,7 @@ class CitedFigures {
   factory CitedFigures.fromSearches(Map<String, dynamic> ragBlock) {
     final bytes = <_PictureKey, String>{};
     final captions = <_PictureKey, String>{};
-    final raw = ragBlock['searches'];
+    final raw = ragBlock[RagSnapshot._searchesKey];
     if (raw is! Map) {
       if (raw != null) {
         _logger.warning(
@@ -184,7 +184,7 @@ class RagSnapshot {
   /// skipped so one bad entry does not take down the whole snapshot.
   factory RagSnapshot.fromJson(Map<String, dynamic> json) {
     final ids = <String>[];
-    final rawCitations = json['citations'];
+    final rawCitations = json[_citationsKey];
     if (rawCitations is List) {
       for (var i = 0; i < rawCitations.length; i++) {
         final entry = rawCitations[i];
@@ -251,6 +251,14 @@ class RagSnapshot {
   /// `id → Citation` map the extractor needs to render a source.
   static const _citationIndexKey = 'citation_index';
 
+  /// Wire keys the backend clears at the start of every run, so their contents
+  /// are scoped to a single run: the cited chunk ids, the retrieval results
+  /// their inline figures come from, and the analysis namespace's
+  /// code-execution log.
+  static const _citationsKey = 'citations';
+  static const _searchesKey = 'searches';
+  static const _executionsKey = 'executions';
+
   /// Every citation-bearing namespace block in a full agent-state map,
   /// identified by a [`_citationIndexKey`] map. Non-citation namespaces
   /// (e.g. `bubble-sandbox`) and non-Map or mistyped blocks are skipped,
@@ -287,12 +295,50 @@ class RagSnapshot {
     return snapshots;
   }
 
+  /// [state] with every citation-bearing namespace's run-scoped keys emptied.
+  ///
+  /// The cumulative `citation_index` and every other field (notably
+  /// `document_filter`) are preserved, and non-citation namespaces are copied
+  /// through untouched. Seeding a run with this guarantees that any namespace
+  /// carrying a non-empty `citations` in the run's terminal state snapshot
+  /// populated it during that run, which is what lets the extractor credit a
+  /// snapshot without knowing which capabilities the model actually invoked.
+  ///
+  /// Also keeps the request small: `searches` carries base64 figure bytes and
+  /// `executions` captured stdout, both of which the backend discards on
+  /// arrival.
+  ///
+  /// A key is only emptied when the namespace already carries it, mirroring the
+  /// backend's per-field lookup — `rag` has no `executions`, and inventing one
+  /// would make the outbound request misleading to read.
+  static Map<String, dynamic> withEmptyRunScopedKeys(
+    Map<String, dynamic> state,
+  ) {
+    final result = Map<String, dynamic>.of(state);
+    for (final entry in state.entries) {
+      final raw = entry.value;
+      // Deliberately the same predicate `extractAll` uses, so the two cannot
+      // drift on what counts as a citation-bearing block.
+      if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
+        continue;
+      }
+      result[entry.key] = <String, dynamic>{
+        ...raw,
+        if (raw.containsKey(_citationsKey)) _citationsKey: <String>[],
+        if (raw.containsKey(_searchesKey)) _searchesKey: <String, dynamic>{},
+        if (raw.containsKey(_executionsKey)) _executionsKey: <dynamic>[],
+      };
+    }
+    return result;
+  }
+
   final List<String> _citationIds;
   final Map<String, Citation> _index;
   final CitedFigures _figures;
 
   /// Chunk ids of the citations present in the current state. The backend's
-  /// state lifecycle clears these at each invocation start.
+  /// state lifecycle clears these at the start of every run, so they are the
+  /// ids cited by the run this state came from.
   List<String> get citationIds => _citationIds;
 
   /// Resolves a chunk id to a full [Citation], or null if not present.
