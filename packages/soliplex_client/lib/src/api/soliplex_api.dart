@@ -1196,6 +1196,13 @@ class SoliplexApi {
             stackTrace: stackTrace,
           );
         }
+        _logger.info(
+          'replay: run $runId resolved ${sourceReferences.length} source(s) '
+          'from ${turnsByUserMessage[userMessageId]?.ids.length ?? 0} cited '
+          'id(s), '
+          '${sourceReferences.where((r) => r.figures.isNotEmpty).length} '
+          'with figures.',
+        );
         messageStates[userMessageId] = MessageState(
           userMessageId: userMessageId,
           sourceReferences: sourceReferences,

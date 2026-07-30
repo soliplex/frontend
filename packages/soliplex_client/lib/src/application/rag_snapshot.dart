@@ -315,6 +315,7 @@ class RagSnapshot {
     Map<String, dynamic> state,
   ) {
     final result = Map<String, dynamic>.of(state);
+    final cleared = <String>[];
     for (final entry in state.entries) {
       final raw = entry.value;
       // Deliberately the same predicate `extractAll` uses, so the two cannot
@@ -322,13 +323,35 @@ class RagSnapshot {
       if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
         continue;
       }
-      result[entry.key] = <String, dynamic>{
+      final keys = [
+        if (raw.containsKey(_citationsKey)) _citationsKey,
+        if (raw.containsKey(_searchesKey)) _searchesKey,
+        if (raw.containsKey(_executionsKey)) _executionsKey,
+      ];
+      final seeded = <String, dynamic>{
         ...raw,
         if (raw.containsKey(_citationsKey)) _citationsKey: <String>[],
         if (raw.containsKey(_searchesKey)) _searchesKey: <String, dynamic>{},
         if (raw.containsKey(_executionsKey)) _executionsKey: <dynamic>[],
       };
+      final filter = seeded[_ragDocumentFilterKey];
+      final index = raw[_citationIndexKey];
+      final filterNote = filter is String
+          ? '$_ragDocumentFilterKey: ${filter.length} chars'
+          : 'no $_ragDocumentFilterKey';
+      cleared.add(
+        '${entry.key}(cleared: ${keys.join(',')}; '
+        'kept $_citationIndexKey: ${index is Map ? index.length : 0} '
+        'entries; $filterNote)',
+      );
+      result[entry.key] = seeded;
     }
+    _logger.debug(
+      cleared.isEmpty
+          ? 'Seeded a run with no citation-bearing namespace to clear.'
+          : 'Seeded a run with run-scoped keys cleared: '
+              '${cleared.join(' ')}.',
+    );
     return result;
   }
 

@@ -2826,6 +2826,115 @@ void main() {
       expect(entry.sourceReferences[1].chunkId, 'chunk-2');
     });
 
+    test("keeps both runs' figures across a snapshot-carried tool resume",
+        () async {
+      // A turn spanning two runs, each carrying its cited set in its own
+      // terminal snapshot. `citation_index` is session-cumulative, so run 1's
+      // chunk still resolves from run 2's snapshot — but `searches` is cleared
+      // per run, so run 2's snapshot holds none of run 1's figure bytes. The
+      // turn accumulator is the only thing that can still supply them, which
+      // makes this the case where a lost merge is silent: the citation renders
+      // with its text intact and its image missing.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: _registryWith(),
+        logger: logger,
+      );
+      stubCreateRun();
+      var callCount = 0;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((_) {
+        callCount++;
+        if (callCount == 1) {
+          return _wrap(
+            Stream<BaseEvent>.fromIterable([
+              RunStartedEvent(threadId: 'thread-1', runId: _runId),
+              const ToolCallStartEvent(
+                toolCallId: 'tc-1',
+                toolCallName: 'weather',
+              ),
+              const ToolCallArgsEvent(
+                toolCallId: 'tc-1',
+                delta: '{"city":"NYC"}',
+              ),
+              const ToolCallEndEvent(toolCallId: 'tc-1'),
+              StateSnapshotEvent(
+                snapshot: {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1':
+                          citation('chunk-1', pictureRefs: ['#/pictures/0']),
+                    },
+                    'citations': ['chunk-1'],
+                    'searches':
+                        figureSearch('doc-1', '#/pictures/0', 'aGVsbG8='),
+                  },
+                },
+              ),
+              const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+            ]),
+          );
+        }
+        return _wrap(
+          Stream<BaseEvent>.fromIterable([
+            RunStartedEvent(threadId: 'thread-1', runId: _runId),
+            const TextMessageStartEvent(messageId: 'msg-2'),
+            const TextMessageContentEvent(messageId: 'msg-2', delta: 'Done'),
+            StateSnapshotEvent(
+              snapshot: {
+                'rag': {
+                  'citation_index': {
+                    'chunk-1':
+                        citation('chunk-1', pictureRefs: ['#/pictures/0']),
+                    'chunk-2': citation(
+                      'chunk-2',
+                      documentId: 'doc-2',
+                      pictureRefs: ['#/pictures/0'],
+                    ),
+                  },
+                  'citations': ['chunk-2'],
+                  'searches': figureSearch('doc-2', '#/pictures/0', 'd29ybGQ='),
+                },
+              },
+            ),
+            const TextMessageEndEvent(messageId: 'msg-2'),
+            const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+          ]),
+        );
+      });
+
+      final result = await orchestrator.runToCompletion(
+        key: _key,
+        userMessage: 'Search',
+        toolExecutor: (pending) async => pending
+            .map(
+              (tc) => tc.copyWith(
+                status: ToolCallStatus.completed,
+                result: 'result',
+              ),
+            )
+            .toList(),
+      );
+
+      final completed = result as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+
+      expect(refs.map((r) => r.chunkId), ['chunk-1', 'chunk-2']);
+      expect(refs[0].figures.single.bytes, base64Decode('aGVsbG8='));
+      expect(refs[1].figures.single.bytes, base64Decode('d29ybGQ='));
+    });
+
     test('duplicate chunks across segments are deduplicated', () async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
