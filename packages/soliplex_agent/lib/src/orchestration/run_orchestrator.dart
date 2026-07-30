@@ -92,15 +92,12 @@ class RunOrchestrator {
   /// set, preserving figures a later run's `searches` clear would drop. Cleared
   /// at turn start (and on reset/sync). See [_extractCitations].
   ///
-  /// Spanning more than one run is what makes the union load-bearing rather
-  /// than incidental: `citation_index` is session-cumulative so an earlier
-  /// run's ids still resolve, but `searches` — the sole source of inline figure
-  /// bytes — is cleared per run, so only this accumulator carries an earlier
-  /// run's figures to [_extractCitations]. A turn spans several runs only when
-  /// the model calls a client-side tool and the run yields for
-  /// [submitToolOutputs]. Hosts registering an empty [ToolRegistry] never
-  /// reach that path, so it is exercised only by hosts that register tools;
-  /// verify figures survive the yield/resume boundary when adding one.
+  /// The union spans runs, not just events: `citation_index` is
+  /// session-cumulative so an earlier run's ids still resolve, but `searches` —
+  /// the sole source of inline figure bytes — is cleared per run, so this
+  /// accumulator is the only carrier of an earlier run's figures into
+  /// [_extractCitations]. A turn spans several runs when the model calls a
+  /// client-side tool and the tool loop resumes into a continuation run.
   TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
@@ -951,7 +948,8 @@ class RunOrchestrator {
               );
             } on Object catch (e, st) {
               _logger.error(
-                'Citation accumulation failed on run ${running.runId}',
+                'Citation accumulation failed on run ${running.runId} '
+                '(${event.runtimeType})',
                 error: e,
                 stackTrace: st,
               );
@@ -970,7 +968,8 @@ class RunOrchestrator {
               );
             } on Object catch (e, st) {
               _logger.error(
-                'Citation accumulation failed on run ${running.runId}',
+                'Citation accumulation failed on run ${running.runId} '
+                '(${event.runtimeType})',
                 error: e,
                 stackTrace: st,
               );
@@ -1168,6 +1167,7 @@ class RunOrchestrator {
       '${_turnCitations.ids.length} cited id(s), '
       '${citations.where((c) => c.figures.isNotEmpty).length} with figures.',
     );
+    _warnOnUncreditedIds(conversation.aguiState, 'run $runId');
 
     final messageState = MessageState(
       userMessageId: userMessageId,
@@ -1175,6 +1175,37 @@ class RunOrchestrator {
       runId: runId,
     );
     return conversation.withMessageState(userMessageId, messageState);
+  }
+
+  /// Warns when [state] names cited ids the turn's accumulator never saw.
+  ///
+  /// The accumulator is fed only by the state carriers this build recognises,
+  /// while `citations` in the end-of-turn state is the backend's own account of
+  /// what the run cited. An id in the second but not the first means a carrier
+  /// reached the wire that nothing here folds in, which otherwise costs the
+  /// turn its sources with no error and no empty-result signal — the counts in
+  /// the summary above all derive from the accumulator, so they report the loss
+  /// as if it were a turn that simply cited nothing.
+  void _warnOnUncreditedIds(Map<String, dynamic> state, String context) {
+    final Set<String> uncredited;
+    try {
+      uncredited = _citationExtractor.citationsInState(state).ids.difference(
+            _turnCitations.ids,
+          );
+    } on Object catch (e, st) {
+      _logger.error(
+        'Citations: uncredited-id check failed for $context',
+        error: e,
+        stackTrace: st,
+      );
+      return;
+    }
+    if (uncredited.isEmpty) return;
+    _logger.warning(
+      'Citations: $context ended with ${uncredited.length} cited id(s) present '
+      'in state but never accumulated; the rendered source list is short. '
+      'ids: $uncredited',
+    );
   }
 
   void _onStreamDone() {

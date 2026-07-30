@@ -10,7 +10,8 @@ final _logger = LogManager.instance.getLogger('soliplex_client.rag_snapshot');
 
 /// The AG-UI state namespace key for RAG state.
 ///
-/// Must match the backend's `STATE_NAMESPACE` in `haiku.rag.skills.rag`.
+/// Must match the backend's `STATE_NAMESPACE` in
+/// `haiku.rag.capabilities.rag`.
 const ragStateKey = 'rag';
 
 const String _ragDocumentFilterKey = 'document_filter';
@@ -48,9 +49,9 @@ _PictureKey _pictureKey(String documentId, String ref) =>
 /// The backend clears a `rag` state's `searches` — the only source of these
 /// bytes — at the start of every run, so a run's state carries only its own
 /// figures. Accumulating a [CitedFigures] union across a turn's runs preserves
-/// earlier runs' figures. Bytes
-/// for a given `(documentId, ref)` are identity-stable, so [merge] is an
-/// unambiguous union (no precedence to resolve).
+/// earlier runs' figures. Bytes for a given `(documentId, ref)` are
+/// identity-stable, so [merge] is an unambiguous union (no precedence to
+/// resolve).
 @immutable
 class CitedFigures {
   const CitedFigures._(this._bytes, this._captions);
@@ -161,9 +162,9 @@ class CitedFigures {
       _captions[_pictureKey(documentId, ref)];
 }
 
-/// A read-model view of a RAG skill's AG-UI state slice.
+/// A read-model view of a RAG capability's AG-UI state slice.
 ///
-/// Every RAG-producing skill publishes the same citation shape under its
+/// Every RAG-producing capability publishes the same citation shape under its
 /// own namespace — `rag` and `analysis` both carry `citations` as a list
 /// of chunk ids and a `citation_index` map resolving each id to a full
 /// [Citation]. This snapshot exposes only what citation extraction and
@@ -247,17 +248,27 @@ class RagSnapshot {
     return RagSnapshot._(ids, index, CitedFigures.fromSearches(json));
   }
 
-  /// Wire key marking a citation-bearing skill-state block: the
+  /// Wire key marking a citation-bearing capability-state block: the
   /// `id → Citation` map the extractor needs to render a source.
   static const _citationIndexKey = 'citation_index';
 
-  /// Wire keys the backend clears at the start of every run, so their contents
-  /// are scoped to a single run: the cited chunk ids, the retrieval results
-  /// their inline figures come from, and the analysis namespace's
-  /// code-execution log.
+  /// Wire keys the backend clears at the start of every run in which the
+  /// owning capability loads, so their contents are scoped to a single run: the
+  /// cited chunk ids, the retrieval results their inline figures come from, and
+  /// the analysis namespace's code-execution log. A capability that never loads
+  /// never clears, which is why a run is seeded via [withEmptyRunScopedKeys]
+  /// rather than trusting the backend to have cleared.
   static const _citationsKey = 'citations';
   static const _searchesKey = 'searches';
   static const _executionsKey = 'executions';
+
+  /// Whether [raw] is a citation-bearing namespace block — the single predicate
+  /// [extractAll] and [withEmptyRunScopedKeys] share, so what one extracts from
+  /// and what the other clears cannot drift apart. Drift is silent in both
+  /// directions: clearing less than is extracted over-credits stale citations,
+  /// clearing more loses live ones.
+  static bool _isCitationBearing(Object? raw) =>
+      raw is Map<String, dynamic> && raw[_citationIndexKey] is Map;
 
   /// Every citation-bearing namespace block in a full agent-state map,
   /// identified by a [`_citationIndexKey`] map. Non-citation namespaces
@@ -279,11 +290,9 @@ class RagSnapshot {
     for (final entry in state.entries) {
       if (namespaces != null && !namespaces.contains(entry.key)) continue;
       final raw = entry.value;
-      if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
-        continue;
-      }
+      if (!_isCitationBearing(raw)) continue;
       try {
-        snapshots.add(RagSnapshot.fromJson(raw));
+        snapshots.add(RagSnapshot.fromJson(raw as Map<String, dynamic>));
       } on Object catch (error, stackTrace) {
         _logger.warning(
           'RagSnapshot: skipping a citation namespace that failed to parse.',
@@ -318,11 +327,8 @@ class RagSnapshot {
     final cleared = <String>[];
     for (final entry in state.entries) {
       final raw = entry.value;
-      // Deliberately the same predicate `extractAll` uses, so the two cannot
-      // drift on what counts as a citation-bearing block.
-      if (raw is! Map<String, dynamic> || raw[_citationIndexKey] is! Map) {
-        continue;
-      }
+      if (!_isCitationBearing(raw)) continue;
+      raw as Map<String, dynamic>;
       final keys = [
         if (raw.containsKey(_citationsKey)) _citationsKey,
         if (raw.containsKey(_searchesKey)) _searchesKey,
@@ -359,9 +365,10 @@ class RagSnapshot {
   final Map<String, Citation> _index;
   final CitedFigures _figures;
 
-  /// Chunk ids of the citations present in the current state. The backend's
-  /// state lifecycle clears these at the start of every run, so they are the
-  /// ids cited by the run this state came from.
+  /// Chunk ids of the citations present in the current state. These are
+  /// run-scoped: for a state that was seeded via [withEmptyRunScopedKeys] or
+  /// produced by a capability that loaded, they are the ids cited by the run
+  /// this state came from.
   List<String> get citationIds => _citationIds;
 
   /// Resolves a chunk id to a full [Citation], or null if not present.

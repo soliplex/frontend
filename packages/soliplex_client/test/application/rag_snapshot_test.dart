@@ -165,10 +165,22 @@ void main() {
     });
 
     test('leaves non-citation namespaces untouched', () {
+      // A namespace without a `citation_index` is not citation-bearing, so it
+      // is copied through whole — even when it happens to carry a key name the
+      // run-scoped clear would otherwise empty.
       final cleared = RagSnapshot.withEmptyRunScopedKeys({
-        'bubble-sandbox': {'anything': 1},
+        'bubble-sandbox': {
+          'anything': 1,
+          'citations': ['not-a-citation'],
+        },
       });
-      expect(cleared['bubble-sandbox'], equals({'anything': 1}));
+      expect(
+        cleared['bubble-sandbox'],
+        equals({
+          'anything': 1,
+          'citations': ['not-a-citation'],
+        }),
+      );
     });
 
     test('does not add a key the namespace does not carry', () {

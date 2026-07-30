@@ -2055,6 +2055,93 @@ void main() {
       );
     });
 
+    test('seeds the run with every citation-bearing run-scoped key emptied',
+        () async {
+      // The premise the whole citation path rests on: because the outbound
+      // state carries no `citations`, a namespace with a non-empty `citations`
+      // in the run's terminal snapshot populated it during that run, which is
+      // what lets the extractor credit a snapshot unscoped. The cumulative
+      // index must survive or cited ids stop resolving, and `document_filter`
+      // must survive or document filtering silently stops.
+      orchestrator = RunOrchestrator(
+        llmProvider: AgUiLlmProvider(
+          api: api,
+          agUiStreamClient: agUiStreamClient,
+        ),
+        toolRegistry: const ToolRegistry(),
+        logger: logger,
+      );
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final history = ThreadHistory(
+        messages: [
+          TextMessage.create(
+            id: 'prior-user',
+            user: ChatUser.user,
+            text: 'Search',
+          ),
+        ],
+        aguiState: const {
+          'rag': {
+            'citation_index': {
+              'chunk-1': {
+                'chunk_id': 'chunk-1',
+                'content': 'Citation text',
+                'document_id': 'doc-1',
+                'document_uri': 'https://example.com/doc.pdf',
+              },
+            },
+            'citations': ['chunk-1'],
+            'searches': {'q': <dynamic>[]},
+            'document_filter': "id = 'doc-1'",
+          },
+          // Only `analysis` carries `executions`, so the two namespaces must
+          // come back cleared of different key sets.
+          'analysis': {
+            'citation_index': <String, dynamic>{},
+            'citations': ['stale-chunk'],
+            'searches': <String, dynamic>{},
+            'executions': [
+              {'code': 'print(1)', 'stdout': '1'},
+            ],
+          },
+          'bubble-sandbox': {'anything': 1},
+        },
+      );
+
+      await orchestrator.startRun(
+        key: _key,
+        userMessage: 'More',
+        cachedHistory: history,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final captured = verify(
+        () => agUiStreamClient.runAgent(
+          any(),
+          captureAny(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).captured;
+      final state =
+          (captured.first as SimpleRunAgentInput).state as Map<String, dynamic>;
+
+      final rag = state['rag'] as Map<String, dynamic>;
+      expect(rag['citations'], isEmpty);
+      expect(rag['searches'], isEmpty);
+      expect(rag['citation_index'], hasLength(1));
+      expect(rag['document_filter'], "id = 'doc-1'");
+
+      final analysis = state['analysis'] as Map<String, dynamic>;
+      expect(analysis['citations'], isEmpty);
+      expect(analysis['executions'], isEmpty);
+
+      expect(state['bubble-sandbox'], equals({'anything': 1}));
+    });
+
     test(
       'state accumulated via StateSnapshotEvent survives to resume run',
       () async {
@@ -2568,11 +2655,13 @@ void main() {
       expect(chunk1.figures.single.bytes, utf8.encode('hello'));
     });
 
-    test('excludes a stale sibling namespace this run never invoked', () async {
-      // rag's cumulative citation_index still resolves a chunk a prior turn
-      // cited, but rag was not invoked this run, so its run-scoped citations
-      // comes back as the turn seeded it: empty. Only the analysis namespace
-      // this run's delta touched may be credited.
+    test('credits both carriers when a snapshot and a delta share one run',
+        () async {
+      // A run can carry both: the terminal snapshot, and a delta from the
+      // feedback tool. rag's cumulative citation_index still resolves a chunk a
+      // prior turn cited, but rag was not invoked this run, so its run-scoped
+      // citations comes back as the turn seeded it — empty — and only the
+      // analysis namespace the delta touched may be credited.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
@@ -2611,49 +2700,6 @@ void main() {
       final refs =
           completed.conversation.messageStates.values.first.sourceReferences;
       expect(refs.map((r) => r.chunkId), ['chunk-2']);
-    });
-
-    test('keeps a chunk re-cited from the cumulative index', () async {
-      // A chunk a prior turn cited is still in the cumulative citation_index.
-      // When this run re-cites it, it must appear — the run's cited set is
-      // credited as-is, with no subtraction of what the index already knew.
-      stubCreateRun();
-      stubRunAgent(
-        stream: Stream.fromIterable(<BaseEvent>[
-          RunStartedEvent(threadId: 'thread-1', runId: _runId),
-          const StateSnapshotEvent(
-            snapshot: {
-              'rag': {
-                'citation_index': {
-                  'seed-chunk': {
-                    'chunk_id': 'seed-chunk',
-                    'content': 'Seed citation',
-                    'document_id': 'doc-seed',
-                    'document_uri': 'https://example.com/seed.pdf',
-                  },
-                },
-                'citations': <String>[],
-              },
-            },
-          ),
-          const TextMessageStartEvent(messageId: 'msg-1'),
-          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
-          ragDelta(
-            citationIndex: {'seed-chunk': citation('seed-chunk')},
-            citations: ['seed-chunk'],
-          ),
-          const TextMessageEndEvent(messageId: 'msg-1'),
-          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
-        ]),
-      );
-
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
-      await Future<void>.delayed(Duration.zero);
-
-      final completed = orchestrator.currentState as CompletedState;
-      final refs =
-          completed.conversation.messageStates.values.first.sourceReferences;
-      expect(refs.map((r) => r.chunkId), ['seed-chunk']);
     });
 
     test('credits nothing when the terminal snapshot cites nothing', () async {

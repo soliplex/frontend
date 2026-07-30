@@ -1134,7 +1134,7 @@ class SoliplexApi {
                 } on Object catch (error, stackTrace) {
                   _logger.error(
                     'replay: citation accumulation failed in run $runId of '
-                    'thread $threadId.',
+                    'thread $threadId (${event.runtimeType}).',
                     error: error,
                     stackTrace: stackTrace,
                   );
@@ -1150,7 +1150,7 @@ class SoliplexApi {
                 } on Object catch (error, stackTrace) {
                   _logger.error(
                     'replay: citation accumulation failed in run $runId of '
-                    'thread $threadId.',
+                    'thread $threadId (${event.runtimeType}).',
                     error: error,
                     stackTrace: stackTrace,
                   );
@@ -1174,7 +1174,7 @@ class SoliplexApi {
       // and (re)emit its MessageState — the turn's last run wins, mirroring the
       // live path's resolve-at-every-terminal. Resolving against the run's own
       // state is what preserves a turn's inline figure bytes: `searches` is
-      // per-invocation and a later turn overwrites it, while `citation_index`
+      // cleared per run and a later run overwrites it, while `citation_index`
       // stays session-cumulative so the ids still resolve. A turn that cited
       // nothing still gets a MessageState carrying its runId.
       if (userMessageId != null) {
@@ -1203,6 +1203,31 @@ class SoliplexApi {
           '${sourceReferences.where((r) => r.figures.isNotEmpty).length} '
           'with figures.',
         );
+        // An id the stored state says was cited but that no carrier fed into
+        // the accumulator means this build cannot read the record's carrier.
+        // The counts above all derive from the accumulator, so without this the
+        // shortfall reads as a turn that simply cited nothing.
+        try {
+          final uncredited =
+              extractor.citationsInState(conversation.aguiState).ids.difference(
+                    turnsByUserMessage[userMessageId]?.ids ?? const {},
+                  );
+          if (uncredited.isNotEmpty) {
+            _logger.warning(
+              'replay: run $runId of thread $threadId ended with '
+              '${uncredited.length} cited id(s) present in state but never '
+              'accumulated; the rendered source list is short. '
+              'ids: $uncredited',
+            );
+          }
+        } on Object catch (error, stackTrace) {
+          _logger.error(
+            'replay: uncredited-id check failed in run $runId of thread '
+            '$threadId.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
         messageStates[userMessageId] = MessageState(
           userMessageId: userMessageId,
           sourceReferences: sourceReferences,
