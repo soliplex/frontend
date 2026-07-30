@@ -376,20 +376,18 @@ void main() {
     });
   });
 
-  group('duplicate header (issue #465)', () {
-    testWidgets(
-        'narrow layout draws the room title once and hoists actions into the '
-        'AppBar', (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
+  group('room header placement', () {
+    Future<void> pumpRoom(
+      WidgetTester tester, {
+      required double width,
+    }) async {
+      tester.view.physicalSize = Size(width, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      api.nextRoom = const Room(id: 'room-1', name: 'General');
-      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
-
       await tester.pumpWidget(MaterialApp(
         home: RoomScreen(
-          serverEntry: namedEntry,
+          serverEntry: entry,
           roomId: 'room-1',
           threadId: null,
           runtimeManager: runtimeManager,
@@ -399,15 +397,20 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
+    }
 
-      // The title lives only in the AppBar — no second in-page header below it.
+    // The title assertions below count matches across the whole tree, which is
+    // unambiguous only for a fixture like this one: the rail names its room
+    // 'Test Room', and RoomWelcome prints the room name a second time for a
+    // room carrying a welcome message, suggestions, or quizzes.
+    testWidgets('narrow layout draws the room title once, in the AppBar',
+        (tester) async {
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+
+      await pumpRoom(tester, width: 400);
+
+      // One title in the whole tree — no in-page header repeating the AppBar's.
       expect(find.text('General'), findsOneWidget);
-      expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('General')),
-        findsOneWidget,
-      );
-      // The room-info action moves into the AppBar with the title.
       expect(
         find.descendant(
           of: find.byType(AppBar),
@@ -417,34 +420,54 @@ void main() {
       );
     });
 
-    testWidgets(
-        'wide layout keeps the in-page header carrying the title and info '
-        'action', (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
+    testWidgets('wide layout draws the room title once, in the in-page header',
+        (tester) async {
       api.nextRoom = const Room(id: 'room-1', name: 'General');
-      final namedEntry = createTestServerEntry(api: api, name: 'Prod API');
 
-      await tester.pumpWidget(MaterialApp(
-        home: RoomScreen(
-          serverEntry: namedEntry,
-          roomId: 'room-1',
-          threadId: null,
-          runtimeManager: runtimeManager,
-          registry: registry,
-          uploadRegistry: uploadRegistry,
-          documentSelections: DocumentSelections(),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpRoom(tester, width: 1200);
 
       // No AppBar on wide, so the in-page header is the sole title and the
-      // info action stays in the body.
+      // info action is in the body.
       expect(find.byType(AppBar), findsNothing);
       expect(find.text('General'), findsOneWidget);
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
+    });
+
+    testWidgets(
+        'narrow layout hoists the documents toggle into the AppBar, where it '
+        'still opens the file panel', (tester) async {
+      api.nextRoom = const Room(
+        id: 'room-1',
+        name: 'Attachable',
+        skills: {sandboxSkillName: _sandboxSkill},
+      );
+      api.nextThreads = const [];
+      api.nextRoomUploads = [
+        FileUpload(
+          filename: 'shared.pdf',
+          url: Uri.parse('https://example.com/shared.pdf'),
+        ),
+      ];
+
+      // The narrowest supported width, where the two-line title and both
+      // actions compete for the toolbar.
+      await pumpRoom(tester, width: 320);
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byIcon(Icons.folder_outlined),
+        ),
+        findsOneWidget,
+      );
+
+      // The toggle sits in the AppBar while the panel it opens renders in the
+      // body column, so the tap has to carry across subtrees.
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('shared.pdf'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
