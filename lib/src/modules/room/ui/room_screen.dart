@@ -1422,9 +1422,8 @@ class _RoomScreenState extends State<RoomScreen> {
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= SoliplexBreakpoints.tablet;
           // Wide layouts have no AppBar, so the in-page header carries the room
-          // title. Narrow layouts already show the title in the AppBar, so they
-          // drop the in-page header and take its actions into the AppBar
-          // instead (issue #465).
+          // title and its trailing actions. Narrow layouts show the title in
+          // the AppBar and hoist those actions up beside it (issue #465).
           final built = _buildContent(room, showHeader: isWide);
           final content = built.content;
 
@@ -1590,11 +1589,11 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
-  /// Builds the chat content column together with the header's trailing
-  /// actions (documents toggle + room info). [showHeader] draws the in-page
-  /// header inside the column on wide layouts; narrow layouts pass `false` and
-  /// hand the returned [headerActions] to the AppBar instead, so the room
-  /// title isn't rendered twice (issue #465).
+  /// Builds the chat content column. [showHeader] draws the in-page header
+  /// inside the column; callers that suppress it show the room title elsewhere
+  /// and place [headerActions] beside it. [headerActions] is built either way,
+  /// so callers that keep the in-page header can ignore it — the header builds
+  /// its own copy.
   ({Widget content, List<Widget> headerActions}) _buildContent(
     Room? room, {
     required bool showHeader,
@@ -1674,10 +1673,8 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  /// The header's trailing controls: the attached-files toggle (only when a
-  /// scope has files) and the room-info button. Shared so wide layouts place
-  /// them in the in-page header while narrow layouts hoist them into the
-  /// AppBar, beside the room title (issue #465).
+  /// The header's trailing controls: the attached-files toggle (hidden when
+  /// both upload scopes are Loaded-empty) and the room-info button.
   List<Widget> _buildRoomHeaderActions(
     UploadsStatus roomStatus,
     UploadsStatus threadStatus,
