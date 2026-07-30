@@ -84,12 +84,13 @@ class RunOrchestrator {
 
   final CitationExtractor _citationExtractor = CitationExtractor();
 
-  /// Citations accumulated across this turn's `StateDeltaEvent`s — the union of
-  /// cited ids and inline figures. Each delta's touched namespace holds one
-  /// skill invocation's absolute cited set and figures (via
-  /// [CitationExtractor.accumulate]); the union across the turn is its complete
-  /// set, preserving figures a later invocation's `searches` clear would drop.
-  /// Cleared at turn start (and on reset/sync). See [_extractCitations].
+  /// Citations accumulated across this turn's state events — the union of cited
+  /// ids and inline figures. A run's cited set arrives either as one terminal
+  /// `StateSnapshotEvent` (via [CitationExtractor.accumulateSnapshot]) or as
+  /// `StateDeltaEvent`s, each scoped to the namespaces it touched (via
+  /// [CitationExtractor.accumulate]). The union across the turn is its complete
+  /// set, preserving figures a later run's `searches` clear would drop. Cleared
+  /// at turn start (and on reset/sync). See [_extractCitations].
   TurnCitations _turnCitations = const TurnCitations.empty();
   String? _userMessageId;
 
@@ -811,7 +812,13 @@ class RunOrchestrator {
       user: ChatUser.user,
       text: userMessage,
     );
-    final baseState = cachedHistory?.aguiState ?? const {};
+    // Seeding with the run-scoped keys emptied is what makes a namespace's
+    // non-empty `citations` in the run's terminal snapshot definitionally this
+    // turn's. The overlay merges on top, so a caller-set `document_filter`
+    // still applies.
+    final baseState = RagSnapshot.withEmptyRunScopedKeys(
+      cachedHistory?.aguiState ?? const {},
+    );
     final aguiState =
         stateOverlay == null ? baseState : _mergeState(baseState, stateOverlay);
     _turnCitations = const TurnCitations.empty();
@@ -918,17 +925,32 @@ class RunOrchestrator {
         try {
           final result =
               processEvent(running.conversation, running.streaming, event);
-          // Accumulate the citations and inline figures this StateDeltaEvent
-          // cited, scoped to the namespaces it touched — one skill invocation's
-          // absolute cited set. Snapshots are intentionally not accumulated:
-          // they only echo the round-tripped seed. Fail-soft because citations
-          // are a derived projection.
+          // Accumulate the citations and inline figures this run cited, from
+          // whichever carrier brings them: a terminal snapshot holds the run's
+          // complete cited set, while a delta holds one contribution and is
+          // scoped to the namespaces it touched. Reading the post-event
+          // conversation state rather than the event keeps the source of truth
+          // single — a malformed snapshot has already been rejected there.
+          // Fail-soft because citations are a derived projection.
           if (event is StateDeltaEvent) {
             try {
               _turnCitations = _citationExtractor.accumulate(
                 _turnCitations,
                 result.conversation.aguiState,
                 event,
+              );
+            } on Object catch (e, st) {
+              _logger.error(
+                'Citation accumulation failed on run ${running.runId}',
+                error: e,
+                stackTrace: st,
+              );
+            }
+          } else if (event is StateSnapshotEvent) {
+            try {
+              _turnCitations = _citationExtractor.accumulateSnapshot(
+                _turnCitations,
+                result.conversation.aguiState,
               );
             } on Object catch (e, st) {
               _logger.error(
