@@ -142,6 +142,62 @@ void main() {
     });
   });
 
+  group('withEmptyRunScopedKeys', () {
+    test('empties the run-scoped keys, preserves the cumulative index', () {
+      final cleared = RagSnapshot.withEmptyRunScopedKeys({
+        'analysis': {
+          'citation_index': {'a': <String, dynamic>{}},
+          'citations': ['a'],
+          'searches': {'q': <dynamic>[]},
+          'executions': [
+            {'code': 'print(1)', 'stdout': '1'},
+          ],
+          'document_filter': 'id IN (1)',
+        },
+      });
+
+      final analysis = cleared['analysis'] as Map<String, dynamic>;
+      expect(analysis['citations'], isEmpty);
+      expect(analysis['searches'], isEmpty);
+      expect(analysis['executions'], isEmpty);
+      expect(analysis['citation_index'], equals({'a': <String, dynamic>{}}));
+      expect(analysis['document_filter'], equals('id IN (1)'));
+    });
+
+    test('leaves non-citation namespaces untouched', () {
+      final cleared = RagSnapshot.withEmptyRunScopedKeys({
+        'bubble-sandbox': {'anything': 1},
+      });
+      expect(cleared['bubble-sandbox'], equals({'anything': 1}));
+    });
+
+    test('does not add a key the namespace does not carry', () {
+      // `rag` has no `executions`; inventing one makes the outbound
+      // run_input.state misleading to read in the network inspector.
+      final cleared = RagSnapshot.withEmptyRunScopedKeys({
+        'rag': {
+          'citation_index': <String, dynamic>{},
+          'citations': ['a'],
+        },
+      });
+      expect(
+        (cleared['rag'] as Map<String, dynamic>).keys,
+        equals(['citation_index', 'citations']),
+      );
+    });
+
+    test('does not mutate the input', () {
+      final original = <String, dynamic>{
+        'rag': {
+          'citation_index': <String, dynamic>{},
+          'citations': ['a'],
+        },
+      };
+      RagSnapshot.withEmptyRunScopedKeys(original);
+      expect((original['rag'] as Map)['citations'], equals(['a']));
+    });
+  });
+
   group('buildRagDocumentFilterOverlay', () {
     test('wraps a filter string under rag.document_filter', () {
       final overlay = buildRagDocumentFilterOverlay("id = 'abc'");
