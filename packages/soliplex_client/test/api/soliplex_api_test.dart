@@ -4335,8 +4335,91 @@ void main() {
               },
             };
 
-        test('run 2 (analysis only) does not inherit run 1 rag citations',
-            () async {
+        test(
+            'resolves citations from a run whose only state event is a '
+            'terminal snapshot', () async {
+          // How the backend records a run now: no deltas, one STATE_SNAPSHOT
+          // just before RUN_FINISHED carrying the run's cited set.
+          stubGet('thread-456', {
+            'room_id': 'room-123',
+            'thread_id': 'thread-456',
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          });
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'asst-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'asst-1',
+                'delta': 'Answer',
+              },
+              {'type': 'TEXT_MESSAGE_END', 'messageId': 'asst-1'},
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1': {
+                        'document_id': 'doc-1',
+                        'chunk_id': 'chunk-1',
+                        'document_uri': 'file:///doc1.pdf',
+                        'content': 'Citation 1',
+                      },
+                    },
+                    'citations': ['chunk-1'],
+                  },
+                },
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.messageStates['user-1']!.sourceReferences
+                .map((r) => r.chunkId),
+            ['chunk-1'],
+          );
+        });
+
+        test(
+            'over-credits a deferred namespace replaying a thread recorded '
+            'before the seed was cleared', () async {
+          // An accepted limitation, pinned so it cannot change unnoticed.
+          //
+          // A live turn seeds the run-scoped keys empty, so a namespace the
+          // model never invoked comes back with an empty `citations` and is
+          // credited nothing. A thread recorded before that seeding cannot be
+          // repaired on replay: its stored rebase snapshot really does echo a
+          // prior run's `citations`, and nothing in the record distinguishes
+          // that echo from a genuine retrieval. So run 2 here reports run 1's
+          // chunk-1 alongside its own chunk-2.
+          //
+          // Only multi-capability rooms are affected — the backend defers
+          // capability loading solely when a room routes more than one, and a
+          // deferred capability that is never invoked never clears. The cost is
+          // one extra stale source on a historical turn.
           stubGet('thread-456', twoRunThread());
           // Run 1: the rag skill cites chunk-1.
           stubGet('thread-456/run-1', {
@@ -4374,9 +4457,8 @@ void main() {
               },
             ],
           });
-          // Run 2: only the analysis skill runs (cites chunk-2). The rebase
-          // snapshot round-trips run 1's rag block (citations=[chunk-1]), which
-          // run 2 never touches — so chunk-1 must not be attributed to run 2.
+          // Run 2: only the analysis skill runs (cites chunk-2). The stored
+          // rebase snapshot still carries run 1's rag block.
           stubGet('thread-456/run-2', {
             'run_id': 'run-2',
             'run_input': {
@@ -4400,6 +4482,119 @@ void main() {
                       },
                     },
                     'citations': ['chunk-1'],
+                  },
+                },
+              },
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/analysis',
+                    'value': {
+                      'citation_index': {
+                        'chunk-2': {
+                          'document_id': 'doc-2',
+                          'chunk_id': 'chunk-2',
+                          'document_uri': 'file:///doc2.pdf',
+                          'content': 'Citation 2',
+                        },
+                      },
+                      'citations': ['chunk-2'],
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-2',
+              },
+            ],
+          });
+
+          final history = await api.getThreadHistory('room-123', 'thread-456');
+
+          expect(
+            history.messageStates['user-1']!.sourceReferences
+                .map((r) => r.chunkId),
+            ['chunk-1'],
+          );
+          expect(
+            history.messageStates['user-2']!.sourceReferences
+                .map((r) => r.chunkId),
+            ['chunk-1', 'chunk-2'],
+          );
+        });
+
+        test('run 2 (analysis only) does not inherit run 1 rag citations',
+            () async {
+          // The same two-capability thread as above, recorded with the
+          // run-scoped keys seeded empty: rag's block comes back carrying its
+          // cumulative index but no citations, so run 2 credits only analysis.
+          stubGet('thread-456', twoRunThread());
+          // Run 1: the rag skill cites chunk-1.
+          stubGet('thread-456/run-1', {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_DELTA',
+                'delta': [
+                  {
+                    'op': 'add',
+                    'path': '/rag',
+                    'value': {
+                      'citation_index': {
+                        'chunk-1': {
+                          'document_id': 'doc-1',
+                          'chunk_id': 'chunk-1',
+                          'document_uri': 'file:///doc1.pdf',
+                          'content': 'Citation 1',
+                        },
+                      },
+                      'citations': ['chunk-1'],
+                    },
+                  },
+                ],
+              },
+              {
+                'type': 'RUN_FINISHED',
+                'thread_id': 'thread-456',
+                'run_id': 'run-1',
+              },
+            ],
+          });
+          // Run 2: only the analysis skill runs (cites chunk-2). The snapshot
+          // carries rag's cumulative index but no citations, so chunk-1 must
+          // not be attributed to run 2.
+          stubGet('thread-456/run-2', {
+            'run_id': 'run-2',
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'Q1'},
+                {'id': 'asst-1', 'role': 'assistant', 'content': 'A1'},
+                {'id': 'user-2', 'role': 'user', 'content': 'Q2'},
+              ],
+            },
+            'events': [
+              {
+                'type': 'STATE_SNAPSHOT',
+                'snapshot': {
+                  'rag': {
+                    'citation_index': {
+                      'chunk-1': {
+                        'document_id': 'doc-1',
+                        'chunk_id': 'chunk-1',
+                        'document_uri': 'file:///doc1.pdf',
+                        'content': 'Citation 1',
+                      },
+                    },
+                    'citations': <String>[],
                   },
                 },
               },

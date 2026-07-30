@@ -8,6 +8,28 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Fixed
+
+- Citations render again. The backend now carries a run's cited set in a single
+  `STATE_SNAPSHOT` emitted just before `RUN_FINISHED`, in place of the
+  per-invocation `STATE_DELTA` stream it used to emit. Both frontend
+  accumulation sites were gated on `STATE_DELTA`, so every turn resolved zero
+  sources — live and on reload, with nothing logged. A turn now seeds the
+  run-scoped state keys (`citations`, `searches`, `executions`) empty, which
+  makes any namespace carrying citations in the terminal snapshot definitionally
+  that run's, and both the live orchestrator and thread replay accumulate the
+  snapshot. Requests shrink as a side effect: `searches` carries base64 figure
+  bytes and `executions` captured stdout, and neither is echoed back for the
+  backend to discard any more.
+- The state-delta path is unchanged and still needed — the run-feedback tool
+  emits a state delta of its own, and a thread recorded before the backend
+  change replays as deltas. One limitation comes with replaying such a thread in
+  a room that routes more than one retrieval capability: its stored snapshot
+  really does echo a prior run's `citations`, and nothing in the record
+  distinguishes that echo from a genuine retrieval, so a turn whose namespace
+  was never invoked can show one extra stale source. Rooms with a single
+  retrieval capability are unaffected.
+
 ## [0.98.0+76] - 2026-07-30
 
 ### Changed
