@@ -1115,13 +1115,14 @@ class SoliplexApi {
               );
               conversation = result.conversation;
               streaming = result.streaming;
-              // Accumulate the citations and inline figures this
-              // StateDeltaEvent cited, scoped to the namespaces it touched,
-              // into the turn's accumulator — one skill invocation's absolute
-              // cited set. Snapshots echo the round-tripped seed and are
-              // intentionally not accumulated. Own fail-soft guard (log-only,
-              // never a drop tile): the event already processed, and citations
-              // are a derived projection.
+              // Accumulate this run's cited ids and inline figures into the
+              // turn's accumulator, from whichever carrier the run recorded:
+              // a terminal snapshot holds the run's complete cited set, having
+              // been seeded with the run-scoped keys emptied, while a delta
+              // holds one contribution and is scoped to the namespaces it
+              // touched. Own fail-soft guard (log-only, never a drop tile):
+              // the event already processed, and citations are a derived
+              // projection.
               if (event is StateDeltaEvent && userMessageId != null) {
                 try {
                   turnsByUserMessage[userMessageId] = extractor.accumulate(
@@ -1129,6 +1130,22 @@ class SoliplexApi {
                         const TurnCitations.empty(),
                     conversation.aguiState,
                     event,
+                  );
+                } on Object catch (error, stackTrace) {
+                  _logger.error(
+                    'replay: citation accumulation failed in run $runId of '
+                    'thread $threadId.',
+                    error: error,
+                    stackTrace: stackTrace,
+                  );
+                }
+              } else if (event is StateSnapshotEvent && userMessageId != null) {
+                try {
+                  turnsByUserMessage[userMessageId] =
+                      extractor.accumulateSnapshot(
+                    turnsByUserMessage[userMessageId] ??
+                        const TurnCitations.empty(),
+                    conversation.aguiState,
                   );
                 } on Object catch (error, stackTrace) {
                   _logger.error(
