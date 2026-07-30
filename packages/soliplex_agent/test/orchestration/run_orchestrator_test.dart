@@ -2332,11 +2332,12 @@ void main() {
   });
 
   group('citation extraction', () {
-    // Each skill invocation emits one StateDeltaEvent whose post-delta
-    // rag.citations is that invocation's absolute set; citation_index is
-    // session-cumulative. Citations never arrive via StateSnapshotEvent (the
-    // only snapshot is the RUN_STARTED rebase echoing the round-tripped seed),
-    // so tests deliver citations exclusively via StateDeltaEvent.
+    // A run's cited set arrives either in one terminal StateSnapshotEvent or,
+    // for a thread recorded before the backend switched carriers, as
+    // StateDeltaEvents whose post-delta `citations` is that contribution's
+    // absolute set. Either way `citations` is run-scoped — the turn seeds it
+    // empty — while `citation_index` is session-cumulative, so an id cited by
+    // an earlier run still resolves.
     StateDeltaEvent namespaceDelta(
       String namespace, {
       required Map<String, Map<String, dynamic>> citationIndex,
@@ -2427,6 +2428,40 @@ void main() {
       expect(entry.runId, _runId);
       expect(entry.sourceReferences, hasLength(1));
       expect(entry.sourceReferences[0].chunkId, 'chunk-1');
+    });
+
+    test("credits citations from the run's terminal state snapshot", () async {
+      // The backend carries a run's cited set in one StateSnapshotEvent
+      // emitted just before RUN_FINISHED, with no deltas at all.
+      stubCreateRun();
+      stubRunAgent(
+        stream: Stream.fromIterable(<BaseEvent>[
+          RunStartedEvent(threadId: 'thread-1', runId: _runId),
+          const TextMessageStartEvent(messageId: 'msg-1'),
+          const TextMessageContentEvent(messageId: 'msg-1', delta: 'Answer'),
+          const TextMessageEndEvent(messageId: 'msg-1'),
+          StateSnapshotEvent(
+            snapshot: {
+              'rag': {
+                'citation_index': {'chunk-1': citation('chunk-1')},
+                'citations': ['chunk-1'],
+              },
+            },
+          ),
+          const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
+        ]),
+      );
+
+      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(orchestrator.currentState, isA<CompletedState>());
+      final completed = orchestrator.currentState as CompletedState;
+      final refs =
+          completed.conversation.messageStates.values.first.sourceReferences;
+
+      expect(refs, hasLength(1));
+      expect(refs[0].chunkId, 'chunk-1');
     });
 
     test('populates messageStates with runId even without citations', () async {
@@ -2534,10 +2569,10 @@ void main() {
     });
 
     test('excludes a stale sibling namespace this run never invoked', () async {
-      // Prior turn left rag.citations=[seed-chunk]; the RUN_STARTED rebase
-      // echoes it (round-tripped seed). This run invokes only the analysis
-      // skill, so its delta touches /analysis alone. rag was never invoked
-      // this run — its stale citations must not be attributed here.
+      // rag's cumulative citation_index still resolves a chunk a prior turn
+      // cited, but rag was not invoked this run, so its run-scoped citations
+      // comes back as the turn seeded it: empty. Only the analysis namespace
+      // this run's delta touched may be credited.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
@@ -2553,7 +2588,7 @@ void main() {
                     'document_uri': 'https://example.com/seed.pdf',
                   },
                 },
-                'citations': ['seed-chunk'],
+                'citations': <String>[],
               },
             },
           ),
@@ -2578,11 +2613,10 @@ void main() {
       expect(refs.map((r) => r.chunkId), ['chunk-2']);
     });
 
-    test('keeps a chunk re-cited from the round-tripped seed', () async {
-      // The RUN_STARTED rebase snapshot echoes the round-tripped seed (a prior
-      // turn's leftover citations). When the run re-cites one of those chunks
-      // the delta carries it, so it must appear — no baseline subtraction
-      // (Issue 1).
+    test('keeps a chunk re-cited from the cumulative index', () async {
+      // A chunk a prior turn cited is still in the cumulative citation_index.
+      // When this run re-cites it, it must appear — the run's cited set is
+      // credited as-is, with no subtraction of what the index already knew.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
@@ -2598,7 +2632,7 @@ void main() {
                     'document_uri': 'https://example.com/seed.pdf',
                   },
                 },
-                'citations': ['seed-chunk'],
+                'citations': <String>[],
               },
             },
           ),
@@ -2622,10 +2656,10 @@ void main() {
       expect(refs.map((r) => r.chunkId), ['seed-chunk']);
     });
 
-    test('excludes a seed citation the run never re-cites', () async {
-      // A StateSnapshotEvent echoes the round-tripped seed, but the run cites
-      // nothing. Snapshots are not accumulated, so the seed leftover must not
-      // surface as this run's citation.
+    test('credits nothing when the terminal snapshot cites nothing', () async {
+      // The snapshot's cumulative citation_index can resolve a chunk, but the
+      // run cited none. Credit follows what `citations` says was cited, not
+      // what the index happens to be able to resolve.
       stubCreateRun();
       stubRunAgent(
         stream: Stream.fromIterable(<BaseEvent>[
@@ -2641,7 +2675,7 @@ void main() {
                     'document_uri': 'https://example.com/seed.pdf',
                   },
                 },
-                'citations': ['seed-chunk'],
+                'citations': <String>[],
               },
             },
           ),
@@ -2910,13 +2944,12 @@ void main() {
 
     test("does not leak a prior turn's citations into the next turn", () async {
       // Two turns back-to-back with no reset between them. Turn 1 cites
-      // chunk-1; turn 2 cites nothing, but its RUN_STARTED rebase snapshot
-      // echoes the round-tripped seed (chunk-1 still in the cumulative
-      // citation_index). The turn accumulator is cleared at turn start, so
-      // turn 2 shows no sources — otherwise turn 1's id would resolve against
-      // turn 2's state and leak in. This isolates the turn-start clear: reset
-      // and syncToThread also null _userMessageId (short-circuiting resolve),
-      // so only a back-to-back run exercises it.
+      // chunk-1; turn 2 cites nothing, but chunk-1 is still in turn 2's
+      // cumulative citation_index. The turn accumulator is cleared at turn
+      // start, so turn 2 shows no sources — otherwise turn 1's id would
+      // resolve against turn 2's state and leak in. This isolates the
+      // turn-start clear: reset and syncToThread also null _userMessageId
+      // (short-circuiting resolve), so only a back-to-back run exercises it.
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(citationEvents()));
 
@@ -2931,7 +2964,7 @@ void main() {
             snapshot: {
               'rag': {
                 'citation_index': {'chunk-1': citation('chunk-1')},
-                'citations': ['chunk-1'],
+                'citations': <String>[],
               },
             },
           ),
