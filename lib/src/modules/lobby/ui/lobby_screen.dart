@@ -298,9 +298,6 @@ class _WideLayout extends StatelessWidget {
                 serverReadMarkers: serverReadMarkers,
                 activityLoading: activityLoading,
                 selectedServerId: selectedServerId,
-                // The two-pane layout has no AppBar, so the pane names the
-                // selected server in its own header.
-                showServerHeading: true,
                 onRoomTap: onRoomTap,
                 onMarkRoomRead: onMarkRoomRead,
                 onInfoTap: onInfoTap,
@@ -388,9 +385,11 @@ class _NarrowLayout extends StatelessWidget {
         title: selectedEntry == null
             ? null
             : Text(
-                selectedEntry.displayName,
-                // Match the wide layout's pane-header text size, so the name
-                // does not resize when the layout crosses the breakpoint.
+                // Drop the `http(s)://` scheme, matching the room header's
+                // server line (issue #485).
+                stripUrlScheme(selectedEntry.displayName),
+                // Match the wide layout's sidebar text size, so the name does
+                // not resize when the layout crosses the breakpoint.
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -440,9 +439,6 @@ class _NarrowLayout extends StatelessWidget {
           serverReadMarkers: serverReadMarkers,
           activityLoading: activityLoading,
           selectedServerId: selectedServerId,
-          // The AppBar already names the selected server, so the pane skips
-          // its own header row.
-          showServerHeading: false,
           onRoomTap: onRoomTap,
           onMarkRoomRead: onMarkRoomRead,
           onInfoTap: onInfoTap,
@@ -469,7 +465,6 @@ class _RoomContent extends StatelessWidget {
     required this.serverReadMarkers,
     required this.activityLoading,
     required this.selectedServerId,
-    required this.showServerHeading,
     required this.onRoomTap,
     required this.onMarkRoomRead,
     required this.onInfoTap,
@@ -490,10 +485,6 @@ class _RoomContent extends StatelessWidget {
   final Map<String, DateTime> serverReadMarkers;
   final bool activityLoading;
   final String? selectedServerId;
-
-  /// Whether the pane names the selected server in a header of its own. The
-  /// narrow layout names it in the AppBar instead, so it passes false.
-  final bool showServerHeading;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
   final void Function(String serverId, String roomId) onInfoTap;
@@ -532,37 +523,16 @@ class _RoomContent extends StatelessWidget {
             selectedServerId == null ? null : servers[selectedServerId];
         return Column(
           children: [
-            if (selectedEntry != null) ...[
-              if (showServerHeading) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      SoliplexSpacing.s4,
-                      SoliplexSpacing.s3,
-                      SoliplexSpacing.s4,
-                      SoliplexSpacing.s2),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      selectedEntry.displayName,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ],
+            // The selected server is named in the AppBar (narrow) or the
+            // always-visible sidebar (wide), so no in-pane title band is
+            // needed — it would just repeat what's already on screen.
+            if (selectedEntry != null)
               StatusMessageBanner(
                 key: ValueKey(selectedEntry.serverUrl),
                 baseUrl: selectedEntry.serverUrl,
                 client: selectedEntry.httpClient,
                 serverLabel: selectedEntry.displayName,
               ),
-            ],
             Padding(
               // A non-scrolling bottom gap (matching the list's item spacing)
               // so scrolled room titles/descriptions keep a gutter under the
