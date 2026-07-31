@@ -29,6 +29,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   distinguishes that echo from a genuine retrieval, so a turn whose namespace
   was never invoked can show the stale sources that namespace last cited. Rooms
   with a single retrieval capability are unaffected.
+- Chunk previews no longer inherit a server-side default. `expand` was declared
+  `true` on `getChunkVisualization` but only transmitted when it was `false`, so
+  the default path sent no parameter at all and took whatever the server picked
+  — a default that has since flipped to `false`. The client now always transmits
+  the value and declares `false`, so the value on the wire is the value applied
+  and it agrees with the backend rather than depending on it. `expand` has an
+  effect only when no doc item refs are supplied, which is exactly the bare
+  chunk-id preview in room info; that preview highlights the chunk itself rather
+  than re-expanding the section around it. Previews opened from a citation
+  supply refs and are unaffected.
 
 ## [0.98.0+76] - 2026-07-30
 
