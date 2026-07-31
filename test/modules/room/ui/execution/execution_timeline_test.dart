@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -517,8 +519,8 @@ void main() {
 
       // `code` is preferred over dumping the whole args object.
       expect(find.text("df.groupby('site').mean()"), findsOneWidget);
-      // The result is the only place a code execution's stdout — or a
-      // ToolFailed message — reaches the user.
+      // The result is the only place in the chat UI that a code execution's
+      // stdout — or the message from a tool that raised — reaches the user.
       expect(find.text('site   value\nA      12.4'), findsOneWidget);
     });
 
@@ -711,6 +713,43 @@ void main() {
         isNull,
       );
       expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets("a call's args and result clamp independently", (tester) async {
+      // One row discloses two bodies, so each needs its own clamp key. Sharing
+      // one would make "Show more" under Arguments unclamp the Result too.
+      final script = List.generate(40, (i) => 'script line $i').join('\n');
+      final result = List.generate(40, (i) => 'result line $i').join('\n');
+      events.value = const ServerToolCallStarted(
+        toolName: 'run_python',
+        toolCallId: 'tc-1',
+      );
+      events.value = ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: jsonEncode({'script': script}),
+      );
+      events.value = ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: result,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'run_python');
+
+      expect(tester.widget<Text>(find.text(script)).maxLines, 8);
+      expect(tester.widget<Text>(find.text(result)).maxLines, 8);
+
+      // The Arguments block renders first, so its control comes first.
+      await tester.tap(find.text('Show more').first);
+      await tester.pump();
+
+      expect(tester.widget<Text>(find.text(script)).maxLines, isNull);
+      expect(
+        tester.widget<Text>(find.text(result)).maxLines,
+        8,
+        reason: 'Sharing one clamp key would unclamp the result as well.',
+      );
     });
 
     testWidgets("one call's result expansion does not affect another's",
