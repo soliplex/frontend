@@ -39,6 +39,26 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   chunk-id preview in room info; that preview highlights the chunk itself rather
   than re-expanding the section around it. Previews opened from a citation
   supply refs and are unaffected.
+- The execution timeline carries a tool call's arguments and result again. The
+  nested detail rows were fed by `skill_tool_call` / `skill_tool_result`
+  `ACTIVITY_SNAPSHOT` events emitted by the sub-agent runtime the backend
+  replaced; nothing constructs one any more, so every nested row rendered blank
+  and the timeline was a flat list of names. Retrievals now arrive as ordinary
+  tool calls, so the detail comes from `TOOL_CALL_ARGS` and `TOOL_CALL_RESULT`
+  and expands from the step row that already represents that call — one row per
+  call rather than a row nested beneath itself, because the two-level call tree
+  the nesting mirrored no longer exists. Arguments display the field carrying
+  the intent when there is one (a query, executed code, a script, a shell
+  command) and the whole object otherwise; while the call is still streaming its
+  arguments are a JSON prefix, which renders as-is rather than being withheld
+  until it parses. The result body is included because it is the only place a
+  tool's failure message reaches the user at all: AG-UI has no way to express a
+  failed outcome, so a search that hit its limit or a code execution that raised
+  returns its message through the ordinary result field, indistinguishable from
+  success. Both blocks clamp to eight lines with a show-more control, since a
+  retrieval result runs to tens of thousands of characters and would otherwise
+  bury every row after it; the control appears only when the body is measured to
+  overflow, and copying still takes the whole body.
 
 ## [0.98.0+76] - 2026-07-30
 

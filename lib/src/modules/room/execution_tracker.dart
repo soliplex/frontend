@@ -56,6 +56,10 @@ class ExecutionTracker {
   /// every thread reload.
   final bool _historical;
 
+  /// Ids already reported as having no step, so one call's delta stream logs
+  /// once rather than per delta.
+  final Set<String> _loggedUnmatchedCalls = <String>{};
+
   final Stopwatch _stopwatch = Stopwatch();
   void Function()? _unsub;
   void Function()? _activitiesUnsub;
@@ -152,11 +156,14 @@ class ExecutionTracker {
         // tool call, and completing the step now would split a single
         // logical step into two timeline entries.
         _isThinkingStreaming.value = false;
-      case ServerToolCallStarted(:final toolName):
+      case ServerToolCallStarted(:final toolName, :final toolCallId):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
-        _addStep(toolName, StepType.toolCall);
-      case ServerToolCallCompleted():
+        _addStep(toolName, StepType.toolCall, toolCallId: toolCallId);
+      case ServerToolCallArgs(:final toolCallId, :final delta):
+        _appendCallArgs(toolCallId, delta);
+      case ServerToolCallCompleted(:final toolCallId, :final result):
+        _attachCallResult(toolCallId, result);
         _completeActiveStep();
       case ClientToolExecuting(:final toolName):
         _completeActiveStep();
@@ -233,7 +240,65 @@ class ExecutionTracker {
     ];
   }
 
-  void _addStep(String label, StepType type) {
+  /// Appends an args delta to the step opened by [toolCallId].
+  ///
+  /// A delta for an id with no step — its `TOOL_CALL_START` was dropped, or
+  /// the stream reconnected mid-call — has nowhere to go and is discarded.
+  void _appendCallArgs(String toolCallId, String delta) {
+    _updateCall(
+      toolCallId,
+      (entry) => entry.withDetail(args: entry.args + delta),
+    );
+  }
+
+  void _attachCallResult(String toolCallId, String result) {
+    final entry = _updateCall(
+      toolCallId,
+      (entry) => entry.withDetail(result: result),
+    );
+    if (entry == null || _historical) return;
+    // The row's whole content in one line, at info so a debug build's floor
+    // admits it. Lengths only: the args carry the user's query and the result
+    // carries retrieved document text, neither of which belongs in a log.
+    _logger.info(
+      'Timeline detail: ${entry.step.label} captured '
+      '${entry.args.length} args chars, ${result.length} result chars.',
+    );
+  }
+
+  /// Applies [update] to the step opened by [toolCallId] and returns the
+  /// updated entry, or null when no step carries that id.
+  TimelineStep? _updateCall(
+    String toolCallId,
+    TimelineStep Function(TimelineStep) update,
+  ) {
+    final current = _timeline.value;
+    for (var i = current.length - 1; i >= 0; i--) {
+      final entry = current[i];
+      if (entry is TimelineStep && entry.toolCallId == toolCallId) {
+        final updated = update(entry);
+        _timeline.value = [...current]..[i] = updated;
+        return updated;
+      }
+    }
+    // Otherwise the detail is dropped and the row silently lacks the args or
+    // result it should have shown. Warning level so it survives the release
+    // floor; once per id so a delta stream can't flood the sink, and live-only
+    // so reloading a thread with a truncated stream doesn't re-log every time.
+    if (!_historical && _loggedUnmatchedCalls.add(toolCallId)) {
+      _logger.warning(
+        'ExecutionTracker: tool call detail arrived for an id with no step; '
+        'the row will render without its args or result.',
+        attributes: {
+          'toolCallId': toolCallId,
+          'stepCount': current.whereType<TimelineStep>().length,
+        },
+      );
+    }
+    return null;
+  }
+
+  void _addStep(String label, StepType type, {String? toolCallId}) {
     final step = ExecutionStep(
       label: label,
       type: type,
@@ -241,7 +306,10 @@ class ExecutionTracker {
       timestamp: _stopwatch.elapsed,
     );
     _steps.value = [..._steps.value, step];
-    _timeline.value = [..._timeline.value, TimelineStep(step: step)];
+    _timeline.value = [
+      ..._timeline.value,
+      TimelineStep(step: step, toolCallId: toolCallId),
+    ];
   }
 
   void _completeActiveStep() {
