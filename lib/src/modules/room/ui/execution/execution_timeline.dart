@@ -36,7 +36,8 @@ const double _nestedIndent = _disclosureWidth +
 /// nothing to disclose so status icons stay column-aligned.
 const double _disclosureWidth = 14;
 
-/// Size of a row's status icon, and of the disclosure chevron drawn beside it.
+/// Size of a row's status icon. The disclosure chevron beside it is
+/// [_disclosureWidth], which is wider.
 const double _statusIconSize = 12;
 
 /// Lines of a source body shown before the reader asks for the rest. A
@@ -49,6 +50,11 @@ const int _collapsedSourceLines = 8;
 /// keys its own entry in the expansion store.
 const String _argsClampSuffix = '#args';
 const String _resultClampSuffix = '#result';
+
+/// The braces bounding a JSON object, so an empty one is recognised by scan
+/// rather than by decoding it.
+const int _leftBrace = 0x7B;
+const int _rightBrace = 0x7D;
 
 /// Execution timeline — a single collapsible listing a run's steps, nesting
 /// any activity rows under their owning step. A step row carrying a server tool
@@ -242,12 +248,14 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   Widget _stepRow(TimelineStep entry, ThemeData theme) {
     final step = entry.step;
     final id = entry.toolCallId;
-    final args = entry.args.isEmpty ? null : _formatArgs(entry.args);
+    // Whether there is detail is decided without formatting it: this runs for
+    // every row on every rebuild, and an args delta rebuilds the timeline.
+    final hasArgs = entry.args.isNotEmpty && !_isEmptyArgsObject(entry.args);
     final result = (entry.result?.isEmpty ?? true) ? null : entry.result;
     // A server tool call's args and result are the call's own detail, so the
     // step expands in place. A step with no id carries no detail of its own and
     // keeps the slot only so icons stay column-aligned.
-    final hasDetail = id != null && (args != null || result != null);
+    final hasDetail = id != null && (hasArgs || result != null);
     final isExpanded = hasDetail && _isSourceExpanded(id);
 
     return Padding(
@@ -290,16 +298,17 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             ),
           ),
           if (isExpanded) ...[
-            if (args != null)
+            if (hasArgs)
               _sourceBlock(
-                args,
+                _formatArgs(entry.args),
                 theme,
                 label: 'Arguments',
                 clampId: '$id$_argsClampSuffix',
               ),
             // AG-UI carries no field for a failed outcome, so a tool that hit a
             // limit or raised delivers its message through the ordinary result
-            // string. Rendering it is the only way that text reaches the user.
+            // string. Rendering it is the only way that text reaches the user
+            // in the chat UI.
             if (result != null)
               _sourceBlock(
                 result,
@@ -337,11 +346,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             child: Row(
               children: [
                 SizedBox(
-                  width: 14,
+                  width: _disclosureWidth,
                   child: hasSource
                       ? Icon(
                           isExpanded ? Icons.expand_more : Icons.chevron_right,
-                          size: 14,
+                          size: _disclosureWidth,
                           color: theme.colorScheme.onSurfaceVariant,
                         )
                       : const SizedBox.shrink(),
@@ -375,8 +384,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// reader asks for the rest.
   ///
   /// [clampId] keys that per block, so expanding one call's result leaves every
-  /// other row alone. Pass null to render the body in full, which the activity
-  /// path does because this change leaves its rendering as it was.
+  /// other row alone. Null renders the body in full — an activity row's source
+  /// is a script or query short enough not to need a clamp.
   Widget _sourceBlock(
     String source,
     ThemeData theme, {
@@ -449,33 +458,21 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
               maxLines: clamped ? _collapsedSourceLines : null,
               overflow: clamped ? TextOverflow.ellipsis : TextOverflow.clip,
             ),
+            // A labelled control rather than a bare tap target, so it carries
+            // button semantics and the design system's minimum tap target.
             if (overflows)
-              GestureDetector(
-                onTap: () => _toggleSource(clampId),
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
-                  child: Row(
-                    children: [
-                      // The row disclosures elsewhere encode state (right when
-                      // closed, down when open) because they carry no words.
-                      // This one is labelled with a verb, so the arrow points
-                      // at what the tap does: down to reveal, up to collapse.
-                      Icon(
-                        expanded ? Icons.expand_less : Icons.expand_more,
-                        size: 14,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: SoliplexSpacing.s1),
-                      Text(
-                        expanded ? 'Show less' : 'Show more',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+              SoliplexButton.text(
+                onPressed: () => _toggleSource(clampId),
+                isCompact: true,
+                // The row disclosures elsewhere encode state (right when
+                // closed, down when open) because they carry no words. This
+                // one is labelled with a verb, so the arrow points at what the
+                // tap does: down to reveal, up to collapse.
+                icon: Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: _disclosureWidth,
                 ),
+                child: Text(expanded ? 'Show less' : 'Show more'),
               ),
           ],
         );
@@ -485,7 +482,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
 
   /// The primary label of a timeline row. While the row is [running] the text
   /// shimmers (a calmer signal than a per-row spinner) and settles back to
-  /// the plain muted label — same resting color — once the step completes.
+  /// the plain muted label — same resting color — once the step settles, on
+  /// success or failure alike.
   Widget _rowLabel(String label, ThemeData theme, {required bool running}) {
     final text = Text(
       label,
@@ -530,19 +528,26 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     switch (status) {
       case SkillToolCallStatus.inProgress:
         // No spinner: the shimmering label carries the "in progress" signal.
-        return const SizedBox(width: 12, height: 12);
+        return const SizedBox(
+          width: _statusIconSize,
+          height: _statusIconSize,
+        );
       case SkillToolCallStatus.error:
-        return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
+        return Icon(
+          Icons.error,
+          size: _statusIconSize,
+          color: theme.colorScheme.error,
+        );
       case SkillToolCallStatus.done:
         return Icon(
           Icons.check_circle,
-          size: 12,
+          size: _statusIconSize,
           color: context.success,
         );
       case SkillToolCallStatus.unknown:
         return Icon(
           Icons.circle_outlined,
-          size: 12,
+          size: _statusIconSize,
           color: theme.colorScheme.outline,
         );
     }
@@ -582,24 +587,54 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return overflows;
   }
 
-  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display, or null
-  /// when there is nothing worth showing.
+  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display.
   ///
   /// Prefers the one field that carries the intent — the script, the code, the
   /// query, the command — over the whole object. Falls back to the raw string
   /// when it does not parse: while the call is still streaming the accumulation
   /// is a JSON prefix, and a partial payload is more useful shown than hidden.
-  /// A tool that takes no arguments sends `{}`, which yields no block rather
-  /// than an empty one.
-  static String? _formatArgs(String args) {
+  ///
+  /// Called only for a row the reader has expanded, and only once
+  /// [_isEmptyArgsObject] has ruled out the payload of a tool that takes no
+  /// arguments — which is why every path here yields something to show.
+  static String _formatArgs(String args) {
     final decoded = _tryDecodeObject(args);
     if (decoded == null) return args;
-    if (decoded.isEmpty) return null;
     for (final key in _sourceKeys) {
       final value = decoded[key];
       if (value is String && value.isNotEmpty) return value;
     }
     return const JsonEncoder.withIndent('  ').convert(decoded);
+  }
+
+  /// Whether [args] is a JSON object with no members — what a tool that takes
+  /// no arguments sends, and which yields no block rather than an empty one.
+  ///
+  /// Decided by scanning rather than by decoding because every step row asks
+  /// this on every rebuild, expanded or not, and an args delta rebuilds the
+  /// timeline. Bails at the first member, so a real payload costs a few
+  /// character reads rather than a parse.
+  static bool _isEmptyArgsObject(String args) {
+    var index = _skipJsonSpace(args, 0);
+    if (index == args.length || args.codeUnitAt(index) != _leftBrace) {
+      return false;
+    }
+    index = _skipJsonSpace(args, index + 1);
+    if (index == args.length || args.codeUnitAt(index) != _rightBrace) {
+      return false;
+    }
+    return _skipJsonSpace(args, index + 1) == args.length;
+  }
+
+  static int _skipJsonSpace(String source, int from) {
+    var index = from;
+    while (index < source.length) {
+      final unit = source.codeUnitAt(index);
+      // The four code points JSON counts as insignificant whitespace.
+      if (unit != 0x20 && unit != 0x09 && unit != 0x0A && unit != 0x0D) break;
+      index++;
+    }
+    return index;
   }
 
   static Map<String, dynamic>? _tryDecodeObject(String raw) {

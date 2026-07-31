@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/room/execution_step.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker.dart';
@@ -300,9 +301,10 @@ void main() {
       );
     });
 
-    test('a second call accumulates onto its own step', () {
-      // A run makes many top-level calls, so a delta must land on the step that
-      // opened it, not the newest one.
+    test('a call id reused by a later run resolves to the later step', () {
+      // The reload path buckets several runs' events into one tracker, so the
+      // same id can open two steps. Detail must land on the one that opened
+      // most recently, or the later run's args overwrite the earlier run's row.
       events.value = const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -315,20 +317,26 @@ void main() {
         toolCallId: 'tc-1',
         result: 'first result',
       );
+      events.value = const RunCompleted();
       events.value = const ServerToolCallStarted(
         toolName: 'rag_search',
-        toolCallId: 'tc-2',
+        toolCallId: 'tc-1',
       );
       events.value = const ServerToolCallArgs(
-        toolCallId: 'tc-2',
+        toolCallId: 'tc-1',
         delta: '{"query":"second"}',
       );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'second result',
+      );
 
-      expect(steps().map((s) => s.args), [
-        '{"query":"first"}',
-        '{"query":"second"}',
-      ]);
-      expect(steps().map((s) => s.result), ['first result', null]);
+      expect(
+        steps().map((s) => s.args),
+        ['{"query":"first"}', '{"query":"second"}'],
+        reason: 'Resolving oldest-first would append both onto run 1.',
+      );
+      expect(steps().map((s) => s.result), ['first result', 'second result']);
     });
 
     test('detail for an unknown toolCallId is not applied to another step', () {
@@ -347,6 +355,104 @@ void main() {
 
       expect(steps().single.args, isEmpty);
       expect(steps().single.result, isNull);
+      expect(
+        steps().single.step.status,
+        StepStatus.active,
+        reason: 'An orphan result must not credit an unrelated step with a '
+            'check mark and an elapsed time it did not earn.',
+      );
+    });
+  });
+
+  group('lost tool call detail is reported', () {
+    // These warnings are the only trace a dropped TOOL_CALL_ARGS or
+    // TOOL_CALL_RESULT leaves, so they are asserted rather than assumed.
+    const loggerName = 'execution_tracker_diagnostics';
+    late _RecordingSink sink;
+    late ExecutionTracker subject;
+
+    setUp(() {
+      sink = _RecordingSink(loggerName);
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      subject = ExecutionTracker(
+        executionEvents: events,
+        activities: activities,
+        logger: testLogger(loggerName),
+      );
+      addTearDown(subject.dispose);
+    });
+
+    test('a run completing with no result for a call warns once', () {
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const RunCompleted();
+
+      final record = sink.warnings.single;
+      expect(record.attributes['tools'], 'rag_search');
+      expect(record.attributes['count'], 1);
+    });
+
+    test('a later run does not re-report an earlier run\'s gap', () {
+      // A replay bucket holds several runs, and the scan covers the whole
+      // timeline, so without per-id dedup run 1's gap is reported again at
+      // every later run's completion.
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const RunCompleted();
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_cite',
+        toolCallId: 'tc-2',
+      );
+      events.value = const RunCompleted();
+
+      expect(
+        sink.warnings.map((r) => r.attributes['tools']),
+        ['rag_search', 'rag_cite'],
+        reason: "Run 2's report must name only run 2's call.",
+      );
+    });
+
+    test('a call that returned a result is not reported', () {
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: '',
+      );
+      events.value = const RunCompleted();
+
+      expect(
+        sink.warnings,
+        isEmpty,
+        reason: 'An empty result body is a result, not a missing one.',
+      );
+    });
+
+    test('an unmatched call is reported once per phase, not per delta', () {
+      // The delta stream would flood the sink unthrottled, but a lost result
+      // still has to be reported for an id whose args were already lost.
+      for (var i = 0; i < 5; i++) {
+        events.value = ServerToolCallArgs(
+          toolCallId: 'tc-missing',
+          delta: 'chunk$i',
+        );
+      }
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-missing',
+        result: 'orphan',
+      );
+
+      expect(
+        sink.warnings.map((r) => r.attributes['phase']),
+        ['args', 'result'],
+      );
     });
   });
 
@@ -758,4 +864,29 @@ void main() {
 extension on StepStatus {
   bool get isTerminal =>
       this == StepStatus.completed || this == StepStatus.failed;
+}
+
+/// Captures records from one tracker's logger, ignoring the other traffic the
+/// shared `LogManager` sees so assertions stay strict.
+class _RecordingSink implements LogSink {
+  _RecordingSink(this.loggerName);
+
+  final String loggerName;
+  final List<LogRecord> records = [];
+
+  /// The lost-detail reports, separated from the per-call confirmation the
+  /// tracker also logs at info level.
+  List<LogRecord> get warnings =>
+      records.where((r) => r.level == LogLevel.warning).toList();
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == loggerName) records.add(record);
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }

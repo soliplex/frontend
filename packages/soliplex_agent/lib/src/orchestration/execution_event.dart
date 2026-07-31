@@ -94,7 +94,8 @@ class ServerToolCallStarted extends ExecutionEvent {
 /// One chunk of a server-side tool call's arguments.
 ///
 /// Arguments stream as deltas, so a consumer accumulates them per
-/// [toolCallId]. Until the call ends the accumulation is not valid JSON.
+/// [toolCallId]. A partial accumulation may not parse as JSON, so a consumer
+/// must tolerate a decode failure.
 class ServerToolCallArgs extends ExecutionEvent {
   const ServerToolCallArgs({
     required this.toolCallId,

@@ -60,6 +60,9 @@ class ExecutionTracker {
   /// call's delta stream logs once rather than per delta.
   final Set<String> _loggedUnmatchedCalls = <String>{};
 
+  /// Tool call ids already reported as finishing a run without a result.
+  final Set<String> _reportedMissingResults = <String>{};
+
   final Stopwatch _stopwatch = Stopwatch();
   void Function()? _unsub;
   void Function()? _activitiesUnsub;
@@ -246,15 +249,17 @@ class ExecutionTracker {
   /// because it was dropped or the stream resumed mid-call — has nowhere to go
   /// and is discarded with a one-time warning.
   void _appendCallArgs(String toolCallId, String delta) {
-    final entry = _findCall(toolCallId);
-    if (entry == null) {
-      // `_processToolCallArgs` logs the same condition at the client layer on
-      // both the live and replay paths, so this arm need not repeat it for a
-      // reloaded thread.
-      if (!_historical) _reportUnmatchedCall(toolCallId, 'args');
+    final match = _findCall(toolCallId);
+    if (match == null) {
+      // The client layer's warning for this condition tests a weaker
+      // predicate — one `Conversation` spans a whole thread, while a tracker
+      // holds one message's bucket — so a call whose start landed in another
+      // bucket is unmatched here and known there. Report it on the replay
+      // path too, or that delta is lost with no trace anywhere.
+      _reportUnmatchedCall(toolCallId, 'args');
       return;
     }
-    _replaceEntry(entry, entry.appendArgs(delta));
+    _replaceEntry(match, match.entry.appendArgs(delta));
   }
 
   /// Attaches [result] to the call opened by [toolCallId] and completes that
@@ -265,17 +270,19 @@ class ExecutionTracker {
   /// active step instead would put the result on one row and its check mark on
   /// another.
   void _completeCall(String toolCallId, String result) {
-    final entry = _findCall(toolCallId);
-    if (entry == null) {
+    final match = _findCall(toolCallId);
+    if (match == null) {
       // No client-layer log covers an unmatched result — `_processToolCallArgs`
       // warns but `_processToolCallResult` does not — so report it on the
       // replay path too, or a stored thread that lost one is silent everywhere.
       _reportUnmatchedCall(toolCallId, 'result');
-      // Still settle whatever is running, so the row does not shimmer forever.
-      _completeActiveStep();
+      // Deliberately settles nothing: the step this result belongs to is not
+      // in the timeline, so any row settled here would be another call's.
+      // Every terminal path completes what is still active anyway.
       return;
     }
 
+    final entry = match.entry;
     final step = entry.step;
     final completed = step.status == StepStatus.active
         ? step.copyWith(
@@ -283,7 +290,7 @@ class ExecutionTracker {
             timestamp: _stopwatch.elapsed,
           )
         : step;
-    _replaceEntry(entry, entry.withResult(result).withStep(completed));
+    _replaceEntry(match, entry.withResult(result).withStep(completed));
     if (!identical(completed, step)) {
       _steps.value = [
         for (final candidate in _steps.value)
@@ -302,18 +309,21 @@ class ExecutionTracker {
   }
 
   /// A run that finished successfully having opened a call whose result never
-  /// arrived has lost detail in transit — the same silent gap that left the
-  /// timeline's rows empty when the activity events lost their producer.
-  /// Reported on the replay path as well, because a stored thread missing a
-  /// result has no other trace.
+  /// arrived has lost detail in transit. Reported on the replay path as well,
+  /// because a stored thread missing a result has no other trace.
+  ///
+  /// Scans the whole timeline rather than one run's slice, since a run's steps
+  /// are not delimited here — so each id is reported at most once, or a replay
+  /// bucket holding several runs would re-report an earlier run's gap at every
+  /// later run's completion.
   void _reportCallsMissingResult() {
-    final missing = [
-      for (final entry in _timeline.value)
-        if (entry is TimelineStep &&
-            entry.toolCallId != null &&
-            entry.result == null)
-          entry.step.label,
-    ];
+    final missing = <String>[];
+    for (final entry in _timeline.value) {
+      if (entry is! TimelineStep) continue;
+      final id = entry.toolCallId;
+      if (id == null || entry.result != null) continue;
+      if (_reportedMissingResults.add(id)) missing.add(entry.step.label);
+    }
     if (missing.isEmpty) return;
     _logger.warning(
       'ExecutionTracker: run completed with tool call(s) whose result never '
@@ -322,26 +332,31 @@ class ExecutionTracker {
     );
   }
 
-  /// The most recently opened step carrying [toolCallId], or null when none
-  /// does.
+  /// The most recently opened step carrying [toolCallId] and where it sits, or
+  /// null when no step does.
   ///
   /// Searched newest-first because the reload path can bucket several runs'
   /// events into one tracker, and a provider that reuses call ids across runs
   /// would otherwise attach the later run's detail to the earlier run's step.
-  TimelineStep? _findCall(String toolCallId) {
+  ///
+  /// Carries the position so [_replaceEntry] writes to the step that was
+  /// found, rather than re-deriving it by searching for an equal one.
+  ({int index, TimelineStep entry})? _findCall(String toolCallId) {
     final current = _timeline.value;
     for (var i = current.length - 1; i >= 0; i--) {
       final entry = current[i];
-      if (entry is TimelineStep && entry.toolCallId == toolCallId) return entry;
+      if (entry is TimelineStep && entry.toolCallId == toolCallId) {
+        return (index: i, entry: entry);
+      }
     }
     return null;
   }
 
-  void _replaceEntry(TimelineStep old, TimelineStep updated) {
-    final current = _timeline.value;
-    final index = current.indexOf(old);
-    if (index < 0) return;
-    _timeline.value = [...current]..[index] = updated;
+  void _replaceEntry(
+    ({int index, TimelineStep entry}) at,
+    TimelineStep updated,
+  ) {
+    _timeline.value = [..._timeline.value]..[at.index] = updated;
   }
 
   /// Reports detail that arrived for a call with no step, once per id and

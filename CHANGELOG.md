@@ -53,22 +53,23 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   takes no arguments yields no block rather than an empty one, and while a call
   is still streaming its arguments are a JSON prefix, which renders as-is rather
   than being withheld until it parses. The result body is included because it is
-  the only place a tool's failure message reaches the user at all: AG-UI has no
-  way to express a failed outcome, so a search that hit its limit or a code
-  execution that raised returns its message through the ordinary result field,
-  indistinguishable from success. Both blocks clamp to eight lines with a
-  show-more control, since a retrieval result runs to tens of thousands of
-  characters and would otherwise bury every row after it; the control appears
+  the only place in the chat UI a tool's failure message reaches the user at
+  all: AG-UI has no way to express a failed outcome, so a search that hit its
+  limit or a code execution that raised returns its message through the ordinary
+  result field, indistinguishable from success. Both blocks clamp to eight lines
+  with a show-more control, since a retrieval result runs to tens of thousands
+  of characters and would otherwise bury every row after it; the control appears
   only when the body is measured — at the text scale it will render at — to
   overflow, and copying still takes the whole body.
 - A tool call's result and its completion tick now settle on the same row. Both
   are addressed by tool-call id, where completion previously settled whichever
   step started most recently; a toolset that does not declare itself sequential
-  can overlap calls, which put one call's result on its own row and its check
-  mark on another's, leaving the first row running forever. A run that finishes
-  having opened a call whose result never arrived now says so, which is the
-  reporting gap that let the timeline's detail rows sit empty unnoticed in the
-  first place.
+  can overlap calls, so one call's result arriving would put a check mark and an
+  elapsed time on a sibling call's row that was still running. A result for a
+  call the timeline never opened now settles nothing at all, rather than
+  crediting whichever row happened to be last. A run that finishes having opened
+  a call whose result never arrived logs it, so detail lost in transit is not
+  silent.
 
 ## [0.98.0+76] - 2026-07-30
 

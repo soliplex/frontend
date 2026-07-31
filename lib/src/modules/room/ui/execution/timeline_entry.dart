@@ -23,11 +23,12 @@ sealed class TimelineEntry {
 /// A timeline step, plus the detail of the server tool call it represents when
 /// it is one.
 ///
-/// [args] and [result] belong to the call itself, so they are held on the
-/// entry rather than resolved from a separate store: a `TOOL_CALL_START`
-/// opens the step, its `TOOL_CALL_ARGS` deltas append to [args], and its
-/// `TOOL_CALL_RESULT` sets [result] once. Nothing rewrites them afterwards,
-/// which is why they need none of the id-resolution the activity path uses.
+/// [args] and [result] belong to the call itself, so they are folded onto the
+/// entry rather than resolved at paint time the way an activity id is: a
+/// `TOOL_CALL_START` opens the step, its `TOOL_CALL_ARGS` deltas append to
+/// [args], and its `TOOL_CALL_RESULT` sets [result]. There is no separate
+/// store that could rewrite them in place, so the renderer has nothing to
+/// re-resolve them against.
 ///
 /// [toolCallId] is null when the step is not a server tool call, in which case
 /// it carries no detail of its own.
@@ -52,8 +53,9 @@ final class TimelineStep extends TimelineEntry {
   final String args;
 
   /// The call's result body. Null until `TOOL_CALL_RESULT` arrives, which is
-  /// what distinguishes a call still in flight from one that returned an empty
-  /// body.
+  /// how a run's completion tells a call still in flight from one that returned
+  /// an empty body and warns only about the former. The renderer draws no
+  /// result block for either.
   final String? result;
 
   TimelineStep withStep(ExecutionStep step) => _copyWith(step: step);
@@ -61,12 +63,14 @@ final class TimelineStep extends TimelineEntry {
   TimelineStep withActivities(List<String> activityIds) =>
       _copyWith(activityIds: activityIds);
 
-  /// Extends [args] by [delta]. Append-only lives here rather than at the call
-  /// site so no caller can truncate what a call has already streamed.
+  /// Extends [args] by [delta], so the tracker's delta arm cannot accidentally
+  /// assign in place of appending.
   TimelineStep appendArgs(String delta) => _copyWith(args: args + delta);
 
   TimelineStep withResult(String result) => _copyWith(result: result);
 
+  /// [toolCallId] is deliberately not a parameter: a row's identity as a tool
+  /// call is fixed when it opens, and every copy carries it through.
   TimelineStep _copyWith({
     ExecutionStep? step,
     List<String>? activityIds,
