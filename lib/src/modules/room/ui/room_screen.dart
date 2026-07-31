@@ -1727,6 +1727,9 @@ class _RoomScreenState extends State<RoomScreen> {
 
           return Scaffold(
             appBar: AppBar(
+              // Grow the toolbar to fit the two-line title so the server line
+              // is never clipped at large OS text sizes (issue #485).
+              toolbarHeight: _titleBarHeight(context),
               leading: Builder(
                 builder: (context) => IconButton(
                   icon: const Icon(Icons.menu),
@@ -1956,6 +1959,7 @@ class _RoomScreenState extends State<RoomScreen> {
   /// with several servers connected can see which one this room belongs to.
   Widget _roomTitle(String roomName) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1966,15 +1970,64 @@ class _RoomScreenState extends State<RoomScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        Text(
-          widget.serverEntry.displayName,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // A link glyph replaces the noisy `https://` scheme as the "this is
+            // the server address" cue (issue #485). Scaled with the text so it
+            // stays proportionate at large OS font sizes.
+            Icon(
+              Icons.link,
+              size: MediaQuery.textScalerOf(context).scale(14),
+              color: muted,
+            ),
+            const SizedBox(width: SoliplexSpacing.s1),
+            Flexible(
+              child: Text(
+                _serverLabel,
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  /// The server's display label with any `http(s)://` scheme stripped — the
+  /// scheme is visual noise in the header and the leading link glyph already
+  /// signals "server address" (issue #485). A human-readable server name (which
+  /// carries no scheme) passes through unchanged.
+  String get _serverLabel => stripUrlScheme(widget.serverEntry.displayName);
+
+  /// Height the two-line [_roomTitle] needs at the current text scale. An
+  /// AppBar's toolbar is a fixed [kToolbarHeight] box that silently clips an
+  /// oversized title; with the tall brand font the two lines already fill it at
+  /// the default scale and overflow once the OS text size climbs past ~1.15×,
+  /// clipping the server line's descenders (issue #485). Growing the toolbar to
+  /// fit keeps the whole label visible at any accessibility scale, while the
+  /// [kToolbarHeight] floor keeps the leading/trailing icon buttons at their
+  /// Material touch-target size and the bar uncramped at the default scale.
+  double _titleBarHeight(BuildContext context) {
+    final theme = Theme.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    double lineHeight(TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: 'Ag', style: style),
+        textDirection: Directionality.of(context),
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      return painter.height;
+    }
+
+    final content = lineHeight(theme.textTheme.titleMedium) +
+        lineHeight(theme.textTheme.labelSmall);
+    // s2 of breathing room above and below the two lines.
+    final needed = content + SoliplexSpacing.s2 * 2;
+    return needed > kToolbarHeight ? needed : kToolbarHeight;
   }
 
   /// The top-right documents button: a simple icon toggle for the attached-
