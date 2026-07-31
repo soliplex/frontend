@@ -1438,6 +1438,11 @@ class SoliplexApi {
   /// Parameters:
   /// - [roomId]: The room ID (must not be empty)
   /// - [chunkId]: The chunk ID (must not be empty)
+  /// - [refs]: Doc item refs to highlight. When supplied, the server highlights
+  ///   exactly these items and [expand] has no effect.
+  /// - [expand]: Whether the server widens the highlight from the chunk to the
+  ///   section containing it, yielding more page images. Ignored when [refs] is
+  ///   supplied. Always transmitted, so the value here is the value applied.
   ///
   /// Returns [ChunkVisualization] containing base64-encoded page images.
   ///
@@ -1452,18 +1457,15 @@ class SoliplexApi {
     String roomId,
     String chunkId, {
     List<String>? refs,
-    bool expand = true,
+    bool expand = false,
     CancelToken? cancelToken,
   }) async {
     _requireNonEmpty(roomId, 'roomId');
     _requireNonEmpty(chunkId, 'chunkId');
 
-    final queryParameters = <String, String>{};
+    final queryParameters = <String, String>{'expand': '$expand'};
     if (refs != null && refs.isNotEmpty) {
       queryParameters['refs'] = jsonEncode(refs);
-    }
-    if (!expand) {
-      queryParameters['expand'] = 'false';
     }
 
     return _transport.request<ChunkVisualization>(

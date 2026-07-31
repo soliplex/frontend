@@ -5717,6 +5717,54 @@ void main() {
       });
     });
 
+    group('getChunkVisualization query parameters', () {
+      late Uri? capturedUri;
+
+      setUp(() {
+        capturedUri = null;
+        when(
+          () => mockTransport.request<ChunkVisualization>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return ChunkVisualization(
+            chunkId: 'chunk-1',
+            documentUri: null,
+            imagesBase64: const [],
+          );
+        });
+      });
+
+      test('always sends expand', () async {
+        await api.getChunkVisualization('room-1', 'chunk-1');
+
+        expect(capturedUri?.queryParameters['expand'], equals('false'));
+      });
+
+      test('sends expand=true when asked', () async {
+        await api.getChunkVisualization('room-1', 'chunk-1', expand: true);
+
+        expect(capturedUri?.queryParameters['expand'], equals('true'));
+      });
+
+      test('json-encodes refs when supplied', () async {
+        await api.getChunkVisualization(
+          'room-1',
+          'chunk-1',
+          refs: const ['#/x/0'],
+        );
+
+        expect(capturedUri?.queryParameters['refs'], equals('["#/x/0"]'));
+      });
+    });
+
     // ============================================================
     // Installation Info
     // ============================================================
