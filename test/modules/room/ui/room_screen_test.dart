@@ -513,7 +513,52 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('http://test-server:8000'), findsOneWidget);
+      // The `http(s)://` scheme is dropped in favour of a leading link glyph
+      // (issue #485), so the address shows without its scheme.
+      expect(find.text('test-server:8000'), findsOneWidget);
+      expect(find.text('http://test-server:8000'), findsNothing);
+      expect(find.byIcon(Icons.link), findsOneWidget);
+    });
+
+    testWidgets(
+        'AppBar grows so the server line is not clipped at large text scale '
+        '(issue #485)', (tester) async {
+      tester.view.physicalSize = const Size(430, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'General');
+
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          // Emulate a device with an enlarged OS text size — the setting that
+          // pushed the two-line title past the fixed toolbar height and clipped
+          // the server line's descenders.
+          data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
+          child: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: null,
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // The toolbar grew beyond the fixed default to make room.
+      final appBarRect = tester.getRect(find.byType(AppBar));
+      expect(appBarRect.height, greaterThan(kToolbarHeight));
+
+      // The server line sits fully inside the (grown) toolbar — its bottom no
+      // longer spills past the AppBar, which is what the clip was.
+      final serverRect = tester.getRect(find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('test-server:8000'),
+      ));
+      expect(serverRect.bottom, lessThanOrEqualTo(appBarRect.bottom));
     });
 
     testWidgets(
