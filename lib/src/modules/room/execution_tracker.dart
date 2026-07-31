@@ -56,8 +56,8 @@ class ExecutionTracker {
   /// every thread reload.
   final bool _historical;
 
-  /// Ids already reported as having no step, so one call's delta stream logs
-  /// once rather than per delta.
+  /// `<toolCallId>#<phase>` keys already reported as having no step, so one
+  /// call's delta stream logs once rather than per delta.
   final Set<String> _loggedUnmatchedCalls = <String>{};
 
   final Stopwatch _stopwatch = Stopwatch();
@@ -163,8 +163,7 @@ class ExecutionTracker {
       case ServerToolCallArgs(:final toolCallId, :final delta):
         _appendCallArgs(toolCallId, delta);
       case ServerToolCallCompleted(:final toolCallId, :final result):
-        _attachCallResult(toolCallId, result);
-        _completeActiveStep();
+        _completeCall(toolCallId, result);
       case ClientToolExecuting(:final toolName):
         _completeActiveStep();
         _isThinkingStreaming.value = false;
@@ -174,6 +173,7 @@ class ExecutionTracker {
       case RunCompleted():
         _completeAllSteps(StepStatus.completed);
         _isThinkingStreaming.value = false;
+        _reportCallsMissingResult();
       case RunFailed(:final error):
         // Backend RunErrorEvent surfaces here as `RunFailed`. The
         // application layer (`agui_event_processor._processRunError`) only
@@ -242,60 +242,123 @@ class ExecutionTracker {
 
   /// Appends an args delta to the step opened by [toolCallId].
   ///
-  /// A delta for an id with no step — its `TOOL_CALL_START` was dropped, or
-  /// the stream reconnected mid-call — has nowhere to go and is discarded.
+  /// A delta for an id with no step — no `TOOL_CALL_START` was observed for it,
+  /// because it was dropped or the stream resumed mid-call — has nowhere to go
+  /// and is discarded with a one-time warning.
   void _appendCallArgs(String toolCallId, String delta) {
-    _updateCall(
-      toolCallId,
-      (entry) => entry.withDetail(args: entry.args + delta),
-    );
+    final entry = _findCall(toolCallId);
+    if (entry == null) {
+      // `_processToolCallArgs` logs the same condition at the client layer on
+      // both the live and replay paths, so this arm need not repeat it for a
+      // reloaded thread.
+      if (!_historical) _reportUnmatchedCall(toolCallId, 'args');
+      return;
+    }
+    _replaceEntry(entry, entry.appendArgs(delta));
   }
 
-  void _attachCallResult(String toolCallId, String result) {
-    final entry = _updateCall(
-      toolCallId,
-      (entry) => entry.withDetail(result: result),
-    );
-    if (entry == null || _historical) return;
-    // The row's whole content in one line, at info so a debug build's floor
-    // admits it. Lengths only: the args carry the user's query and the result
-    // carries retrieved document text, neither of which belongs in a log.
+  /// Attaches [result] to the call opened by [toolCallId] and completes that
+  /// call's step.
+  ///
+  /// Completion is by id rather than by position: a toolset that does not
+  /// declare itself sequential can overlap calls, and settling the newest
+  /// active step instead would put the result on one row and its check mark on
+  /// another.
+  void _completeCall(String toolCallId, String result) {
+    final entry = _findCall(toolCallId);
+    if (entry == null) {
+      // No client-layer log covers an unmatched result — `_processToolCallArgs`
+      // warns but `_processToolCallResult` does not — so report it on the
+      // replay path too, or a stored thread that lost one is silent everywhere.
+      _reportUnmatchedCall(toolCallId, 'result');
+      // Still settle whatever is running, so the row does not shimmer forever.
+      _completeActiveStep();
+      return;
+    }
+
+    final step = entry.step;
+    final completed = step.status == StepStatus.active
+        ? step.copyWith(
+            status: StepStatus.completed,
+            timestamp: _stopwatch.elapsed,
+          )
+        : step;
+    _replaceEntry(entry, entry.withResult(result).withStep(completed));
+    if (!identical(completed, step)) {
+      _steps.value = [
+        for (final candidate in _steps.value)
+          identical(candidate, step) ? completed : candidate,
+      ];
+    }
+
+    if (_historical) return;
+    // Confirms the detail reached the row, which is the question to ask when a
+    // source block comes up empty. Lengths only: the args carry the user's
+    // query and the result carries retrieved document text.
     _logger.info(
       'Timeline detail: ${entry.step.label} captured '
       '${entry.args.length} args chars, ${result.length} result chars.',
     );
   }
 
-  /// Applies [update] to the step opened by [toolCallId] and returns the
-  /// updated entry, or null when no step carries that id.
-  TimelineStep? _updateCall(
-    String toolCallId,
-    TimelineStep Function(TimelineStep) update,
-  ) {
+  /// A run that finished successfully having opened a call whose result never
+  /// arrived has lost detail in transit — the same silent gap that left the
+  /// timeline's rows empty when the activity events lost their producer.
+  /// Reported on the replay path as well, because a stored thread missing a
+  /// result has no other trace.
+  void _reportCallsMissingResult() {
+    final missing = [
+      for (final entry in _timeline.value)
+        if (entry is TimelineStep &&
+            entry.toolCallId != null &&
+            entry.result == null)
+          entry.step.label,
+    ];
+    if (missing.isEmpty) return;
+    _logger.warning(
+      'ExecutionTracker: run completed with tool call(s) whose result never '
+      'arrived; their rows render without a result.',
+      attributes: {'tools': missing.join(', '), 'count': missing.length},
+    );
+  }
+
+  /// The most recently opened step carrying [toolCallId], or null when none
+  /// does.
+  ///
+  /// Searched newest-first because the reload path can bucket several runs'
+  /// events into one tracker, and a provider that reuses call ids across runs
+  /// would otherwise attach the later run's detail to the earlier run's step.
+  TimelineStep? _findCall(String toolCallId) {
     final current = _timeline.value;
     for (var i = current.length - 1; i >= 0; i--) {
       final entry = current[i];
-      if (entry is TimelineStep && entry.toolCallId == toolCallId) {
-        final updated = update(entry);
-        _timeline.value = [...current]..[i] = updated;
-        return updated;
-      }
-    }
-    // Otherwise the detail is dropped and the row silently lacks the args or
-    // result it should have shown. Warning level so it survives the release
-    // floor; once per id so a delta stream can't flood the sink, and live-only
-    // so reloading a thread with a truncated stream doesn't re-log every time.
-    if (!_historical && _loggedUnmatchedCalls.add(toolCallId)) {
-      _logger.warning(
-        'ExecutionTracker: tool call detail arrived for an id with no step; '
-        'the row will render without its args or result.',
-        attributes: {
-          'toolCallId': toolCallId,
-          'stepCount': current.whereType<TimelineStep>().length,
-        },
-      );
+      if (entry is TimelineStep && entry.toolCallId == toolCallId) return entry;
     }
     return null;
+  }
+
+  void _replaceEntry(TimelineStep old, TimelineStep updated) {
+    final current = _timeline.value;
+    final index = current.indexOf(old);
+    if (index < 0) return;
+    _timeline.value = [...current]..[index] = updated;
+  }
+
+  /// Reports detail that arrived for a call with no step, once per id and
+  /// phase. Warning level so it survives the release floor; throttled so a
+  /// delta stream cannot flood the sink, and keyed by phase so a lost result is
+  /// still reported for an id whose args were already lost.
+  void _reportUnmatchedCall(String toolCallId, String phase) {
+    if (!_loggedUnmatchedCalls.add('$toolCallId#$phase')) return;
+    _logger.warning(
+      'ExecutionTracker: tool call $phase arrived for an id with no step; '
+      'the row will render without it.',
+      attributes: {
+        'toolCallId': toolCallId,
+        'phase': phase,
+        'stepCount': _timeline.value.whereType<TimelineStep>().length,
+      },
+    );
   }
 
   void _addStep(String label, StepType type, {String? toolCallId}) {

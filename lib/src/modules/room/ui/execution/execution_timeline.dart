@@ -18,19 +18,31 @@ import 'package:soliplex_design/soliplex_design.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.execution_timeline');
 
-/// Argument names whose value is the point of the call, in preference order —
-/// a RAG query, executed code, a sandbox script, a shell command. When an args
-/// object carries one, showing it beats showing the whole object.
+/// Argument names whose value is the point of the call, in the order they are
+/// preferred — a sandbox script, executed code, a search query, a shell
+/// command. When an args object carries one, showing it beats showing the whole
+/// object.
 const List<String> _sourceKeys = ['script', 'code', 'query', 'command'];
 
-/// Left inset of a row nested under a step, clearing the step's own chevron
-/// and status icon so the nesting stays legible.
-const double _nestedIndent = 38;
+/// Left inset of a row nested under a step, clearing the step's own disclosure
+/// chevron and status icon so the nesting stays legible. Written as the sum it
+/// clears so it cannot drift from the row it is measured against.
+const double _nestedIndent = _disclosureWidth +
+    SoliplexSpacing.s1 +
+    _statusIconSize +
+    SoliplexSpacing.s2;
+
+/// Width reserved for a row's disclosure chevron, kept even when the row has
+/// nothing to disclose so status icons stay column-aligned.
+const double _disclosureWidth = 14;
+
+/// Size of a row's status icon, and of the disclosure chevron drawn beside it.
+const double _statusIconSize = 12;
 
 /// Lines of a source body shown before the reader asks for the rest. A
 /// retrieval result runs to tens of thousands of characters, which would bury
-/// every row after it. Clamped by line count rather than pixels so the block
-/// keeps its shape under text scaling.
+/// every row after it. Clamped by line count rather than pixels so the clamp
+/// holds the same shape at every text scale.
 const int _collapsedSourceLines = 8;
 
 /// Suffixes distinguishing the two things a tool call row can disclose, so each
@@ -38,10 +50,10 @@ const int _collapsedSourceLines = 8;
 const String _argsClampSuffix = '#args';
 const String _resultClampSuffix = '#result';
 
-/// Unified execution timeline — single collapsible that nests activities
-/// under their owning step. Activity rows with source (script/code/query
-/// args, or any args map) can expand to a monospace preview with a copy
-/// button.
+/// Execution timeline — a single collapsible listing a run's steps, nesting
+/// any activity rows under their owning step. A step row carrying a server tool
+/// call, and an activity row carrying a source, expand to a monospace preview
+/// with a copy button.
 class ExecutionTimeline extends ConsumerStatefulWidget {
   const ExecutionTimeline({
     super.key,
@@ -100,22 +112,22 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     });
   }
 
-  void _toggleSource(String activityId) {
+  void _toggleSource(String sourceKey) {
     setState(() {
       final expansion = _expansion;
       if (expansion != null) {
-        expansion.toggleSource(activityId);
+        expansion.toggleSource(sourceKey);
         return;
       }
-      if (!_loadingPhaseSources.remove(activityId)) {
-        _loadingPhaseSources.add(activityId);
+      if (!_loadingPhaseSources.remove(sourceKey)) {
+        _loadingPhaseSources.add(sourceKey);
       }
     });
   }
 
-  bool _isSourceExpanded(String activityId) =>
-      _expansion?.isSourceExpanded(activityId) ??
-      _loadingPhaseSources.contains(activityId);
+  bool _isSourceExpanded(String sourceKey) =>
+      _expansion?.isSourceExpanded(sourceKey) ??
+      _loadingPhaseSources.contains(sourceKey);
 
   @override
   Widget build(BuildContext context) {
@@ -233,8 +245,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     final args = entry.args.isEmpty ? null : _formatArgs(entry.args);
     final result = (entry.result?.isEmpty ?? true) ? null : entry.result;
     // A server tool call's args and result are the call's own detail, so the
-    // step expands in place. Steps without an id (thinking, client tools)
-    // carry no detail and keep the slot only so icons stay column-aligned.
+    // step expands in place. A step with no id carries no detail of its own and
+    // keeps the slot only so icons stay column-aligned.
     final hasDetail = id != null && (args != null || result != null);
     final isExpanded = hasDetail && _isSourceExpanded(id);
 
@@ -249,11 +261,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             child: Row(
               children: [
                 SizedBox(
-                  width: 14,
+                  width: _disclosureWidth,
                   child: hasDetail
                       ? Icon(
                           isExpanded ? Icons.expand_more : Icons.chevron_right,
-                          size: 14,
+                          size: _disclosureWidth,
                           color: theme.colorScheme.onSurfaceVariant,
                         )
                       : const SizedBox.shrink(),
@@ -285,9 +297,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                 label: 'Arguments',
                 clampId: '$id$_argsClampSuffix',
               ),
-            // AG-UI cannot express a failed tool outcome, so a `ToolFailed`
-            // message arrives here looking like any other result. Rendering it
-            // is the only way it reaches the user at all.
+            // AG-UI carries no field for a failed outcome, so a tool that hit a
+            // limit or raised delivers its message through the ordinary result
+            // string. Rendering it is the only way that text reaches the user.
             if (result != null)
               _sourceBlock(
                 result,
@@ -363,8 +375,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// reader asks for the rest.
   ///
   /// [clampId] keys that per block, so expanding one call's result leaves every
-  /// other row alone. Pass null to render the body in full — a block whose
-  /// content is bounded by construction has nothing to disclose.
+  /// other row alone. Pass null to render the body in full, which the activity
+  /// path does because this change leaves its rendering as it was.
   Widget _sourceBlock(
     String source,
     ThemeData theme, {
@@ -413,17 +425,19 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     if (clampId == null) return Text(source, style: style);
 
     final expanded = _isSourceExpanded(clampId);
+    // Read outside the builder so layout does not take a MediaQuery dependency.
+    final textScaler = MediaQuery.textScalerOf(context);
     // Measure before deciding: a body that fits shows no control, for the same
     // reason a step with no detail shows no chevron.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final painter = TextPainter(
-          text: TextSpan(text: source, style: style),
-          maxLines: _collapsedSourceLines,
-          textDirection: Directionality.of(context),
-        )..layout(maxWidth: constraints.maxWidth);
-        final overflows = painter.didExceedMaxLines;
-        painter.dispose();
+        final overflows = _overflowsClamp(
+          source,
+          style,
+          textScaler,
+          Directionality.of(context),
+          constraints.maxWidth,
+        );
         final clamped = overflows && !expanded;
 
         return Column(
@@ -470,7 +484,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   }
 
   /// The primary label of a timeline row. While the row is [running] the text
-  /// shimmers (a calm stand-in for the old per-row spinner) and settles back to
+  /// shimmers (a calmer signal than a per-row spinner) and settles back to
   /// the plain muted label — same resting color — once the step completes.
   Widget _rowLabel(String label, ThemeData theme, {required bool running}) {
     final text = Text(
@@ -488,13 +502,20 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
       case StepStatus.active:
         // No spinner: the shimmering label carries the "in progress" signal.
         // Keep the slot so completed rows' check icons stay column-aligned.
-        return const SizedBox(width: 12, height: 12);
+        return const SizedBox(
+          width: _statusIconSize,
+          height: _statusIconSize,
+        );
       case StepStatus.failed:
-        return Icon(Icons.error, size: 12, color: theme.colorScheme.error);
+        return Icon(
+          Icons.error,
+          size: _statusIconSize,
+          color: theme.colorScheme.error,
+        );
       case StepStatus.completed:
         return Icon(
           Icons.check_circle,
-          size: 12,
+          size: _statusIconSize,
           // A completed action is a success result → SymbolicColors.success.
           // Thinking keeps a tertiary accent to read as reflection, not a
           // pass/fail outcome.
@@ -527,15 +548,53 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     }
   }
 
-  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display.
+  /// Whether [source] needs more than [_collapsedSourceLines] to render at
+  /// [maxWidth], and so warrants a disclosure control.
   ///
-  /// Prefers the one field that carries the intent — the query, the code, the
-  /// script, the command — over the whole object. Falls back to the raw string
+  /// Counts explicit line breaks first: a body already carrying that many
+  /// provably overflows, and the bodies that do — tens of KB of retrieved chunk
+  /// text — are the ones whose measurement is expensive. Laying one out is a
+  /// full line-break pass on the UI thread, repeated for every expanded block
+  /// each time an args delta rebuilds the timeline.
+  ///
+  /// [textScaler] must be the one the rendered [Text] will use; measuring
+  /// unscaled would report a body as fitting that the reader sees overflow.
+  static bool _overflowsClamp(
+    String source,
+    TextStyle style,
+    TextScaler textScaler,
+    TextDirection textDirection,
+    double maxWidth,
+  ) {
+    var breaks = 0;
+    for (var i = 0; i < source.length; i++) {
+      if (source.codeUnitAt(i) != 0x0A) continue;
+      if (++breaks >= _collapsedSourceLines) return true;
+    }
+    final painter = TextPainter(
+      text: TextSpan(text: source, style: style),
+      maxLines: _collapsedSourceLines,
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout(maxWidth: maxWidth);
+    final overflows = painter.didExceedMaxLines;
+    painter.dispose();
+    return overflows;
+  }
+
+  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display, or null
+  /// when there is nothing worth showing.
+  ///
+  /// Prefers the one field that carries the intent — the script, the code, the
+  /// query, the command — over the whole object. Falls back to the raw string
   /// when it does not parse: while the call is still streaming the accumulation
   /// is a JSON prefix, and a partial payload is more useful shown than hidden.
-  static String _formatArgs(String args) {
+  /// A tool that takes no arguments sends `{}`, which yields no block rather
+  /// than an empty one.
+  static String? _formatArgs(String args) {
     final decoded = _tryDecodeObject(args);
     if (decoded == null) return args;
+    if (decoded.isEmpty) return null;
     for (final key in _sourceKeys) {
       final value = decoded[key];
       if (value is String && value.isNotEmpty) return value;

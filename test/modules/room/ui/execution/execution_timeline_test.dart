@@ -488,9 +488,8 @@ void main() {
   });
 
   group('server tool call detail on the step row', () {
-    // Post-upgrade, a retrieval is a first-class tool call: one step row per
-    // call, carrying its own args and result. No nested row — the step *is*
-    // the call.
+    // A retrieval is a first-class tool call: one step row per call, carrying
+    // its own args and result. No nested row — the step *is* the call.
     Future<void> expand(WidgetTester tester, String stepLabel) async {
       await tester.tap(find.text('1 event'));
       await tester.pump();
@@ -523,6 +522,110 @@ void main() {
       expect(find.text('site   value\nA      12.4'), findsOneWidget);
     });
 
+    testWidgets('a call with no args and no result is not expandable',
+        (tester) async {
+      // The state of every tool call row between its start and its first delta,
+      // of a call whose stream was truncated, and of a tool returning no output.
+      // An empty grey block would be worse than no block.
+      events.value = const ServerToolCallStarted(
+        toolName: 'list_environments',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: '',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      expect(find.text('Arguments'), findsNothing);
+      expect(find.text('Result'), findsNothing);
+    });
+
+    testWidgets('args of a tool that takes none yield no block',
+        (tester) async {
+      // A no-argument tool sends `{}`. Pretty-printing that produces a block
+      // whose entire content is `{}` — an affordance hiding nothing.
+      events.value = const ServerToolCallStarted(
+        toolName: 'list_environments',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(toolCallId: 'tc-1', delta: '{}');
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      expect(find.text('{}'), findsNothing);
+    });
+
+    testWidgets('the clamp still applies when text is scaled up',
+        (tester) async {
+      // The clamp decision has to be measured at the scale the text renders at.
+      // Measuring unscaled reports a scaled-up body as fitting, so it renders
+      // in full with no control — the outcome the clamp exists to prevent.
+      //
+      // Deliberately one unbroken line: a body carrying explicit line breaks is
+      // known to overflow without measuring, which would skip the path under
+      // test. Its length has to straddle the clamp — short enough to fit
+      // unscaled, long enough to overflow scaled — so both directions are
+      // asserted and a length that drifts out of that band fails loudly.
+      final wrapping = 'wrapped ' * 40;
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value =
+          ServerToolCallCompleted(toolCallId: 'tc-1', result: wrapping);
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_search');
+
+      expect(
+        tester.widget<Text>(find.text(wrapping)).maxLines,
+        isNull,
+        reason: 'Unscaled this body fits, so nothing should be clamped.',
+      );
+      expect(find.text('Show more'), findsNothing);
+
+      // Scale the same open row in place. Set on the dispatcher, not as an
+      // ancestor MediaQuery: MaterialApp installs its own from the view and
+      // would override one above it.
+      tester.platformDispatcher.textScaleFactorTestValue = 3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pump();
+
+      expect(tester.widget<Text>(find.text(wrapping)).maxLines, 8);
+      expect(find.text('Show more'), findsOneWidget);
+    });
+
+    testWidgets('a recognised argument key wins over the whole object',
+        (tester) async {
+      // `command` is the sandbox shell tool's argument; the preference list is
+      // shared with the activity rows, so its contents are load-bearing twice.
+      events.value = const ServerToolCallStarted(
+        toolName: 'run',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"command":"ls -la","environment_name":"default"}',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'run');
+
+      expect(find.text('ls -la'), findsOneWidget);
+    });
+
     testWidgets('a step with no detail is not expandable', (tester) async {
       events.value = const ThinkingStarted();
 
@@ -531,15 +634,15 @@ void main() {
       await tester.tap(find.text('1 event'));
       await tester.pump();
 
-      // The header now shows expand_more; a step with neither args nor a
+      // The expanded header shows expand_more; a step with neither args nor a
       // result contributes no chevron of its own.
       expect(find.byIcon(Icons.chevron_right), findsNothing);
     });
 
     testWidgets('partial JSON args render raw rather than throwing',
         (tester) async {
-      // While TOOL_CALL_ARGS is still streaming, the accumulated string is not
-      // valid JSON. The old activity path never saw this — args arrived whole.
+      // While TOOL_CALL_ARGS is still streaming, the accumulated string is a
+      // JSON prefix, so the formatter must not require it to parse.
       events.value = const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -640,7 +743,8 @@ void main() {
 
     testWidgets('args with no recognised key fall back to pretty JSON',
         (tester) async {
-      // The shape a pre-upgrade thread's outer `execute_skill` call carries.
+      // Args carrying no recognised key: the whole object is the only thing
+      // worth showing.
       events.value = const ServerToolCallStarted(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',

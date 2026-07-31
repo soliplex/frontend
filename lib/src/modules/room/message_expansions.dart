@@ -1,7 +1,7 @@
 import 'compute_display_messages.dart' show loadingMessageId;
 
 /// Per-message UI expansion state for assistant responses — whether each
-/// message's execution timeline, thinking block, and activity source rows
+/// message's execution timeline, thinking block, and expandable source blocks
 /// are open. Owned by `roomModule()`; outlives widget rebuilds, thread
 /// switches, and room navigations within the room module.
 ///
@@ -75,17 +75,17 @@ class MessageExpansion {
   bool get thinkingExpanded => _entry?.thinking ?? false;
   set thinkingExpanded(bool value) => _ensureEntry().thinking = value;
 
-  bool isSourceExpanded(String activityId) =>
-      _entry?.sources.contains(activityId) ?? false;
+  bool isSourceExpanded(String sourceKey) =>
+      _entry?.sources.contains(sourceKey) ?? false;
 
-  void setSourceExpanded(String activityId, bool value) {
+  void setSourceExpanded(String sourceKey, bool value) {
     if (value) {
-      _ensureEntry().sources.add(activityId);
+      _ensureEntry().sources.add(sourceKey);
       return;
     }
-    _entry?.sources.remove(activityId);
+    _entry?.sources.remove(sourceKey);
   }
 
-  void toggleSource(String activityId) =>
-      setSourceExpanded(activityId, !isSourceExpanded(activityId));
+  void toggleSource(String sourceKey) =>
+      setSourceExpanded(sourceKey, !isSourceExpanded(sourceKey));
 }

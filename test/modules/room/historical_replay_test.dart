@@ -83,6 +83,10 @@ void main() {
               toolCallId: 'tc-1',
               toolCallName: 'search',
             ),
+            ToolCallArgsEvent(
+              toolCallId: 'tc-1',
+              delta: '{"query":"pumps"}',
+            ),
             ToolCallResultEvent(
               messageId: 'result-1',
               toolCallId: 'tc-1',
@@ -99,6 +103,14 @@ void main() {
       expect(trackers.keys, containsAll(['msg-1', 'msg-2']));
       final first = trackers['msg-1']!;
       expect(first.steps.value.map((s) => s.label), ['search']);
+      // A reloaded thread must carry the call's detail, not just its name. The
+      // args and the start have to land in the same bucket for that to work, so
+      // this also pins the bucketing against a row that reloads with a result
+      // and no arguments.
+      final step = first.timeline.value.single as TimelineStep;
+      expect(step.toolCallId, 'tc-1');
+      expect(step.args, '{"query":"pumps"}');
+      expect(step.result, 'ok');
       final second = trackers['msg-2']!;
       expect(second.steps.value, isEmpty);
     });
