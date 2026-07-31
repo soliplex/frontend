@@ -299,7 +299,39 @@ void main() {
       await tester.pumpAndSettle();
 
       // On a narrow viewport the sidebar lives in a closed drawer, so the
-      // selected server's address shows only in the AppBar title.
+      // selected server's address shows only in the AppBar title — with the
+      // `http(s)://` scheme stripped, matching the room header (issue #485).
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('localhost:8000')),
+        findsOneWidget,
+      );
+      expect(find.text('http://localhost:8000'), findsNothing);
+    });
+
+    testWidgets(
+        'wide layout names the server only in the sidebar (no AppBar, '
+        'no pane band)', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final manager = _createManager();
+      manager.addServer(
+        serverId: 'local',
+        serverUrl: Uri.parse('http://localhost:8000'),
+        requiresAuth: false,
+      );
+      final fakeApi = FakeSoliplexApi()
+        ..nextRooms = const [Room(id: 'r1', name: 'General')];
+
+      await tester.pumpWidget(_buildApp(manager, apiResolver: (_) => fakeApi));
+      await tester.pumpAndSettle();
+
+      // The two-pane layout has no AppBar and an always-visible sidebar that
+      // already names the server, so there is no in-pane title band — the
+      // address appears exactly once (in the sidebar).
+      expect(find.byType(AppBar), findsNothing);
       expect(find.text('http://localhost:8000'), findsOneWidget);
     });
 
@@ -327,7 +359,7 @@ void main() {
 
       final nameInAppBar = find.descendant(
         of: find.byType(AppBar),
-        matching: find.text('http://localhost:8000'),
+        matching: find.text('localhost:8000'),
       );
       expect(nameInAppBar, findsOneWidget);
 
