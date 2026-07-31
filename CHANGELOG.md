@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.98.1+77] - 2026-07-31
+
 ### Fixed
 
 - Citations render again. The backend now carries a run's cited set in a single
