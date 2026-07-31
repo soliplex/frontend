@@ -216,15 +216,6 @@ void main() {
     List<TimelineStep> steps() =>
         tracker.timeline.value.whereType<TimelineStep>().toList();
 
-    test('ServerToolCallStarted records the toolCallId on its step', () {
-      events.value = const ServerToolCallStarted(
-        toolName: 'rag_search',
-        toolCallId: 'tc-1',
-      );
-
-      expect(steps().single.toolCallId, 'tc-1');
-    });
-
     test('thinking and client-tool steps carry no toolCallId', () {
       // Only a server tool call has args and a result to show, so only its
       // step is expandable. A null id is what makes the chevron absent.
@@ -268,9 +259,50 @@ void main() {
       expect(steps().single.step.status, StepStatus.completed);
     });
 
+    test('overlapping calls each settle their own step', () {
+      // A toolset that does not declare itself sequential can overlap calls, so
+      // both the detail and the completion must follow the id. Resolving either
+      // by position puts one call's result or check mark on the other's row.
+      events.value = const ServerToolCallStarted(
+        toolName: 'run_python',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallStarted(
+        toolName: 'run',
+        toolCallId: 'tc-2',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"script":"print(1)"}',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'first done',
+      );
+
+      final byId = {for (final s in steps()) s.toolCallId: s};
+      expect(byId['tc-1']!.args, '{"script":"print(1)"}');
+      expect(byId['tc-1']!.result, 'first done');
+      expect(
+        byId['tc-1']!.step.status,
+        StepStatus.completed,
+        reason: 'The call that returned is the one that should settle.',
+      );
+      expect(
+        byId['tc-2']!.result,
+        isNull,
+        reason: 'tc-2 has not returned, so it must carry no result.',
+      );
+      expect(
+        byId['tc-2']!.step.status,
+        StepStatus.active,
+        reason: 'Completing by position would settle tc-2 here instead.',
+      );
+    });
+
     test('a second call accumulates onto its own step', () {
-      // Post-upgrade runs make many top-level calls in one run, so a delta
-      // must land on the step that opened it, not the newest one.
+      // A run makes many top-level calls, so a delta must land on the step that
+      // opened it, not the newest one.
       events.value = const ServerToolCallStarted(
         toolName: 'rag_search',
         toolCallId: 'tc-1',
@@ -299,25 +331,18 @@ void main() {
       expect(steps().map((s) => s.result), ['first result', null]);
     });
 
-    test('detail for an unknown toolCallId is dropped, not thrown', () {
-      // A dropped TOOL_CALL_START (reconnect, truncated stream) leaves later
-      // events with no step to attach to. The tracker asserts on any throw
-      // from _dispatch, so a lookup miss must be a no-op.
+    test('detail for an unknown toolCallId is not applied to another step', () {
+      // Without an observed TOOL_CALL_START there is no step to attach to. The
+      // orphan must be discarded rather than landing on whichever step happens
+      // to be present — here the thinking step.
       events.value = const ThinkingStarted();
-
-      expect(
-        () => events.value = const ServerToolCallArgs(
-          toolCallId: 'tc-missing',
-          delta: '{"query":"orphan"}',
-        ),
-        returnsNormally,
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-missing',
+        delta: '{"query":"orphan"}',
       );
-      expect(
-        () => events.value = const ServerToolCallCompleted(
-          toolCallId: 'tc-missing',
-          result: 'orphan result',
-        ),
-        returnsNormally,
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-missing',
+        result: 'orphan result',
       );
 
       expect(steps().single.args, isEmpty);

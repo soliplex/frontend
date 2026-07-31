@@ -20,7 +20,8 @@ sealed class TimelineEntry {
   const TimelineEntry();
 }
 
-/// A step and the detail of the server tool call it represents.
+/// A timeline step, plus the detail of the server tool call it represents when
+/// it is one.
 ///
 /// [args] and [result] belong to the call itself, so they are held on the
 /// entry rather than resolved from a separate store: a `TOOL_CALL_START`
@@ -28,8 +29,8 @@ sealed class TimelineEntry {
 /// `TOOL_CALL_RESULT` sets [result] once. Nothing rewrites them afterwards,
 /// which is why they need none of the id-resolution the activity path uses.
 ///
-/// [toolCallId] is null for steps that are not server tool calls (thinking,
-/// client-side tool execution); those have no args or result to show.
+/// [toolCallId] is null when the step is not a server tool call, in which case
+/// it carries no detail of its own.
 @immutable
 final class TimelineStep extends TimelineEntry {
   const TimelineStep({
@@ -44,10 +45,15 @@ final class TimelineStep extends TimelineEntry {
   final List<String> activityIds;
   final String? toolCallId;
 
-  /// Accumulated `TOOL_CALL_ARGS` deltas. Not valid JSON until the call ends.
+  /// Accumulated `TOOL_CALL_ARGS` deltas. May be a partial JSON prefix while
+  /// the call streams, so callers must tolerate a parse failure — the frontend
+  /// never observes the end of the args stream, because `TOOL_CALL_END` does
+  /// not bridge to an execution event.
   final String args;
 
-  /// The call's result body, or null until `TOOL_CALL_RESULT` arrives.
+  /// The call's result body. Null until `TOOL_CALL_RESULT` arrives, which is
+  /// what distinguishes a call still in flight from one that returned an empty
+  /// body.
   final String? result;
 
   TimelineStep withStep(ExecutionStep step) => _copyWith(step: step);
@@ -55,8 +61,11 @@ final class TimelineStep extends TimelineEntry {
   TimelineStep withActivities(List<String> activityIds) =>
       _copyWith(activityIds: activityIds);
 
-  TimelineStep withDetail({String? args, String? result}) =>
-      _copyWith(args: args, result: result);
+  /// Extends [args] by [delta]. Append-only lives here rather than at the call
+  /// site so no caller can truncate what a call has already streamed.
+  TimelineStep appendArgs(String delta) => _copyWith(args: args + delta);
+
+  TimelineStep withResult(String result) => _copyWith(result: result);
 
   TimelineStep _copyWith({
     ExecutionStep? step,
