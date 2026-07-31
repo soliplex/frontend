@@ -663,6 +663,8 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
       const ThinkingEnded(),
     ToolCallStartEvent(:final toolCallId, :final toolCallName) =>
       ServerToolCallStarted(toolCallId: toolCallId, toolName: toolCallName),
+    ToolCallArgsEvent(:final toolCallId, :final delta) =>
+      ServerToolCallArgs(toolCallId: toolCallId, delta: delta),
     ToolCallResultEvent(:final toolCallId, :final content) =>
       ServerToolCallCompleted(toolCallId: toolCallId, result: content),
     RunFinishedEvent() => const RunCompleted(),
@@ -706,7 +708,6 @@ ExecutionEvent? bridgeBaseEvent(BaseEvent event) {
     // Deprecated upstream; arm only keeps the sealed switch exhaustive.
     // ignore: deprecated_member_use
     ThinkingContentEvent() ||
-    ToolCallArgsEvent() ||
     ToolCallEndEvent() ||
     StateSnapshotEvent() ||
     StateDeltaEvent() ||

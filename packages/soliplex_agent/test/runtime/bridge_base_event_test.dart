@@ -55,6 +55,24 @@ void main() {
       }
     });
 
+    test('routes ToolCallArgsEvent to ServerToolCallArgs', () {
+      // The arguments are the most useful thing in a tool-call row — for a
+      // RAG search they are the query. Without this arm the delta reaches no
+      // consumer and the row can only show the tool's name.
+      const event = ToolCallArgsEvent(
+        toolCallId: 'tc-1',
+        delta: '{"query":"pump maintenance interval"}',
+      );
+
+      expect(
+        bridgeBaseEvent(event),
+        const ServerToolCallArgs(
+          toolCallId: 'tc-1',
+          delta: '{"query":"pump maintenance interval"}',
+        ),
+      );
+    });
+
     test('ActivityDeltaEvent returns null', () {
       // The bridge intentionally drops ActivityDeltaEvent: the domain
       // layer applies the patch to Conversation.activities, and the

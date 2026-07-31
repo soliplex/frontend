@@ -91,6 +91,30 @@ class ServerToolCallStarted extends ExecutionEvent {
   int get hashCode => Object.hash(toolName, toolCallId);
 }
 
+/// One chunk of a server-side tool call's arguments.
+///
+/// Arguments stream as deltas, so a consumer accumulates them per
+/// [toolCallId]. Until the call ends the accumulation is not valid JSON.
+class ServerToolCallArgs extends ExecutionEvent {
+  const ServerToolCallArgs({
+    required this.toolCallId,
+    required this.delta,
+  });
+
+  final String toolCallId;
+  final String delta;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServerToolCallArgs &&
+          toolCallId == other.toolCallId &&
+          delta == other.delta;
+
+  @override
+  int get hashCode => Object.hash(toolCallId, delta);
+}
+
 /// A server-side tool call has completed.
 class ServerToolCallCompleted extends ExecutionEvent {
   const ServerToolCallCompleted({

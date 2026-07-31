@@ -209,6 +209,122 @@ void main() {
     expect(tracker.steps.value, isEmpty);
   });
 
+  group('tool call detail', () {
+    // The args and the result are attributes of the call the step row already
+    // represents, so the tracker folds them onto that step rather than
+    // nesting a second row under it.
+    List<TimelineStep> steps() =>
+        tracker.timeline.value.whereType<TimelineStep>().toList();
+
+    test('ServerToolCallStarted records the toolCallId on its step', () {
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+
+      expect(steps().single.toolCallId, 'tc-1');
+    });
+
+    test('thinking and client-tool steps carry no toolCallId', () {
+      // Only a server tool call has args and a result to show, so only its
+      // step is expandable. A null id is what makes the chevron absent.
+      events.value = const ThinkingStarted();
+      events.value = const ClientToolExecuting(
+        toolName: 'local_tool',
+        toolCallId: 'tc-client',
+      );
+
+      expect(steps().map((s) => s.toolCallId), [null, null]);
+    });
+
+    test('args deltas concatenate onto the step in arrival order', () {
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"query":"pump ',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: 'maintenance"}',
+      );
+
+      expect(steps().single.args, '{"query":"pump maintenance"}');
+    });
+
+    test('ServerToolCallCompleted attaches its result to the same call', () {
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_cite',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'Registered 2 citation(s).',
+      );
+
+      expect(steps().single.result, 'Registered 2 citation(s).');
+      expect(steps().single.step.status, StepStatus.completed);
+    });
+
+    test('a second call accumulates onto its own step', () {
+      // Post-upgrade runs make many top-level calls in one run, so a delta
+      // must land on the step that opened it, not the newest one.
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"query":"first"}',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'first result',
+      );
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-2',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-2',
+        delta: '{"query":"second"}',
+      );
+
+      expect(steps().map((s) => s.args), [
+        '{"query":"first"}',
+        '{"query":"second"}',
+      ]);
+      expect(steps().map((s) => s.result), ['first result', null]);
+    });
+
+    test('detail for an unknown toolCallId is dropped, not thrown', () {
+      // A dropped TOOL_CALL_START (reconnect, truncated stream) leaves later
+      // events with no step to attach to. The tracker asserts on any throw
+      // from _dispatch, so a lookup miss must be a no-op.
+      events.value = const ThinkingStarted();
+
+      expect(
+        () => events.value = const ServerToolCallArgs(
+          toolCallId: 'tc-missing',
+          delta: '{"query":"orphan"}',
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => events.value = const ServerToolCallCompleted(
+          toolCallId: 'tc-missing',
+          result: 'orphan result',
+        ),
+        returnsNormally,
+      );
+
+      expect(steps().single.args, isEmpty);
+      expect(steps().single.result, isNull);
+    });
+  });
+
   group('skillToolCalls signal', () {
     test('starts empty', () {
       expect(tracker.skillToolCalls.value, isEmpty);

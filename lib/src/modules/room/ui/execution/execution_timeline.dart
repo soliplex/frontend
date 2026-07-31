@@ -18,6 +18,26 @@ import 'package:soliplex_design/soliplex_design.dart';
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.execution_timeline');
 
+/// Argument names whose value is the point of the call, in preference order —
+/// a RAG query, executed code, a sandbox script, a shell command. When an args
+/// object carries one, showing it beats showing the whole object.
+const List<String> _sourceKeys = ['script', 'code', 'query', 'command'];
+
+/// Left inset of a row nested under a step, clearing the step's own chevron
+/// and status icon so the nesting stays legible.
+const double _nestedIndent = 38;
+
+/// Lines of a source body shown before the reader asks for the rest. A
+/// retrieval result runs to tens of thousands of characters, which would bury
+/// every row after it. Clamped by line count rather than pixels so the block
+/// keeps its shape under text scaling.
+const int _collapsedSourceLines = 8;
+
+/// Suffixes distinguishing the two things a tool call row can disclose, so each
+/// keys its own entry in the expansion store.
+const String _argsClampSuffix = '#args';
+const String _resultClampSuffix = '#result';
+
 /// Unified execution timeline — single collapsible that nests activities
 /// under their owning step. Activity rows with source (script/code/query
 /// args, or any args map) can expand to a monospace preview with a copy
@@ -159,14 +179,14 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     List<SkillToolCallActivity> calls,
   ) {
     switch (entry) {
-      case TimelineStep(:final step, :final activityIds):
+      case TimelineStep(:final activityIds):
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _stepRow(step, theme),
+            _stepRow(entry, theme),
             for (final id in activityIds)
               if (_resolveActivity(id, calls) case final activity?)
-                _activityRow(activity, theme, indent: 20),
+                _activityRow(activity, theme, indent: _nestedIndent),
           ],
         );
       case TimelineStandaloneActivity(:final activityId):
@@ -207,26 +227,75 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     return null;
   }
 
-  Widget _stepRow(ExecutionStep step, ThemeData theme) {
+  Widget _stepRow(TimelineStep entry, ThemeData theme) {
+    final step = entry.step;
+    final id = entry.toolCallId;
+    final args = entry.args.isEmpty ? null : _formatArgs(entry.args);
+    final result = (entry.result?.isEmpty ?? true) ? null : entry.result;
+    // A server tool call's args and result are the call's own detail, so the
+    // step expands in place. Steps without an id (thinking, client tools)
+    // carry no detail and keep the slot only so icons stay column-aligned.
+    final hasDetail = id != null && (args != null || result != null);
+    final isExpanded = hasDetail && _isSourceExpanded(id);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s1),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _stepIcon(step, theme),
-          const SizedBox(width: SoliplexSpacing.s2),
-          Expanded(
-            child: _rowLabel(
-              step.label,
-              theme,
-              running: step.status == StepStatus.active,
+          GestureDetector(
+            onTap: hasDetail ? () => _toggleSource(id) : null,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  child: hasDetail
+                      ? Icon(
+                          isExpanded ? Icons.expand_more : Icons.chevron_right,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(width: SoliplexSpacing.s1),
+                _stepIcon(step, theme),
+                const SizedBox(width: SoliplexSpacing.s2),
+                Expanded(
+                  child: _rowLabel(
+                    step.label,
+                    theme,
+                    running: step.status == StepStatus.active,
+                  ),
+                ),
+                Text(
+                  _formatDuration(step.timestamp),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            _formatDuration(step.timestamp),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
+          if (isExpanded) ...[
+            if (args != null)
+              _sourceBlock(
+                args,
+                theme,
+                label: 'Arguments',
+                clampId: '$id$_argsClampSuffix',
+              ),
+            // AG-UI cannot express a failed tool outcome, so a `ToolFailed`
+            // message arrives here looking like any other result. Rendering it
+            // is the only way it reaches the user at all.
+            if (result != null)
+              _sourceBlock(
+                result,
+                theme,
+                label: 'Result',
+                clampId: '$id$_resultClampSuffix',
+              ),
+          ],
         ],
       ),
     );
@@ -290,7 +359,18 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
   }
 
-  Widget _sourceBlock(String source, ThemeData theme) {
+  /// A source block whose body clamps to [_collapsedSourceLines] until the
+  /// reader asks for the rest.
+  ///
+  /// [clampId] keys that per block, so expanding one call's result leaves every
+  /// other row alone. Pass null to render the body in full — a block whose
+  /// content is bounded by construction has nothing to disclose.
+  Widget _sourceBlock(
+    String source,
+    ThemeData theme, {
+    String? label,
+    String? clampId,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(
         top: SoliplexSpacing.s1,
@@ -306,19 +386,86 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: CopyButton(text: source, iconSize: 14),
+            Row(
+              children: [
+                if (label != null)
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                const Spacer(),
+                // Copies the whole body regardless of what is on screen.
+                CopyButton(text: source, iconSize: 14),
+              ],
             ),
-            Text(
-              source,
-              style: context
-                  .monospaceOn(theme.textTheme.labelSmall)
-                  .copyWith(height: 1.3),
-            ),
+            _sourceBody(source, theme, clampId),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _sourceBody(String source, ThemeData theme, String? clampId) {
+    final style =
+        context.monospaceOn(theme.textTheme.labelSmall).copyWith(height: 1.3);
+    if (clampId == null) return Text(source, style: style);
+
+    final expanded = _isSourceExpanded(clampId);
+    // Measure before deciding: a body that fits shows no control, for the same
+    // reason a step with no detail shows no chevron.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: source, style: style),
+          maxLines: _collapsedSourceLines,
+          textDirection: Directionality.of(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+        painter.dispose();
+        final clamped = overflows && !expanded;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              source,
+              style: style,
+              maxLines: clamped ? _collapsedSourceLines : null,
+              overflow: clamped ? TextOverflow.ellipsis : TextOverflow.clip,
+            ),
+            if (overflows)
+              GestureDetector(
+                onTap: () => _toggleSource(clampId),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: SoliplexSpacing.s1),
+                  child: Row(
+                    children: [
+                      // The row disclosures elsewhere encode state (right when
+                      // closed, down when open) because they carry no words.
+                      // This one is labelled with a verb, so the arrow points
+                      // at what the tap does: down to reveal, up to collapse.
+                      Icon(
+                        expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: SoliplexSpacing.s1),
+                      Text(
+                        expanded ? 'Show less' : 'Show more',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -380,8 +527,33 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     }
   }
 
+  /// Renders a tool call's accumulated `TOOL_CALL_ARGS` for display.
+  ///
+  /// Prefers the one field that carries the intent — the query, the code, the
+  /// script, the command — over the whole object. Falls back to the raw string
+  /// when it does not parse: while the call is still streaming the accumulation
+  /// is a JSON prefix, and a partial payload is more useful shown than hidden.
+  static String _formatArgs(String args) {
+    final decoded = _tryDecodeObject(args);
+    if (decoded == null) return args;
+    for (final key in _sourceKeys) {
+      final value = decoded[key];
+      if (value is String && value.isNotEmpty) return value;
+    }
+    return const JsonEncoder.withIndent('  ').convert(decoded);
+  }
+
+  static Map<String, dynamic>? _tryDecodeObject(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
   static String? _pickSource(SkillToolCallActivity activity) {
-    for (final key in const ['script', 'code', 'query']) {
+    for (final key in _sourceKeys) {
       final value = activity.args[key];
       if (value is String && value.isNotEmpty) return value;
     }

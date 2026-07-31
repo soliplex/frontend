@@ -20,18 +20,57 @@ sealed class TimelineEntry {
   const TimelineEntry();
 }
 
+/// A step and the detail of the server tool call it represents.
+///
+/// [args] and [result] belong to the call itself, so they are held on the
+/// entry rather than resolved from a separate store: a `TOOL_CALL_START`
+/// opens the step, its `TOOL_CALL_ARGS` deltas append to [args], and its
+/// `TOOL_CALL_RESULT` sets [result] once. Nothing rewrites them afterwards,
+/// which is why they need none of the id-resolution the activity path uses.
+///
+/// [toolCallId] is null for steps that are not server tool calls (thinking,
+/// client-side tool execution); those have no args or result to show.
 @immutable
 final class TimelineStep extends TimelineEntry {
-  const TimelineStep({required this.step, this.activityIds = const []});
+  const TimelineStep({
+    required this.step,
+    this.activityIds = const [],
+    this.toolCallId,
+    this.args = '',
+    this.result,
+  });
 
   final ExecutionStep step;
   final List<String> activityIds;
+  final String? toolCallId;
 
-  TimelineStep withStep(ExecutionStep step) =>
-      TimelineStep(step: step, activityIds: activityIds);
+  /// Accumulated `TOOL_CALL_ARGS` deltas. Not valid JSON until the call ends.
+  final String args;
+
+  /// The call's result body, or null until `TOOL_CALL_RESULT` arrives.
+  final String? result;
+
+  TimelineStep withStep(ExecutionStep step) => _copyWith(step: step);
 
   TimelineStep withActivities(List<String> activityIds) =>
-      TimelineStep(step: step, activityIds: activityIds);
+      _copyWith(activityIds: activityIds);
+
+  TimelineStep withDetail({String? args, String? result}) =>
+      _copyWith(args: args, result: result);
+
+  TimelineStep _copyWith({
+    ExecutionStep? step,
+    List<String>? activityIds,
+    String? args,
+    String? result,
+  }) =>
+      TimelineStep(
+        step: step ?? this.step,
+        activityIds: activityIds ?? this.activityIds,
+        toolCallId: toolCallId,
+        args: args ?? this.args,
+        result: result ?? this.result,
+      );
 }
 
 @immutable

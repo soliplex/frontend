@@ -68,12 +68,17 @@ void main() {
 
   tearDown(() => tracker.dispose());
 
+  // Scrollable because the timeline lives inside the message list in
+  // production; without one, an expanded source block overflows the test
+  // viewport and the rendering assertion masks what is being asserted.
   Widget wrap(Widget child, {MessageExpansions? storeOverride}) =>
       ProviderScope(
         overrides: [
           messageExpansionsProvider.overrideWithValue(storeOverride ?? store),
         ],
-        child: MaterialApp(home: Scaffold(body: child)),
+        child: MaterialApp(
+          home: Scaffold(body: SingleChildScrollView(child: child)),
+        ),
       );
 
   ExecutionTimeline build({
@@ -479,6 +484,181 @@ void main() {
 
       // Safety invariant for source rows — no writes to the store.
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);
+    });
+  });
+
+  group('server tool call detail on the step row', () {
+    // Post-upgrade, a retrieval is a first-class tool call: one step row per
+    // call, carrying its own args and result. No nested row — the step *is*
+    // the call.
+    Future<void> expand(WidgetTester tester, String stepLabel) async {
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+      await tester.tap(find.text(stepLabel));
+      await tester.pump();
+    }
+
+    testWidgets('expands to show arguments and result', (tester) async {
+      events.value = const ServerToolCallStarted(
+        toolName: 'analysis_execute_code',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"code":"df.groupby(\'site\').mean()"}',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'site   value\nA      12.4',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'analysis_execute_code');
+
+      // `code` is preferred over dumping the whole args object.
+      expect(find.text("df.groupby('site').mean()"), findsOneWidget);
+      // The result is the only place a code execution's stdout — or a
+      // ToolFailed message — reaches the user.
+      expect(find.text('site   value\nA      12.4'), findsOneWidget);
+    });
+
+    testWidgets('a step with no detail is not expandable', (tester) async {
+      events.value = const ThinkingStarted();
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      // The header now shows expand_more; a step with neither args nor a
+      // result contributes no chevron of its own.
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+    });
+
+    testWidgets('partial JSON args render raw rather than throwing',
+        (tester) async {
+      // While TOOL_CALL_ARGS is still streaming, the accumulated string is not
+      // valid JSON. The old activity path never saw this — args arrived whole.
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"query":"Soli',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_search');
+
+      expect(find.text('{"query":"Soli'), findsOneWidget);
+    });
+
+    testWidgets('a long result is clamped until expanded', (tester) async {
+      // A rag_search result is 20-35 KB of chunk text. Showing all of it by
+      // default buries the rest of the timeline.
+      final long = List.generate(40, (i) => 'chunk line $i').join('\n');
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_search',
+        toolCallId: 'tc-1',
+      );
+      events.value = ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: long,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_search');
+
+      expect(tester.widget<Text>(find.text(long)).maxLines, 8);
+      expect(find.text('Show more'), findsOneWidget);
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump();
+
+      expect(tester.widget<Text>(find.text(long)).maxLines, isNull);
+      expect(find.text('Show less'), findsOneWidget);
+      // The arrow points at what the tap does, so collapsing points up. A
+      // down arrow beside "Show less" contradicts its own label.
+      expect(find.byIcon(Icons.expand_less), findsOneWidget);
+    });
+
+    testWidgets('a short result is not clamped and offers no disclosure',
+        (tester) async {
+      // Same principle as the step row's chevron: no affordance where nothing
+      // is hidden.
+      events.value = const ServerToolCallStarted(
+        toolName: 'rag_cite',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallCompleted(
+        toolCallId: 'tc-1',
+        result: 'Registered 2 citation(s).',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'rag_cite');
+
+      expect(
+        tester.widget<Text>(find.text('Registered 2 citation(s).')).maxLines,
+        isNull,
+      );
+      expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets("one call's result expansion does not affect another's",
+        (tester) async {
+      // The clamp is keyed per call, so expanding one long result must not
+      // unclamp every other row in the run.
+      final long = List.generate(40, (i) => 'line $i').join('\n');
+      for (final id in ['tc-1', 'tc-2']) {
+        events.value = ServerToolCallStarted(
+          toolName: 'rag_search_$id',
+          toolCallId: id,
+        );
+        events.value = ServerToolCallCompleted(toolCallId: id, result: long);
+      }
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('2 events'));
+      await tester.pump();
+      await tester.tap(find.text('rag_search_tc-1'));
+      await tester.tap(find.text('rag_search_tc-2'));
+      await tester.pump();
+
+      await tester.tap(find.text('Show more').first);
+      await tester.pump();
+
+      expect(find.text('Show less'), findsOneWidget);
+      expect(find.text('Show more'), findsOneWidget);
+    });
+
+    testWidgets('args with no recognised key fall back to pretty JSON',
+        (tester) async {
+      // The shape a pre-upgrade thread's outer `execute_skill` call carries.
+      events.value = const ServerToolCallStarted(
+        toolName: 'execute_skill',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ServerToolCallArgs(
+        toolCallId: 'tc-1',
+        delta: '{"request":"Search the docs","skill_name":"rag"}',
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await expand(tester, 'execute_skill');
+
+      expect(
+        find.text('{\n  "request": "Search the docs",\n'
+            '  "skill_name": "rag"\n}'),
+        findsOneWidget,
+      );
     });
   });
 }
