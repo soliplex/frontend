@@ -33,10 +33,11 @@ const double _nestedIndent = _disclosureWidth +
     SoliplexSpacing.s2;
 
 /// Width reserved for a row's disclosure chevron, kept even when the row has
-/// nothing to disclose so status icons stay column-aligned.
+/// nothing to disclose, so a row's contents do not shift between its
+/// disclosing and non-disclosing states.
 const double _disclosureWidth = 14;
 
-/// Size of a row's status icon. The disclosure chevron beside it is
+/// Size of a step row's status icon. The disclosure chevron beside it is
 /// [_disclosureWidth], which is wider.
 const double _statusIconSize = 12;
 
@@ -46,10 +47,14 @@ const double _statusIconSize = 12;
 /// holds the same shape at every text scale.
 const int _collapsedSourceLines = 8;
 
-/// Suffixes distinguishing the two things a tool call row can disclose, so each
-/// keys its own entry in the expansion store.
+/// Suffixes distinguishing the things a row can disclose, so each keys its own
+/// entry in the expansion store. An activity row needs one even though it
+/// discloses a single body: its own open/closed state is already keyed by the
+/// bare `messageId`, and reusing that would make opening the row also unclamp
+/// the body.
 const String _argsClampSuffix = '#args';
 const String _resultClampSuffix = '#result';
+const String _contentClampSuffix = '#content';
 
 /// The braces bounding a JSON object, so an empty one is recognised by scan
 /// rather than by decoding it.
@@ -139,7 +144,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final entries = widget.tracker.timeline.watch(context);
-    final calls = widget.tracker.skillToolCalls.watch(context);
+    final activities = widget.tracker.activities.watch(context);
     if (entries.isEmpty) return const SizedBox.shrink();
 
     final total = entries.fold<int>(
@@ -183,7 +188,8 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
             ),
             if (_expanded) ...[
               const SizedBox(height: SoliplexSpacing.s1),
-              for (final entry in entries) _buildEntry(entry, theme, calls),
+              for (final entry in entries)
+                _buildEntry(entry, theme, activities),
             ],
           ],
         ),
@@ -194,7 +200,7 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   Widget _buildEntry(
     TimelineEntry entry,
     ThemeData theme,
-    List<SkillToolCallActivity> calls,
+    List<ActivityRecord> activities,
   ) {
     switch (entry) {
       case TimelineStep(:final activityIds):
@@ -203,42 +209,47 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
           children: [
             _stepRow(entry, theme),
             for (final id in activityIds)
-              if (_resolveActivity(id, calls) case final activity?)
+              if (_resolveActivity(id, activities) case final activity?)
                 _activityRow(activity, theme, indent: _nestedIndent),
           ],
         );
       case TimelineStandaloneActivity(:final activityId):
-        final activity = _resolveActivity(activityId, calls);
+        final activity = _resolveActivity(activityId, activities);
         if (activity == null) return const SizedBox.shrink();
         return _activityRow(activity, theme, indent: 0);
     }
   }
 
-  /// Looks up the decoded activity for [id] in the tracker's
-  /// `skillToolCalls`. Returns `null` for a dangling id so the renderer
-  /// falls through to an empty row instead of throwing. The tracker
-  /// only places ids whose activityType the decoder recognises
-  /// (`skill_tool_call` / `skill_tool_result`), so a dangling id
-  /// indicates a real divergence — a decode failure, a
-  /// `MESSAGES_SNAPSHOT` that dropped the record, or a producer/
-  /// consumer mismatch. Logged at warning the first time each id fails
-  /// to resolve so the dropped row is observable instead of silent.
-  SkillToolCallActivity? _resolveActivity(
+  /// Looks up the record for [id] among the tracker's [activities].
+  /// Returns `null` for a dangling id so the renderer falls through to
+  /// an empty row instead of throwing.
+  ///
+  /// A timeline id and its record arrive by two independent routes from
+  /// one wire event: the tracker places the id when it observes an
+  /// `ActivitySnapshot`, while the record arrives through the folded
+  /// activity list the tracker mirrors. The routes cannot disagree over a
+  /// malformed payload — both refuse a non-object `content` on the same
+  /// test, so such an event yields neither an id nor a record. What is
+  /// left is a frontend logic bug: a historical tracker handed a timeline
+  /// and a record list built from different event streams. Logged at
+  /// warning the first time each id fails so the dropped row is
+  /// observable instead of silent.
+  ActivityRecord? _resolveActivity(
     String id,
-    List<SkillToolCallActivity> calls,
+    List<ActivityRecord> activities,
   ) {
-    for (final call in calls) {
-      if (call.messageId == id) return call;
+    for (final activity in activities) {
+      if (activity.messageId == id) return activity;
     }
     if (_loggedDanglingIds.add(id)) {
       _logger.warning(
         'ExecutionTimeline: timeline references an activity id with no '
-        'matching SkillToolCallActivity; row hidden',
+        'matching record; row hidden',
         attributes: {
           'activityId': id,
           'roomId': widget.roomId,
           'messageId': widget.messageId,
-          'resolvableIdCount': calls.length,
+          'resolvableIdCount': activities.length,
         },
       );
     }
@@ -323,12 +334,11 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   }
 
   Widget _activityRow(
-    SkillToolCallActivity activity,
+    ActivityRecord activity,
     ThemeData theme, {
     required double indent,
   }) {
-    final source = _pickSource(activity);
-    final hasSource = source != null;
+    final hasSource = activity.content.isNotEmpty;
     final isExpanded = _isSourceExpanded(activity.messageId);
 
     return Padding(
@@ -355,26 +365,26 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
                         )
                       : const SizedBox.shrink(),
                 ),
-                const SizedBox(width: SoliplexSpacing.s1),
-                _activityStatusIcon(activity.status, theme),
+                // A nested row's `indent` already lands this chevron on the
+                // step row's label, so no width is reserved for a status icon
+                // here; reserving it would only gap the label out.
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
                   child: _rowLabel(
-                    activity.toolName,
+                    _activityLabel(activity),
                     theme,
-                    running: activity.status == SkillToolCallStatus.inProgress,
-                  ),
-                ),
-                Text(
-                  activity.status.label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                    running: false,
                   ),
                 ),
               ],
             ),
           ),
-          if (hasSource && isExpanded) _sourceBlock(source, theme),
+          if (hasSource && isExpanded)
+            _sourceBlock(
+              _encodeContent(activity.content),
+              theme,
+              clampId: '${activity.messageId}$_contentClampSuffix',
+            ),
         ],
       ),
     );
@@ -384,13 +394,13 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
   /// reader asks for the rest.
   ///
   /// [clampId] keys that per block, so expanding one call's result leaves every
-  /// other row alone. Null renders the body in full — an activity row's source
-  /// is a script or query short enough not to need a clamp.
+  /// other row alone. Every body here can run to tens of KB, so there is no
+  /// unclamped path — one would bury every row below it.
   Widget _sourceBlock(
     String source,
     ThemeData theme, {
+    required String clampId,
     String? label,
-    String? clampId,
   }) {
     return Padding(
       padding: const EdgeInsets.only(
@@ -428,11 +438,9 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     );
   }
 
-  Widget _sourceBody(String source, ThemeData theme, String? clampId) {
+  Widget _sourceBody(String source, ThemeData theme, String clampId) {
     final style =
         context.monospaceOn(theme.textTheme.labelSmall).copyWith(height: 1.3);
-    if (clampId == null) return Text(source, style: style);
-
     final expanded = _isSourceExpanded(clampId);
     // Read outside the builder so layout does not take a MediaQuery dependency.
     final textScaler = MediaQuery.textScalerOf(context);
@@ -524,43 +532,16 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     }
   }
 
-  Widget _activityStatusIcon(SkillToolCallStatus status, ThemeData theme) {
-    switch (status) {
-      case SkillToolCallStatus.inProgress:
-        // No spinner: the shimmering label carries the "in progress" signal.
-        return const SizedBox(
-          width: _statusIconSize,
-          height: _statusIconSize,
-        );
-      case SkillToolCallStatus.error:
-        return Icon(
-          Icons.error,
-          size: _statusIconSize,
-          color: theme.colorScheme.error,
-        );
-      case SkillToolCallStatus.done:
-        return Icon(
-          Icons.check_circle,
-          size: _statusIconSize,
-          color: context.success,
-        );
-      case SkillToolCallStatus.unknown:
-        return Icon(
-          Icons.circle_outlined,
-          size: _statusIconSize,
-          color: theme.colorScheme.outline,
-        );
-    }
-  }
-
   /// Whether [source] needs more than [_collapsedSourceLines] to render at
   /// [maxWidth], and so warrants a disclosure control.
   ///
-  /// Counts explicit line breaks first: a body already carrying that many
-  /// provably overflows, and the bodies that do — tens of KB of retrieved chunk
-  /// text — are the ones whose measurement is expensive. Laying one out is a
-  /// full line-break pass on the UI thread, repeated for every expanded block
-  /// each time an args delta rebuilds the timeline.
+  /// Counts explicit line breaks first, which settles a raw retrieval result
+  /// without measuring it: laying one out is a full line-break pass on the UI
+  /// thread, repeated for every expanded block each time an args delta rebuilds
+  /// the timeline. An encoded activity content does not always benefit —
+  /// encoding escapes the newlines inside a string value, so a few-keyed
+  /// payload wrapping tens of KB of chunk text arrives as a handful of physical
+  /// lines and falls through to the wrap measurement below.
   ///
   /// [textScaler] must be the one the rendered [Text] will use; measuring
   /// unscaled would report a body as fitting that the reader sees overflow.
@@ -646,14 +627,25 @@ class _ExecutionTimelineState extends ConsumerState<ExecutionTimeline> {
     }
   }
 
-  static String? _pickSource(SkillToolCallActivity activity) {
-    for (final key in _sourceKeys) {
-      final value = activity.args[key];
-      if (value is String && value.isNotEmpty) return value;
-    }
-    if (activity.args.isEmpty) return null;
-    return const JsonEncoder.withIndent('  ').convert(activity.args);
+  /// The row's label: any content carrying a non-empty `tool_name` string is
+  /// labelled with it, and otherwise the activity type is the label. AG-UI names
+  /// no vocabulary for what is inside an activity's content, so this is a
+  /// legibility preference rather than a schema — a payload without the key
+  /// renders under its type instead of losing its row.
+  static String _activityLabel(ActivityRecord activity) {
+    final toolName = activity.content['tool_name'];
+    if (toolName is String && toolName.isNotEmpty) return toolName;
+    return activity.activityType;
   }
+
+  /// What an expanded row discloses: the whole content, which is all an opaque
+  /// payload affords and loses nothing the record carried.
+  ///
+  /// Called only for a row the reader has expanded — `content` reaches tens of
+  /// KB, so encoding it to decide whether to draw a chevron would cost that on
+  /// every rebuild.
+  static String _encodeContent(Map<String, dynamic> content) =>
+      const JsonEncoder.withIndent('  ').convert(content);
 
   static String _formatDuration(Duration d) {
     final seconds = d.inMilliseconds / 1000;

@@ -18,8 +18,6 @@ import 'package:soliplex_client/src/application/run_phase.dart';
 import 'package:soliplex_client/src/application/streaming_state.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
 import 'package:soliplex_client/src/domain/conversation.dart';
-import 'package:soliplex_client/src/domain/skill_tool_call_activity.dart'
-    show kSkillToolCallActivityType, kSkillToolCallActivityTypes;
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
@@ -515,8 +513,8 @@ EventProcessingResult _processActivitySnapshot(
   // `Map<String, dynamic>`, so a non-object payload has nowhere to go. Thrown
   // so the caller mints a drop tile, which is the only thing on screen saying
   // the event arrived at all. It does not settle the row the event belonged to:
-  // a dropped `skill_tool_result` leaves its `skill_tool_call` record at
-  // `inProgress`, and nothing later rewrites it.
+  // a dropped snapshot leaves the record at whatever a prior one stored, and
+  // nothing later rewrites it.
   final content = event.content;
   if (content is! Map<String, dynamic>) {
     throw MalformedResponseException(
@@ -536,42 +534,11 @@ EventProcessingResult _processActivitySnapshot(
           ? conversation
           : conversation.copyWith(activities: updatedActivities);
 
-  if (event.activityType == kSkillToolCallActivityType) {
-    final toolName = content['tool_name'];
-    // Pass through if tool_name is missing or not a String — the backend
-    // contract requires it, so this guards against schema drift.
-    if (toolName is! String) {
-      _logger.warning(
-        'ActivitySnapshotEvent "skill_tool_call" missing or invalid tool_name',
-        attributes: {'toolNameType': toolName.runtimeType.toString()},
-      );
-      return EventProcessingResult(
-        conversation: updatedConversation,
-        streaming: streaming,
-      );
-    }
-    return EventProcessingResult(
-      conversation: updatedConversation,
-      streaming: _withToolCallPhase(
-        streaming,
-        toolName,
-        timestamp: event.timestamp,
-      ),
-    );
-  }
-  // skill_tool_result is recognized but intentionally leaves the
-  // streaming phase untouched (the call phase already set it).
-  if (!kSkillToolCallActivityTypes.contains(event.activityType)) {
-    _logger.info(
-      'ActivitySnapshotEvent: activityType has no decoder',
-      attributes: {
-        'activityType': event.activityType,
-        // False when the fold kept an existing record for this messageId
-        // instead of storing this snapshot (a repeat with `replace: false`).
-        'persisted': !identical(updatedActivities, conversation.activities),
-      },
-    );
-  }
+  // The streaming phase label is set by `TOOL_CALL_START`, not from here.
+  // Content is opaque under AG-UI, so this layer must not attribute a phase
+  // from it even when a `tool_name` is present — announcing a tool call from a
+  // payload the protocol says nothing about would put a phase on screen for a
+  // tool the run may never make.
   return EventProcessingResult(
     conversation: updatedConversation,
     streaming: streaming,

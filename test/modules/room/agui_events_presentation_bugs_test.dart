@@ -3,14 +3,13 @@
 ///
 /// Nested-row completion
 /// ---------------------
-/// A logical sub-skill invocation arrives as two `ActivitySnapshotEvent`s
-/// sharing a `messageId`: a call phase
+/// Stored threads carry a logical sub-skill invocation as two
+/// `ActivitySnapshotEvent`s sharing a `messageId`: a call phase
 /// (`activity_type='skill_tool_call'`, carrying `args`) and a result
 /// phase (`activity_type='skill_tool_result'`, carrying `result`,
-/// `replace=true`). The decoder dispatches on activityType so the
-/// result phase synthesizes `status='done'` and exposes
-/// `content['result']`, flipping the nested row out of its
-/// in-progress spinner.
+/// `replace=true`). The second must land on the first's record rather
+/// than beside it, so the pair renders as one row that advances — the
+/// timeline places one id and resolves it against the stored record.
 ///
 /// Bubble survives reload after a tool-yield
 /// -----------------------------------------
@@ -39,10 +38,10 @@ import 'package:soliplex_frontend/src/modules/room/ui/execution/timeline_entry.d
 import '../../helpers/test_logger.dart';
 
 void main() {
-  group('skill_tool_result snapshot completes the nested row', () {
+  group('a result snapshot advances the nested row it shares an id with', () {
     test(
-      'historical replay: call snapshot + result snapshot leaves the '
-      'nested activity at status=done with the result text exposed',
+      'historical replay: call snapshot + result snapshot leave one row, '
+      'carrying the result',
       () {
         final runs = [
           RunEventBundle(
@@ -91,27 +90,20 @@ void main() {
         final step = tracker.timeline.value.single as TimelineStep;
 
         expect(step.activityIds, ['rag:call_1']);
-        final activity = tracker.skillToolCalls.value.single;
+        final activity = tracker.activities.value.single;
         expect(
-          activity.status,
-          SkillToolCallStatus.done,
-          reason: 'Result snapshot must flip the row to done; otherwise '
-              'the nested row stays in its in-progress (shimmering) state.',
+          activity.activityType,
+          'skill_tool_result',
+          reason: 'The result snapshot must replace the call record at that '
+              'messageId; otherwise the row never advances past the call.',
         );
-        expect(activity.result, 'answer text');
-        expect(
-          activity.args,
-          {'q': 'hi'},
-          reason: 'The application layer carries args from the call phase '
-              'onto the result-phase record so the unified row keeps '
-              'rendering the inputs across AG-UI replace-in-place.',
-        );
+        expect(activity.content['result'], 'answer text');
       },
     );
 
     test(
       'live tracker: call ActivitySnapshot then result ActivitySnapshot '
-      'on the same messageId advances the activity to done',
+      'on the same messageId leave one row, carrying the result',
       () {
         final events = Signal<ExecutionEvent?>(null);
         final activities = Signal<List<ActivityRecord>>(const []);
@@ -122,76 +114,64 @@ void main() {
         );
         addTearDown(tracker.dispose);
 
-        // Bridge each AG-UI event through the production bridge, mirroring
-        // what AgentSession does at runtime. Push the same content into
-        // the activities signal so the tracker's computed skillToolCalls
-        // sees the decoded view, matching what _processActivitySnapshot
-        // does in production.
-        const callContent = {
-          'tool_name': 'ask',
-          'args': '{"q":"hi"}',
-        };
-        final ExecutionEvent? callSnapshot = bridgeBaseEvent(
-          const ActivitySnapshotEvent(
-            messageId: 'rag:call_1',
-            activityType: 'skill_tool_call',
-            content: callContent,
-            replace: false,
-            timestamp: 100,
-          ),
+        // Each AG-UI event goes through both production paths it takes at
+        // runtime: `bridgeBaseEvent` for the tracker's ExecutionEvent, and
+        // `applyActivityEvent` for the record. Folding rather than assigning
+        // the record is what makes the replace assertion below a statement
+        // about production code instead of about this test's own setup.
+        const callEvent = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_call',
+          content: <String, dynamic>{'tool_name': 'ask', 'args': '{"q":"hi"}'},
+          replace: false,
+          timestamp: 100,
         );
+        final ExecutionEvent? callSnapshot = bridgeBaseEvent(callEvent);
         expect(callSnapshot, isNotNull);
-        activities.value = const [
-          ActivityRecord(
-            messageId: 'rag:call_1',
-            activityType: 'skill_tool_call',
-            content: callContent,
-            timestamp: 100,
-          ),
-        ];
+        activities.value = applyActivityEvent(
+          activities.value,
+          callEvent,
+          logger: testLogger(),
+        );
         events.value = callSnapshot;
 
-        final calls = tracker.skillToolCalls.value;
+        final calls = tracker.activities.value;
         expect(calls, hasLength(1));
-        expect(
-          calls.single.status,
-          SkillToolCallStatus.inProgress,
-          reason: 'The call phase carries no explicit status; the decoder '
-              'must synthesize inProgress so the row shimmers as running.',
-        );
+        expect(calls.single.activityType, 'skill_tool_call');
 
-        const resultContent = {
-          'tool_name': 'ask',
-          'result': 'answer text',
-        };
-        final ExecutionEvent? resultSnapshot = bridgeBaseEvent(
-          const ActivitySnapshotEvent(
-            messageId: 'rag:call_1',
-            activityType: 'skill_tool_result',
-            content: resultContent,
-            timestamp: 150,
-          ),
+        const resultEvent = ActivitySnapshotEvent(
+          messageId: 'rag:call_1',
+          activityType: 'skill_tool_result',
+          content: <String, dynamic>{
+            'tool_name': 'ask',
+            'result': 'answer text',
+          },
+          timestamp: 150,
         );
+        final ExecutionEvent? resultSnapshot = bridgeBaseEvent(resultEvent);
         expect(resultSnapshot, isNotNull);
-        activities.value = const [
-          ActivityRecord(
-            messageId: 'rag:call_1',
-            activityType: 'skill_tool_result',
-            content: resultContent,
-            timestamp: 150,
-          ),
-        ];
+        activities.value = applyActivityEvent(
+          activities.value,
+          resultEvent,
+          logger: testLogger(),
+        );
         events.value = resultSnapshot;
 
-        final updated = tracker.skillToolCalls.value;
-        expect(updated, hasLength(1));
+        final updated = tracker.activities.value;
         expect(
-          updated.single.status,
-          SkillToolCallStatus.done,
-          reason: 'The result snapshot must replace the call record so '
-              'the trailing icon flips to the checkmark.',
+          updated,
+          hasLength(1),
+          reason: 'The result snapshot must replace the call record at that '
+              'messageId rather than appending a second row beside it.',
         );
-        expect(updated.single.result, 'answer text');
+        expect(updated.single.activityType, 'skill_tool_result');
+        expect(updated.single.content['result'], 'answer text');
+        expect(
+          tracker.timeline.value,
+          hasLength(1),
+          reason: 'Both snapshots carry one messageId, so the timeline must '
+              'hold one entry — the second placement is a no-op, not a row.',
+        );
       },
     );
   });

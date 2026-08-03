@@ -102,15 +102,15 @@ void main() {
   });
 
   testWidgets(
-    'dangling activity id (in timeline but not in skillToolCalls) renders '
+    'dangling activity id (in timeline but not in activities) renders '
     'as an empty row instead of throwing',
     (tester) async {
-      // Place the activity on the timeline by firing a recognized
-      // ActivitySnapshot event, then clear the activities signal so
-      // skillToolCalls becomes empty. The renderer must fall through to
-      // SizedBox.shrink() for the dangling id, not throw on missing
-      // lookup — pinning the defensive fallback for MESSAGES_SNAPSHOT
-      // or producer/consumer drift.
+      // Place the activity on the timeline by firing an ActivitySnapshot
+      // event, then clear the activities signal so the id resolves to
+      // nothing. The renderer must fall through to SizedBox.shrink() for
+      // the dangling id rather than throw on the missing lookup: an id and
+      // its record arrive by two independent routes, so either can be
+      // present without the other.
       events.value = const ClientToolExecuting(
         toolName: 'execute_skill',
         toolCallId: 'tc-1',
@@ -195,7 +195,13 @@ void main() {
     expect(find.text('execute_script'), findsOneWidget);
   });
 
-  testWidgets('activity row expands to show script source', (tester) async {
+  testWidgets('activity row expands to disclose its whole content',
+      (tester) async {
+    const content = {
+      'skill': 'bwrap',
+      'tool_name': 'execute_script',
+      'args': '{"script":"print(42)"}',
+    };
     events.value = const ClientToolExecuting(
       toolName: 'execute_skill',
       toolCallId: 'tc-1',
@@ -203,10 +209,7 @@ void main() {
     pushSnapshot(
       messageId: 'bwrap:call_1',
       activityType: 'skill_tool_call',
-      content: {
-        'tool_name': 'execute_script',
-        'args': '{"script":"print(42)"}',
-      },
+      content: content,
       timestamp: 100,
     );
 
@@ -215,19 +218,26 @@ void main() {
     await tester.tap(find.text('2 events'));
     await tester.pump();
 
-    expect(find.text('print(42)'), findsNothing);
+    expect(find.textContaining('print(42)'), findsNothing);
 
     await tester.tap(find.text('execute_script'));
     await tester.pump();
 
-    expect(find.text('print(42)'), findsOneWidget);
+    // Asserted whole rather than by substring: the contract is that the row
+    // discloses every key the record carried, so replaying an old thread loses
+    // nothing. A substring match would also pass if the row dropped a key.
+    expect(
+      find.text(const JsonEncoder.withIndent('  ').convert(content)),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('activity with no args has no source chevron', (tester) async {
+  testWidgets('activity with empty content has no source chevron',
+      (tester) async {
     pushSnapshot(
       messageId: 'bwrap:call_1',
-      activityType: 'skill_tool_call',
-      content: {'tool_name': 'noop', 'args': '{}'},
+      activityType: 'noop',
+      content: const {},
       timestamp: 100,
     );
 
@@ -239,27 +249,6 @@ void main() {
     // Only the header chevron should be visible, not a per-row one.
     expect(find.byIcon(Icons.expand_more), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
-  });
-
-  testWidgets('generic args fall back to JSON preview', (tester) async {
-    pushSnapshot(
-      messageId: 'rag:call_1',
-      activityType: 'skill_tool_call',
-      content: {
-        'tool_name': 'lookup',
-        'args': '{"doc_id":"abc"}',
-      },
-      timestamp: 100,
-    );
-
-    await tester.pumpWidget(wrap(build()));
-    await tester.pump();
-    await tester.tap(find.text('1 event'));
-    await tester.pump();
-    await tester.tap(find.text('lookup'));
-    await tester.pump();
-
-    expect(find.textContaining('"doc_id"'), findsOneWidget);
   });
 
   testWidgets('completed step shows check_circle icon', (tester) async {
@@ -282,8 +271,7 @@ void main() {
 
   testWidgets('running step shimmers its label instead of showing a spinner',
       (tester) async {
-    // Started-but-not-completed: the step stays active and its activity
-    // in-progress.
+    // Started-but-not-completed: the step stays active.
     events.value = const ServerToolCallStarted(
       toolName: 'search',
       toolCallId: 'tc-1',
@@ -317,6 +305,139 @@ void main() {
     await tester.pump();
 
     expect(find.text('execute_script'), findsOneWidget);
+  });
+
+  group('generic activity rendering', () {
+    testWidgets('an unrecognised activityType renders, labelled by its type',
+        (tester) async {
+      // AG-UI defines an activity as an id-keyed store of opaque content, so
+      // any activityType is renderable — the type names the row and the
+      // content is its detail.
+      pushSnapshot(
+        messageId: 'plan:1',
+        activityType: 'plan',
+        content: {'steps': 3},
+        timestamp: 100,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      expect(find.text('plan'), findsOneWidget);
+
+      await tester.tap(find.text('plan'));
+      await tester.pump();
+
+      expect(find.textContaining('"steps"'), findsOneWidget);
+      // A body this short offers no disclosure, the same way a short tool
+      // result does — the clamp is driven by measurement, not by the row kind.
+      expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets(
+        'a row falls back to its activityType for every unusable '
+        'tool_name', (tester) async {
+      // One row per way the label read can fail. Each carries its own
+      // activityType so a case that stopped falling back is identifiable
+      // rather than just changing a count. The label is the whole subject
+      // here; what a row discloses is covered by 'activity row expands to
+      // disclose its whole content'.
+      const cases = {
+        'type_absent': <String, dynamic>{'other': 1},
+        'type_wrong_type': <String, dynamic>{'tool_name': 42},
+        'type_empty_string': <String, dynamic>{'tool_name': ''},
+      };
+      var i = 0;
+      for (final entry in cases.entries) {
+        pushSnapshot(
+          messageId: 'rag:call_${i++}',
+          activityType: entry.key,
+          content: entry.value,
+          timestamp: 100 + i,
+        );
+      }
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('3 events'));
+      await tester.pump();
+
+      for (final activityType in cases.keys) {
+        expect(find.text(activityType), findsOneWidget, reason: activityType);
+      }
+    });
+
+    testWidgets('a long activity source is clamped until expanded',
+        (tester) async {
+      // A settled retrieval row discloses its whole content, and the `result`
+      // inside is tens of KB of chunk text. Unclamped it buries every row
+      // below it — the same reason a step row's result clamps. Encoding
+      // escapes the newlines in that result, so this overflows by wrapping a
+      // few enormous lines rather than by carrying many.
+      final long = List.generate(40, (i) => 'chunk line $i').join('\n');
+      pushSnapshot(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {'tool_name': 'search', 'result': long},
+        timestamp: 100,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+      await tester.tap(find.text('search'));
+      await tester.pump();
+
+      final body = find.textContaining('chunk line 0');
+      expect(tester.widget<Text>(body).maxLines, 8);
+      expect(find.text('Show more'), findsOneWidget);
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump();
+
+      expect(tester.widget<Text>(body).maxLines, isNull);
+      expect(find.text('Show less'), findsOneWidget);
+    });
+
+    testWidgets('a stored call/result pair still renders one row',
+        (tester) async {
+      // Stored threads carry one sub-skill invocation as two snapshots
+      // sharing a messageId, the result replacing the call in place. The row
+      // must keep rendering across that boundary.
+      pushSnapshot(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'tool_name': 'search', 'args': '{"query":"reentry"}'},
+        timestamp: 100,
+      );
+      pushSnapshot(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {
+          'tool_name': 'search',
+          'result': 'found 3 documents',
+          'status': 'done',
+        },
+        timestamp: 200,
+      );
+
+      await tester.pumpWidget(wrap(build()));
+      await tester.pump();
+      await tester.tap(find.text('1 event'));
+      await tester.pump();
+
+      expect(find.text('search'), findsOneWidget);
+
+      await tester.tap(find.text('search'));
+      await tester.pump();
+
+      // The result phase carries no args, so the row discloses the content it
+      // actually has — which is the result the reader wants to see.
+      expect(find.textContaining('found 3 documents'), findsOneWidget);
+    });
   });
 
   group('MessageExpansions persistence', () {
@@ -367,11 +488,11 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('execute_script'));
       await tester.pump();
-      expect(find.text('print(42)'), findsOneWidget);
+      expect(find.textContaining('print(42)'), findsOneWidget);
 
       await tester.pumpWidget(tree(const ValueKey('B')));
       await tester.pump();
-      expect(find.text('print(42)'), findsOneWidget);
+      expect(find.textContaining('print(42)'), findsOneWidget);
     });
 
     testWidgets('state is keyed by both roomId and messageId', (tester) async {
@@ -475,14 +596,14 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('execute_script'));
       await tester.pump();
-      expect(find.text('print(42)'), findsOneWidget);
+      expect(find.textContaining('print(42)'), findsOneWidget);
 
       // Collapse pins the "remove from local set" branch. A regression
       // that only adds and never removes would silently break the
       // loading-phase collapse path.
       await tester.tap(find.text('execute_script'));
       await tester.pump();
-      expect(find.text('print(42)'), findsNothing);
+      expect(find.textContaining('print(42)'), findsNothing);
 
       // Safety invariant for source rows — no writes to the store.
       expect(store.debugHasStateFor(_roomId, loadingMessageId), isFalse);

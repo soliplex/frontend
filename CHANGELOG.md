@@ -8,6 +8,54 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- The execution timeline renders an activity from the AG-UI envelope rather than
+  from a skill-specific schema. AG-UI defines an activity as an id-keyed store of
+  opaque `content`, and names no vocabulary for what is inside it — so
+  `skill_tool_call` / `skill_tool_result`, with their `tool_name` / `args` /
+  `result` / `status` keys, were one backend's convention riding inside a spec
+  envelope, and that backend no longer emits them. Any `activityType` now gets a
+  row, labelled by its type, disclosing its content; previously every type but
+  those two was dropped before reaching the screen. One reading of the old
+  convention survives, because it is what keeps threads recorded before the
+  backend change legible: a row takes its label from `content['tool_name']` when
+  that is a non-empty string, so those rows still read `search` and `cite` rather
+  than `skill_tool_call`. Absent or wrong-typed, the label falls back to the
+  activity type rather than the row vanishing.
+- An activity row discloses its whole content, so replaying an older thread shows
+  every key the record carried. It used to show a single argument picked out of an
+  `args` payload, which hid the rest of the record — and which only had an `args`
+  payload to read because the fold synthesized one (see below).
+- An activity row no longer shows a status icon or a status word, and its label
+  no longer shimmers while the activity is in flight. AG-UI's activity events
+  carry no status field and no stored record carries a `status` key, so all three
+  were synthesized from the `activityType` string: a settled row showed a success
+  check because its type read `skill_tool_result`, a value that did not
+  distinguish a completed call from a failed one. The row no longer reserves the
+  icon's width either; a nested row's indent already lands its chevron on the
+  label of the step it belongs to.
+- A replacing activity snapshot now stores its content verbatim. The fold used to
+  carry a call phase's `args` onto the result snapshot that replaced it, to keep
+  one row rendering its inputs across the boundary. AG-UI's `replace` is
+  destructive, so carrying a key across it presented a record state no backend
+  ever sent; with content opaque, nothing in that layer can know which keys would
+  be worth carrying anyway. A key the new snapshot omits now stays omitted. A
+  stored call/result pair still renders as one row, disclosing the result.
+- An activity snapshot no longer sets the streaming phase label. It was read from
+  `content['tool_name']`, announcing a tool call from a payload the protocol says
+  nothing about; `TOOL_CALL_START` is the event that names a tool, and it already
+  sets the label.
+
+### Fixed
+
+- An expanded activity row's body clamps to eight lines with a "Show more"
+  control, the way a tool call's arguments and result already did. It rendered in
+  full before, on the assumption that an activity's detail was a short query —
+  true while the row showed a query, false once it showed a whole content payload
+  with a retrieval result inside, at which point one open row buried every row
+  below it.
+
 ## [0.98.1+77] - 2026-07-31
 
 ### Fixed

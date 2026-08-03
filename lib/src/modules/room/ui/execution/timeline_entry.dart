@@ -9,13 +9,11 @@ import '../../execution_step.dart';
 ///
 /// An "activity id" is the AG-UI `ActivityMessage.messageId` of the
 /// referenced record — the same string carried by
-/// `SkillToolCallActivity.messageId` and `ActivityRecord.messageId`.
-/// The renderer resolves each id against the tracker's
-/// `skillToolCalls` computed signal, which is itself derived from
-/// `Conversation.activities`. Storing ids (not decoded objects) keeps
-/// activity content sourced from one place and lets a
-/// replace-in-place result snapshot update the rendered row without
-/// any tracker bookkeeping.
+/// `ActivityRecord.messageId`. The renderer resolves each id against
+/// the tracker's `activities` signal, which mirrors
+/// `Conversation.activities`. Storing ids (not records) keeps activity
+/// content sourced from one place and lets a replace-in-place snapshot
+/// update the rendered row without any tracker bookkeeping.
 sealed class TimelineEntry {
   const TimelineEntry();
 }
