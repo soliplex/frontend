@@ -137,9 +137,8 @@ class AgentSession implements ToolExecutionContext {
   /// Reactive signal exposing `Conversation.activities` for whichever
   /// run-state variant currently carries a [Conversation]. Empty list
   /// while idle or in a terminal state that didn't capture a
-  /// conversation. Used by `ExecutionTracker` to source decoded
-  /// [SkillToolCallActivity] views without maintaining a parallel
-  /// content cache.
+  /// conversation. Used by `ExecutionTracker`, which mirrors it into a
+  /// signal of its own so that freezing pins the records a run ended with.
   late final ReadonlySignal<List<ActivityRecord>> conversationActivities =
       computed(() => conversationActivitiesOf(runState.value));
 

@@ -79,23 +79,17 @@ class ExecutionTracker {
   final Signal<bool> _isThinkingStreaming = Signal<bool>(false);
   ReadonlySignal<bool> get isThinkingStreaming => _isThinkingStreaming;
 
-  /// Decoded skill_tool activities, derived reactively from the source
-  /// activities signal. Records that fail to decode as a skill_tool_*
-  /// view are filtered out. The list mirrors the source order in
-  /// `Conversation.activities`.
-  late final ReadonlySignal<List<SkillToolCallActivity>> skillToolCalls =
-      computed(() {
-    return [
-      for (final record in _activities.value)
-        if (SkillToolCallActivity.fromRecord(record) case final view?) view,
-    ];
-  });
+  /// The activity records this tracker's timeline resolves against, in
+  /// the source order of `Conversation.activities`. Content is stored as
+  /// the backend sent it — AG-UI defines an activity's `content` as
+  /// opaque, so the renderer, not this layer, decides how to read it.
+  ReadonlySignal<List<ActivityRecord>> get activities => _activities;
 
   /// Timeline of steps with their nested activity ids, in arrival
   /// order. Activities that arrive while a step is active are nested
   /// under that step; activities arriving outside any active step are
   /// emitted as [TimelineStandaloneActivity]. The renderer resolves
-  /// each id against [skillToolCalls] at paint time.
+  /// each id against [activities] at paint time.
   final Signal<List<TimelineEntry>> _timeline =
       Signal<List<TimelineEntry>>(const []);
   ReadonlySignal<List<TimelineEntry>> get timeline => _timeline;
@@ -195,15 +189,8 @@ class ExecutionTracker {
       case RunCancelled():
         _completeAllSteps(StepStatus.failed);
         _isThinkingStreaming.value = false;
-      case ActivitySnapshot(:final messageId, :final activityType):
-        // Only place ids whose activityType the decoder recognises. Other
-        // types still persist into Conversation.activities at the domain
-        // layer (so future consumers can read them), but they don't get a
-        // timeline row — placing them would produce a phantom entry whose
-        // _resolveActivity returns null on every render.
-        if (kSkillToolCallActivityTypes.contains(activityType)) {
-          _placeActivityInTimeline(messageId);
-        }
+      case ActivitySnapshot(:final messageId):
+        _placeActivityInTimeline(messageId);
       case TextDelta() ||
             StateUpdated() ||
             StepProgress() ||
@@ -214,10 +201,10 @@ class ExecutionTracker {
   }
 
   /// Records the structural position of [activityId] in the timeline.
-  /// Content is sourced from [skillToolCalls]; this only decides which
-  /// step the row nests under (or whether it stands alone). An id
-  /// already present in any entry is a no-op — the activity updates in
-  /// place via the computed signal.
+  /// Content is sourced from [activities]; this only decides which step
+  /// the row nests under (or whether it stands alone). An id already
+  /// present in any entry is a no-op — the activity updates in place
+  /// through the signal.
   void _placeActivityInTimeline(String activityId) {
     final current = _timeline.value;
     for (final entry in current) {

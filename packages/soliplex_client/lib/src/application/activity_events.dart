@@ -1,8 +1,6 @@
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/application/json_patch.dart';
 import 'package:soliplex_client/src/domain/activity_record.dart';
-import 'package:soliplex_client/src/domain/skill_tool_call_activity.dart'
-    show kSkillToolCallActivityType, kSkillToolResultActivityType;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _defaultLogger =
@@ -64,16 +62,26 @@ List<ActivityRecord> _applySnapshot(
       event.timestamp ?? DateTime.now().millisecondsSinceEpoch;
   final idx = current.indexWhere((a) => a.messageId == event.messageId);
   if (idx >= 0) {
-    if (!event.replace) return current;
-    final content = _mergeContentAcrossReplace(
-      current[idx],
-      event.activityType,
-      eventContent,
-    );
+    if (!event.replace) {
+      // AG-UI's upsert semantic: the record stands and this payload is
+      // discarded. Logged because it is the only drop on this path with
+      // nothing else to show it happened — no tile, no state change, and a
+      // row that keeps rendering content the producer meant to supersede.
+      log.warning(
+        'ActivitySnapshotEvent discarded: replace is false and a record '
+        'already exists at this messageId; the row keeps its prior content',
+        attributes: {
+          'messageId': event.messageId,
+          'activityType': event.activityType,
+          'existingActivityType': current[idx].activityType,
+        },
+      );
+      return current;
+    }
     return [...current]..[idx] = ActivityRecord(
         messageId: event.messageId,
         activityType: event.activityType,
-        content: content,
+        content: eventContent,
         timestamp: resolvedTimestamp,
       );
   }
@@ -88,33 +96,23 @@ List<ActivityRecord> _applySnapshot(
   ];
 }
 
-/// Carries the call phase's `args` onto a `skill_tool_result` snapshot
-/// that replaces it in place. Preserves the unified-row UI contract
-/// across AG-UI's call→result replace boundary: the result phase does
-/// not transmit `args`, but the same logical row continues to display
-/// the inputs that produced the result.
-Map<String, dynamic> _mergeContentAcrossReplace(
-  ActivityRecord prior,
-  String activityType,
-  Map<String, dynamic> content,
-) {
-  if (activityType != kSkillToolResultActivityType) return content;
-  if (prior.activityType != kSkillToolCallActivityType) return content;
-  if (content.containsKey('args')) return content;
-  final priorArgs = prior.content['args'];
-  if (priorArgs == null) return content;
-  return {...content, 'args': priorArgs};
-}
-
-// AG-UI protocol violations on the delta path (missing prior snapshot,
-// activityType mismatch) are dropped silently from the UI's perspective:
-// the existing record stays at its prior state, no drop tile is minted.
-// This is intentionally asymmetric with `_processStateSnapshot`, which
-// throws on bad input and lets the orchestrator append a visible
-// `DroppedEventMessage`. The unified activity row remains usable across
-// a dropped delta (the row simply doesn't advance), so a drop tile
-// would be visual noise. The error-level log is the backend-escalation
+// A delta this fold cannot place (no prior snapshot, or an activityType that
+// disagrees with the record's) is dropped without minting a drop tile. This
+// is intentionally asymmetric with `_processStateSnapshot`, which throws on
+// bad input and lets the orchestrator append a visible
+// `DroppedEventMessage`. The error-level log is the backend-escalation
 // channel; UI consumers see no change.
+//
+// The two branches earn that silence differently. On an activityType
+// mismatch a row already exists and stays usable at its prior state — it
+// simply doesn't advance, so a tile would be visual noise. On a missing
+// prior snapshot there is no record and no row, so nothing on screen says
+// the event arrived; the log is the only trace. That is the weaker case,
+// and it is tolerated because the log is an escalation channel a producer
+// emitting deltas would surface on before a reader noticed a gap. Note that
+// dropping is a choice rather than the only reading: a patch against an
+// absent record could equally materialise one from `{}`, which is what the
+// backend's own parser does.
 List<ActivityRecord> _applyDelta(
   List<ActivityRecord> current,
   ActivityDeltaEvent event,
@@ -123,8 +121,7 @@ List<ActivityRecord> _applyDelta(
   final idx = current.indexWhere((a) => a.messageId == event.messageId);
   if (idx < 0) {
     log.error(
-      'ActivityDeltaEvent dropped: no prior snapshot for messageId '
-      '(AG-UI protocol violation)',
+      'ActivityDeltaEvent dropped: no prior snapshot for messageId',
       attributes: {
         'messageId': event.messageId,
         'activityType': event.activityType,

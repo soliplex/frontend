@@ -23,8 +23,9 @@ class TrackerRegistry {
   ///
   /// [events] is the execution event signal to subscribe a new tracker
   /// to, only used when a tracker needs to be created. [activities] is
-  /// the live `Conversation.activities` signal the new tracker derives
-  /// its `skillToolCalls` from.
+  /// the live `Conversation.activities` signal the new tracker mirrors
+  /// into a local copy, so that freezing it pins the records it had at
+  /// that moment.
   void onStreaming(
     StreamingState streaming,
     ReadonlySignal<ExecutionEvent?> events,

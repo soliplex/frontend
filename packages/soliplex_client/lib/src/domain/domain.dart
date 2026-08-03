@@ -20,7 +20,6 @@ export 'room_stats.dart';
 export 'room_tool.dart';
 export 'run_info.dart';
 export 'server_info.dart';
-export 'skill_tool_call_activity.dart';
 export 'source_reference.dart';
 export 'surface.dart';
 export 'thread_history.dart';

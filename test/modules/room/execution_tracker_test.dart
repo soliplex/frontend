@@ -456,9 +456,9 @@ void main() {
     });
   });
 
-  group('skillToolCalls signal', () {
+  group('activities signal', () {
     test('starts empty', () {
-      expect(tracker.skillToolCalls.value, isEmpty);
+      expect(tracker.activities.value, isEmpty);
     });
 
     test('reflects the source activities signal in order', () {
@@ -477,24 +477,10 @@ void main() {
         ),
       ];
 
-      final calls = tracker.skillToolCalls.value;
-      expect(calls.map((c) => c.toolName), ['ask', 'search']);
-    });
-
-    test('filters records that fail to decode as a skill_tool_* view', () {
-      // Records that aren't skill_tool_call or skill_tool_result are
-      // skipped — the tracker's `skillToolCalls` is a typed view, not
-      // a passthrough.
-      activities.value = const [
-        ActivityRecord(
-          messageId: 'plan:1',
-          activityType: 'plan',
-          content: {'steps': 3},
-          timestamp: 1,
-        ),
-      ];
-
-      expect(tracker.skillToolCalls.value, isEmpty);
+      expect(
+        tracker.activities.value.map((a) => a.messageId),
+        ['rag:call_a', 'rag:call_b'],
+      );
     });
 
     test('freeze decouples the tracker from the source activities signal', () {
@@ -513,7 +499,7 @@ void main() {
           timestamp: 1,
         ),
       ];
-      expect(tracker.skillToolCalls.value.single.toolName, 'ask');
+      expect(tracker.activities.value.single.messageId, 'rag:call_1');
 
       tracker.freeze();
 
@@ -535,7 +521,7 @@ void main() {
         ),
       ];
       expect(
-        tracker.skillToolCalls.value.map((c) => c.messageId),
+        tracker.activities.value.map((a) => a.messageId),
         ['rag:call_1'],
         reason: 'Frozen tracker must not pick up late mutations from the '
             'session-owned source signal.',
@@ -550,8 +536,8 @@ void main() {
           // Force read; signals_core warns via `print` if a disposed
           // signal is reached on this code path.
           expect(
-            tracker.skillToolCalls.value.single.toolName,
-            'ask',
+            tracker.activities.value.single.messageId,
+            'rag:call_1',
           );
         },
         zoneSpecification: ZoneSpecification(
@@ -608,7 +594,10 @@ void main() {
       expect(tracker.timeline.value, hasLength(1));
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.activityIds, ['bwrap:call_1']);
-      expect(tracker.skillToolCalls.value.single.toolName, 'execute_script');
+      expect(
+        tracker.activities.value.single.content['tool_name'],
+        'execute_script',
+      );
     });
 
     test('activity arriving with no active step is standalone', () {
@@ -621,6 +610,42 @@ void main() {
 
       expect(tracker.timeline.value, hasLength(1));
       expect(tracker.timeline.value.single, isA<TimelineStandaloneActivity>());
+    });
+
+    test('an activityType the timeline has never seen is still placed', () {
+      // Placement is unconditional on activityType. It used to be gated on a
+      // two-member set, so any other type reached the tracker and got no row.
+      // Both placements are asserted because that gate sat upstream of the
+      // choice between them, and every other test in this group uses a type
+      // the old gate admitted.
+      events.value = const ClientToolExecuting(
+        toolName: 'plan_step',
+        toolCallId: 'tc-1',
+      );
+      events.value = const ActivitySnapshot(
+        messageId: 'plan:1',
+        activityType: 'plan',
+        content: {'steps': 3},
+        timestamp: 100,
+      );
+      events.value = const ClientToolCompleted(
+        toolCallId: 'tc-1',
+        result: 'ok',
+        status: ToolCallStatus.completed,
+      );
+      events.value = const ActivitySnapshot(
+        messageId: 'audit:1',
+        activityType: 'audit',
+        content: {'checked': true},
+        timestamp: 200,
+      );
+
+      expect(tracker.timeline.value, hasLength(2));
+      final nested = tracker.timeline.value.first as TimelineStep;
+      expect(nested.activityIds, ['plan:1']);
+      final standalone =
+          tracker.timeline.value.last as TimelineStandaloneActivity;
+      expect(standalone.activityId, 'audit:1');
     });
 
     test(
@@ -740,8 +765,7 @@ void main() {
 
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.activityIds, ['bwrap:call_1']);
-      expect(
-          tracker.skillToolCalls.value.single.status, SkillToolCallStatus.done);
+      expect(tracker.activities.value.single.content['status'], 'done');
     });
 
     test('step completion updates status in timeline entry', () {
@@ -814,7 +838,10 @@ void main() {
 
       final step = tracker.timeline.value.single as TimelineStep;
       expect(step.activityIds, ['bwrap:call_1']);
-      expect(tracker.skillToolCalls.value.single.toolName, 'execute_script');
+      expect(
+        tracker.activities.value.single.content['tool_name'],
+        'execute_script',
+      );
       tracker.dispose();
     });
 

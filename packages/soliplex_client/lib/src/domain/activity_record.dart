@@ -3,10 +3,12 @@ import 'package:meta/meta.dart';
 
 /// A persisted AG-UI activity snapshot.
 ///
-/// One record per `ActivitySnapshotEvent` the backend emits. The raw
-/// `content` payload is stored as-is; consumers decode the fields they
-/// need (e.g. `skill_tool_call` activities store a double-encoded
-/// `args` string under `content['args']`).
+/// One record per `ActivitySnapshotEvent` folded into a conversation,
+/// whether it arrived on a live stream or from stored thread history.
+/// AG-UI defines an activity as an id-keyed store of opaque [content] and
+/// names no vocabulary for what is inside it, so [content] is stored
+/// verbatim and this layer reads no key of its own choosing out of it —
+/// only the RFC 6902 pointers a delta supplies.
 @immutable
 class ActivityRecord {
   /// Creates an activity record.
@@ -21,11 +23,12 @@ class ActivityRecord {
   /// same [messageId] update the same record.
   final String messageId;
 
-  /// Activity discriminator, e.g. `"skill_tool_call"`.
+  /// Activity discriminator. The spec names no vocabulary for it, so any
+  /// value a producer sends is valid and none is privileged here.
   final String activityType;
 
-  /// Structured payload describing the full activity state. Shape is
-  /// specific to [activityType].
+  /// Payload describing the full activity state, stored as it arrived.
+  /// Opaque to this layer; its shape is a producer's own convention.
   final Map<String, dynamic> content;
 
   /// Event timestamp, or a wall-clock fallback if the event had none.

@@ -280,7 +280,15 @@ class AwaitingApproval extends ExecutionEvent {
   int get hashCode => Object.hash(toolCallId, toolName, rationale);
 }
 
-/// A sub-agent activity snapshot from the backend.
+/// An AG-UI activity snapshot from the backend.
+///
+/// A faithful bridge of the wire event: [content] is the payload as it
+/// arrived, before the conversation's activity fold has applied it. A
+/// snapshot the fold discards — a repeat with [replace] false — still
+/// reaches here, so this is the wrong place to read an activity's settled
+/// state; that lives on the folded activity list on the conversation. The
+/// tracker takes only [messageId], to place the activity's position in the
+/// timeline.
 class ActivitySnapshot extends ExecutionEvent {
   const ActivitySnapshot({
     required this.messageId,
@@ -294,10 +302,11 @@ class ActivitySnapshot extends ExecutionEvent {
   /// same [messageId] update the same tracker entry.
   final String messageId;
 
-  /// The kind of activity (e.g. `'skill_tool_call'`).
+  /// The kind of activity. AG-UI names no vocabulary for it, so any value a
+  /// producer sends is valid.
   final String activityType;
 
-  /// Payload from the backend (e.g. `{'tool_name': 'search'}`).
+  /// Payload from the backend, opaque under AG-UI.
   final Map<String, dynamic> content;
 
   /// Event timestamp in ms since epoch, or `null` if the backend did

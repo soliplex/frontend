@@ -64,11 +64,10 @@ void main() {
       expect(result.single.timestamp, 200);
     });
 
-    test('skill_tool_result snapshot merges args from prior call record', () {
-      // Unified-row UI contract: AG-UI replaces the call snapshot with a
-      // result snapshot at the same messageId. The result phase does not
-      // carry args, so storage drops them unless the application layer
-      // bridges across the replace boundary.
+    test('a replacing snapshot stores its content verbatim', () {
+      // AG-UI's replace is a replace: content is opaque, so nothing here
+      // knows which keys of the record it supersedes might be worth
+      // carrying forward, and a key the event omits stays omitted.
       const call = ActivityRecord(
         messageId: 'rag:call_1',
         activityType: 'skill_tool_call',
@@ -91,39 +90,7 @@ void main() {
       final after = applyActivityEvent([call], result, logger: logger);
 
       expect(after, hasLength(1));
-      expect(after.single.activityType, 'skill_tool_result');
-      expect(after.single.content['result'], 'answer');
-      expect(after.single.content['args'], '{"q":"hi"}');
-    });
-
-    test(
-        'skill_tool_result snapshot does not overwrite args carried by '
-        'the event', () {
-      // Defensive: if a future backend ships args on the result phase,
-      // its value wins over the call-phase carry-over.
-      const call = ActivityRecord(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_call',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"old"}',
-        },
-        timestamp: 100,
-      );
-      const result = ActivitySnapshotEvent(
-        messageId: 'rag:call_1',
-        activityType: 'skill_tool_result',
-        content: {
-          'tool_name': 'ask',
-          'args': '{"q":"new"}',
-          'result': 'answer',
-        },
-        timestamp: 200,
-      );
-
-      final after = applyActivityEvent([call], result, logger: logger);
-
-      expect(after.single.content['args'], '{"q":"new"}');
+      expect(after.single.content, {'tool_name': 'ask', 'result': 'answer'});
     });
 
     test('preserves prior record when replace=false and id collides', () {
@@ -148,6 +115,39 @@ void main() {
       expect(result, hasLength(1));
       expect(result.single.content['tool_name'], 'first');
       expect(result.single.timestamp, 100);
+    });
+
+    test('logs a warning when replace=false discards a payload', () {
+      // The discard is the one drop on this path with nothing else to show
+      // it happened: no tile, no state change, and a row that keeps
+      // rendering content the producer meant to supersede. The log is the
+      // only trace, so it carries both activityTypes for triage.
+      final sink = _RecordingSink(forLoggerName: 'test.activity_events');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+
+      const initial = ActivityRecord(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_call',
+        content: {'tool_name': 'first'},
+        timestamp: 100,
+      );
+      const event = ActivitySnapshotEvent(
+        messageId: 'rag:call_1',
+        activityType: 'skill_tool_result',
+        content: {'tool_name': 'second'},
+        replace: false,
+        timestamp: 200,
+      );
+
+      applyActivityEvent([initial], event, logger: logger);
+
+      expect(sink.records, hasLength(1));
+      final record = sink.records.single;
+      expect(record.level, LogLevel.warning);
+      expect(record.attributes['messageId'], 'rag:call_1');
+      expect(record.attributes['activityType'], 'skill_tool_result');
+      expect(record.attributes['existingActivityType'], 'skill_tool_call');
     });
 
     test('skips a snapshot whose content is not a JSON object', () {

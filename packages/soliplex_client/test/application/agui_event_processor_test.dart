@@ -1159,10 +1159,8 @@ void main() {
         });
 
         test('ToolCallStartEvent without timestamp synthesizes wall-clock', () {
-          // Sibling to the skill_tool_call synthesis test: both code paths
-          // construct a fresh ToolCallPhase via `_withToolCallPhase`; both
-          // must guarantee a non-null timestamp so equality and any future
-          // UI consumer can rely on the field.
+          // `_withToolCallPhase` must guarantee a non-null timestamp so
+          // equality and any future UI consumer can rely on the field.
           final before = DateTime.now().millisecondsSinceEpoch;
           const event = ToolCallStartEvent(
             toolCallId: 'tc-1',
@@ -1274,42 +1272,15 @@ void main() {
     });
 
     group('activity snapshot events', () {
-      test('skill_tool_call sets ToolCallPhase with tool name', () {
+      test('a snapshot naming a tool leaves the streaming phase alone', () {
+        // The phase label is `TOOL_CALL_START`'s to set. An activity's
+        // content is opaque under AG-UI, so a `tool_name` inside it is not
+        // this layer's cue to announce a tool call — reading one here would
+        // put a phase on screen for a tool the run may never call.
         const event = ActivitySnapshotEvent(
           messageId: 'msg-1',
           activityType: 'skill_tool_call',
           content: {'tool_name': 'search'},
-        );
-
-        final result = processEvent(conversation, streaming, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        final phase = awaitingText.currentPhase as app_streaming.ToolCallPhase;
-        expect(phase.toolNames, contains('search'));
-      });
-
-      test('skill_tool_call accumulates on existing ToolCallPhase', () {
-        final firstTool = app_streaming.AwaitingText(
-          currentPhase: app_streaming.ToolCallPhase.single(toolName: 'ask'),
-        );
-        const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
-          activityType: 'skill_tool_call',
-          content: {'tool_name': 'search'},
-        );
-
-        final result = processEvent(conversation, firstTool, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        final phase = awaitingText.currentPhase as app_streaming.ToolCallPhase;
-        expect(phase.toolNames, equals({'ask', 'search'}));
-      });
-
-      test('skill_tool_call with missing tool_name passes through', () {
-        const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
-          activityType: 'skill_tool_call',
-          content: <String, dynamic>{},
         );
 
         final result = processEvent(conversation, streaming, event);
@@ -1320,41 +1291,6 @@ void main() {
           isA<app_streaming.ProcessingPhase>(),
         );
       });
-
-      test('skill_tool_call sets timestamp from event', () {
-        const event = ActivitySnapshotEvent(
-          messageId: 'msg-1',
-          activityType: 'skill_tool_call',
-          content: {'tool_name': 'search'},
-          timestamp: 2000,
-        );
-
-        final result = processEvent(conversation, streaming, event);
-
-        final awaitingText = result.streaming as app_streaming.AwaitingText;
-        final phase = awaitingText.currentPhase as app_streaming.ToolCallPhase;
-        expect(phase.timestamp, equals(2000));
-      });
-
-      test(
-        'skill_tool_call without timestamp synthesizes wall-clock value',
-        () {
-          final before = DateTime.now().millisecondsSinceEpoch;
-          const event = ActivitySnapshotEvent(
-            messageId: 'msg-1',
-            activityType: 'skill_tool_call',
-            content: {'tool_name': 'search'},
-          );
-
-          final result = processEvent(conversation, streaming, event);
-          final after = DateTime.now().millisecondsSinceEpoch;
-
-          final phase = (result.streaming as app_streaming.AwaitingText)
-              .currentPhase as app_streaming.ToolCallPhase;
-          expect(phase.timestamp, greaterThanOrEqualTo(before));
-          expect(phase.timestamp, lessThanOrEqualTo(after));
-        },
-      );
 
       test('persists snapshot as ActivityRecord on conversation', () {
         const event = ActivitySnapshotEvent(
@@ -1376,10 +1312,9 @@ void main() {
       });
 
       test('unknown activityType is persisted and leaves streaming intact', () {
-        // Two invariants exercised together: unknown activityTypes flow
-        // into Conversation.activities (so future consumers can read
-        // them) AND don't disturb the streaming phase (no spurious
-        // ToolCallPhase transition).
+        // No activityType is privileged: one the app has never seen lands in
+        // Conversation.activities on the same terms as any other, and leaves
+        // the streaming phase where it was.
         const event = ActivitySnapshotEvent(
           messageId: 'plan:1',
           activityType: 'plan',
@@ -1505,12 +1440,12 @@ void main() {
       });
 
       test('non-object content throws so the caller mints a drop tile', () {
-        // AG-UI types `content` as `Object?`, but a non-object payload can
-        // neither be stored in `ActivityRecord.content` nor decoded into a
-        // tool-call phase — the activity is lost. Throwing is what makes that
-        // visible: both callers wrap `processEvent` and turn a throw into a
-        // `DropSource.eventProcessing` tile. Skipping instead would strand a
-        // `skill_tool_call` row at in-progress with nothing on screen.
+        // AG-UI types `content` as `Object?`, but a non-object payload has
+        // nowhere to go in `ActivityRecord.content` — the activity is lost.
+        // Throwing is what makes that visible: both callers wrap
+        // `processEvent` and turn a throw into a `DropSource.eventProcessing`
+        // tile. Skipping instead would lose the activity with nothing on
+        // screen saying the event arrived.
         const event = ActivitySnapshotEvent(
           messageId: 'rag:call_bad',
           activityType: 'skill_tool_call',
@@ -1531,9 +1466,9 @@ void main() {
       });
 
       test('non-object content on a result snapshot also throws', () {
-        // The `skill_tool_result` path is the one that strands a row: the prior
-        // `skill_tool_call` record survives with its old activityType, so
-        // without a throw the tool row sits at in-progress forever.
+        // A replacing snapshot is the case that strands a row: the prior
+        // record survives at its earlier content, so without a throw the row
+        // keeps disclosing the superseded state with nothing saying so.
         final seeded = conversation.copyWith(
           activities: [
             const ActivityRecord(
