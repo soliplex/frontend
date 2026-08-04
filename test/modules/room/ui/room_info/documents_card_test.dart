@@ -81,6 +81,103 @@ void main() {
     });
   });
 
+  // A PDF and a file embedded in it, which the backend ingests as its own
+  // document and relates to its container only through an `#attachment=`
+  // marker in its URI.
+  const container = RagDocument(
+    id: 'id-container',
+    title: null,
+    uri: 'file:///docs/annual-report.pdf',
+  );
+  const attachment = RagDocument(
+    id: 'id-attachment',
+    title: null,
+    uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+  );
+
+  group('embedded files', () {
+    testWidgets('an embedded file names the document it came from',
+        (tester) async {
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [container, attachment]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('budget.xlsx'), findsOneWidget);
+      // Both rows are on screen, so exactly one provenance line means a
+      // container states none of its own.
+      expect(find.text('annual-report.pdf'), findsOneWidget);
+      expect(find.text('in annual-report.pdf'), findsOneWidget);
+    });
+  });
+
+  group('document title', () {
+    testWidgets('an expanded document shows its title', (tester) async {
+      const titled = RagDocument(
+        id: 'id-titled',
+        title: 'Annual Operations Review',
+        uri: 'file:///docs/report.pdf',
+      );
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [titled]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('report.pdf'));
+      await tester.pump();
+
+      expect(find.textContaining('Annual Operations Review'), findsOneWidget);
+    });
+
+    testWidgets('an expanded document whose label is the title shows it once',
+        (tester) async {
+      // The row label falls back to the title when the uri names no file.
+      // Repeating it under a `title` lead-in would print the same string twice.
+      const titleAsLabel = RagDocument(
+        id: 'id-title-as-label',
+        title: 'Annual Operations Review',
+        uri: 'file:///docs/',
+      );
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [titleAsLabel]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Annual Operations Review'));
+      await tester.pump();
+
+      expect(find.textContaining('Annual Operations Review'), findsOneWidget);
+    });
+
+    testWidgets('an expanded document with no title shows no title row',
+        (tester) async {
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [container]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('annual-report.pdf'));
+      await tester.pump();
+
+      // The label goes with the value — a lone `title` lead-in announces
+      // nothing.
+      expect(find.text('id'), findsOneWidget);
+      expect(find.textContaining('title  '), findsNothing);
+    });
+  });
+
   group('document list', () {
     testWidgets('shows document list with names', (tester) async {
       await tester.pumpWidget(wrap(

@@ -501,11 +501,9 @@ void main() {
         expect(doc.updatedAt, isNull);
       });
 
-      test('leaves a null title absent rather than standing in the uri', () {
-        // A document the backend gave no title has none. Inventing one here put
-        // the whole URI in the title field, which any consumer asking "does
-        // this document have a title?" then had to recognise as a stand-in.
-        // The display fallback lives in the UI layer instead.
+      test('a document the backend sent no title for has none', () {
+        // Callers distinguish an absent title from a real one, so nothing
+        // stands in for it here; a surface needing a label derives one.
         final json = <String, dynamic>{
           'id': 'doc-uuid-123',
           'title': null,

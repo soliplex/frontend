@@ -16,7 +16,44 @@ final _docs = [
   const RagDocument(id: '3', title: 'Data.xlsx', uri: '/files/Data.xlsx'),
 ];
 
+// A PDF and a file embedded in it, which the backend ingests as its own
+// document and relates to its container only through an `#attachment=`
+// marker in its URI.
+const _container = RagDocument(
+  id: 'c',
+  title: null,
+  uri: 'file:///docs/annual-report.pdf',
+);
+const _attachment = RagDocument(
+  id: 'a',
+  title: null,
+  uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+);
+
 void main() {
+  group('embedded files', () {
+    testWidgets('an embedded file names the document it came from',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentPicker(
+              documents: const [_container, _attachment],
+              selected: const {},
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('budget.xlsx'), findsOneWidget);
+      // Both rows are on screen, so exactly one provenance line means a
+      // container states none of its own.
+      expect(find.text('annual-report.pdf'), findsOneWidget);
+      expect(find.text('in annual-report.pdf'), findsOneWidget);
+    });
+  });
+
   group('DocumentPicker', () {
     testWidgets('displays all documents', (tester) async {
       await tester.pumpWidget(

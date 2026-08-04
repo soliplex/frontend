@@ -71,7 +71,7 @@ class RagDocument {
   /// Creates a RAG document.
   const RagDocument({
     required this.id,
-    this.title,
+    required this.title,
     this.uri = '',
     this.metadata = const {},
     this.createdAt,
@@ -83,10 +83,10 @@ class RagDocument {
 
   /// Display title of the document, or null when the backend sent none.
   ///
-  /// Null is the common case: the backend only resolves a title when a
-  /// deployment enables it. Nothing stands in for an absent one here, so a
-  /// caller asking whether a document has a title gets a straight answer; a
-  /// surface that needs a label regardless derives one from [uri].
+  /// The backend only resolves a title when a deployment enables it. Nothing
+  /// stands in for an absent one here, so a caller asking whether a document
+  /// has a title gets a straight answer; a surface that needs a label
+  /// regardless derives one from [uri].
   final String? title;
 
   /// Document URI (e.g. file path or URL).

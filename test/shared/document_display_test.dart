@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart';
-import 'package:soliplex_frontend/src/shared/file_type_icons.dart';
+import 'package:soliplex_frontend/src/shared/document_display.dart';
 
 void main() {
-  group('documentTypeIcon file-type mapping', () {
+  group('DocumentDisplay.icon file-type mapping', () {
     // The title carries no extension, so a fallback to it would surface as the
     // generic glyph rather than silently matching the expected one.
-    IconData iconFor(String uri) =>
-        documentTypeIcon(RagDocument(id: 'doc-1', title: 'untitled', uri: uri));
+    IconData iconFor(String uri) => DocumentDisplay(
+          RagDocument(id: 'doc-1', title: 'untitled', uri: uri),
+        ).icon;
 
     // One representative per glyph family. A case per alias would restate the
     // switch it is checking, so a typo there would be copied into the
@@ -53,19 +54,19 @@ void main() {
     });
   });
 
-  group('documentDisplayName', () {
+  group('DocumentDisplay.name', () {
     test('returns filename from uri for file-path uri', () {
       const doc = RagDocument(
         id: 'doc-1',
         title: 'Facilities Handbook',
         uri: 'manuals/facilities/handbook.pdf',
       );
-      expect(documentDisplayName(doc), equals('handbook.pdf'));
+      expect(DocumentDisplay(doc).name, equals('handbook.pdf'));
     });
 
     test('falls back to title when uri is empty', () {
       const doc = RagDocument(id: 'doc-2', title: 'Question 1');
-      expect(documentDisplayName(doc), equals('Question 1'));
+      expect(DocumentDisplay(doc).name, equals('Question 1'));
     });
 
     test('falls back to title when uri is a UUID', () {
@@ -74,7 +75,7 @@ void main() {
         title: 'Question 1',
         uri: '4e8bf0c7-f504-4ffc-b647-a9f8f255bea5',
       );
-      expect(documentDisplayName(doc), equals('Question 1'));
+      expect(DocumentDisplay(doc).name, equals('Question 1'));
     });
 
     test('handles file:// prefixed uri', () {
@@ -83,7 +84,7 @@ void main() {
         title: 'Facilities Handbook',
         uri: 'file:///data/manuals/facilities/handbook.pdf',
       );
-      expect(documentDisplayName(doc), equals('handbook.pdf'));
+      expect(DocumentDisplay(doc).name, equals('handbook.pdf'));
     });
 
     test('returns just filename for short uri', () {
@@ -92,7 +93,7 @@ void main() {
         title: 'PowerPoint Presentation',
         uri: 'slides.pptx',
       );
-      expect(documentDisplayName(doc), equals('slides.pptx'));
+      expect(DocumentDisplay(doc).name, equals('slides.pptx'));
     });
 
     test('handles uppercase UUID', () {
@@ -101,7 +102,7 @@ void main() {
         title: 'Question 2',
         uri: '4E8BF0C7-F504-4FFC-B647-A9F8F255BEA5',
       );
-      expect(documentDisplayName(doc), equals('Question 2'));
+      expect(DocumentDisplay(doc).name, equals('Question 2'));
     });
 
     test('names an attachment, not the document containing it', () {
@@ -110,7 +111,7 @@ void main() {
         title: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
         uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
       );
-      expect(documentDisplayName(doc), equals('budget.xlsx'));
+      expect(DocumentDisplay(doc).name, equals('budget.xlsx'));
     });
 
     test('falls back to title when the uri names no file', () {
@@ -119,35 +120,50 @@ void main() {
         title: 'Annual Report',
         uri: 'file:///docs/',
       );
-      expect(documentDisplayName(doc), equals('Annual Report'));
+      expect(DocumentDisplay(doc).name, equals('Annual Report'));
     });
 
     test('falls back to the uri when there is no title and no filename', () {
       // The least bad label available: it names no file and carries no title,
       // so the path is the only thing that distinguishes this row from another.
-      const doc = RagDocument(id: 'doc-12', uri: 'file:///docs/');
-      expect(documentDisplayName(doc), equals('file:///docs/'));
+      const doc = RagDocument(
+        id: 'doc-12',
+        title: null,
+        uri: 'file:///docs/',
+      );
+      expect(DocumentDisplay(doc).name, equals('file:///docs/'));
     });
 
     test('reads as untitled when the document carries no uri or title', () {
-      const doc = RagDocument(id: 'doc-13');
-      expect(documentDisplayName(doc), equals('Untitled'));
+      const doc = RagDocument(id: 'doc-13', title: null);
+      expect(DocumentDisplay(doc).name, equals('Untitled'));
+    });
+
+    test('reads a title of only whitespace as absent', () {
+      // Taking it would label the row with something that renders as nothing,
+      // and the tooltip meant to recover a truncated name would be blank too.
+      const doc = RagDocument(
+        id: 'doc-14',
+        title: '   ',
+        uri: 'file:///docs/',
+      );
+      expect(DocumentDisplay(doc).name, equals('file:///docs/'));
     });
   });
 
-  group('documentTypeIcon', () {
+  group('DocumentDisplay.icon', () {
     test('resolves a regular document from its uri', () {
       const doc = RagDocument(
         id: 'doc-1',
         title: 'Facilities Handbook',
         uri: 'manuals/facilities/handbook.pdf',
       );
-      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
+      expect(DocumentDisplay(doc).icon, equals(Icons.picture_as_pdf));
     });
 
     test('falls back to title when uri is empty', () {
       const doc = RagDocument(id: 'doc-2', title: 'report.pdf');
-      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
+      expect(DocumentDisplay(doc).icon, equals(Icons.picture_as_pdf));
     });
 
     test('falls back to title when uri is a UUID', () {
@@ -156,7 +172,7 @@ void main() {
         title: 'Question 1.docx',
         uri: '4e8bf0c7-f504-4ffc-b647-a9f8f255bea5',
       );
-      expect(documentTypeIcon(doc), equals(Icons.description));
+      expect(DocumentDisplay(doc).icon, equals(Icons.description));
     });
 
     test('resolves an attachment to its own file type', () {
@@ -165,7 +181,7 @@ void main() {
         title: 'attachment',
         uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
       );
-      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+      expect(DocumentDisplay(doc).icon, equals(Icons.table_chart));
     });
 
     test('falls back to title when the uri names no file', () {
@@ -176,8 +192,8 @@ void main() {
         title: 'Budget.xlsx',
         uri: 'file:///docs/',
       );
-      expect(documentDisplayName(doc), equals('Budget.xlsx'));
-      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+      expect(DocumentDisplay(doc).name, equals('Budget.xlsx'));
+      expect(DocumentDisplay(doc).icon, equals(Icons.table_chart));
     });
 
     test('resolves an attachment whose name contains a literal hash', () {
@@ -188,8 +204,8 @@ void main() {
         title: 'hashed',
         uri: 'file:///docs/a.pdf#attachment=invoice%231234.xlsx',
       );
-      expect(documentDisplayName(doc), equals('invoice#1234.xlsx'));
-      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+      expect(DocumentDisplay(doc).name, equals('invoice#1234.xlsx'));
+      expect(DocumentDisplay(doc).icon, equals(Icons.table_chart));
     });
 
     test('ignores a page fragment on a regular document', () {
@@ -198,14 +214,22 @@ void main() {
         title: 'paged',
         uri: 'file:///docs/handbook.pdf#page=3',
       );
-      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
+      expect(DocumentDisplay(doc).icon, equals(Icons.picture_as_pdf));
     });
   });
 
   group('name derivation across surfaces', () {
+    // The value once, then the agreement: each surface's own tests pin the
+    // value, so what only these cases catch is the two ladders drifting apart —
+    // one side gaining a guard the other does not.
+    //
+    // Their last resort differs by design and is deliberately not asserted
+    // here: a citation with no name left reads `Unknown Document`, where a
+    // listing row shows its URI, the only string that still tells two rows
+    // apart.
     test('the document list and a citation name an attachment identically', () {
       const uri = 'file:///docs/annual-report.pdf#attachment=budget.xlsx';
-      const doc = RagDocument(id: 'doc-1', title: uri, uri: uri);
+      const doc = RagDocument(id: 'doc-1', title: null, uri: uri);
       const ref = SourceReference(
         documentId: 'doc-1',
         documentUri: uri,
@@ -213,12 +237,38 @@ void main() {
         chunkId: 'chunk-1',
       );
 
-      // The value once, then the agreement: each surface's own test pins the
-      // value, so what only this case can catch is the two drifting apart —
-      // one side gaining a guard the other does not, which is how they came to
-      // disagree before.
-      expect(documentDisplayName(doc), equals('budget.xlsx'));
-      expect(ref.displayTitle, equals(documentDisplayName(doc)));
+      expect(DocumentDisplay(doc).name, equals('budget.xlsx'));
+      expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
+    });
+
+    test('both take the title when the uri names no file', () {
+      const uri = 'file:///docs/';
+      const doc = RagDocument(id: 'doc-2', title: 'Annual Report', uri: uri);
+      const ref = SourceReference(
+        documentId: 'doc-2',
+        documentUri: uri,
+        documentTitle: 'Annual Report',
+        content: 'content',
+        chunkId: 'chunk-1',
+      );
+
+      expect(DocumentDisplay(doc).name, equals('Annual Report'));
+      expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
+    });
+
+    test('both pass over a title that reads blank', () {
+      const uri = 'file:///docs/report.pdf';
+      const doc = RagDocument(id: 'doc-3', title: '   ', uri: uri);
+      const ref = SourceReference(
+        documentId: 'doc-3',
+        documentUri: uri,
+        documentTitle: '   ',
+        content: 'content',
+        chunkId: 'chunk-1',
+      );
+
+      expect(DocumentDisplay(doc).name, equals('report.pdf'));
+      expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
     });
   });
 
