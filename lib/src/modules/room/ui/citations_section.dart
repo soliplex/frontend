@@ -10,6 +10,7 @@ import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
 import '../document_browser_url.dart';
+import 'document_metadata_line.dart';
 import 'document_source.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
 import 'markdown/log_source.dart';
@@ -182,6 +183,12 @@ class _SourceReferenceRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         vertical: SoliplexSpacing.s1),
                     child: Row(
+                      // The badge and the page range read against the cited
+                      // file's name, so they sit on its baseline. Centring
+                      // instead lands them level with the provenance line
+                      // beneath it, numbering the containing document.
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
                       children: [
                         Container(
                           width: 24,
@@ -202,11 +209,9 @@ class _SourceReferenceRow extends StatelessWidget {
                         ),
                         const SizedBox(width: SoliplexSpacing.s2),
                         Expanded(
-                          child: Text(
-                            sourceReference.displayTitle,
-                            style: theme.textTheme.bodySmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: _SourceLabel(
+                            displayTitle: sourceReference.displayTitle,
+                            ancestorNames: sourceReference.ancestorNames,
                           ),
                         ),
                         if (sourceReference.formattedPageNumbers != null) ...[
@@ -272,6 +277,8 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // The row's label is the filename, so the title has no home there.
+          DocumentTitleLine(title: sourceReference.documentTitle),
           // The cited document's source link: the viewer `source_url`, else a
           // resolver-derived URL from the document URI, else the raw URI as
           // text (it is never itself launchable). A fork supplies the resolver
@@ -314,41 +321,74 @@ class _SourceReferenceRow extends StatelessWidget {
             _CitationTranscript(content: sourceReference.content),
           ],
           const SizedBox(height: SoliplexSpacing.s2),
-          _metaLine(context, theme, 'chunk id', sourceReference.chunkId),
+          DocumentMetadataLine.identifier(
+            label: 'chunk id',
+            value: sourceReference.chunkId,
+          ),
         ],
       ),
     );
   }
+}
 
-  /// A single provenance line: a muted-bold [label] lead-in followed by a
-  /// monospace [value] that wraps to the margin, so the full uri / chunk id
-  /// stays visible without a hanging indent.
-  Widget _metaLine(
-    BuildContext context,
-    ThemeData theme,
-    String label,
-    String value,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
-      child: Text.rich(
-        TextSpan(
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.onSurfaceVariant,
+/// A citation's label: the cited file's name, over the documents containing it
+/// when it is embedded in one — `in annual-report.pdf`, chaining when it is
+/// embedded two deep.
+///
+/// Each line is capped at one, so a citation occupies the same two rows however
+/// long its names run. Several citations sit inline in a single message, and
+/// document filenames are routinely long enough to wrap, so letting them do so
+/// would size each row by whichever name happened to be longest.
+///
+/// One tooltip covers both, because both are cut by the same cap and neither is
+/// readable anywhere else: a configured browser link renders only host and
+/// path, dropping the fragment the containing document is named in.
+class _SourceLabel extends StatelessWidget {
+  const _SourceLabel({
+    required this.displayTitle,
+    required this.ancestorNames,
+  });
+
+  final String displayTitle;
+
+  /// The documents containing the cited file, outermost first. Empty when it is
+  /// not embedded in one, which renders the name alone.
+  final List<String> ancestorNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final provenance =
+        ancestorNames.isEmpty ? null : 'in ${ancestorNames.join(' > ')}';
+
+    return Tooltip(
+      // Spelled as a sentence rather than stacked the way the label is, so the
+      // relationship between the two names is stated instead of implied by
+      // their arrangement.
+      message: ancestorNames.isEmpty
+          ? displayTitle
+          : '$displayTitle embedded in ${ancestorNames.join(' > ')}',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            displayTitle,
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          children: [
-            TextSpan(text: '$label  '),
-            TextSpan(
-              text: value,
-              style: context.monospaceOn(
-                theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+          if (provenance != null)
+            Text(
+              provenance,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

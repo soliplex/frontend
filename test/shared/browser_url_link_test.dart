@@ -35,5 +35,17 @@ void main() {
       expect(find.byIcon(Icons.link), findsOneWidget);
       expect(find.byType(InkWell), findsOneWidget);
     });
+
+    testWidgets('carries the whole url in a tooltip', (tester) async {
+      // The displayed text drops the scheme, the query and the fragment, and
+      // ellipsizes what is left, so the tooltip is the only place the address
+      // being opened can be read in full.
+      final url = Uri.parse('https://example.test/a/b.pdf?x=1#attachment=c');
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: BrowserUrlLink(url: url))),
+      );
+
+      expect(find.byTooltip(url.toString()), findsOneWidget);
+    });
   });
 }
