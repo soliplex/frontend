@@ -8,6 +8,42 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 
 void main() {
+  group('composerAcceptsText', () {
+    test('refuses while a run holds the composer read-only', () {
+      // Typed characters are swallowed in these states, so text routed in from
+      // elsewhere would be stuck there until the run ended.
+      for (final state in [
+        AgentSessionState.spawning,
+        AgentSessionState.running,
+      ]) {
+        expect(
+          composerAcceptsText(enabled: true, sessionState: state),
+          isFalse,
+          reason: '$state should hold the composer',
+        );
+      }
+    });
+
+    test('refuses while the screen has the composer disabled', () {
+      // A thread still loading its messages, whatever the session is doing.
+      for (final state in [null, AgentSessionState.completed]) {
+        expect(
+          composerAcceptsText(enabled: false, sessionState: state),
+          isFalse,
+          reason: 'disabled should refuse with session $state',
+        );
+      }
+    });
+
+    test('takes text with no session yet', () {
+      // A room's first message, before anything has spawned.
+      expect(
+        composerAcceptsText(enabled: true, sessionState: null),
+        isTrue,
+      );
+    });
+  });
+
   testWidgets('send button dispatches text and clears field', (tester) async {
     String? sentText;
     final sessionState = signal<AgentSessionState?>(null);

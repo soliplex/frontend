@@ -7,6 +7,24 @@ import '../../../shared/document_display.dart';
 import 'document_label.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+/// Whether the composer takes text right now. It refuses while the screen has
+/// it disabled and while a run is in flight, because both render it read-only —
+/// text routed in during either state could not be edited or removed until the
+/// composer came back.
+///
+/// [ChatInput] gates its text field, send button, document filter, attach
+/// control, and chip removal on this. The Stop button sits outside it by
+/// necessity: it renders only while a run holds the composer, which is one of the
+/// states this refuses.
+bool composerAcceptsText({
+  required bool enabled,
+  required AgentSessionState? sessionState,
+}) =>
+    enabled && !_isRunActive(sessionState);
+
+bool _isRunActive(AgentSessionState? state) =>
+    state == AgentSessionState.spawning || state == AgentSessionState.running;
+
 class ChatInput extends StatefulWidget {
   const ChatInput({
     super.key,
@@ -111,8 +129,10 @@ class _ChatInputState extends State<ChatInput> {
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty ||
-        !widget.enabled ||
-        _isActive(widget.sessionState?.peek())) {
+        !composerAcceptsText(
+          enabled: widget.enabled,
+          sessionState: widget.sessionState?.peek(),
+        )) {
       return;
     }
     widget.onSend(text);
@@ -120,14 +140,12 @@ class _ChatInputState extends State<ChatInput> {
     _focusNode.requestFocus();
   }
 
-  bool _isActive(AgentSessionState? state) =>
-      state == AgentSessionState.spawning || state == AgentSessionState.running;
-
   @override
   Widget build(BuildContext context) {
     final state = widget.sessionState?.watch(context);
-    final active = _isActive(state);
-    final disabled = !widget.enabled || active;
+    final active = _isRunActive(state);
+    final disabled =
+        !composerAcceptsText(enabled: widget.enabled, sessionState: state);
     final cancelEnabled = widget.cancelEnabled?.watch(context) ?? true;
 
     return Padding(

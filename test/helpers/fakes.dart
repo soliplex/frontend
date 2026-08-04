@@ -483,6 +483,8 @@ class ManualAgentSession implements AgentSession {
     cancelCalled = true;
   }
 
+  void emit(RunState state) => _runState.value = state;
+
   void completeAsCancelled() {
     _runState.value = CancelledState.preRun(threadKey: threadKey);
     _resultCompleter.complete(AgentFailure(

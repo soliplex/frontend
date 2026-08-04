@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/unread_dot.dart';
@@ -198,6 +201,181 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('shouldPasteIntoChatInputOnKey', () {
+    KeyDownEvent down(LogicalKeyboardKey key) => KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyV,
+          logicalKey: key,
+          timeStamp: Duration.zero,
+        );
+
+    KeyRepeatEvent repeat(LogicalKeyboardKey key) => KeyRepeatEvent(
+          physicalKey: PhysicalKeyboardKey.keyV,
+          logicalKey: key,
+          timeStamp: Duration.zero,
+        );
+
+    bool shouldPaste(
+      KeyEvent event, {
+      TargetPlatform platform = TargetPlatform.macOS,
+      bool meta = false,
+      bool control = false,
+      bool alt = false,
+      bool includeRepeats = false,
+    }) =>
+        shouldPasteIntoChatInputOnKey(
+          event,
+          platform: platform,
+          isMetaPressed: meta,
+          isControlPressed: control,
+          isAltPressed: alt,
+          includeRepeats: includeRepeats,
+        );
+
+    test('each platform pastes with its own command modifier', () {
+      // Matching the chord Flutter binds for a focused field, so the composer
+      // answers the same keystroke whether or not it has focus.
+      for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+        expect(
+          shouldPaste(down(LogicalKeyboardKey.keyV),
+              platform: platform, meta: true),
+          isTrue,
+          reason: '$platform pastes with meta',
+        );
+        expect(
+          shouldPaste(down(LogicalKeyboardKey.keyV),
+              platform: platform, control: true),
+          isFalse,
+          reason: '$platform reads control+V as scroll-page-down',
+        );
+      }
+      for (final platform in [
+        TargetPlatform.linux,
+        TargetPlatform.windows,
+        TargetPlatform.android,
+        TargetPlatform.fuchsia,
+      ]) {
+        expect(
+          shouldPaste(down(LogicalKeyboardKey.keyV),
+              platform: platform, control: true),
+          isTrue,
+          reason: '$platform pastes with control',
+        );
+        expect(
+          shouldPaste(down(LogicalKeyboardKey.keyV),
+              platform: platform, meta: true),
+          isFalse,
+          reason: '$platform leaves meta+V alone',
+        );
+      }
+    });
+
+    test('holding both command modifiers does not paste', () {
+      // Neither platform's paste chord, so it belongs to whatever else answers
+      // it — the composer reports a match handled, so it matches exactly.
+      expect(
+        shouldPaste(down(LogicalKeyboardKey.keyV), meta: true, control: true),
+        isFalse,
+      );
+      expect(
+        shouldPaste(down(LogicalKeyboardKey.keyV),
+            platform: TargetPlatform.linux, meta: true, control: true),
+        isFalse,
+      );
+    });
+
+    test('control+alt+V does not paste', () {
+      expect(
+        shouldPaste(down(LogicalKeyboardKey.keyV),
+            platform: TargetPlatform.linux, control: true, alt: true),
+        isFalse,
+      );
+    });
+
+    test('a bare V does not paste', () {
+      expect(shouldPaste(down(LogicalKeyboardKey.keyV)), isFalse);
+    });
+
+    test('meta with another character does not paste', () {
+      // Cmd+C and Cmd+A must stay with the transcript's selection.
+      expect(shouldPaste(down(LogicalKeyboardKey.keyC), meta: true), isFalse);
+      expect(shouldPaste(down(LogicalKeyboardKey.keyA), meta: true), isFalse);
+    });
+
+    test('a key-up event does not paste', () {
+      expect(
+        shouldPaste(
+          KeyUpEvent(
+            physicalKey: PhysicalKeyboardKey.keyV,
+            logicalKey: LogicalKeyboardKey.keyV,
+            timeStamp: Duration.zero,
+          ),
+          meta: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a repeat claims no chord of its own', () {
+      // Every repeat while the chord is held would otherwise start a clipboard
+      // read of its own and pour the same text in again.
+      expect(shouldPaste(repeat(LogicalKeyboardKey.keyV), meta: true), isFalse);
+    });
+
+    test('a repeat counts for a caller that asks for repeats', () {
+      // Retiring a read in flight has to answer the same repeats the focused
+      // field's own binding does, which is a broader set than this claims.
+      expect(
+        shouldPaste(
+          repeat(LogicalKeyboardKey.keyV),
+          meta: true,
+          includeRepeats: true,
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('insertPastedText', () {
+    test('appends when the composer has never held a selection', () {
+      // Where a TextEditingValue starts before anything places a caret in it.
+      const value = TextEditingValue(
+        text: 'draft',
+        selection: TextSelection.collapsed(offset: -1),
+      );
+
+      final pasted = insertPastedText(value, ' pasted');
+
+      expect(pasted.text, 'draft pasted');
+      expect(pasted.selection, const TextSelection.collapsed(offset: 12));
+    });
+
+    test('appends when the selection outruns the text', () {
+      // The offsets are non-negative, so the selection reads as valid, but
+      // replaceRange would throw on them.
+      const value = TextEditingValue(
+        text: 'short',
+        selection: TextSelection(baseOffset: 0, extentOffset: 99),
+      );
+
+      final pasted = insertPastedText(value, '!');
+
+      expect(pasted.text, 'short!');
+      expect(pasted.selection, const TextSelection.collapsed(offset: 6));
+    });
+
+    test('inserts at the caret', () {
+      const value = TextEditingValue(
+        text: 'ac',
+        selection: TextSelection.collapsed(offset: 1),
+      );
+
+      final pasted = insertPastedText(value, 'b');
+
+      expect(pasted.text, 'abc');
+      expect(pasted.selection, const TextSelection.collapsed(offset: 2));
     });
   });
 
@@ -2441,4 +2619,626 @@ void main() {
 
     expect(find.text('room info page'), findsOneWidget);
   });
+
+  group('paste into the unfocused composer', () {
+    /// Declares a test that presses a chord on [platform], which decides which
+    /// chord the screen reads as paste. Defaults to a platform that pastes with
+    /// meta, since that is the modifier [sendChord] holds.
+    ///
+    /// The override has to be undone inside the body — the test binding checks
+    /// the foundation debug variables before any `tearDown` runs.
+    void testChord(
+      String description,
+      Future<void> Function(WidgetTester) body, {
+      TargetPlatform platform = TargetPlatform.macOS,
+    }) {
+      testWidgets(description, (tester) async {
+        debugDefaultTargetPlatformOverride = platform;
+        try {
+          await body(tester);
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
+
+    /// Answers `Clipboard.getData` with whatever [respond] returns. Throwing
+    /// from [respond] stands in for a platform that refuses the read.
+    void mockClipboard(FutureOr<Object?> Function() respond) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.getData') return await respond();
+        return null;
+      });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+    }
+
+    void mockClipboardText(String text) =>
+        mockClipboard(() => <String, Object?>{'text': text});
+
+    /// A thread still loading its messages, and a thread streaming a run, both
+    /// animate a spinner forever, so `settle: false` callers drain a couple of
+    /// frames instead of waiting for quiet.
+    Future<void> drainFrames(WidgetTester tester,
+        {required bool settle}) async {
+      if (settle) {
+        await tester.pumpAndSettle();
+      } else {
+        await tester.pump();
+        await tester.pump();
+      }
+    }
+
+    /// Holds [modifier] down over [key]. Reports whether anything claimed the
+    /// [key] press, which is what decides between the composer acting on a
+    /// chord and the platform keeping its own meaning for it.
+    Future<bool> sendChord(
+      WidgetTester tester,
+      LogicalKeyboardKey key, {
+      LogicalKeyboardKey modifier = LogicalKeyboardKey.metaLeft,
+    }) async {
+      await tester.sendKeyDownEvent(modifier);
+      final claimed = await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      return claimed;
+    }
+
+    Future<bool> pressChord(
+      WidgetTester tester,
+      LogicalKeyboardKey key, {
+      LogicalKeyboardKey modifier = LogicalKeyboardKey.metaLeft,
+      bool settle = true,
+    }) async {
+      final claimed = await sendChord(tester, key, modifier: modifier);
+      await drainFrames(tester, settle: settle);
+      return claimed;
+    }
+
+    Future<TextField> pumpRoom(WidgetTester tester,
+        {bool settle = true, Size? surfaceSize}) async {
+      if (surfaceSize != null) {
+        await tester.binding.setSurfaceSize(surfaceSize);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+      }
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await drainFrames(tester, settle: settle);
+      return tester.widget<TextField>(find.byType(TextField));
+    }
+
+    testChord('one paste chord focuses the composer and inserts the text',
+        (tester) async {
+      mockClipboardText('from the clipboard');
+      final composer = await pumpRoom(tester);
+      expect(composer.focusNode!.hasFocus, isFalse);
+
+      final claimed = await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.focusNode!.hasFocus, isTrue);
+      expect(composer.controller!.text, 'from the clipboard');
+      // Claiming reports that the composer answered the chord, so nothing else
+      // treats it as unhandled. On web it also suppresses the browser's own
+      // paste, which would otherwise add a second copy.
+      expect(claimed, isTrue);
+    });
+
+    testChord('control+V pastes on a platform that pastes with control',
+        (tester) async {
+      // The screen reads each modifier off the keyboard separately and hands
+      // them to the predicate; only pressing the chord proves control reaches
+      // it, and with it every non-Apple platform.
+      mockClipboardText('from the clipboard');
+      final composer = await pumpRoom(tester);
+
+      await pressChord(tester, LogicalKeyboardKey.keyV,
+          modifier: LogicalKeyboardKey.controlLeft);
+
+      expect(composer.controller!.text, 'from the clipboard');
+    }, platform: TargetPlatform.linux);
+
+    testChord(
+        'pastes over the composer selection, keeping the rest of the '
+        'draft', (tester) async {
+      mockClipboardText('take');
+      final composer = await pumpRoom(tester);
+      composer.controller!.value = const TextEditingValue(
+        text: 'keep drop keep',
+        selection: TextSelection(baseOffset: 5, extentOffset: 9),
+      );
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'keep take keep');
+      expect(
+        composer.controller!.selection,
+        const TextSelection.collapsed(offset: 9),
+      );
+    });
+
+    testChord('copy leaves the composer unfocused and empty', (tester) async {
+      mockClipboardText('from the clipboard');
+      final composer = await pumpRoom(tester);
+
+      await pressChord(tester, LogicalKeyboardKey.keyC);
+
+      expect(composer.focusNode!.hasFocus, isFalse);
+      expect(composer.controller!.text, isEmpty);
+    });
+
+    testChord('a dialog above the room keeps the chord', (tester) async {
+      // Whatever the dialog puts in front of the user owns the keyboard. Text
+      // routed into the draft behind it would land where the caret is not, and
+      // the dialog's own field would come up empty.
+      mockClipboardText('from the clipboard');
+      final composer = await pumpRoom(tester);
+      unawaited(showDialog<void>(
+        context: tester.element(find.byType(RoomScreen)),
+        builder: (_) => const AlertDialog(content: Text('above the room')),
+      ));
+      await tester.pumpAndSettle();
+
+      final claimed = await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(claimed, isFalse);
+      expect(composer.controller!.text, isEmpty);
+      expect(composer.focusNode!.hasFocus, isFalse);
+    });
+
+    testChord(
+        'a thread still loading its messages takes neither the text '
+        'nor the chord', (tester) async {
+      mockClipboardText('from the clipboard');
+      final blockingApi = _BlockingThreadsApi();
+      blockingApi.nextThreads = [
+        ThreadInfo(
+          id: 'thread-1',
+          roomId: 'room-1',
+          name: 'Test thread',
+          createdAt: DateTime(2026, 3, 1),
+        ),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: createTestServerEntry(api: blockingApi),
+          roomId: 'room-1',
+          threadId: 'thread-1',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pump();
+      final composer = tester.widget<TextField>(find.byType(TextField));
+      expect(composer.readOnly, isTrue);
+
+      final claimed =
+          await pressChord(tester, LogicalKeyboardKey.keyV, settle: false);
+
+      expect(composer.controller!.text, isEmpty);
+      expect(composer.focusNode!.hasFocus, isFalse);
+      expect(claimed, isFalse);
+
+      blockingApi.completeThreads(blockingApi.nextThreads!);
+    });
+
+    testChord('a run in flight takes neither the text nor the chord',
+        (tester) async {
+      mockClipboardText('from the clipboard');
+      api.nextThreads = const [];
+      final key =
+          (serverId: entry.serverId, roomId: 'room-1', threadId: 'thread-1');
+      final session = ManualAgentSession(key);
+      registry.register(key, session);
+      final composer = await pumpRoom(tester, settle: false);
+
+      // A RunningState loads the messages and marks the run live in one step,
+      // so the composer is enabled and the run alone holds it read-only —
+      // otherwise this could not tell the two halves of the guard apart.
+      session.emit(RunningState(
+        threadKey: key,
+        runId: 'run-1',
+        conversation: Conversation(threadId: 'thread-1', messages: const []),
+        streaming: const AwaitingText(),
+      ));
+      await tester.pump();
+      expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+
+      final claimed =
+          await pressChord(tester, LogicalKeyboardKey.keyV, settle: false);
+
+      expect(composer.controller!.text, isEmpty);
+      expect(composer.focusNode!.hasFocus, isFalse);
+      expect(claimed, isFalse);
+    });
+
+    testChord('an image-only clipboard moves focus and inserts nothing',
+        (tester) async {
+      mockClipboard(() => null);
+      final composer = await pumpRoom(tester);
+      composer.controller!.text = 'draft';
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.focusNode!.hasFocus, isTrue);
+      expect(composer.controller!.text, 'draft');
+    });
+
+    testChord('an empty clipboard leaves a selected draft in place',
+        (tester) async {
+      // Pasting nothing over a selection would delete it. The clipboard is the
+      // one place that text could have come from, so there is nothing to
+      // replace it with and the selection stands.
+      mockClipboardText('');
+      final composer = await pumpRoom(tester);
+      composer.controller!.value = const TextEditingValue(
+        text: 'keep drop keep',
+        selection: TextSelection(baseOffset: 5, extentOffset: 9),
+      );
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'keep drop keep');
+    });
+
+    testChord('a refused clipboard read leaves the draft alone',
+        (tester) async {
+      // A browser withholding `readText` is a steady state the user meets on
+      // every keypress, so it is reported below the error level, and carries the
+      // code that separates it from a genuinely broken clipboard channel.
+      final sink = _RecordingSink('soliplex_frontend.room_screen');
+      LogManager.instance.addSink(sink);
+      addTearDown(() => LogManager.instance.removeSink(sink));
+      mockClipboard(
+        () => throw PlatformException(code: 'paste_fail'),
+      );
+      final composer = await pumpRoom(tester);
+      composer.controller!.text = 'draft';
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'draft');
+      final refusal = sink.records.singleWhere(
+        (r) => r.message.contains('refused a clipboard read'),
+      );
+      expect(refusal.level, LogLevel.warning);
+      expect(refusal.attributes['code'], 'paste_fail');
+    });
+
+    testChord('a thread switch during the read drops the paste',
+        (tester) async {
+      final read = Completer<Map<String, Object?>>();
+      mockClipboard(() => read.future);
+      final composer = await pumpRoom(tester);
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+
+      // The clipboard answers only after the user has moved on. The draft the
+      // chord measured is gone, so its text must not land in the new one.
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: 'thread-2',
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      expect(composer.controller!.text, isEmpty);
+    });
+
+    testChord('a dialog opened during the read drops the paste',
+        (tester) async {
+      // The chord was legal when it was pressed; by the time the clipboard
+      // answers, a dialog owns the keyboard and its field is where the user is
+      // typing. The draft behind it must not collect the text.
+      final read = Completer<Map<String, Object?>>();
+      mockClipboard(() => read.future);
+      final composer = await pumpRoom(tester);
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+      unawaited(showDialog<void>(
+        context: tester.element(find.byType(RoomScreen)),
+        builder: (_) => const AlertDialog(content: Text('above the room')),
+      ));
+      await tester.pumpAndSettle();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      expect(composer.controller!.text, isEmpty);
+    });
+
+    testChord('leaving the room during the read throws nothing',
+        (tester) async {
+      // The composer's controller is disposed with the screen, and reading the
+      // clipboard can outlast a consent prompt, so the paste has to notice the
+      // screen is gone rather than write into a disposed controller.
+      final read = Completer<Map<String, Object?>>();
+      var reads = 0;
+      mockClipboard(() {
+        reads++;
+        return read.future;
+      });
+      await pumpRoom(tester);
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpAndSettle();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      // Without the read there is nothing to survive, so name it rather than
+      // let the test pass for having done nothing.
+      expect(reads, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testChord('a focused composer pastes once, through the platform',
+        (tester) async {
+      // The screen abstains once the composer has focus, and that abstention is
+      // load-bearing: claiming the chord does not stop the focused field's own
+      // paste, so answering it here too would insert the clipboard twice.
+      mockClipboardText('from the clipboard');
+      final composer = await pumpRoom(tester);
+      composer.focusNode!.requestFocus();
+      await tester.pumpAndSettle();
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'from the clipboard');
+    });
+
+    testChord('a second chord during the read pastes once, not twice',
+        (tester) async {
+      // The first chord moves focus and leaves a read in flight, so the second
+      // reaches the focused field and pastes through the platform. The read
+      // still owed an answer must not insert the same clipboard again.
+      final read = Completer<Map<String, Object?>>();
+      mockClipboard(() => read.future);
+      final composer = await pumpRoom(tester);
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+      expect(composer.focusNode!.hasFocus, isTrue);
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      expect(composer.controller!.text, 'from the clipboard');
+    });
+
+    testChord('the open drawer keeps the chord and the clipboard out',
+        (tester) async {
+      // The drawer covers the composer without pushing a route, so the room
+      // still reads as the current one. Text routed into the composer now would
+      // land where the user cannot see it.
+      mockClipboardText('from the clipboard');
+      final composer =
+          await pumpRoom(tester, surfaceSize: const Size(400, 800));
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+
+      final claimed = await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, isEmpty);
+      expect(composer.focusNode!.hasFocus, isFalse);
+      expect(claimed, isFalse);
+    });
+
+    testChord('a drawer opened during the read drops the paste',
+        (tester) async {
+      // Same obstacle arriving mid-read as the dialog case: by the time the
+      // clipboard answers, the composer is behind the scrim.
+      final read = Completer<Map<String, Object?>>();
+      mockClipboard(() => read.future);
+      final composer =
+          await pumpRoom(tester, surfaceSize: const Size(400, 800));
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      expect(composer.controller!.text, isEmpty);
+    });
+
+    testChord('widening away from an open drawer keeps the chord working',
+        (tester) async {
+      // The drawer only exists in the narrow layout, and its removal reports no
+      // close. A guard that took the Scaffold's word for it would stay shut here
+      // for the life of the screen.
+      mockClipboardText('from the clipboard');
+      final composer =
+          await pumpRoom(tester, surfaceSize: const Size(400, 800));
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      await tester.pumpAndSettle();
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'from the clipboard');
+    });
+
+    testChord('the open drawer keeps plain typing out of the composer too',
+        (tester) async {
+      // Type-to-focus shares the guard the chord uses, so a composer behind the
+      // scrim must not take focus from an ordinary keystroke either.
+      final composer =
+          await pumpRoom(tester, surfaceSize: const Size(400, 800));
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+      await tester.pumpAndSettle();
+
+      expect(composer.focusNode!.hasFocus, isFalse);
+    });
+
+    testChord('a drawer dragged shut lets the chord through again',
+        (tester) async {
+      // A drag that carries the drawer the whole way closed settles it without
+      // running the close animation, so neither the drawer's own state nor the
+      // route it borrows announces the close. Only whether the drawer is on
+      // screen answers for this one.
+      mockClipboardText('from the clipboard');
+      final composer =
+          await pumpRoom(tester, surfaceSize: const Size(400, 800));
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+
+      // Slowly, and ending at rest: a flick would settle it by animation
+      // instead, which is the path that does announce itself.
+      final gesture = await tester.startGesture(const Offset(150, 400));
+      for (var i = 0; i < 14; i++) {
+        await gesture.moveBy(const Offset(-30, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.controller!.text, 'from the clipboard');
+    }, platform: TargetPlatform.iOS);
+
+    testChord('a room with no thread yet takes the paste for its first message',
+        (tester) async {
+      // Opening a room and pasting straight into the welcome composer, before
+      // any thread exists. The composer is enabled by the absence of a thread
+      // rather than by a loaded one, and reads its session state from the room.
+      mockClipboardText('from the clipboard');
+      api.nextThreads = const [];
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final composer = tester.widget<TextField>(find.byType(TextField));
+      expect(composer.focusNode!.hasFocus, isFalse);
+
+      await pressChord(tester, LogicalKeyboardKey.keyV);
+
+      expect(composer.focusNode!.hasFocus, isTrue);
+      expect(composer.controller!.text, 'from the clipboard');
+    });
+
+    testChord('a room switch during the read drops the paste, threads or not',
+        (tester) async {
+      // Neither room has a thread, so the draft changes owner by the room alone.
+      // Comparing the active thread would see null on both sides and let the
+      // text land in a room the user never pasted into.
+      final read = Completer<Map<String, Object?>>();
+      mockClipboard(() => read.future);
+      api.nextThreads = const [];
+      Widget room(String id) => MaterialApp(
+            home: RoomScreen(
+              serverEntry: entry,
+              roomId: id,
+              threadId: null,
+              runtimeManager: runtimeManager,
+              registry: registry,
+              uploadRegistry: uploadRegistry,
+              documentSelections: DocumentSelections(),
+            ),
+          );
+      await tester.pumpWidget(room('room-1'));
+      await tester.pumpAndSettle();
+
+      await sendChord(tester, LogicalKeyboardKey.keyV);
+      await tester.pump();
+
+      await tester.pumpWidget(room('room-2'));
+      await tester.pumpAndSettle();
+      read.complete(<String, Object?>{'text': 'from the clipboard'});
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+    });
+
+    testChord('a repeat while the read is pending pastes once, not twice',
+        (tester) async {
+      // Holding the chord repeats, and Flutter's binding for a focused field
+      // answers repeats with a paste of its own. The read the first press
+      // started must stand down rather than insert on top of it.
+      final firstRead = Completer<Map<String, Object?>>();
+      var reads = 0;
+      mockClipboard(
+        () => reads++ == 0 ? firstRead.future : <String, Object?>{'text': 'X'},
+      );
+      final composer = await pumpRoom(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV);
+      await tester.pump();
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyV);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      expect(composer.controller!.text, 'X',
+          reason: 'the repeat pastes through the platform');
+
+      firstRead.complete(<String, Object?>{'text': 'X'});
+      await tester.pumpAndSettle();
+
+      expect(composer.controller!.text, 'X');
+    });
+  });
+}
+
+class _RecordingSink implements LogSink {
+  _RecordingSink(this.loggerName);
+
+  final String loggerName;
+  final List<LogRecord> records = [];
+
+  @override
+  void write(LogRecord record) {
+    if (record.loggerName == loggerName) records.add(record);
+  }
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
 }
