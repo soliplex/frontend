@@ -28,13 +28,20 @@ String _extensionOfName(String filename) {
 /// Returns a user-friendly display name for a [RagDocument].
 ///
 /// Uses the filename from [RagDocument.uri] — the attachment's own name when
-/// the URI addresses a file embedded in another document. Falls back to
-/// [RagDocument.title] when the URI names no file, which covers a URI that is
-/// an id rather than a path. The empty one arrives from a document stored with
-/// no URI at all; a URI that is a bare id is read the same way, though nothing
-/// in the backend addresses a document that way.
+/// the URI addresses a file embedded in another document — then
+/// [RagDocument.title], then the URI itself.
+///
+/// The URI names no file when it is empty, ends in a separator, or is a bare id
+/// rather than a path. Reaching the last tier means the document has no title
+/// either, so the raw URI is the only string left that tells this row apart
+/// from another; `Untitled` covers a document stored with no URI at all. Every
+/// tier is a label of last resort, which is why this is the one place that
+/// supplies one — a caller asking whether a document *has* a title reads
+/// [RagDocument.title] and gets an unqualified answer.
 String documentDisplayName(RagDocument doc) =>
-    DocumentRef.parse(doc.uri).displayName ?? doc.title;
+    DocumentRef.parse(doc.uri).displayName ??
+    doc.title ??
+    (doc.uri.isNotEmpty ? doc.uri : 'Untitled');
 
 /// Returns the file-type icon for a [RagDocument].
 ///

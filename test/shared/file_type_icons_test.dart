@@ -121,6 +121,18 @@ void main() {
       );
       expect(documentDisplayName(doc), equals('Annual Report'));
     });
+
+    test('falls back to the uri when there is no title and no filename', () {
+      // The least bad label available: it names no file and carries no title,
+      // so the path is the only thing that distinguishes this row from another.
+      const doc = RagDocument(id: 'doc-12', uri: 'file:///docs/');
+      expect(documentDisplayName(doc), equals('file:///docs/'));
+    });
+
+    test('reads as untitled when the document carries no uri or title', () {
+      const doc = RagDocument(id: 'doc-13');
+      expect(documentDisplayName(doc), equals('Untitled'));
+    });
   });
 
   group('documentTypeIcon', () {
