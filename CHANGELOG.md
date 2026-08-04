@@ -128,22 +128,23 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   file-type glyph to an extension that still carried the padding.
 - A row for an embedded file names the document containing it, in the room's
   document list and in the document picker — `in annual-report.pdf`, chaining
-  through each level when a file is embedded two deep. Searching for a container
-  by name also returns the files embedded in it, because an embedded file's URI
-  contains its container's; until now those rows arrived labelled only with their
-  own filename and nothing said why they matched.
+  through each level when a file is embedded two deep. Searching a container's
+  name has always returned the files embedded in it too, because an embedded
+  file's URI contains its container's; those rows arrived labelled only with
+  their own filename, with nothing saying why they matched.
 - A row name too long for its column can be read in full by hovering it, on both
-  surfaces. The name ellipsizes to hold each row to one line, and the URI shown
-  beneath it is percent-encoded and ellipsized in turn, so a cut name previously
-  had nowhere to be read.
+  surfaces, and on the composer's document chips. Each name holds to one line so
+  a row's height does not depend on what it is called, and the URI beneath it is
+  percent-encoded, so a cut name had no decoded form to be read anywhere.
 - Expanding a document in the room's document list shows its title, when the
-  backend supplied one and the row is not already labelled with it. Nothing
+  backend supplied one and it says something the row's own label does not. Nothing
   displayed the title once the filename became the label; with title generation
   off — the default — this shows nothing.
 - A document the backend sent no title for now carries none, rather than carrying
-  its own URI as a stand-in title. The name every surface renders is unchanged:
-  the fallback to the URI moved to where the label is chosen, so asking whether a
-  document has a title now has a straight answer.
+  its own URI as a stand-in title. Apart from the whitespace case above, the name
+  every surface renders is unchanged: the fallback to the URI moved to where the
+  label is chosen, so asking whether the backend titled a document now has a
+  straight answer.
 
 ## [0.98.1+77] - 2026-07-31
 

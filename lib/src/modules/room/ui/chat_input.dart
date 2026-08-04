@@ -4,6 +4,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../../shared/document_display.dart';
+import 'document_label.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class ChatInput extends StatefulWidget {
@@ -182,18 +183,31 @@ class _ChatInputState extends State<ChatInput> {
                               children: [
                                 for (final display in widget.selectedDocuments
                                     .map(DocumentDisplay.new))
-                                  SoliplexChip(
-                                    icon: Icon(
-                                      display.icon,
+                                  // A chip has room for a name and nothing
+                                  // else, so two files embedded in different
+                                  // documents under the same name read alike
+                                  // here, having been told apart everywhere the
+                                  // user chose them.
+                                  Tooltip(
+                                    message: documentProvenanceSentence(
+                                      display.name,
+                                      display.ancestorNames,
                                     ),
-                                    label: Text(display.name),
-                                    onDeleted:
-                                        widget.onDocumentRemoved == null ||
-                                                disabled
-                                            ? null
-                                            : () => widget.onDocumentRemoved!(
-                                                  display.document,
-                                                ),
+                                    waitDuration:
+                                        const Duration(milliseconds: 500),
+                                    child: SoliplexChip(
+                                      icon: Icon(
+                                        display.icon,
+                                      ),
+                                      label: Text(display.name),
+                                      onDeleted:
+                                          widget.onDocumentRemoved == null ||
+                                                  disabled
+                                              ? null
+                                              : () => widget.onDocumentRemoved!(
+                                                    display.document,
+                                                  ),
+                                    ),
                                   ),
                               ],
                             ),

@@ -172,9 +172,11 @@ void main() {
       await tester.pump();
 
       // The label goes with the value — a lone `title` lead-in announces
-      // nothing.
+      // nothing. Matched without the lead-in's own spacing, which is private
+      // to the widget and would make this assertion pass whatever it changed
+      // to.
       expect(find.text('id'), findsOneWidget);
-      expect(find.textContaining('title  '), findsNothing);
+      expect(find.textContaining('title'), findsNothing);
     });
   });
 

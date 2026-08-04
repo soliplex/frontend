@@ -325,6 +325,36 @@ void main() {
       await tester.tap(find.byIcon(Icons.cancel).first);
       expect(removed, doc);
     });
+
+    testWidgets('an embedded file names its container on hover',
+        (tester) async {
+      // A chip shows the name alone, so two files embedded in different
+      // documents under one name are otherwise indistinguishable here.
+      const doc = RagDocument(
+        id: '1',
+        title: null,
+        uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: soliplexLightTheme(),
+          home: Scaffold(
+            body: ChatInput(
+              onSend: (_) {},
+              onCancel: () {},
+              selectedDocuments: {doc},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('budget.xlsx'), findsOneWidget);
+      expect(
+        find.byTooltip('budget.xlsx embedded in annual-report.pdf'),
+        findsOneWidget,
+      );
+    });
   });
 
   group('attach file button', () {
