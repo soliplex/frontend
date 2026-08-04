@@ -26,12 +26,13 @@ String _extensionOfName(String filename) {
 }
 
 /// A document as a row presents it: the name it is labelled with, the glyph for
-/// its type, and the documents it is embedded in.
+/// its type, the documents it is embedded in, and whichever title that name has
+/// not already said.
 ///
-/// [icon] is read off [name] rather than off the URI, so the glyph always
-/// describes the file the row is labelled with — an attachment reflects the
-/// embedded file's own type, not its container's. That agreement is structural
-/// rather than two branches kept in step.
+/// [icon] is read off [name] rather than off the URI, so the glyph describes
+/// whatever the row is labelled with — an embedded file reflects its own type,
+/// not its container's. That agreement is structural rather than two branches
+/// kept in step.
 ///
 /// The URI is parsed once per instance, so a row reading several of these facts
 /// pays for one parse.
@@ -39,36 +40,46 @@ String _extensionOfName(String filename) {
 class DocumentDisplay {
   DocumentDisplay(this.document) : _ref = DocumentRef.parse(document.uri);
 
+  /// The document being presented. Public because a row needs its id, its
+  /// metadata and its source URL as well as the facts derived here.
   final RagDocument document;
 
   final DocumentRef _ref;
+
+  /// [document]'s title, or null when it has none or carries one that reads
+  /// blank.
+  ///
+  /// The single reading of "has a title", so [name] and [unstatedTitle] cannot
+  /// answer that question two different ways.
+  String? get _title {
+    final title = document.title?.trim();
+    return title == null || title.isEmpty ? null : title;
+  }
 
   /// The name to label this document with: the filename its URI names — an
   /// embedded file's own name, not its container's — then [RagDocument.title],
   /// then the URI itself.
   ///
-  /// The URI names no file when it is empty, ends in `/`, is a bare UUID
-  /// standing in for a path, or addresses an embedded file whose own name reads
-  /// blank. A title is a genuine second choice; the last two tiers are labels of
-  /// last resort — the raw URI is the only string left that tells this row apart
-  /// from another, and `Untitled` covers a document stored with no URI at all.
+  /// See [DocumentRef.displayName] for when a URI names no file. A title is a
+  /// genuine second choice; the last two tiers are labels of last resort — the
+  /// raw URI is the most legible thing left that tells this row apart from
+  /// another, and `Untitled` covers a document whose URI says nothing at all.
   ///
-  /// A title that reads blank is passed over rather than taken, so no tier can
-  /// resolve to a label that renders as nothing — which would also leave the
-  /// tooltip recovering a truncated name blank.
-  String get name {
-    final fileName = _ref.displayName;
-    if (fileName != null) return fileName;
-    final title = document.title?.trim();
-    if (title != null && title.isNotEmpty) return title;
-    return document.uri.isNotEmpty ? document.uri : 'Untitled';
-  }
+  /// A title or URI that reads blank is passed over rather than taken, so a
+  /// label does not render as nothing — which would also leave the tooltip
+  /// recovering a truncated name blank. Whitespace is what this reads as blank;
+  /// a name of nothing but zero-width characters still renders as nothing.
+  String get name =>
+      _ref.displayName ??
+      _title ??
+      (document.uri.trim().isNotEmpty ? document.uri : 'Untitled');
 
-  /// [document]'s title, when [name] does not already state it.
+  /// [document]'s title, unless [name] already states it.
   ///
-  /// Null when the URI named no file, because [name] is then the title itself
-  /// and stating it twice says nothing, and null when there is no title.
-  String? get unstatedTitle => _ref.displayName == null ? null : document.title;
+  /// Null when the two would read the same — a URI naming no file leaves [name]
+  /// showing the title, and a title can also simply repeat the filename — and
+  /// null when there is no title. Stating it twice says nothing.
+  String? get unstatedTitle => _title == name ? null : _title;
 
   /// The file-type glyph for [name].
   IconData get icon => _iconForExtension(_extensionOfName(name));

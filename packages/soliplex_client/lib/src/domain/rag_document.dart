@@ -83,10 +83,14 @@ class RagDocument {
 
   /// Display title of the document, or null when the backend sent none.
   ///
-  /// The backend only resolves a title when a deployment enables it. Nothing
-  /// stands in for an absent one here, so a caller asking whether a document
-  /// has a title gets a straight answer; a surface that needs a label
+  /// The backend only resolves a title when a deployment enables it, and the
+  /// mapper puts nothing in its place, so a caller asking whether the backend
+  /// titled a document gets a straight answer; a surface that needs a label
   /// regardless derives one from [uri].
+  ///
+  /// Code that synthesizes a document rather than reading one from the backend
+  /// may still fill this deliberately — a placeholder standing for a document
+  /// that is no longer in the corpus, for instance.
   final String? title;
 
   /// Document URI (e.g. file path or URL).

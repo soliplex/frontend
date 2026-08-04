@@ -139,6 +139,13 @@ void main() {
       expect(DocumentDisplay(doc).name, equals('Untitled'));
     });
 
+    test('reads a uri of only whitespace as naming nothing', () {
+      // A non-empty uri is not necessarily a usable one, and taking it would
+      // label the row with something that renders as nothing.
+      const doc = RagDocument(id: 'doc-15', title: null, uri: '  ');
+      expect(DocumentDisplay(doc).name, equals('Untitled'));
+    });
+
     test('reads a title of only whitespace as absent', () {
       // Taking it would label the row with something that renders as nothing,
       // and the tooltip meant to recover a truncated name would be blank too.
@@ -218,15 +225,61 @@ void main() {
     });
   });
 
+  group('DocumentDisplay.unstatedTitle', () {
+    test('states a title the row label does not', () {
+      const doc = RagDocument(
+        id: 'doc-1',
+        title: 'Annual Operations Review',
+        uri: 'file:///docs/report.pdf',
+      );
+      expect(
+        DocumentDisplay(doc).unstatedTitle,
+        equals('Annual Operations Review'),
+      );
+    });
+
+    test('says nothing when the label already is the title', () {
+      const doc = RagDocument(
+        id: 'doc-2',
+        title: 'Annual Operations Review',
+        uri: 'file:///docs/',
+      );
+      expect(DocumentDisplay(doc).unstatedTitle, isNull);
+    });
+
+    test('says nothing when the title repeats the filename', () {
+      // The label and the title are the same string, so a title row under it
+      // would print that string twice.
+      const doc = RagDocument(
+        id: 'doc-3',
+        title: 'report.pdf',
+        uri: 'file:///docs/report.pdf',
+      );
+      expect(DocumentDisplay(doc).unstatedTitle, isNull);
+    });
+
+    test('reads a title of only whitespace as absent', () {
+      // The same reading [name] gives it, so one object cannot answer
+      // "does this document have a title?" two ways.
+      const doc = RagDocument(
+        id: 'doc-4',
+        title: '   ',
+        uri: 'file:///docs/report.pdf',
+      );
+      expect(DocumentDisplay(doc).unstatedTitle, isNull);
+    });
+  });
+
   group('name derivation across surfaces', () {
-    // The value once, then the agreement: each surface's own tests pin the
-    // value, so what only these cases catch is the two ladders drifting apart —
-    // one side gaining a guard the other does not.
+    // The value once, then the agreement. Each surface's own tests pin every
+    // rung of its own ladder, so the only thing left for a cross-surface case
+    // is that both still read a name out of the same URI rather than one of
+    // them growing a second derivation.
     //
-    // Their last resort differs by design and is deliberately not asserted
-    // here: a citation with no name left reads `Unknown Document`, where a
-    // listing row shows its URI, the only string that still tells two rows
-    // apart.
+    // Only the filename rung is asserted. Below it the two ladders reach
+    // different last resorts by design — a citation with no name left reads
+    // `Unknown Document` where a listing row shows its URI — so an equality
+    // assertion there would pin the divergence rather than the agreement.
     test('the document list and a citation name an attachment identically', () {
       const uri = 'file:///docs/annual-report.pdf#attachment=budget.xlsx';
       const doc = RagDocument(id: 'doc-1', title: null, uri: uri);
@@ -238,36 +291,6 @@ void main() {
       );
 
       expect(DocumentDisplay(doc).name, equals('budget.xlsx'));
-      expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
-    });
-
-    test('both take the title when the uri names no file', () {
-      const uri = 'file:///docs/';
-      const doc = RagDocument(id: 'doc-2', title: 'Annual Report', uri: uri);
-      const ref = SourceReference(
-        documentId: 'doc-2',
-        documentUri: uri,
-        documentTitle: 'Annual Report',
-        content: 'content',
-        chunkId: 'chunk-1',
-      );
-
-      expect(DocumentDisplay(doc).name, equals('Annual Report'));
-      expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
-    });
-
-    test('both pass over a title that reads blank', () {
-      const uri = 'file:///docs/report.pdf';
-      const doc = RagDocument(id: 'doc-3', title: '   ', uri: uri);
-      const ref = SourceReference(
-        documentId: 'doc-3',
-        documentUri: uri,
-        documentTitle: '   ',
-        content: 'content',
-        chunkId: 'chunk-1',
-      );
-
-      expect(DocumentDisplay(doc).name, equals('report.pdf'));
       expect(ref.displayTitle, equals(DocumentDisplay(doc).name));
     });
   });
