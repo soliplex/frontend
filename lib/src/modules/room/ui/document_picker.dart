@@ -3,7 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
-import '../../../shared/file_type_icons.dart';
+import '../../../shared/document_display.dart';
+import 'document_label.dart';
 import 'document_source.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -115,14 +116,20 @@ class _DocumentPickerState extends State<DocumentPicker> {
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final doc = filtered[index];
+                    final display = DocumentDisplay(doc);
                     final selected = widget.selected.contains(doc);
                     return CheckboxListTile(
-                      secondary: Icon(documentTypeIcon(doc)),
-                      title: Text(
-                        documentDisplayName(doc),
-                        overflow: TextOverflow.ellipsis,
+                      secondary: Icon(display.icon),
+                      title: DocumentLabel(
+                        name: display.name,
+                        ancestorNames: display.ancestorNames,
                       ),
                       subtitle: _subtitle(doc),
+                      // A provenance line puts a third line of text in a tile
+                      // whose default height fits two, which leaves the
+                      // checkbox centred on the provenance rather than on the
+                      // name.
+                      isThreeLine: display.ancestorNames.isNotEmpty,
                       value: selected,
                       onChanged: (_) => _toggle(doc),
                     );

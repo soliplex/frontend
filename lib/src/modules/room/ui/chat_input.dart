@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
-import '../../../shared/file_type_icons.dart';
+import '../../../shared/document_display.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class ChatInput extends StatefulWidget {
@@ -180,18 +180,19 @@ class _ChatInputState extends State<ChatInput> {
                               spacing: SoliplexSpacing.s1,
                               runSpacing: SoliplexSpacing.s1,
                               children: [
-                                for (final doc in widget.selectedDocuments)
+                                for (final display in widget.selectedDocuments
+                                    .map(DocumentDisplay.new))
                                   SoliplexChip(
                                     icon: Icon(
-                                      documentTypeIcon(doc),
+                                      display.icon,
                                     ),
-                                    label: Text(documentDisplayName(doc)),
+                                    label: Text(display.name),
                                     onDeleted:
                                         widget.onDocumentRemoved == null ||
                                                 disabled
                                             ? null
                                             : () => widget.onDocumentRemoved!(
-                                                  doc,
+                                                  display.document,
                                                 ),
                                   ),
                               ],

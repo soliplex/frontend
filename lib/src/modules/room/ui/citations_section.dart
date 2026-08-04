@@ -10,6 +10,7 @@ import '../../../shared/preview_icon_button.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
 import '../document_browser_url.dart';
+import 'document_label.dart';
 import 'document_metadata_line.dart';
 import 'document_source.dart';
 import 'markdown/flutter_markdown_plus_renderer.dart';
@@ -209,9 +210,10 @@ class _SourceReferenceRow extends StatelessWidget {
                         ),
                         const SizedBox(width: SoliplexSpacing.s2),
                         Expanded(
-                          child: _SourceLabel(
-                            displayTitle: sourceReference.displayTitle,
+                          child: DocumentLabel(
+                            name: sourceReference.displayTitle,
                             ancestorNames: sourceReference.ancestorNames,
+                            style: theme.textTheme.bodySmall,
                           ),
                         ),
                         if (sourceReference.formattedPageNumbers != null) ...[
@@ -331,70 +333,6 @@ class _SourceReferenceRow extends StatelessWidget {
             label: 'chunk id',
             value: sourceReference.chunkId,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A citation's label: the cited file's name, over the documents containing it
-/// when it is embedded in one — `in annual-report.pdf`, chaining when it is
-/// embedded two deep.
-///
-/// Each line is capped at one, so a citation is one row for a plain document
-/// and two for an embedded one, whatever its names run to. Several citations
-/// sit inline in a single message, and document filenames are routinely long
-/// enough to wrap, so letting them do so would size each row by whichever name
-/// happened to be longest.
-///
-/// One tooltip covers both, because both are cut by the same cap and neither is
-/// readable anywhere else: a configured browser link renders only host and
-/// path, dropping the fragment the containing document is named in.
-class _SourceLabel extends StatelessWidget {
-  const _SourceLabel({
-    required this.displayTitle,
-    required this.ancestorNames,
-  });
-
-  final String displayTitle;
-
-  /// The documents containing the cited file, outermost first. Empty when it is
-  /// not embedded in one, which renders the name alone.
-  final List<String> ancestorNames;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final provenance =
-        ancestorNames.isEmpty ? null : 'in ${ancestorNames.join(' > ')}';
-
-    return Tooltip(
-      // Spelled as a sentence rather than stacked the way the label is, so the
-      // relationship between the two names is stated instead of implied by
-      // their arrangement.
-      message: ancestorNames.isEmpty
-          ? displayTitle
-          : '$displayTitle embedded in ${ancestorNames.join(' > ')}',
-      waitDuration: const Duration(milliseconds: 500),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            displayTitle,
-            style: theme.textTheme.bodySmall,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (provenance != null)
-            Text(
-              provenance,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
         ],
       ),
     );

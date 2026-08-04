@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
 
+import '../document_label.dart';
+import '../document_metadata_line.dart';
 import '../document_source.dart';
-import '../../../../shared/file_type_icons.dart';
+import '../../../../shared/document_display.dart';
 import 'room_info_widgets.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -126,7 +128,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                   itemBuilder: (context, index) {
                     final doc = filtered[index];
                     final expanded = _expandedIds.contains(doc.id);
-                    return _buildDocTile(doc, expanded, theme);
+                    return _buildDocTile(DocumentDisplay(doc), expanded, theme);
                   },
                 ),
               ),
@@ -143,10 +145,11 @@ class _DocumentsCardState extends State<DocumentsCard> {
   }
 
   Widget _buildDocTile(
-    RagDocument doc,
+    DocumentDisplay display,
     bool expanded,
     ThemeData theme,
   ) {
+    final doc = display.document;
     return GestureDetector(
       onTap: () => setState(() {
         if (expanded) {
@@ -162,17 +165,23 @@ class _DocumentsCardState extends State<DocumentsCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              // The glyph and the chevron read against the file the row names,
+              // so they sit on its baseline. Centring instead lands them level
+              // with the provenance line beneath it, describing the containing
+              // document.
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
                 Icon(
-                  documentTypeIcon(doc),
+                  display.icon,
                   size: 22,
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
-                  child: Text(
-                    documentDisplayName(doc),
+                  child: DocumentLabel(
+                    name: display.name,
+                    ancestorNames: display.ancestorNames,
                     style: theme.textTheme.bodyMedium,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Icon(
@@ -182,14 +191,15 @@ class _DocumentsCardState extends State<DocumentsCard> {
                 ),
               ],
             ),
-            if (expanded) _buildDocMetadata(doc),
+            if (expanded) _buildDocMetadata(display),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDocMetadata(RagDocument doc) {
+  Widget _buildDocMetadata(DocumentDisplay display) {
+    final doc = display.document;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
@@ -218,6 +228,10 @@ class _DocumentsCardState extends State<DocumentsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // The row's label is the filename, so this is where a title the
+            // backend supplied gets said — unless the URI named no file, in
+            // which case the label already is the title.
+            DocumentTitleLine(title: display.unstatedTitle),
             Text('id', style: labelStyle),
             const SizedBox(height: SoliplexSpacing.s1),
             SelectableText(
@@ -260,7 +274,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (_) => MetadataDialog(
-                      title: documentDisplayName(doc),
+                      title: display.name,
                       uri: doc.uri,
                       metadata: doc.metadata,
                     ),

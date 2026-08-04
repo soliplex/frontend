@@ -118,13 +118,32 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - A document whose URI names no file — one ending in a slash — no longer renders a
   blank label in the list, the picker or the attachment chips, and no longer
   renders a blank citation. In the list it falls back to the document's title,
-  which is the raw URI string unless the backend is configured to generate
-  titles; a citation with no title reads "Unknown Document". A name that decodes
-  to nothing but whitespace falls back the same way, rather than rendering as an
+  then to the raw URI, which is the only string left that tells one such row from
+  another; a citation with no title reads "Unknown Document". A title that reads
+  as nothing but whitespace is passed over rather than taken, and a name that
+  decodes to nothing falls back the same way, rather than rendering as an
   invisible label.
 - A display name is trimmed, so a filename delivered with escaped padding
   (`report.pdf%20`) no longer renders with invisible whitespace, nor loses its
   file-type glyph to an extension that still carried the padding.
+- A row for an embedded file names the document containing it, in the room's
+  document list and in the document picker — `in annual-report.pdf`, chaining
+  through each level when a file is embedded two deep. Searching for a container
+  by name also returns the files embedded in it, because an embedded file's URI
+  contains its container's; until now those rows arrived labelled only with their
+  own filename and nothing said why they matched.
+- A row name too long for its column can be read in full by hovering it, on both
+  surfaces. The name ellipsizes to hold each row to one line, and the URI shown
+  beneath it is percent-encoded and ellipsized in turn, so a cut name previously
+  had nowhere to be read.
+- Expanding a document in the room's document list shows its title, when the
+  backend supplied one and the row is not already labelled with it. Nothing
+  displayed the title once the filename became the label; with title generation
+  off — the default — this shows nothing.
+- A document the backend sent no title for now carries none, rather than carrying
+  its own URI as a stand-in title. The name every surface renders is unchanged:
+  the fallback to the URI moved to where the label is chosen, so asking whether a
+  document has a title now has a straight answer.
 
 ## [0.98.1+77] - 2026-07-31
 
