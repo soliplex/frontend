@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show ThreadKey;
+import 'package:soliplex_agent/soliplex_agent.dart'
+    show AgentSessionState, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -84,15 +86,16 @@ final _modifierKeys = <LogicalKeyboardKey>{
 
 /// Whether a key press should pull focus into the chat composer
 /// ("type to focus"). Only real typing does — never a bare modifier, and never
-/// while a copy/select command modifier is held (meta, or control on its own),
-/// so shortcuts like copy and select-all leave the transcript's
-/// [SelectionArea] selection intact instead of clearing it by moving focus.
+/// while a shortcut modifier is held, so shortcuts like copy and select-all
+/// leave the transcript's [SelectionArea] selection intact instead of clearing
+/// it by moving focus.
 ///
 /// Control *combined with* alt is treated as typing, not a shortcut: Windows
 /// synthesizes AltGr as Ctrl+Alt to compose special characters (`@`, `€`, `{`,
 /// …), so those keystrokes must still focus-and-type. Plain Alt/Option is
-/// likewise typing. A genuine Ctrl+Alt shortcut is rare and — since this only
-/// moves focus without consuming the event — harmless if it also focuses.
+/// likewise typing. A genuine Ctrl+Alt shortcut therefore focuses the composer
+/// too, which is harmless: callers move focus and leave the keystroke to run its
+/// normal course, so the shortcut still fires.
 bool shouldFocusChatInputOnKey(
   KeyEvent event, {
   required bool isMetaPressed,
@@ -103,8 +106,68 @@ bool shouldFocusChatInputOnKey(
   if (_modifierKeys.contains(event.logicalKey)) return false;
   final shortcutModifierActive =
       isMetaPressed || (isControlPressed && !isAltPressed);
-  if (shortcutModifierActive) return false;
-  return true;
+  return !shortcutModifierActive;
+}
+
+/// Whether a key press is [platform]'s paste chord: `V` under the command
+/// modifier that platform pastes with — meta on Apple, control elsewhere — and
+/// not the other one, and not alt. Matching one chord per platform leaves the
+/// rest alone rather than claiming one the host may define for itself.
+///
+/// Shift is not consulted: a plain-text composer has no paste-and-match-style
+/// variant to tell apart. That differs from the `SingleActivator` Flutter binds
+/// for a focused field, which matches shift exactly, so the two paths answer
+/// slightly different sets of keystrokes.
+///
+/// Repeats answer only when [includeRepeats] is set. A held chord should start one
+/// clipboard read rather than one per repeat, so the press that claims a chord
+/// counts key-downs alone; once focus lands, further repeats belong to the
+/// focused field's own binding, which does repeat. A caller reconciling itself
+/// with that binding — retiring a read the field is about to answer — passes
+/// true.
+///
+/// [shouldFocusChatInputOnKey] refuses shortcut modifiers so transcript copy and
+/// select-all keep their selection, which leaves paste with no editable target
+/// while the composer is unfocused. This names paste as the one command the
+/// composer answers for itself, and matches exactly rather than broadly so every
+/// other chord keeps the meaning its platform gives it.
+bool shouldPasteIntoChatInputOnKey(
+  KeyEvent event, {
+  required TargetPlatform platform,
+  required bool isMetaPressed,
+  required bool isControlPressed,
+  required bool isAltPressed,
+  bool includeRepeats = false,
+}) {
+  final isPress =
+      event is KeyDownEvent || (includeRepeats && event is KeyRepeatEvent);
+  if (!isPress) return false;
+  if (event.logicalKey != LogicalKeyboardKey.keyV) return false;
+  if (isAltPressed) return false;
+  return switch (platform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.iOS =>
+      isMetaPressed && !isControlPressed,
+    _ => isControlPressed && !isMetaPressed,
+  };
+}
+
+/// Replaces [value]'s selection with [pasted] when it has one, otherwise
+/// inserts [pasted] at the caret. The caret ends up after the pasted text.
+///
+/// A selection the text cannot accommodate — never placed, which is where a
+/// composer that has not been focused yet starts, or reaching past the end —
+/// appends instead, keeping this total for any [TextEditingValue] a caller hands
+/// it.
+TextEditingValue insertPastedText(TextEditingValue value, String pasted) {
+  final length = value.text.length;
+  final selection = value.selection.isValid && value.selection.end <= length
+      ? value.selection
+      : TextSelection.collapsed(offset: length);
+  return TextEditingValue(
+    text: value.text.replaceRange(selection.start, selection.end, pasted),
+    selection: TextSelection.collapsed(offset: selection.start + pasted.length),
+  );
 }
 
 const double _sidebarWidth = 300;
@@ -1246,9 +1309,48 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   bool _handleKey(KeyEvent event) {
-    if (_chatFocusNode.hasFocus) return false;
-    if (ModalRoute.of(context)?.isCurrent != true) return false;
     final keyboard = HardwareKeyboard.instance;
+    bool isPasteChord({bool includeRepeats = false}) =>
+        shouldPasteIntoChatInputOnKey(
+          event,
+          platform: defaultTargetPlatform,
+          isMetaPressed: keyboard.isMetaPressed,
+          isControlPressed: keyboard.isControlPressed,
+          isAltPressed: keyboard.isAltPressed,
+          includeRepeats: includeRepeats,
+        );
+    if (_chatFocusNode.hasFocus) {
+      // The focused composer answers this chord with the platform's own paste,
+      // which runs whatever this handler returns. A read still owed an answer
+      // would insert the same clipboard a second time, so retire it — but only
+      // while the composer would honour that paste. A read-only one refuses it,
+      // and retiring then would have the pending read report a handoff that
+      // never happened in place of the loss that did.
+      //
+      // Repeats count here though they cannot claim a chord of their own: the
+      // binding Flutter gives a focused field repeats, so a held chord keeps
+      // pasting, and each one owes a pending read the same answer a fresh press
+      // would.
+      if (isPasteChord(includeRepeats: true) && _composerAcceptsText) {
+        _latestPasteChord = Object();
+      }
+      return false;
+    }
+    if (!_roomIsFrontmost) return false;
+    if (isPasteChord()) {
+      // Abstain rather than claim a chord the composer won't act on, so
+      // whatever else would answer it still can.
+      if (!_composerAcceptsText) return false;
+      _chatFocusNode.requestFocus();
+      final chord = _latestPasteChord = Object();
+      unawaited(_pasteClipboardIntoComposer(chord));
+      // Reporting the chord handled answers the platform, not Flutter, whose own
+      // dispatch runs either way. Nothing pastes twice because focus applies a
+      // microtask later than this keystroke's shortcut dispatch, so the composer
+      // is not yet the focused field that paste would reach. On web this also
+      // stops the browser adding a copy of its own.
+      return true;
+    }
     if (!shouldFocusChatInputOnKey(
       event,
       isMetaPressed: keyboard.isMetaPressed,
@@ -1259,6 +1361,164 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     _chatFocusNode.requestFocus();
     return false;
+  }
+
+  /// Whether the composer would take pasted text right now, reading the same
+  /// state the chat input renders itself from.
+  bool get _composerAcceptsText => composerAcceptsText(
+        enabled: _composerEnabled(_state.activeThreadView?.messages.peek()),
+        sessionState: _composerSessionState.peek(),
+      );
+
+  /// The session state the composer renders from: the active thread's while
+  /// there is one, otherwise the room's own state for a first message.
+  ReadonlySignal<AgentSessionState?> get _composerSessionState =>
+      _state.activeThreadView?.sessionState ?? _state.sessionState;
+
+  /// Whether the thread is far enough along to compose into. A thread holds the
+  /// composer shut until its messages load, and keeps it shut if they failed. A
+  /// null [status] is no thread at all — every thread has a messages signal — and
+  /// composes into a first message.
+  bool _composerEnabled(ThreadViewStatus? status) =>
+      status == null || status is MessagesLoaded;
+
+  /// The draft's owner. A room or thread switch replaces one of these and
+  /// clears the composer, so a change across an await means the draft a paste
+  /// measured may be gone. Deleting the last thread in a room also replaces the
+  /// view while leaving the draft alone, and a paste caught by that is dropped
+  /// though it could have been kept.
+  (RoomState, ThreadViewState?) get _composerTarget =>
+      (_state, _state.activeThreadView);
+
+  /// Identifies the paste chord whose read is owed an answer. Every chord
+  /// replaces it, so a read that resolves late can tell that a later chord took
+  /// over — answered either by the platform's paste into the focused composer or
+  /// by a read of its own — and leave the insert to whichever did.
+  ///
+  /// A token per chord rather than a flag, because two reads can be in flight at
+  /// once: one flag would let whichever finished first speak for the other.
+  Object? _latestPasteChord;
+
+  /// Marks the drawer so [_roomIsFrontmost] can tell whether it is on screen.
+  /// `Scaffold` builds the drawer's own subtree only while it is showing, so this
+  /// key holds a context from the first frame of opening until the last frame of
+  /// closing, and none while the layout has no drawer at all.
+  final _drawerKey = GlobalKey();
+
+  /// Whether the room is the surface the user is typing at: its route on top,
+  /// and no drawer over it.
+  ///
+  /// A drawer hides the composer without pushing a route, so [ModalRoute.isCurrent]
+  /// still reports the room as current while text routed in would land where the
+  /// user cannot see it. Neither the drawer's own state nor
+  /// `Scaffold.onDrawerChanged` can answer for it: the notification is skipped
+  /// once the drawer widget goes away, so a viewport crossing
+  /// [SoliplexBreakpoints.tablet] never reports the close, and a drag that closes
+  /// the drawer outright settles it without one either. Asking whether the
+  /// drawer's subtree is mounted sidesteps both.
+  bool get _roomIsFrontmost =>
+      ModalRoute.of(context)?.isCurrent == true &&
+      _drawerKey.currentContext == null;
+
+  /// Pastes the clipboard's text into the composer, unless a later chord
+  /// identified by something other than [chord] has taken the paste over.
+  /// [_handleKey] establishes before calling this that the composer is unfocused
+  /// and that no drawer, dialog, or route sits above this one.
+  ///
+  /// A failed read is logged and swallowed; the composer keeps whatever it
+  /// already held. Pressing the chord again with the composer focused reaches
+  /// the platform's own paste, which is the recovery from a refused read.
+  Future<void> _pasteClipboardIntoComposer(Object chord) async {
+    // The read can take arbitrarily long — a platform may gate it behind a
+    // consent prompt, as the browser's clipboard permission does — so record
+    // what the chord aimed at and re-check it once the text arrives.
+    final target = _composerTarget;
+    final attributes = <String, Object?>{
+      'serverId': widget.serverEntry.serverId,
+      'roomId': widget.roomId,
+      'threadId': _state.activeThreadView?.threadId,
+    };
+    final ClipboardData? data;
+    try {
+      data = await Clipboard.getData(Clipboard.kTextPlain);
+    } on PlatformException catch (e, st) {
+      // A browser that withholds `readText` from page content. A steady state
+      // rather than a malfunction, and one the user meets on every keypress, so
+      // it is reported below the error level. Any embedder's clipboard failure
+      // arrives this way too, so the code is recorded to tell an outright broken
+      // channel from the routine refusal.
+      _logger.warning(
+        'The platform refused a clipboard read for a composer paste',
+        error: e,
+        stackTrace: st,
+        attributes: {...attributes, 'code': e.code},
+      );
+      return;
+    } catch (e, st) {
+      _logger.error(
+        'Failed to read the clipboard for a composer paste',
+        error: e,
+        stackTrace: st,
+        attributes: attributes,
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    // Records why a read that arrived too late went nowhere. This is the only
+    // account of a paste the user watched themselves ask for, so it names which
+    // obstacle it hit and where the composer had got to.
+    void drop(String reason, {bool costsText = false}) {
+      final message = 'Dropped a composer paste: $reason';
+      final where = {
+        ...attributes,
+        'landedOnThreadId': _state.activeThreadView?.threadId,
+      };
+      if (costsText) {
+        _logger.warning(message, attributes: where);
+      } else {
+        _logger.info(message, attributes: where);
+      }
+    }
+
+    // A later chord already collected this clipboard, so inserting here would
+    // repeat it. Costs the user nothing: the text they asked for did land.
+    if (_latestPasteChord != chord) {
+      return drop('a later paste chord took it over');
+    }
+
+    // Before the obstacles below, because with nothing to insert every one of
+    // them ends the same way, and reporting one would claim the paste was
+    // thwarted rather than empty.
+    final text = data?.text;
+    if (text == null || text.isEmpty) {
+      // An image-only clipboard lands here, as does an iOS read the user
+      // declined and a platform with no clipboard channel at all — none of them
+      // carry a text flavor. A browser refusal throws instead and is caught
+      // above. `hadData` separates a missing text flavor from a clipboard that
+      // really does hold an empty string.
+      _logger.info(
+        'Paste chord found no clipboard text',
+        attributes: {...attributes, 'hadData': data != null},
+      );
+      return;
+    }
+
+    // A dialog, a pushed route, or a drawer that arrived during the read owns the
+    // screen now, and text belongs wherever the user is looking instead.
+    if (!_roomIsFrontmost) {
+      return drop('the room stopped being the frontmost surface');
+    }
+    if (_composerTarget != target) {
+      return drop('the draft it measured was replaced');
+    }
+    // The composer is read-only until the run settles, so text put there now
+    // could be neither edited nor sent — and this is the one obstacle that costs
+    // the user text they asked for while the draft is still on screen.
+    if (!_composerAcceptsText) {
+      return drop('a run took the composer', costsText: true);
+    }
+    _chatController.value = insertPastedText(_chatController.value, text);
   }
 
   void _onBackToLobby() => context.go(AppRoutes.lobby);
@@ -1477,6 +1737,7 @@ class _RoomScreenState extends State<RoomScreen> {
               actions: built.headerActions,
             ),
             drawer: Drawer(
+              key: _drawerKey,
               child: Builder(
                 builder: (drawerContext) => SafeArea(
                   // Both panels fold into the drawer on narrow viewports: the
@@ -2178,11 +2439,11 @@ class _RoomScreenState extends State<RoomScreen> {
         }
       },
       onCancel: threadView != null ? threadView.cancelRun : _state.cancelSpawn,
-      sessionState: threadView?.sessionState ?? _state.sessionState,
+      sessionState: _composerSessionState,
       cancelEnabled: threadView?.isCancellable,
       controller: _chatController,
       focusNode: _chatFocusNode,
-      enabled: threadView == null || status is MessagesLoaded,
+      enabled: _composerEnabled(status),
       selectedDocuments: _selectedDocuments,
       onFilterTap: _showDocumentFilter ? _openDocumentPicker : null,
       onDocumentRemoved: _filterEnabled

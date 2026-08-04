@@ -8,6 +8,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Fixed
+
+- Pressing the platform's paste chord in a room — Cmd+V on macOS and iOS, Ctrl+V
+  elsewhere — no longer does nothing when the composer is unfocused. One keypress
+  now moves focus to the composer and inserts the clipboard's text, over the
+  composer's selection when it has one. Every other chord keeps its meaning: copy
+  and select-all still belong to the transcript, and a chord that is not the
+  running platform's paste chord is left alone. Only text is read: with no text
+  on the clipboard focus still moves and nothing is inserted. The chord does
+  nothing at all while a thread is still loading its messages or while a reply is
+  streaming, since the composer takes no text in either state. Each press inserts
+  the clipboard once, including a second press made while the first is still
+  waiting on a slow clipboard; holding the chord down repeats through the
+  platform's own paste, as it does in any focused field. On browsers that withhold
+  clipboard reads from a page, the first press moves focus and a second pastes
+  through the browser's own path.
+- Typing or pasting with the navigation drawer open no longer moves focus to the
+  composer behind it, or routes clipboard text there.
+
 ## [0.98.2+78] - 2026-08-04
 
 ### Changed
