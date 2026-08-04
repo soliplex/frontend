@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.98.2+78] - 2026-08-04
+
 ### Changed
 
 - The execution timeline renders an activity from the AG-UI envelope rather than
