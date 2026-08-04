@@ -5,6 +5,7 @@ export 'backend_version_info.dart';
 export 'chat_message.dart';
 export 'chunk_visualization.dart';
 export 'conversation.dart';
+export 'document_ref.dart';
 export 'feedback_type.dart';
 export 'file_upload.dart';
 export 'llm_event.dart';

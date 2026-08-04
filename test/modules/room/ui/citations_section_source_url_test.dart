@@ -28,8 +28,9 @@ Future<void> _pump(
       home: Scaffold(body: CitationsSection(sourceReferences: [ref])),
     ),
   ));
-  // The section is expanded by default (issue #463); open the row.
-  await tester.tap(find.text('Alpha'));
+  // The section is expanded by default (issue #463); open the row, which is
+  // labelled by the document's filename rather than its title.
+  await tester.tap(find.text('foo.pdf'));
   await tester.pump();
 }
 

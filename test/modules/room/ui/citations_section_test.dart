@@ -6,24 +6,31 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 
+/// Builds a reference labelled by its filename, with a distinct
+/// [SourceReference.documentTitle] the row is expected not to show.
+///
+/// The URI ends in [fileName], so the name drives both the label and the PDF
+/// affordance — though [SourceReference.isPdf] reads the whole URI, not the
+/// name. Callers vary the name, not the URI.
 SourceReference _ref({
   required int index,
-  String? title,
-  bool pdf = false,
+  String? fileName,
   List<String> headings = const [],
   String content = 'Test content',
   List<int> pageNumbers = const [],
-}) =>
-    SourceReference(
-      documentId: 'doc-$index',
-      documentUri: pdf ? 's3://bucket/doc-$index.pdf' : 'file://doc-$index.txt',
-      content: content,
-      chunkId: 'chunk-$index',
-      documentTitle: title ?? 'Document $index',
-      headings: headings,
-      pageNumbers: pageNumbers,
-      index: index,
-    );
+}) {
+  final name = fileName ?? 'doc-$index.txt';
+  return SourceReference(
+    documentId: 'doc-$index',
+    documentUri: 'file:///docs/$name',
+    content: content,
+    chunkId: 'chunk-$index',
+    documentTitle: 'Document $index',
+    headings: headings,
+    pageNumbers: pageNumbers,
+    index: index,
+  );
+}
 
 Widget _wrap(Widget child) => ProviderScope(
       child: MaterialApp(home: Scaffold(body: child)),
@@ -44,7 +51,7 @@ void main() {
             child: SingleChildScrollView(
               child: CitationsSection(
                 sourceReferences: [
-                  _ref(index: 1, title: 'Alpha', content: 'cited body'),
+                  _ref(index: 1, fileName: 'Alpha.txt', content: 'cited body'),
                 ],
               ),
             ),
@@ -55,7 +62,7 @@ void main() {
 
     // The section is expanded by default (issue #463), so the source title is
     // visible without a tap; tapping it opens the row to render the content.
-    await tester.tap(find.text('Alpha'));
+    await tester.tap(find.text('Alpha.txt'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -86,40 +93,44 @@ void main() {
     await tester.pumpWidget(_wrap(
       CitationsSection(
         sourceReferences: [
-          _ref(index: 1, title: 'Alpha'),
-          _ref(index: 2, title: 'Beta'),
+          _ref(index: 1, fileName: 'Alpha.txt'),
+          _ref(index: 2, fileName: 'Beta.txt'),
         ],
       ),
     ));
 
-    // No tap needed — each source's filename shows immediately.
-    expect(find.text('Alpha'), findsOneWidget);
-    expect(find.text('Beta'), findsOneWidget);
+    // No tap needed — each source's filename shows immediately, and the
+    // document title is not what labels the row.
+    expect(find.text('Alpha.txt'), findsOneWidget);
+    expect(find.text('Beta.txt'), findsOneWidget);
+    expect(find.text('Document 1'), findsNothing);
   });
 
   testWidgets('tapping the header collapses then re-expands the section',
       (tester) async {
     await tester.pumpWidget(_wrap(
-      CitationsSection(sourceReferences: [_ref(index: 1, title: 'Alpha')]),
+      CitationsSection(
+          sourceReferences: [_ref(index: 1, fileName: 'Alpha.txt')]),
     ));
 
     // Starts expanded (issue #463); the header still toggles it closed...
-    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Alpha.txt'), findsOneWidget);
 
     await tester.tap(find.text('1 source'));
     await tester.pump();
-    expect(find.text('Alpha'), findsNothing);
+    expect(find.text('Alpha.txt'), findsNothing);
 
     // ...and back open.
     await tester.tap(find.text('1 source'));
     await tester.pump();
-    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Alpha.txt'), findsOneWidget);
   });
 
   testWidgets('displays badge number from SourceReference.index',
       (tester) async {
     await tester.pumpWidget(_wrap(
-      CitationsSection(sourceReferences: [_ref(index: 4, title: 'Fourth')]),
+      CitationsSection(
+          sourceReferences: [_ref(index: 4, fileName: 'Fourth.txt')]),
     ));
 
     expect(find.text('4'), findsOneWidget);
@@ -132,7 +143,7 @@ void main() {
         sourceReferences: [
           _ref(
             index: 1,
-            title: 'Doc',
+            fileName: 'Doc.txt',
             headings: ['Chapter 1', 'Section 2'],
             content: 'Preview text here',
           ),
@@ -144,7 +155,7 @@ void main() {
     // stays hidden until the row itself is tapped open.
     expect(find.text('Chapter 1 > Section 2'), findsNothing);
 
-    await tester.tap(find.text('Doc'));
+    await tester.tap(find.text('Doc.txt'));
     await tester.pump();
 
     expect(find.text('Chapter 1 > Section 2'), findsOneWidget);
@@ -160,13 +171,13 @@ void main() {
     await tester.pumpWidget(_wrap(
       CitationsSection(
         sourceReferences: [
-          _ref(index: 1, title: 'Doc', content: 'Cited passage body'),
+          _ref(index: 1, fileName: 'Doc.txt', content: 'Cited passage body'),
         ],
       ),
     ));
 
     // Expanded by default (issue #463); open the single source's row.
-    await tester.tap(find.text('Doc'));
+    await tester.tap(find.text('Doc.txt'));
     await tester.pump();
 
     SingleChildScrollView transcriptScroller() => tester.widget(
@@ -200,11 +211,11 @@ void main() {
   testWidgets('expanded row shows the chunk id', (tester) async {
     await tester.pumpWidget(_wrap(
       CitationsSection(
-        sourceReferences: [_ref(index: 1, title: 'Doc')],
+        sourceReferences: [_ref(index: 1, fileName: 'Doc.txt')],
       ),
     ));
 
-    await tester.tap(find.text('Doc'));
+    await tester.tap(find.text('Doc.txt'));
     await tester.pump();
 
     expect(find.textContaining('chunk-1'), findsOneWidget);
@@ -229,8 +240,8 @@ void main() {
     await tester.pumpWidget(_wrap(
       CitationsSection(
         sourceReferences: [
-          _ref(index: 1, title: 'Text File', pdf: false),
-          _ref(index: 2, title: 'PDF File', pdf: true),
+          _ref(index: 1, fileName: 'Text File.txt'),
+          _ref(index: 2, fileName: 'PDF File.pdf'),
         ],
         onShowChunkVisualization: (ref) => tappedRef = ref,
       ),
@@ -251,7 +262,7 @@ void main() {
     test('emits title, headings, pages, uri, and content in order', () {
       final ref = _ref(
         index: 1,
-        title: 'Doc',
+        fileName: 'Doc.txt',
         headings: ['Chapter 1', 'Section 2'],
         pageNumbers: [5, 6],
         content: 'Preview text here',
@@ -259,10 +270,10 @@ void main() {
 
       expect(
         formatCitationForClipboard(ref),
-        'Doc\n'
+        'Doc.txt\n'
         'Chapter 1 > Section 2\n'
         'p.5-6\n'
-        'file://doc-1.txt\n'
+        'file:///docs/Doc.txt\n'
         'chunk id: chunk-1\n'
         '\n'
         'Preview text here',
@@ -289,17 +300,17 @@ void main() {
     test('formats a single ref without trailing separator', () {
       expect(
         formatAllCitationsForClipboard([
-          _ref(index: 1, title: 'Alpha', content: 'first'),
+          _ref(index: 1, fileName: 'Alpha.txt', content: 'first'),
         ]),
         formatCitationForClipboard(
-          _ref(index: 1, title: 'Alpha', content: 'first'),
+          _ref(index: 1, fileName: 'Alpha.txt', content: 'first'),
         ),
       );
     });
 
     test('joins multiple refs with a blank-line/rule/blank-line separator', () {
-      final alpha = _ref(index: 1, title: 'Alpha', content: 'first');
-      final beta = _ref(index: 2, title: 'Beta', content: 'second');
+      final alpha = _ref(index: 1, fileName: 'Alpha.txt', content: 'first');
+      final beta = _ref(index: 2, fileName: 'Beta.txt', content: 'second');
 
       expect(
         formatAllCitationsForClipboard([alpha, beta]),

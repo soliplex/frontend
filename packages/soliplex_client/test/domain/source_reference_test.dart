@@ -253,10 +253,33 @@ void main() {
     });
 
     group('displayTitle', () {
-      test('returns documentTitle when present', () {
+      test('prefers the filename from the uri over documentTitle', () {
         const ref = SourceReference(
           documentId: 'doc-1',
           documentUri: 'https://example.com/doc.pdf',
+          content: 'content',
+          chunkId: 'chunk-1',
+          documentTitle: 'My Document',
+        );
+
+        expect(ref.displayTitle, 'doc.pdf');
+      });
+
+      test('names the attachment, not the document containing it', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+          content: 'content',
+          chunkId: 'chunk-1',
+        );
+
+        expect(ref.displayTitle, 'budget.xlsx');
+      });
+
+      test('falls back to documentTitle when the uri is empty', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: '',
           content: 'content',
           chunkId: 'chunk-1',
           documentTitle: 'My Document',
@@ -287,7 +310,18 @@ void main() {
         expect(ref.displayTitle, 'report.md');
       });
 
-      test('returns Unknown Document for empty title and invalid URI', () {
+      test('falls back rather than labelling a directory uri with nothing', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///docs/',
+          content: 'content',
+          chunkId: 'chunk-1',
+        );
+
+        expect(ref.displayTitle, 'Unknown Document');
+      });
+
+      test('returns Unknown Document when neither uri nor title names one', () {
         const ref = SourceReference(
           documentId: 'doc-1',
           documentUri: '',

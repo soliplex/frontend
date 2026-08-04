@@ -4,165 +4,60 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:soliplex_frontend/src/shared/file_type_icons.dart';
 
 void main() {
-  group('getFileTypeIcon', () {
-    group('PDF files', () {
-      test('returns PDF icon for .pdf extension', () {
-        expect(getFileTypeIcon('document.pdf'), equals(Icons.picture_as_pdf));
-      });
+  group('documentTypeIcon file-type mapping', () {
+    // The title carries no extension, so a fallback to it would surface as the
+    // generic glyph rather than silently matching the expected one.
+    IconData iconFor(String uri) =>
+        documentTypeIcon(RagDocument(id: 'doc-1', title: 'untitled', uri: uri));
 
-      test('handles full path with .pdf', () {
-        expect(
-          getFileTypeIcon('/path/to/document.pdf'),
-          equals(Icons.picture_as_pdf),
-        );
-      });
+    const byExtension = {
+      'pdf': Icons.picture_as_pdf,
+      'doc': Icons.description,
+      'docx': Icons.description,
+      'xls': Icons.table_chart,
+      'xlsx': Icons.table_chart,
+      'ppt': Icons.slideshow,
+      'pptx': Icons.slideshow,
+      'png': Icons.image,
+      'jpg': Icons.image,
+      'jpeg': Icons.image,
+      'gif': Icons.image,
+      'webp': Icons.image,
+      'bmp': Icons.image,
+      'txt': Icons.article,
+      'md': Icons.article,
+      'xyz': Icons.insert_drive_file,
+    };
 
-      test('handles file:// URI with .pdf', () {
-        expect(
-          getFileTypeIcon('file:///path/to/document.pdf'),
-          equals(Icons.picture_as_pdf),
-        );
-      });
-    });
-
-    group('Word documents', () {
-      test('returns description icon for .doc extension', () {
-        expect(getFileTypeIcon('document.doc'), equals(Icons.description));
-      });
-
-      test('returns description icon for .docx extension', () {
-        expect(getFileTypeIcon('document.docx'), equals(Icons.description));
-      });
-    });
-
-    group('Excel spreadsheets', () {
-      test('returns table_chart icon for .xls extension', () {
-        expect(getFileTypeIcon('spreadsheet.xls'), equals(Icons.table_chart));
-      });
-
-      test('returns table_chart icon for .xlsx extension', () {
-        expect(getFileTypeIcon('spreadsheet.xlsx'), equals(Icons.table_chart));
+    byExtension.forEach((extension, icon) {
+      test('maps .$extension', () {
+        expect(iconFor('document.$extension'), equals(icon));
       });
     });
 
-    group('PowerPoint presentations', () {
-      test('returns slideshow icon for .ppt extension', () {
-        expect(getFileTypeIcon('presentation.ppt'), equals(Icons.slideshow));
-      });
-
-      test('returns slideshow icon for .pptx extension', () {
-        expect(getFileTypeIcon('presentation.pptx'), equals(Icons.slideshow));
-      });
+    test('matches the extension case-insensitively', () {
+      expect(iconFor('document.PdF'), equals(Icons.picture_as_pdf));
     });
 
-    group('Image files', () {
-      test('returns image icon for .png extension', () {
-        expect(getFileTypeIcon('image.png'), equals(Icons.image));
-      });
-
-      test('returns image icon for .jpg extension', () {
-        expect(getFileTypeIcon('photo.jpg'), equals(Icons.image));
-      });
-
-      test('returns image icon for .jpeg extension', () {
-        expect(getFileTypeIcon('photo.jpeg'), equals(Icons.image));
-      });
-
-      test('returns image icon for .gif extension', () {
-        expect(getFileTypeIcon('animation.gif'), equals(Icons.image));
-      });
-
-      test('returns image icon for .webp extension', () {
-        expect(getFileTypeIcon('photo.webp'), equals(Icons.image));
-      });
-
-      test('returns image icon for .bmp extension', () {
-        expect(getFileTypeIcon('bitmap.bmp'), equals(Icons.image));
-      });
+    test('reads the last of several dots', () {
+      expect(iconFor('report.final.v2.pdf'), equals(Icons.picture_as_pdf));
     });
 
-    group('Text files', () {
-      test('returns article icon for .txt extension', () {
-        expect(getFileTypeIcon('notes.txt'), equals(Icons.article));
-      });
-
-      test('returns article icon for .md extension', () {
-        expect(getFileTypeIcon('readme.md'), equals(Icons.article));
-      });
+    test('reads the extension of a dotfile that has one', () {
+      expect(iconFor('.hidden.txt'), equals(Icons.article));
     });
 
-    group('Unknown/generic files', () {
-      test('returns generic file icon for unknown extension', () {
-        expect(getFileTypeIcon('data.xyz'), equals(Icons.insert_drive_file));
+    group('names with no usable extension', () {
+      test('no dot at all', () {
+        expect(iconFor('README'), equals(Icons.insert_drive_file));
       });
 
-      test('returns generic file icon for no extension', () {
-        expect(getFileTypeIcon('README'), equals(Icons.insert_drive_file));
+      test('nothing after the dot', () {
+        expect(iconFor('file.'), equals(Icons.insert_drive_file));
       });
 
-      test('returns generic file icon for empty string', () {
-        expect(getFileTypeIcon(''), equals(Icons.insert_drive_file));
-      });
-
-      test('returns generic file icon for path ending in slash', () {
-        expect(getFileTypeIcon('/path/to/'), equals(Icons.insert_drive_file));
-      });
-
-      test('returns generic file icon for file ending with dot', () {
-        expect(getFileTypeIcon('file.'), equals(Icons.insert_drive_file));
-      });
-    });
-
-    group('case-insensitive matching', () {
-      test('handles uppercase .PDF', () {
-        expect(getFileTypeIcon('document.PDF'), equals(Icons.picture_as_pdf));
-      });
-
-      test('handles mixed case .PdF', () {
-        expect(getFileTypeIcon('document.PdF'), equals(Icons.picture_as_pdf));
-      });
-
-      test('handles uppercase .DOCX', () {
-        expect(getFileTypeIcon('document.DOCX'), equals(Icons.description));
-      });
-
-      test('handles uppercase .TXT', () {
-        expect(getFileTypeIcon('notes.TXT'), equals(Icons.article));
-      });
-
-      test('handles uppercase .PNG', () {
-        expect(getFileTypeIcon('image.PNG'), equals(Icons.image));
-      });
-    });
-
-    group('edge cases', () {
-      test('handles path with query string', () {
-        expect(
-          getFileTypeIcon('document.pdf?version=1'),
-          equals(Icons.picture_as_pdf),
-        );
-      });
-
-      test('handles path with fragment', () {
-        expect(
-          getFileTypeIcon('document.pdf#page=5'),
-          equals(Icons.picture_as_pdf),
-        );
-      });
-
-      test('handles filename with multiple dots', () {
-        expect(
-          getFileTypeIcon('report.final.v2.pdf'),
-          equals(Icons.picture_as_pdf),
-        );
-      });
-
-      test('handles hidden file with extension', () {
-        expect(getFileTypeIcon('.hidden.txt'), equals(Icons.article));
-      });
-
-      test('handles hidden file without extension', () {
-        expect(getFileTypeIcon('.gitignore'), equals(Icons.insert_drive_file));
+      test('a leading dot and nothing else', () {
+        expect(iconFor('.gitignore'), equals(Icons.insert_drive_file));
       });
     });
   });
@@ -171,10 +66,10 @@ void main() {
     test('returns filename from uri for file-path uri', () {
       const doc = RagDocument(
         id: 'doc-1',
-        title: 'COMPLIANCE WITH THIS PUBLICATION IS MANDATORY',
-        uri: 'airpubs/27sog/foo/afman_10-206.pdf',
+        title: 'Facilities Handbook',
+        uri: 'manuals/facilities/handbook.pdf',
       );
-      expect(documentDisplayName(doc), equals('afman_10-206.pdf'));
+      expect(documentDisplayName(doc), equals('handbook.pdf'));
     });
 
     test('falls back to title when uri is empty', () {
@@ -194,10 +89,10 @@ void main() {
     test('handles file:// prefixed uri', () {
       const doc = RagDocument(
         id: 'doc-4',
-        title: 'BY ORDER OF THE SECRETARY OF THE AIR FORCE',
-        uri: 'file:///data/airpubs/27sog/afman_10-206.pdf',
+        title: 'Facilities Handbook',
+        uri: 'file:///data/manuals/facilities/handbook.pdf',
       );
-      expect(documentDisplayName(doc), equals('afman_10-206.pdf'));
+      expect(documentDisplayName(doc), equals('handbook.pdf'));
     });
 
     test('returns just filename for short uri', () {
@@ -217,30 +112,131 @@ void main() {
       );
       expect(documentDisplayName(doc), equals('Question 2'));
     });
+
+    test('names an attachment, not the document containing it', () {
+      const doc = RagDocument(
+        id: 'doc-7',
+        title: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+        uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+      );
+      expect(documentDisplayName(doc), equals('budget.xlsx'));
+    });
+
+    test('falls back to title when the uri names no file', () {
+      const doc = RagDocument(
+        id: 'doc-11',
+        title: 'Annual Report',
+        uri: 'file:///docs/',
+      );
+      expect(documentDisplayName(doc), equals('Annual Report'));
+    });
   });
 
-  group('documentIconPath', () {
-    test('returns uri when it is a file path', () {
+  group('documentTypeIcon', () {
+    test('resolves a regular document from its uri', () {
       const doc = RagDocument(
         id: 'doc-1',
-        title: 'COMPLIANCE',
-        uri: 'airpubs/foo/afman.pdf',
+        title: 'Facilities Handbook',
+        uri: 'manuals/facilities/handbook.pdf',
       );
-      expect(documentIconPath(doc), equals('airpubs/foo/afman.pdf'));
+      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
     });
 
     test('falls back to title when uri is empty', () {
       const doc = RagDocument(id: 'doc-2', title: 'report.pdf');
-      expect(documentIconPath(doc), equals('report.pdf'));
+      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
     });
 
     test('falls back to title when uri is a UUID', () {
       const doc = RagDocument(
         id: 'doc-3',
-        title: 'Question 1',
+        title: 'Question 1.docx',
         uri: '4e8bf0c7-f504-4ffc-b647-a9f8f255bea5',
       );
-      expect(documentIconPath(doc), equals('Question 1'));
+      expect(documentTypeIcon(doc), equals(Icons.description));
+    });
+
+    test('resolves an attachment to its own file type', () {
+      const doc = RagDocument(
+        id: 'doc-4',
+        title: 'attachment',
+        uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+      );
+      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+    });
+
+    test('falls back to title when the uri names no file', () {
+      // The row is labelled from the title here, so the glyph has to come
+      // from the title too or it would describe a different file.
+      const doc = RagDocument(
+        id: 'doc-9',
+        title: 'Budget.xlsx',
+        uri: 'file:///docs/',
+      );
+      expect(documentDisplayName(doc), equals('Budget.xlsx'));
+      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+    });
+
+    test('resolves an attachment whose name contains a literal hash', () {
+      // A decoded name is not a URI: splitting it at '#' would strip the
+      // extension and fall through to the generic glyph.
+      const doc = RagDocument(
+        id: 'doc-6',
+        title: 'hashed',
+        uri: 'file:///docs/a.pdf#attachment=invoice%231234.xlsx',
+      );
+      expect(documentDisplayName(doc), equals('invoice#1234.xlsx'));
+      expect(documentTypeIcon(doc), equals(Icons.table_chart));
+    });
+
+    test('ignores a page fragment on a regular document', () {
+      const doc = RagDocument(
+        id: 'doc-8',
+        title: 'paged',
+        uri: 'file:///docs/handbook.pdf#page=3',
+      );
+      expect(documentTypeIcon(doc), equals(Icons.picture_as_pdf));
+    });
+  });
+
+  group('name derivation across surfaces', () {
+    test('the document list and a citation name an attachment identically', () {
+      const uri = 'file:///docs/annual-report.pdf#attachment=budget.xlsx';
+      const doc = RagDocument(id: 'doc-1', title: uri, uri: uri);
+      const ref = SourceReference(
+        documentId: 'doc-1',
+        documentUri: uri,
+        content: 'content',
+        chunkId: 'chunk-1',
+      );
+
+      // Assert the value on both sides, not just that they agree — agreement
+      // alone also holds if both regress to the container's name.
+      expect(documentDisplayName(doc), equals('budget.xlsx'));
+      expect(ref.displayTitle, equals('budget.xlsx'));
+    });
+  });
+
+  group('filterDocuments', () {
+    const container = RagDocument(
+      id: 'doc-1',
+      title: 'container',
+      uri: 'file:///docs/annual-report.pdf',
+    );
+    const attachment = RagDocument(
+      id: 'doc-2',
+      title: 'attachment',
+      uri: 'file:///docs/annual-report.pdf#attachment=my%20budget.xlsx',
+    );
+
+    test('matches an attachment by its decoded name', () {
+      // 'my budget' appears in neither uri: the container's name does not
+      // contain it and the attachment's is escaped. Matching depends on the
+      // display name, which is what lets search work with no custom matcher.
+      expect(
+        filterDocuments(const [container, attachment], 'my budget'),
+        equals(const [attachment]),
+      );
     });
   });
 }

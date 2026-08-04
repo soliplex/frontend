@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:soliplex_client/src/domain/document_ref.dart';
 
 /// A cited figure the backend shipped inline: a picture [ref] with its decoded
 /// [bytes] and optional [caption].
@@ -136,16 +137,25 @@ class SourceReference {
 
   /// Returns a display-friendly title for the source reference.
   ///
-  /// Uses [documentTitle] if present, otherwise extracts filename from
-  /// [documentUri]. Falls back to "Unknown Document" if neither works.
+  /// Uses the filename from [documentUri] — the attachment's own name when the
+  /// URI addresses a file embedded in another document. Falls back to
+  /// [documentTitle], then to "Unknown Document".
+  ///
+  /// The filename wins because it identifies the file the chunk came from: it
+  /// names a cited attachment rather than the document it was embedded in.
+  /// [documentTitle] is absent unless the backend is configured to generate
+  /// titles, and a generated title is non-deterministic and can collide across
+  /// documents.
+  ///
+  /// Unlike the document listing, this applies no id-shaped-URI guard, so a
+  /// [documentUri] that is a bare UUID reads as the name. Citations are built
+  /// only from backend retrieval payloads, which carry paths.
   String get displayTitle {
+    final fileName = DocumentRef.parse(documentUri).displayName;
+    if (fileName != null) return fileName;
+
     if (documentTitle != null && documentTitle!.isNotEmpty) {
       return documentTitle!;
-    }
-
-    final uri = Uri.tryParse(documentUri);
-    if (uri != null && uri.pathSegments.isNotEmpty) {
-      return uri.pathSegments.last;
     }
 
     return 'Unknown Document';

@@ -117,7 +117,7 @@ class _DocumentPickerState extends State<DocumentPicker> {
                     final doc = filtered[index];
                     final selected = widget.selected.contains(doc);
                     return CheckboxListTile(
-                      secondary: Icon(getFileTypeIcon(documentIconPath(doc))),
+                      secondary: Icon(documentTypeIcon(doc)),
                       title: Text(
                         documentDisplayName(doc),
                         overflow: TextOverflow.ellipsis,
