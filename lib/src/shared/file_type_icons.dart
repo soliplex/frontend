@@ -30,7 +30,9 @@ String _extensionOfName(String filename) {
 /// Uses the filename from [RagDocument.uri] — the attachment's own name when
 /// the URI addresses a file embedded in another document. Falls back to
 /// [RagDocument.title] when the URI names no file, which covers a URI that is
-/// an id rather than a path (an empty URI or a bare UUID, e.g. quiz items).
+/// an id rather than a path. The empty one arrives from a document stored with
+/// no URI at all; a URI that is a bare id is read the same way, though nothing
+/// in the backend addresses a document that way.
 String documentDisplayName(RagDocument doc) =>
     DocumentRef.parse(doc.uri).displayName ?? doc.title;
 

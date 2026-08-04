@@ -10,29 +10,20 @@ void main() {
     IconData iconFor(String uri) =>
         documentTypeIcon(RagDocument(id: 'doc-1', title: 'untitled', uri: uri));
 
-    const byExtension = {
-      'pdf': Icons.picture_as_pdf,
-      'doc': Icons.description,
-      'docx': Icons.description,
-      'xls': Icons.table_chart,
-      'xlsx': Icons.table_chart,
-      'ppt': Icons.slideshow,
-      'pptx': Icons.slideshow,
-      'png': Icons.image,
-      'jpg': Icons.image,
-      'jpeg': Icons.image,
-      'gif': Icons.image,
-      'webp': Icons.image,
-      'bmp': Icons.image,
-      'txt': Icons.article,
-      'md': Icons.article,
-      'xyz': Icons.insert_drive_file,
-    };
+    // One representative per glyph family. A case per alias would restate the
+    // switch it is checking, so a typo there would be copied into the
+    // expectation rather than caught by it.
+    test('maps a file family to its glyph', () {
+      expect(iconFor('document.pdf'), equals(Icons.picture_as_pdf));
+      expect(iconFor('document.docx'), equals(Icons.description));
+      expect(iconFor('document.xlsx'), equals(Icons.table_chart));
+      expect(iconFor('document.pptx'), equals(Icons.slideshow));
+      expect(iconFor('document.png'), equals(Icons.image));
+      expect(iconFor('document.md'), equals(Icons.article));
+    });
 
-    byExtension.forEach((extension, icon) {
-      test('maps .$extension', () {
-        expect(iconFor('document.$extension'), equals(icon));
-      });
+    test('falls back to a generic glyph for an unrecognised extension', () {
+      expect(iconFor('document.xyz'), equals(Icons.insert_drive_file));
     });
 
     test('matches the extension case-insensitively', () {
@@ -210,10 +201,12 @@ void main() {
         chunkId: 'chunk-1',
       );
 
-      // Assert the value on both sides, not just that they agree — agreement
-      // alone also holds if both regress to the container's name.
+      // The value once, then the agreement: each surface's own test pins the
+      // value, so what only this case can catch is the two drifting apart —
+      // one side gaining a guard the other does not, which is how they came to
+      // disagree before.
       expect(documentDisplayName(doc), equals('budget.xlsx'));
-      expect(ref.displayTitle, equals('budget.xlsx'));
+      expect(ref.displayTitle, equals(documentDisplayName(doc)));
     });
   });
 

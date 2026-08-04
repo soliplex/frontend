@@ -416,6 +416,19 @@ void main() {
         expect(ref.isPdf, isTrue);
       });
 
+      test('keeps the preview for a filename carried in a query string', () {
+        // The path names `download`, so the name alone reads as no PDF; the
+        // raw URI is what identifies this one.
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'https://example.test/download?file=report.pdf',
+          content: 'content',
+          chunkId: 'chunk-1',
+        );
+
+        expect(ref.isPdf, isTrue);
+      });
+
       test('types an embedded file as itself, not its container', () {
         const ref = SourceReference(
           documentId: 'doc-1',
