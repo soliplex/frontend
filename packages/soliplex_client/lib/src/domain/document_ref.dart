@@ -87,10 +87,12 @@ class DocumentRef {
   /// separator.
   List<String> get ancestorNames {
     if (!isAttachment) return const [];
-    return [
-      _rootFileName,
-      ...attachmentPath.take(attachmentPath.length - 1),
-    ].map((name) => name.trim()).where((name) => name.isNotEmpty).toList();
+    return List.unmodifiable(
+      [
+        _rootFileName,
+        ...attachmentPath.take(attachmentPath.length - 1),
+      ].map((name) => name.trim()).where((name) => name.isNotEmpty),
+    );
   }
 
   /// [rootUri]'s decoded filename, with any query or fragment dropped.

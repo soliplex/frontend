@@ -65,6 +65,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   alone that `#` and a `#page=` fragment are the same shape, and two such
   documents differing only after the `#` become one label and one glyph.
 
+- An expanded citation shows the cited document's title, which nothing displayed
+  before: the row's own label is the filename, so a title had no home. The row
+  is absent entirely — its label included — for a document with no title, which
+  is every document unless the backend is configured to generate them.
+- A document's origin link carries its whole address on hover, wherever that
+  link appears — a citation, the document picker, the room's document list. The
+  link text drops the scheme, the query and the fragment and then ellipsizes
+  what remains, so the address actually being opened could not be read.
+
 ### Fixed
 
 - An expanded activity row's body clamps to eight lines with a "Show more"
@@ -82,6 +91,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   now read one parse of the URI, so an attachment shows its own decoded filename
   and its own glyph wherever it appears, and a citation names the document the
   text actually came from.
+- A citation of an embedded file names the documents containing it, beneath the
+  file's own name — `in annual-report.pdf`, chaining through each level when a
+  file is embedded two deep. Now that a citation names the embedded file rather
+  than its container, nothing else said where it lives: a configured browser
+  link drops the URI fragment the relationship is encoded in, and the raw URI
+  shown in that link's absence is one ellipsized line of percent-encoded text.
+  Each line holds to one line, so a citation is the same height whatever its
+  names run to, and one hover covers both — which also recovers a long filename
+  on a citation of a document that is embedded in nothing, where before there
+  was no way to read a name once it was cut.
 - A document whose URI names no file — one ending in a slash — no longer renders a
   blank label in the list, the picker or the attachment chips, and no longer
   renders a blank citation. In the list it falls back to the document's title,

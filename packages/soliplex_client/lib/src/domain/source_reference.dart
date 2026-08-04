@@ -161,6 +161,14 @@ class SourceReference {
     return 'Unknown Document';
   }
 
+  /// The documents the cited file is embedded in, outermost first, or empty
+  /// when it is not embedded in one.
+  ///
+  /// Read out of [documentUri], so these are names rather than verified
+  /// documents: nothing here confirms one exists or is retrievable.
+  List<String> get ancestorNames =>
+      DocumentRef.parse(documentUri).ancestorNames;
+
   /// Whether this source reference points to a PDF document.
   bool get isPdf => documentUri.toLowerCase().endsWith('.pdf');
 

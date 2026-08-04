@@ -7,14 +7,18 @@ import 'package:soliplex_frontend/src/modules/room/ui/citations_section.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 
 /// Builds a reference labelled by its filename, with a distinct
-/// [SourceReference.documentTitle] the row is expected not to show.
+/// [SourceReference.documentTitle] the collapsed row is expected not to show —
+/// the title surfaces only in the expanded area.
 ///
 /// The URI ends in [fileName], so the name drives both the label and the PDF
 /// affordance — though [SourceReference.isPdf] reads the whole URI, not the
-/// name. Callers vary the name, not the URI.
+/// name. Callers usually vary the name; pass [uri] outright to address a file
+/// embedded in another document.
 SourceReference _ref({
   required int index,
   String? fileName,
+  String? uri,
+  Object? documentTitle = _unset,
   List<String> headings = const [],
   String content = 'Test content',
   List<int> pageNumbers = const [],
@@ -22,15 +26,21 @@ SourceReference _ref({
   final name = fileName ?? 'doc-$index.txt';
   return SourceReference(
     documentId: 'doc-$index',
-    documentUri: 'file:///docs/$name',
+    documentUri: uri ?? 'file:///docs/$name',
     content: content,
     chunkId: 'chunk-$index',
-    documentTitle: 'Document $index',
+    documentTitle: identical(documentTitle, _unset)
+        ? 'Document $index'
+        : documentTitle as String?,
     headings: headings,
     pageNumbers: pageNumbers,
     index: index,
   );
 }
+
+/// Sentinel distinguishing "caller passed null" from "caller passed nothing",
+/// so a test can ask for a reference with no title at all.
+const Object _unset = Object();
 
 Widget _wrap(Widget child) => ProviderScope(
       child: MaterialApp(home: Scaffold(body: child)),
@@ -231,6 +241,145 @@ void main() {
     ));
 
     expect(find.text('p.5-6'), findsOneWidget);
+  });
+
+  testWidgets('an attachment citation names the document it is embedded in',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+          ),
+        ],
+      ),
+    ));
+
+    // The cited file keeps the primary slot — never the container — and states
+    // its provenance underneath.
+    expect(find.text('budget.xlsx'), findsOneWidget);
+    expect(find.text('in annual-report.pdf'), findsOneWidget);
+
+    // The provenance sits inside the row's tap target, so opening a citation
+    // by its container line works like opening it by its name.
+    await tester.tap(find.text('in annual-report.pdf'));
+    await tester.pump();
+
+    expect(find.textContaining('chunk-1'), findsOneWidget);
+  });
+
+  testWidgets('a nested attachment chains the documents containing it',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            uri: 'file:///docs/a.pdf#attachment=b.pdf#attachment=inner.xlsx',
+          ),
+        ],
+      ),
+    ));
+
+    expect(find.text('inner.xlsx'), findsOneWidget);
+    expect(find.text('in a.pdf > b.pdf'), findsOneWidget);
+  });
+
+  testWidgets('the label tooltip carries both names in full', (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            uri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
+          ),
+        ],
+      ),
+    ));
+
+    // Both lines ellipsize, so a tooltip naming only the container would leave
+    // the cited file — the thing the citation is about — unreadable.
+    expect(
+      find.byTooltip('budget.xlsx embedded in annual-report.pdf'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the label tooltip of a plain document carries its name',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [_ref(index: 1, fileName: 'standalone.pdf')],
+      ),
+    ));
+
+    expect(find.byTooltip('standalone.pdf'), findsOneWidget);
+  });
+
+  testWidgets('a citation of a plain document shows no provenance line',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [_ref(index: 1, fileName: 'standalone.pdf')],
+      ),
+    ));
+
+    expect(find.text('standalone.pdf'), findsOneWidget);
+    expect(find.textContaining(RegExp('^in ')), findsNothing);
+  });
+
+  testWidgets('an expanded citation shows the document title', (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            fileName: 'Doc.txt',
+            documentTitle: 'Annual Operations Review',
+          ),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('Doc.txt'));
+    await tester.pump();
+
+    expect(find.textContaining('Annual Operations Review'), findsOneWidget);
+  });
+
+  testWidgets('an expanded citation with no title shows no title row',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, fileName: 'Doc.txt', documentTitle: null),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('Doc.txt'));
+    await tester.pump();
+
+    // The label goes with the value — a lone `title` lead-in announces nothing.
+    expect(find.textContaining('chunk-1'), findsOneWidget);
+    expect(find.textContaining('title  '), findsNothing);
+  });
+
+  testWidgets('a blank document title is treated as absent', (tester) async {
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(index: 1, fileName: 'Doc.txt', documentTitle: '   '),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('Doc.txt'));
+    await tester.pump();
+
+    expect(find.textContaining('chunk-1'), findsOneWidget);
+    expect(find.textContaining('title  '), findsNothing);
   });
 
   testWidgets('shows PDF preview affordance only for PDF sources',
