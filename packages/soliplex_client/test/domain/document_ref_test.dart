@@ -195,6 +195,30 @@ void main() {
       expect(DocumentRef.parse('').displayName, isNull);
     });
 
+    test('has no name when the root is a bare id', () {
+      // An id standing in for a path names no file. Without this the UUID
+      // reads as a perfectly good filename and outranks a real title.
+      expect(
+        DocumentRef.parse('4e8bf0c7-f504-4ffc-b647-a9f8f255bea5').displayName,
+        isNull,
+      );
+      expect(
+        DocumentRef.parse('4E8BF0C7-F504-4FFC-B647-A9F8F255BEA5').displayName,
+        isNull,
+      );
+    });
+
+    test('reads a uuid that names a file rather than standing in for one', () {
+      // The guard reads the whole uri, so a file *named* after a uuid keeps
+      // its name.
+      expect(
+        DocumentRef.parse(
+          'file:///docs/4e8bf0c7-f504-4ffc-b647-a9f8f255bea5.pdf',
+        ).displayName,
+        '4e8bf0c7-f504-4ffc-b647-a9f8f255bea5.pdf',
+      );
+    });
+
     test('ancestorNames omits a level with a blank name', () {
       // A blank entry would render as a dangling separator once these are
       // joined, so it is dropped at every level, not only at the root.

@@ -277,8 +277,14 @@ class _SourceReferenceRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // The row's label is the filename, so the title has no home there.
-          DocumentTitleLine(title: sourceReference.documentTitle),
+          // The row's label is the filename, so the title has no home there —
+          // unless the URI named no file, in which case the label already is
+          // the title and repeating it would print the same string twice.
+          DocumentTitleLine(
+            title: sourceReference.fileName == null
+                ? null
+                : sourceReference.documentTitle,
+          ),
           // The cited document's source link: the viewer `source_url`, else a
           // resolver-derived URL from the document URI, else the raw URI as
           // text (it is never itself launchable). A fork supplies the resolver

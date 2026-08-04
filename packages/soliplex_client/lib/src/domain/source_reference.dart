@@ -135,28 +135,35 @@ class SourceReference {
     }
   }
 
+  /// [documentUri] decomposed into the document it lives in and the chain of
+  /// attachment names leading to it.
+  DocumentRef get _document => DocumentRef.parse(documentUri);
+
+  /// The filename [documentUri] addresses — the attachment's own name when the
+  /// URI addresses a file embedded in another document — or null when the URI
+  /// names no file.
+  ///
+  /// Null is also what tells a surface rendering both a label and a title row
+  /// that [displayTitle] has fallen back to [documentTitle], and so is already
+  /// showing it.
+  String? get fileName => _document.displayName;
+
   /// Returns a display-friendly title for the source reference.
   ///
-  /// Uses the filename from [documentUri] — the attachment's own name when the
-  /// URI addresses a file embedded in another document. Falls back to
-  /// [documentTitle], then to "Unknown Document".
+  /// Uses [fileName], falling back to [documentTitle], then to
+  /// "Unknown Document".
   ///
   /// The filename wins because it identifies the file the chunk came from: it
   /// names a cited attachment rather than the document it was embedded in.
   /// [documentTitle] is absent unless the backend is configured to generate
   /// titles, and a generated title is non-deterministic and can collide across
   /// documents.
-  ///
-  /// Unlike the document listing, this applies no id-shaped-URI guard, so a
-  /// [documentUri] that is a bare UUID reads as the name. Citations are built
-  /// only from backend retrieval payloads, which carry paths.
   String get displayTitle {
-    final fileName = DocumentRef.parse(documentUri).displayName;
-    if (fileName != null) return fileName;
+    final name = fileName;
+    if (name != null) return name;
 
-    if (documentTitle != null && documentTitle!.isNotEmpty) {
-      return documentTitle!;
-    }
+    final title = documentTitle?.trim();
+    if (title != null && title.isNotEmpty) return title;
 
     return 'Unknown Document';
   }
@@ -166,11 +173,13 @@ class SourceReference {
   ///
   /// Read out of [documentUri], so these are names rather than verified
   /// documents: nothing here confirms one exists or is retrievable.
-  List<String> get ancestorNames =>
-      DocumentRef.parse(documentUri).ancestorNames;
+  List<String> get ancestorNames => _document.ancestorNames;
 
-  /// Whether this source reference points to a PDF document.
-  bool get isPdf => documentUri.toLowerCase().endsWith('.pdf');
+  /// Whether the cited file is a PDF.
+  ///
+  /// Reads the extension off [fileName], so a page fragment does not hide it
+  /// and an embedded file is typed as itself rather than as its container.
+  bool get isPdf => fileName?.toLowerCase().endsWith('.pdf') ?? false;
 
   @override
   bool operator ==(Object other) {

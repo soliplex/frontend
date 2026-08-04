@@ -47,7 +47,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   nothing about; `TOOL_CALL_START` is the event that names a tool, and it already
   sets the label.
 - A citation is labelled by its document's filename in preference to the
-  document's title; the title is the fallback when the URI names no file. The
+  document's title; the title is the fallback when the URI names no file — a
+  URI that is an id rather than a path included, so a document addressed by a
+  bare UUID still reads by its title rather than by the id. A title that is
+  only whitespace is no longer a label either; such a citation reads
+  `Unknown Document` instead of rendering an empty one. The
   filename identifies the file a chunk came from — it names an embedded file
   rather than the PDF it was found in, and it matches how the same document is
   labelled in the list and the picker. *The preference itself* has no visible
@@ -68,7 +72,15 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - An expanded citation shows the cited document's title, which nothing displayed
   before: the row's own label is the filename, so a title had no home. The row
   is absent entirely — its label included — for a document with no title, which
-  is every document unless the backend is configured to generate them.
+  is every document unless the backend is configured to generate them, and for
+  one whose row label is already the title, so the same string is never printed
+  twice.
+- A citation's PDF preview affordance reads the cited file's name rather than
+  the raw URI, so a PDF addressed with a page fragment or a trailing escape —
+  `handbook.pdf#page=3` — keeps its preview button instead of losing it to a
+  URI that no longer ends in `.pdf`. This was the last file-type check not
+  routed through the URI parse; an embedded file is still typed as itself, so a
+  spreadsheet inside a PDF offers no page preview.
 - A document's origin link carries its whole address on hover, wherever that
   link appears — a citation, the document picker, the room's document list. The
   link text drops the scheme, the query and the fragment and then ellipsizes
