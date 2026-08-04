@@ -20,6 +20,13 @@ String formatServerUrl(Uri url) {
   return '${url.scheme}://${url.host}$port';
 }
 
+/// A server label with any leading `http(s)://` scheme removed, for compact
+/// header/title display where a leading glyph or surrounding context already
+/// implies a URL. A human-readable server name (which carries no scheme) is
+/// returned unchanged.
+String stripUrlScheme(String label) =>
+    label.replaceFirst(RegExp('^https?://'), '');
+
 /// Groups everything that lives and dies with a server.
 class ServerEntry {
   const ServerEntry({
