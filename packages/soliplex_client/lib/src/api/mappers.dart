@@ -382,9 +382,6 @@ Map<String, dynamic> roomToJson(Room room) {
 /// Creates a [RagDocument] from JSON.
 RagDocument ragDocumentFromJson(Map<String, dynamic> json) {
   final uri = (json['uri'] as String?) ?? '';
-  // title can be null - fall back to uri, then 'Untitled'
-  final title =
-      (json['title'] as String?) ?? (uri.isNotEmpty ? uri : 'Untitled');
 
   final createdRaw = json['created_at'] as String?;
   final updatedRaw = json['updated_at'] as String?;
@@ -396,7 +393,7 @@ RagDocument ragDocumentFromJson(Map<String, dynamic> json) {
 
   return RagDocument(
     id: _requireString(json, 'id', 'document'),
-    title: title,
+    title: json['title'] as String?,
     uri: uri,
     metadata: metadata,
     createdAt: _tryParseTimestamp(createdRaw),

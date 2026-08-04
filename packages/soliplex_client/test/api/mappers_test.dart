@@ -501,7 +501,11 @@ void main() {
         expect(doc.updatedAt, isNull);
       });
 
-      test('falls back to uri when title is null', () {
+      test('leaves a null title absent rather than standing in the uri', () {
+        // A document the backend gave no title has none. Inventing one here put
+        // the whole URI in the title field, which any consumer asking "does
+        // this document have a title?" then had to recognise as a stand-in.
+        // The display fallback lives in the UI layer instead.
         final json = <String, dynamic>{
           'id': 'doc-uuid-123',
           'title': null,
@@ -511,20 +515,7 @@ void main() {
         final doc = ragDocumentFromJson(json);
 
         expect(doc.id, equals('doc-uuid-123'));
-        expect(doc.title, equals('file:///docs/manual.pdf'));
-      });
-
-      test('falls back to Untitled when title and uri are null', () {
-        final json = <String, dynamic>{
-          'id': 'doc-uuid-123',
-          'title': null,
-          'uri': null,
-        };
-
-        final doc = ragDocumentFromJson(json);
-
-        expect(doc.id, equals('doc-uuid-123'));
-        expect(doc.title, equals('Untitled'));
+        expect(doc.title, isNull);
       });
     });
 
