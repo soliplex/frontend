@@ -165,12 +165,11 @@ class _DocumentsCardState extends State<DocumentsCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              // The glyph and the chevron read against the file the row names,
-              // so they sit on its baseline. Centring instead lands them level
-              // with the provenance line beneath it, describing the containing
-              // document.
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+              // The glyph and the chevron read against the row's name, so they
+              // sit at the top of it. Centring instead lands them level with
+              // the provenance line beneath it, describing the containing
+              // document, and moves them whenever a row gains that line.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   display.icon,
