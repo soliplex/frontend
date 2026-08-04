@@ -78,8 +78,8 @@ class DocumentMetadataLine extends StatelessWidget {
 
 /// A document's title, on a [DocumentMetadataLine].
 ///
-/// Exists so the two surfaces that show a title label it and style it
-/// identically without either restating the choice.
+/// A title row reads the same wherever one appears: same lead-in, same style,
+/// chosen once here.
 class DocumentTitleLine extends StatelessWidget {
   const DocumentTitleLine({required this.title, super.key});
 

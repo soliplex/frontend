@@ -11,9 +11,8 @@ import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_
 /// the title surfaces only in the expanded area.
 ///
 /// The URI ends in [fileName], so the name drives both the label and the PDF
-/// affordance — though [SourceReference.isPdf] reads the whole URI, not the
-/// name. Callers usually vary the name; pass [uri] outright to address a file
-/// embedded in another document.
+/// affordance. Callers usually vary the name; pass [uri] outright to address a
+/// file embedded in another document.
 SourceReference _ref({
   required int index,
   String? fileName,
@@ -343,6 +342,28 @@ void main() {
     ));
 
     await tester.tap(find.text('Doc.txt'));
+    await tester.pump();
+
+    expect(find.textContaining('Annual Operations Review'), findsOneWidget);
+  });
+
+  testWidgets('an expanded citation whose label is the title shows it once',
+      (tester) async {
+    // The row label falls back to the title when the uri names no file.
+    // Repeating it under a `title` lead-in would print the same string twice.
+    await tester.pumpWidget(_wrap(
+      CitationsSection(
+        sourceReferences: [
+          _ref(
+            index: 1,
+            uri: 'file:///docs/',
+            documentTitle: 'Annual Operations Review',
+          ),
+        ],
+      ),
+    ));
+
+    await tester.tap(find.text('Annual Operations Review'));
     await tester.pump();
 
     expect(find.textContaining('Annual Operations Review'), findsOneWidget);

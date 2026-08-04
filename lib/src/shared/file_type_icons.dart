@@ -25,21 +25,14 @@ String _extensionOfName(String filename) {
   return filename.substring(lastDot + 1).toLowerCase();
 }
 
-/// The filename [doc]'s URI addresses, or null when the URI names none.
-///
-/// An empty URI and a bare UUID are ids rather than paths, so they are rejected
-/// before parsing — a UUID would otherwise read as a perfectly good filename.
-String? _fileName(RagDocument doc) => doc.uri.isEmpty || _isUuid(doc.uri)
-    ? null
-    : DocumentRef.parse(doc.uri).displayName;
-
 /// Returns a user-friendly display name for a [RagDocument].
 ///
 /// Uses the filename from [RagDocument.uri] — the attachment's own name when
 /// the URI addresses a file embedded in another document. Falls back to
-/// [RagDocument.title] when the URI names no file, and when it is an id rather
-/// than a path (an empty URI or a bare UUID, e.g. quiz items).
-String documentDisplayName(RagDocument doc) => _fileName(doc) ?? doc.title;
+/// [RagDocument.title] when the URI names no file, which covers a URI that is
+/// an id rather than a path (an empty URI or a bare UUID, e.g. quiz items).
+String documentDisplayName(RagDocument doc) =>
+    DocumentRef.parse(doc.uri).displayName ?? doc.title;
 
 /// Returns the file-type icon for a [RagDocument].
 ///
@@ -63,10 +56,3 @@ List<RagDocument> filterDocuments(List<RagDocument> docs, String query) {
       )
       .toList();
 }
-
-final _uuidPattern = RegExp(
-  r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-  caseSensitive: false,
-);
-
-bool _isUuid(String s) => _uuidPattern.hasMatch(s);

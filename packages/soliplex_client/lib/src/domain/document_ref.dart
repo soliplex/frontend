@@ -33,7 +33,10 @@ class DocumentRef {
   /// simply has no attachments.
   ///
   /// A segment that decodes to nothing is dropped rather than kept as a level,
-  /// so a trailing `#attachment=` degrades to the containing document.
+  /// so a trailing `#attachment=` degrades to the containing document. An
+  /// unnamed segment between two named ones is dropped the same way, which
+  /// shortens the chain [ancestorNames] reports without making any entry in it
+  /// untrue.
   factory DocumentRef.parse(String uri) {
     final segments = uri.split(_attachmentMarker);
     return DocumentRef._(
@@ -65,16 +68,23 @@ class DocumentRef {
   /// The innermost attachment name, or the decoded filename of [rootUri] when
   /// this is a plain document, trimmed of surrounding whitespace.
   ///
-  /// Null when the name reads blank, so a caller that needs a label has to
-  /// supply its own fallback rather than render an invisible one. For a plain
-  /// document that covers a [rootUri] ending in a separator, or naming no path
-  /// at all.
+  /// Null when no name reads, so a caller that needs a label supplies its own
+  /// rather than rendering an empty one. For a plain document that covers a
+  /// [rootUri] that is empty, ends in a separator, or is a bare id rather than
+  /// a path; for an attachment, a name that reads blank.
   ///
   /// Two surprises reach a plain document's name: an unescaped `?` or `#`
-  /// truncates it, and a URI with no path (`https://example.test`) yields its
-  /// host.
+  /// truncates it, and a URI with an authority but no path
+  /// (`https://example.test`) yields its host.
   String? get displayName {
-    final name = (isAttachment ? attachmentPath.last : _rootFileName).trim();
+    if (isAttachment) {
+      final name = attachmentPath.last.trim();
+      return name.isEmpty ? null : name;
+    }
+    // An id standing in for a path names no file. Without this a bare UUID
+    // reads as a perfectly good filename and outranks a real title.
+    if (_bareUuid.hasMatch(rootUri)) return null;
+    final name = _rootFileName.trim();
     return name.isEmpty ? null : name;
   }
 
@@ -112,6 +122,12 @@ class DocumentRef {
     return _decode(lastSlash == -1 ? path : path.substring(lastSlash + 1));
   }
 }
+
+/// A URI that is nothing but a UUID: an id standing in for a path.
+final _bareUuid = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  caseSensitive: false,
+);
 
 /// One or more consecutive percent escapes, carrying a UTF-8 byte sequence.
 /// Matched as a run so a multi-byte code point decodes as a unit.

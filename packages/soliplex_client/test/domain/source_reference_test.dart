@@ -332,6 +332,30 @@ void main() {
         expect(ref.displayTitle, 'Unknown Document');
       });
 
+      test('prefers documentTitle over a uri that is a bare id', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: '4e8bf0c7-f504-4ffc-b647-a9f8f255bea5',
+          content: 'content',
+          chunkId: 'chunk-1',
+          documentTitle: 'Question 1',
+        );
+
+        expect(ref.displayTitle, 'Question 1');
+      });
+
+      test('ignores a documentTitle that reads blank', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///docs/',
+          content: 'content',
+          chunkId: 'chunk-1',
+          documentTitle: '   ',
+        );
+
+        expect(ref.displayTitle, 'Unknown Document');
+      });
+
       test('ignores empty documentTitle', () {
         const ref = SourceReference(
           documentId: 'doc-1',
@@ -372,6 +396,30 @@ void main() {
         const ref = SourceReference(
           documentId: 'doc-1',
           documentUri: 'https://example.com/doc.md',
+          content: 'content',
+          chunkId: 'chunk-1',
+        );
+
+        expect(ref.isPdf, isFalse);
+      });
+
+      test('reads the extension off the name, not the raw uri', () {
+        // A page fragment leaves the uri no longer ending in .pdf, but the
+        // row is still labelled handbook.pdf and still has pages to preview.
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///docs/handbook.pdf#page=3',
+          content: 'content',
+          chunkId: 'chunk-1',
+        );
+
+        expect(ref.isPdf, isTrue);
+      });
+
+      test('types an embedded file as itself, not its container', () {
+        const ref = SourceReference(
+          documentId: 'doc-1',
+          documentUri: 'file:///docs/annual-report.pdf#attachment=budget.xlsx',
           content: 'content',
           chunkId: 'chunk-1',
         );
