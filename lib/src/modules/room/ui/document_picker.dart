@@ -119,17 +119,32 @@ class _DocumentPickerState extends State<DocumentPicker> {
                     final display = DocumentDisplay(doc);
                     final selected = widget.selected.contains(doc);
                     return CheckboxListTile(
-                      secondary: Icon(display.icon),
-                      title: DocumentLabel(
-                        name: display.name,
-                        ancestorNames: display.ancestorNames,
+                      // The glyph sits beside the name rather than in the
+                      // tile's own leading slot, which places it relative to
+                      // the tile: a row of two lines centres its text inside a
+                      // taller tile while a row of three fills it, so the same
+                      // slot would align the glyph to the name on one row and
+                      // above it on the next.
+                      title: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(display.icon),
+                          const SizedBox(width: SoliplexSpacing.s4),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                DocumentLabel(
+                                  name: display.name,
+                                  ancestorNames: display.ancestorNames,
+                                ),
+                                _subtitle(doc),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      subtitle: _subtitle(doc),
-                      // A provenance line puts a third line of text in a tile
-                      // whose default height fits two, which leaves the
-                      // checkbox centred on the provenance rather than on the
-                      // name.
-                      isThreeLine: display.ancestorNames.isNotEmpty,
                       value: selected,
                       onChanged: (_) => _toggle(doc),
                     );

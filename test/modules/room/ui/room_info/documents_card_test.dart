@@ -112,6 +112,28 @@ void main() {
       expect(find.text('annual-report.pdf'), findsOneWidget);
       expect(find.text('in annual-report.pdf'), findsOneWidget);
     });
+
+    testWidgets('the file glyph aligns to the name, embedded or not',
+        (tester) async {
+      // A provenance line makes a row taller, and the glyph describes the file
+      // the name states, so it must not move when that line appears.
+      await tester.pumpWidget(wrap(
+        DocumentsCard(
+          documentsFuture: Future.value(const [container, attachment]),
+          onRetry: () {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getRect(find.byIcon(Icons.picture_as_pdf)).top,
+        tester.getRect(find.text('annual-report.pdf')).top,
+      );
+      expect(
+        tester.getRect(find.byIcon(Icons.table_chart)).top,
+        tester.getRect(find.text('budget.xlsx')).top,
+      );
+    });
   });
 
   group('document title', () {
