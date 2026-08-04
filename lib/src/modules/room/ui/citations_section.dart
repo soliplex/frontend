@@ -341,10 +341,11 @@ class _SourceReferenceRow extends StatelessWidget {
 /// when it is embedded in one — `in annual-report.pdf`, chaining when it is
 /// embedded two deep.
 ///
-/// Each line is capped at one, so a citation occupies the same two rows however
-/// long its names run. Several citations sit inline in a single message, and
-/// document filenames are routinely long enough to wrap, so letting them do so
-/// would size each row by whichever name happened to be longest.
+/// Each line is capped at one, so a citation is one row for a plain document
+/// and two for an embedded one, whatever its names run to. Several citations
+/// sit inline in a single message, and document filenames are routinely long
+/// enough to wrap, so letting them do so would size each row by whichever name
+/// happened to be longest.
 ///
 /// One tooltip covers both, because both are cut by the same cap and neither is
 /// readable anywhere else: a configured browser link renders only host and

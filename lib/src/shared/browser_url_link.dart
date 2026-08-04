@@ -3,17 +3,19 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import 'markdown/launch_markdown_link.dart';
 
-/// Display text for a browser URL: scheme (and any query/fragment) removed so
-/// the origin reads as `host/path` without `https://` noise.
+/// Display text for a browser URL: `host/path` alone, so the origin reads
+/// without `https://` noise. Everything else goes — the scheme, any credentials
+/// and port, the query and the fragment.
 String browserUrlDisplay(Uri url) => '${url.host}${url.path}';
 
 /// A clickable document origin link: a link icon plus the scheme-stripped
 /// origin, opening [url] in the platform's default handler (a new browser tab
 /// on web). The raw `https://` is hidden to reduce noise.
 ///
-/// The whole address is on the link's tooltip, since the displayed text drops
-/// the scheme, the query and the fragment and then ellipsizes what is left —
-/// so the tooltip is the only place the address being opened reads in full.
+/// The whole address is on the link's tooltip, since the displayed text keeps
+/// host and path alone and then ellipsizes what is left. Two addresses that
+/// differ only by port read identically, so the tooltip is the only place the
+/// address being opened reads in full.
 class BrowserUrlLink extends StatelessWidget {
   const BrowserUrlLink({required this.url, super.key});
 

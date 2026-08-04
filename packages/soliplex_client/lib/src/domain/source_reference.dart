@@ -179,7 +179,16 @@ class SourceReference {
   ///
   /// Reads the extension off [fileName], so a page fragment does not hide it
   /// and an embedded file is typed as itself rather than as its container.
-  bool get isPdf => fileName?.toLowerCase().endsWith('.pdf') ?? false;
+  /// [documentUri] is consulted as well, because a URI that carries its
+  /// filename in a query string names no `.pdf` file — dropping the raw test
+  /// would take the page preview away from one.
+  ///
+  /// Either signal is enough: a missing preview is a feature silently gone,
+  /// while an offered one that has no rasters lands on an empty state that
+  /// already exists.
+  bool get isPdf =>
+      (fileName?.toLowerCase().endsWith('.pdf') ?? false) ||
+      documentUri.toLowerCase().endsWith('.pdf');
 
   @override
   bool operator ==(Object other) {

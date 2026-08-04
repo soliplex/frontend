@@ -83,8 +83,10 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   spreadsheet inside a PDF offers no page preview.
 - A document's origin link carries its whole address on hover, wherever that
   link appears — a citation, the document picker, the room's document list. The
-  link text drops the scheme, the query and the fragment and then ellipsizes
-  what remains, so the address actually being opened could not be read.
+  link text keeps host and path alone — dropping the scheme, any credentials
+  and port, the query and the fragment — and then ellipsizes what remains, so
+  the address actually being opened could not be read. Two addresses differing
+  only by port read identically without it.
 
 ### Fixed
 

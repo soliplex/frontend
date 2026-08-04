@@ -17,9 +17,9 @@ class DocumentMetadataLine extends StatelessWidget {
 
   /// A line whose value is an identifier — a chunk id, a document id.
   ///
-  /// Monospaced, and wrapped to the margin rather than clipped: an identifier
-  /// is only useful entire, so hiding its tail behind an ellipsis would leave
-  /// nothing worth reading.
+  /// Monospaced, and wrapped to the margin rather than ellipsized: an
+  /// identifier is only useful entire, so hiding its tail behind an ellipsis
+  /// would leave nothing worth reading.
   const DocumentMetadataLine.identifier({
     required this.label,
     required this.value,
