@@ -164,7 +164,7 @@ class _DocumentsCardState extends State<DocumentsCard> {
             Row(
               children: [
                 Icon(
-                  getFileTypeIcon(documentIconPath(doc)),
+                  documentTypeIcon(doc),
                   size: 22,
                 ),
                 const SizedBox(width: SoliplexSpacing.s2),

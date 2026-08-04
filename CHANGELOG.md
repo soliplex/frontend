@@ -46,6 +46,24 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `content['tool_name']`, announcing a tool call from a payload the protocol says
   nothing about; `TOOL_CALL_START` is the event that names a tool, and it already
   sets the label.
+- A citation is labelled by its document's filename in preference to the
+  document's title; the title is the fallback when the URI names no file. The
+  filename identifies the file a chunk came from — it names an embedded file
+  rather than the PDF it was found in, and it matches how the same document is
+  labelled in the list and the picker. *The preference itself* has no visible
+  effect unless the backend is configured to generate document titles, since it
+  otherwise sends none; **a deployment that does have titles will see every
+  citation relabelled**, in the citation row, in a copied citation, and in the
+  chunk preview's heading.
+- Every document's display name is percent-decoded and has any query string or
+  fragment dropped, not just an attachment's, since all of them now read one
+  parse of the URI. `annual%20report.pdf` reads `annual report.pdf`, and
+  `handbook.pdf#page=3` reads `handbook.pdf`. A URI that carries its filename in
+  a query string rather than its path shows the last path segment instead —
+  `/download?file=report.pdf` shows `download`. A filename holding an unescaped
+  `#` is cut there, so `invoice#1234.xlsx` reads `invoice`: from the URI string
+  alone that `#` and a `#page=` fragment are the same shape, and two such
+  documents differing only after the `#` become one label and one glyph.
 
 ### Fixed
 
@@ -55,6 +73,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   true while the row showed a query, false once it showed a whole content payload
   with a retrieval result inside, at which point one open row buried every row
   below it.
+- A file embedded in a PDF is named and typed as itself. The backend ingests one
+  as its own document and records the relationship in the document URI, which
+  three separate places used to interpret three different ways: the document list
+  and picker showed the container's name with the whole URI fragment glued on, the
+  file-type glyph described the container rather than the embedded file, and a
+  citation of the embedded file was labelled with the container's name. All three
+  now read one parse of the URI, so an attachment shows its own decoded filename
+  and its own glyph wherever it appears, and a citation names the document the
+  text actually came from.
+- A document whose URI names no file — one ending in a slash — no longer renders a
+  blank label in the list, the picker or the attachment chips, and no longer
+  renders a blank citation. In the list it falls back to the document's title,
+  which is the raw URI string unless the backend is configured to generate
+  titles; a citation with no title reads "Unknown Document". A name that decodes
+  to nothing but whitespace falls back the same way, rather than rendering as an
+  invisible label.
+- A display name is trimmed, so a filename delivered with escaped padding
+  (`report.pdf%20`) no longer renders with invisible whitespace, nor loses its
+  file-type glyph to an extension that still carried the padding.
 
 ## [0.98.1+77] - 2026-07-31
 

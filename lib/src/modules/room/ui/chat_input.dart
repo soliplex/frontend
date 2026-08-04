@@ -183,7 +183,7 @@ class _ChatInputState extends State<ChatInput> {
                                 for (final doc in widget.selectedDocuments)
                                   SoliplexChip(
                                     icon: Icon(
-                                      getFileTypeIcon(documentIconPath(doc)),
+                                      documentTypeIcon(doc),
                                     ),
                                     label: Text(documentDisplayName(doc)),
                                     onDeleted:
