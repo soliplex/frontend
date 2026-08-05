@@ -219,7 +219,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -246,7 +246,7 @@ void main() {
       expect(session.sessionState.value, equals(AgentSessionState.spawning));
       expect(session.runState.value, isA<IdleState>());
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -294,7 +294,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Weather?');
+      await session.start(userMessage: [const TextPart('Weather?')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -331,7 +331,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Weather?');
+      await session.start(userMessage: [const TextPart('Weather?')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -368,7 +368,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Weather?');
+      await session.start(userMessage: [const TextPart('Weather?')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -388,7 +388,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -416,7 +416,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(session.state, equals(AgentSessionState.completed));
@@ -442,7 +442,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       final result = await session.result;
 
       expect(result, isA<AgentFailure>());
@@ -468,7 +468,7 @@ void main() {
         await controller.close();
       });
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -494,7 +494,7 @@ void main() {
         logger: logger,
       );
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       session.dispose();
 
       final result = await session.result;
@@ -551,7 +551,7 @@ void main() {
       final states = <RunState>[];
       session.stateChanges.listen(states.add);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(states, isNotEmpty);
@@ -575,7 +575,7 @@ void main() {
       session.stateChanges.listen(states1.add);
       session.stateChanges.listen(states2.add);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(states1, isNotEmpty);
@@ -603,7 +603,7 @@ void main() {
         }
       });
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(streamingTexts, contains('Hello world'));
@@ -624,7 +624,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(ext.attachCount, equals(1));
@@ -677,7 +677,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Run ext tool');
+      await session.start(userMessage: [const TextPart('Run ext tool')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -829,7 +829,7 @@ void main() {
           if (val != null) events.add(val);
         });
 
-        await session.start(userMessage: 'Weather?');
+        await session.start(userMessage: [const TextPart('Weather?')]);
         await session.result;
 
         final executing = events.whereType<ClientToolExecuting>().toList();
@@ -877,7 +877,7 @@ void main() {
         if (val != null) events.add(val);
       });
 
-      await session.start(userMessage: 'Weather?');
+      await session.start(userMessage: [const TextPart('Weather?')]);
       await session.result;
 
       final completed = events.whereType<ClientToolCompleted>().toList();
@@ -922,7 +922,7 @@ void main() {
         if (val != null) events.add(val);
       });
 
-      await session.start(userMessage: 'Weather?');
+      await session.start(userMessage: [const TextPart('Weather?')]);
       await session.result;
 
       final completed = events.whereType<ClientToolCompleted>().toList();
@@ -974,7 +974,7 @@ void main() {
         if (val != null) events.add(val);
       });
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       final snapshots = events.whereType<ActivitySnapshot>().toList();
@@ -1009,7 +1009,7 @@ void main() {
         if (val != null) events.add(val);
       });
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       final steps = events.whereType<StepProgress>().toList();

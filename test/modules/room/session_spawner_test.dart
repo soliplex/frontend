@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -53,7 +54,7 @@ void main() {
       await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => session,
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (s) => received = s,
         onStateTransition: transitions.add,
@@ -71,7 +72,7 @@ void main() {
       await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => throw StateError('boom'),
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) {},
         onStateTransition: transitions.add,
@@ -89,7 +90,7 @@ void main() {
       await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => _StubAgentSession(),
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) => throw StateError('attach failed'),
         onStateTransition: transitions.add,
@@ -109,7 +110,7 @@ void main() {
       await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () async => throw StateError('boom'),
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => true,
         onSpawned: (_) {},
         onStateTransition: transitions.add,
@@ -131,7 +132,7 @@ void main() {
       final spawnFuture = spawner.spawn(
         spawnFn: () => completer.future,
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) => onSpawnedCalled = true,
         onStateTransition: transitions.add,
@@ -168,7 +169,7 @@ void main() {
       final firstSpawn = spawner.spawn(
         spawnFn: () => firstCompleter.future,
         errorSignal: errorSignal,
-        prompt: 'first',
+        prompt: [TextPart('first')],
         isDisposed: () => false,
         onSpawned: (s) => firstReceived = s,
         onStateTransition: transitions.add,
@@ -183,7 +184,7 @@ void main() {
           return secondSession;
         },
         errorSignal: errorSignal,
-        prompt: 'second',
+        prompt: [TextPart('second')],
         isDisposed: () => false,
         onSpawned: (_) => secondOnSpawnedCalled = true,
         onStateTransition: transitions.add,
@@ -218,7 +219,7 @@ void main() {
       unawaited(spawner.spawn(
         spawnFn: () => completer.future,
         errorSignal: Signal<SendError?>(null),
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) {},
         onStateTransition: (_) {},
@@ -243,7 +244,7 @@ void main() {
       await SessionSpawner(auth: _authInActiveSession()).spawn(
         spawnFn: () => throw StateError('sync boom'),
         errorSignal: errorSignal,
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) {},
         onStateTransition: transitions.add,
@@ -263,7 +264,7 @@ void main() {
       await spawner.spawn(
         spawnFn: () async => session,
         errorSignal: Signal<SendError?>(null),
-        prompt: 'hi',
+        prompt: [TextPart('hi')],
         isDisposed: () => false,
         onSpawned: (_) {},
         onStateTransition: (_) {},
@@ -281,13 +282,17 @@ void main() {
       final errorSignal = Signal<SendError?>(null);
       final spawner = SessionSpawner(auth: auth);
 
-      String? authExpiredPrompt;
+      final parts = <MessagePart>[
+        const TextPart('hello'),
+        ImagePart(bytes: Uint8List.fromList([0x89]), mimeType: 'image/png'),
+      ];
+      List<MessagePart>? authExpiredPrompt;
       await spawner.spawn(
         spawnFn: () => Future<AgentSession>.error(
           AuthException(statusCode: 401, message: 'JWT validation failed'),
         ),
         errorSignal: errorSignal,
-        prompt: 'hello',
+        prompt: parts,
         isDisposed: () => false,
         onSpawned: (_) => fail('spawn should not have succeeded'),
         onStateTransition: (_) {},
@@ -303,9 +308,9 @@ void main() {
       );
       expect(
         authExpiredPrompt,
-        'hello',
-        reason: 'onAuthExpired receives the prompt so the caller can persist '
-            'the composer before the route guard redirects.',
+        same(parts),
+        reason: 'onAuthExpired receives the whole part list, not a flattened '
+            'string, so the caller decides what its storage can keep.',
       );
     });
 
@@ -325,7 +330,7 @@ void main() {
           AuthException(statusCode: 401, message: 'JWT validation failed'),
         ),
         errorSignal: errorSignal,
-        prompt: 'hello',
+        prompt: [TextPart('hello')],
         isDisposed: () => false,
         onSpawned: (_) => fail('spawn should not have succeeded'),
         onStateTransition: (_) {},
@@ -346,7 +351,7 @@ void main() {
           PermissionDeniedException(statusCode: 403, message: 'Forbidden'),
         ),
         errorSignal: errorSignal,
-        prompt: 'hello',
+        prompt: [TextPart('hello')],
         isDisposed: () => false,
         onSpawned: (_) => fail('spawn should not have succeeded'),
         onStateTransition: (_) {},
@@ -366,7 +371,7 @@ void main() {
       await spawner.spawn(
         spawnFn: () => Future<AgentSession>.error(Exception('network down')),
         errorSignal: errorSignal,
-        prompt: 'hello',
+        prompt: [TextPart('hello')],
         isDisposed: () => false,
         onSpawned: (_) => fail('spawn should not have succeeded'),
         onStateTransition: (_) {},

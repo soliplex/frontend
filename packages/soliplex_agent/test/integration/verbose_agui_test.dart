@@ -82,7 +82,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: spec.roomId,
-        prompt: spec.prompt,
+        prompt: [TextPart(spec.prompt)],
       );
 
       stderr.writeln('threadId: ${session.threadKey.threadId}');

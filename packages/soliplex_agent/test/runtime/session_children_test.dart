@@ -124,10 +124,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Sub-task',
+        prompt: [const TextPart('Sub-task')],
         parent: parent,
       );
 
@@ -149,7 +150,8 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await parent.spawnChild(roomId: _roomA, prompt: 'Sub-task');
 
       expect(parent.children, contains(child));
@@ -167,7 +169,8 @@ void main() {
 
       // Parent on _roomB so a regression that hardcodes _roomA in
       // spawnChild's defaulting wouldn't pass.
-      final parent = await runtime.spawn(roomId: _roomB, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomB, prompt: [const TextPart('Hello')]);
       final child = await parent.spawnChild(prompt: 'Sub-task');
 
       expect(child.threadKey.roomId, equals(_roomB));
@@ -184,10 +187,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Sub-task',
+        prompt: [const TextPart('Sub-task')],
         parent: parent,
       );
 
@@ -221,10 +225,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Sub-task',
+        prompt: [const TextPart('Sub-task')],
         parent: parent,
       );
 
@@ -265,10 +270,11 @@ void main() {
             : _wrap(Stream.fromIterable(_happyPathEvents()));
       });
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Sub-task',
+        prompt: [const TextPart('Sub-task')],
         parent: parent,
       );
 
@@ -293,8 +299,13 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
-      await runtime.spawn(roomId: _roomA, prompt: 'Sub-task', parent: parent);
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
+      await runtime.spawn(
+        roomId: _roomA,
+        prompt: [const TextPart('Sub-task')],
+        parent: parent,
+      );
 
       controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
@@ -317,10 +328,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomA, prompt: 'Hello');
+      final parent = await runtime
+          .spawn(roomId: _roomA, prompt: [const TextPart('Hello')]);
       final child = await runtime.spawn(
         roomId: _roomB,
-        prompt: 'Cross-room task',
+        prompt: [const TextPart('Cross-room task')],
         parent: parent,
       );
 
@@ -341,16 +353,16 @@ void main() {
 
       final grandparent = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Level 0',
+        prompt: [const TextPart('Level 0')],
       );
       final parent = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Level 1',
+        prompt: [const TextPart('Level 1')],
         parent: grandparent,
       );
       final child = await runtime.spawn(
         roomId: _roomA,
-        prompt: 'Level 2',
+        prompt: [const TextPart('Level 2')],
         parent: parent,
       );
 

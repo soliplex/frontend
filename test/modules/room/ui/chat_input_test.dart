@@ -45,27 +45,30 @@ void main() {
   });
 
   testWidgets('send button dispatches text and clears field', (tester) async {
-    String? sentText;
+    List<MessagePart>? sentParts;
     final sessionState = signal<AgentSessionState?>(null);
 
     await tester.pumpWidget(MaterialApp(
       theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
-          onSend: (text) => sentText = text,
+          onSend: (parts) => sentParts = parts,
           onCancel: () {},
           sessionState: sessionState,
         ),
       ),
     ));
 
-    await tester.enterText(find.byType(TextField), 'Hello agent');
+    // Padded on purpose: the composer sends one run of trimmed text, and
+    // nothing downstream trims again.
+    await tester.enterText(find.byType(TextField), '  Hello agent  ');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.send));
     await tester.pump();
 
-    expect(sentText, 'Hello agent');
+    expect(sentParts, hasLength(1));
+    expect((sentParts!.single as TextPart).text, 'Hello agent');
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       isEmpty,
@@ -177,7 +180,7 @@ void main() {
       theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
-          onSend: (text) => sentText = text,
+          onSend: (parts) => sentText = parts.plainText,
           onCancel: () {},
           sessionState: sessionState,
         ),
@@ -203,7 +206,7 @@ void main() {
       theme: soliplexLightTheme(),
       home: Scaffold(
         body: ChatInput(
-          onSend: (text) => sentText = text,
+          onSend: (parts) => sentText = parts.plainText,
           onCancel: () {},
           sessionState: sessionState,
         ),

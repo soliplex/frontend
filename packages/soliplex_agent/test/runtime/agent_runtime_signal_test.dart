@@ -121,7 +121,7 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(runtime.sessions.value, hasLength(1));
 
@@ -137,7 +137,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         autoDispose: true,
       );
 
@@ -157,7 +157,7 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(runtime.sessions.value, equals(runtime.activeSessions));
 
@@ -174,7 +174,7 @@ void main() {
       final streamEmissions = <int>[];
       runtime.sessionChanges.listen((list) => streamEmissions.add(list.length));
 
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       // Signal reflects spawn immediately
       expect(runtime.sessions.value, hasLength(1));
@@ -201,7 +201,8 @@ void main() {
       final captured = <String>[];
       await runZoned(
         () async {
-          final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+          final session = await runtime
+              .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
           session.dispose();
           await Future<void>.delayed(const Duration(milliseconds: 10));
         },
@@ -231,7 +232,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         autoDispose: true,
       );
       expect(runtime.sessions.value, hasLength(1));

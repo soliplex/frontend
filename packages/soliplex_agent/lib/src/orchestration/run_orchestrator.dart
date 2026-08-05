@@ -29,7 +29,7 @@ typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
 /// ```dart
 /// final result = await orchestrator.runToCompletion(
 ///   key: key,
-///   userMessage: 'Hello',
+///   userMessage: [TextPart('Hello')],
 ///   toolExecutor: (pending) async {
 ///     return pending.map((tc) => tc.copyWith(
 ///       status: ToolCallStatus.completed,
@@ -54,7 +54,7 @@ typedef ToolExecutorCallback = Future<List<ToolCallInfo>> Function(
 /// // 3. Run to completion
 /// final result = await orchestrator.runToCompletion(
 ///   key: key,
-///   userMessage: 'Hello',
+///   userMessage: [TextPart('Hello')],
 ///   toolExecutor: myToolExecutor,
 ///   existingRunId: threadInfo.hasInitialRun ? threadInfo.initialRunId : null,
 /// );
@@ -175,7 +175,7 @@ class RunOrchestrator {
   /// While active, [startRun] and [submitToolOutputs] throw [StateError].
   Future<RunState> runToCompletion({
     required ThreadKey key,
-    required String userMessage,
+    required List<MessagePart> userMessage,
     required ToolExecutorCallback toolExecutor,
     String? existingRunId,
     ThreadHistory? cachedHistory,
@@ -219,7 +219,7 @@ class RunOrchestrator {
   /// [runToCompletion] is active.
   Future<void> startRun({
     required ThreadKey key,
-    required String userMessage,
+    required List<MessagePart> userMessage,
     String? existingRunId,
     ThreadHistory? cachedHistory,
   }) async {
@@ -439,7 +439,7 @@ class RunOrchestrator {
   /// Sets up the initial SSE subscription for [runToCompletion].
   Future<void> _initializeStream(
     ThreadKey key,
-    String userMessage,
+    List<MessagePart> userMessage,
     String? existingRunId,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
@@ -803,7 +803,7 @@ class RunOrchestrator {
 
   Conversation _buildConversation(
     ThreadKey key,
-    String userMessage,
+    List<MessagePart> userMessage,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,
   ) {
@@ -814,10 +814,9 @@ class RunOrchestrator {
     // arrives, and fills from the run's server `created` on replay. The
     // frontend never displays a client-generated time. now() here is only for
     // a unique id.
-    final userMsg = TextMessage.create(
+    final userMsg = TextMessage.fromParts(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
-      user: ChatUser.user,
-      text: userMessage,
+      parts: userMessage,
     );
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this

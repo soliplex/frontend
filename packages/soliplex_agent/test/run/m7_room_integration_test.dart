@@ -78,7 +78,10 @@ void main() {
     });
 
     test('sequential tool rounds → CompletedState', () async {
-      await orchestrator.startRun(key: key, userMessage: 'Run diagnostics.');
+      await orchestrator.startRun(
+        key: key,
+        userMessage: [const TextPart('Run diagnostics.')],
+      );
 
       var yieldCount = 0;
       for (var round = 0; round < 5; round++) {
@@ -139,7 +142,7 @@ void main() {
         try {
           await runtime.spawn(
             roomId: 'room-that-does-not-exist-999',
-            prompt: 'This should fail.',
+            prompt: [const TextPart('This should fail.')],
           );
         } on Object catch (e) {
           caught = e;
@@ -223,7 +226,9 @@ void main() {
     test('compound request calls correct tools', () async {
       await orchestrator.startRun(
         key: key,
-        userMessage: 'Call tool_a and tool_c. Do NOT call tool_b.',
+        userMessage: [
+          const TextPart('Call tool_a and tool_c. Do NOT call tool_b.'),
+        ],
       );
 
       final calledTools = <String>{};
@@ -287,7 +292,7 @@ void main() {
       // Turn 1.
       await orchestrator.startRun(
         key: key,
-        userMessage: 'Fact 1: The sky is blue.',
+        userMessage: [const TextPart('Fact 1: The sky is blue.')],
       );
       await waitForTerminalState(orchestrator, timeout: 60);
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -300,7 +305,7 @@ void main() {
       // Turn 2 — carry forward turn 1 history.
       await orchestrator.startRun(
         key: key,
-        userMessage: 'Fact 2: Grass is green.',
+        userMessage: [const TextPart('Fact 2: Grass is green.')],
         cachedHistory: history,
       );
       await waitForTerminalState(orchestrator, timeout: 60);
@@ -314,7 +319,7 @@ void main() {
       // Turn 3 — recall only, carry forward turns 1 + 2.
       await orchestrator.startRun(
         key: key,
-        userMessage: 'What are the two facts I told you?',
+        userMessage: [const TextPart('What are the two facts I told you?')],
         cachedHistory: history,
       );
       await waitForTerminalState(orchestrator, timeout: 60);
@@ -347,7 +352,7 @@ void main() {
       // Turn 1: spawn without history.
       final s1 = await runtime.spawn(
         roomId: 'accumulator',
-        prompt: 'Fact 1: Water freezes at 0°C.',
+        prompt: [const TextPart('Fact 1: Water freezes at 0°C.')],
       );
       final r1 = await s1.awaitResult(timeout: const Duration(seconds: 60));
       expect(r1, isA<AgentSuccess>());
@@ -356,7 +361,7 @@ void main() {
       // Turn 2: same thread — runtime auto-injects history.
       final s2 = await runtime.spawn(
         roomId: 'accumulator',
-        prompt: 'Fact 2: Water boils at 100°C.',
+        prompt: [const TextPart('Fact 2: Water boils at 100°C.')],
         threadId: s1.threadKey.threadId,
       );
       final r2 = await s2.awaitResult(timeout: const Duration(seconds: 60));
@@ -366,7 +371,7 @@ void main() {
       // Turn 3: recall both facts — runtime threads history automatically.
       final s3 = await runtime.spawn(
         roomId: 'accumulator',
-        prompt: 'What are the two facts I told you?',
+        prompt: [const TextPart('What are the two facts I told you?')],
         threadId: s1.threadKey.threadId,
       );
       final r3 = await s3.awaitResult(timeout: const Duration(seconds: 60));
@@ -397,7 +402,7 @@ void main() {
       // Stage 1: write.
       final s1 = await runtime.spawn(
         roomId: 'writer',
-        prompt: 'Write one sentence about a magical forest.',
+        prompt: [const TextPart('Write one sentence about a magical forest.')],
       );
       final r1 = await s1.awaitResult(timeout: const Duration(seconds: 60));
       expect(r1, isA<AgentSuccess>());
@@ -407,7 +412,7 @@ void main() {
       // Stage 2: review.
       final s2 = await runtime.spawn(
         roomId: 'reviewer',
-        prompt: 'Review this draft: $draft',
+        prompt: [TextPart('Review this draft: $draft')],
       );
       final r2 = await s2.awaitResult(timeout: const Duration(seconds: 60));
       expect(r2, isA<AgentSuccess>());
@@ -417,7 +422,11 @@ void main() {
       // Stage 3: revise.
       final s3 = await runtime.spawn(
         roomId: 'fixer',
-        prompt: 'Draft: $draft\nCritique: $review\nProduce a revised version.',
+        prompt: [
+          TextPart(
+            'Draft: $draft\nCritique: $review\nProduce a revised version.',
+          ),
+        ],
       );
       final r3 = await s3.awaitResult(timeout: const Duration(seconds: 60));
       expect(r3, isA<AgentSuccess>());
@@ -454,7 +463,7 @@ void main() {
       for (final word in words) {
         await orchestrator.startRun(
           key: key,
-          userMessage: 'Remember the word: $word',
+          userMessage: [TextPart('Remember the word: $word')],
           cachedHistory: history,
         );
         await waitForTerminalState(orchestrator, timeout: 60);
@@ -470,7 +479,11 @@ void main() {
       // Turn 5 — recall.
       await orchestrator.startRun(
         key: key,
-        userMessage: 'List all four words I asked you to remember, in order.',
+        userMessage: [
+          const TextPart(
+            'List all four words I asked you to remember, in order.',
+          ),
+        ],
         cachedHistory: history,
       );
       await waitForTerminalState(orchestrator, timeout: 60);
@@ -530,7 +543,9 @@ void main() {
     test('fail first call → agent retries → CompletedState', () async {
       await orchestrator.startRun(
         key: key,
-        userMessage: 'Calculate something using the calculate tool.',
+        userMessage: [
+          const TextPart('Calculate something using the calculate tool.'),
+        ],
       );
 
       for (var round = 0; round < 5; round++) {
@@ -591,15 +606,15 @@ void main() {
       // Fan-out.
       final s1 = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Say exactly: ALPHA=100',
+        prompt: [const TextPart('Say exactly: ALPHA=100')],
       );
       final s2 = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Say exactly: BETA=200',
+        prompt: [const TextPart('Say exactly: BETA=200')],
       );
       final s3 = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Say exactly: GAMMA=300',
+        prompt: [const TextPart('Say exactly: GAMMA=300')],
       );
 
       final results = await runtime.waitAll(
@@ -619,8 +634,11 @@ void main() {
       // Fan-in.
       final reducer = await runtime.spawn(
         roomId: 'echo',
-        prompt:
+        prompt: [
+          TextPart(
             'Given: ${outputs.join(", ")} — what is the sum of the numbers?',
+          ),
+        ],
       );
       final reduced = await reducer.awaitResult(
         timeout: const Duration(seconds: 60),
@@ -649,15 +667,19 @@ void main() {
     test('first finisher wins, losers cancel', () async {
       final fast = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Say "done".',
+        prompt: [const TextPart('Say "done".')],
       );
       final medium = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Write a 5 sentence story about a robot.',
+        prompt: [const TextPart('Write a 5 sentence story about a robot.')],
       );
       final slow = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Write a detailed 3 paragraph essay about quantum computing.',
+        prompt: [
+          const TextPart(
+            'Write a detailed 3 paragraph essay about quantum computing.',
+          ),
+        ],
       );
 
       final winner = await runtime.waitAny(
@@ -727,7 +749,9 @@ void main() {
     test('search → "not found" → refine → success', () async {
       await orchestrator.startRun(
         key: key,
-        userMessage: 'Find the document about quantum error correction.',
+        userMessage: [
+          const TextPart('Find the document about quantum error correction.'),
+        ],
       );
 
       for (var round = 0; round < 5; round++) {
@@ -787,7 +811,7 @@ void main() {
       // Classify.
       final classifier = await runtime.spawn(
         roomId: 'classifier',
-        prompt: 'Tell me a joke about programming.',
+        prompt: [const TextPart('Tell me a joke about programming.')],
       );
       final cr = await classifier.awaitResult(
         timeout: const Duration(seconds: 60),
@@ -807,7 +831,7 @@ void main() {
       // Route.
       final routed = await runtime.spawn(
         roomId: targetRoom,
-        prompt: 'Hello from the routed session.',
+        prompt: [const TextPart('Hello from the routed session.')],
       );
       final rr = await routed.awaitResult(timeout: const Duration(seconds: 60));
       expect(rr, isA<AgentSuccess>());
@@ -842,7 +866,8 @@ void main() {
       final sessions = <AgentSession>[];
       for (var i = 0; i < 5; i++) {
         sessions.add(
-          await runtime.spawn(roomId: 'parallel', prompt: 'Say "$i".'),
+          await runtime
+              .spawn(roomId: 'parallel', prompt: [TextPart('Say "$i".')]),
         );
       }
 
@@ -880,7 +905,7 @@ void main() {
       // Turn 1: complete normally (non-ephemeral to preserve thread).
       final s1 = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Hello, this is a setup message.',
+        prompt: [const TextPart('Hello, this is a setup message.')],
       );
       final r1 = await s1.awaitResult(timeout: const Duration(seconds: 60));
       expect(r1, isA<AgentSuccess>());
@@ -890,7 +915,7 @@ void main() {
       // Turn 2: cancel mid-stream.
       final s2 = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Tell me a very long story about dragons.',
+        prompt: [const TextPart('Tell me a very long story about dragons.')],
         threadId: threadId,
       );
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -901,7 +926,7 @@ void main() {
       // Turn 3: new run on the SAME thread succeeds (thread not corrupted).
       final s3 = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Tell me a one-sentence joke.',
+        prompt: [const TextPart('Tell me a one-sentence joke.')],
         threadId: threadId,
       );
       final r3 = await s3.awaitResult(timeout: const Duration(seconds: 60));
@@ -933,8 +958,10 @@ void main() {
       // Plan.
       final planner = await runtime.spawn(
         roomId: 'planner',
-        prompt: 'Describe a futuristic city in 3 aspects: '
-            'architecture, transportation, energy.',
+        prompt: [
+          const TextPart('Describe a futuristic city in 3 aspects: '
+              'architecture, transportation, energy.'),
+        ],
       );
       final pr = await planner.awaitResult(
         timeout: const Duration(seconds: 60),
@@ -962,7 +989,8 @@ void main() {
       // Fan-out — use echo room (handles full-sentence prompts).
       final workers = <AgentSession>[];
       for (final task in tasks) {
-        workers.add(await runtime.spawn(roomId: 'echo', prompt: task));
+        workers
+            .add(await runtime.spawn(roomId: 'echo', prompt: [TextPart(task)]));
       }
 
       final results = await runtime.waitAll(
@@ -978,7 +1006,9 @@ void main() {
       // Synthesize.
       final synth = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Combine into one paragraph: ${workerOutputs.join("; ")}',
+        prompt: [
+          TextPart('Combine into one paragraph: ${workerOutputs.join("; ")}'),
+        ],
       );
       final sr = await synth.awaitResult(timeout: const Duration(seconds: 60));
       expect(sr, isA<AgentSuccess>());
@@ -1004,15 +1034,27 @@ void main() {
       // Gather 3 opinions.
       final s1 = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Is Pluto a planet? Answer YES or NO with one sentence.',
+        prompt: [
+          const TextPart(
+            'Is Pluto a planet? Answer YES or NO with one sentence.',
+          ),
+        ],
       );
       final s2 = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Is Pluto a planet? Answer YES or NO with one sentence.',
+        prompt: [
+          const TextPart(
+            'Is Pluto a planet? Answer YES or NO with one sentence.',
+          ),
+        ],
       );
       final s3 = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Is Pluto a planet? Answer YES or NO with one sentence.',
+        prompt: [
+          const TextPart(
+            'Is Pluto a planet? Answer YES or NO with one sentence.',
+          ),
+        ],
       );
 
       final results = await runtime.waitAll(
@@ -1027,11 +1069,13 @@ void main() {
       // Judge.
       final judge = await runtime.spawn(
         roomId: 'judge',
-        prompt: 'Three experts were asked "Is Pluto a planet?"\n'
-            '1: ${opinions[0]}\n'
-            '2: ${opinions[1]}\n'
-            '3: ${opinions[2]}\n'
-            'What is the consensus?',
+        prompt: [
+          TextPart('Three experts were asked "Is Pluto a planet?"\n'
+              '1: ${opinions[0]}\n'
+              '2: ${opinions[1]}\n'
+              '3: ${opinions[2]}\n'
+              'What is the consensus?'),
+        ],
       );
       final jr = await judge.awaitResult(timeout: const Duration(seconds: 60));
       expect(jr, isA<AgentSuccess>());
@@ -1057,17 +1101,19 @@ void main() {
       // Classify.
       final classifier = await runtime.spawn(
         roomId: 'classifier',
-        prompt: 'Classify: "Tell me a joke". Reply echo or parallel.',
+        prompt: [
+          const TextPart('Classify: "Tell me a joke". Reply echo or parallel.'),
+        ],
       );
 
       // Speculatively spawn both paths.
       final specEcho = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Tell me a joke.',
+        prompt: [const TextPart('Tell me a joke.')],
       );
       final specParallel = await runtime.spawn(
         roomId: 'parallel',
-        prompt: 'Tell me a joke.',
+        prompt: [const TextPart('Tell me a joke.')],
       );
 
       // Wait for classifier to decide.
@@ -1119,7 +1165,11 @@ void main() {
       // Stage 1: write.
       final writer = await runtime.spawn(
         roomId: 'writer',
-        prompt: 'Write exactly 3 bullet points about Dart programming.',
+        prompt: [
+          const TextPart(
+            'Write exactly 3 bullet points about Dart programming.',
+          ),
+        ],
       );
       final wr = await writer.awaitResult(timeout: const Duration(seconds: 60));
       expect(wr, isA<AgentSuccess>());
@@ -1131,8 +1181,10 @@ void main() {
         // Review.
         final reviewer = await runtime.spawn(
           roomId: 'reviewer',
-          prompt: 'Does this have exactly 3 bullet points? '
-              'Reply PASS or FAIL: <reason>.\n\n$draft',
+          prompt: [
+            TextPart('Does this have exactly 3 bullet points? '
+                'Reply PASS or FAIL: <reason>.\n\n$draft'),
+          ],
         );
         final rr = await reviewer.awaitResult(
           timeout: const Duration(seconds: 60),
@@ -1149,8 +1201,10 @@ void main() {
         // Fix.
         final fixer = await runtime.spawn(
           roomId: 'fixer',
-          prompt: 'Draft: $draft\nFeedback: $review\n'
-              'Produce exactly 3 bullet points about Dart.',
+          prompt: [
+            TextPart('Draft: $draft\nFeedback: $review\n'
+                'Produce exactly 3 bullet points about Dart.'),
+          ],
         );
         final fr = await fixer.awaitResult(
           timeout: const Duration(seconds: 60),
@@ -1184,7 +1238,11 @@ void main() {
       // Advocate.
       final adv = await runtime.spawn(
         roomId: 'advocate',
-        prompt: 'Argue FOR remote work being better than office work.',
+        prompt: [
+          const TextPart(
+            'Argue FOR remote work being better than office work.',
+          ),
+        ],
       );
       final ar = await adv.awaitResult(timeout: const Duration(seconds: 60));
       expect(ar, isA<AgentSuccess>());
@@ -1194,7 +1252,7 @@ void main() {
       // Critic.
       final crt = await runtime.spawn(
         roomId: 'critic',
-        prompt: 'Counter these arguments: $forArgs',
+        prompt: [TextPart('Counter these arguments: $forArgs')],
       );
       final crr = await crt.awaitResult(timeout: const Duration(seconds: 60));
       expect(crr, isA<AgentSuccess>());
@@ -1204,8 +1262,10 @@ void main() {
       // Rebuttal.
       final reb = await runtime.spawn(
         roomId: 'advocate',
-        prompt: 'A critic responded: $againstArgs\n'
-            'Defend your strongest point in 2 sentences.',
+        prompt: [
+          TextPart('A critic responded: $againstArgs\n'
+              'Defend your strongest point in 2 sentences.'),
+        ],
       );
       final rbr = await reb.awaitResult(timeout: const Duration(seconds: 60));
       expect(rbr, isA<AgentSuccess>());
@@ -1215,11 +1275,13 @@ void main() {
       // Judge.
       final jdg = await runtime.spawn(
         roomId: 'judge',
-        prompt: 'Debate: "Is remote work better than office work?"\n'
-            'FOR: $rebuttal\n'
-            'AGAINST: $againstArgs\n'
-            'Who made the stronger argument? '
-            'Reply ADVOCATE or CRITIC with justification.',
+        prompt: [
+          TextPart('Debate: "Is remote work better than office work?"\n'
+              'FOR: $rebuttal\n'
+              'AGAINST: $againstArgs\n'
+              'Who made the stronger argument? '
+              'Reply ADVOCATE or CRITIC with justification.'),
+        ],
       );
       final jr = await jdg.awaitResult(timeout: const Duration(seconds: 60));
       expect(jr, isA<AgentSuccess>());
@@ -1264,8 +1326,10 @@ void main() {
         mappers.add(
           await runtime.spawn(
             roomId: 'parallel',
-            prompt: 'Extract only the population number from: $chunk. '
-                'Reply with just the number.',
+            prompt: [
+              TextPart('Extract only the population number from: $chunk. '
+                  'Reply with just the number.'),
+            ],
           ),
         );
       }
@@ -1284,9 +1348,11 @@ void main() {
       // Reduce.
       final reducer = await runtime.spawn(
         roomId: 'echo',
-        prompt: 'Given populations: ${populations.join(", ")} — '
-            'which country has the largest and smallest population? '
-            'The data was: ${chunks.join("; ")}',
+        prompt: [
+          TextPart('Given populations: ${populations.join(", ")} — '
+              'which country has the largest and smallest population? '
+              'The data was: ${chunks.join("; ")}'),
+        ],
       );
       final rr = await reducer.awaitResult(
         timeout: const Duration(seconds: 60),

@@ -225,7 +225,7 @@ class ThreadViewState {
   Future<void> refresh() => _fetch();
 
   Future<void> sendMessage(
-    String prompt,
+    List<MessagePart> prompt,
     AgentRuntime runtime, {
     Map<String, dynamic>? stateOverlay,
   }) {
@@ -501,13 +501,15 @@ class ThreadViewState {
   /// away; non-auth errors leave the screen mounted and the in-memory
   /// [SendError.unsentText] + room-screen restore path handles
   /// restoration without touching storage.
-  void _persistComposer(String prompt) {
+  void _persistComposer(List<MessagePart> prompt) {
     if (_isDisposed) return;
     persistComposerDraft(
       serverId: _connection.serverId,
       userId: _auth.currentUserId.value,
       roomId: _roomId,
-      prompt: prompt,
+      // Storage holds a plain string, so a draft round-trips its text and
+      // drops any image.
+      prompt: prompt.plainText,
     );
   }
 }

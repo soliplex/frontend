@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:mocktail/mocktail.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
@@ -38,6 +39,14 @@ const ThreadKey _key = (
 );
 
 const _runId = 'run-abc';
+
+/// The optimistic user echo the orchestrator put in the conversation.
+TextMessage _echo(RunOrchestrator orchestrator) =>
+    (orchestrator.currentState as CompletedState)
+        .conversation
+        .messages
+        .whereType<TextMessage>()
+        .firstWhere((m) => m.user == ChatUser.user);
 
 RunInfo _runInfo() =>
     RunInfo(id: _runId, threadId: _key.threadId, createdAt: DateTime(2026));
@@ -140,7 +149,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
 
       // Give stream time to complete
       await Future<void>.delayed(Duration.zero);
@@ -158,7 +168,8 @@ void main() {
       final states = <RunState>[];
       orchestrator.stateChanges.listen(states.add);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       // Expect: RunningState (initial), then updates per event, CompletedState
@@ -173,7 +184,8 @@ void main() {
       RunState? lastEmitted;
       orchestrator.stateChanges.listen((s) => lastEmitted = s);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, equals(lastEmitted));
@@ -184,7 +196,7 @@ void main() {
 
       await orchestrator.startRun(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         existingRunId: _runId,
       );
       await Future<void>.delayed(Duration.zero);
@@ -210,7 +222,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       final completed = orchestrator.currentState as CompletedState;
@@ -224,6 +237,49 @@ void main() {
     });
   });
 
+  group('optimistic echo', () {
+    // The echo is the only representation of the user's turn on screen while
+    // the run is in flight, so dropping `parts` here loses an attached image
+    // until a reload replays it from the server.
+    test('carries the payload parts in order', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      final png = Uint8List.fromList([0x89, 0x50, 0x4e, 0x47]);
+      await orchestrator.startRun(
+        key: _key,
+        userMessage: [
+          const TextPart('look at '),
+          ImagePart(bytes: png, mimeType: 'image/png'),
+          const TextPart(' and say'),
+        ],
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final echo = _echo(orchestrator);
+      expect(echo.parts, hasLength(3));
+      expect((echo.parts![1] as ImagePart).mimeType, equals('image/png'));
+      // Derived, never carried alongside: the image contributes no text, and
+      // the runs join without a separator.
+      expect(echo.text, equals('look at  and say'));
+    });
+
+    // A lone text run flattens to itself, which is what every caller that
+    // sends plain text relies on.
+    test('derives text from a single text run', () async {
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
+
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
+      await Future<void>.delayed(Duration.zero);
+
+      final echo = _echo(orchestrator);
+      expect(echo.text, equals('Hi'));
+      expect(echo.parts, hasLength(1));
+    });
+  });
+
   group('error', () {
     test('RunErrorEvent transitions to FailedState(serverError)', () async {
       stubCreateRun();
@@ -234,7 +290,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<FailedState>());
@@ -253,7 +310,8 @@ void main() {
           ),
         );
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         await Future<void>.delayed(Duration.zero);
 
         expect(orchestrator.currentState, isA<FailedState>());
@@ -272,7 +330,8 @@ void main() {
           ),
         );
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         await Future<void>.delayed(Duration.zero);
 
         expect(orchestrator.currentState, isA<FailedState>());
@@ -292,7 +351,8 @@ void main() {
           ]),
         );
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         await Future<void>.delayed(Duration.zero);
 
         expect(orchestrator.currentState, isA<FailedState>());
@@ -309,7 +369,8 @@ void main() {
         () => api.createRun(any(), any()),
       ).thenThrow(const AuthException(message: 'Token expired'));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
 
       expect(orchestrator.currentState, isA<FailedState>());
       final failed = orchestrator.currentState as FailedState;
@@ -323,7 +384,8 @@ void main() {
         final controller = StreamController<BaseEvent>();
         stubRunAgent(stream: controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
 
         controller
           ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
@@ -363,7 +425,8 @@ void main() {
         addTearDown(controller.close);
         stubRunAgent(stream: controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         await Future<void>.delayed(Duration.zero);
 
         controller.addError(
@@ -409,7 +472,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<FailedState>());
@@ -435,7 +499,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<FailedState>());
@@ -460,7 +525,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<FailedState>());
@@ -497,7 +563,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -515,7 +582,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -543,7 +611,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<CompletedState>());
 
@@ -561,7 +630,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<FailedState>());
 
@@ -575,7 +645,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -598,7 +669,8 @@ void main() {
       stubRunAgent(stream: controller.stream);
 
       final staleTs = DateTime.utc(2026).millisecondsSinceEpoch;
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller
         ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const ThinkingStartEvent())
@@ -648,7 +720,8 @@ void main() {
       stubRunAgent(stream: controller.stream);
 
       final lastChunkTime = DateTime.utc(2026, 1, 1, 12);
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller
         ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const TextMessageStartEvent(messageId: 'reply-1'))
@@ -698,14 +771,16 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        () => orchestrator.startRun(key: _key, userMessage: 'Again'),
+        () => orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Again')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -724,7 +799,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -757,7 +833,7 @@ void main() {
 
       await orchestrator.startRun(
         key: _key,
-        userMessage: 'Follow-up',
+        userMessage: [const TextPart('Follow-up')],
         cachedHistory: history,
       );
       await Future<void>.delayed(Duration.zero);
@@ -790,7 +866,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -822,7 +899,7 @@ void main() {
 
       await orchestrator.startRun(
         key: _key,
-        userMessage: 'More',
+        userMessage: [const TextPart('More')],
         cachedHistory: history,
       );
       await Future<void>.delayed(Duration.zero);
@@ -852,7 +929,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Turn 2',
+        userMessage: [const TextPart('Turn 2')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
       );
@@ -916,7 +993,7 @@ void main() {
 
       await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'follow-up',
+        userMessage: [const TextPart('follow-up')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
       );
@@ -956,7 +1033,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         stateOverlay: {
           'rag': <String, dynamic>{'document_filter': "id = 'abc-123'"},
@@ -986,7 +1063,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1020,7 +1097,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1053,7 +1130,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1084,7 +1161,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1113,7 +1190,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1144,7 +1221,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: {
@@ -1174,7 +1251,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'test',
+        userMessage: [const TextPart('test')],
         toolExecutor: (_) async => [],
         cachedHistory: history,
         stateOverlay: const {},
@@ -1204,7 +1281,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<ToolYieldingState>());
@@ -1218,7 +1296,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -1240,7 +1319,8 @@ void main() {
         ),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -1284,7 +1364,8 @@ void main() {
         second: Stream.fromIterable(_resumeTextEvents()),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
 
@@ -1350,7 +1431,8 @@ void main() {
         return _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
       final yield1 = orchestrator.currentState as ToolYieldingState;
@@ -1389,7 +1471,8 @@ void main() {
         ),
       ).thenAnswer((_) => _wrap(Stream.fromIterable(_toolCallEvents())));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
 
       for (var i = 0; i < 10; i++) {
@@ -1445,7 +1528,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) async => _executedTools(),
       );
 
@@ -1473,7 +1556,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
 
@@ -1496,12 +1580,14 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
 
       expect(
-        () => orchestrator.startRun(key: _key, userMessage: 'Again'),
+        () => orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Again')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -1538,7 +1624,7 @@ void main() {
       unawaited(
         orchestrator.runToCompletion(
           key: _key,
-          userMessage: 'Hi',
+          userMessage: [const TextPart('Hi')],
           toolExecutor: (_) async => [],
         ),
       );
@@ -1617,7 +1703,7 @@ void main() {
       var toolExecutorCallCount = 0;
       final runFuture = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) async {
           toolExecutorCallCount++;
           await toolExecutorTrigger.future;
@@ -1712,7 +1798,7 @@ void main() {
       var toolExecutorCallCount = 0;
       final runFuture = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) async {
           toolExecutorCallCount++;
           await toolExecutorTrigger.future;
@@ -1766,7 +1852,9 @@ void main() {
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
       // Start run — will suspend on createRun.
-      unawaited(orchestrator.startRun(key: _key, userMessage: 'Hi'));
+      unawaited(
+        orchestrator.startRun(key: _key, userMessage: [const TextPart('Hi')]),
+      );
       await Future<void>.delayed(Duration.zero);
 
       // Dispose while awaiting createRun.
@@ -1795,7 +1883,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<ToolYieldingState>());
 
@@ -1832,7 +1921,8 @@ void main() {
         addTearDown(controller.close);
         stubRunAgent(stream: controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         await Future<void>.delayed(Duration.zero);
         expect(orchestrator.currentState, isA<RunningState>());
 
@@ -1852,7 +1942,8 @@ void main() {
         when(() => api.createRun(any(), any()))
             .thenThrow(const CancelledException(reason: 'user'));
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
 
         expect(orchestrator.currentState, isA<CancelledState>());
       },
@@ -1880,7 +1971,7 @@ void main() {
 
       final runFuture = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: (_) async => [],
       );
       await Future<void>.delayed(Duration.zero);
@@ -1923,7 +2014,8 @@ void main() {
         );
         stubRunAgent(stream: controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
 
         // Emit a complete happy-path sequence.
         _happyPathEvents().forEach(controller.add);
@@ -1959,7 +2051,8 @@ void main() {
       );
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -1988,7 +2081,8 @@ void main() {
       );
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       controller
         ..add(RunStartedEvent(threadId: 'thread-1', runId: _runId))
         ..add(const RunErrorEvent(message: 'backend error'));
@@ -2031,7 +2125,7 @@ void main() {
 
       await orchestrator.startRun(
         key: _key,
-        userMessage: 'More',
+        userMessage: [const TextPart('More')],
         cachedHistory: history,
       );
       await Future<void>.delayed(Duration.zero);
@@ -2112,7 +2206,7 @@ void main() {
 
       await orchestrator.startRun(
         key: _key,
-        userMessage: 'More',
+        userMessage: [const TextPart('More')],
         cachedHistory: history,
       );
       await Future<void>.delayed(Duration.zero);
@@ -2190,7 +2284,8 @@ void main() {
           return _wrap(Stream.fromIterable(_resumeTextEvents()));
         });
 
-        await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
         await Future<void>.delayed(Duration.zero);
         expect(orchestrator.currentState, isA<ToolYieldingState>());
 
@@ -2289,7 +2384,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (pending) async {
           return pending
               .map(
@@ -2349,7 +2444,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       final captured = verify(
@@ -2373,7 +2469,8 @@ void main() {
       orchestrator.dispose();
 
       expect(
-        () => orchestrator.startRun(key: _key, userMessage: 'Hi'),
+        () => orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -2398,7 +2495,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<RunningState>());
@@ -2503,7 +2601,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(citationEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -2539,7 +2638,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -2555,7 +2655,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -2594,7 +2695,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       final completed = orchestrator.currentState as CompletedState;
@@ -2643,7 +2745,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       final completed = orchestrator.currentState as CompletedState;
@@ -2693,7 +2796,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Analyze');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Analyze')]);
       await Future<void>.delayed(Duration.zero);
 
       final completed = orchestrator.currentState as CompletedState;
@@ -2732,7 +2836,8 @@ void main() {
         ]),
       );
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       final completed = orchestrator.currentState as CompletedState;
@@ -2772,7 +2877,8 @@ void main() {
 
       stubRunAgent(stream: Stream.fromIterable(toolCallWithCitations));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Weather?');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Weather?')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<ToolYieldingState>());
@@ -2848,7 +2954,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Search',
+        userMessage: [const TextPart('Search')],
         toolExecutor: (pending) async {
           return pending
               .map(
@@ -2961,7 +3067,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Search',
+        userMessage: [const TextPart('Search')],
         toolExecutor: (pending) async => pending
             .map(
               (tc) => tc.copyWith(
@@ -3052,7 +3158,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Search',
+        userMessage: [const TextPart('Search')],
         toolExecutor: (pending) async {
           return pending
               .map(
@@ -3081,14 +3187,16 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(citationEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<CompletedState>());
 
       orchestrator.reset();
 
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
-      await orchestrator.startRun(key: _key, userMessage: 'Hi');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Hi')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -3108,7 +3216,8 @@ void main() {
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(citationEvents()));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
       expect(orchestrator.currentState, isA<CompletedState>());
 
@@ -3129,7 +3238,8 @@ void main() {
           const RunFinishedEvent(threadId: 'thread-1', runId: _runId),
         ]),
       );
-      await orchestrator.startRun(key: _key, userMessage: 'Again');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Again')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -3149,7 +3259,8 @@ void main() {
       ];
       stubRunAgent(stream: Stream.fromIterable(events));
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       await Future<void>.delayed(Duration.zero);
 
       expect(orchestrator.currentState, isA<FailedState>());
@@ -3165,7 +3276,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -3189,7 +3301,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      await orchestrator.startRun(key: _key, userMessage: 'Search');
+      await orchestrator
+          .startRun(key: _key, userMessage: [const TextPart('Search')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -3228,7 +3341,8 @@ void main() {
         final trackerSub = orchestrator.baseEvents.listen(trackerEvents.add);
         addTearDown(trackerSub.cancel);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         // Backend run-started, then an undecodable payload, then a
         // structurally-valid text turn, then RunFinished.
         controller
@@ -3332,7 +3446,8 @@ void main() {
         final trackerSub = orchestrator.baseEvents.listen(trackerEvents.add);
         addTearDown(trackerSub.cancel);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         controller
           ..add(
             DecodedEvent(
@@ -3429,7 +3544,8 @@ void main() {
           ),
         ).thenAnswer((_) => controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         controller
           ..add(
             DecodedEvent(
@@ -3485,7 +3601,8 @@ void main() {
           ),
         ).thenAnswer((_) => controller.stream);
 
-        await orchestrator.startRun(key: _key, userMessage: 'Hi');
+        await orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Hi')]);
         // Outcome positions: 0 RunStarted, 1 DecodeFailed, 2 TextStart,
         // 3 STATE_SNAPSHOT (throws inside processEvent), 4 RunFinished.
         controller

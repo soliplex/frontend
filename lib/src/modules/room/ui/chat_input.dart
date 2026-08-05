@@ -42,7 +42,7 @@ class ChatInput extends StatefulWidget {
     this.onAttachFolder,
   });
 
-  final void Function(String text) onSend;
+  final void Function(List<MessagePart> parts) onSend;
   final void Function() onCancel;
   final ReadonlySignal<AgentSessionState?>? sessionState;
 
@@ -135,7 +135,7 @@ class _ChatInputState extends State<ChatInput> {
         )) {
       return;
     }
-    widget.onSend(text);
+    widget.onSend([TextPart(text)]);
     _controller.clear();
     _focusNode.requestFocus();
   }

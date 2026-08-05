@@ -141,7 +141,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(session.runState.value, isA<CompletedState>());
@@ -163,7 +163,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(session.runState.value, isA<FailedState>());
@@ -181,7 +181,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -223,7 +223,7 @@ void main() {
 
       expect(session.sessionState.value, equals(AgentSessionState.spawning));
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -253,7 +253,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       expect(session.sessionState.value, equals(AgentSessionState.failed));
@@ -271,7 +271,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       controller.add(
         RunStartedEvent(threadId: 'thread-1', runId: _runId),
       );
@@ -323,7 +323,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       final state = session.agentState.value;
@@ -365,7 +365,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await session.start(userMessage: 'Hi');
+      await session.start(userMessage: [const TextPart('Hi')]);
       await session.result;
 
       final ui = session.agentState.value['ui']! as Map<dynamic, dynamic>;

@@ -259,8 +259,10 @@ void main() {
             : _wrap(controllerB.stream);
       });
 
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       expect(runtime.activeSessions, hasLength(2));
 
@@ -305,8 +307,10 @@ void main() {
             : _wrap(controllerB.stream);
       });
 
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       expect(runtime.activeSessions, hasLength(2));
 
@@ -335,10 +339,11 @@ void main() {
       final controllerA = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controllerA.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
       expect(runtime.pendingSpawnCount, 0);
 
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       await Future<void>.delayed(Duration.zero);
       expect(runtime.pendingSpawnCount, 1);
 
@@ -368,14 +373,16 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
       await sessionA.result;
 
       // Fresh stubs for second spawn.
       stubCreateRun();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       final resultB = await sessionB.result;
       expect(resultB, isA<AgentSuccess>());
     });
@@ -410,14 +417,15 @@ void main() {
       final sessions = <AgentSession>[];
       for (var i = 0; i < limit; i++) {
         sessions.add(
-          await runtime.spawn(roomId: _roomId, prompt: 'Task $i'),
+          await runtime.spawn(roomId: _roomId, prompt: [TextPart('Task $i')]),
         );
       }
 
       // Fire remaining — they queue.
       final queuedFutures = <Future<AgentSession>>[];
       for (var i = limit; i < n; i++) {
-        queuedFutures.add(runtime.spawn(roomId: _roomId, prompt: 'Task $i'));
+        queuedFutures
+            .add(runtime.spawn(roomId: _roomId, prompt: [TextPart('Task $i')]));
       }
       await Future<void>.delayed(Duration.zero);
       expect(runtime.pendingSpawnCount, n - limit);
@@ -475,7 +483,8 @@ void main() {
         stream: Stream.fromIterable(_toolCallEvents(toolName: 'delegate')),
       );
 
-      final parent = await runtime.spawn(roomId: _roomId, prompt: 'Delegate');
+      final parent = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Delegate')]);
 
       // Deadlock: parent holds slot → tool calls delegateTask → spawnChild
       // → _waitForSlot queues → parent waits for child → child waits for
@@ -500,10 +509,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
 
       Object? caught;
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       unawaited(
         spawnFuture.then<void>((_) {}).catchError((Object e) {
           caught = e;
@@ -531,10 +541,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
 
       Object? caught;
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       unawaited(
         spawnFuture.then<void>((_) {}).catchError((Object e) {
           caught = e;
@@ -587,12 +598,14 @@ void main() {
       });
 
       // Fill slots with slow sessions.
-      await runtime.spawn(roomId: _roomId, prompt: 'Slow A');
-      await runtime.spawn(roomId: _roomId, prompt: 'Slow B');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Slow A')]);
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Slow B')]);
 
       // Queue fast sessions.
-      final futureC = runtime.spawn(roomId: _roomId, prompt: 'Fast C');
-      final futureD = runtime.spawn(roomId: _roomId, prompt: 'Fast D');
+      final futureC =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('Fast C')]);
+      final futureD =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('Fast D')]);
       await Future<void>.delayed(Duration.zero);
       expect(runtime.pendingSpawnCount, 2);
 
@@ -656,8 +669,10 @@ void main() {
             : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       final resultA = await sessionA.result;
       final resultB = await sessionB.result;
@@ -720,8 +735,10 @@ void main() {
       });
 
       final sw = Stopwatch()..start();
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       final resultA = await sessionA.result;
       final resultB = await sessionB.result;
@@ -778,9 +795,10 @@ void main() {
             : _wrap(controllerB.stream);
       });
 
-      await runtime.spawn(roomId: _roomId, prompt: 'With bridge');
-      final sessionB =
-          await runtime.spawn(roomId: _roomId, prompt: 'HTTP only');
+      await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('With bridge')]);
+      final sessionB = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('HTTP only')]);
 
       _happyPathEvents().forEach(controllerA.add);
       _happyPathEvents().forEach(controllerB.add);
@@ -831,8 +849,10 @@ void main() {
       });
 
       // Await first spawn to ensure tracking before queuing.
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final futureB = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final futureB =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       final sessionB = await futureB;
 
@@ -897,7 +917,7 @@ void main() {
       final sessions = <AgentSession>[];
       for (var i = 0; i < n; i++) {
         sessions.add(
-          await runtime.spawn(roomId: _roomId, prompt: 'Task $i'),
+          await runtime.spawn(roomId: _roomId, prompt: [TextPart('Task $i')]),
         );
       }
 
@@ -967,7 +987,7 @@ void main() {
       final sessions = <AgentSession>[];
       for (var i = 0; i < n; i++) {
         sessions.add(
-          await runtime.spawn(roomId: _roomId, prompt: 'Task $i'),
+          await runtime.spawn(roomId: _roomId, prompt: [TextPart('Task $i')]),
         );
       }
 

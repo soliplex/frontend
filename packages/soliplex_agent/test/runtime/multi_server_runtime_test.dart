@@ -168,7 +168,7 @@ void main() {
       final session = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
       );
 
       expect(session.threadKey.serverId, equals('prod'));
@@ -182,12 +182,12 @@ void main() {
       final s1 = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'A',
+        prompt: [const TextPart('A')],
       );
       final s2 = await msr.spawn(
         serverId: 'staging',
         roomId: _roomId,
-        prompt: 'B',
+        prompt: [const TextPart('B')],
       );
 
       expect(s1.threadKey.serverId, equals('prod'));
@@ -209,7 +209,7 @@ void main() {
       final session = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
       );
 
       final found = msr.getSession(session.threadKey);
@@ -234,7 +234,7 @@ void main() {
       final session = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
       );
 
       // Look on staging — should not find it.
@@ -261,7 +261,11 @@ void main() {
         stream: controller.stream,
       );
 
-      await msr.spawn(serverId: 'prod', roomId: _roomId, prompt: 'Hello');
+      await msr.spawn(
+        serverId: 'prod',
+        roomId: _roomId,
+        prompt: [const TextPart('Hello')],
+      );
 
       const unknownKey = (
         serverId: 'prod',
@@ -304,13 +308,13 @@ void main() {
       await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'A',
+        prompt: [const TextPart('A')],
         autoDispose: true,
       );
       await msr.spawn(
         serverId: 'staging',
         roomId: _roomId,
-        prompt: 'B',
+        prompt: [const TextPart('B')],
         autoDispose: true,
       );
 
@@ -341,12 +345,12 @@ void main() {
       final s1 = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'A',
+        prompt: [const TextPart('A')],
       );
       final s2 = await msr.spawn(
         serverId: 'staging',
         roomId: _roomId,
-        prompt: 'B',
+        prompt: [const TextPart('B')],
       );
 
       final results = await msr.waitAll([s1, s2]);
@@ -362,12 +366,12 @@ void main() {
       final s1 = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'A',
+        prompt: [const TextPart('A')],
       );
       final s2 = await msr.spawn(
         serverId: 'staging',
         roomId: _roomId,
-        prompt: 'B',
+        prompt: [const TextPart('B')],
       );
 
       final result = await msr.waitAny([s1, s2]);
@@ -418,12 +422,12 @@ void main() {
       final s1 = await msr.spawn(
         serverId: 'prod',
         roomId: _roomId,
-        prompt: 'A',
+        prompt: [const TextPart('A')],
       );
       final s2 = await msr.spawn(
         serverId: 'staging',
         roomId: _roomId,
-        prompt: 'B',
+        prompt: [const TextPart('B')],
       );
 
       // Let runs start.
@@ -448,7 +452,11 @@ void main() {
     test('dispose cleans up all runtimes', () async {
       _stubHappyPath(prod.api, prod.agUi, threadId: 'prod-t1');
 
-      await msr.spawn(serverId: 'prod', roomId: _roomId, prompt: 'A');
+      await msr.spawn(
+        serverId: 'prod',
+        roomId: _roomId,
+        prompt: [const TextPart('A')],
+      );
 
       await msr.dispose();
 
@@ -464,7 +472,11 @@ void main() {
     test('concurrent dispose is safe', () async {
       _stubHappyPath(prod.api, prod.agUi, threadId: 'prod-t1');
 
-      await msr.spawn(serverId: 'prod', roomId: _roomId, prompt: 'A');
+      await msr.spawn(
+        serverId: 'prod',
+        roomId: _roomId,
+        prompt: [const TextPart('A')],
+      );
 
       // Two concurrent disposes should not throw.
       await Future.wait([msr.dispose(), msr.dispose()]);

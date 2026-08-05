@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +33,7 @@ class _AuthExceptionThrowingRuntime extends AgentRuntime {
   @override
   Future<AgentSession> spawn({
     required String roomId,
-    required String prompt,
+    required List<MessagePart> prompt,
     String? threadId,
     Duration? timeout,
     bool ephemeral = false,
@@ -218,10 +219,18 @@ void main() {
 
     // Dispose runtime so spawn throws.
     await runtimeManager.dispose();
-    await state.sendToNewThread('Hello');
+    await state.sendToNewThread([
+      const TextPart('Hello'),
+      ImagePart(bytes: Uint8List.fromList([0x89]), mimeType: 'image/png'),
+    ]);
 
     expect(state.lastError.value, isNotNull);
-    expect(state.lastError.value!.unsentText, 'Hello');
+    expect(
+      state.lastError.value!.unsentText,
+      'Hello',
+      reason: 'SendError carries a string, so the retry banner restores the '
+          'text and cannot restore the image.',
+    );
 
     state.dispose();
   });
@@ -248,7 +257,7 @@ void main() {
 
     await Future<void>.delayed(Duration.zero);
 
-    await state.sendToNewThread('Hello');
+    await state.sendToNewThread([TextPart('Hello')]);
     for (var i = 0; i < 10; i++) {
       await Future<void>.delayed(Duration.zero);
     }
@@ -274,7 +283,7 @@ void main() {
 
     await Future<void>.delayed(Duration.zero);
 
-    final sendFuture = state.sendToNewThread('Hello');
+    final sendFuture = state.sendToNewThread([TextPart('Hello')]);
     expect(state.sessionState.value, AgentSessionState.spawning);
 
     await sendFuture;
@@ -301,7 +310,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     // Start sendToNewThread but dispose before spawn completes.
-    final sendFuture = state.sendToNewThread('Hello');
+    final sendFuture = state.sendToNewThread([TextPart('Hello')]);
     state.dispose();
 
     // Should complete without error — spawn runs to completion.
@@ -523,11 +532,11 @@ void main() {
 
     final runtime = runtimeManager.getRuntime(connection);
     final session1 = await runtime.spawn(
-        roomId: 'room-1', prompt: 't', threadId: 'thread-A');
+        roomId: 'room-1', prompt: [TextPart('t')], threadId: 'thread-A');
     final session2 = await runtime.spawn(
-        roomId: 'room-2', prompt: 't', threadId: 'thread-B');
+        roomId: 'room-2', prompt: [TextPart('t')], threadId: 'thread-B');
     final session3 = await runtime.spawn(
-        roomId: 'room-1', prompt: 't', threadId: 'thread-C');
+        roomId: 'room-1', prompt: [TextPart('t')], threadId: 'thread-C');
 
     registry.register(
       (serverId: 'test-server', roomId: 'room-1', threadId: 'thread-A'),
@@ -922,7 +931,10 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      await state.sendToNewThread('half-written question');
+      await state.sendToNewThread([
+        const TextPart('half-written question'),
+        ImagePart(bytes: Uint8List.fromList([0x89]), mimeType: 'image/png'),
+      ]);
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -944,7 +956,8 @@ void main() {
         'half-written question',
         reason: 'RoomState.sendToNewThread must wire composer persistence '
             "as the spawner's onAuthExpired hook; without it the user's "
-            'draft is dropped on the floor by the redirect.',
+            'draft is dropped on the floor by the redirect. Storage holds a '
+            'string, so the text survives and the image does not.',
       );
 
       state.dispose();

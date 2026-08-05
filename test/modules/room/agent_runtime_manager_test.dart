@@ -108,7 +108,7 @@ void main() {
     // a disposed runtime rejects spawn. This catches a regression that evicts
     // the cache entry but skips disposal (the leak this eviction path fixes).
     await expectLater(
-      rt1.spawn(roomId: 'r', prompt: 'p', threadId: 't'),
+      rt1.spawn(roomId: 'r', prompt: [TextPart('p')], threadId: 't'),
       throwsA(
         isA<StateError>()
             .having((e) => e.toString(), 'message', contains('disposed')),

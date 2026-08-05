@@ -194,7 +194,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -212,7 +213,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         threadId: 'existing-thread',
       );
       final result = await session.result;
@@ -227,7 +228,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       await session.result;
       // Should NOT call createRun because initialRunId was provided
@@ -266,7 +268,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
       );
       await session.result;
 
@@ -306,7 +308,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         threadId: _threadId,
       );
       await session.result;
@@ -322,7 +324,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(runtime.activeSessions, contains(session));
 
@@ -367,7 +370,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         stateOverlay: {
           'rag': <String, dynamic>{
             'document_filter': "id = 'abc-123'",
@@ -400,7 +403,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       final found = runtime.getSession(session.threadKey);
       expect(found, equals(session));
@@ -426,7 +430,11 @@ void main() {
       final emissions = <List<AgentSession>>[];
       runtime.sessionChanges.listen(emissions.add);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello', autoDispose: true);
+      await runtime.spawn(
+        roomId: _roomId,
+        prompt: [const TextPart('Hello')],
+        autoDispose: true,
+      );
 
       // Wait for session to complete and be cleaned up
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -442,7 +450,8 @@ void main() {
       final controller = StreamController<BaseEvent>();
       stubRunAgent(stream: controller.stream);
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       // Signal and getter agree after spawn
       expect(runtime.sessions.value, contains(session));
@@ -461,8 +470,10 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final s1 = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final s2 = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final s1 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final s2 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       final results = await runtime.waitAll([s1, s2]);
 
@@ -478,8 +489,10 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final s1 = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final s2 = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final s1 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final s2 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       final result = await runtime.waitAny([s1, s2]);
 
@@ -513,8 +526,10 @@ void main() {
             : _wrap(controllerB.stream);
       });
 
-      final sessionA = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final sessionB = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final sessionA =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final sessionB =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       expect(runtime.activeSessions, hasLength(2));
 
@@ -540,10 +555,11 @@ void main() {
       final controllerA = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controllerA.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
       expect(runtime.pendingSpawnCount, 0);
 
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       await Future<void>.delayed(Duration.zero);
       expect(runtime.pendingSpawnCount, 1);
 
@@ -576,11 +592,12 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
       expect(runtime.pendingSpawnCount, 0);
 
       // Second spawn should queue, not throw.
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       // Let microtask run so _waitForSlot enqueues.
       await Future<void>.delayed(Duration.zero);
       expect(runtime.pendingSpawnCount, 1);
@@ -616,12 +633,13 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
 
       // Queue a second spawn and immediately attach an error handler
       // so the test zone doesn't see an unhandled rejection.
       Object? caught;
-      final spawnFuture = runtime.spawn(roomId: _roomId, prompt: 'B');
+      final spawnFuture =
+          runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
       unawaited(
         spawnFuture.then<void>((_) {}).catchError((Object e) {
           caught = e;
@@ -648,7 +666,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Root');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Root')]);
 
       expect(session.depth, 0);
     });
@@ -663,7 +682,8 @@ void main() {
       stubRunAgent(stream: controller.stream);
 
       // Spawn a root at depth 0
-      final root = await runtime.spawn(roomId: _roomId, prompt: 'Root');
+      final root = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Root')]);
       expect(root.depth, 0);
 
       // Now create a runtime with maxSpawnDepth=1 to test the guard
@@ -683,11 +703,16 @@ void main() {
       final controller2 = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller2.stream);
 
-      final parent = await runtime.spawn(roomId: _roomId, prompt: 'Parent');
+      final parent = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Parent')]);
       expect(parent.depth, 0);
 
       expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Child', parent: parent),
+        () => runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('Child')],
+          parent: parent,
+        ),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -721,12 +746,13 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomId, prompt: 'Parent');
+      final parent = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Parent')]);
 
       // Should not throw even with a parent at depth 0
       final child = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Child',
+        prompt: [const TextPart('Child')],
         parent: parent,
       );
       expect(child.depth, 1);
@@ -759,7 +785,8 @@ void main() {
         ..add(RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Slow');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Slow')]);
 
       final result = await session.result;
 
@@ -787,7 +814,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Fast');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Fast')]);
 
       final result = await session.result;
 
@@ -815,8 +843,13 @@ void main() {
         ..add(RunStartedEvent(threadId: _threadId, runId: _runId));
       stubRunAgent(stream: controller.stream);
 
-      final parent = await runtime.spawn(roomId: _roomId, prompt: 'Parent');
-      await runtime.spawn(roomId: _roomId, prompt: 'Child', parent: parent);
+      final parent = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Parent')]);
+      await runtime.spawn(
+        roomId: _roomId,
+        prompt: [const TextPart('Child')],
+        parent: parent,
+      );
 
       // Wait past the rootTimeout — only parent should be cancelled,
       // but since child is a child of parent, it gets cascaded
@@ -836,7 +869,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         ephemeral: true,
         autoDispose: true,
       );
@@ -854,7 +887,7 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         threadId: 'existing',
       );
 
@@ -873,8 +906,10 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      final s1 = await runtime.spawn(roomId: _roomId, prompt: 'A');
-      final s2 = await runtime.spawn(roomId: _roomId, prompt: 'B');
+      final s1 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]);
+      final s2 =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]);
 
       controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
@@ -896,7 +931,7 @@ void main() {
       await runtime.dispose();
 
       expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Hello'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -914,7 +949,11 @@ void main() {
       final controller = StreamController<BaseEvent>.broadcast();
       stubRunAgent(stream: controller.stream);
 
-      await runtime.spawn(roomId: _roomId, prompt: 'A', ephemeral: true);
+      await runtime.spawn(
+        roomId: _roomId,
+        prompt: [const TextPart('A')],
+        ephemeral: true,
+      );
       controller.add(RunStartedEvent(threadId: _threadId, runId: _runId));
       await Future<void>.delayed(Duration.zero);
 
@@ -933,7 +972,7 @@ void main() {
       ).thenThrow(const AuthException(message: 'Token expired'));
 
       expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Hello'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]),
         throwsA(isA<AuthException>()),
       );
     });
@@ -945,7 +984,7 @@ void main() {
       stubCreateThread();
 
       expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Hello'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]),
         throwsA(isA<StateError>()),
       );
     });
@@ -970,7 +1009,7 @@ void main() {
 
       final s1 = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Hello',
+        prompt: [const TextPart('Hello')],
         threadId: 'thread-fail',
       );
 
@@ -1025,7 +1064,7 @@ void main() {
 
       final s2 = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Retry',
+        prompt: [const TextPart('Retry')],
         threadId: 'thread-fail',
       );
       await s2.result;
@@ -1054,7 +1093,11 @@ void main() {
       stubDeleteThread();
 
       await expectLater(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Hello', ephemeral: true),
+        () => runtime.spawn(
+          roomId: _roomId,
+          prompt: [const TextPart('Hello')],
+          ephemeral: true,
+        ),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -1087,7 +1130,7 @@ void main() {
 
       // First spawn fails
       await expectLater(
-        () => runtime.spawn(roomId: _roomId, prompt: 'A'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('A')]),
         throwsA(isA<StateError>()),
       );
 
@@ -1095,7 +1138,7 @@ void main() {
       // It will still fail from the throwing extension, but the error
       // must be the extension error, not a concurrency guard error.
       await expectLater(
-        () => runtime.spawn(roomId: _roomId, prompt: 'B'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('B')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -1132,7 +1175,8 @@ void main() {
             : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Weather?');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Weather?')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -1201,7 +1245,8 @@ void main() {
             : _wrap(Stream.fromIterable(_resumeTextEvents()));
       });
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Run code');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Run code')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -1216,7 +1261,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
       final result = await session.result;
 
       expect(result, isA<AgentSuccess>());
@@ -1238,7 +1284,7 @@ void main() {
       stubCreateThread();
 
       expect(
-        () => runtime.spawn(roomId: _roomId, prompt: 'Hello'),
+        () => runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -1271,7 +1317,7 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      await runtime.spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(factoryCalled, isTrue);
     });
@@ -1299,7 +1345,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(session.threadKey.serverId, equals('staging.soliplex.io'));
       await session.result;
@@ -1339,7 +1386,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
 
       expect(session.threadKey.serverId, equals('prod'));
       await session.result;
@@ -1354,7 +1402,8 @@ void main() {
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
       // Turn 1.
-      final s1 = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final s1 = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
       await s1.result;
 
       // Stub a second run on the same thread.
@@ -1364,7 +1413,7 @@ void main() {
       // Turn 2 — same thread, runtime should auto-inject history.
       final s2 = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Follow up',
+        prompt: [const TextPart('Follow up')],
         threadId: s1.threadKey.threadId,
       );
       await s2.result;
@@ -1401,7 +1450,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'Hello');
+      final session = await runtime
+          .spawn(roomId: _roomId, prompt: [const TextPart('Hello')]);
       await session.result;
 
       final captured = verify(
@@ -1428,7 +1478,7 @@ void main() {
 
       final s1 = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Ephemeral',
+        prompt: [const TextPart('Ephemeral')],
         ephemeral: true,
       );
       await s1.result;
@@ -1439,7 +1489,7 @@ void main() {
 
       final s2 = await runtime.spawn(
         roomId: _roomId,
-        prompt: 'Another',
+        prompt: [const TextPart('Another')],
         threadId: s1.threadKey.threadId,
       );
       await s2.result;
@@ -1494,7 +1544,8 @@ void main() {
       stubDeleteThread();
       stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
 
-      final session = await runtime.spawn(roomId: _roomId, prompt: 'hi');
+      final session =
+          await runtime.spawn(roomId: _roomId, prompt: [const TextPart('hi')]);
 
       expect(session.threadKey.serverId, equals('prod'));
 
