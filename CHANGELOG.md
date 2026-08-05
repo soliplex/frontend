@@ -8,6 +8,19 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Added
+
+- **Library consumers:** `soliplex_client` exports a `MessagePart` type —
+  `TextPart` for a run of text, `ImagePart` for image bytes with their MIME
+  type — and an optional `parts` list on `TextMessage`. A user message carrying
+  parts is sent as AG-UI multimodal content with each image inlined as base64,
+  so text and images reach the model interleaved in the order given. A message
+  without parts is unchanged on the wire. The multimodal form is used only when
+  a part is not text: a list holding nothing but text, or nothing at all, falls
+  back to the plain string, because an empty content array makes the backend
+  discard the message's turn without reporting an error. Nothing in the app
+  populates `parts` yet, so no screen behaves differently.
+
 ### Fixed
 
 - Pressing the platform's paste chord in a room — Cmd+V on macOS and iOS, Ctrl+V

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:ag_ui/ag_ui.dart';
 import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/domain/chat_message.dart';
@@ -23,6 +26,9 @@ void main() {
         final userMsg = aguiMessages[0] as UserMessage;
         expect(userMsg.id, equals('msg-1'));
         expect(userMsg.content, equals('Hello, assistant!'));
+        // A message without parts serializes `content` as a bare string, not
+        // a one-element array.
+        expect(userMsg.toJson()['content'], equals('Hello, assistant!'));
       });
 
       test('converts assistant TextMessage to AssistantMessage', () {
@@ -61,6 +67,118 @@ void main() {
         final systemMsg = aguiMessages[0] as SystemMessage;
         expect(systemMsg.id, equals('msg-3'));
         expect(systemMsg.content, equals('System notification'));
+      });
+    });
+
+    group('message parts', () {
+      // Every part maps to its AG-UI `InputContent` with an inline `data`
+      // source and camelCase keys. Two images of different types pin the
+      // per-part mime; the leading space in ' then tell me' pins that text
+      // runs reach the wire untrimmed.
+      test('serializes parts as an ordered multimodal content array', () {
+        final png = Uint8List.fromList([0x89, 0x50, 0x4e, 0x47]);
+        final jpeg = Uint8List.fromList([0xff, 0xd8, 0xff, 0xe0]);
+
+        final aguiMessages = convertToAgui([
+          TextMessage(
+            id: 'msg-parts',
+            user: ChatUser.user,
+            text: 'look at these then tell me',
+            createdAt: DateTime.now(),
+            parts: [
+              const TextPart('look at these'),
+              ImagePart(bytes: png, mimeType: 'image/png'),
+              ImagePart(bytes: jpeg, mimeType: 'image/jpeg'),
+              const TextPart(' then tell me'),
+            ],
+          ),
+        ]);
+
+        expect(aguiMessages, hasLength(1));
+        final userMsg = aguiMessages[0] as UserMessage;
+        expect(
+          userMsg.toJson()['content'],
+          equals([
+            {'type': 'text', 'text': 'look at these'},
+            {
+              'type': 'image',
+              'source': {
+                'type': 'data',
+                'value': base64Encode(png),
+                'mimeType': 'image/png',
+              },
+            },
+            {
+              'type': 'image',
+              'source': {
+                'type': 'data',
+                'value': base64Encode(jpeg),
+                'mimeType': 'image/jpeg',
+              },
+            },
+            {'type': 'text', 'text': ' then tell me'},
+          ]),
+        );
+      });
+
+      // An empty text block would be forwarded to the model verbatim rather
+      // than skipped, so empty runs must never reach the wire.
+      test('omits empty text runs from multimodal content', () {
+        final bytes = Uint8List.fromList([0x89, 0x50]);
+
+        final aguiMessages = convertToAgui([
+          TextMessage(
+            id: 'msg-empty-runs',
+            user: ChatUser.user,
+            text: 'look',
+            createdAt: DateTime.now(),
+            parts: [
+              const TextPart(''),
+              ImagePart(bytes: bytes, mimeType: 'image/png'),
+              const TextPart('look'),
+              const TextPart(''),
+            ],
+          ),
+        ]);
+
+        final content = (aguiMessages[0] as UserMessage).toJson()['content']
+            as List<Map<String, dynamic>>;
+        expect(content, hasLength(2));
+        expect(content[0]['type'], equals('image'));
+        expect(content[1], equals({'type': 'text', 'text': 'look'}));
+      });
+
+      // An image-less message keeps exactly the wire shape it has today.
+      test('falls back to plain text when parts carry no image', () {
+        final aguiMessages = convertToAgui([
+          TextMessage(
+            id: 'msg-text-only',
+            user: ChatUser.user,
+            text: 'no images here',
+            createdAt: DateTime.now(),
+            parts: const [TextPart('no images here')],
+          ),
+        ]);
+
+        final userMsg = aguiMessages[0] as UserMessage;
+        expect(userMsg.toJson()['content'], equals('no images here'));
+      });
+
+      // An empty array makes the backend discard the user's turn entirely,
+      // with no error anywhere — the one degenerate case that loses data.
+      test('never serializes an empty content array', () {
+        final aguiMessages = convertToAgui([
+          TextMessage(
+            id: 'msg-no-parts',
+            user: ChatUser.user,
+            text: 'still says something',
+            createdAt: DateTime.now(),
+            parts: const [],
+          ),
+        ]);
+
+        final userMsg = aguiMessages[0] as UserMessage;
+        expect(userMsg.toJson()['content'], equals('still says something'));
       });
     });
 
