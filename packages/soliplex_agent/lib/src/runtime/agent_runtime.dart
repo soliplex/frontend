@@ -15,7 +15,8 @@ import 'package:soliplex_agent/src/runtime/session_coordinator.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/runtime/thread_state.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
-import 'package:soliplex_client/soliplex_client.dart' show ThreadHistory;
+import 'package:soliplex_client/soliplex_client.dart'
+    show MessagePart, ThreadHistory;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Facade for spawning and coordinating multiple [AgentSession]s.
@@ -34,7 +35,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 ///
 /// final session = await runtime.spawn(
 ///   roomId: 'weather',
-///   prompt: 'Need umbrella?',
+///   prompt: [TextPart('Need umbrella?')],
 /// );
 /// final result = await session.result;
 /// ```
@@ -188,7 +189,7 @@ class AgentRuntime {
   /// all children.
   Future<AgentSession> spawn({
     required String roomId,
-    required String prompt,
+    required List<MessagePart> prompt,
     String? threadId,
     Duration? timeout,
     bool ephemeral = false,

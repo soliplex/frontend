@@ -21,6 +21,7 @@ import 'package:soliplex_client/soliplex_client.dart'
         Reconnected,
         Reconnecting,
         Room,
+        TextPart,
         ThreadHistory,
         buildDocumentFilter;
 import 'package:soliplex_logging/soliplex_logging.dart';
@@ -2272,7 +2273,7 @@ class _RoomScreenState extends State<RoomScreen> {
             onSuggestionTapped: sessionState != null
                 ? null
                 : (suggestion) => _state.sendToNewThread(
-                      suggestion,
+                      [TextPart(suggestion)],
                       stateOverlay: _buildStateOverlay(),
                     ),
             onQuizTapped: _onQuizTapped,
@@ -2343,7 +2344,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           room: room,
                           onSuggestionTapped: (suggestion) =>
                               threadView.sendMessage(
-                            suggestion,
+                            [TextPart(suggestion)],
                             _state.runtime,
                             stateOverlay: _buildStateOverlay(),
                           ),
@@ -2427,15 +2428,15 @@ class _RoomScreenState extends State<RoomScreen> {
     }
 
     return ChatInput(
-      onSend: (text) {
+      onSend: (parts) {
         if (threadView != null) {
           threadView.sendMessage(
-            text,
+            parts,
             _state.runtime,
             stateOverlay: _buildStateOverlay(),
           );
         } else {
-          _state.sendToNewThread(text, stateOverlay: _buildStateOverlay());
+          _state.sendToNewThread(parts, stateOverlay: _buildStateOverlay());
         }
       },
       onCancel: threadView != null ? threadView.cancelRun : _state.cancelSpawn,

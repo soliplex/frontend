@@ -295,7 +295,7 @@ class RoomState {
   /// Spawns a session which creates the thread server-side, then creates a
   /// [ThreadViewState] and attaches the session to it.
   Future<void> sendToNewThread(
-    String prompt, {
+    List<MessagePart> prompt, {
     Map<String, dynamic>? stateOverlay,
   }) =>
       _spawner.spawn(
@@ -307,11 +307,11 @@ class RoomState {
         errorSignal: _lastError,
         prompt: prompt,
         isDisposed: () => _isDisposed,
-        onAuthExpired: (text) => persistComposerDraft(
+        onAuthExpired: (parts) => persistComposerDraft(
           serverId: _connection.serverId,
           userId: _auth.currentUserId.value,
           roomId: _roomId,
-          prompt: text,
+          prompt: parts.plainText,
         ),
         onSpawned: (session) {
           // Clear room-level spawn state — the thread view takes over.

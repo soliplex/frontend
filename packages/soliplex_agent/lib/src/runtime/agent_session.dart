@@ -230,7 +230,9 @@ class AgentSession implements ToolExecutionContext {
     }
     return _runtime.spawn(
       roomId: roomId ?? threadKey.roomId,
-      prompt: prompt,
+      // A text-only signature: the prompt becomes one run rather than
+      // widening an API whose callers have no image to pass.
+      prompt: [TextPart(prompt)],
       threadId: threadId,
       timeout: timeout,
       ephemeral: ephemeral,
@@ -347,7 +349,7 @@ class AgentSession implements ToolExecutionContext {
   /// the run starts. The run is fire-and-forget — terminal states flow
   /// through [_onStateChange] into [_completeWith].
   Future<void> start({
-    required String userMessage,
+    required List<MessagePart> userMessage,
     String? existingRunId,
     ThreadHistory? cachedHistory,
     Map<String, dynamic>? stateOverlay,

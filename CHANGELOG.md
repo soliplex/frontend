@@ -18,8 +18,31 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   without parts is unchanged on the wire. The multimodal form is used only when
   a part is not text: a list holding nothing but text, or nothing at all, falls
   back to the plain string, because an empty content array makes the backend
-  discard the message's turn without reporting an error. Nothing in the app
-  populates `parts` yet, so no screen behaves differently.
+  discard the message's turn without reporting an error. A message composed as
+  plain text carries a single text run, so no screen behaves differently.
+- **Library consumers:** `TextMessage.fromParts` builds a user message from an
+  ordered part list, deriving `text` from the parts so a caller of it cannot let
+  the two disagree, and a `plainText` getter on `List<MessagePart>` flattens a
+  part list to its text alone — runs concatenated in order, images dropped.
+  `fromParts` throws `ArgumentError` for a part list carrying neither an image
+  nor any text, because such a payload reaches the wire as empty content and
+  the backend discards the turn without reporting an error.
+
+### Changed
+
+- **Breaking (library consumers):** the send path carries an ordered
+  `List<MessagePart>` where it previously carried a `String`. This affects
+  `AgentRuntime.spawn` and `MultiServerRuntime.spawn` (`prompt`), and
+  `AgentSession.start` (`userMessage`). Wrap an existing call's text in a
+  single part to migrate: `prompt: 'Hello'` becomes
+  `prompt: [TextPart('Hello')]`. The text-only APIs for spawning a child agent
+  from a tool — `spawnChild`, `delegateTask` — and the `AgentApi` platform
+  callback are unchanged, since a prompt from those sources is always text.
+  Nothing about a sent message changes on the wire, and no screen behaves
+  differently: a message composed as plain text still travels as a bare string.
+  A draft held across an authentication round trip still restores its text.
+  Code reading a conversation does see one difference: the echo of a sent
+  message now always carries `parts`, where it previously carried none.
 
 ### Fixed
 

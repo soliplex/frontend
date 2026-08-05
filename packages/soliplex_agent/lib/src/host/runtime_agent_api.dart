@@ -2,6 +2,7 @@ import 'package:soliplex_agent/src/host/agent_api.dart';
 import 'package:soliplex_agent/src/models/agent_result.dart';
 import 'package:soliplex_agent/src/runtime/agent_runtime.dart';
 import 'package:soliplex_agent/src/runtime/agent_session.dart';
+import 'package:soliplex_client/soliplex_client.dart' show TextPart;
 
 /// Production [AgentApi] backed by an [AgentRuntime].
 ///
@@ -26,7 +27,9 @@ class RuntimeAgentApi implements AgentApi {
   }) async {
     final session = await _runtime.spawn(
       roomId: roomId,
-      prompt: prompt,
+      // A platform callback's prompt is text: one run, rather than widening
+      // an API whose callers have no image to pass.
+      prompt: [TextPart(prompt)],
       threadId: threadId,
       timeout: timeout,
       autoDispose: true,

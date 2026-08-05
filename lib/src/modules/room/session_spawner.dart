@@ -61,11 +61,11 @@ class SessionSpawner {
   Future<void> spawn({
     required Future<AgentSession> Function() spawnFn,
     required Signal<SendError?> errorSignal,
-    required String prompt,
+    required List<MessagePart> prompt,
     required bool Function() isDisposed,
     required void Function(AgentSession) onSpawned,
     required void Function(AgentSessionState?) onStateTransition,
-    void Function(String prompt)? onAuthExpired,
+    void Function(List<MessagePart> prompt)? onAuthExpired,
   }) async {
     if (_pendingSpawn != null) return;
     _cancelled = false;
@@ -87,7 +87,7 @@ class SessionSpawner {
         name: 'SessionSpawner',
         level: 900,
       );
-      errorSignal.value = SendError(error, unsentText: prompt);
+      errorSignal.value = SendError(error, unsentText: prompt.plainText);
     } on AuthException catch (error) {
       if (_cancelled || isDisposed()) return;
       dev.log(
@@ -111,9 +111,18 @@ class SessionSpawner {
         );
       }
       _auth.markSessionExpired();
-    } on Object catch (error) {
+    } on Object catch (error, st) {
       if (_cancelled || isDisposed()) return;
-      errorSignal.value = SendError(error, unsentText: prompt);
+      // The banner shows only `error.toString()`, so an unanticipated failure
+      // leaves no other trace of where it came from.
+      dev.log(
+        'Spawn failed',
+        error: error,
+        stackTrace: st,
+        name: 'SessionSpawner',
+        level: 1000,
+      );
+      errorSignal.value = SendError(error, unsentText: prompt.plainText);
     } finally {
       _pendingSpawn = null;
       if (!_cancelled && !succeeded) {

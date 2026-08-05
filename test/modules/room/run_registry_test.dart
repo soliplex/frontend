@@ -71,7 +71,7 @@ void main() {
   }) async {
     return runtime.spawn(
       roomId: 'room-1',
-      prompt: 'test',
+      prompt: [TextPart('test')],
       threadId: threadId,
     );
   }

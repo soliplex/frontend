@@ -42,7 +42,7 @@ Future<void> main() async {
     // Spawn a session.
     final session = await runtime.spawn(
       roomId: 'plain',
-      prompt: 'Hello, what can you help me with?',
+      prompt: [const TextPart('Hello, what can you help me with?')],
       autoDispose: true,
     );
 

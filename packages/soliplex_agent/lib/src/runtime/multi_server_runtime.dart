@@ -11,6 +11,7 @@ import 'package:soliplex_agent/src/runtime/server_connection.dart';
 import 'package:soliplex_agent/src/runtime/server_registry.dart';
 import 'package:soliplex_agent/src/runtime/session_extension.dart';
 import 'package:soliplex_agent/src/tools/tool_registry_resolver.dart';
+import 'package:soliplex_client/soliplex_client.dart' show MessagePart;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Creates an [AgentLlmProvider] from a [ServerConnection].
@@ -84,7 +85,7 @@ class MultiServerRuntime {
   Future<AgentSession> spawn({
     required String serverId,
     required String roomId,
-    required String prompt,
+    required List<MessagePart> prompt,
     String? threadId,
     Duration? timeout,
     bool ephemeral = true,

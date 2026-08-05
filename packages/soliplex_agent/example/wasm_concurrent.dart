@@ -46,17 +46,17 @@ Future<void> main() async {
     final sessions = await Future.wait([
       runtime.spawn(
         roomId: 'plain',
-        prompt: 'What is Dart?',
+        prompt: [const TextPart('What is Dart?')],
         autoDispose: true,
       ),
       runtime.spawn(
         roomId: 'plain',
-        prompt: 'What is WASM?',
+        prompt: [const TextPart('What is WASM?')],
         autoDispose: true,
       ),
       runtime.spawn(
         roomId: 'plain',
-        prompt: 'What is AG-UI?',
+        prompt: [const TextPart('What is AG-UI?')],
         autoDispose: true,
       ),
     ]);

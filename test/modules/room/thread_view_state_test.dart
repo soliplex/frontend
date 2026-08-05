@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,7 +71,7 @@ class _AuthExceptionThrowingRuntime extends AgentRuntime {
   @override
   Future<AgentSession> spawn({
     required String roomId,
-    required String prompt,
+    required List<MessagePart> prompt,
     String? threadId,
     Duration? timeout,
     bool ephemeral = false,
@@ -489,7 +490,7 @@ void main() {
       // Send a message — spawn will succeed but the run will fail
       // (FakeAgUiStreamClient throws). FailedState may have no
       // conversation, so existing messages should be preserved.
-      await state.sendMessage('Hello', runtime);
+      await state.sendMessage([TextPart('Hello')], runtime);
 
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
@@ -526,7 +527,7 @@ void main() {
 
       // Dispose the runtime so spawn throws.
       await runtimeManager.dispose();
-      await state.sendMessage('Hello', runtime);
+      await state.sendMessage([TextPart('Hello')], runtime);
 
       // Let the error propagate.
       for (var i = 0; i < 10; i++) {
@@ -564,7 +565,7 @@ void main() {
       await runtimeManager.dispose();
 
       // First send failure.
-      await state.sendMessage('First', runtime);
+      await state.sendMessage([TextPart('First')], runtime);
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -572,7 +573,7 @@ void main() {
       expect(state.lastSendError.value!.unsentText, 'First');
 
       // Second send failure without manually clearing the error.
-      await state.sendMessage('Second', runtime);
+      await state.sendMessage([TextPart('Second')], runtime);
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -598,7 +599,7 @@ void main() {
       expect(state.messages.value, isA<MessagesLoaded>());
 
       // Start sendMessage but dispose before it completes.
-      final sendFuture = state.sendMessage('Hello', runtime);
+      final sendFuture = state.sendMessage([TextPart('Hello')], runtime);
       state.dispose();
 
       // Let the spawn complete.
@@ -654,7 +655,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // Start sendMessage without awaiting — observe intermediate state.
-      final future = state.sendMessage('Hello', runtime);
+      final future = state.sendMessage([TextPart('Hello')], runtime);
       expect(state.sessionState.value, AgentSessionState.spawning);
 
       await future;
@@ -687,7 +688,7 @@ void main() {
       await runtimeManager.dispose();
 
       // sendMessage should bail out before reaching spawn.
-      await state.sendMessage('Hello', runtime);
+      await state.sendMessage([TextPart('Hello')], runtime);
 
       // No error means spawn was never attempted.
       expect(state.lastSendError.value, isNull);
@@ -709,7 +710,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // Start sendMessage and immediately cancel.
-      final future = state.sendMessage('Hello', runtime);
+      final future = state.sendMessage([TextPart('Hello')], runtime);
       state.cancelRun();
 
       await future;
@@ -861,7 +862,7 @@ void main() {
 
       await Future<void>.delayed(Duration.zero);
 
-      await state.sendMessage('Hello', runtime);
+      await state.sendMessage([TextPart('Hello')], runtime);
 
       // Wait for terminal state
       for (var i = 0; i < 10; i++) {
@@ -1173,7 +1174,10 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         final throwingRuntime = _AuthExceptionThrowingRuntime(connection);
-        await state.sendMessage('half-written question', throwingRuntime);
+        await state.sendMessage([
+          const TextPart('half-written question'),
+          ImagePart(bytes: Uint8List.fromList([0x89]), mimeType: 'image/png'),
+        ], throwingRuntime);
 
         for (var i = 0; i < 10; i++) {
           await Future<void>.delayed(Duration.zero);
@@ -1189,7 +1193,8 @@ void main() {
           'half-written question',
           reason: 'ThreadViewState must wire composer persistence as the '
               "spawner's onAuthExpired hook; without it the user's draft "
-              'is dropped on the floor by the redirect.',
+              'is dropped on the floor by the redirect. Storage holds a '
+              'string, so the text survives and the image does not.',
         );
 
         state.dispose();

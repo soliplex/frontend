@@ -152,7 +152,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -178,7 +178,7 @@ void main() {
 
       final resultFuture = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -224,7 +224,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -261,7 +261,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -292,7 +292,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -317,7 +317,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -352,7 +352,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) => toolCompleter.future,
       );
 
@@ -386,7 +386,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) => toolCompleter.future,
       );
 
@@ -417,7 +417,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (_) async => throw Exception('tool crash'),
       );
 
@@ -446,7 +446,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -472,7 +472,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -482,7 +482,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        () => orchestrator.startRun(key: _key, userMessage: 'Again'),
+        () => orchestrator
+            .startRun(key: _key, userMessage: [const TextPart('Again')]),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -513,7 +514,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -571,7 +572,7 @@ void main() {
 
       final future = orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -606,7 +607,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -632,7 +633,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -653,7 +654,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Hi',
+        userMessage: [const TextPart('Hi')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -692,7 +693,7 @@ void main() {
 
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: _defaultToolExecutor,
       );
 
@@ -717,7 +718,7 @@ void main() {
       CancelToken? captured;
       final result = await orchestrator.runToCompletion(
         key: _key,
-        userMessage: 'Weather?',
+        userMessage: [const TextPart('Weather?')],
         toolExecutor: (pending) async {
           captured = orchestrator.cancelToken;
           return _defaultToolExecutor(pending);

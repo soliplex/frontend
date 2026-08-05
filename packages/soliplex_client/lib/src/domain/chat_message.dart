@@ -4,8 +4,8 @@ import 'package:meta/meta.dart';
 
 /// One element of a user message's ordered content.
 ///
-/// Carried by [TextMessage.parts] when a message interleaves text with
-/// images. One list serves both the optimistic echo and the AG-UI wire
+/// Carried by [TextMessage.parts] on a user message built from an ordered
+/// payload. One list serves both the optimistic echo and the AG-UI wire
 /// mapping, so what the sender sees and what the model receives cannot drift.
 @immutable
 sealed class MessagePart {
@@ -34,6 +34,15 @@ final class ImagePart extends MessagePart {
 
   /// The MIME type of [bytes], e.g. `image/png`.
   final String mimeType;
+}
+
+/// Flattening of an ordered part list to text alone.
+extension MessagePartsText on List<MessagePart> {
+  /// Every [TextPart]'s text, concatenated in order, with no separator.
+  ///
+  /// Lossy by nature: an image carries no text and is dropped, so anything
+  /// that stores or displays this alone keeps the words and loses the images.
+  String get plainText => whereType<TextPart>().map((part) => part.text).join();
 }
 
 /// User type for messages.
@@ -126,7 +135,6 @@ class TextMessage extends ChatMessage {
     DateTime? createdAt,
     bool isStreaming = false,
     String thinkingText = '',
-    List<MessagePart>? parts,
   }) {
     return TextMessage(
       id: id,
@@ -135,16 +143,51 @@ class TextMessage extends ChatMessage {
       isStreaming: isStreaming,
       thinkingText: thinkingText,
       createdAt: createdAt,
-      parts: parts,
+    );
+  }
+
+  /// Creates a user message for an ordered [parts] payload, deriving [text]
+  /// from the parts so a caller of this factory cannot let the two disagree.
+  /// Holds an unmodifiable copy, so a caller that kept its own list cannot
+  /// mutate it afterwards and leave [text] describing different content.
+  ///
+  /// Parts are honoured only for a user message, so the role is fixed.
+  ///
+  /// Throws [ArgumentError] when [parts] carries neither an image nor any
+  /// text. Such a payload reaches the wire as empty content, which makes the
+  /// backend discard the turn without reporting an error — a throw here is
+  /// the only way the caller learns the message went nowhere.
+  factory TextMessage.fromParts({
+    required String id,
+    required List<MessagePart> parts,
+    DateTime? createdAt,
+  }) {
+    if (parts.plainText.isEmpty && parts.whereType<ImagePart>().isEmpty) {
+      throw ArgumentError.value(
+        parts,
+        'parts',
+        'must carry an image or some text',
+      );
+    }
+    return TextMessage(
+      id: id,
+      user: ChatUser.user,
+      text: parts.plainText,
+      createdAt: createdAt,
+      parts: List.unmodifiable(parts),
     );
   }
 
   /// The message text content.
   final String text;
 
-  /// Ordered content parts, set only when a user message interleaves text
-  /// with images. Null for a plain-text message, which travels the wire as a
-  /// bare string; only honoured for user messages, ignored elsewhere.
+  /// Ordered content parts, set on a user message built by
+  /// [TextMessage.fromParts] and null on one rebuilt from history by
+  /// [TextMessage.create]. A list holding nothing but text still travels the
+  /// wire as a bare string, so `parts != null` means "built from a payload",
+  /// not "has an image" — test for an image with
+  /// `parts?.whereType<ImagePart>().isNotEmpty`. Only honoured for user
+  /// messages, ignored elsewhere.
   ///
   /// When set, [text] must hold the flattened text of these parts. The mapper
   /// falls back to [text] for any parts list it cannot send as multimodal, and
@@ -169,7 +212,6 @@ class TextMessage extends ChatMessage {
     String? text,
     bool? isStreaming,
     String? thinkingText,
-    List<MessagePart>? parts,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -178,7 +220,7 @@ class TextMessage extends ChatMessage {
       text: text ?? this.text,
       isStreaming: isStreaming ?? this.isStreaming,
       thinkingText: thinkingText ?? this.thinkingText,
-      parts: parts ?? this.parts,
+      parts: parts,
     );
   }
 

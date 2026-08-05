@@ -66,7 +66,7 @@ void main() {
       print('Starting run: room=$roomId, thread=${sharedKey.threadId}');
       await orchestrator.startRun(
         key: sharedKey,
-        userMessage: 'Hello, what time is it?',
+        userMessage: [const TextPart('Hello, what time is it?')],
         existingRunId: initialRunId,
       );
       // Consume the initial run ID so subsequent tests create their own.
@@ -111,7 +111,7 @@ void main() {
       // Run 2 in the shared thread (no existingRunId — creates a new run).
       await orchestrator.startRun(
         key: sharedKey,
-        userMessage: 'Now say "goodbye".',
+        userMessage: [const TextPart('Now say "goodbye".')],
       );
       await waitForTerminalState(orchestrator, timeout: 60);
 
@@ -122,7 +122,8 @@ void main() {
 
     test('reset returns to IdleState and can run again', () async {
       // Run 3.
-      await orchestrator.startRun(key: sharedKey, userMessage: 'Say "ok".');
+      await orchestrator
+          .startRun(key: sharedKey, userMessage: [const TextPart('Say "ok".')]);
       await waitForTerminalState(orchestrator, timeout: 60);
       expect(orchestrator.currentState, isA<CompletedState>());
 
@@ -135,7 +136,7 @@ void main() {
       // Run 4 — same thread, after reset.
       await orchestrator.startRun(
         key: sharedKey,
-        userMessage: 'Say "ok" again.',
+        userMessage: [const TextPart('Say "ok" again.')],
       );
       await waitForTerminalState(orchestrator, timeout: 60);
       expect(orchestrator.currentState, isA<CompletedState>());
@@ -187,7 +188,9 @@ void main() {
       print('Starting M5 run: thread=${m5Key.threadId}');
       await orchestrator.startRun(
         key: m5Key,
-        userMessage: 'Call the secret_number tool and tell me the result.',
+        userMessage: [
+          const TextPart('Call the secret_number tool and tell me the result.'),
+        ],
       );
 
       // Wait for either ToolYielding or terminal state.
@@ -243,7 +246,7 @@ void main() {
 
       await orchestrator.startRun(
         key: m5Key,
-        userMessage: 'What time is it right now?',
+        userMessage: [const TextPart('What time is it right now?')],
       );
       await waitForTerminalState(orchestrator, timeout: 60);
 
@@ -296,7 +299,11 @@ void main() {
 
       final session = await runtime.spawn(
         roomId: roomId,
-        prompt: 'Call the secret_number tool and tell me what it returns.',
+        prompt: [
+          const TextPart(
+            'Call the secret_number tool and tell me what it returns.',
+          ),
+        ],
       );
 
       expect(session.threadKey.serverId, equals('default'));
@@ -321,7 +328,8 @@ void main() {
     test('spawn without tools → AgentSuccess (no yield)', () async {
       runtime = harness.createRuntime(loggerName: 'm6-no-tools');
 
-      final session = await runtime.spawn(roomId: roomId, prompt: 'Say hello.');
+      final session = await runtime
+          .spawn(roomId: roomId, prompt: [const TextPart('Say hello.')]);
 
       final result = await session.awaitResult(
         timeout: const Duration(seconds: 60),
@@ -338,7 +346,7 @@ void main() {
       try {
         session = await runtime.spawn(
           roomId: roomId,
-          prompt: 'Tell me a very long story about dragons.',
+          prompt: [const TextPart('Tell me a very long story about dragons.')],
         );
       } on Object catch (e) {
         // Backend may drop connection under load — skip gracefully.
@@ -374,8 +382,10 @@ void main() {
     test('waitAll collects results from multiple sessions', () async {
       runtime = harness.createRuntime(loggerName: 'm6-waitall');
 
-      final s1 = await runtime.spawn(roomId: roomId, prompt: 'Say "alpha".');
-      final s2 = await runtime.spawn(roomId: roomId, prompt: 'Say "beta".');
+      final s1 = await runtime
+          .spawn(roomId: roomId, prompt: [const TextPart('Say "alpha".')]);
+      final s2 = await runtime
+          .spawn(roomId: roomId, prompt: [const TextPart('Say "beta".')]);
 
       final results = await runtime.waitAll(
         [

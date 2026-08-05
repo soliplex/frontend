@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
@@ -465,6 +467,67 @@ void main() {
       const info = ToolCallInfo(id: 'tc1', name: 'search');
 
       expect(info.hasResult, isFalse);
+    });
+  });
+
+  group('message parts', () {
+    // Several call sites derive a plain string from a parts list — the echo's
+    // `text`, the unsent-text error, and both draft-persistence paths — so the
+    // runs have to concatenate exactly, with images contributing nothing.
+    test('flattening concatenates text runs and skips images', () {
+      final parts = <MessagePart>[
+        const TextPart('look at '),
+        ImagePart(
+          bytes: Uint8List.fromList([0x89, 0x50]),
+          mimeType: 'image/png',
+        ),
+        const TextPart(' and say'),
+      ];
+
+      expect(parts.plainText, equals('look at  and say'));
+    });
+
+    // `fromParts` derives `text` once, at construction. Holding the caller's
+    // list would let a later mutation leave the two describing different
+    // content — the disagreement the factory exists to prevent.
+    test('a message keeps the parts it was built with', () {
+      final mutable = <MessagePart>[const TextPart('hello')];
+
+      final message = TextMessage.fromParts(id: 'm-1', parts: mutable);
+      mutable.clear();
+
+      expect(message.parts, hasLength(1));
+    });
+
+    // A payload with no image and no text reaches the wire as empty content,
+    // which the backend discards without reporting an error. Rejecting it at
+    // construction is the only point where the caller can still be told.
+    test('a message with neither text nor an image is rejected', () {
+      expect(
+        () => TextMessage.fromParts(id: 'm-1', parts: const []),
+        throwsArgumentError,
+      );
+      expect(
+        () => TextMessage.fromParts(id: 'm-1', parts: const [TextPart('')]),
+        throwsArgumentError,
+      );
+    });
+
+    // An image alone is a complete message: it carries no text, so `text` is
+    // empty, but the wire form is a non-empty content array.
+    test('an image with no text is accepted', () {
+      final message = TextMessage.fromParts(
+        id: 'm-1',
+        parts: [
+          ImagePart(
+            bytes: Uint8List.fromList([0x89, 0x50]),
+            mimeType: 'image/png',
+          ),
+        ],
+      );
+
+      expect(message.text, isEmpty);
+      expect(message.parts, hasLength(1));
     });
   });
 }

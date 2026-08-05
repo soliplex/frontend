@@ -77,7 +77,7 @@ Future<void> main() async {
   // 3. Spawn a session and await the result
   final session = await runtime.spawn(
     roomId: 'plain',
-    prompt: 'Hello!',
+    prompt: [const TextPart('Hello!')],
   );
 
   final result = await session.result;
@@ -102,7 +102,10 @@ before the new user message in the AG-UI payload.
 
 ```dart
 // Turn 1
-final s1 = await runtime.spawn(roomId: 'chat', prompt: 'Hi!');
+final s1 = await runtime.spawn(
+  roomId: 'chat',
+  prompt: [const TextPart('Hi!')],
+);
 final r1 = await s1.result;
 
 // Build history from the completed conversation
@@ -113,7 +116,7 @@ final history = ThreadHistory(
 // Turn 2 — carries forward turn 1 context
 final s2 = await runtime.spawn(
   roomId: 'chat',
-  prompt: 'What did I just say?',
+  prompt: [const TextPart('What did I just say?')],
   threadId: s1.threadKey.threadId,
   cachedHistory: history,
 );
