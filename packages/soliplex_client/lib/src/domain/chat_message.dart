@@ -1,4 +1,40 @@
+import 'dart:typed_data';
+
 import 'package:meta/meta.dart';
+
+/// One element of a user message's ordered content.
+///
+/// Carried by [TextMessage.parts] when a message interleaves text with
+/// images. One list serves both the optimistic echo and the AG-UI wire
+/// mapping, so what the sender sees and what the model receives cannot drift.
+@immutable
+sealed class MessagePart {
+  /// Creates a message part.
+  const MessagePart();
+}
+
+/// A run of text within a message's ordered content.
+@immutable
+final class TextPart extends MessagePart {
+  /// Creates a text part carrying [text].
+  const TextPart(this.text);
+
+  /// The text payload.
+  final String text;
+}
+
+/// An image within a message's ordered content.
+@immutable
+final class ImagePart extends MessagePart {
+  /// Creates an image part from raw [bytes] of type [mimeType].
+  const ImagePart({required this.bytes, required this.mimeType});
+
+  /// The encoded image file bytes — not decoded pixels.
+  final Uint8List bytes;
+
+  /// The MIME type of [bytes], e.g. `image/png`.
+  final String mimeType;
+}
 
 /// User type for messages.
 enum ChatUser {
@@ -77,6 +113,7 @@ class TextMessage extends ChatMessage {
     required this.text,
     this.isStreaming = false,
     this.thinkingText = '',
+    this.parts,
   });
 
   /// Creates a text message with the given ID. [createdAt] is the
@@ -89,6 +126,7 @@ class TextMessage extends ChatMessage {
     DateTime? createdAt,
     bool isStreaming = false,
     String thinkingText = '',
+    List<MessagePart>? parts,
   }) {
     return TextMessage(
       id: id,
@@ -97,11 +135,22 @@ class TextMessage extends ChatMessage {
       isStreaming: isStreaming,
       thinkingText: thinkingText,
       createdAt: createdAt,
+      parts: parts,
     );
   }
 
   /// The message text content.
   final String text;
+
+  /// Ordered content parts, set only when a user message interleaves text
+  /// with images. Null for a plain-text message, which travels the wire as a
+  /// bare string; only honoured for user messages, ignored elsewhere.
+  ///
+  /// When set, [text] must hold the flattened text of these parts. The mapper
+  /// falls back to [text] for any parts list it cannot send as multimodal, and
+  /// the timeline and copy button read [text] directly, so a [text] that
+  /// disagrees silently changes what the user copies or the model receives.
+  final List<MessagePart>? parts;
 
   /// Whether this message is currently streaming.
   final bool isStreaming;
@@ -120,6 +169,7 @@ class TextMessage extends ChatMessage {
     String? text,
     bool? isStreaming,
     String? thinkingText,
+    List<MessagePart>? parts,
   }) {
     return TextMessage(
       id: id ?? this.id,
@@ -128,6 +178,7 @@ class TextMessage extends ChatMessage {
       text: text ?? this.text,
       isStreaming: isStreaming ?? this.isStreaming,
       thinkingText: thinkingText ?? this.thinkingText,
+      parts: parts ?? this.parts,
     );
   }
 
