@@ -231,31 +231,40 @@ class _MessageBubble extends StatelessWidget {
 /// and a nullable field states it in a way the compiler cannot check — leaving
 /// each reader to re-derive it with a cast.
 sealed class _Slot {
-  const _Slot(this.number);
+  const _Slot();
 
   /// This attachment's number in the thread — what the badge and the pill show,
   /// and what the model was told to call it. Null for one that was never named,
   /// which is shown without a number rather than under an invented one.
-  final int? number;
+  ///
+  /// Read off the part rather than copied beside it, so a slot cannot come to
+  /// disagree with the attachment it stands for.
+  int? get number;
 }
 
 /// An attachment whose bytes are here.
 final class _ImageSlot extends _Slot {
-  const _ImageSlot(super.number, this.image, this.page);
+  const _ImageSlot(this.image, this.page);
 
   final ImagePart image;
 
-  /// Where this image sits in the zoom browser, which pages over decodable
-  /// images alone. Not [number]: a slot that cannot be shown takes a number and
-  /// no page, so the two diverge from that point on.
+  /// Where this image sits in the zoom browser, which pages over the
+  /// attachments that carry bytes. Not [number]: a `MissingAttachmentPart`
+  /// takes a number and no page, so the two diverge from that point on.
   final int page;
+
+  @override
+  int? get number => image.number;
 }
 
 /// An attachment the message was sent with that cannot be shown.
 final class _MissingSlot extends _Slot {
-  const _MissingSlot(super.number, this.part);
+  const _MissingSlot(this.part);
 
   final MissingAttachmentPart part;
+
+  @override
+  int? get number => part.number;
 }
 
 /// A user message's ordered parts as a row of attachment tiles over the text
@@ -268,10 +277,10 @@ final class _MissingSlot extends _Slot {
 /// instead, which is also what keeps the runs either side of it from becoming
 /// adjacent: the text is reproduced exactly as written, with no gap to repair.
 ///
-/// Every attachment is numbered across the thread and shows that number twice —
-/// badged on its tile and carried by its pill — so a reader can name one in
-/// conversation. It is the number the model was given for the same image, which
-/// is what makes naming it work.
+/// An attachment that carries a number shows it badged on its tile and, where
+/// there is text to hold a place in, carried by its pill — so a reader can name
+/// one in conversation. It is the number the model was given for the same
+/// image, which is what makes naming it work.
 ///
 /// The tile is a tap target rather than a preview; tapping opens the full-size
 /// browser, which is what answers "did I attach the right one".
@@ -293,9 +302,9 @@ class _UserMessageBody extends StatelessWidget {
     for (final part in parts) {
       switch (part) {
         case ImagePart():
-          slots.add(_ImageSlot(part.number, part, page++));
+          slots.add(_ImageSlot(part, page++));
         case MissingAttachmentPart():
-          slots.add(_MissingSlot(part.number, part));
+          slots.add(_MissingSlot(part));
         case TextPart():
           break;
       }
@@ -313,7 +322,7 @@ class _UserMessageBody extends StatelessWidget {
           if (text.isEmpty) continue;
           hasText = true;
           spans.add(TextSpan(text: text));
-        case ImagePart() || MissingAttachmentPart():
+        case AttachmentPart():
           spans.add(_pillSpan(_pill(context, slots[slotIndex], imageSlots)));
           slotIndex++;
       }
@@ -342,10 +351,15 @@ class _UserMessageBody extends StatelessWidget {
 
   /// One attachment's tile in the row, badged with the number that names it.
   Widget _tile(BuildContext context, _Slot slot, List<_ImageSlot> imageSlots) {
+    // Described once, outside the switch, because the badge below is excluded
+    // from semantics on the grounds that the tile announces the number — so
+    // every arm has to, and an arm that forgot would be silently unreadable.
+    final number = slot.number;
     final tile = switch (slot) {
-      _MissingSlot(:final part) =>
-        _AttachmentTileUnavailable(label: _missingLabel(part)),
-      _ImageSlot(:final image, :final page, :final number) => _AttachmentTile(
+      _MissingSlot(:final part) => _AttachmentTileUnavailable(
+          label: _describe(number, _missingLabel(part)),
+        ),
+      _ImageSlot(:final image, :final page) => _AttachmentTile(
           image: image,
           label: _describe(number, 'Attached image'),
           logSource: _imageLogSource(page),
@@ -353,7 +367,6 @@ class _UserMessageBody extends StatelessWidget {
         ),
     };
 
-    final number = slot.number;
     if (number == null) return tile;
 
     return Stack(
