@@ -8,6 +8,45 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.99.1+80] - 2026-08-06
+
+### Added
+
+- Attached images are numbered, so one can be referred to in conversation —
+  "what does the sign in image 7 say?". The number runs across the whole thread
+  rather than restarting each message, so it names one image for as long as the
+  thread lasts. It is badged on the thumbnail, and carried on the marker in the
+  sentence wherever the message has text for a marker to sit in. The same number
+  is sent to the model as a short text label beside each image, which is what
+  gives it a name to answer to: an image block's own metadata is not shown to
+  the model. An attachment that cannot be shown still spends its number, so
+  nothing after it is renumbered into a number already used, and it is sent as
+  neither an image nor a note that one is missing — asked about a number nothing
+  carries, a model can only say it has no such image, whereas announcing the
+  absence invites it to guess at what it cannot see. An attachment that was
+  never numbered — from a payload that carries none — is shown and sent without
+  one.
+
+### Changed
+
+- A user message's images no longer sit inline in the sentence at full size.
+  The attachments now form a row of thumbnails above the message, and each one
+  leaves a small marker in the sentence at the spot it was written, so the text
+  reads exactly as it was typed and the order the images were placed in stays
+  visible. The marker is text-scale deliberately — a thumbnail set into a line
+  of body text makes that one line as tall as the picture, which breaks the
+  paragraph around it. A message carrying attachments and no text of its own
+  shows the thumbnails alone — with no sentence to hold a place in, markers
+  would be the same row twice. Tapping an image's thumbnail or its marker opens
+  every image in that message in the zoomable browser, starting at the one
+  tapped. An image whose bytes will not decode, and an attachment that could not
+  be rebuilt at all, each keep both their thumbnail and their marker so neither
+  the row nor the sentence shifts around a loss, though neither opens anything;
+  the tooltip and screen-reader announcement naming what is missing are
+  unchanged.
+
+## [0.99.0+79] - 2026-08-06
+
 ### Added
 
 - Images can be attached to a message. An add-image button beside the composer
@@ -61,37 +100,16 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   converted for sending. A `hasAttachment` getter on `List<MessagePart>`
   reports whether any part carries something other than text. Code that
   switches over `MessagePart` exhaustively gains a case.
-- A user message carrying image parts now renders them in its bubble: the
-  attachments sit as a row of thumbnails above the message, and each one leaves
-  a small marker in the sentence at the spot it was written, so the text reads
-  exactly as it was typed and the order the images were placed in stays
-  visible. The marker is text-scale deliberately — a thumbnail set into a line
-  of body text makes that one line as tall as the picture, which breaks the
-  paragraph around it. A message carrying attachments and no text of its own
-  shows the thumbnails alone — with no sentence to hold a place in, markers
-  would be the same row twice. Tapping an image's thumbnail or its marker opens
-  every image in that message in the zoomable browser, starting at the one
-  tapped, so a photo that arrived sideways can be rotated. An image whose bytes
-  will not decode, and an attachment that could not be rebuilt at all, each keep
-  both their thumbnail and their marker so neither the row nor the sentence
-  shifts around a loss, though neither opens anything. Because the glyph looks
-  the same whichever loss produced it, the slot says what is missing — and the
-  kind of file it was — as a tooltip on hover or long-press, and as the screen
-  reader's announcement. A message with no parts renders exactly as before.
-- Attached images are numbered, so one can be referred to in conversation —
-  "what does the sign in image 7 say?". The number runs across the whole thread
-  rather than restarting each message, so it names one image for as long as the
-  thread lasts. It is badged on the thumbnail, and carried on the marker in the
-  sentence wherever the message has text for a marker to sit in. The same number
-  is sent to the model as a short text label beside each image, which is what
-  gives it a name to answer to: an image block's own metadata is not shown to
-  the model. An attachment that cannot be shown still spends its number, so
-  nothing after it is renumbered into a number already used, and it is sent as
-  neither an image nor a note that one is missing — asked about a number nothing
-  carries, a model can only say it has no such image, whereas announcing the
-  absence invites it to guess at what it cannot see. An attachment that was
-  never numbered — from a payload that carries none — is shown and sent without
-  one.
+- A user message carrying image parts now renders them in its bubble: text runs
+  read as text and each image sits inline where it was placed, so a sentence
+  written around its images still reads as one sentence. Tapping an image opens
+  every image in that message in the zoomable browser, starting at the tapped
+  one, so a photo that arrived sideways can be rotated. An image whose bytes
+  will not decode, and an attachment that could not be rebuilt at all, each show
+  a placeholder in their own slot. Because the glyph looks the same whichever
+  loss produced it, the slot says what is missing — and the kind of file it was
+  — as a tooltip on hover or long-press, and as the screen reader's
+  announcement. A message with no parts renders exactly as before.
 
 ### Changed
 
