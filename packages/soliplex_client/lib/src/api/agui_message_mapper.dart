@@ -27,11 +27,17 @@ final Logger _logger =
 ///   (transient or frontend-only messages).
 List<Message> convertToAgui(List<ChatMessage> chatMessages) {
   final result = <Message>[];
+  // Image numbers run across the whole thread rather than restarting per
+  // message, so that one number names one image for as long as the thread
+  // lasts. Counted over attachment *slots*, so a slot that cannot be sent still
+  // spends its number and no later image inherits it.
+  var attachmentsBefore = 0;
 
   for (final message in chatMessages) {
     switch (message) {
       case TextMessage():
-        result.add(_convertTextMessage(message));
+        result.add(_convertTextMessage(message, attachmentsBefore));
+        attachmentsBefore += message.parts?.attachmentCount ?? 0;
 
       case ToolCallMessage():
         result.addAll(_convertToolCallMessage(message));
@@ -51,10 +57,11 @@ List<Message> convertToAgui(List<ChatMessage> chatMessages) {
   return result;
 }
 
-Message _convertTextMessage(TextMessage message) {
+Message _convertTextMessage(TextMessage message, int attachmentsBefore) {
   switch (message.user) {
     case ChatUser.user:
-      final multimodalParts = _multimodalParts(message.parts);
+      final multimodalParts =
+          _multimodalParts(message.parts, attachmentsBefore);
       if (multimodalParts == null) {
         return UserMessage(id: message.id, content: message.text);
       }
@@ -82,47 +89,90 @@ Message _convertTextMessage(TextMessage message) {
 /// is re-sent on every run, so a message rebuilt from history goes back to the
 /// model without the attachment it originally carried — unavoidable, and the
 /// reason the bubble shows the user that it happened.
-List<InputContent>? _multimodalParts(List<MessagePart>? parts) {
+///
+/// Each image is introduced by a text block naming it, numbered from
+/// [attachmentsBefore] so the numbering runs across the thread rather than
+/// restarting here. That label is the only thing the model can be given to
+/// refer to one image by: an image block carries no name on any provider.
+List<InputContent>? _multimodalParts(
+  List<MessagePart>? parts,
+  int attachmentsBefore,
+) {
   if (parts == null) return null;
 
   final content = <InputContent>[];
   var hasSendablePart = false;
+  var number = attachmentsBefore;
   for (final part in parts) {
     switch (part) {
       case TextPart(:final text):
         if (text.isEmpty) continue;
+        content.add(TextInputContent(text));
       case ImagePart():
         hasSendablePart = true;
+        number++;
+        // No provider carries a name on an image block, so the only way to
+        // give the model a handle for one is a text block beside it. This is
+        // the form Anthropic's vision guide documents.
+        content
+          ..add(TextInputContent(_imageLabel(number)))
+          ..add(_imageContent(part, number));
       case MissingAttachmentPart():
+        // Spends its number and sends nothing, not even a note that it is
+        // gone. A label is absolute, so the gap costs nothing: asked about a
+        // number no label carries, the model can only say it has no such
+        // image, which is true. Announcing the absence instead would invite it
+        // to infer what it cannot see from the surrounding text.
+        number++;
         continue;
     }
-    content.add(_convertMessagePart(part));
   }
 
   return hasSendablePart ? content : null;
 }
 
-/// The wire form of [part].
+/// The model's handle for the image numbered [number].
 ///
-/// [MissingAttachmentPart] never reaches here — [_multimodalParts] drops it
-/// before the call, because it has no wire form to produce.
-InputContent _convertMessagePart(MessagePart part) {
-  switch (part) {
-    case TextPart():
-      return TextInputContent(part.text);
-    case ImagePart():
-      return ImageInputContent(
-        source: DataSource(
-          value: base64Encode(part.bytes),
-          mimeType: part.mimeType,
-        ),
-      );
-    case MissingAttachmentPart():
-      throw ArgumentError.value(
-        part,
-        'part',
-        'has no wire form and must be dropped before conversion',
-      );
+/// One definition for both directions, so the read side recognises exactly what
+/// the send side wrote rather than something close to it.
+String _imageLabel(int number) => 'Image $number:';
+
+/// Key under which an image block carries its number, for this client's own
+/// use. No provider surfaces block metadata to a model, so this is not how the
+/// number is communicated — [_imageLabel] is. Its job is to let a replay know
+/// which label this client generated.
+const String _imageNumberKey = 'soliplex_image_number';
+
+ImageInputContent _imageContent(ImagePart part, int number) =>
+    ImageInputContent(
+      source: DataSource(
+        value: base64Encode(part.bytes),
+        mimeType: part.mimeType,
+      ),
+      metadata: <String, Object?>{_imageNumberKey: number},
+    );
+
+/// The number an image block was sent with, or null for one this client did not
+/// number — a message from before images were numbered, or another client's.
+int? _imageNumberOf(Object? metadata) {
+  if (metadata is! Map) return null;
+  final value = metadata[_imageNumberKey];
+  return value is num ? value.toInt() : null;
+}
+
+/// Takes back the label [_multimodalParts] wrote before the image now being
+/// read, so a replay rebuilds the parts the user actually composed.
+///
+/// The backend keeps what was sent, so without this the label returns as a text
+/// run of the user's, renders in their sentence, and is labelled again on the
+/// next send. Matching on the number the block itself carries is what makes
+/// removing it safe: a bare search for `Image 8:` would eat the same words
+/// typed by a user who happened to write them.
+void _dropLabelFor(List<MessagePart> parts, int? number) {
+  if (number == null || parts.isEmpty) return;
+  final previous = parts.last;
+  if (previous is TextPart && previous.text == _imageLabel(number)) {
+    parts.removeLast();
   }
 }
 
@@ -226,7 +276,8 @@ InputContent _convertMessagePart(MessagePart part) {
     switch (decoded) {
       case TextInputContent(:final text):
         parts.add(TextPart(text));
-      case ImageInputContent(:final source):
+      case ImageInputContent(:final source, :final metadata):
+        _dropLabelFor(parts, _imageNumberOf(metadata));
         parts.add(_readImageSource(source, i, logContext));
       // Explicit arms rather than a default: a new content type upstream should
       // be a compile error here, not a silently dropped attachment. The media

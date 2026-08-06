@@ -280,7 +280,7 @@ void main() {
 
     ImagePart image() => ImagePart(bytes: pngBytes, mimeType: 'image/png');
 
-    Widget tile(List<MessagePart> parts) => _wrap(
+    Widget tile(List<MessagePart> parts, {int attachmentsBefore = 0}) => _wrap(
           TextMessageTile(
             roomId: 'r',
             message: TextMessage.fromParts(
@@ -288,6 +288,7 @@ void main() {
               parts: parts,
               createdAt: DateTime(2026),
             ),
+            attachmentsBefore: attachmentsBefore,
           ),
         );
 
@@ -357,6 +358,40 @@ void main() {
       // Two decodable images plus the slot that degrades, all three in the row.
       expect(find.byType(Image), findsNWidgets(2));
       expect(find.byIcon(Icons.broken_image), findsOneWidget);
+    });
+
+    // A number is only worth showing if it is the same one the model was told,
+    // so it has to continue the thread's sequence rather than start at 1 in
+    // every message.
+    testWidgets('numbers attachments from the thread, not from one',
+        (tester) async {
+      await tester.pumpWidget(
+        tile(
+          [const TextPart('compare '), image(), image()],
+          attachmentsBefore: 6,
+        ),
+      );
+
+      // Once under the tile, once in the pill, for each of the two.
+      expect(find.text('7'), findsNWidgets(2));
+      expect(find.text('8'), findsNWidgets(2));
+      expect(find.text('1'), findsNothing);
+    });
+
+    // The slot spends its number even though nothing can be shown or sent for
+    // it, so the image after it is not renumbered into a number already used.
+    testWidgets('a missing attachment spends its number', (tester) async {
+      await tester.pumpWidget(tile([
+        image(),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.remoteSource,
+        ),
+        image(),
+      ]));
+
+      expect(find.text('1'), findsNWidgets(2));
+      expect(find.text('2'), findsNWidgets(2));
+      expect(find.text('3'), findsNWidgets(2));
     });
 
     // The pill is small and the sentence around it reads normally, so its

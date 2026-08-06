@@ -77,6 +77,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   loss produced it, the slot says what is missing — and the kind of file it was
   — as a tooltip on hover or long-press, and as the screen reader's
   announcement. A message with no parts renders exactly as before.
+- Attached images are numbered, so one can be referred to in conversation —
+  "what does the sign in image 7 say?". The number runs across the whole thread
+  rather than restarting each message, so it names one image for as long as the
+  thread lasts, and it appears both under the thumbnail and on the marker in the
+  sentence. The same number is sent to the model as a short text label beside
+  each image, which is the only way to name one: no provider carries a name on
+  an image block itself. An attachment that cannot be shown still spends its
+  number, so nothing after it is renumbered into a number already used, and it
+  is sent as neither an image nor a note that one is missing — asked about a
+  number nothing carries, a model can only say it has no such image, whereas
+  announcing the absence invites it to guess at what it cannot see.
 
 ### Changed
 

@@ -9,6 +9,7 @@ import '../message_timestamp_format.dart';
 import '../tracker_registry.dart' show awaitingTrackerKey;
 import '../run_id_resolver.dart';
 import '../source_references_resolver.dart';
+import '../attachment_numbering.dart';
 import '../unread_boundary.dart';
 import 'day_divider.dart';
 import 'message_tile.dart';
@@ -402,6 +403,10 @@ class _MessageTimelineState extends State<MessageTimeline> {
         // reflows the body shorter); keep the latest message pinned above the
         // input bar when it does.
         _maybeStickToBottomOnShrink(constraints.maxHeight);
+        // Once per build rather than per row: each tile needs the count of
+        // attachment slots before it, and rescanning the thread inside the
+        // builder would make that quadratic in a long thread.
+        final messageAttachmentOffsets = attachmentOffsets(displayMessages);
         return Stack(
           children: [
             SelectionArea(
@@ -414,6 +419,8 @@ class _MessageTimelineState extends State<MessageTimeline> {
                       itemCount: displayMessages.length,
                       itemBuilder: (context, index) {
                         final message = displayMessages[index];
+                        final attachmentsBefore =
+                            messageAttachmentOffsets[index];
                         final isLastItem = index == displayMessages.length - 1;
                         // A distinct key for the loading sentinel forces a
                         // remount at the AwaitingText → TextStreaming transition.
@@ -443,6 +450,7 @@ class _MessageTimelineState extends State<MessageTimeline> {
                                   ? widget.executionTrackers[awaitingTrackerKey]
                                   : null),
                           streamingPhase: isLastItem ? streamingPhase : null,
+                          attachmentsBefore: attachmentsBefore,
                         );
                         final startsNewDay = index == 0 ||
                             !isSameCalendarDay(
