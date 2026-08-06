@@ -25,23 +25,24 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// full height to that line, so anything taller than the line box swells one
 /// line and breaks the paragraph around it; the marker stands in for an
 /// attachment in the flow while the attachment itself is shown at size
-/// elsewhere. At `labelSmall` with no vertical padding this is 18 px against a
-/// 24 px `bodyMedium` line, so it costs the paragraph nothing.
+/// elsewhere, or — in the composer, where there is no thumbnail — stands as the
+/// attachment's whole representation. At `labelSmall` with no vertical padding
+/// and a hairline border this is 20 px against a 24 px `bodyMedium` line, so it
+/// costs the paragraph nothing.
 ///
 /// [description] is the whole announcement for the slot. The glyph carries the
 /// meaning visually and there is no room to render the description inline, so
 /// it is carried two ways: as the screen reader's label, and as a tooltip for
 /// everyone else.
 ///
-/// **Not built on `SoliplexBadge`, deliberately** — the design system's rule is
-/// to prefer the branded component, and this is the exception with its reason
-/// recorded so it is not re-litigated. `SoliplexBadge` renders at
-/// `labelMedium` (14 at 1.5 = 21 px) inside `badgeTheme.padding` (4 px top and
-/// bottom), so it stands 29 px tall. Placed inline it would push the 24 px line
-/// box to 29 and reintroduce the swelling this widget exists to avoid. Its
-/// `danger` intent is the same `errorContainer` pair used here; its `neutral`
-/// intent is a 6% ink wash, which reads fainter still on a tinted bubble. If
-/// the badge ever grows a dense variant that fits a line box, prefer it.
+/// **Not built on `SoliplexBadge`, deliberately.** The design system's rule is
+/// to prefer the branded component; `SoliplexBadge` renders at `labelMedium`
+/// (14 at 1.5 = 21 px) inside `badgeTheme.padding` (4 px top and bottom), so it
+/// stands 29 px tall. Placed inline it would push the 24 px line box to 29 and
+/// reintroduce the swelling this widget exists to avoid. Its `danger` intent is
+/// the same `errorContainer` pair used here; its `neutral` intent is a 6% ink
+/// wash, which reads fainter still on a tinted bubble. If the badge ever grows
+/// a dense variant that fits a line box, prefer it.
 class AttachmentPill extends StatelessWidget {
   /// Creates a pill for an attachment that is present.
   const AttachmentPill({

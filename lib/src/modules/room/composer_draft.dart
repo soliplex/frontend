@@ -35,8 +35,7 @@ String encodeComposerDraft(List<MessagePart> parts) {
         // an image they never attached went missing; it stands for an object
         // that is not there, so dropping it costs nothing visible.
         draft.write(text.replaceAll(composerDraftImageMarker, ''));
-      case ImagePart():
-      case MissingAttachmentPart():
+      case AttachmentPart():
         draft.write(composerDraftImageMarker);
     }
   }

@@ -40,10 +40,18 @@ sealed class AttachmentPart extends MessagePart {
   /// message's present shape changes when that shape does, and an answer given
   /// three turns ago still names the number it was told.
   ///
-  /// Null for an attachment that was never numbered: one sent before messages
-  /// carried numbers at all, or by another client. It is shown without a number
-  /// and sent without a name, because it has none the model would recognise.
+  /// Null for an attachment that was never numbered: one from a payload that
+  /// carries no number, or one written by another client. It is shown without a
+  /// number and sent without a name, because it has none the model would
+  /// recognise.
   final int? number;
+
+  /// This attachment under a different name.
+  ///
+  /// Declared here so that every attachment can be named: a subtype that could
+  /// not would be passed over by [MessagePartsText.numberedFrom] and reach the
+  /// model unnamed. Requiring it makes that a compile error instead.
+  AttachmentPart withNumber(int number);
 }
 
 /// An image within a message's ordered content.
@@ -62,7 +70,7 @@ final class ImagePart extends AttachmentPart {
   /// The MIME type of [bytes], e.g. `image/png`.
   final String mimeType;
 
-  /// This image under a different name.
+  @override
   ImagePart withNumber(int number) =>
       ImagePart(bytes: bytes, mimeType: mimeType, number: number);
 }
@@ -105,7 +113,7 @@ final class MissingAttachmentPart extends AttachmentPart {
   /// The MIME type the sender declared, or null when the payload named none.
   final String? mimeType;
 
-  /// This attachment under a different name.
+  @override
   MissingAttachmentPart withNumber(int number) =>
       MissingAttachmentPart(reason: reason, mimeType: mimeType, number: number);
 }
@@ -150,9 +158,7 @@ extension MessagePartsText on List<MessagePart> {
     var next = firstNumber;
     return [
       for (final part in this)
-        if (part is ImagePart && part.number == null)
-          part.withNumber(next++)
-        else if (part is MissingAttachmentPart && part.number == null)
+        if (part is AttachmentPart && part.number == null)
           part.withNumber(next++)
         else
           part,

@@ -130,9 +130,10 @@ String _imageLabel(int number) => 'Image $number:';
 /// model, so this is not how the number is communicated — [_imageLabel] is.
 /// Its job is to let a replay recognise which label this client wrote.
 ///
-/// Deliberately a top-level key rather than under `vendor_metadata`, which
-/// pydantic_ai forwards to the provider — a number there would be sent to the
-/// model's API and can be rejected.
+/// The name is free to choose: pydantic_ai's AG-UI adapter builds its content
+/// from the block's source and media type and discards the block's `metadata`
+/// object wholesale, so nothing under it reaches a provider whatever it is
+/// called. Only this client ever reads it back.
 const String _imageNumberKey = 'soliplex_image_number';
 
 ImageInputContent _imageContent(ImagePart part, int? number) =>
@@ -147,8 +148,9 @@ ImageInputContent _imageContent(ImagePart part, int? number) =>
 
 /// The number an image block was sent with, or null for a block this client did
 /// not write — another client's — or one whose metadata did not survive the
-/// round trip, in which case [_dropLabelFor] reports the label it cannot
-/// reclaim.
+/// round trip. The two are indistinguishable from here, and both are read as
+/// unnumbered: any label written beside such a block stays in the message as
+/// the user's own text.
 int? _imageNumberOf(Object? metadata) {
   if (metadata is! Map) return null;
   final value = metadata[_imageNumberKey];
@@ -169,17 +171,16 @@ int? _rawImageNumber(Object? item) =>
 /// run of the user's, renders in their sentence, and is labelled again on the
 /// next send.
 ///
-/// Matching on the number the block carries, rather than on the label's shape,
-/// is what makes this correct: the number a block was *sent* with is the number
-/// the model has been using for it, and it need not equal one recomputed from
-/// the message's present shape. The block's own number is the only record of
-/// what was said.
+/// The block's own number selects which exact label to expect, rather than any
+/// `Image N:` prefix being parsed or N being recomputed from the message's
+/// present shape. That is what makes this correct *and* safe: the number a
+/// block was sent with is the number the model has been using for it, and text
+/// the user happened to type in the same shape is left alone because no block
+/// claims it.
 ///
 /// A block this client numbered but whose label is gone is a fault, not a shape
 /// to degrade over — either the metadata or the label failed to survive the
-/// round trip, and the consequence compounds silently: the orphaned label reads
-/// as the user's words, and the next send writes a second one beside it. Logged
-/// so it is found once rather than puzzled over later.
+/// round trip. Logged so it is found once rather than puzzled over later.
 void _dropLabelFor(
   List<MessagePart> parts,
   int? number,
@@ -187,15 +188,28 @@ void _dropLabelFor(
 ) {
   if (number == null) return;
   final previous = parts.isEmpty ? null : parts.last;
-  if (previous is TextPart && previous.text == _imageLabel(number)) {
+  final expected = _imageLabel(number);
+  if (previous is TextPart && previous.text == expected) {
+    // Removing a part the user can see. A person who types "Image 3:" ahead of
+    // their own third image loses that text, so the deletion is reconstructable
+    // from a log capture rather than being invisible.
+    _logger.debug('Reclaimed the label "$expected" in $logContext.');
     parts.removeLast();
     return;
   }
+  // The found text matters as much as its type: `TextPart` vs `TextPart` is
+  // the commonest shape here and the least informative rendering of it.
+  final found = switch (previous) {
+    TextPart(:final text) => 'the text "$text"',
+    null => 'nothing — it is the first part',
+    _ => 'a ${previous.runtimeType}',
+  };
   _logger.error(
     'An attachment in $logContext was sent as image $number, but the part '
-    'before it is ${previous.runtimeType} rather than the label it was sent '
-    "with. The label will read as the message's own text and the attachment "
-    'will be labelled twice on the next send.',
+    'before it is $found rather than the label "$expected" it was sent with. '
+    "Anything left of that label reads as the message's own text; the "
+    'attachment still carries its number, so the next send writes the label '
+    'again beside it.',
   );
 }
 

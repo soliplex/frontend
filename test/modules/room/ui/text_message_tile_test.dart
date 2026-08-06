@@ -324,7 +324,10 @@ void main() {
     // 48 px tap target.
     testWidgets('tapping the number badge still opens the image',
         (tester) async {
-      await tester.pumpWidget(tile([const TextPart('look '), image()]));
+      // Numbered deliberately: an unnumbered attachment is badgeless, so the
+      // tap would land on bare thumbnail and prove nothing about the badge.
+      await tester
+          .pumpWidget(tile([const TextPart('look '), image(number: 1)]));
 
       // The badge sits in the tile's top-left corner.
       await tester.tapAt(
@@ -372,8 +375,8 @@ void main() {
       expect(find.text('1'), findsNothing);
     });
 
-    // History from before attachments were named carries no number, and there
-    // is none to show: the model has never been told a name for it either.
+    // An attachment from a payload that carries no number has none to show:
+    // the model has never been told a name for it either.
     testWidgets('shows no number for an attachment that has none',
         (tester) async {
       await tester.pumpWidget(tile([const TextPart('look '), image()]));
@@ -398,6 +401,27 @@ void main() {
       expect(find.text('1'), findsNWidgets(2));
       expect(find.text('2'), findsNWidgets(2));
       expect(find.text('3'), findsNWidgets(2));
+    });
+
+    // The badge painted on a tile is excluded from semantics on the grounds
+    // that the tile itself announces the same number, so the tile has to carry
+    // it whatever the slot holds. An attachment-only message renders no pills
+    // either, leaving the tile as the only place the number is spoken.
+    testWidgets('announces a missing attachment by its number', (tester) async {
+      await tester.pumpWidget(tile([
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.unsupportedType,
+          mimeType: 'audio/mpeg',
+          number: 4,
+        ),
+      ]));
+
+      expect(
+        find.bySemanticsLabel(
+          'Image 4. An attachment (audio/mpeg) is a kind this app cannot show',
+        ),
+        findsOneWidget,
+      );
     });
 
     // A pill holds an attachment's place in a sentence. With nothing written
