@@ -8,6 +8,24 @@ import 'zoomable_view.dart';
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.zoomable_image');
 
+/// A byte-backed image provider whose *decode* is bounded to [maxDecodeExtent]
+/// on the long edge, aspect ratio preserved and never upscaled.
+///
+/// `Image`'s `width`/`height` only constrain layout — the engine still decodes
+/// the full bitmap, which is ~48 MB of RGBA for a 12 MP photo. Callers handing
+/// over bytes whose size they do not control should bound the decode; a null
+/// [maxDecodeExtent] leaves it unbounded, which is only safe when the caller
+/// knows the bytes are small.
+ImageProvider _boundedMemoryImage(Uint8List bytes, int? maxDecodeExtent) =>
+    maxDecodeExtent == null
+        ? MemoryImage(bytes)
+        : ResizeImage(
+            MemoryImage(bytes),
+            width: maxDecodeExtent,
+            height: maxDecodeExtent,
+            policy: ResizeImagePolicy.fit,
+          );
+
 /// Pan/zoom/rotate viewer for a single image, shared by the app's image-preview
 /// surfaces. Delegates the interaction to [ZoomableView]; owns the load/decode
 /// failure so the fallback is shown *in place of* the viewer — no zoom or rotate
@@ -17,21 +35,26 @@ final _logger =
 /// [ZoomableImage.controlledRotation] to own rotation from the caller so it
 /// persists across paging. When the image fails to load or decode,
 /// [decodeFailureChild] is shown, centered, in place of the viewer.
+///
+/// The byte constructors take an optional `maxDecodeExtent` bounding the decode
+/// on the long edge; pass one when the bytes' size is not under your control,
+/// since `Image`'s own width/height constrain layout only.
 class ZoomableImage extends StatefulWidget {
-  /// Decoded bytes, self-managed rotation, starting unrotated.
+  /// Encoded image bytes, self-managed rotation, starting unrotated.
   ZoomableImage({
     required Uint8List bytes,
     required this.decodeFailureChild,
     this.semanticLabel,
     this.logSource,
+    int? maxDecodeExtent,
     super.key,
-  })  : provider = MemoryImage(bytes),
+  })  : provider = _boundedMemoryImage(bytes, maxDecodeExtent),
         byteLength = bytes.length,
         rotationQuarterTurns = 0,
         onRotate = null;
 
-  /// Decoded bytes with caller-owned rotation so it survives paging (e.g. per
-  /// document page).
+  /// Encoded image bytes with caller-owned rotation so it survives paging
+  /// (e.g. per document page).
   ZoomableImage.controlledRotation({
     required Uint8List bytes,
     required this.decodeFailureChild,
@@ -39,8 +62,9 @@ class ZoomableImage extends StatefulWidget {
     required VoidCallback this.onRotate,
     this.semanticLabel,
     this.logSource,
+    int? maxDecodeExtent,
     super.key,
-  })  : provider = MemoryImage(bytes),
+  })  : provider = _boundedMemoryImage(bytes, maxDecodeExtent),
         byteLength = bytes.length;
 
   /// Any [ImageProvider] (network, asset, file), self-managed rotation. The

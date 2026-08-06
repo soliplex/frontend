@@ -5320,6 +5320,458 @@ void main() {
       });
     });
 
+    group('getThreadHistory user message content', () {
+      // Bytes stay a List<int> so `equals` compares them elementwise against
+      // the Uint8List an ImagePart carries.
+      const imageBytes = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+      Map<String, dynamic> dataImage(String mimeType) => {
+            'type': 'image',
+            'source': {
+              'type': 'data',
+              'value': base64Encode(imageBytes),
+              'mimeType': mimeType,
+            },
+          };
+
+      /// Stubs a thread of one finished run whose `run_input` carries a single
+      /// user message with [content], then hydrates and returns that message.
+      Future<TextMessage> hydrateUserMessage(Object? content) async {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'runs': {
+              'run-1': {
+                'run_id': 'run-1',
+                'created': '2026-01-07T01:00:00.000Z',
+                'finished': '2026-01-07T01:01:00.000Z',
+              },
+            },
+          },
+        );
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'run_id': 'run-1',
+            'run_input': {
+              'messages': [
+                {'id': 'user-msg-1', 'role': 'user', 'content': content},
+              ],
+            },
+            'events': <dynamic>[],
+          },
+        );
+
+        final history = await api.getThreadHistory('room-123', 'thread-456');
+        return history.messages
+            .whereType<TextMessage>()
+            .firstWhere((m) => m.user == ChatUser.user);
+      }
+
+      // The sequence is text/image/text rather than text/image so ordering is
+      // actually proven: a two-element list would pass even if the parts came
+      // back in a fixed wrong order.
+      test('reconstructs ordered parts from list content', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'read the code in '},
+          dataImage('image/png'),
+          {'type': 'text', 'text': ' and reply'},
+        ]);
+
+        expect(message.parts, isNotNull);
+        final parts = message.parts!;
+        expect(parts, hasLength(3));
+        expect((parts[0] as TextPart).text, equals('read the code in '));
+        expect((parts[2] as TextPart).text, equals(' and reply'));
+
+        final image = parts[1] as ImagePart;
+        expect(image.bytes, equals(imageBytes));
+        expect(image.mimeType, equals('image/png'));
+
+        // text stays the flattened form of parts, so the copy button and the
+        // wire fallback cannot disagree with what is rendered.
+        expect(message.text, equals('read the code in  and reply'));
+      });
+
+      test('hydrates bare string content as plain text with no parts',
+          () async {
+        final message = await hydrateUserMessage('just words');
+
+        expect(message.text, equals('just words'));
+        expect(message.parts, isNull);
+      });
+
+      // A text-only list carries nothing the bare string does not, so it takes
+      // the plain path. This gate is also what keeps TextMessage.fromParts from
+      // rejecting the payload; the replay loop checks that precondition anyway,
+      // since it lives in another library.
+      test('leaves parts null for a list with no image', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'still just words'},
+        ]);
+
+        expect(message.text, equals('still just words'));
+        expect(message.parts, isNull);
+      });
+
+      // The gate that decides `parts` keys off the image, so it must not
+      // accidentally require text as well — an image sent without a caption
+      // still has to come back as parts.
+      test('reconstructs parts for an image with no text', () async {
+        final message = await hydrateUserMessage([dataImage('image/png')]);
+
+        expect(message.text, isEmpty);
+        final parts = message.parts;
+        expect(parts, hasLength(1));
+        expect((parts![0] as ImagePart).bytes, equals(imageBytes));
+      });
+
+      // An image held somewhere else rather than sent inline. We never send
+      // that form, so it came from another client; the slot is kept so the
+      // message still reports that it carried an attachment.
+      test('marks a url image source as a missing attachment', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'look at this'},
+          {
+            'type': 'image',
+            'source': {
+              'type': 'url',
+              'value': 'https://example.com/cat.png',
+              'mimeType': 'image/png',
+            },
+          },
+        ]);
+
+        expect(message.text, equals('look at this'));
+        final missing = message.parts![1] as MissingAttachmentPart;
+        expect(missing.reason, equals(MissingAttachmentReason.remoteSource));
+        // The placeholder's glyph is the same whichever loss produced it, so
+        // the declared type is the only thing that can name what is missing.
+        expect(missing.mimeType, equals('image/png'));
+      });
+
+      // base64Decode throws FormatException, and _fetchRunEvents is awaited
+      // inside a Future.wait that only catches network errors — so an escaping
+      // throw would take out the whole thread's history, not just this run.
+      test('marks undecodable base64 as a missing attachment', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'look at this'},
+          {
+            'type': 'image',
+            'source': {
+              'type': 'data',
+              'value': 'not!valid!base64',
+              'mimeType': 'image/png',
+            },
+          },
+        ]);
+
+        expect(message.text, equals('look at this'));
+        final missing = message.parts![1] as MissingAttachmentPart;
+        expect(missing.reason, equals(MissingAttachmentReason.undecodable));
+        // The declared type survives even though the bytes did not, so the
+        // placeholder can say what kind of thing is missing.
+        expect(missing.mimeType, equals('image/png'));
+      });
+
+      test('hydrates an empty content list as empty text', () async {
+        final message = await hydrateUserMessage(<dynamic>[]);
+
+        expect(message.text, isEmpty);
+        expect(message.parts, isNull);
+      });
+
+      // ag_ui's own list decoder is all-or-nothing, so decoding per element is
+      // what keeps both the question and the readable image from disappearing
+      // along with the part this version cannot name. An image on each side of
+      // the bad part, so the assertion holds in both directions.
+      test('one unknown part costs only its own slot', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'what is this'},
+          dataImage('image/png'),
+          {'type': 'sticker', 'id': 'nope'},
+          dataImage('image/png'),
+        ]);
+
+        expect(message.text, equals('what is this'));
+        final parts = message.parts!;
+        expect(parts, hasLength(4));
+        expect((parts[1] as ImagePart).bytes, equals(imageBytes));
+        expect(parts[2], isA<MissingAttachmentPart>());
+        expect((parts[3] as ImagePart).bytes, equals(imageBytes));
+      });
+
+      // A document is a live payload in this product, and it takes a different
+      // branch from the unknown type above: ag_ui decodes it fine, so it
+      // reaches the content switch rather than failing validation.
+      test('marks a document as a missing attachment of unsupported type',
+          () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'summarise '},
+          {
+            'type': 'document',
+            'source': {
+              'type': 'data',
+              'value': base64Encode(imageBytes),
+              'mimeType': 'application/pdf',
+            },
+          },
+        ]);
+
+        expect(message.text, equals('summarise '));
+        final missing = message.parts![1] as MissingAttachmentPart;
+        expect(missing.reason, equals(MissingAttachmentReason.unsupportedType));
+        expect(missing.mimeType, equals('application/pdf'));
+      });
+
+      // Valid base64 for zero bytes: no decoder can render it, so an ImagePart
+      // here would only fail again at paint time.
+      test('marks an empty image payload as a missing attachment', () async {
+        final message = await hydrateUserMessage([
+          {'type': 'text', 'text': 'look at this'},
+          {
+            'type': 'image',
+            'source': {'type': 'data', 'value': '', 'mimeType': 'image/png'},
+          },
+        ]);
+
+        expect(message.text, equals('look at this'));
+        final missing = message.parts![1] as MissingAttachmentPart;
+        expect(missing.reason, equals(MissingAttachmentReason.undecodable));
+      });
+
+      // The parts ride the run cache as their own field rather than inside the
+      // cached event list, so their survival across a second open of a thread
+      // is a property of the cache entry's shape and has to be asserted.
+      test('serves the parts from cache on a second load', () async {
+        await hydrateUserMessage([
+          {'type': 'text', 'text': 'read this '},
+          dataImage('image/png'),
+        ]);
+
+        final again = await api.getThreadHistory('room-123', 'thread-456');
+        final message = again.messages
+            .whereType<TextMessage>()
+            .firstWhere((m) => m.user == ChatUser.user);
+
+        final parts = message.parts;
+        expect(parts, hasLength(2));
+        expect((parts![1] as ImagePart).bytes, equals(imageBytes));
+
+        // Served from cache: the run endpoint was not asked a second time.
+        verify(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/run-1',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).called(1);
+      });
+    });
+
+    group('getThreadHistory run isolation', () {
+      /// Stubs a thread of [runs] keyed by run id, in the order given, each
+      /// already finished, then hydrates it.
+      Future<ThreadHistory> hydrate(
+        Map<String, Map<String, dynamic>> runs,
+      ) async {
+        var minute = 0;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            Uri.parse(
+              'https://api.example.com/api/v1/rooms/room-123/agui/thread-456',
+            ),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'runs': {
+              for (final runId in runs.keys)
+                runId: {
+                  'run_id': runId,
+                  'created': '2026-01-07T01:0$minute:00.000Z',
+                  'finished': '2026-01-07T01:0${minute++}:30.000Z',
+                },
+            },
+          },
+        );
+        for (final entry in runs.entries) {
+          when(
+            () => mockTransport.request<Map<String, dynamic>>(
+              'GET',
+              Uri.parse(
+                'https://api.example.com/api/v1/rooms/room-123/agui/thread-456/${entry.key}',
+              ),
+              cancelToken: any(named: 'cancelToken'),
+              fromJson: any(named: 'fromJson'),
+              body: any(named: 'body'),
+              headers: any(named: 'headers'),
+              timeout: any(named: 'timeout'),
+            ),
+          ).thenAnswer((_) async => {'run_id': entry.key, ...entry.value});
+        }
+        return api.getThreadHistory('room-123', 'thread-456');
+      }
+
+      Map<String, dynamic> userInput(String id, String text) => {
+            'run_input': {
+              'messages': [
+                {'id': id, 'role': 'user', 'content': text},
+              ],
+            },
+          };
+
+      // An id the wire supplies as empty is not an id. Taking it at face value
+      // keys every such turn to the same empty string, where the append guard
+      // reads the second one as a continuation of the first and drops its
+      // bubble — so two unrelated questions collapse into one.
+      test('runs whose user message has a blank id keep separate bubbles',
+          () async {
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('', 'first question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+            ],
+          },
+          'run-2': {
+            ...userInput('', 'second question'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        final texts = history.messages
+            .whereType<TextMessage>()
+            .where((m) => m.user == ChatUser.user)
+            .map((m) => m.text);
+        expect(texts, containsAll(['first question', 'second question']));
+      });
+
+      // A continuation run adds no user turn, so its `run_input` still ends
+      // with the message its parent contributed. Appending is blind, so the
+      // guard is the only thing keeping the turn to one bubble.
+      test('a continuation run does not repeat its parent user message',
+          () async {
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('user-1', 'do the thing'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-1'},
+            ],
+          },
+          // Same last user message; the tool loop opened a second run for it.
+          'run-2': {
+            'run_input': {
+              'messages': [
+                {'id': 'user-1', 'role': 'user', 'content': 'do the thing'},
+                {'id': 'a-1', 'role': 'assistant', 'content': 'calling a tool'},
+              ],
+            },
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        expect(
+          history.messages.where((m) => m.id == 'user-1'),
+          hasLength(1),
+          reason: 'the turn keeps one user bubble across its runs',
+        );
+        // Both runs key their state to the one message; the later run wins.
+        expect(history.messageStates['user-1']?.runId, equals('run-2'));
+      });
+
+      // Streaming state is scoped to a run, so a run whose events were
+      // truncated before any terminal event cannot hand its half-streamed
+      // reply to the next run, where that run's terminal event would commit it
+      // under the wrong run and out of order.
+      test('a truncated run does not leak partial text into the next run',
+          () async {
+        final history = await hydrate({
+          'run-1': {
+            ...userInput('user-1', 'first'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-1'},
+              {
+                'type': 'TEXT_MESSAGE_START',
+                'messageId': 'a-1',
+                'role': 'assistant',
+              },
+              {
+                'type': 'TEXT_MESSAGE_CONTENT',
+                'messageId': 'a-1',
+                'delta': 'half a rep',
+              },
+              // Truncated: no TEXT_MESSAGE_END, no RUN_FINISHED.
+            ],
+          },
+          // Reaches a terminal event without starting a message of its own.
+          // That is what makes the leak observable: a run that starts its own
+          // text replaces the dangling stream before any terminal event can
+          // commit it, so only this shape discriminates.
+          'run-2': {
+            ...userInput('user-2', 'second'),
+            'events': [
+              {'type': 'RUN_STARTED', 'threadId': 't', 'runId': 'run-2'},
+              {'type': 'RUN_FINISHED', 'threadId': 't', 'runId': 'run-2'},
+            ],
+          },
+        });
+
+        final texts =
+            history.messages.whereType<TextMessage>().map((m) => m.text);
+        expect(texts, contains('first'));
+        expect(texts, contains('second'));
+        // An assertion about attribution, not about retention: that a truncated
+        // run's buffered text is discarded outright is settled elsewhere.
+        expect(
+          texts.where((t) => t.contains('half a rep')),
+          isEmpty,
+          reason: "run-1's partial reply must not be committed under run-2",
+        );
+      });
+    });
+
     group('getRun', () {
       test('returns run by ID', () async {
         when(

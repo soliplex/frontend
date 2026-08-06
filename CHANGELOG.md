@@ -24,9 +24,27 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   ordered part list, deriving `text` from the parts so a caller of it cannot let
   the two disagree, and a `plainText` getter on `List<MessagePart>` flattens a
   part list to its text alone — runs concatenated in order, images dropped.
-  `fromParts` throws `ArgumentError` for a part list carrying neither an image
-  nor any text, because such a payload reaches the wire as empty content and
-  the backend discards the turn without reporting an error.
+  `fromParts` throws `ArgumentError` for a part list carrying neither an
+  attachment nor any text, because such a payload reaches the wire as empty
+  content and the backend discards the turn without reporting an error.
+- **Library consumers:** `MissingAttachmentPart` is a third `MessagePart`
+  alongside `TextPart` and `ImagePart`, standing in for an attachment a message
+  was sent with whose content cannot be rebuilt, and carrying the declared MIME
+  type and a `MissingAttachmentReason` (`undecodable`, `unsupportedType`,
+  `remoteSource`). It has no wire form and is dropped when a message is
+  converted for sending. A `hasAttachment` getter on `List<MessagePart>`
+  reports whether any part carries something other than text. Code that
+  switches over `MessagePart` exhaustively gains a case.
+- A user message carrying image parts now renders them in its bubble: text runs
+  read as text and each image sits inline where it was placed, so a sentence
+  written around its images still reads as one sentence. Tapping an image opens
+  every image in that message in the zoomable browser, starting at the tapped
+  one, so a photo that arrived sideways can be rotated. An image whose bytes
+  will not decode, and an attachment that could not be rebuilt at all, each show
+  a placeholder in their own slot. Because the glyph looks the same whichever
+  loss produced it, the slot says what is missing — and the kind of file it was
+  — as a tooltip on hover or long-press, and as the screen reader's
+  announcement. A message with no parts renders exactly as before.
 
 ### Changed
 
@@ -43,9 +61,47 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   A draft held across an authentication round trip still restores its text.
   Code reading a conversation does see one difference: the echo of a sent
   message now always carries `parts`, where it previously carried none.
+- **Library consumers:** thread history no longer fabricates
+  `TEXT_MESSAGE_START` / `CONTENT` / `END` events for a user message. The
+  backend never streams the user's own turn, so history now rebuilds that
+  message directly from the run's persisted input and appends it ahead of the
+  run's real events — the same shape the live path already used, where the
+  message is seeded into the conversation before the stream opens. The messages
+  a thread reconstructs to are unchanged, including their order and timestamps.
+  Two consequences for code reading `ThreadHistory.runs`: a run's event list no
+  longer carries those three synthetic events, and for any run whose input
+  carried a user message, the ids of its `DroppedEventMessage`s
+  (`dropped-<runId>-<index>`) shift by three, since the index now refers to the
+  run's actual wire payload.
 
 ### Fixed
 
+- Reloading a thread now restores the images a user message was sent with. A
+  message whose content was an ordered list of parts previously lost all of it,
+  its text included, and came back blank; it now hydrates into the same ordered
+  parts with its text re-derived from them. Content the app has no way to hold —
+  an image given as a URL instead of bytes, audio, video or a document, or bytes
+  that will not decode — becomes a placeholder in the slot it occupied, so the
+  message reports what it was sent with instead of reading as though it never
+  carried an attachment. Such a placeholder has no content to send, so a
+  reloaded message goes back to the model without that attachment.
+- A malformed piece of a user message costs no more than itself. Each element of
+  an ordered payload is read on its own, so one entry this protocol version
+  cannot name leaves its siblings intact — the message's text and its readable
+  images alike — where before a single unreadable element blanked the whole
+  message. Whatever cannot be read is logged with the message, run and thread it
+  belongs to, and no single message or run can fail a thread's history load.
+- A user message whose id is blank on the wire no longer swallows the turns
+  after it. Such an id was taken at face value and keyed every blank-id turn in
+  a thread to the same message, so all but the first lost its bubble and their
+  citations piled onto one turn; a blank id is now treated as absent and the
+  message is keyed to its run instead. A run entry whose own `run_id` is blank
+  is rejected for the same reason, since that id is what a message without one
+  falls back to.
+- A run whose stored events end before any terminal event no longer hands its
+  half-streamed reply to the run after it, where that run's terminal event
+  committed the text under the wrong run and out of order. Streaming state is
+  now scoped to the run it belongs to, since each run is its own stream.
 - Pressing the platform's paste chord in a room — Cmd+V on macOS and iOS, Ctrl+V
   elsewhere — no longer does nothing when the composer is unfocused. One keypress
   now moves focus to the composer and inserts the clipboard's text, over the

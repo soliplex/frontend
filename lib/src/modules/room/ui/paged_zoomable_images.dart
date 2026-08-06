@@ -5,8 +5,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'pager_dots.dart';
 
 /// A pageable set of zoomable images sharing one page indicator and per-page
-/// rotation that persists across paging. Used by the chunk-visualization page
-/// browser and the citation-figure browser.
+/// rotation that persists across paging.
 ///
 /// Each page is built by [pageBuilder], which receives the page's current
 /// rotation and a rotate callback to wire into a `ZoomableImage`. [footerBuilder]

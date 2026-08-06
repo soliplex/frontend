@@ -36,13 +36,57 @@ final class ImagePart extends MessagePart {
   final String mimeType;
 }
 
-/// Flattening of an ordered part list to text alone.
+/// Why an attachment a message was sent with cannot be shown again.
+enum MissingAttachmentReason {
+  /// The payload could not be read — an element this protocol version cannot
+  /// describe, invalid base64, or a valid encoding of nothing.
+  undecodable,
+
+  /// A kind of content this domain has no part for: audio, video, a document,
+  /// or opaque binary.
+  unsupportedType,
+
+  /// Held somewhere else rather than sent inline, as a URL this client does
+  /// not fetch.
+  remoteSource,
+}
+
+/// An attachment that was part of a message but whose content cannot be
+/// reconstructed, holding its place in the ordered content.
+///
+/// Kept as a part rather than dropped so a message reports what it was sent
+/// with. Silently removing it would leave a bubble that reads as complete
+/// while the model was given something else — the stronger false claim of the
+/// two. [mimeType] is the type the sender declared, when the payload named one
+/// at all.
+@immutable
+final class MissingAttachmentPart extends MessagePart {
+  /// Creates a placeholder for an attachment that cannot be reconstructed.
+  const MissingAttachmentPart({required this.reason, this.mimeType});
+
+  /// Why the attachment cannot be shown.
+  final MissingAttachmentReason reason;
+
+  /// The MIME type the sender declared, or null when the payload named none.
+  final String? mimeType;
+}
+
+/// What an ordered part list carries: its text, and whether it holds anything
+/// beyond text.
 extension MessagePartsText on List<MessagePart> {
   /// Every [TextPart]'s text, concatenated in order, with no separator.
   ///
   /// Lossy by nature: an image carries no text and is dropped, so anything
   /// that stores or displays this alone keeps the words and loses the images.
   String get plainText => whereType<TextPart>().map((part) => part.text).join();
+
+  /// Whether any part carries something other than text — an image, or an
+  /// attachment that could not be reconstructed.
+  ///
+  /// This is what makes an ordered list worth keeping: a list of text alone
+  /// says no more than [plainText] does, and travels the wire as a bare
+  /// string.
+  bool get hasAttachment => any((part) => part is! TextPart);
 }
 
 /// User type for messages.
@@ -153,20 +197,26 @@ class TextMessage extends ChatMessage {
   ///
   /// Parts are honoured only for a user message, so the role is fixed.
   ///
-  /// Throws [ArgumentError] when [parts] carries neither an image nor any
+  /// Throws [ArgumentError] when [parts] carries neither an attachment nor any
   /// text. Such a payload reaches the wire as empty content, which makes the
   /// backend discard the turn without reporting an error — a throw here is
   /// the only way the caller learns the message went nowhere.
+  ///
+  /// A [MissingAttachmentPart] satisfies the requirement even though it has no
+  /// wire form: it is the whole reason a message rebuilt from history still has
+  /// something to render. Such a message is still re-sent on the next run, and
+  /// a parts list of placeholders alone contributes nothing — so it reaches the
+  /// backend as empty content, and that turn is discarded there.
   factory TextMessage.fromParts({
     required String id,
     required List<MessagePart> parts,
     DateTime? createdAt,
   }) {
-    if (parts.plainText.isEmpty && parts.whereType<ImagePart>().isEmpty) {
+    if (parts.plainText.isEmpty && !parts.hasAttachment) {
       throw ArgumentError.value(
         parts,
         'parts',
-        'must carry an image or some text',
+        'must carry an attachment or some text',
       );
     }
     return TextMessage(
@@ -182,12 +232,12 @@ class TextMessage extends ChatMessage {
   final String text;
 
   /// Ordered content parts, set on a user message built by
-  /// [TextMessage.fromParts] and null on one rebuilt from history by
-  /// [TextMessage.create]. A list holding nothing but text still travels the
-  /// wire as a bare string, so `parts != null` means "built from a payload",
-  /// not "has an image" — test for an image with
-  /// `parts?.whereType<ImagePart>().isNotEmpty`. Only honoured for user
-  /// messages, ignored elsewhere.
+  /// [TextMessage.fromParts] and null on one built by [TextMessage.create].
+  /// A list holding nothing but text still travels the wire as a bare string,
+  /// so `parts != null` means "built from a payload", not "has an image" —
+  /// test for an image with `parts?.whereType<ImagePart>().isNotEmpty`, and
+  /// for any attachment with `hasAttachment`. Only honoured for user messages,
+  /// ignored elsewhere.
   ///
   /// When set, [text] must hold the flattened text of these parts. The mapper
   /// falls back to [text] for any parts list it cannot send as multimodal, and

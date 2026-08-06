@@ -499,10 +499,10 @@ void main() {
       expect(message.parts, hasLength(1));
     });
 
-    // A payload with no image and no text reaches the wire as empty content,
-    // which the backend discards without reporting an error. Rejecting it at
-    // construction is the only point where the caller can still be told.
-    test('a message with neither text nor an image is rejected', () {
+    // A payload with no attachment and no text reaches the wire as empty
+    // content, which the backend discards without reporting an error. Rejecting
+    // it at construction is the only point where the caller can still be told.
+    test('a message with neither text nor an attachment is rejected', () {
       expect(
         () => TextMessage.fromParts(id: 'm-1', parts: const []),
         throwsArgumentError,
@@ -511,6 +511,23 @@ void main() {
         () => TextMessage.fromParts(id: 'm-1', parts: const [TextPart('')]),
         throwsArgumentError,
       );
+    });
+
+    // A message rebuilt from history whose only attachment could not be
+    // rebuilt: it has nothing to send, but the placeholder is the whole reason
+    // it still has something to render. Tightening the guard back to requiring
+    // an image would throw here, and the throw escapes into replay where it
+    // costs the whole thread's history rather than the one message.
+    test('a placeholder with no text is accepted', () {
+      final message = TextMessage.fromParts(
+        id: 'm-1',
+        parts: const [
+          MissingAttachmentPart(reason: MissingAttachmentReason.remoteSource),
+        ],
+      );
+
+      expect(message.text, isEmpty);
+      expect(message.parts, hasLength(1));
     });
 
     // An image alone is a complete message: it carries no text, so `text` is

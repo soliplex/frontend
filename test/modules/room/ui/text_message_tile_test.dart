@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +13,9 @@ import 'package:soliplex_frontend/src/modules/room/ui/copy_button.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/message_caption.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/paged_zoomable_images.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/text_message_tile.dart';
+import 'package:soliplex_frontend/src/shared/zoomable_image.dart';
 
 Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
       overrides: [
@@ -21,6 +26,16 @@ Widget _wrap(Widget child, {MessageExpansions? store}) => ProviderScope(
     );
 
 void main() {
+  setUp(() {
+    // Decode results outlive the test that produced them: the binding's image
+    // cache is not reset between tests in a file, so a failed decode in one
+    // test makes a later test's sound image fail too. Cleared so no test's
+    // result depends on the ones that ran before it.
+    imageCache
+      ..clear()
+      ..clearLiveImages();
+  });
+
   testWidgets('user message shows copy button but no feedback buttons',
       (tester) async {
     await tester.pumpWidget(_wrap(
@@ -252,5 +267,199 @@ void main() {
     ));
 
     expect(find.byType(SoliplexShimmer), findsOneWidget);
+  });
+
+  group('a user message carrying image parts', () {
+    // A real 1x1 PNG rather than arbitrary bytes, so these tests exercise the
+    // decoding path instead of the failure placeholder.
+    final pngBytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8'
+      '//8/AwAI/AL+XJ/PIAAAAABJRU5ErkJggg==',
+    );
+
+    ImagePart image() => ImagePart(bytes: pngBytes, mimeType: 'image/png');
+
+    Widget tile(List<MessagePart> parts) => _wrap(
+          TextMessageTile(
+            roomId: 'r',
+            message: TextMessage.fromParts(
+              id: 'parts-1',
+              parts: parts,
+              createdAt: DateTime(2026),
+            ),
+          ),
+        );
+
+    /// The bubble's rich text — the only `Text.rich` in the tile.
+    TextSpan bubbleSpan(WidgetTester tester) {
+      final rich = tester
+          .widgetList<Text>(find.byType(Text))
+          .singleWhere((t) => t.textSpan != null);
+      return rich.textSpan! as TextSpan;
+    }
+
+    testWidgets('renders text and images interleaved in order', (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('read the code in '),
+        image(),
+        const TextPart(' and reply'),
+      ]));
+
+      final children = bubbleSpan(tester).children!;
+      expect(children, hasLength(3));
+      expect((children[0] as TextSpan).text, equals('read the code in '));
+      expect(children[1], isA<WidgetSpan>());
+      expect((children[2] as TextSpan).text, equals(' and reply'));
+      expect(find.byType(Image), findsOneWidget);
+    });
+
+    // One slot per ImagePart, each laid out at the tap target rather than at
+    // the image's intrinsic size, so a bubble of photos stays a sentence.
+    testWidgets('gives every image its own tap-target slot', (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('rank these '),
+        image(),
+        image(),
+        image(),
+        image(),
+        const TextPart(' by sharpness please'),
+      ]));
+
+      expect(find.byType(Image), findsNWidgets(4));
+      expect(tester.getSize(find.byType(Image).first), const Size(48, 48));
+    });
+
+    // The pager pages over the images alone, so its index counts images while
+    // the bubble counts parts. A placeholder between the two makes those
+    // diverge — index 1 against slot 3 — so an off-by-one that opened the wrong
+    // photo cannot pass here.
+    testWidgets('tapping the second image opens the pager at that image',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('compare '),
+        image(),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.remoteSource,
+        ),
+        const TextPart(' with '),
+        image(),
+      ]));
+
+      expect(find.byType(ZoomableImage), findsNothing);
+
+      await tester.tap(find.byType(Image).last);
+      await tester.pumpAndSettle();
+
+      // The starting page is read off the pager itself. Asserting on which
+      // ZoomableImage happens to be built would instead rest on how many
+      // neighbours PageView keeps alive, which is not our decision to pin.
+      final pager =
+          tester.widget<PagedZoomableImages>(find.byType(PagedZoomableImages));
+      expect(pager.initialIndex, equals(1));
+      expect(pager.itemCount, equals(2));
+    });
+
+    // Bytes that are not a decodable image at all. The slot keeps its size so
+    // the sentence does not reflow, and the surrounding text still reads.
+    testWidgets('an image whose bytes will not decode shows a placeholder',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('look at '),
+        ImagePart(
+          bytes: Uint8List.fromList(const [1, 2, 3, 4]),
+          mimeType: 'image/png',
+        ),
+      ]));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+      expect(bubbleSpan(tester).children, hasLength(2));
+      // The failed slot keeps the same footprint as a decoded one, so the
+      // sentence does not reflow when an image turns out to be unreadable.
+      expect(
+        tester.getSize(
+          find
+              .ancestor(
+                of: find.byIcon(Icons.broken_image),
+                matching: find.byType(Container),
+              )
+              .first,
+        ),
+        const Size(48, 48),
+      );
+    });
+
+    // An attachment history could not rebuild keeps its place in the sentence
+    // instead of vanishing, so the bubble reports what it was sent with rather
+    // than reading as though it never carried anything.
+    testWidgets('a missing attachment holds its slot beside a readable image',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('compare '),
+        image(),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.unsupportedType,
+          mimeType: 'audio/mpeg',
+        ),
+        const TextPart(' please'),
+      ]));
+
+      final children = bubbleSpan(tester).children!;
+      expect(children, hasLength(4));
+      expect(children[1], isA<WidgetSpan>());
+      expect(children[2], isA<WidgetSpan>());
+      // The readable image still renders; only the unreadable slot degrades.
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+    });
+
+    // The glyph carries the meaning visually, so the announcement is all a
+    // screen reader user gets — it has to say what kind of thing is missing,
+    // not merely that something is. Asserting the type reaches the label, not
+    // the wording around it.
+    testWidgets('a missing attachment names its kind for a screen reader',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('listen to '),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.unsupportedType,
+          mimeType: 'audio/mpeg',
+        ),
+      ]));
+
+      final semantics = tester.getSemantics(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.broken_image),
+              matching: find.byType(Semantics),
+            )
+            .first,
+      );
+      expect(semantics.label, contains('audio/mpeg'));
+    });
+  });
+
+  testWidgets('a user message without parts renders as plain text',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      TextMessageTile(
+        roomId: 'r',
+        message: TextMessage(
+          id: 'plain-1',
+          user: ChatUser.user,
+          createdAt: DateTime(2026),
+          text: 'just words',
+        ),
+      ),
+    ));
+
+    expect(find.text('just words'), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    expect(
+      tester
+          .widgetList<Text>(find.byType(Text))
+          .where((t) => t.textSpan != null),
+      isEmpty,
+    );
   });
 }
