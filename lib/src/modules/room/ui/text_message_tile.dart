@@ -343,6 +343,9 @@ class _UserMessageBody extends StatelessWidget {
     // reader has no row to look at, so it is announced.
     final position = 'Attachment ${slotIndex + 1} of $slotCount';
     if (part is! ImagePart) {
+      // Error-toned so a slot the message was sent with but cannot show is
+      // noticed rather than skimmed past — it is small, and the sentence around
+      // it reads normally, so nothing else marks it.
       return AttachmentPill.error(
         icon: Icons.broken_image_outlined,
         description:
