@@ -164,6 +164,54 @@ void main() {
         expect(userMsg.toJson()['content'], equals('no images here'));
       });
 
+      // The whole conversation is re-sent on every run, so a message rebuilt
+      // from history goes back over the wire. A placeholder has no content to
+      // send, and reaching the converter with one would throw and take the
+      // next run with it.
+      test('drops a missing attachment but keeps the images beside it', () {
+        final bytes = Uint8List.fromList([0x89, 0x50]);
+
+        final aguiMessages = convertToAgui([
+          TextMessage.fromParts(
+            id: 'msg-rehydrated',
+            parts: [
+              const TextPart('compare '),
+              ImagePart(bytes: bytes, mimeType: 'image/png'),
+              const MissingAttachmentPart(
+                reason: MissingAttachmentReason.undecodable,
+              ),
+            ],
+          ),
+        ]);
+
+        final content = (aguiMessages[0] as UserMessage).toJson()['content']
+            as List<Map<String, dynamic>>;
+        expect(content, hasLength(2));
+        expect(content[0], equals({'type': 'text', 'text': 'compare '}));
+        expect(content[1]['type'], equals('image'));
+      });
+
+      // Nothing sendable is left once the placeholder is dropped, so the
+      // multimodal array would be text-only — which buys nothing over the bare
+      // string and must not become an empty array either.
+      test('falls back to plain text when only a missing attachment remains',
+          () {
+        final aguiMessages = convertToAgui([
+          TextMessage.fromParts(
+            id: 'msg-all-missing',
+            parts: const [
+              TextPart('look at this'),
+              MissingAttachmentPart(
+                reason: MissingAttachmentReason.remoteSource,
+              ),
+            ],
+          ),
+        ]);
+
+        final userMsg = aguiMessages[0] as UserMessage;
+        expect(userMsg.toJson()['content'], equals('look at this'));
+      });
+
       // An empty array makes the backend discard the user's turn entirely,
       // with no error anywhere — the one degenerate case that loses data.
       test('never serializes an empty content array', () {

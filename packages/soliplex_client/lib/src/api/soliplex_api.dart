@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:ag_ui/ag_ui.dart' hide CancelToken;
+import 'package:soliplex_client/src/api/agui_message_mapper.dart';
 import 'package:soliplex_client/src/api/mappers.dart';
 import 'package:soliplex_client/src/application/agui_event_processor.dart';
 import 'package:soliplex_client/src/application/citation_extractor.dart';
@@ -33,6 +34,59 @@ import 'package:soliplex_client/src/utils/url_builder.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 final Logger _logger = LogManager.instance.getLogger('soliplex_client.api');
+
+/// The user message that initiated a run, read from its persisted `run_input`
+/// because the backend never echoes the user's own turn as AG-UI events.
+///
+/// `text` is always the message's text. `parts` is set only when the message
+/// carried an attachment — an image, or a placeholder for one that could not be
+/// rebuilt — the only case where the ordered form says more than `text` alone.
+/// So a non-null `parts` always satisfies [TextMessage.fromParts].
+typedef _RunUserMessage = ({
+  String messageId,
+  List<MessagePart>? parts,
+  String text,
+});
+
+/// What a run's GET yielded: the AG-UI events the backend streamed, plus the
+/// user message that initiated the run, which those events never carry.
+///
+/// `events` is `List<Object?>` rather than `List<dynamic>` deliberately. Items
+/// must survive shape drift as *data* — the replay loop mints a drop tile for
+/// any non-Map entry — but `dynamic` would also switch off the static checking
+/// that forces each consumer to narrow before use, which is the one thing
+/// keeping that drift from becoming a runtime throw.
+typedef _RunPayload = ({
+  List<Object?> events,
+  _RunUserMessage? userMessage,
+});
+
+/// A run with nothing to replay. `events` is empty rather than null so the
+/// replay loop reads one shape either way.
+///
+/// Not a sentinel: records compare field-wise, so a run the backend genuinely
+/// returned empty can compare equal to this. What marks a run as missing is its
+/// `fetchError`, never a comparison against this value.
+const _RunPayload _noRunData = (
+  events: <Object?>[],
+  userMessage: null,
+);
+
+/// One run as replay sees it: its payload joined with the identity, fetch
+/// outcome, and server `created` time from the thread listing, in creation
+/// order.
+///
+/// Separate from [_RunPayload] because [_RunPayload] is what the run cache
+/// stores. A fetch outcome or a listing timestamp folded into it would be
+/// served again on the next open of the thread, long after it stopped being
+/// true.
+typedef _ReplayRun = ({
+  String runId,
+  _RunPayload payload,
+  SoliplexException? fetchError,
+  StackTrace? fetchStackTrace,
+  DateTime? created,
+});
 
 /// API client for Soliplex backend CRUD operations.
 ///
@@ -81,16 +135,18 @@ class SoliplexApi {
   /// LRU cache for run events. Completed runs are immutable, so safe to cache.
   /// Uses insertion order - oldest entries are at the front.
   ///
-  /// Cached as `List<dynamic>` so a backend that emits non-Map items
-  /// (shape drift) round-trips through the cache without throwing on
-  /// access; the replay loop in [_replayEventsToHistory] mints a drop
-  /// tile for any non-Map item it encounters.
-  final _runEventsCache = <String, List<dynamic>>{};
+  /// The reconstructed user message rides the same entry rather than a parallel
+  /// map: a cache hit returns before [_fetchRunEvents] ever sees `run_input`
+  /// again, so parts kept anywhere else would be lost the second time a thread
+  /// is opened in one session. That also means an entry retains its message's
+  /// image bytes until it is evicted — past the close of the thread it belongs
+  /// to — and eviction counts entries, not bytes.
+  final _runEventsCache = <String, _RunPayload>{};
 
   String _runCacheKey(String threadId, String runId) => '$threadId:$runId';
 
   /// Adds to cache with LRU eviction.
-  void _cacheRunEvents(String key, List<dynamic> events) {
+  void _cacheRunEvents(String key, _RunPayload run) {
     // Remove if exists (to update position for LRU)
     _runEventsCache.remove(key);
 
@@ -99,16 +155,16 @@ class SoliplexApi {
       _runEventsCache.remove(_runEventsCache.keys.first);
     }
 
-    _runEventsCache[key] = events;
+    _runEventsCache[key] = run;
   }
 
   /// Gets from cache and updates LRU position.
-  List<dynamic>? _getCachedRunEvents(String key) {
-    final events = _runEventsCache.remove(key);
-    if (events != null) {
-      _runEventsCache[key] = events; // Re-add to move to end (most recent)
+  _RunPayload? _getCachedRunEvents(String key) {
+    final run = _runEventsCache.remove(key);
+    if (run != null) {
+      _runEventsCache[key] = run; // Re-add to move to end (most recent)
     }
-    return events;
+    return run;
   }
 
   // ============================================================
@@ -731,13 +787,17 @@ class SoliplexApi {
       }
       if (value['finished'] == null) continue;
       final rawRunId = value['run_id'];
-      if (rawRunId is! String) {
+      // Blank is rejected alongside the wrong type: a run id stands in for a
+      // missing message id below, where two runs sharing one would have the
+      // second's message dropped as a repeat.
+      if (rawRunId is! String || rawRunId.isEmpty) {
+        final got =
+            rawRunId is String ? 'an empty String' : '${rawRunId.runtimeType}';
         preFetchDrops.add(
           (
             runId: entry.key,
             error: MalformedResponseException(
-              message: 'Run entry ${entry.key} missing `run_id` (got '
-                  '${rawRunId.runtimeType})',
+              message: 'Run entry ${entry.key} missing `run_id` (got $got)',
             ),
           ),
         );
@@ -759,16 +819,30 @@ class SoliplexApi {
         cancelToken: cancelToken,
       )
           .then(
-        (events) => (runId: runId, events: events, fetchError: null as Object?),
+        (payload) => (
+          runId: runId,
+          payload: payload,
+          fetchError: null as SoliplexException?,
+          fetchStackTrace: null as StackTrace?,
+        ),
       )
           .catchError(
-        (Object e) {
+        // The stack is taken here because this is the only frame that has it;
+        // the replay loop logs the failure far from where it was thrown.
+        (Object e, StackTrace stackTrace) {
           // Log transient failure but continue with other runs. The
           // fetchError below carries the same exception into the replay
           // loop, which mints a drop tile so the run is visibly missing
           // rather than silently absent.
           _onWarning?.call('Failed to fetch events for run $runId: $e');
-          return (runId: runId, events: <dynamic>[], fetchError: e as Object?);
+          return (
+            runId: runId,
+            payload: _noRunData,
+            // Narrowed by `test` below to the two transient types, both
+            // SoliplexException subtypes.
+            fetchError: e as SoliplexException,
+            fetchStackTrace: stackTrace,
+          );
         },
         // Only catch transient errors - show partial results for batch ops:
         // - NetworkException: network blip, retry might succeed
@@ -785,21 +859,18 @@ class SoliplexApi {
     //    position by walking the original sort once.
     final fetchByRunId = {for (final r in results) r.runId: r};
     final preFetchByRunKey = {for (final d in preFetchDrops) d.runId: d.error};
-    final eventsPerRun = <({
-      String runId,
-      List<dynamic> events,
-      Object? fetchError,
-      DateTime? created,
-    })>[];
+    final runsToReplay = <_ReplayRun>[];
     for (final entry in _sortRunsByCreationTime(runs)) {
       final created = _runCreated(entry.value, entry.key, threadId);
       final preFetchError = preFetchByRunKey[entry.key];
       if (preFetchError != null) {
-        eventsPerRun.add(
+        runsToReplay.add(
           (
             runId: entry.key,
-            events: const <dynamic>[],
+            payload: _noRunData,
             fetchError: preFetchError,
+            // Built here, not thrown, so there is no stack worth carrying.
+            fetchStackTrace: null,
             created: created,
           ),
         );
@@ -812,32 +883,36 @@ class SoliplexApi {
       if (rawRunId is! String) continue;
       final fetched = fetchByRunId[rawRunId];
       if (fetched == null) continue;
-      eventsPerRun.add(
+      runsToReplay.add(
         (
           runId: rawRunId,
-          events: fetched.events,
+          payload: fetched.payload,
           fetchError: fetched.fetchError,
+          fetchStackTrace: fetched.fetchStackTrace,
           created: created,
         ),
       );
     }
 
     // 5. Replay events to reconstruct history (messages + AG-UI state)
-    return _replayEventsToHistory(eventsPerRun, threadId, documentFilter);
+    return _replayEventsToHistory(runsToReplay, threadId, documentFilter);
   }
 
   /// Fetches events for a single run, using cache for completed runs.
   ///
-  /// Returns events including synthetic user message events extracted from
-  /// run_input.messages. The backend stores user input separately from
-  /// streamed events, so we synthesize TEXT_MESSAGE events for them.
+  /// Returns the run's streamed events alongside the user message that
+  /// initiated it, read from `run_input` because the backend stores user input
+  /// separately and never echoes it as AG-UI events.
   ///
-  /// Returns `List<dynamic>` rather than `List<Map<String, dynamic>>`:
+  /// `events` is `List<Object?>` rather than `List<Map<String, dynamic>>`:
   /// shape drift on the wire (a non-Map item slipping into `events`)
   /// must reach [_replayEventsToHistory] as data, not throw at the cast
   /// site. The replay loop type-checks each item and mints a drop tile
   /// for non-Map entries.
-  Future<List<dynamic>> _fetchRunEvents(
+  ///
+  /// `events` not being a list at all is the one drift that cannot become a
+  /// drop tile — there is no item to mint one for — so it is logged instead.
+  Future<_RunPayload> _fetchRunEvents(
     String roomId,
     String threadId,
     String runId, {
@@ -855,40 +930,71 @@ class SoliplexApi {
       cancelToken: cancelToken,
     );
 
-    // Extract user messages from run_input and create synthetic events
-    final userMessageEvents = _extractUserMessageEvents(rawRun);
-
     final rawEvents = rawRun['events'];
-    final events = rawEvents is List ? rawEvents : const <dynamic>[];
-
-    // Combine: user message events first, then actual streamed events
-    final allEvents = <dynamic>[...userMessageEvents, ...events];
-    _cacheRunEvents(cacheKey, allEvents);
-    return allEvents;
+    if (rawEvents is! List && rawEvents != null) {
+      // Absent is normal for a run that streamed nothing; present-but-wrong-
+      // shape erases every reply the run produced, and this is the only place
+      // it is visible.
+      _logger.warning(
+        'replay: run $runId in thread $threadId has `events` as '
+        '${rawEvents.runtimeType}, not a list; the run replays as empty.',
+      );
+    }
+    final run = (
+      events: rawEvents is List ? rawEvents : const <Object?>[],
+      userMessage: _extractUserMessage(rawRun, threadId, runId),
+    );
+    _cacheRunEvents(cacheKey, run);
+    return run;
   }
 
-  /// Extracts the initiating user message from run_input and creates
-  /// synthetic events.
+  /// The user message that initiated the run [runId], read from `run_input`.
   ///
   /// Each run's `run_input.messages` contains the full conversation context,
   /// but only the last user message initiated THIS run. Prior user messages
   /// were already processed in earlier runs.
-  List<Map<String, dynamic>> _extractUserMessageEvents(
+  ///
+  /// Null when the run carries no user message to rebuild. That costs more than
+  /// the message itself — [_replayEventsToHistory] keys the turn's citations
+  /// and message state off its id — so every shape that reaches it by drift
+  /// rather than by absence is logged.
+  _RunUserMessage? _extractUserMessage(
     Map<String, dynamic> rawRun,
+    String threadId,
+    String runId,
   ) {
-    // Type-checked rather than cast: shape drift on `run_input` or
-    // `messages` should silently degrade to "no synthetic user message"
-    // rather than abort the run-level fetch.
+    // Type-checked rather than cast: shape drift here degrades to "no user
+    // message" rather than aborting the run-level fetch.
     final runInput = rawRun['run_input'];
-    if (runInput is! Map<String, dynamic>) return [];
+    if (runInput is! Map<String, dynamic>) {
+      // Absent is normal for a run the backend has not persisted input for;
+      // present-but-wrong-shape is drift only findable here.
+      if (runInput != null) {
+        _logger.warning(
+          'replay: run $runId in thread $threadId has `run_input` as '
+          '${runInput.runtimeType}, not an object; its user message is lost, '
+          'and with it the citations for that turn.',
+        );
+      }
+      return null;
+    }
 
     final rawMessages = runInput['messages'];
-    final messages = rawMessages is List ? rawMessages : const <dynamic>[];
+    if (rawMessages is! List) {
+      if (rawMessages != null) {
+        _logger.warning(
+          'replay: run $runId in thread $threadId has `run_input.messages` as '
+          '${rawMessages.runtimeType}, not a list; its user message is lost, '
+          'and with it the citations for that turn.',
+        );
+      }
+      return null;
+    }
 
     // Find the last user message — the one that initiated this run.
     Map<String, dynamic>? lastUserMessage;
-    for (var i = messages.length - 1; i >= 0; i--) {
-      final raw = messages[i];
+    for (var i = rawMessages.length - 1; i >= 0; i--) {
+      final raw = rawMessages[i];
       if (raw is! Map<String, dynamic>) continue;
       final role = raw['role'];
       if ((role is String ? role : 'user') == 'user') {
@@ -896,26 +1002,76 @@ class SoliplexApi {
         break;
       }
     }
-    if (lastUserMessage == null) return [];
+    if (lastUserMessage == null) {
+      if (rawMessages.isNotEmpty) {
+        _logger.warning(
+          'replay: run $runId in thread $threadId carries '
+          '${rawMessages.length} input message(s) but none from the user; '
+          'the turn has no citations or message state.',
+        );
+      }
+      return null;
+    }
 
-    final runId =
-        rawRun['run_id'] is String ? rawRun['run_id'] as String : 'unknown';
-    final id = lastUserMessage['id'] is String
-        ? lastUserMessage['id'] as String
-        : 'user-$runId';
-    final content = lastUserMessage['content'] is String
-        ? lastUserMessage['content'] as String
-        : '';
+    // A blank id is no more usable than a missing one: the append guard below
+    // reads a repeat as a continuation, so every blank-id turn in a thread
+    // would collapse onto the first. Both fall back to the run's own id, which
+    // the thread listing rejects unless it is a non-empty String — so two runs
+    // cannot collide on it.
+    final rawId = lastUserMessage['id'];
+    if (rawId is! String || rawId.isEmpty) {
+      _logger.warning(
+        'replay: the user message initiating run $runId in thread $threadId '
+        'has no usable id; keying it to the run instead.',
+      );
+    }
+    final id = rawId is String && rawId.isNotEmpty ? rawId : 'user-$runId';
+    final content = readUserMessageContent(
+      lastUserMessage['content'],
+      logContext: 'message $id in run $runId of thread $threadId',
+    );
 
-    return [
-      {'type': 'TEXT_MESSAGE_START', 'messageId': id, 'role': 'user'},
-      {
-        'type': 'TEXT_MESSAGE_CONTENT',
-        'messageId': id,
-        'delta': content,
-      },
-      {'type': 'TEXT_MESSAGE_END', 'messageId': id},
-    ];
+    return (messageId: id, parts: content.parts, text: content.text);
+  }
+
+  /// The domain message for [userMessage], stamped with [createdAt].
+  ///
+  /// A non-null `parts` already satisfies [TextMessage.fromParts], but that
+  /// holds only by the postcondition [readUserMessageContent] documents rather
+  /// than by anything a type enforces, so it is re-checked here. An escaping
+  /// `ArgumentError` would cost the whole thread's history, where the one
+  /// message is what is actually in doubt.
+  ///
+  /// Checked rather than caught: a rejection is a payload this method can
+  /// render around, while anything else that factory throws is a defect, and
+  /// catching would hide it for as long as it lives.
+  TextMessage _hydratedUserMessage(
+    _RunUserMessage userMessage,
+    DateTime? createdAt,
+    String threadId,
+    String runId,
+  ) {
+    final parts = userMessage.parts;
+    if (parts != null) {
+      if (parts.plainText.isNotEmpty || parts.hasAttachment) {
+        return TextMessage.fromParts(
+          id: userMessage.messageId,
+          parts: parts,
+          createdAt: createdAt,
+        );
+      }
+      _logger.error(
+        'replay: the ordered content of message ${userMessage.messageId} in '
+        'run $runId of thread $threadId carries neither an attachment nor any '
+        'text; rendering it as an empty message.',
+      );
+    }
+    return TextMessage.create(
+      id: userMessage.messageId,
+      user: ChatUser.user,
+      text: userMessage.text,
+      createdAt: createdAt,
+    );
   }
 
   /// The `document_filter` from the newest run that carries one in its
@@ -951,23 +1107,15 @@ class SoliplexApi {
   /// messages. Each run's citations are keyed by the user message ID that
   /// initiated that run.
   ThreadHistory _replayEventsToHistory(
-    List<
-            ({
-              String runId,
-              List<dynamic> events,
-              Object? fetchError,
-              DateTime? created,
-            })>
-        eventsPerRun,
+    List<_ReplayRun> runsToReplay,
     String threadId,
     String? documentFilter,
   ) {
-    if (eventsPerRun.isEmpty) {
+    if (runsToReplay.isEmpty) {
       return ThreadHistory(messages: const [], documentFilter: documentFilter);
     }
 
     var conversation = Conversation.empty(threadId: threadId);
-    var streaming = const AwaitingText() as StreamingState;
     final extractor = CitationExtractor();
     final messageStates = <String, MessageState>{};
     // Citations accumulated per turn (keyed by the run's last user message id),
@@ -976,17 +1124,38 @@ class SoliplexApi {
     // later invocation's `searches` clear.
     final turnsByUserMessage = <String, TurnCitations>{};
     final runs = <RunEventBundle>[];
+    // Text of the user messages already appended, keyed by id, so a
+    // continuation run does not add its parent's message a second time. An
+    // index of what this loop appended, rather than a scan of the whole
+    // conversation, so it cannot be confused by an assistant message that
+    // happens to share an id.
+    //
+    // The text is kept because a repeated id has two very different causes: a
+    // continuation run re-stating the turn it continues, or one id assigned to
+    // two different messages. Both drop the second message; only the first is
+    // harmless, and without the text they are indistinguishable.
+    final appendedUserText = <String, String>{};
 
-    for (final (:runId, :events, :fetchError, :created) in eventsPerRun) {
+    for (final (:runId, :payload, :fetchError, :fetchStackTrace, :created)
+        in runsToReplay) {
+      final events = payload.events;
+      final userMessage = payload.userMessage;
+      // Scoped to one run because each run is its own AG-UI stream. A run whose
+      // events lack RUN_FINISHED and RUN_ERROR alike leaves this mid-stream,
+      // and carrying that into the next run would let its terminal event commit
+      // the previous run's half-streamed text under the wrong run.
+      var streaming = const AwaitingText() as StreamingState;
       // Run-level fetch failure (transient HTTP error or pre-fetch
       // shape-drift on the run entry) → mint one drop tile in place so
       // the run is visibly missing from the timeline rather than
-      // silently absent. `events` may still be empty (transient failure)
-      // or non-empty if a future code path attaches partial data.
+      // silently absent. Such a run carries `_noRunData`, so there are no
+      // events to replay after it and no user message to append; the drop
+      // tile stands alone.
       if (fetchError != null) {
         _logger.error(
           'replay: run $runId in thread $threadId could not be fetched.',
           error: fetchError,
+          stackTrace: fetchStackTrace,
         );
         conversation = conversation.withAppendedMessage(
           DroppedEventMessage.create(
@@ -999,22 +1168,8 @@ class SoliplexApi {
         );
       }
 
-      // Find user message ID from LAST TEXT_MESSAGE_START with role=user.
-      // The run_input.messages contains ALL conversation messages, but the
-      // LAST user message is the one that initiated THIS run. Non-Map
-      // items are skipped here; the main loop below mints a drop tile
-      // for each.
-      String? userMessageId;
-      for (final eventJson in events) {
-        if (eventJson is! Map<String, dynamic>) continue;
-        if (eventJson['type'] != 'TEXT_MESSAGE_START') continue;
-        if (eventJson['role'] != 'user') continue;
-        final messageId = eventJson['messageId'];
-        if (messageId is String) {
-          userMessageId = messageId;
-          // Don't break - keep iterating to find the last one
-        }
-      }
+      // Keys this turn's citations and message state below.
+      final userMessageId = userMessage?.messageId;
 
       // The run-start event carries the server time the run began. Messages
       // without a timestamp of their own — chiefly the user message — resolve
@@ -1045,6 +1200,40 @@ class SoliplexApi {
         break;
       }
       final fallbackCreated = runStartedAt ?? created;
+
+      // The user message is appended ahead of the events it triggered, rather
+      // than folded from the stream, because the backend never sends it — the
+      // same shape the live path uses, where the caller seeds the message into
+      // the conversation before the stream opens.
+      //
+      // A run that could not be fetched has no user message to append, so its
+      // drop tile stands alone.
+      //
+      // A repeat id is normally a continuation run, whose `run_input` still
+      // ends with the user message its parent already contributed; the turn
+      // keeps one bubble and later runs fold their events onto it.
+      if (userMessage != null) {
+        final appended = appendedUserText[userMessage.messageId];
+        if (appended == null) {
+          appendedUserText[userMessage.messageId] = userMessage.text;
+          conversation = conversation.withAppendedMessage(
+            _hydratedUserMessage(userMessage, fallbackCreated, threadId, runId),
+          );
+        } else if (appended == userMessage.text) {
+          _logger.info(
+            'replay: run $runId in thread $threadId continues the turn of '
+            'message ${userMessage.messageId}; not appending it twice.',
+          );
+        } else {
+          // Same id, different message: one of the two turns is now missing
+          // from the transcript, and its citations are keyed onto the other.
+          _logger.error(
+            'replay: run $runId in thread $threadId reuses message id '
+            '${userMessage.messageId} for different text; the user message of '
+            'this run is dropped from the transcript.',
+          );
+        }
+      }
 
       // Per-event try/catch so one bad event can't abort replay.
       final decodedEvents = <BaseEvent>[];
