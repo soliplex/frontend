@@ -329,10 +329,7 @@ class _UserMessageBody extends StatelessWidget {
     );
   }
 
-  /// One attachment's tile in the row, over the number that names it.
-  ///
-  /// The number goes under the tile rather than over it: a badge legible at
-  /// 48 px covers roughly a third of the very thing the tile exists to show.
+  /// One attachment's tile in the row, badged with the number that names it.
   Widget _tile(
     BuildContext context,
     _Slot slot,
@@ -351,18 +348,13 @@ class _UserMessageBody extends StatelessWidget {
             onTap: () => _openBrowser(context, images, slot.imageIndex!),
           );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
       children: [
         tile,
-        Text(
-          '$number',
-          // Announced as part of the pill's description instead; read here too
-          // it would say the number twice for every attachment.
-          semanticsLabel: '',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+        Positioned(
+          top: 0,
+          left: 0,
+          child: _TileNumber(number: number, isError: part is! ImagePart),
         ),
       ],
     );
@@ -460,6 +452,49 @@ class _UserMessageBody extends StatelessWidget {
           decodeFailureChild: const FailedImage(
             label: _imageUnavailableLabel,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The number naming a tile, in its corner.
+///
+/// Over the image rather than captioned under it. A caption costs every row of
+/// attachments its own height, permanently, to keep a corner of a thumbnail
+/// clear — and the thumbnail is a tap target for the full-size browser rather
+/// than something to study, so that corner is cheap. It also puts a second row
+/// of digits directly above the pills carrying the same numbers, which reads as
+/// the layout having failed to join them up.
+///
+/// Painted in the pill's own colours, so the badge and the pill that says the
+/// same number read as one thing in two places. Opaque rather than a scrim over
+/// the image: at this size legibility cannot depend on what the photo happens
+/// to hold underneath.
+class _TileNumber extends StatelessWidget {
+  const _TileNumber({required this.number, required this.isError});
+
+  final int number;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
+      decoration: BoxDecoration(
+        color: isError ? colors.errorContainer : colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(context.radii.sm),
+      ),
+      child: Text(
+        '$number',
+        // The pill's description already announces the number; read here too, a
+        // screen reader would say it twice for every attachment.
+        semanticsLabel: '',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color:
+              isError ? colors.onErrorContainer : colors.onSecondaryContainer,
         ),
       ),
     );
