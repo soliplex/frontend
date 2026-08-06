@@ -2408,6 +2408,10 @@ class _RoomScreenState extends State<RoomScreen> {
   /// callbacks based on whether a [threadView] is active. Using one widget for
   /// both states keeps the [EditableText] element stable across the
   /// welcome → thread transition; see issue #212.
+  ///
+  /// Nothing here may carry a per-thread [Key]: that stability is the point,
+  /// and a key that changes with the thread throws it away. State that has to
+  /// be dropped on a thread change travels as a value instead.
   Widget _buildChatInput(
     ThreadViewState? threadView,
     Room? room,
@@ -2425,6 +2429,15 @@ class _RoomScreenState extends State<RoomScreen> {
     }
 
     return ChatInput(
+      // The composer's transient state belongs to the thread it is composing
+      // for, and what the composer is saying about that state is held in widget
+      // state, so a notice about a pick made into one thread would otherwise
+      // sit above another. The controller is cleared when a thread is entered
+      // but not when one is left for the welcome composer, so in that direction
+      // the draft and its images outlive the notice explaining them. Passed as
+      // a value rather than as a `key` so the composer is not re-inflated — see
+      // [ChatInput.composerScope] for what that would cost.
+      composerScope: (_serverId, widget.roomId, threadView?.threadId),
       onSend: (parts) {
         if (threadView != null) {
           threadView.sendMessage(
