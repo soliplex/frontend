@@ -91,9 +91,10 @@ Message _convertTextMessage(TextMessage message, int attachmentsBefore) {
 /// reason the bubble shows the user that it happened.
 ///
 /// Each image is introduced by a text block naming it, numbered from
-/// [attachmentsBefore] so the numbering runs across the thread rather than
-/// restarting here. That label is the only thing the model can be given to
-/// refer to one image by: an image block carries no name on any provider.
+/// `attachmentsBefore + 1` so the numbering runs across the thread rather than
+/// restarting here. That label is how the model is given something to refer to
+/// one image by: AG-UI's image block has no name field, and nothing in the
+/// chain turns one into something a model reads.
 List<InputContent>? _multimodalParts(
   List<MessagePart>? parts,
   int attachmentsBefore,
@@ -111,18 +112,18 @@ List<InputContent>? _multimodalParts(
       case ImagePart():
         hasSendablePart = true;
         number++;
-        // No provider carries a name on an image block, so the only way to
-        // give the model a handle for one is a text block beside it. This is
-        // the form Anthropic's vision guide documents.
+        // The handle the model is given for this image. It has to be a text
+        // block: an image block carries no name of its own. This is the form
+        // Anthropic's vision guide documents.
         content
           ..add(TextInputContent(_imageLabel(number)))
           ..add(_imageContent(part, number));
       case MissingAttachmentPart():
         // Spends its number and sends nothing, not even a note that it is
-        // gone. A label is absolute, so the gap costs nothing: asked about a
-        // number no label carries, the model can only say it has no such
-        // image, which is true. Announcing the absence instead would invite it
-        // to infer what it cannot see from the surrounding text.
+        // gone. A label is absolute, so a gap in the sequence costs nothing:
+        // a number no label carries has nothing behind it for the model to
+        // reason from. Announcing the absence instead would give it something
+        // to infer about an image it cannot see.
         number++;
         continue;
     }
@@ -138,9 +139,13 @@ List<InputContent>? _multimodalParts(
 String _imageLabel(int number) => 'Image $number:';
 
 /// Key under which an image block carries its number, for this client's own
-/// use. No provider surfaces block metadata to a model, so this is not how the
-/// number is communicated — [_imageLabel] is. Its job is to let a replay know
-/// which label this client generated.
+/// use on the way back in. Nothing in the chain shows block metadata to a
+/// model, so this is not how the number is communicated — [_imageLabel] is.
+/// Its job is to let a replay recognise which label this client wrote.
+///
+/// Deliberately a top-level key rather than under `vendor_metadata`, which
+/// pydantic_ai forwards to the provider — a number there would be sent to the
+/// model's API and can be rejected.
 const String _imageNumberKey = 'soliplex_image_number';
 
 ImageInputContent _imageContent(ImagePart part, int number) =>
@@ -152,28 +157,58 @@ ImageInputContent _imageContent(ImagePart part, int number) =>
       metadata: <String, Object?>{_imageNumberKey: number},
     );
 
-/// The number an image block was sent with, or null for one this client did not
-/// number — a message from before images were numbered, or another client's.
+/// The number an image block was sent with, or null for a block this client did
+/// not write — another client's — or one whose metadata did not survive the
+/// round trip, in which case [_dropLabelFor] reports the label it cannot
+/// reclaim.
 int? _imageNumberOf(Object? metadata) {
   if (metadata is! Map) return null;
   final value = metadata[_imageNumberKey];
   return value is num ? value.toInt() : null;
 }
 
-/// Takes back the label [_multimodalParts] wrote before the image now being
-/// read, so a replay rebuilds the parts the user actually composed.
+/// The number on a content item this client could not decode into a part.
+///
+/// The metadata is plain JSON and survives whatever made the rest of the item
+/// unreadable, so the label written beside it can still be recognised.
+int? _rawImageNumber(Object? item) =>
+    item is Map ? _imageNumberOf(item['metadata']) : null;
+
+/// Takes back the label [_multimodalParts] wrote before the attachment now
+/// being read, so a replay rebuilds the parts the user actually composed.
 ///
 /// The backend keeps what was sent, so without this the label returns as a text
 /// run of the user's, renders in their sentence, and is labelled again on the
-/// next send. Matching on the number the block itself carries is what makes
-/// removing it safe: a bare search for `Image 8:` would eat the same words
-/// typed by a user who happened to write them.
-void _dropLabelFor(List<MessagePart> parts, int? number) {
-  if (number == null || parts.isEmpty) return;
-  final previous = parts.last;
+/// next send.
+///
+/// Matching on the number the block carries, rather than on the label's shape,
+/// is what makes this correct: the number a block was *sent* with is the number
+/// the model has been using for it, and it need not equal one recomputed from
+/// the message's present shape. The block's own number is the only record of
+/// what was said.
+///
+/// A block this client numbered but whose label is gone is a fault, not a shape
+/// to degrade over — either the metadata or the label failed to survive the
+/// round trip, and the consequence compounds silently: the orphaned label reads
+/// as the user's words, and the next send writes a second one beside it. Logged
+/// so it is found once rather than puzzled over later.
+void _dropLabelFor(
+  List<MessagePart> parts,
+  int? number,
+  String logContext,
+) {
+  if (number == null) return;
+  final previous = parts.isEmpty ? null : parts.last;
   if (previous is TextPart && previous.text == _imageLabel(number)) {
     parts.removeLast();
+    return;
   }
+  _logger.error(
+    'An attachment in $logContext was sent as image $number, but the part '
+    'before it is ${previous.runtimeType} rather than the label it was sent '
+    "with. The label will read as the message's own text and the attachment "
+    'will be labelled twice on the next send.',
+  );
 }
 
 /// Reads a user message's wire `content` back into the domain — the inbound
@@ -266,6 +301,10 @@ void _dropLabelFor(List<MessagePart> parts, int? number) {
     if (decoded == null) {
       // Undecodable as a part at all, so its kind is unknown too — but it
       // occupied a slot, and saying so beats leaving a hole in the message.
+      // Its metadata can still be legible even when the rest of it is not, and
+      // a number there means the run before it is a label of ours: it has to
+      // come back out whether or not the attachment itself survived.
+      _dropLabelFor(parts, _rawImageNumber(content[i]), logContext);
       parts.add(
         const MissingAttachmentPart(
           reason: MissingAttachmentReason.undecodable,
@@ -277,7 +316,7 @@ void _dropLabelFor(List<MessagePart> parts, int? number) {
       case TextInputContent(:final text):
         parts.add(TextPart(text));
       case ImageInputContent(:final source, :final metadata):
-        _dropLabelFor(parts, _imageNumberOf(metadata));
+        _dropLabelFor(parts, _imageNumberOf(metadata), logContext);
         parts.add(_readImageSource(source, i, logContext));
       // Explicit arms rather than a default: a new content type upstream should
       // be a compile error here, not a silently dropped attachment. The media

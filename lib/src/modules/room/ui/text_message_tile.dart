@@ -35,7 +35,7 @@ const double _attachmentTileSize = 48;
 /// clears that for anything narrower than ~40:9. Costs at most ~1.6 MB of RGBA
 /// (a square 640×640), against ~48 MB for an unbounded 12 MP photo — and the
 /// timeline is a scrolling list, so that cost repeats per image on screen.
-const int _inlineDecodeExtent = 640;
+const int _tileDecodeExtent = 640;
 
 /// Long-edge bound on a full-size page's decode in the zoom browser, which
 /// `showZoomableMediaDialog` bounds to a fixed max width and a fraction of the
@@ -237,9 +237,38 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// One attachment, as the two places it appears: a tile in the row above the
-/// text, and a pill at its position in the sentence.
-typedef _Slot = ({MessagePart part, int? imageIndex});
+/// One attachment in a message, carrying the number that names it.
+///
+/// Sealed rather than a record with a nullable index: "an image has a page in
+/// the browser, an unshowable slot does not" is the rule every consumer needs,
+/// and a nullable field states it in a way the compiler cannot check — leaving
+/// each reader to re-derive it with a cast.
+sealed class _Slot {
+  const _Slot(this.number);
+
+  /// This attachment's number in the thread — what the badge and the pill show,
+  /// and what the model was told to call it.
+  final int number;
+}
+
+/// An attachment whose bytes are here.
+final class _ImageSlot extends _Slot {
+  const _ImageSlot(super.number, this.image, this.page);
+
+  final ImagePart image;
+
+  /// Where this image sits in the zoom browser, which pages over decodable
+  /// images alone. Not [number]: a slot that cannot be shown takes a number and
+  /// no page, so the two diverge from that point on.
+  final int page;
+}
+
+/// An attachment the message was sent with that cannot be shown.
+final class _MissingSlot extends _Slot {
+  const _MissingSlot(super.number, this.part);
+
+  final MissingAttachmentPart part;
+}
 
 /// A user message's ordered parts as a row of attachment tiles over the text
 /// that was written around them.
@@ -251,10 +280,10 @@ typedef _Slot = ({MessagePart part, int? imageIndex});
 /// instead, which is also what keeps the runs either side of it from becoming
 /// adjacent: the text is reproduced exactly as written, with no gap to repair.
 ///
-/// Tiles and pills are both in part order, so the *n*th pill is the *n*th tile.
-/// Nothing is numbered — a digit would have to resolve against a badge on the
-/// tile to mean anything, and at 48 px a legible badge covers the image it sits
-/// on.
+/// Every attachment is numbered across the thread and shows that number twice —
+/// badged on its tile and carried by its pill — so a reader can name one in
+/// conversation. It is the number the model was given for the same image, which
+/// is what makes naming it work.
 ///
 /// The tile is a tap target rather than a preview; tapping opens the full-size
 /// browser, which is what answers "did I attach the right one".
@@ -273,22 +302,22 @@ class _UserMessageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Slot order is attachment order; `imageIndex` is the pager's, which counts
-    // images alone. A missing attachment makes the two diverge.
     final slots = <_Slot>[];
-    var imageIndex = 0;
+    var page = 0;
     for (final part in parts) {
+      final number = attachmentsBefore + slots.length + 1;
       switch (part) {
         case ImagePart():
-          slots.add((part: part, imageIndex: imageIndex++));
+          slots.add(_ImageSlot(number, part, page++));
         case MissingAttachmentPart():
-          slots.add((part: part, imageIndex: null));
+          slots.add(_MissingSlot(number, part));
         case TextPart():
           break;
       }
     }
-    final images = parts.whereType<ImagePart>().toList();
+    final imageSlots = slots.whereType<_ImageSlot>().toList();
 
+    var hasText = false;
     final spans = <InlineSpan>[];
     var slotIndex = 0;
     for (final part in parts) {
@@ -297,14 +326,10 @@ class _UserMessageBody extends StatelessWidget {
           // Empty runs are dropped on the way out too, so the bubble does not
           // render a span the model never received.
           if (text.isEmpty) continue;
+          hasText = true;
           spans.add(TextSpan(text: text));
         case ImagePart() || MissingAttachmentPart():
-          final slot = slots[slotIndex];
-          spans.add(
-            _pillSpan(
-              _pill(context, slot, attachmentsBefore + slotIndex + 1, images),
-            ),
-          );
+          spans.add(_pillSpan(_pill(context, slots[slotIndex], imageSlots)));
           slotIndex++;
       }
     }
@@ -319,34 +344,29 @@ class _UserMessageBody extends StatelessWidget {
             spacing: SoliplexSpacing.s2,
             runSpacing: SoliplexSpacing.s2,
             children: [
-              for (final (index, slot) in slots.indexed)
-                _tile(context, slot, attachmentsBefore + index + 1, images),
+              for (final slot in slots) _tile(context, slot, imageSlots),
             ],
           ),
-        if (spans.isNotEmpty)
-          Text.rich(TextSpan(children: spans), style: style),
+        // A pill holds an attachment's place in a sentence. With nothing
+        // written around them there is no sentence to hold a place in, and a
+        // row of pills under the tiles they name would be the same row twice.
+        if (hasText) Text.rich(TextSpan(children: spans), style: style),
       ],
     );
   }
 
   /// One attachment's tile in the row, badged with the number that names it.
-  Widget _tile(
-    BuildContext context,
-    _Slot slot,
-    int number,
-    List<ImagePart> images,
-  ) {
-    final part = slot.part;
-    final tile = part is! ImagePart
-        ? _AttachmentTileUnavailable(
-            label: _missingLabel(part as MissingAttachmentPart),
-          )
-        : _AttachmentTile(
-            image: part,
-            label: _imageLabel(slot.imageIndex!, images.length),
-            logSource: _imageLogSource(slot.imageIndex!),
-            onTap: () => _openBrowser(context, images, slot.imageIndex!),
-          );
+  Widget _tile(BuildContext context, _Slot slot, List<_ImageSlot> imageSlots) {
+    final tile = switch (slot) {
+      _MissingSlot(:final part) =>
+        _AttachmentTileUnavailable(label: _missingLabel(part)),
+      _ImageSlot(:final image, :final page, :final number) => _AttachmentTile(
+          image: image,
+          label: 'Image $number',
+          logSource: _imageLogSource(page),
+          onTap: () => _openBrowser(context, imageSlots, page),
+        ),
+    };
 
     return Stack(
       children: [
@@ -354,7 +374,16 @@ class _UserMessageBody extends StatelessWidget {
         Positioned(
           top: 0,
           left: 0,
-          child: _TileNumber(number: number, isError: part is! ImagePart),
+          // A `Stack` hit-tests children in reverse paint order and a
+          // `RenderParagraph` always reports a hit, so without this the digits
+          // swallow taps that should reach the tile's `InkWell` — a dead patch
+          // in a 48 px target, right where the badge draws the eye.
+          child: IgnorePointer(
+            child: _TileNumber(
+              number: slot.number,
+              isError: slot is _MissingSlot,
+            ),
+          ),
         ),
       ],
     );
@@ -368,29 +397,24 @@ class _UserMessageBody extends StatelessWidget {
   Widget _pill(
     BuildContext context,
     _Slot slot,
-    int number,
-    List<ImagePart> images,
-  ) {
-    final part = slot.part;
-    if (part is! ImagePart) {
-      // Error-toned so a slot the message was sent with but cannot show is
-      // noticed rather than skimmed past — it is small, and the sentence around
-      // it reads normally, so nothing else marks it.
-      return AttachmentPill.error(
-        icon: Icons.broken_image_outlined,
-        label: '$number',
-        description:
-            'Image $number. ${_missingLabel(part as MissingAttachmentPart)}',
-      );
-    }
-    final index = slot.imageIndex!;
-    return AttachmentPill(
-      icon: Icons.image_outlined,
-      label: '$number',
-      description: 'Image $number. ${_imageLabel(index, images.length)}',
-      onTap: () => _openBrowser(context, images, index),
-    );
-  }
+    List<_ImageSlot> imageSlots,
+  ) =>
+      switch (slot) {
+        // Error-toned so a slot the message was sent with but cannot show is
+        // noticed rather than skimmed past — it is small, and the sentence
+        // around it reads normally, so nothing else marks it.
+        _MissingSlot(:final part, :final number) => AttachmentPill.error(
+            icon: Icons.broken_image_outlined,
+            label: '$number',
+            description: 'Image $number. ${_missingLabel(part)}',
+          ),
+        _ImageSlot(:final page, :final number) => AttachmentPill(
+            icon: Icons.image_outlined,
+            label: '$number',
+            description: 'Image $number',
+            onTap: () => _openBrowser(context, imageSlots, page),
+          ),
+      };
 
   /// Wraps a pill as an inline span.
   ///
@@ -410,9 +434,6 @@ class _UserMessageBody extends StatelessWidget {
           ),
         ),
       );
-
-  String _imageLabel(int index, int count) =>
-      'Attached image ${index + 1} of $count';
 
   /// Names what is missing rather than only that something is, so a screen
   /// reader distinguishes a broken image from a kind of file this app cannot
@@ -435,17 +456,24 @@ class _UserMessageBody extends StatelessWidget {
   /// Opens every image in the message, starting at the tapped one, in the
   /// app's shared zoom browser — so a photo that arrived sideways can be
   /// rotated and read.
-  void _openBrowser(BuildContext context, List<ImagePart> images, int index) {
+  void _openBrowser(
+    BuildContext context,
+    List<_ImageSlot> imageSlots,
+    int page,
+  ) {
     showZoomableMediaDialog(
       context,
       viewer: PagedZoomableImages(
-        itemCount: images.length,
-        initialIndex: index,
+        itemCount: imageSlots.length,
+        initialIndex: page,
         autofocus: true,
         pageBuilder: (context, i, rotation) => ZoomableImage.controlledRotation(
-          bytes: images[i].bytes,
+          bytes: imageSlots[i].image.bytes,
           maxDecodeExtent: _zoomDecodeExtent,
-          semanticLabel: _imageLabel(i, images.length),
+          // The thread's number, not the page. This is where someone decides
+          // what to ask about, so the name they read here has to be the one
+          // the model answers to.
+          semanticLabel: 'Image ${imageSlots[i].number}',
           logSource: _imageLogSource(i),
           rotationQuarterTurns: rotation.quarterTurns,
           onRotate: rotation.onRotate,
@@ -480,21 +508,20 @@ class _TileNumber extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
-      decoration: BoxDecoration(
-        color: isError ? colors.errorContainer : colors.secondaryContainer,
-        borderRadius: BorderRadius.circular(context.radii.sm),
-      ),
-      child: Text(
-        '$number',
-        // The pill's description already announces the number; read here too, a
-        // screen reader would say it twice for every attachment.
-        semanticsLabel: '',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color:
-              isError ? colors.onErrorContainer : colors.onSecondaryContainer,
+    final tone = attachmentToneColors(theme.colorScheme, isError: isError);
+    return ExcludeSemantics(
+      // The tile underneath already announces this image by the same number, so
+      // contributing the bare digit here would only have it read twice. An
+      // empty `semanticsLabel` would leave a node behind rather than none.
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
+        decoration: BoxDecoration(
+          color: tone.background,
+          borderRadius: BorderRadius.circular(context.radii.sm),
+        ),
+        child: Text(
+          '$number',
+          style: theme.textTheme.labelSmall?.copyWith(color: tone.foreground),
         ),
       ),
     );
@@ -502,7 +529,7 @@ class _TileNumber extends StatelessWidget {
 }
 
 /// Stands in for an attachment that cannot be shown, filling the same 48 px
-/// slot as a thumbnail so the sentence does not reflow.
+/// slot as a thumbnail so the tile row does not go ragged around it.
 ///
 /// Serves both losses that reach the bubble: an attachment history could not
 /// rebuild, and an image whose bytes reached the widget but would not decode.
@@ -514,8 +541,8 @@ class _TileNumber extends StatelessWidget {
 /// The glyph alone says only that something is missing, and it looks the same
 /// whichever loss produced it, so [label] is carried two ways: as the screen
 /// reader's announcement, and as a tooltip for everyone else — on hover on a
-/// pointer, on long-press on a touch screen. There is no room to render it
-/// inline without breaking the sentence the slot sits in.
+/// pointer, on long-press on a touch screen. A tile is 48 px square, with no
+/// room to render it.
 class _AttachmentTileUnavailable extends StatelessWidget {
   const _AttachmentTileUnavailable({required this.label});
 
@@ -552,8 +579,9 @@ class _AttachmentTileUnavailable extends StatelessWidget {
   }
 }
 
-/// One attached image, inline in the bubble's text. Tapping opens the full-size
-/// browser; a decode failure shows a broken-image fallback in the same slot.
+/// One attached image, as a tile in the row above the message text. Tapping
+/// opens the full-size browser; a decode failure shows a broken-image fallback
+/// in the same slot.
 class _AttachmentTile extends StatelessWidget {
   const _AttachmentTile({
     required this.image,
@@ -579,11 +607,11 @@ class _AttachmentTile extends StatelessWidget {
         borderRadius: radius,
         child: Image(
           // `ResizeImagePolicy.fit` bounds the *long* edge, unlike `.exact`,
-          // so a tall image is capped too — see `_inlineDecodeExtent`.
+          // so a tall image is capped too — see `_tileDecodeExtent`.
           image: ResizeImage(
             MemoryImage(image.bytes),
-            width: _inlineDecodeExtent,
-            height: _inlineDecodeExtent,
+            width: _tileDecodeExtent,
+            height: _tileDecodeExtent,
             policy: ResizeImagePolicy.fit,
           ),
           width: _attachmentTileSize,

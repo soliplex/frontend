@@ -67,8 +67,9 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   exactly as it was typed and the order the images were placed in stays visible.
   The marker is text-scale deliberately — a thumbnail set into a line of body
   text makes that one line as tall as the picture, which breaks the paragraph
-  around it. Thumbnails and markers are both in the order the message was
-  written, so the nth marker is the nth thumbnail. Tapping either a thumbnail or
+  around it. A message carrying attachments and no text of its own shows the
+  thumbnails alone — with no sentence to hold a place in, markers would be the
+  same row twice. Tapping either a thumbnail or
   its marker opens every image in that message in the zoomable browser, starting
   at the one tapped, so a photo that arrived sideways can be rotated. An image
   whose bytes will not decode, and an attachment that could not be rebuilt at
@@ -80,8 +81,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Attached images are numbered, so one can be referred to in conversation —
   "what does the sign in image 7 say?". The number runs across the whole thread
   rather than restarting each message, so it names one image for as long as the
-  thread lasts, and it appears both under the thumbnail and on the marker in the
-  sentence. The same number is sent to the model as a short text label beside
+  thread lasts, and it appears both as a badge on the thumbnail and on the
+  marker in the sentence. The same number is sent to the model as a short text label beside
   each image, which is the only way to name one: no provider carries a name on
   an image block itself. An attachment that cannot be shown still spends its
   number, so nothing after it is renumbered into a number already used, and it

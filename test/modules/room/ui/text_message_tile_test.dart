@@ -318,29 +318,25 @@ void main() {
       expect(find.byType(Image), findsOneWidget);
     });
 
-    // The pill exists to occupy the slot, which is what stops the runs either
-    // side of an attachment becoming adjacent. Hoisting the image without one
-    // would join 'this image' to '?' and leave the render repairing whitespace
-    // it did not author.
-    testWidgets('reproduces the text runs verbatim, repairing no whitespace',
+    // Tapping the badge must reach the tile beneath it. A `Stack` hit-tests in
+    // reverse paint order and a `RenderParagraph` always reports a hit, so
+    // without an `IgnorePointer` the digits are a dead patch in the middle of a
+    // 48 px tap target.
+    testWidgets('tapping the number badge still opens the image',
         (tester) async {
-      await tester.pumpWidget(tile([
-        const TextPart('what do you see in this image '),
-        image(),
-        const TextPart(' ?'),
-      ]));
+      await tester.pumpWidget(tile([const TextPart('look '), image()]));
 
-      final children = bubbleSpan(tester).children!;
-      expect(children, hasLength(3));
-      expect(
-        (children[0] as TextSpan).text,
-        equals('what do you see in this image '),
+      // The badge sits in the tile's top-left corner.
+      await tester.tapAt(
+        tester.getTopLeft(find.byType(Image)) + const Offset(6, 6),
       );
-      expect((children[2] as TextSpan).text, equals(' ?'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PagedZoomableImages), findsOneWidget);
     });
 
-    // Order is the whole cross-reference: nothing is numbered, so the nth pill
-    // is the nth tile only if a slot that cannot be shown still takes both.
+    // Order is the whole cross-reference: the nth pill is the nth tile only if
+    // a slot that cannot be shown still takes both.
     testWidgets('gives a missing attachment a tile and a pill like any other',
         (tester) async {
       await tester.pumpWidget(tile([
@@ -382,6 +378,7 @@ void main() {
     // it, so the image after it is not renumbered into a number already used.
     testWidgets('a missing attachment spends its number', (tester) async {
       await tester.pumpWidget(tile([
+        const TextPart('compare '),
         image(),
         const MissingAttachmentPart(
           reason: MissingAttachmentReason.remoteSource,
@@ -392,6 +389,19 @@ void main() {
       expect(find.text('1'), findsNWidgets(2));
       expect(find.text('2'), findsNWidgets(2));
       expect(find.text('3'), findsNWidgets(2));
+    });
+
+    // A pill holds an attachment's place in a sentence. With nothing written
+    // around them there is no sentence, and pills under the tiles they name
+    // would be the same row twice.
+    testWidgets('an attachment-only message renders no pills', (tester) async {
+      await tester.pumpWidget(tile([image(), image()]));
+
+      expect(find.byType(AttachmentPill), findsNothing);
+      // The tiles and their badges still render.
+      expect(find.byType(Image), findsNWidgets(2));
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
     });
 
     // The pill is small and the sentence around it reads normally, so its
