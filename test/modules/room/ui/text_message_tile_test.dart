@@ -278,9 +278,10 @@ void main() {
       '//8/AwAI/AL+XJ/PIAAAAABJRU5ErkJggg==',
     );
 
-    ImagePart image() => ImagePart(bytes: pngBytes, mimeType: 'image/png');
+    ImagePart image({int? number}) =>
+        ImagePart(bytes: pngBytes, mimeType: 'image/png', number: number);
 
-    Widget tile(List<MessagePart> parts, {int attachmentsBefore = 0}) => _wrap(
+    Widget tile(List<MessagePart> parts) => _wrap(
           TextMessageTile(
             roomId: 'r',
             message: TextMessage.fromParts(
@@ -288,7 +289,6 @@ void main() {
               parts: parts,
               createdAt: DateTime(2026),
             ),
-            attachmentsBefore: attachmentsBefore,
           ),
         );
 
@@ -356,21 +356,29 @@ void main() {
       expect(find.byIcon(Icons.broken_image), findsOneWidget);
     });
 
-    // A number is only worth showing if it is the same one the model was told,
-    // so it has to continue the thread's sequence rather than start at 1 in
-    // every message.
-    testWidgets('numbers attachments from the thread, not from one',
-        (tester) async {
-      await tester.pumpWidget(
-        tile(
-          [const TextPart('compare '), image(), image()],
-          attachmentsBefore: 6,
-        ),
-      );
+    // The number is the one the part carries, not one worked out from where it
+    // sits — the same number the model was told, whatever the message's shape
+    // has become since.
+    testWidgets('shows the number each attachment carries', (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('compare '),
+        image(number: 7),
+        image(number: 8),
+      ]));
 
-      // Once under the tile, once in the pill, for each of the two.
+      // Once badged on the tile, once in the pill, for each of the two.
       expect(find.text('7'), findsNWidgets(2));
       expect(find.text('8'), findsNWidgets(2));
+      expect(find.text('1'), findsNothing);
+    });
+
+    // History from before attachments were named carries no number, and there
+    // is none to show: the model has never been told a name for it either.
+    testWidgets('shows no number for an attachment that has none',
+        (tester) async {
+      await tester.pumpWidget(tile([const TextPart('look '), image()]));
+
+      expect(find.byType(AttachmentPill), findsOneWidget);
       expect(find.text('1'), findsNothing);
     });
 
@@ -379,11 +387,12 @@ void main() {
     testWidgets('a missing attachment spends its number', (tester) async {
       await tester.pumpWidget(tile([
         const TextPart('compare '),
-        image(),
+        image(number: 1),
         const MissingAttachmentPart(
           reason: MissingAttachmentReason.remoteSource,
+          number: 2,
         ),
-        image(),
+        image(number: 3),
       ]));
 
       expect(find.text('1'), findsNWidgets(2));
@@ -395,7 +404,7 @@ void main() {
     // around them there is no sentence, and pills under the tiles they name
     // would be the same row twice.
     testWidgets('an attachment-only message renders no pills', (tester) async {
-      await tester.pumpWidget(tile([image(), image()]));
+      await tester.pumpWidget(tile([image(number: 1), image(number: 2)]));
 
       expect(find.byType(AttachmentPill), findsNothing);
       // The tiles and their badges still render.

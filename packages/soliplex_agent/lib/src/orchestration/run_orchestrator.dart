@@ -801,6 +801,17 @@ class RunOrchestrator {
     );
   }
 
+  /// The highest attachment number already handed out in [messages].
+  int _highestAttachmentNumber(List<ChatMessage> messages) {
+    var highest = 0;
+    for (final message in messages) {
+      if (message is! TextMessage) continue;
+      final number = message.parts?.highestAttachmentNumber;
+      if (number != null && number > highest) highest = number;
+    }
+    return highest;
+  }
+
   Conversation _buildConversation(
     ThreadKey key,
     List<MessagePart> userMessage,
@@ -808,6 +819,14 @@ class RunOrchestrator {
     Map<String, dynamic>? stateOverlay,
   ) {
     final priorMessages = cachedHistory?.messages ?? <ChatMessage>[];
+    // Attachments are named here, once, and carry that name for the rest of the
+    // thread. Counting from one past the highest already handed out — rather
+    // than from how many there are — is what keeps a name unique: an attachment
+    // that stopped being sent leaves a gap, and reusing its number would point
+    // an earlier answer at a different picture.
+    final numbered = userMessage.numberedFrom(
+      _highestAttachmentNumber(priorMessages) + 1,
+    );
     // No authoritative time exists at submit — the run has no server time yet —
     // so the optimistic echo starts without one (createdAt: null, the default).
     // It is stamped with the run's server start time when RunStartedEvent
@@ -816,7 +835,7 @@ class RunOrchestrator {
     // a unique id.
     final userMsg = TextMessage.fromParts(
       id: 'user-${DateTime.now().microsecondsSinceEpoch}',
-      parts: userMessage,
+      parts: numbered,
     );
     // Seeding with the run-scoped keys emptied is what makes a namespace's
     // non-empty `citations` in the run's terminal snapshot definitionally this
