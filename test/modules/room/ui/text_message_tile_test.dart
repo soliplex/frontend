@@ -359,6 +359,21 @@ void main() {
       expect(find.byIcon(Icons.broken_image), findsOneWidget);
     });
 
+    // The pill is small and the sentence around it reads normally, so its
+    // colour is the only thing marking a slot the message carried but cannot
+    // show. A neutral one skims past.
+    testWidgets('a missing attachment is marked as an error', (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('listen to '),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.remoteSource,
+        ),
+      ]));
+
+      final pill = tester.widget<AttachmentPill>(find.byType(AttachmentPill));
+      expect(pill.isError, isTrue);
+    });
+
     // Pill position counts attachments; the pager counts images. A missing
     // attachment between them makes those diverge — slot 3 is page 2 — so an
     // off-by-one that opened the wrong photo cannot pass here.
