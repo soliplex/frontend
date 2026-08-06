@@ -6,6 +6,7 @@ import '../../../shared/failed_image.dart';
 import '../../../shared/zoomable_image.dart';
 import '../../../shared/zoomable_view.dart';
 import '../execution_tracker.dart';
+import 'attachment_pill.dart';
 import 'citations_section.dart';
 import 'copy_button.dart';
 import 'execution/phase_indicator.dart';
@@ -23,14 +24,14 @@ import 'package:soliplex_design/soliplex_design.dart';
 final _logger =
     LogManager.instance.getLogger('soliplex_frontend.text_message_tile');
 
-/// Side of an attached image's inline thumbnail. Sized as a tap target — it is
-/// what opens the full-size browser — so it sits at the 48 px platform minimum.
-/// A component dimension, off the spacing scale.
-const double _inlineImageSize = 48;
+/// Side of an attachment's thumbnail in the row above a message. Sized as a tap
+/// target — it is what opens the full-size browser — so it sits at the 48 px
+/// platform minimum. A component dimension, off the spacing scale.
+const double _attachmentTileSize = 48;
 
-/// Long-edge bound on an inline thumbnail's *decode*. `BoxFit.cover` in a 48 px
-/// box fills from the short edge, which needs
-/// `_inlineImageSize * devicePixelRatio` ≈ 144 px at dpr 3; a 640 long edge
+/// Long-edge bound on a tile's *decode*. `BoxFit.cover` in a 48 px box fills
+/// from the short edge, which needs
+/// `_attachmentTileSize * devicePixelRatio` ≈ 144 px at dpr 3; a 640 long edge
 /// clears that for anything narrower than ~40:9. Costs at most ~1.6 MB of RGBA
 /// (a square 640×640), against ~48 MB for an unbounded 12 MP photo — and the
 /// timeline is a scrolling list, so that cost repeats per image on screen.
@@ -215,7 +216,7 @@ class _MessageBubble extends StatelessWidget {
     );
     final parts = message.parts;
     if (parts == null) return Text(message.text, style: style);
-    return _InterleavedParts(
+    return _UserMessageBody(
       messageId: message.id,
       parts: parts,
       style: style,
@@ -223,16 +224,29 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// A user message's ordered parts as one flow of rich text: text runs as text,
-/// each image as an inline span at its position in the list.
+/// One attachment, as the two places it appears: a tile in the row above the
+/// text, and a pill at its position in the sentence.
+typedef _Slot = ({MessagePart part, int? imageIndex});
+
+/// A user message's ordered parts as a row of attachment tiles over the text
+/// that was written around them.
 ///
-/// Inline so an image's place in the sentence survives into the bubble — a
-/// message written around its images still reads as one sentence, and a thread
-/// of them stays scannable. The thumbnail is a tap target rather than a preview;
-/// tapping opens the full-size browser, which is what answers "did I attach the
-/// right one".
-class _InterleavedParts extends StatelessWidget {
-  const _InterleavedParts({
+/// The tiles are hoisted out of the sentence because a thumbnail is taller than
+/// a line of body text, and an inline element contributes its whole height to
+/// the line it sits in — so a photo run into a sentence swells one line and
+/// breaks the paragraph. A text-scale pill holds each attachment's place
+/// instead, which is also what keeps the runs either side of it from becoming
+/// adjacent: the text is reproduced exactly as written, with no gap to repair.
+///
+/// Tiles and pills are both in part order, so the *n*th pill is the *n*th tile.
+/// Nothing is numbered — a digit would have to resolve against a badge on the
+/// tile to mean anything, and at 48 px a legible badge covers the image it sits
+/// on.
+///
+/// The tile is a tap target rather than a preview; tapping opens the full-size
+/// browser, which is what answers "did I attach the right one".
+class _UserMessageBody extends StatelessWidget {
+  const _UserMessageBody({
     required this.messageId,
     required this.parts,
     this.style,
@@ -244,10 +258,24 @@ class _InterleavedParts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final images = parts.whereType<ImagePart>().toList();
-    final spans = <InlineSpan>[];
+    // Slot order is attachment order; `imageIndex` is the pager's, which counts
+    // images alone. A missing attachment makes the two diverge.
+    final slots = <_Slot>[];
     var imageIndex = 0;
+    for (final part in parts) {
+      switch (part) {
+        case ImagePart():
+          slots.add((part: part, imageIndex: imageIndex++));
+        case MissingAttachmentPart():
+          slots.add((part: part, imageIndex: null));
+        case TextPart():
+          break;
+      }
+    }
+    final images = parts.whereType<ImagePart>().toList();
 
+    final spans = <InlineSpan>[];
+    var slotIndex = 0;
     for (final part in parts) {
       switch (part) {
         case TextPart(:final text):
@@ -255,40 +283,97 @@ class _InterleavedParts extends StatelessWidget {
           // render a span the model never received.
           if (text.isEmpty) continue;
           spans.add(TextSpan(text: text));
-        case ImagePart():
-          final index = imageIndex++;
+        case ImagePart() || MissingAttachmentPart():
+          final slot = slots[slotIndex];
           spans.add(
-            _attachmentSpan(
-              _InlineImage(
-                image: part,
-                label: _imageLabel(index, images.length),
-                logSource: _imageLogSource(index),
-                onTap: () => _openBrowser(context, images, index),
-              ),
+            _pillSpan(
+              _pill(context, slot, slotIndex, slots.length, images),
             ),
           );
-        case MissingAttachmentPart():
-          // Holds the slot rather than closing the gap, so the sentence reads
-          // the way it was written and the loss is where the user put it.
-          spans.add(
-            _attachmentSpan(
-              _InlineImageFailed(label: _missingLabel(part)),
-            ),
-          );
+          slotIndex++;
       }
     }
 
-    return Text.rich(TextSpan(children: spans), style: style);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: SoliplexSpacing.s2,
+      children: [
+        if (slots.isNotEmpty)
+          Wrap(
+            spacing: SoliplexSpacing.s2,
+            runSpacing: SoliplexSpacing.s2,
+            children: [
+              for (final slot in slots) _tile(context, slot, images),
+            ],
+          ),
+        if (spans.isNotEmpty)
+          Text.rich(TextSpan(children: spans), style: style),
+      ],
+    );
   }
 
-  /// Wraps an attachment's widget as an inline span.
+  /// One attachment's tile in the row.
+  Widget _tile(BuildContext context, _Slot slot, List<ImagePart> images) {
+    final part = slot.part;
+    if (part is! ImagePart) {
+      return _AttachmentTileUnavailable(
+        label: _missingLabel(part as MissingAttachmentPart),
+      );
+    }
+    final index = slot.imageIndex!;
+    return _AttachmentTile(
+      image: part,
+      label: _imageLabel(index, images.length),
+      logSource: _imageLogSource(index),
+      onTap: () => _openBrowser(context, images, index),
+    );
+  }
+
+  /// One attachment's pill in the sentence.
+  Widget _pill(
+    BuildContext context,
+    _Slot slot,
+    int slotIndex,
+    int slotCount,
+    List<ImagePart> images,
+  ) {
+    final part = slot.part;
+    // The ordinal is not rendered — order does that job visually — but a screen
+    // reader has no row to look at, so it is announced.
+    final position = 'Attachment ${slotIndex + 1} of $slotCount';
+    if (part is! ImagePart) {
+      return AttachmentPill.error(
+        icon: Icons.broken_image_outlined,
+        description:
+            '$position. ${_missingLabel(part as MissingAttachmentPart)}',
+      );
+    }
+    final index = slot.imageIndex!;
+    return AttachmentPill(
+      icon: Icons.image_outlined,
+      description: '$position. ${_imageLabel(index, images.length)}',
+      onTap: () => _openBrowser(context, images, index),
+    );
+  }
+
+  /// Wraps a pill as an inline span.
   ///
-  /// The transcript is wrapped in a SelectionArea. An attachment carries no
-  /// text, so it stays out of a drag-selection rather than contributing a gap
+  /// Spaced either side so it reads as a word in the sentence rather than
+  /// colliding with the glyph beside it — symmetric, which also covers two
+  /// attachments written side by side, with no text between them.
+  ///
+  /// The transcript is wrapped in a SelectionArea. A pill carries no text of the
+  /// user's, so it stays out of a drag-selection rather than contributing a gap
   /// to what the user copies.
-  InlineSpan _attachmentSpan(Widget child) => WidgetSpan(
+  InlineSpan _pillSpan(Widget child) => WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: SelectionContainer.disabled(child: child),
+        child: SelectionContainer.disabled(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
+            child: child,
+          ),
+        ),
       );
 
   String _imageLabel(int index, int count) =>
@@ -353,8 +438,8 @@ class _InterleavedParts extends StatelessWidget {
 /// reader's announcement, and as a tooltip for everyone else — on hover on a
 /// pointer, on long-press on a touch screen. There is no room to render it
 /// inline without breaking the sentence the slot sits in.
-class _InlineImageFailed extends StatelessWidget {
-  const _InlineImageFailed({required this.label});
+class _AttachmentTileUnavailable extends StatelessWidget {
+  const _AttachmentTileUnavailable({required this.label});
 
   /// The complete announcement for this slot — what is missing, and which one.
   final String label;
@@ -371,8 +456,8 @@ class _InlineImageFailed extends StatelessWidget {
         // contributed it would have a screen reader read the slot twice.
         excludeFromSemantics: true,
         child: Container(
-          width: _inlineImageSize,
-          height: _inlineImageSize,
+          width: _attachmentTileSize,
+          height: _attachmentTileSize,
           decoration: BoxDecoration(
             border: Border.all(color: theme.colorScheme.outline),
             color: theme.colorScheme.surfaceContainerLow,
@@ -391,8 +476,8 @@ class _InlineImageFailed extends StatelessWidget {
 
 /// One attached image, inline in the bubble's text. Tapping opens the full-size
 /// browser; a decode failure shows a broken-image fallback in the same slot.
-class _InlineImage extends StatelessWidget {
-  const _InlineImage({
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({
     required this.image,
     required this.label,
     required this.logSource,
@@ -423,8 +508,8 @@ class _InlineImage extends StatelessWidget {
             height: _inlineDecodeExtent,
             policy: ResizeImagePolicy.fit,
           ),
-          width: _inlineImageSize,
-          height: _inlineImageSize,
+          width: _attachmentTileSize,
+          height: _attachmentTileSize,
           fit: BoxFit.cover,
           semanticLabel: label,
           errorBuilder: (context, error, stack) {
@@ -436,7 +521,7 @@ class _InlineImage extends StatelessWidget {
               error: error,
               stackTrace: stack,
             );
-            return _InlineImageFailed(
+            return _AttachmentTileUnavailable(
               label: '$label — $_imageUnavailableLabel',
             );
           },
