@@ -10,6 +10,32 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Added
 
+- Images can be attached to a message. An add-image button beside the composer
+  opens the platform's image picker, and each image picked lands at the caret as
+  a chip, so a sentence can be written around its images and reaches the model
+  in the order they sit in. Several can be picked at once; on iOS a multi-pick
+  may arrive in a different order from the one it was chosen in, which the
+  platform does not report. The button is offered in every room: an inline image
+  is a property of the model, not of the room's skills, so it does not depend on
+  the paperclip's sandbox capability. Once picked, bytes are sent untouched —
+  nothing in the app decodes, re-encodes, or scales them, so a PNG cannot be
+  inflated, a photo's EXIF cannot be stripped, and an animated GIF keeps its
+  frames. PNG, JPEG, WebP and GIF are accepted, up to four images and 15 MB a
+  message; an image is typed by what its bytes hold rather than by its name, so
+  one saved under a misleading extension is recognised for what it is. Anything
+  the message cannot carry is left out rather than sent, and said so in a line
+  under the composer that a screen reader announces — by name where the file
+  itself is the problem, as a limit where the message is. On iOS the picker is
+  asked for a compatible representation, so a photo an iPhone shot as HEIC
+  arrives as JPEG — re-encoded by the system before the app sees it — and the
+  copy the picker leaves behind is discarded as soon as the app is done with it,
+  whether or not it could be read.
+- On a composer narrower than a tablet, the document filter and thread upload
+  now share one menu of labelled items — `Filter documents` and `Upload
+  files…`, plus `Upload folder…` wherever folders can be picked — so the text
+  field keeps a usable width with the add-image button beside it. At tablet
+  width and above all three stay separate buttons.
+
 - **Library consumers:** `soliplex_client` exports a `MessagePart` type —
   `TextPart` for a run of text, `ImagePart` for image bytes with their MIME
   type — and an optional `parts` list on `TextMessage`. A user message carrying
@@ -50,13 +76,12 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 - The chat composer's controller can carry images inline in its text — one
   code unit each, rendered as a chip and split back out into an ordered part
-  list on send. Groundwork only: nothing can put an image in the composer yet,
-  and a composer holding none delegates its rendering whole to
-  `TextEditingController`, IME composition underline included, so no screen
-  behaves differently.
-- Groundwork, unreachable until images can be attached: a composer draft held
-  across a failed send or an authentication round trip keeps each image's
-  position, as a placeholder the user removes before sending. Bytes are
+  list on send. A composer holding none delegates its rendering whole to
+  `TextEditingController`, IME composition underline included, so a screen
+  without images behaves exactly as before.
+- A composer draft held across a failed send or an authentication round trip
+  keeps each image's position, as a placeholder the user removes before
+  sending. Bytes are
   deliberately not persisted — drafts live in `SharedPreferences`, which
   Android reads whole into memory at first access — and the source images are
   still on the device. Dropping the images silently instead would send a

@@ -1,4 +1,5 @@
-import 'pick_file_impl.dart' if (dart.library.html) 'pick_file_impl_web.dart';
+import 'pick_file_impl.dart'
+    if (dart.library.js_interop) 'pick_file_impl_web.dart';
 
 /// A file selected by the user, with metadata and a re-callable stream
 /// factory over its contents.

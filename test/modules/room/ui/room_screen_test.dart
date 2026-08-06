@@ -19,6 +19,7 @@ import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
@@ -1130,6 +1131,73 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.attach_file), findsNothing);
+    });
+
+    testWidgets('gives the composer a scope that changes with the thread',
+        (tester) async {
+      // ChatInput drops a pick that comes back after the conversation moved on
+      // by comparing this value across the picker's await, and the composer
+      // deliberately survives a thread change, so nothing else would catch it.
+      // Supplying a constant here — or dropping the argument — puts one
+      // thread's images into another with every test still green.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
+      api.nextThreads = const [];
+
+      Future<Object?> scopeFor(String? threadId) async {
+        await tester.pumpWidget(MaterialApp(
+          home: RoomScreen(
+            serverEntry: entry,
+            roomId: 'room-1',
+            threadId: threadId,
+            runtimeManager: runtimeManager,
+            registry: registry,
+            uploadRegistry: uploadRegistry,
+            documentSelections: DocumentSelections(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        return tester.widget<ChatInput>(find.byType(ChatInput)).composerScope;
+      }
+
+      final welcome = await scopeFor(null);
+      final first = await scopeFor('thread-1');
+      final second = await scopeFor('thread-2');
+
+      expect(first, isNotNull, reason: 'a null scope never changes');
+      expect(first, isNot(second));
+      expect(first, isNot(welcome));
+    });
+
+    testWidgets('a room without the sandbox skill can still add an image',
+        (tester) async {
+      // An inline image is a property of the model, not of the room's skills,
+      // so the affordance this room has no paperclip for must still be here.
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      api.nextRoom = const Room(id: 'room-1', name: 'Plain');
+      api.nextThreads = const [];
+
+      await tester.pumpWidget(MaterialApp(
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.attach_file), findsNothing);
+      expect(find.byTooltip('Add image'), findsOneWidget);
     });
 
     testWidgets(
