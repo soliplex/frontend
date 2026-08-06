@@ -23,17 +23,48 @@ final class TextPart extends MessagePart {
   final String text;
 }
 
+/// A part that occupies an attachment's place in a message, whether or not its
+/// content can still be produced.
+///
+/// Carries [number] because an attachment is the only kind of part a reader
+/// refers to by name — "what does the sign in image 7 say" — and text is not.
+@immutable
+sealed class AttachmentPart extends MessagePart {
+  /// Creates an attachment part numbered [number].
+  const AttachmentPart({required this.number});
+
+  /// What this attachment is called, for as long as the thread lasts.
+  ///
+  /// Assigned once, when the message carrying it is first sent, and carried
+  /// from then on rather than derived — a number worked out afresh from a
+  /// message's present shape changes when that shape does, and an answer given
+  /// three turns ago still names the number it was told.
+  ///
+  /// Null for an attachment that was never numbered: one sent before messages
+  /// carried numbers at all, or by another client. It is shown without a number
+  /// and sent without a name, because it has none the model would recognise.
+  final int? number;
+}
+
 /// An image within a message's ordered content.
 @immutable
-final class ImagePart extends MessagePart {
+final class ImagePart extends AttachmentPart {
   /// Creates an image part from raw [bytes] of type [mimeType].
-  const ImagePart({required this.bytes, required this.mimeType});
+  const ImagePart({
+    required this.bytes,
+    required this.mimeType,
+    super.number,
+  });
 
   /// The encoded image file bytes — not decoded pixels.
   final Uint8List bytes;
 
   /// The MIME type of [bytes], e.g. `image/png`.
   final String mimeType;
+
+  /// This image under a different name.
+  ImagePart withNumber(int number) =>
+      ImagePart(bytes: bytes, mimeType: mimeType, number: number);
 }
 
 /// Why an attachment a message was sent with cannot be shown again.
@@ -60,15 +91,23 @@ enum MissingAttachmentReason {
 /// two. [mimeType] is the type the sender declared, when the payload named one
 /// at all.
 @immutable
-final class MissingAttachmentPart extends MessagePart {
+final class MissingAttachmentPart extends AttachmentPart {
   /// Creates a placeholder for an attachment that cannot be reconstructed.
-  const MissingAttachmentPart({required this.reason, this.mimeType});
+  const MissingAttachmentPart({
+    required this.reason,
+    this.mimeType,
+    super.number,
+  });
 
   /// Why the attachment cannot be shown.
   final MissingAttachmentReason reason;
 
   /// The MIME type the sender declared, or null when the payload named none.
   final String? mimeType;
+
+  /// This attachment under a different name.
+  MissingAttachmentPart withNumber(int number) =>
+      MissingAttachmentPart(reason: reason, mimeType: mimeType, number: number);
 }
 
 /// What an ordered part list carries: its text, and whether it holds anything
@@ -86,16 +125,39 @@ extension MessagePartsText on List<MessagePart> {
   /// This is what makes an ordered list worth keeping: a list of text alone
   /// says no more than [plainText] does, and travels the wire as a bare
   /// string.
-  bool get hasAttachment => any((part) => part is! TextPart);
+  bool get hasAttachment => any((part) => part is AttachmentPart);
 
-  /// How many slots this list gives to attachments, whether or not each one can
-  /// be shown or sent.
+  /// The highest number any attachment here has been given, or null when none
+  /// carries one.
+  int? get highestAttachmentNumber {
+    int? highest;
+    for (final part in whereType<AttachmentPart>()) {
+      final number = part.number;
+      if (number != null && (highest == null || number > highest)) {
+        highest = number;
+      }
+    }
+    return highest;
+  }
+
+  /// These parts with every unnamed attachment named, counting up from
+  /// [firstNumber].
   ///
-  /// Counts slots rather than usable images on purpose: it is what numbers a
-  /// thread's images stably. An attachment that could not be rebuilt still
-  /// occupies its place, so the images after it keep the numbers they were
-  /// given, and no number is ever handed to a second image.
-  int get attachmentCount => where((part) => part is! TextPart).length;
+  /// Numbers are handed out here, once, and travel with the parts from then on.
+  /// Anything already numbered keeps the number it has: it is what the model
+  /// was told, and a reply may already refer to it.
+  List<MessagePart> numberedFrom(int firstNumber) {
+    var next = firstNumber;
+    return [
+      for (final part in this)
+        if (part is ImagePart && part.number == null)
+          part.withNumber(next++)
+        else if (part is MissingAttachmentPart && part.number == null)
+          part.withNumber(next++)
+        else
+          part,
+    ];
+  }
 }
 
 /// User type for messages.

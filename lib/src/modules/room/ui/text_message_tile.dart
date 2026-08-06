@@ -62,7 +62,6 @@ class TextMessageTile extends StatelessWidget {
     this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
-    this.attachmentsBefore = 0,
   });
 
   final String roomId;
@@ -77,10 +76,6 @@ class TextMessageTile extends StatelessWidget {
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
-
-  /// Attachment slots in the thread before this message, so its own are
-  /// numbered in the thread's sequence rather than from one.
-  final int attachmentsBefore;
 
   @override
   Widget build(BuildContext context) {
@@ -119,10 +114,7 @@ class TextMessageTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: SoliplexSpacing.s1),
-        _MessageBubble(
-          message: message,
-          attachmentsBefore: attachmentsBefore,
-        ),
+        _MessageBubble(message: message),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s2),
         Row(
@@ -177,13 +169,9 @@ class TextMessageTile extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.message,
-    required this.attachmentsBefore,
-  });
+  const _MessageBubble({required this.message});
 
   final TextMessage message;
-  final int attachmentsBefore;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +219,6 @@ class _MessageBubble extends StatelessWidget {
     return _UserMessageBody(
       messageId: message.id,
       parts: parts,
-      attachmentsBefore: attachmentsBefore,
       style: style,
     );
   }
@@ -247,8 +234,9 @@ sealed class _Slot {
   const _Slot(this.number);
 
   /// This attachment's number in the thread — what the badge and the pill show,
-  /// and what the model was told to call it.
-  final int number;
+  /// and what the model was told to call it. Null for one that was never named,
+  /// which is shown without a number rather than under an invented one.
+  final int? number;
 }
 
 /// An attachment whose bytes are here.
@@ -291,13 +279,11 @@ class _UserMessageBody extends StatelessWidget {
   const _UserMessageBody({
     required this.messageId,
     required this.parts,
-    required this.attachmentsBefore,
     this.style,
   });
 
   final String messageId;
   final List<MessagePart> parts;
-  final int attachmentsBefore;
   final TextStyle? style;
 
   @override
@@ -305,12 +291,11 @@ class _UserMessageBody extends StatelessWidget {
     final slots = <_Slot>[];
     var page = 0;
     for (final part in parts) {
-      final number = attachmentsBefore + slots.length + 1;
       switch (part) {
         case ImagePart():
-          slots.add(_ImageSlot(number, part, page++));
+          slots.add(_ImageSlot(part.number, part, page++));
         case MissingAttachmentPart():
-          slots.add(_MissingSlot(number, part));
+          slots.add(_MissingSlot(part.number, part));
         case TextPart():
           break;
       }
@@ -362,11 +347,14 @@ class _UserMessageBody extends StatelessWidget {
         _AttachmentTileUnavailable(label: _missingLabel(part)),
       _ImageSlot(:final image, :final page, :final number) => _AttachmentTile(
           image: image,
-          label: 'Image $number',
+          label: _describe(number, 'Attached image'),
           logSource: _imageLogSource(page),
           onTap: () => _openBrowser(context, imageSlots, page),
         ),
     };
+
+    final number = slot.number;
+    if (number == null) return tile;
 
     return Stack(
       children: [
@@ -379,10 +367,7 @@ class _UserMessageBody extends StatelessWidget {
           // swallow taps that should reach the tile's `InkWell` — a dead patch
           // in a 48 px target, right where the badge draws the eye.
           child: IgnorePointer(
-            child: _TileNumber(
-              number: slot.number,
-              isError: slot is _MissingSlot,
-            ),
+            child: _TileNumber(number: number, isError: slot is _MissingSlot),
           ),
         ),
       ],
@@ -393,7 +378,8 @@ class _UserMessageBody extends StatelessWidget {
   ///
   /// The same number the model is given, so a user reading "3" here and writing
   /// "what is in image 3" is asking about the image the model knows by that
-  /// name.
+  /// name. An attachment that was never named shows the glyph alone rather than
+  /// a number nothing would answer to.
   Widget _pill(
     BuildContext context,
     _Slot slot,
@@ -405,13 +391,13 @@ class _UserMessageBody extends StatelessWidget {
         // around it reads normally, so nothing else marks it.
         _MissingSlot(:final part, :final number) => AttachmentPill.error(
             icon: Icons.broken_image_outlined,
-            label: '$number',
-            description: 'Image $number. ${_missingLabel(part)}',
+            label: number?.toString(),
+            description: _describe(number, _missingLabel(part)),
           ),
         _ImageSlot(:final page, :final number) => AttachmentPill(
             icon: Icons.image_outlined,
-            label: '$number',
-            description: 'Image $number',
+            label: number?.toString(),
+            description: _describe(number, 'Attached image'),
             onTap: () => _openBrowser(context, imageSlots, page),
           ),
       };
@@ -434,6 +420,11 @@ class _UserMessageBody extends StatelessWidget {
           ),
         ),
       );
+
+  /// What a screen reader is told about one slot: its name where it has one,
+  /// and what it is either way.
+  String _describe(int? number, String what) =>
+      number == null ? what : 'Image $number. $what';
 
   /// Names what is missing rather than only that something is, so a screen
   /// reader distinguishes a broken image from a kind of file this app cannot
@@ -473,7 +464,7 @@ class _UserMessageBody extends StatelessWidget {
           // The thread's number, not the page. This is where someone decides
           // what to ask about, so the name they read here has to be the one
           // the model answers to.
-          semanticLabel: 'Image ${imageSlots[i].number}',
+          semanticLabel: _describe(imageSlots[i].number, 'Attached image'),
           logSource: _imageLogSource(i),
           rotationQuarterTurns: rotation.quarterTurns,
           onRotate: rotation.onRotate,

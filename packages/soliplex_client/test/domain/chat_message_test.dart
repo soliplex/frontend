@@ -4,6 +4,7 @@ import 'package:soliplex_client/soliplex_client.dart';
 import 'package:test/test.dart';
 
 void main() {
+  _attachmentNumbering();
   group('TextMessage', () {
     test('create with required fields', () {
       final message = TextMessage.create(
@@ -545,6 +546,49 @@ void main() {
 
       expect(message.text, isEmpty);
       expect(message.parts, hasLength(1));
+    });
+  });
+}
+
+void _attachmentNumbering() {
+  final bytes = Uint8List.fromList([0x89, 0x50]);
+  ImagePart image({int? number}) =>
+      ImagePart(bytes: bytes, mimeType: 'image/png', number: number);
+
+  group('attachment numbering', () {
+    // Names are handed out once. Anything already named keeps its name — it is
+    // what the model was told, and a reply may already refer to it.
+    test('numbers only the attachments that have no number', () {
+      final numbered = <MessagePart>[
+        const TextPart('and '),
+        image(number: 4),
+        image(),
+      ].numberedFrom(9);
+
+      expect((numbered[1] as ImagePart).number, equals(4));
+      expect((numbered[2] as ImagePart).number, equals(9));
+    });
+
+    // Counting from one past the highest, rather than from how many there are,
+    // is what stops a retired number naming a second image: an attachment that
+    // stopped being sent leaves a gap that must stay empty.
+    test('the highest number survives a gap', () {
+      final parts = <MessagePart>[image(number: 1), image(number: 7)];
+
+      expect(parts.highestAttachmentNumber, equals(7));
+      expect(
+        (<MessagePart>[image()].numberedFrom(
+          parts.highestAttachmentNumber! + 1,
+        )[0] as ImagePart)
+            .number,
+        equals(8),
+      );
+    });
+
+    test('a list with nothing numbered has no highest', () {
+      expect(<MessagePart>[image()].highestAttachmentNumber, isNull);
+      const textOnly = <MessagePart>[TextPart('hi')];
+      expect(textOnly.highestAttachmentNumber, isNull);
     });
   });
 }

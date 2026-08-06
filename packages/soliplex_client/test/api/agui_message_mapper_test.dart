@@ -87,8 +87,8 @@ void main() {
             createdAt: DateTime.now(),
             parts: [
               const TextPart('look at these'),
-              ImagePart(bytes: png, mimeType: 'image/png'),
-              ImagePart(bytes: jpeg, mimeType: 'image/jpeg'),
+              ImagePart(bytes: png, mimeType: 'image/png', number: 1),
+              ImagePart(bytes: jpeg, mimeType: 'image/jpeg', number: 2),
               const TextPart(' then tell me'),
             ],
           ),
@@ -138,7 +138,7 @@ void main() {
             createdAt: DateTime.now(),
             parts: [
               const TextPart(''),
-              ImagePart(bytes: bytes, mimeType: 'image/png'),
+              ImagePart(bytes: bytes, mimeType: 'image/png', number: 1),
               const TextPart('look'),
               const TextPart(''),
             ],
@@ -181,9 +181,10 @@ void main() {
             id: 'msg-rehydrated',
             parts: [
               const TextPart('compare '),
-              ImagePart(bytes: bytes, mimeType: 'image/png'),
+              ImagePart(bytes: bytes, mimeType: 'image/png', number: 1),
               const MissingAttachmentPart(
                 reason: MissingAttachmentReason.undecodable,
+                number: 2,
               ),
             ],
           ),
@@ -238,7 +239,8 @@ void main() {
 
     group('image numbering', () {
       final bytes = Uint8List.fromList([0x89, 0x50]);
-      ImagePart image() => ImagePart(bytes: bytes, mimeType: 'image/png');
+      ImagePart image(int number) =>
+          ImagePart(bytes: bytes, mimeType: 'image/png', number: number);
 
       List<String> labelsOf(List<Message> messages) => [
             for (final message in messages)
@@ -250,14 +252,14 @@ void main() {
                     .where((text) => text.startsWith('Image ')),
           ];
 
-      // The whole point: one number names one image for as long as the thread
-      // lasts. Restarting per message would hand the same number to two
-      // different images, which is what makes a reference unresolvable.
-      test('continues across messages instead of restarting', () {
+      // Each image is announced by the number it carries, not one counted
+      // here — the part's number is what the model was told and what the
+      // bubble shows.
+      test('labels each image with the number it carries', () {
         final agui = convertToAgui([
           TextMessage.fromParts(
             id: 'm1',
-            parts: [const TextPart('these'), image(), image()],
+            parts: [const TextPart('these'), image(7), image(8)],
           ),
           TextMessage(
             id: 'a1',
@@ -267,38 +269,56 @@ void main() {
           ),
           TextMessage.fromParts(
             id: 'm2',
-            parts: [const TextPart('and this'), image()],
+            parts: [const TextPart('and this'), image(9)],
           ),
         ]);
 
-        expect(labelsOf(agui), equals(['Image 1:', 'Image 2:', 'Image 3:']));
+        expect(labelsOf(agui), equals(['Image 7:', 'Image 8:', 'Image 9:']));
       });
 
-      // A slot that cannot be sent still spends its number, so the image after
-      // it keeps the number it was given rather than sliding down into one
-      // already used for something else.
-      test('a missing attachment spends its number and sends nothing', () {
+      // The gap the slot leaves is harmless because a label is absolute: the
+      // images that remain still answer to the numbers they were given, so
+      // nothing needs to be said about the one that is gone.
+      test('leaves a gap where an attachment cannot be sent', () {
         final agui = convertToAgui([
           TextMessage.fromParts(
             id: 'm1',
             parts: [
-              image(),
+              image(1),
               const MissingAttachmentPart(
                 reason: MissingAttachmentReason.remoteSource,
+                number: 2,
               ),
-              image(),
+              image(3),
             ],
           ),
         ]);
 
-        // 2 is spent by the slot that cannot be sent, and nothing announces it:
-        // the model is told about no image 2 rather than told it is missing.
         expect(labelsOf(agui), equals(['Image 1:', 'Image 3:']));
         final content = (agui[0] as UserMessage).toJson()['content']! as List;
         expect(
           content.where((part) => part is Map && part['type'] == 'image'),
           hasLength(2),
         );
+      });
+
+      // An image nothing has ever named is sent as it is. Inventing a label
+      // would tell the model a name no earlier turn used.
+      test('sends an unnumbered image without a label', () {
+        final agui = convertToAgui([
+          TextMessage.fromParts(
+            id: 'm1',
+            parts: [
+              const TextPart('look '),
+              ImagePart(bytes: bytes, mimeType: 'image/png'),
+            ],
+          ),
+        ]);
+
+        expect(labelsOf(agui), isEmpty);
+        final content = (agui[0] as UserMessage).toJson()['content']! as List;
+        expect(content, hasLength(2));
+        expect((content[1] as Map).containsKey('metadata'), isFalse);
       });
 
       // The backend keeps what was sent, so a label comes back as a text part.
@@ -308,7 +328,7 @@ void main() {
         final agui = convertToAgui([
           TextMessage.fromParts(
             id: 'm1',
-            parts: [const TextPart('look at '), image()],
+            parts: [const TextPart('look at '), image(4)],
           ),
         ]);
         final content = (agui[0] as UserMessage).toJson()['content'];

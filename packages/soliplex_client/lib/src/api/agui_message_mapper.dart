@@ -27,17 +27,11 @@ final Logger _logger =
 ///   (transient or frontend-only messages).
 List<Message> convertToAgui(List<ChatMessage> chatMessages) {
   final result = <Message>[];
-  // Image numbers run across the whole thread rather than restarting per
-  // message, so that one number names one image for as long as the thread
-  // lasts. Counted over attachment *slots*, so a slot that cannot be sent still
-  // spends its number and no later image inherits it.
-  var attachmentsBefore = 0;
 
   for (final message in chatMessages) {
     switch (message) {
       case TextMessage():
-        result.add(_convertTextMessage(message, attachmentsBefore));
-        attachmentsBefore += message.parts?.attachmentCount ?? 0;
+        result.add(_convertTextMessage(message));
 
       case ToolCallMessage():
         result.addAll(_convertToolCallMessage(message));
@@ -57,11 +51,10 @@ List<Message> convertToAgui(List<ChatMessage> chatMessages) {
   return result;
 }
 
-Message _convertTextMessage(TextMessage message, int attachmentsBefore) {
+Message _convertTextMessage(TextMessage message) {
   switch (message.user) {
     case ChatUser.user:
-      final multimodalParts =
-          _multimodalParts(message.parts, attachmentsBefore);
+      final multimodalParts = _multimodalParts(message.parts);
       if (multimodalParts == null) {
         return UserMessage(id: message.id, content: message.text);
       }
@@ -90,41 +83,35 @@ Message _convertTextMessage(TextMessage message, int attachmentsBefore) {
 /// model without the attachment it originally carried — unavoidable, and the
 /// reason the bubble shows the user that it happened.
 ///
-/// Each image is introduced by a text block naming it, numbered from
-/// `attachmentsBefore + 1` so the numbering runs across the thread rather than
-/// restarting here. That label is how the model is given something to refer to
-/// one image by: AG-UI's image block has no name field, and nothing in the
-/// chain turns one into something a model reads.
-List<InputContent>? _multimodalParts(
-  List<MessagePart>? parts,
-  int attachmentsBefore,
-) {
+/// An image that carries a number is introduced by a text block naming it.
+/// That label is how the model is given something to refer to one image by:
+/// AG-UI's image block has no name field, and nothing in the chain turns one
+/// into something a model reads. The number is read off the part rather than
+/// counted here — see [AttachmentPart.number] for why it cannot be derived.
+///
+/// An image with no number is sent unlabelled, which is what it is: nothing has
+/// ever told the model a name for it.
+List<InputContent>? _multimodalParts(List<MessagePart>? parts) {
   if (parts == null) return null;
 
   final content = <InputContent>[];
   var hasSendablePart = false;
-  var number = attachmentsBefore;
   for (final part in parts) {
     switch (part) {
       case TextPart(:final text):
         if (text.isEmpty) continue;
         content.add(TextInputContent(text));
-      case ImagePart():
+      case ImagePart(:final number):
         hasSendablePart = true;
-        number++;
-        // The handle the model is given for this image. It has to be a text
-        // block: an image block carries no name of its own. This is the form
-        // Anthropic's vision guide documents.
-        content
-          ..add(TextInputContent(_imageLabel(number)))
-          ..add(_imageContent(part, number));
+        if (number != null) content.add(TextInputContent(_imageLabel(number)));
+        content.add(_imageContent(part, number));
       case MissingAttachmentPart():
-        // Spends its number and sends nothing, not even a note that it is
-        // gone. A label is absolute, so a gap in the sequence costs nothing:
-        // a number no label carries has nothing behind it for the model to
-        // reason from. Announcing the absence instead would give it something
-        // to infer about an image it cannot see.
-        number++;
+        // Sends nothing, not even a note that it is gone. A label is absolute,
+        // so a gap in the sequence costs nothing: a number no label carries has
+        // nothing behind it for the model to reason from. Announcing the
+        // absence instead would give it something to infer about an image it
+        // cannot see. The number is not lost by the gap — the images that
+        // remain carry their own, so none of them is renamed.
         continue;
     }
   }
@@ -148,13 +135,14 @@ String _imageLabel(int number) => 'Image $number:';
 /// model's API and can be rejected.
 const String _imageNumberKey = 'soliplex_image_number';
 
-ImageInputContent _imageContent(ImagePart part, int number) =>
+ImageInputContent _imageContent(ImagePart part, int? number) =>
     ImageInputContent(
       source: DataSource(
         value: base64Encode(part.bytes),
         mimeType: part.mimeType,
       ),
-      metadata: <String, Object?>{_imageNumberKey: number},
+      metadata:
+          number == null ? null : <String, Object?>{_imageNumberKey: number},
     );
 
 /// The number an image block was sent with, or null for a block this client did
@@ -304,10 +292,12 @@ void _dropLabelFor(
       // Its metadata can still be legible even when the rest of it is not, and
       // a number there means the run before it is a label of ours: it has to
       // come back out whether or not the attachment itself survived.
-      _dropLabelFor(parts, _rawImageNumber(content[i]), logContext);
+      final number = _rawImageNumber(content[i]);
+      _dropLabelFor(parts, number, logContext);
       parts.add(
-        const MissingAttachmentPart(
+        MissingAttachmentPart(
           reason: MissingAttachmentReason.undecodable,
+          number: number,
         ),
       );
       continue;
@@ -316,8 +306,9 @@ void _dropLabelFor(
       case TextInputContent(:final text):
         parts.add(TextPart(text));
       case ImageInputContent(:final source, :final metadata):
-        _dropLabelFor(parts, _imageNumberOf(metadata), logContext);
-        parts.add(_readImageSource(source, i, logContext));
+        final number = _imageNumberOf(metadata);
+        _dropLabelFor(parts, number, logContext);
+        parts.add(_readImageSource(source, i, logContext, number));
       // Explicit arms rather than a default: a new content type upstream should
       // be a compile error here, not a silently dropped attachment. The media
       // kinds are grouped because they carry their type the same way; binary
@@ -418,6 +409,7 @@ MessagePart _readImageSource(
   InputContentSource source,
   int index,
   String logContext,
+  int? number,
 ) {
   switch (source) {
     case DataSource(:final value, :final mimeType):
@@ -433,6 +425,7 @@ MessagePart _readImageSource(
         return MissingAttachmentPart(
           reason: MissingAttachmentReason.undecodable,
           mimeType: mimeType,
+          number: number,
         );
       }
       if (bytes.isEmpty) {
@@ -445,9 +438,10 @@ MessagePart _readImageSource(
         return MissingAttachmentPart(
           reason: MissingAttachmentReason.undecodable,
           mimeType: mimeType,
+          number: number,
         );
       }
-      return ImagePart(bytes: bytes, mimeType: mimeType);
+      return ImagePart(bytes: bytes, mimeType: mimeType, number: number);
     case UrlSource(:final mimeType):
       // We only ever send DataSource, so a URL here came from another client.
       // ImagePart holds bytes and cannot represent one, and fetching it during
@@ -459,6 +453,7 @@ MessagePart _readImageSource(
       return MissingAttachmentPart(
         reason: MissingAttachmentReason.remoteSource,
         mimeType: mimeType,
+        number: number,
       );
   }
 }
