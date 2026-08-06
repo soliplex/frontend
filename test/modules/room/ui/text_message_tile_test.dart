@@ -9,6 +9,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import 'package:soliplex_frontend/src/modules/room/message_expansions.dart';
 import 'package:soliplex_frontend/src/modules/room/room_providers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/attachment_pill.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/copy_button.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/feedback_buttons.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/markdown/flutter_markdown_plus_renderer.dart';
@@ -298,7 +299,8 @@ void main() {
       return rich.textSpan! as TextSpan;
     }
 
-    testWidgets('renders text and images interleaved in order', (tester) async {
+    testWidgets('keeps each attachment its place in the sentence',
+        (tester) async {
       await tester.pumpWidget(tile([
         const TextPart('read the code in '),
         image(),
@@ -310,7 +312,77 @@ void main() {
       expect((children[0] as TextSpan).text, equals('read the code in '));
       expect(children[1], isA<WidgetSpan>());
       expect((children[2] as TextSpan).text, equals(' and reply'));
+      // The pill holds the place; the image itself is in the row above.
+      expect(find.byType(AttachmentPill), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
+    });
+
+    // The pill exists to occupy the slot, which is what stops the runs either
+    // side of an attachment becoming adjacent. Hoisting the image without one
+    // would join 'this image' to '?' and leave the render repairing whitespace
+    // it did not author.
+    testWidgets('reproduces the text runs verbatim, repairing no whitespace',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('what do you see in this image '),
+        image(),
+        const TextPart(' ?'),
+      ]));
+
+      final children = bubbleSpan(tester).children!;
+      expect(children, hasLength(3));
+      expect(
+        (children[0] as TextSpan).text,
+        equals('what do you see in this image '),
+      );
+      expect((children[2] as TextSpan).text, equals(' ?'));
+    });
+
+    // Order is the whole cross-reference: nothing is numbered, so the nth pill
+    // is the nth tile only if a slot that cannot be shown still takes both.
+    testWidgets('gives a missing attachment a tile and a pill like any other',
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('compare '),
+        image(),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.unsupportedType,
+          mimeType: 'audio/mpeg',
+        ),
+        const TextPart(' with '),
+        image(),
+      ]));
+
+      expect(find.byType(AttachmentPill), findsNWidgets(3));
+      // Two decodable images plus the slot that degrades, all three in the row.
+      expect(find.byType(Image), findsNWidgets(2));
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+    });
+
+    // Pill position counts attachments; the pager counts images. A missing
+    // attachment between them makes those diverge — slot 3 is page 2 — so an
+    // off-by-one that opened the wrong photo cannot pass here.
+    testWidgets("tapping the last image's pill opens the pager at that image",
+        (tester) async {
+      await tester.pumpWidget(tile([
+        const TextPart('compare '),
+        image(),
+        const MissingAttachmentPart(
+          reason: MissingAttachmentReason.remoteSource,
+        ),
+        const TextPart(' with '),
+        image(),
+      ]));
+
+      expect(find.byType(ZoomableImage), findsNothing);
+
+      await tester.tap(find.byType(AttachmentPill).last);
+      await tester.pumpAndSettle();
+
+      final pager =
+          tester.widget<PagedZoomableImages>(find.byType(PagedZoomableImages));
+      expect(pager.initialIndex, equals(1));
+      expect(pager.itemCount, equals(2));
     });
 
     // One slot per ImagePart, each laid out at the tap target rather than at

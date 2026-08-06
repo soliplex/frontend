@@ -4,6 +4,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../composer_draft.dart';
+import 'attachment_pill.dart';
 import 'markdown/log_source.dart';
 
 final _logger = LogManager.instance
@@ -346,27 +347,22 @@ class _ImageChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
       child: switch (image) {
         InlineImage(:final part) => _thumbnail(context, part),
-        UnavailableImage() => _placeholder(
-            context,
+        UnavailableImage() => AttachmentPill(
             icon: Icons.image_not_supported_outlined,
             label: 'unavailable',
             description: 'This image was not kept across sign-in. '
                 'Tap to remove it.',
-            background: colors.secondaryContainer,
-            foreground: colors.onSecondaryContainer,
+            onTap: onRemove,
           ),
-        null => _placeholder(
-            context,
+        null => AttachmentPill.error(
             icon: Icons.broken_image_outlined,
             label: 'missing',
             description: 'This image is no longer available. Tap to remove it.',
-            background: colors.errorContainer,
-            foreground: colors.onErrorContainer,
+            onTap: onRemove,
           ),
       },
     );
@@ -407,49 +403,4 @@ class _ImageChip extends StatelessWidget {
       ),
     );
   }
-
-  Widget _placeholder(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String description,
-    required Color background,
-    required Color foreground,
-  }) =>
-      Semantics(
-        button: true,
-        label: description,
-        child: Tooltip(
-          message: description,
-          // Announced by the Semantics above; a tooltip that contributed it
-          // too would have a screen reader read the chip twice.
-          excludeFromSemantics: true,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onRemove,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s1),
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(context.radii.sm),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: foreground),
-                  const SizedBox(width: SoliplexSpacing.s1),
-                  Text(
-                    label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: foreground),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
 }
