@@ -5,7 +5,15 @@ import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 
 import '../../../shared/document_display.dart';
 import 'document_label.dart';
+import 'inline_image_composer_controller.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+/// Shown while the composer holds an image it cannot send, which is only ever
+/// a draft that came back from re-authentication without its images. Removing
+/// each one is the way past, so the message that goes out is the one on
+/// screen.
+const unrestoredImageNotice =
+    'Remove the images that could not be restored to send this message.';
 
 /// Whether the composer takes text right now. It refuses while the screen has
 /// it disabled and while a run is in flight, because both render it read-only —
@@ -50,7 +58,7 @@ class ChatInput extends StatefulWidget {
   /// `false` (it still renders, since [sessionState] is `spawning` or
   /// `running`). Defaults to `true`.
   final ReadonlySignal<bool>? cancelEnabled;
-  final TextEditingController? controller;
+  final InlineImageComposerController? controller;
   final FocusNode? focusNode;
   final bool enabled;
   final Set<RagDocument> selectedDocuments;
@@ -73,7 +81,7 @@ class ChatInput extends StatefulWidget {
 enum _AttachChoice { files, folder }
 
 class _ChatInputState extends State<ChatInput> {
-  late TextEditingController _controller;
+  late InlineImageComposerController _controller;
   late FocusNode _focusNode;
   bool _ownsController = false;
   bool _ownsFocusNode = false;
@@ -104,7 +112,7 @@ class _ChatInputState extends State<ChatInput> {
       _controller = widget.controller!;
       _ownsController = false;
     } else {
-      _controller = TextEditingController();
+      _controller = InlineImageComposerController();
       _ownsController = true;
     }
   }
@@ -127,17 +135,41 @@ class _ChatInputState extends State<ChatInput> {
   }
 
   void _send() {
-    final text = _controller.text.trim();
-    if (text.isEmpty ||
-        !composerAcceptsText(
-          enabled: widget.enabled,
-          sessionState: widget.sessionState?.peek(),
-        )) {
+    if (!composerAcceptsText(
+      enabled: widget.enabled,
+      sessionState: widget.sessionState?.peek(),
+    )) {
       return;
     }
-    widget.onSend([TextPart(text)]);
+    final parts = _controller.sendableParts();
+    if (parts == null) return;
+    widget.onSend(parts);
     _controller.clear();
     _focusNode.requestFocus();
+  }
+
+  Widget _placeholderNotice(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SoliplexSpacing.s1),
+      child: Row(
+        children: [
+          Icon(
+            Icons.image_not_supported_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: SoliplexSpacing.s1),
+          Flexible(
+            child: Text(
+              unrestoredImageNotice,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -257,6 +289,12 @@ class _ChatInputState extends State<ChatInput> {
                       ),
                     ),
             ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, child) => _controller.hasPlaceholderImage
+                ? _placeholderNotice(context)
+                : const SizedBox.shrink(),
+          ),
           Row(
             children: [
               if (widget.onFilterTap != null)
@@ -321,10 +359,9 @@ class _ChatInputState extends State<ChatInput> {
               else
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _controller,
-                  builder: (context, value, _) => IconButton(
+                  builder: (context, value, child) => IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed:
-                        value.text.trim().isEmpty || disabled ? null : _send,
+                    onPressed: disabled || !_controller.canSend ? null : _send,
                   ),
                 ),
             ],

@@ -5,7 +5,9 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/inline_image_composer_controller.dart';
 
 void main() {
   group('composerAcceptsText', () {
@@ -82,7 +84,7 @@ void main() {
     // Mirrors the room layout: the chat input is a non-flex child of a
     // bounded Column alongside an Expanded body. An uncapped field grows
     // to its content height and overflows the Column.
-    final controller = TextEditingController(text: 'line\n' * 500);
+    final controller = InlineImageComposerController()..text = 'line\n' * 500;
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(MaterialApp(
@@ -125,6 +127,34 @@ void main() {
     expect(sendButton.onPressed, isNull);
 
     sessionState.dispose();
+  });
+
+  testWidgets('refuses to send while an image could not be restored',
+      (tester) async {
+    // Sending would drop the placeholder and deliver a different message from
+    // the one on screen, so the composer says why instead.
+    final controller = InlineImageComposerController()
+      ..restoreDraft('look at $composerDraftImageMarker');
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: soliplexLightTheme(),
+      home: Scaffold(
+        body: ChatInput(
+          controller: controller,
+          onSend: (_) {},
+          onCancel: () {},
+        ),
+      ),
+    ));
+
+    expect(
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text(unrestoredImageNotice), findsOneWidget);
   });
 
   testWidgets('shows cancel button when session is running', (tester) async {

@@ -7,6 +7,7 @@ import '../../core/util/debouncer.dart';
 import '../auth/auth_session.dart';
 import '../auth/server_entry.dart';
 import 'agent_runtime_manager.dart';
+import 'composer_draft.dart';
 import 'composer_persistence.dart';
 import 'room_run_activity.dart';
 import 'run_registry.dart';
@@ -311,7 +312,7 @@ class RoomState {
           serverId: _connection.serverId,
           userId: _auth.currentUserId.value,
           roomId: _roomId,
-          prompt: parts.plainText,
+          draft: encodeComposerDraft(parts),
         ),
         onSpawned: (session) {
           // Clear room-level spawn state — the thread view takes over.

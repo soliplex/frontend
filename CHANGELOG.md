@@ -48,6 +48,22 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The chat composer's controller can carry images inline in its text — one
+  code unit each, rendered as a chip and split back out into an ordered part
+  list on send. Groundwork only: nothing can put an image in the composer yet,
+  and a composer holding none delegates its rendering whole to
+  `TextEditingController`, IME composition underline included, so no screen
+  behaves differently.
+- Groundwork, unreachable until images can be attached: a composer draft held
+  across a failed send or an authentication round trip keeps each image's
+  position, as a placeholder the user removes before sending. Bytes are
+  deliberately not persisted — drafts live in `SharedPreferences`, which
+  Android reads whole into memory at first access — and the source images are
+  still on the device. Dropping the images silently instead would send a
+  sentence written around pictures that are no longer in it. A draft of images
+  and no caption is kept too, where an image-only payload previously flattened
+  to an empty string and left an older draft in the slot to be restored in its
+  place.
 - **Breaking (library consumers):** the send path carries an ordered
   `List<MessagePart>` where it previously carried a `String`. This affects
   `AgentRuntime.spawn` and `MultiServerRuntime.spawn` (`prompt`), and

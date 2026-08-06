@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/execution_tracker_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/human_approval_extension.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
@@ -1190,11 +1191,12 @@ void main() {
         );
         expect(
           restored,
-          'half-written question',
+          'half-written question$composerDraftImageMarker',
           reason: 'ThreadViewState must wire composer persistence as the '
               "spawner's onAuthExpired hook; without it the user's draft "
               'is dropped on the floor by the redirect. Storage holds a '
-              'string, so the text survives and the image does not.',
+              "string, so the draft keeps the image's position and not its "
+              'bytes.',
         );
 
         state.dispose();
