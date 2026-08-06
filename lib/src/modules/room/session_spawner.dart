@@ -4,6 +4,7 @@ import 'dart:developer' as dev;
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
+import 'composer_draft.dart';
 import 'send_error.dart';
 
 /// Owns the pending-spawn state machine shared by [ThreadViewState] and
@@ -87,7 +88,8 @@ class SessionSpawner {
         name: 'SessionSpawner',
         level: 900,
       );
-      errorSignal.value = SendError(error, unsentText: prompt.plainText);
+      errorSignal.value =
+          SendError(error, unsentText: encodeComposerDraft(prompt));
     } on AuthException catch (error) {
       if (_cancelled || isDisposed()) return;
       dev.log(
@@ -122,7 +124,8 @@ class SessionSpawner {
         name: 'SessionSpawner',
         level: 1000,
       );
-      errorSignal.value = SendError(error, unsentText: prompt.plainText);
+      errorSignal.value =
+          SendError(error, unsentText: encodeComposerDraft(prompt));
     } finally {
       _pendingSpawn = null;
       if (!_cancelled && !succeeded) {

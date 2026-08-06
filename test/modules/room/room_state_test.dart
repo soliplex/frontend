@@ -10,6 +10,7 @@ import 'package:soliplex_frontend/src/modules/auth/auth_tokens.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/agent_runtime_manager.dart';
+import 'package:soliplex_frontend/src/modules/room/composer_draft.dart';
 import 'package:soliplex_frontend/src/modules/room/room_state.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_list_state.dart';
@@ -227,9 +228,10 @@ void main() {
     expect(state.lastError.value, isNotNull);
     expect(
       state.lastError.value!.unsentText,
-      'Hello',
-      reason: 'SendError carries a string, so the retry banner restores the '
-          'text and cannot restore the image.',
+      'Hello$composerDraftImageMarker',
+      reason: 'SendError carries a string, so a failed send restores the text '
+          "with a marker holding the image's place rather than dropping it "
+          'where the user cannot see it go.',
     );
 
     state.dispose();
@@ -953,11 +955,12 @@ void main() {
       );
       expect(
         restored,
-        'half-written question',
+        'half-written question$composerDraftImageMarker',
         reason: 'RoomState.sendToNewThread must wire composer persistence '
             "as the spawner's onAuthExpired hook; without it the user's "
             'draft is dropped on the floor by the redirect. Storage holds a '
-            'string, so the text survives and the image does not.',
+            "string, so the draft keeps the image's position and not its "
+            'bytes.',
       );
 
       state.dispose();

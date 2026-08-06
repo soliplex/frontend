@@ -5,6 +5,7 @@ import 'package:soliplex_agent/soliplex_agent.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
+import 'composer_draft.dart';
 import 'composer_persistence.dart';
 import 'execution_tracker.dart';
 import 'execution_tracker_extension.dart';
@@ -507,9 +508,7 @@ class ThreadViewState {
       serverId: _connection.serverId,
       userId: _auth.currentUserId.value,
       roomId: _roomId,
-      // Storage holds a plain string, so a draft round-trips its text and
-      // drops any image.
-      prompt: prompt.plainText,
+      draft: encodeComposerDraft(prompt),
     );
   }
 }

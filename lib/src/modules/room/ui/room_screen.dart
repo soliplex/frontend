@@ -56,6 +56,7 @@ import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'document_picker.dart';
 import 'error_retry_panel.dart';
+import 'inline_image_composer_controller.dart';
 import 'message_timeline.dart';
 import 'async_action_dialog.dart';
 import 'room_rail.dart';
@@ -259,7 +260,7 @@ class _RoomScreenState extends State<RoomScreen> {
   late RoomState _state;
   late WorkdirController _workdirs;
   void Function()? _autoSelectUnsub;
-  final _chatController = TextEditingController();
+  final _chatController = InlineImageComposerController();
   final _chatFocusNode = FocusNode();
   bool _filesExpanded = false;
 
@@ -1035,9 +1036,7 @@ class _RoomScreenState extends State<RoomScreen> {
       );
       if (!mounted || text == null) return;
       if (_chatController.text.isNotEmpty) return;
-      _chatController.text = text;
-      _chatController.selection =
-          TextSelection.collapsed(offset: _chatController.text.length);
+      _chatController.restoreDraft(text);
       // One-shot: clear once restored so subsequent mounts of the same
       // room don't re-pre-fill the box with stale content.
       await ReturnToStorage.clearComposer(
@@ -1845,9 +1844,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (unsentText == null || _chatController.text.isNotEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _chatController.text = unsentText;
-      _chatController.selection =
-          TextSelection.collapsed(offset: _chatController.text.length);
+      _chatController.restoreDraft(unsentText);
     });
   }
 

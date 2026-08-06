@@ -3,25 +3,26 @@ import 'dart:developer' as dev;
 
 import '../auth/return_to_storage.dart';
 
-/// Persists [prompt] so it survives the route guard's redirect on auth
-/// expiry.
+/// Persists [draft] so it survives the route guard's redirect on auth
+/// expiry. Build it with `encodeComposerDraft`, which keeps every image's
+/// position and none of its bytes.
 ///
-/// Empty / whitespace-only [prompt] is a no-op. Storage failures are
+/// Empty / whitespace-only [draft] is a no-op. Storage failures are
 /// logged at SEVERE and swallowed; the user's draft is lost but the
 /// redirect still proceeds.
 void persistComposerDraft({
   required String serverId,
   required String? userId,
   required String roomId,
-  required String prompt,
+  required String draft,
 }) {
-  if (prompt.trim().isEmpty) return;
+  if (draft.trim().isEmpty) return;
   unawaited(
     ReturnToStorage.saveComposer(
       serverId: serverId,
       userId: userId,
       roomId: roomId,
-      unsentText: prompt,
+      unsentText: draft,
     ).catchError((Object e, StackTrace st) {
       dev.log(
         'Failed to persist composer draft for auth roundtrip',
