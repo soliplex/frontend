@@ -100,6 +100,7 @@ void main() {
           userMsg.toJson()['content'],
           equals([
             {'type': 'text', 'text': 'look at these'},
+            {'type': 'text', 'text': 'Image 1:'},
             {
               'type': 'image',
               'source': {
@@ -107,7 +108,9 @@ void main() {
                 'value': base64Encode(png),
                 'mimeType': 'image/png',
               },
+              'metadata': {'soliplex_image_number': 1},
             },
+            {'type': 'text', 'text': 'Image 2:'},
             {
               'type': 'image',
               'source': {
@@ -115,6 +118,7 @@ void main() {
                 'value': base64Encode(jpeg),
                 'mimeType': 'image/jpeg',
               },
+              'metadata': {'soliplex_image_number': 2},
             },
             {'type': 'text', 'text': ' then tell me'},
           ]),
@@ -143,9 +147,10 @@ void main() {
 
         final content = (aguiMessages[0] as UserMessage).toJson()['content']
             as List<Map<String, dynamic>>;
-        expect(content, hasLength(2));
-        expect(content[0]['type'], equals('image'));
-        expect(content[1], equals({'type': 'text', 'text': 'look'}));
+        expect(content, hasLength(3));
+        expect(content[0], equals({'type': 'text', 'text': 'Image 1:'}));
+        expect(content[1]['type'], equals('image'));
+        expect(content[2], equals({'type': 'text', 'text': 'look'}));
       });
 
       // An image-less message keeps exactly the wire shape it has today.
@@ -186,9 +191,10 @@ void main() {
 
         final content = (aguiMessages[0] as UserMessage).toJson()['content']
             as List<Map<String, dynamic>>;
-        expect(content, hasLength(2));
+        expect(content, hasLength(3));
         expect(content[0], equals({'type': 'text', 'text': 'compare '}));
-        expect(content[1]['type'], equals('image'));
+        expect(content[1], equals({'type': 'text', 'text': 'Image 1:'}));
+        expect(content[2]['type'], equals('image'));
       });
 
       // Nothing sendable is left once the placeholder is dropped, so the
@@ -227,6 +233,115 @@ void main() {
 
         final userMsg = aguiMessages[0] as UserMessage;
         expect(userMsg.toJson()['content'], equals('still says something'));
+      });
+    });
+
+    group('image numbering', () {
+      final bytes = Uint8List.fromList([0x89, 0x50]);
+      ImagePart image() => ImagePart(bytes: bytes, mimeType: 'image/png');
+
+      List<String> labelsOf(List<Message> messages) => [
+            for (final message in messages)
+              if (message is UserMessage)
+                ...?(message.toJson()['content'] as List?)
+                    ?.cast<Map<String, Object?>>()
+                    .where((part) => part['type'] == 'text')
+                    .map((part) => part['text']! as String)
+                    .where((text) => text.startsWith('Image ')),
+          ];
+
+      // The whole point: one number names one image for as long as the thread
+      // lasts. Restarting per message would hand the same number to two
+      // different images, which is what makes a reference unresolvable.
+      test('continues across messages instead of restarting', () {
+        final agui = convertToAgui([
+          TextMessage.fromParts(
+            id: 'm1',
+            parts: [const TextPart('these'), image(), image()],
+          ),
+          TextMessage(
+            id: 'a1',
+            user: ChatUser.assistant,
+            text: 'I see two images.',
+            createdAt: DateTime.now(),
+          ),
+          TextMessage.fromParts(
+            id: 'm2',
+            parts: [const TextPart('and this'), image()],
+          ),
+        ]);
+
+        expect(labelsOf(agui), equals(['Image 1:', 'Image 2:', 'Image 3:']));
+      });
+
+      // A slot that cannot be sent still spends its number, so the image after
+      // it keeps the number it was given rather than sliding down into one
+      // already used for something else.
+      test('a missing attachment spends its number and sends nothing', () {
+        final agui = convertToAgui([
+          TextMessage.fromParts(
+            id: 'm1',
+            parts: [
+              image(),
+              const MissingAttachmentPart(
+                reason: MissingAttachmentReason.remoteSource,
+              ),
+              image(),
+            ],
+          ),
+        ]);
+
+        // 2 is spent by the slot that cannot be sent, and nothing announces it:
+        // the model is told about no image 2 rather than told it is missing.
+        expect(labelsOf(agui), equals(['Image 1:', 'Image 3:']));
+        final content = (agui[0] as UserMessage).toJson()['content']! as List;
+        expect(
+          content.where((part) => part is Map && part['type'] == 'image'),
+          hasLength(2),
+        );
+      });
+
+      // The backend keeps what was sent, so a label comes back as a text part.
+      // Left in, it would render in the user's sentence and be labelled again
+      // on the next send.
+      test('strips its own labels when reading content back', () {
+        final agui = convertToAgui([
+          TextMessage.fromParts(
+            id: 'm1',
+            parts: [const TextPart('look at '), image()],
+          ),
+        ]);
+        final content = (agui[0] as UserMessage).toJson()['content'];
+
+        final read = readUserMessageContent(content, logContext: 'test');
+
+        expect(read.parts, hasLength(2));
+        expect((read.parts![0] as TextPart).text, equals('look at '));
+        expect(read.parts![1], isA<ImagePart>());
+        expect(read.text, equals('look at '));
+      });
+
+      // The number the block carries is what makes stripping safe. Identical
+      // words the user typed, in front of an image this client never numbered,
+      // are theirs and must survive.
+      test("keeps a user's own text that looks like a label", () {
+        final read = readUserMessageContent(
+          [
+            {'type': 'text', 'text': 'Image 1:'},
+            {
+              'type': 'image',
+              'source': {
+                'type': 'data',
+                'value': base64Encode(bytes),
+                'mimeType': 'image/png',
+              },
+            },
+          ],
+          logContext: 'test',
+        );
+
+        expect(read.parts, hasLength(2));
+        expect((read.parts![0] as TextPart).text, equals('Image 1:'));
       });
     });
 

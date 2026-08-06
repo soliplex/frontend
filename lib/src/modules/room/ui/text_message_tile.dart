@@ -62,6 +62,7 @@ class TextMessageTile extends StatelessWidget {
     this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
+    this.attachmentsBefore = 0,
   });
 
   final String roomId;
@@ -76,6 +77,10 @@ class TextMessageTile extends StatelessWidget {
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
+
+  /// Attachment slots in the thread before this message, so its own are
+  /// numbered in the thread's sequence rather than from one.
+  final int attachmentsBefore;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +119,10 @@ class TextMessageTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: SoliplexSpacing.s1),
-        _MessageBubble(message: message),
+        _MessageBubble(
+          message: message,
+          attachmentsBefore: attachmentsBefore,
+        ),
         if (message.createdAt != null) MessageCaption(time: message.createdAt!),
         const SizedBox(height: SoliplexSpacing.s2),
         Row(
@@ -169,9 +177,13 @@ class TextMessageTile extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({
+    required this.message,
+    required this.attachmentsBefore,
+  });
 
   final TextMessage message;
+  final int attachmentsBefore;
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +231,7 @@ class _MessageBubble extends StatelessWidget {
     return _UserMessageBody(
       messageId: message.id,
       parts: parts,
+      attachmentsBefore: attachmentsBefore,
       style: style,
     );
   }
@@ -249,11 +262,13 @@ class _UserMessageBody extends StatelessWidget {
   const _UserMessageBody({
     required this.messageId,
     required this.parts,
+    required this.attachmentsBefore,
     this.style,
   });
 
   final String messageId;
   final List<MessagePart> parts;
+  final int attachmentsBefore;
   final TextStyle? style;
 
   @override
@@ -287,7 +302,7 @@ class _UserMessageBody extends StatelessWidget {
           final slot = slots[slotIndex];
           spans.add(
             _pillSpan(
-              _pill(context, slot, slotIndex, slots.length, images),
+              _pill(context, slot, attachmentsBefore + slotIndex + 1, images),
             ),
           );
           slotIndex++;
@@ -304,7 +319,8 @@ class _UserMessageBody extends StatelessWidget {
             spacing: SoliplexSpacing.s2,
             runSpacing: SoliplexSpacing.s2,
             children: [
-              for (final slot in slots) _tile(context, slot, images),
+              for (final (index, slot) in slots.indexed)
+                _tile(context, slot, attachmentsBefore + index + 1, images),
             ],
           ),
         if (spans.isNotEmpty)
@@ -313,49 +329,73 @@ class _UserMessageBody extends StatelessWidget {
     );
   }
 
-  /// One attachment's tile in the row.
-  Widget _tile(BuildContext context, _Slot slot, List<ImagePart> images) {
-    final part = slot.part;
-    if (part is! ImagePart) {
-      return _AttachmentTileUnavailable(
-        label: _missingLabel(part as MissingAttachmentPart),
-      );
-    }
-    final index = slot.imageIndex!;
-    return _AttachmentTile(
-      image: part,
-      label: _imageLabel(index, images.length),
-      logSource: _imageLogSource(index),
-      onTap: () => _openBrowser(context, images, index),
-    );
-  }
-
-  /// One attachment's pill in the sentence.
-  Widget _pill(
+  /// One attachment's tile in the row, over the number that names it.
+  ///
+  /// The number goes under the tile rather than over it: a badge legible at
+  /// 48 px covers roughly a third of the very thing the tile exists to show.
+  Widget _tile(
     BuildContext context,
     _Slot slot,
-    int slotIndex,
-    int slotCount,
+    int number,
     List<ImagePart> images,
   ) {
     final part = slot.part;
-    // The ordinal is not rendered — order does that job visually — but a screen
-    // reader has no row to look at, so it is announced.
-    final position = 'Attachment ${slotIndex + 1} of $slotCount';
+    final tile = part is! ImagePart
+        ? _AttachmentTileUnavailable(
+            label: _missingLabel(part as MissingAttachmentPart),
+          )
+        : _AttachmentTile(
+            image: part,
+            label: _imageLabel(slot.imageIndex!, images.length),
+            logSource: _imageLogSource(slot.imageIndex!),
+            onTap: () => _openBrowser(context, images, slot.imageIndex!),
+          );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        tile,
+        Text(
+          '$number',
+          // Announced as part of the pill's description instead; read here too
+          // it would say the number twice for every attachment.
+          semanticsLabel: '',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      ],
+    );
+  }
+
+  /// One attachment's pill in the sentence, carrying the number that names it.
+  ///
+  /// The same number the model is given, so a user reading "3" here and writing
+  /// "what is in image 3" is asking about the image the model knows by that
+  /// name.
+  Widget _pill(
+    BuildContext context,
+    _Slot slot,
+    int number,
+    List<ImagePart> images,
+  ) {
+    final part = slot.part;
     if (part is! ImagePart) {
       // Error-toned so a slot the message was sent with but cannot show is
       // noticed rather than skimmed past — it is small, and the sentence around
       // it reads normally, so nothing else marks it.
       return AttachmentPill.error(
         icon: Icons.broken_image_outlined,
+        label: '$number',
         description:
-            '$position. ${_missingLabel(part as MissingAttachmentPart)}',
+            'Image $number. ${_missingLabel(part as MissingAttachmentPart)}',
       );
     }
     final index = slot.imageIndex!;
     return AttachmentPill(
       icon: Icons.image_outlined,
-      description: '$position. ${_imageLabel(index, images.length)}',
+      label: '$number',
+      description: 'Image $number. ${_imageLabel(index, images.length)}',
       onTap: () => _openBrowser(context, images, index),
     );
   }

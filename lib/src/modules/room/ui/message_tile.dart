@@ -27,6 +27,7 @@ class MessageTile extends StatelessWidget {
     this.onPreviewWorkdirFile,
     this.executionTracker,
     this.streamingPhase,
+    this.attachmentsBefore = 0,
   });
 
   final String roomId;
@@ -42,6 +43,9 @@ class MessageTile extends StatelessWidget {
   final FetchWorkdirFileBytes? onPreviewWorkdirFile;
   final ExecutionTracker? executionTracker;
   final RunPhase? streamingPhase;
+
+  /// Attachment slots in the thread before this message.
+  final int attachmentsBefore;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +70,7 @@ class MessageTile extends StatelessWidget {
             onPreviewWorkdirFile: onPreviewWorkdirFile,
             executionTracker: executionTracker,
             streamingPhase: streamingPhase,
+            attachmentsBefore: attachmentsBefore,
           ),
         final NoResponseTile m => NoResponseTileWidget(
             roomId: roomId,

@@ -87,6 +87,15 @@ extension MessagePartsText on List<MessagePart> {
   /// says no more than [plainText] does, and travels the wire as a bare
   /// string.
   bool get hasAttachment => any((part) => part is! TextPart);
+
+  /// How many slots this list gives to attachments, whether or not each one can
+  /// be shown or sent.
+  ///
+  /// Counts slots rather than usable images on purpose: it is what numbers a
+  /// thread's images stably. An attachment that could not be rebuilt still
+  /// occupies its place, so the images after it keep the numbers they were
+  /// given, and no number is ever handed to a second image.
+  int get attachmentCount => where((part) => part is! TextPart).length;
 }
 
 /// User type for messages.
