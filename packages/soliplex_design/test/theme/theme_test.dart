@@ -166,6 +166,9 @@ void main() {
 
       expect(theme.appBarTheme.elevation, 0);
       expect(theme.appBarTheme.centerTitle, isFalse);
+      // Flat bar: no scrolled-under surface tint or elevation (issue #449).
+      expect(theme.appBarTheme.surfaceTintColor, Colors.transparent);
+      expect(theme.appBarTheme.scrolledUnderElevation, 0);
       expect(theme.dividerTheme.thickness, 1);
       expect(theme.cardTheme.elevation, 0);
     });
