@@ -101,6 +101,13 @@ ThemeData buildSoliplexThemeData({
       backgroundColor: colors.background,
       foregroundColor: colors.foreground,
       elevation: 0,
+      // Keep the bar flat when content scrolls under it. Material 3 otherwise
+      // paints a `surfaceTint` (our brand `primary`) overlay at a default
+      // scrolled-under elevation of 3, which reads as a blue-shifted bar on the
+      // white page (issue #449). The bottom `shape` border below is the only
+      // separator we want.
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
       // Left-align titles on every platform. Left is already the default on
       // non-Apple platforms; iOS/macOS otherwise center the title when the
       // bar has fewer than two actions (on web this follows the browser's host
