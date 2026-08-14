@@ -12,6 +12,7 @@ import 'package:soliplex_client/src/domain/run_feedback.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/run_usage.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
 import 'package:soliplex_client/src/utils/source_url.dart';
@@ -635,6 +636,30 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
     createdAt: createdAt,
     metadata: metadata,
     lastActivity: lastActivity,
+  );
+}
+
+/// Creates a [ThreadPage] from JSON.
+///
+/// Throws [FormatException] if `threads` is absent or not a list, or if
+/// any thread on the page is malformed — unlike a single thread's
+/// optional fields, a corrupt page cannot be partially rendered without
+/// silently losing rows the caller is counting against [ThreadPage.total].
+ThreadPage threadPageFromJson(Map<String, dynamic> json) {
+  final rawThreads = json['threads'];
+  if (rawThreads is! List) {
+    throw const FormatException('Thread page missing required "threads"');
+  }
+
+  return ThreadPage(
+    threads: rawThreads
+        .map((entry) => threadInfoFromJson(entry as Map<String, dynamic>))
+        .toList(growable: false),
+    // A pre-paging backend would omit these; falling back keeps the page
+    // renderable as a single complete page rather than throwing.
+    total: (json['total'] as num?)?.toInt() ?? rawThreads.length,
+    limit: (json['limit'] as num?)?.toInt() ?? rawThreads.length,
+    offset: (json['offset'] as num?)?.toInt() ?? 0,
   );
 }
 
