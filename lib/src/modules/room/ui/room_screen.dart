@@ -52,6 +52,7 @@ import '../thread_view_state.dart';
 import '../compute_display_messages.dart';
 import '../workdir_controller.dart';
 import 'approval_handler.dart';
+import 'chat_classification.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
 import 'document_picker.dart';
@@ -1893,6 +1894,10 @@ class _RoomScreenState extends State<RoomScreen> {
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
           _capWidth(_buildChatInput(threadView, room, messagesStatus)),
+          // Under the composer, where a chat product puts its standing
+          // caveat: what the user is typing into is marked, and the marking
+          // should be the last thing read before sending.
+          _capWidth(const ChatClassificationNotice()),
         ],
       ),
       headerActions:
@@ -1956,43 +1961,58 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   /// The header title: the room name over the server it lives on, so a user
-  /// with several servers connected can see which one this room belongs to.
+  /// with several servers connected can see which one this room belongs to,
+  /// followed by the room's confidentiality marking — inside a room the chat
+  /// bar is the only place that can carry it.
+  ///
+  /// The marking sits beside the title rather than out with the trailing
+  /// actions: it labels the room, and reading it as one unit with the name is
+  /// the point. [Flexible] on the name column (not [Expanded]) lets the
+  /// marking claim the width it needs first — a truncated room name is a
+  /// nuisance, a truncated marking is an integrity bug.
   Widget _roomTitle(String roomName) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          roomName,
-          style: theme.textTheme.titleMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // A link glyph replaces the noisy `https://` scheme as the "this is
-            // the server address" cue (issue #485). Sized from the OS text
-            // scale rather than fixed, so it does not shrink to a dot beside
-            // enlarged text.
-            Icon(
-              Icons.link,
-              size: MediaQuery.textScalerOf(context).scale(14),
-              color: muted,
-            ),
-            const SizedBox(width: SoliplexSpacing.s1),
-            Flexible(
-              child: Text(
-                _serverLabel,
-                style: theme.textTheme.labelSmall?.copyWith(color: muted),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                roomName,
+                style: theme.textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // A link glyph replaces the noisy `https://` scheme as the
+                  // "this is the server address" cue (issue #485). Sized from
+                  // the OS text scale rather than fixed, so it does not shrink
+                  // to a dot beside enlarged text.
+                  Icon(
+                    Icons.link,
+                    size: MediaQuery.textScalerOf(context).scale(14),
+                    color: muted,
+                  ),
+                  const SizedBox(width: SoliplexSpacing.s1),
+                  Flexible(
+                    child: Text(
+                      _serverLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+        const ChatClassificationBadge(),
       ],
     );
   }

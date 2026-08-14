@@ -23,10 +23,24 @@ import 'package:soliplex_design/src/tokens/spacing.dart';
 /// [ClassificationTheme.of] and const tokens, never the `!`-guarded
 /// `SoliplexTheme.of`.
 class SoliplexClassificationBadge extends StatelessWidget {
-  const SoliplexClassificationBadge({this.classification, super.key});
+  const SoliplexClassificationBadge({this.classification, super.key})
+      : _bar = false;
+
+  /// The bar presentation: a marking mounted in a chrome bar rather than in a
+  /// text row or a card.
+  ///
+  /// It fills the height its parent gives it (the caller supplies that — it
+  /// should be the height of the controls beside it) with its label centred,
+  /// and takes the brand corner and the roomier padding that make it read as
+  /// a piece of the bar's furniture, the way a room avatar does in the rail.
+  const SoliplexClassificationBadge.bar({this.classification, super.key})
+      : _bar = true;
 
   /// Stable level id. `null` → the theme's default level.
   final String? classification;
+
+  /// Whether this is the [SoliplexClassificationBadge.bar] presentation.
+  final bool _bar;
 
   @override
   Widget build(BuildContext context) {
@@ -44,15 +58,24 @@ class SoliplexClassificationBadge extends StatelessWidget {
       label: 'Classification: ${level.label}',
       child: ExcludeSemantics(
         child: BadgePill(
+          fillHeight: _bar,
           label: Text(level.label),
           icon: level.icon != null ? Icon(level.icon) : null,
           background: level.background,
           foreground: level.foreground,
-          padding: const EdgeInsets.symmetric(
-            horizontal: SoliplexSpacing.s2,
-            vertical: SoliplexSpacing.s1,
-          ),
-          radius: context.radii.sm,
+          // The bar presentation doubles the inline pill's padding and takes
+          // the brand corner (`md`, what every room avatar in the rail wears)
+          // rather than the small well corner.
+          padding: _bar
+              ? const EdgeInsets.symmetric(
+                  horizontal: SoliplexSpacing.s4,
+                  vertical: SoliplexSpacing.s2,
+                )
+              : const EdgeInsets.symmetric(
+                  horizontal: SoliplexSpacing.s2,
+                  vertical: SoliplexSpacing.s1,
+                ),
+          radius: _bar ? context.radii.md : context.radii.sm,
           textStyle: textTheme.labelLarge!.copyWith(
             fontWeight: FontWeight.w700,
           ),

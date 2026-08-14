@@ -607,12 +607,14 @@ void main() {
     Future<void> pumpRoom(
       WidgetTester tester, {
       required double width,
+      ThemeData? theme,
     }) async {
       tester.view.physicalSize = Size(width, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
       await tester.pumpWidget(MaterialApp(
+        theme: theme,
         home: RoomScreen(
           serverEntry: entry,
           roomId: 'room-1',
@@ -695,6 +697,72 @@ void main() {
 
       expect(find.text('shared.pdf'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    group('confidentiality marking', () {
+      // A deployment that configures markings; a stock build configures none,
+      // which is what every other test in this file runs on.
+      ThemeData markedTheme() => ThemeData(
+            extensions: [
+              ClassificationTheme(
+                defaultId: 'restricted',
+                levels: const [
+                  ClassificationLevel(
+                    id: 'restricted',
+                    label: 'RESTRICTED',
+                    background: Color(0xFFEEDDDD),
+                    foreground: Color(0xFF441111),
+                  ),
+                ],
+              ),
+            ],
+          );
+
+      testWidgets(
+          'narrow layout carries it in the AppBar and under the '
+          'composer', (tester) async {
+        api.nextRoom = const Room(id: 'room-1', name: 'General');
+
+        await pumpRoom(tester, width: 400, theme: markedTheme());
+
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('RESTRICTED'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Information level is RESTRICTED for this room'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('wide layout carries it in the in-page header',
+          (tester) async {
+        api.nextRoom = const Room(id: 'room-1', name: 'General');
+
+        await pumpRoom(tester, width: 1200, theme: markedTheme());
+
+        // No AppBar on wide; the marking rides the in-page header instead.
+        expect(find.byType(AppBar), findsNothing);
+        expect(find.text('RESTRICTED'), findsOneWidget);
+        expect(
+          find.text('Information level is RESTRICTED for this room'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('an unconfigured deployment gets neither', (tester) async {
+        api.nextRoom = const Room(id: 'room-1', name: 'General');
+
+        await pumpRoom(tester, width: 400);
+
+        expect(find.byType(SoliplexClassificationBadge), findsNothing);
+        expect(find.textContaining('Information level'), findsNothing);
+      });
     });
   });
 
