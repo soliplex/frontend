@@ -507,6 +507,42 @@ class _ChipGalleryState extends State<ChipGallery> {
               ),
           ],
         ),
+        _Section(
+          title: 'Colored — arbitrary swatch, derived foreground',
+          children: [
+            // Seeded from the name, so these are the colours a thread
+            // label actually gets when nobody picks one. The spread is
+            // the point: adjacent labels must not read as the same tag.
+            for (final name in const [
+              'Manuals',
+              'V22 Osprey',
+              'Chinook',
+              'Archived',
+            ])
+              SoliplexChip.colored(
+                label: Text(name),
+                color: hashedHueColor(
+                  name,
+                  Theme.of(context).brightness,
+                ),
+              ),
+            // Deliberately awkward swatches: near-white and near-black
+            // both have to stay readable, since users pick these.
+            const SoliplexChip.colored(
+              label: Text('Pale'),
+              color: Color(0xFFF5F5A0),
+            ),
+            const SoliplexChip.colored(
+              label: Text('Deep'),
+              color: Color(0xFF1A1A2E),
+            ),
+            SoliplexChip.colored(
+              label: const Text('Removable'),
+              color: hashedHueColor('Urgent', Theme.of(context).brightness),
+              onDeleted: () {},
+            ),
+          ],
+        ),
       ],
     );
   }

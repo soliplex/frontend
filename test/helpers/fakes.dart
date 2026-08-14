@@ -326,7 +326,13 @@ class FakeSoliplexApi extends SoliplexApi {
   int getAllThreadsCallCount = 0;
 
   /// The (limit, cursor) of each [getAllThreads] call, in order.
-  final List<({int limit, String? cursor})> allThreadsCalls = [];
+  final List<
+      ({
+        int limit,
+        String? cursor,
+        List<int>? labelIds,
+        String? query,
+      })> allThreadsCalls = [];
 
   /// When set, [getAllThreads] awaits this before returning, letting a test
   /// hold a page in flight to prove overlapping loads are refused.
@@ -394,10 +400,17 @@ class FakeSoliplexApi extends SoliplexApi {
   Future<ThreadPage> getAllThreads({
     int limit = 50,
     String? cursor,
+    List<int>? labelIds,
+    String? query,
     CancelToken? cancelToken,
   }) async {
     getAllThreadsCallCount++;
-    allThreadsCalls.add((limit: limit, cursor: cursor));
+    allThreadsCalls.add((
+      limit: limit,
+      cursor: cursor,
+      labelIds: labelIds,
+      query: query,
+    ));
     if (allThreadsGate != null) await allThreadsGate!.future;
     if (nextAllThreadsError != null) throw nextAllThreadsError!;
 
@@ -405,7 +418,26 @@ class FakeSoliplexApi extends SoliplexApi {
     // than throwing: the lobby builds its threads tab on every render, so
     // the many tests that only care about rooms would otherwise all have
     // to stub a listing they never look at.
-    final all = allThreads ?? const <ThreadInfo>[];
+    //
+    // Filtering is applied here rather than only recorded, so a test can
+    // assert on what a filtered listing actually renders. 'labelIds' is
+    // an "any of" match and an empty list means unfiltered, mirroring the
+    // backend.
+    var all = allThreads ?? const <ThreadInfo>[];
+    if (labelIds != null && labelIds.isNotEmpty) {
+      final wanted = labelIds.toSet();
+      all = all
+          .where((t) => t.labels.any((l) => wanted.contains(l.id)))
+          .toList(growable: false);
+    }
+    final trimmed = query?.trim() ?? '';
+    if (trimmed.isNotEmpty) {
+      final needle = trimmed.toLowerCase();
+      all = all
+          .where((t) => t.name.toLowerCase().contains(needle))
+          .toList(growable: false);
+    }
+
     final start = cursor == null ? 0 : int.parse(cursor);
     final end = (start + limit).clamp(0, all.length);
     return ThreadPage(
