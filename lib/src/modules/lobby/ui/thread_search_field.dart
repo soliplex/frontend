@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show KeyDownEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:soliplex_client/soliplex_client.dart' show ThreadLabel;
 import 'package:soliplex_design/soliplex_design.dart';
 
@@ -37,8 +39,17 @@ class ThreadSearchField extends StatefulWidget {
 }
 
 class _ThreadSearchFieldState extends State<ThreadSearchField> {
+  /// Ties the field and its menu into one tap region.
+  ///
+  /// Dismissal keys off tapping outside that region rather than off the
+  /// field losing focus. Focus is the tempting signal and the wrong one:
+  /// tapping a suggestion moves focus off the field, which would hide
+  /// the menu — and unmount the very item being tapped — before the tap
+  /// completed. The result is a menu you can see and cannot click.
+  static const String _tapGroup = 'thread-search-suggestions';
+
   final TextEditingController _controller = TextEditingController();
-  final FocusNode _focus = FocusNode();
+  late final FocusNode _focus = FocusNode(onKeyEvent: _onKey);
   final OverlayPortalController _overlay = OverlayPortalController();
   final LayerLink _link = LayerLink();
 
@@ -47,11 +58,68 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
   /// Labels matching the `@` token being typed, or empty when none is.
   List<ThreadLabel> _suggestions = const [];
 
+  /// Which suggestion the keyboard would take.
+  int _highlighted = 0;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
-    _focus.addListener(_onFocusChanged);
+  }
+
+  /// Handles the keys the menu owns while it is open.
+  ///
+  /// Hooked to the field's own focus node so it sees them before the
+  /// text editor does — otherwise the arrows would move the caret and
+  /// Tab would move focus out of the field entirely.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (!_overlay.isShowing || _suggestions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      // Claim the release of any key we act on, so a Tab-up does not
+      // reach the traversal machinery after we swallowed its Tab-down.
+      return _ownedKeys.contains(event.logicalKey)
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowDown:
+        _moveHighlight(1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        _moveHighlight(-1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.tab:
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        _complete(_suggestions[_highlighted]);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.escape:
+        _hide();
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  // Not const: 'LogicalKeyboardKey' overrides '==', which a const set
+  // may not contain.
+  static final Set<LogicalKeyboardKey> _ownedKeys = {
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.tab,
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+    LogicalKeyboardKey.escape,
+  };
+
+  void _moveHighlight(int delta) {
+    setState(() {
+      // Wraps, so holding a direction cycles rather than sticking.
+      final count = _suggestions.length;
+      _highlighted = (_highlighted + delta + count) % count;
+    });
   }
 
   @override
@@ -68,14 +136,8 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     _controller
       ..removeListener(_onChanged)
       ..dispose();
-    _focus
-      ..removeListener(_onFocusChanged)
-      ..dispose();
+    _focus.dispose();
     super.dispose();
-  }
-
-  void _onFocusChanged() {
-    if (!_focus.hasFocus) _hide();
   }
 
   void _onChanged() {
@@ -96,7 +158,7 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
         selection.isValid && selection.isCollapsed ? selection.baseOffset : -1;
     final token = activeLabelToken(_controller.text, cursor);
 
-    if (token == null || !_focus.hasFocus) {
+    if (token == null) {
       _hide();
       return;
     }
@@ -111,7 +173,12 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
           label,
     ];
 
-    setState(() => _suggestions = matches);
+    setState(() {
+      _suggestions = matches;
+      // Back to the top whenever the list changes underneath: keeping an
+      // index into a different list would highlight an arbitrary entry.
+      _highlighted = 0;
+    });
     if (matches.isEmpty) {
       _hide();
     } else {
@@ -171,91 +238,124 @@ class _ThreadSearchFieldState extends State<ThreadSearchField> {
     return OverlayPortal(
       controller: _overlay,
       overlayChildBuilder: _buildSuggestions,
-      child: CompositedTransformTarget(
-        link: _link,
-        child: SoliplexInput(
-          controller: _controller,
-          focusNode: _focus,
-          label: 'Search threads',
-          hintText: 'Name, or @label',
-          leadingIcon: const Icon(Icons.search),
-          trailingIcon: _controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.clear),
-                  tooltip: 'Clear',
-                  onPressed: _clear,
-                ),
-          onSubmitted: _onSubmitted,
+      child: TapRegion(
+        groupId: _tapGroup,
+        onTapOutside: (_) => _hide(),
+        child: CompositedTransformTarget(
+          link: _link,
+          child: SoliplexInput(
+            controller: _controller,
+            focusNode: _focus,
+            label: 'Search threads',
+            hintText: 'Name, or @label',
+            leadingIcon: const Icon(Icons.search),
+            trailingIcon: _controller.text.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear',
+                    onPressed: _clear,
+                  ),
+            onSubmitted: _onSubmitted,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSuggestions(BuildContext context) {
-    final theme = Theme.of(context);
-    return Stack(
-      children: [
-        // A full-screen catcher, so tapping anywhere else dismisses the
-        // menu rather than leaving it floating over the list.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: _hide,
-          ),
-        ),
-        CompositedTransformFollower(
-          link: _link,
-          targetAnchor: Alignment.bottomLeft,
-          followerAnchor: Alignment.topLeft,
-          offset: const Offset(0, SoliplexSpacing.s1),
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 8,
-              borderRadius: BorderRadius.circular(context.radii.md),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxHeight: 240,
-                  maxWidth: 320,
+    return CompositedTransformFollower(
+      link: _link,
+      targetAnchor: Alignment.bottomLeft,
+      followerAnchor: Alignment.topLeft,
+      offset: const Offset(0, SoliplexSpacing.s1),
+      child: Align(
+        alignment: Alignment.topLeft,
+        // Same group as the field, so tapping a suggestion counts as
+        // "inside" and does not dismiss the menu out from under the tap.
+        child: TapRegion(
+          groupId: _tapGroup,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(context.radii.md),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 240,
+                maxWidth: 320,
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  vertical: SoliplexSpacing.s1,
                 ),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: SoliplexSpacing.s1,
-                  ),
-                  shrinkWrap: true,
-                  itemCount: _suggestions.length,
-                  itemBuilder: (context, index) {
-                    final label = _suggestions[index];
-                    return InkWell(
-                      onTap: () => _complete(label),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: SoliplexSpacing.s3,
-                          vertical: SoliplexSpacing.s2,
-                        ),
-                        child: Row(
-                          children: [
-                            LabelChip(label: label),
-                            const Spacer(),
-                            if (label.usageCount != null)
-                              Text(
-                                '${label.usageCount}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
+                shrinkWrap: true,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) => _SuggestionRow(
+                  label: _suggestions[index],
+                  highlighted: index == _highlighted,
+                  onTap: () => _complete(_suggestions[index]),
+                  onHover: () {
+                    if (_highlighted != index) {
+                      setState(() => _highlighted = index);
+                    }
                   },
                 ),
               ),
             ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+/// One suggestion in the `@label` menu.
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({
+    required this.label,
+    required this.highlighted,
+    required this.onTap,
+    required this.onHover,
+  });
+
+  final ThreadLabel label;
+
+  /// Whether Enter or Tab would take this one.
+  final bool highlighted;
+
+  final VoidCallback onTap;
+  final VoidCallback onHover;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      onEnter: (_) => onHover(),
+      child: InkWell(
+        onTap: onTap,
+        // The field keeps focus while the menu is used: a suggestion
+        // taking it would both hide the menu and drop the caret.
+        canRequestFocus: false,
+        child: Container(
+          color: highlighted ? theme.colorScheme.primaryContainer : null,
+          padding: const EdgeInsets.symmetric(
+            horizontal: SoliplexSpacing.s3,
+            vertical: SoliplexSpacing.s2,
+          ),
+          child: Row(
+            children: [
+              LabelChip(label: label),
+              const Spacer(),
+              if (label.usageCount != null)
+                Text(
+                  '${label.usageCount}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
