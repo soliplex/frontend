@@ -301,12 +301,12 @@ class FakeSoliplexApi extends SoliplexApi {
     allThreadsCalls.add((limit: limit, offset: offset));
     if (allThreadsGate != null) await allThreadsGate!.future;
     if (nextAllThreadsError != null) throw nextAllThreadsError!;
-    if (allThreads == null) {
-      throw StateError(
-          'FakeSoliplexApi: set allThreads or nextAllThreadsError');
-    }
 
-    final all = allThreads!;
+    // Unlike the other fakes, an unset listing yields an empty page rather
+    // than throwing: the lobby builds its threads tab on every render, so
+    // the many tests that only care about rooms would otherwise all have
+    // to stub a listing they never look at.
+    final all = allThreads ?? const <ThreadInfo>[];
     final start = offset.clamp(0, all.length);
     final end = (offset + limit).clamp(0, all.length);
     return ThreadPage(
