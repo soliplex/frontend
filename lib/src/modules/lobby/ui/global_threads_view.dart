@@ -7,6 +7,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
+import '../labels_state.dart';
 import '../lobby_tab.dart';
 
 /// One row of the aggregated listing: either a room heading or a thread.
@@ -54,36 +55,62 @@ List<_Row> _flatten(List<ThreadInfo> threads, {required bool loadingMore}) {
 /// and narrow layouts forward the lobby's props verbatim, and each already
 /// carries around twenty.
 @immutable
-class LobbyThreadsSection {
-  const LobbyThreadsSection({
+class LobbyTabsSection {
+  const LobbyTabsSection({
+    required this.tabs,
     required this.activeTab,
     required this.onTabChanged,
-    required this.state,
+    required this.threads,
+    required this.labels,
     required this.onThreadTap,
+    this.selectedLabelId,
   });
+
+  /// The tabs this user may see, in display order.
+  ///
+  /// Not every user gets every tab — the labels tab is administrators
+  /// only — so this is the authority on both what the strip renders and
+  /// what [activeTab] is allowed to be.
+  final List<LobbyTab> tabs;
 
   final LobbyTab activeTab;
   final ValueChanged<LobbyTab> onTabChanged;
-  final GlobalThreadsState state;
+  final GlobalThreadsState threads;
+  final LabelsState labels;
 
   /// Invoked with the room and thread to open.
   final void Function(String roomId, String threadId) onThreadTap;
+
+  /// A label to highlight on the labels tab, from a deep link.
+  final int? selectedLabelId;
+
+  /// Where [activeTab] sits among [tabs].
+  ///
+  /// Falls back to zero for a tab this user cannot see — a persisted
+  /// preference for the labels tab outliving an administrator's access,
+  /// say — which would otherwise index past the end of the strip.
+  int get activeIndex {
+    final index = tabs.indexOf(activeTab);
+    return index < 0 ? 0 : index;
+  }
 }
 
-/// The lobby's rooms/threads tab strip.
+/// The lobby's tab strip.
 ///
-/// Owns its own [TabController] and keeps it in step with [activeTab],
+/// Owns its own [TabController] and keeps it in step with the active tab,
 /// which is persisted outside the widget tree. Holding the controller here
 /// rather than in the screen keeps the two layouts from having to thread a
 /// controller through their (already long) parameter lists.
 class LobbyTabBar extends StatefulWidget {
   const LobbyTabBar({
     super.key,
-    required this.activeTab,
+    required this.tabs,
+    required this.activeIndex,
     required this.onTabChanged,
   });
 
-  final LobbyTab activeTab;
+  final List<LobbyTab> tabs;
+  final int activeIndex;
   final ValueChanged<LobbyTab> onTabChanged;
 
   @override
@@ -91,29 +118,46 @@ class LobbyTabBar extends StatefulWidget {
 }
 
 class _LobbyTabBarState extends State<LobbyTabBar>
-    with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(
-    length: LobbyTab.values.length,
-    vsync: this,
-    initialIndex: widget.activeTab.index,
-  )..addListener(_onControllerChanged);
+    with TickerProviderStateMixin {
+  late TabController _controller = _newController();
+
+  TabController _newController() => TabController(
+        length: widget.tabs.length,
+        vsync: this,
+        initialIndex: widget.activeIndex,
+      )..addListener(_onControllerChanged);
 
   @override
   void didUpdateWidget(LobbyTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // A TabController's length is fixed at construction, so a change in
+    // how many tabs this user may see means a new controller — which is
+    // also why this mixes in TickerProviderStateMixin rather than the
+    // single-ticker variant.
+    if (widget.tabs.length != _controller.length) {
+      _disposeController();
+      _controller = _newController();
+      return;
+    }
+
     // The tab can change from outside the strip (the persisted preference
     // resolving at launch). Mirror it without re-notifying, or the two
     // would bounce updates off each other.
-    if (widget.activeTab.index != _controller.index) {
-      _controller.index = widget.activeTab.index;
+    if (widget.activeIndex != _controller.index) {
+      _controller.index = widget.activeIndex;
     }
+  }
+
+  void _disposeController() {
+    _controller
+      ..removeListener(_onControllerChanged)
+      ..dispose();
   }
 
   @override
   void dispose() {
-    _controller
-      ..removeListener(_onControllerChanged)
-      ..dispose();
+    _disposeController();
     super.dispose();
   }
 
@@ -121,21 +165,27 @@ class _LobbyTabBarState extends State<LobbyTabBar>
     // Fires twice per swipe (start and settle); only the settled index is
     // worth persisting.
     if (_controller.indexIsChanging) return;
-    final tab = LobbyTab.values[_controller.index];
-    if (tab != widget.activeTab) widget.onTabChanged(tab);
+    if (_controller.index >= widget.tabs.length) return;
+    final tab = widget.tabs[_controller.index];
+    widget.onTabChanged(tab);
   }
 
   @override
   Widget build(BuildContext context) {
     return TabBar(
       controller: _controller,
-      tabs: const [
-        Tab(text: 'Rooms'),
-        Tab(text: 'Threads'),
+      tabs: [
+        for (final tab in widget.tabs) Tab(text: _tabLabel(tab)),
       ],
     );
   }
 }
+
+String _tabLabel(LobbyTab tab) => switch (tab) {
+      LobbyTab.rooms => 'Rooms',
+      LobbyTab.threads => 'Threads',
+      LobbyTab.labels => 'Labels',
+    };
 
 /// The lobby's aggregated thread listing for the selected server.
 ///

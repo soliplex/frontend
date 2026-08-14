@@ -15,6 +15,7 @@ import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
 import '../global_threads_state.dart';
 import '../lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
+import '../labels_state.dart';
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_tab.dart';
@@ -22,6 +23,7 @@ import '../lobby_view_mode.dart';
 import '../room_activity_format.dart';
 import '../room_grouping.dart';
 import 'global_threads_view.dart';
+import 'labels_view.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -75,6 +77,7 @@ class LobbyScreen extends StatefulWidget {
 class _LobbyScreenState extends State<LobbyScreen> {
   late final LobbyState _state;
   late final GlobalThreadsState _threadsState;
+  late final LabelsState _labelsState;
 
   @override
   void initState() {
@@ -90,10 +93,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
       entryResolver: (id) => widget.serverManager.servers.value[id],
       apiResolver: widget.apiResolver,
     );
+    _labelsState = LabelsState(
+      entryResolver: (id) => widget.serverManager.servers.value[id],
+      apiResolver: widget.apiResolver,
+    );
   }
 
   @override
   void dispose() {
+    _labelsState.dispose();
     _threadsState.dispose();
     _state.dispose();
     super.dispose();
@@ -164,11 +172,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // selected. This is a no-op when the selection has not moved, so it is
     // safe to run on every rebuild.
     _threadsState.setServer(selectedServerId);
+    _labelsState.setServer(selectedServerId);
 
-    final threadsSection = LobbyThreadsSection(
+    // Non-administrators get no labels tab at all rather than a
+    // read-only one: every control on it is an administrator action, and
+    // the catalogue stays discoverable through the '@label' autocomplete
+    // and a thread's properties.
+    final isAdmin =
+        selectedServerId != null && _state.isLabelAdmin(selectedServerId);
+
+    final tabsSection = LobbyTabsSection(
+      tabs: visibleLobbyTabs(isAdmin: isAdmin),
       activeTab: activeTab,
       onTabChanged: _state.setActiveTab,
-      state: _threadsState,
+      threads: _threadsState,
+      labels: _labelsState,
       onThreadTap: _onThreadTap,
     );
 
@@ -204,7 +222,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               )
             : _NarrowLayout(
                 servers: servers,
@@ -232,7 +250,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               );
       },
     );
@@ -266,10 +284,10 @@ class _WideLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -344,7 +362,7 @@ class _WideLayout extends StatelessWidget {
                 onInfoTap: onInfoTap,
                 onAddServer: onAddServer,
                 onSignIn: onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               ),
             ),
           ],
@@ -381,10 +399,10 @@ class _NarrowLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -489,7 +507,7 @@ class _NarrowLayout extends StatelessWidget {
           onInfoTap: onInfoTap,
           onAddServer: onAddServer,
           onSignIn: onSignIn,
-          threadsSection: threadsSection,
+          tabsSection: tabsSection,
         ),
       ),
     );
@@ -517,10 +535,10 @@ class _RoomContent extends StatelessWidget {
     required this.onInfoTap,
     required this.onAddServer,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
 
   final Map<String, ServerRooms> roomsByServer;
   final Map<String, ServerEntry> servers;
@@ -612,10 +630,11 @@ class _RoomContent extends StatelessWidget {
             // the selected server, which is exactly what they are — the
             // threads tab aggregates that server's rooms, not every server.
             LobbyTabBar(
-              activeTab: threadsSection.activeTab,
-              onTabChanged: threadsSection.onTabChanged,
+              tabs: tabsSection.tabs,
+              activeIndex: tabsSection.activeIndex,
+              onTabChanged: tabsSection.onTabChanged,
             ),
-            if (threadsSection.activeTab == LobbyTab.rooms)
+            if (tabsSection.tabs[tabsSection.activeIndex] == LobbyTab.rooms)
               Padding(
                 // A non-scrolling bottom gap (matching the list's item
                 // spacing) so scrolled room titles/descriptions keep a gutter
@@ -640,15 +659,23 @@ class _RoomContent extends StatelessWidget {
               // scroll position when the user flips between them — the
               // threads list may be many pages deep by then.
               child: IndexedStack(
-                index: threadsSection.activeTab.index,
+                index: tabsSection.activeIndex,
                 sizing: StackFit.expand,
                 children: [
-                  _buildSelectedServer(context, effectiveViewMode),
-                  GlobalThreadsView(
-                    state: threadsSection.state,
-                    roomNames: _roomNames(),
-                    onThreadTap: threadsSection.onThreadTap,
-                  ),
+                  for (final tab in tabsSection.tabs)
+                    switch (tab) {
+                      LobbyTab.rooms =>
+                        _buildSelectedServer(context, effectiveViewMode),
+                      LobbyTab.threads => GlobalThreadsView(
+                          state: tabsSection.threads,
+                          roomNames: _roomNames(),
+                          onThreadTap: tabsSection.onThreadTap,
+                        ),
+                      LobbyTab.labels => LabelsView(
+                          state: tabsSection.labels,
+                          selectedLabelId: tabsSection.selectedLabelId,
+                        ),
+                    },
                 ],
               ),
             ),
