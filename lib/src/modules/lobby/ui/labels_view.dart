@@ -109,45 +109,28 @@ class LabelsView extends StatelessWidget {
       );
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            SoliplexSpacing.s4,
-            SoliplexSpacing.s2,
-            SoliplexSpacing.s4,
-            0,
-          ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: SoliplexButton.outlined(
-              onPressed: () => _create(context),
-              icon: const Icon(Icons.add),
-              child: const Text('New label'),
-            ),
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: state.refresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(
-                vertical: SoliplexSpacing.s2,
-              ),
-              itemCount: loaded.labels.length,
-              itemBuilder: (context, index) {
-                final label = loaded.labels[index];
-                return _LabelRow(
-                  label: label,
-                  highlighted: label.id == selectedLabelId,
-                  onEdit: () => _edit(context, label),
-                  onDelete: () => _delete(context, label),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
+    return RefreshIndicator(
+      onRefresh: state.refresh,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
+        // One extra row for the create tile, which rides at the end of
+        // the list rather than sitting in a bar above it — the same
+        // button-as-tile shape the server sidebar uses, so the two read
+        // as one idiom rather than two.
+        itemCount: loaded.labels.length + 1,
+        itemBuilder: (context, index) {
+          if (index == loaded.labels.length) {
+            return _NewLabelTile(onTap: () => _create(context));
+          }
+          final label = loaded.labels[index];
+          return _LabelRow(
+            label: label,
+            highlighted: label.id == selectedLabelId,
+            onEdit: () => _edit(context, label),
+            onDelete: () => _delete(context, label),
+          );
+        },
+      ),
     );
   }
 
@@ -169,6 +152,33 @@ class LabelsView extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (_) => _DeleteLabelDialog(state: state, label: label),
+    );
+  }
+}
+
+/// The create affordance, shaped as the list's last row.
+///
+/// Deliberately a tile rather than a button in a bar above the list: it
+/// shares the rows' padding and scrolls with them, so "add one more"
+/// reads as the natural continuation of what is already there.
+class _NewLabelTile extends StatelessWidget {
+  const _NewLabelTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SoliplexSpacing.s4,
+        vertical: SoliplexSpacing.s2,
+      ),
+      child: SoliplexButton.text(
+        onPressed: onTap,
+        icon: const Icon(Icons.add),
+        alignment: Alignment.centerLeft,
+        child: const Text('New label'),
+      ),
     );
   }
 }
