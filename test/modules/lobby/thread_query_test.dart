@@ -77,6 +77,32 @@ void main() {
       expect(query.text, equals('Osprey Manual'));
     });
 
+    test('reads a quoted token as one name', () {
+      // Label names may contain spaces — "V22 Osprey" is ordinary — and
+      // an unquoted token would end mid-name, leaving the remainder to
+      // become free text.
+      final query = parseThreadQuery('@"V22 Osprey" manual');
+
+      expect(query.labelNames, equals(['v22 osprey']));
+      expect(query.text, equals('manual'));
+    });
+
+    test('mixes quoted and bare tokens', () {
+      final query = parseThreadQuery('@urgent @"V22 Osprey"');
+
+      expect(query.labelNames, equals(['urgent', 'v22 osprey']));
+      expect(query.text, isEmpty);
+    });
+
+    test('ignores an empty quoted token', () {
+      // '@""' names nothing; filtering on a label that cannot exist
+      // would empty the list for no stated reason.
+      final query = parseThreadQuery('@"" tail');
+
+      expect(query.labelNames, isEmpty);
+      expect(query.text, equals('tail'));
+    });
+
     test('keeps an @ inside a word as part of a token', () {
       // Deliberate: names may contain punctuation, and there is no
       // email-like case in a thread search worth special-casing.
@@ -147,6 +173,19 @@ void main() {
       expect(activeLabelToken('@man', 99), isNull);
       expect(activeLabelToken('@man', -1), isNull);
     });
+
+    test('keeps reading a quoted token across its spaces', () {
+      // The menu has to stay open while a multi-word name is typed.
+      const raw = '@"V22 Osp';
+
+      expect(activeLabelToken(raw, raw.length), equals('v22 osp'));
+    });
+
+    test('returns null once the closing quote lands', () {
+      const raw = '@"V22 Osprey"';
+
+      expect(activeLabelToken(raw, raw.length), isNull);
+    });
   });
 
   group('completeLabelToken', () {
@@ -180,6 +219,39 @@ void main() {
     test('returns null when there is nothing to complete', () {
       expect(completeLabelToken('Osprey', 6, 'manuals'), isNull);
       expect(completeLabelToken('Osprey @manuals ', 16, 'urgent'), isNull);
+    });
+
+    test('quotes a name that contains spaces', () {
+      const raw = '@v22';
+
+      final completed = completeLabelToken(raw, raw.length, 'v22 osprey');
+
+      // Unquoted this would round-trip as label "v22" plus the word
+      // "osprey" — a different query from the one the user picked.
+      expect(completed?.text, equals('@"v22 osprey" '));
+      expect(
+        parseThreadQuery(completed!.text).labelNames,
+        equals(['v22 osprey']),
+      );
+    });
+
+    test('completes a quoted token in progress', () {
+      const raw = '@"v22 osp';
+
+      final completed = completeLabelToken(raw, raw.length, 'v22 osprey');
+
+      expect(completed?.text, equals('@"v22 osprey" '));
+    });
+  });
+
+  group('formatLabelToken', () {
+    test('leaves a simple name bare', () {
+      expect(formatLabelToken('urgent'), equals('@urgent'));
+    });
+
+    test('quotes anything the parser would otherwise split', () {
+      expect(formatLabelToken('v22 osprey'), equals('@"v22 osprey"'));
+      expect(formatLabelToken('a,b'), equals('@"a,b"'));
     });
   });
 }

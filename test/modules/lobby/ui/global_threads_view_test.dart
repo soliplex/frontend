@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -477,6 +478,137 @@ void main() {
       expect(api.allThreadsCalls.last.labelIds, equals([7]));
       // The menu closes once a choice is made.
       expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+    });
+
+    testWidgets('the field keeps focus while the menu is used', (tester) async {
+      // The bug this pins: a suggestion that takes focus makes the field
+      // lose it, and anything hiding the menu on focus loss unmounts the
+      // row mid-tap — a menu you can see and cannot click.
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      final field = find.byType(TextField).last;
+      await tester.tap(field);
+      await tester.enterText(field, '@man');
+      await tester.pumpAndSettle();
+
+      final focusBefore = tester.widget<TextField>(field).focusNode;
+      expect(focusBefore?.hasFocus, isTrue);
+
+      await tester.tap(find.widgetWithText(LabelChip, 'Manuals'));
+      await tester.pumpAndSettle();
+
+      // Still focused, so typing continues where it left off.
+      expect(focusBefore?.hasFocus, isTrue);
+    });
+
+    testWidgets('arrow keys move the highlight and Enter takes it',
+        (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manual Alpha', color: '#42D76D'),
+          ThreadLabel(id: 2, name: 'Manual Beta', color: '#D93025'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      final field = find.byType(TextField).last;
+      await tester.tap(field);
+      await tester.enterText(field, '@manual');
+      await tester.pumpAndSettle();
+
+      // Down then Enter takes the second, not the first — proving the
+      // arrows reach the menu rather than moving the caret.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.labelIds, equals([2]));
+    });
+
+    testWidgets('Tab accepts the highlighted suggestion', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      final field = find.byType(TextField).last;
+      await tester.tap(field);
+      await tester.enterText(field, '@man');
+      await tester.pumpAndSettle();
+
+      // Tab completes rather than moving focus out of the field.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.labelIds, equals([7]));
+      expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+    });
+
+    testWidgets('Escape closes the menu without filtering', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+      final before = api.getAllThreadsCallCount;
+
+      final field = find.byType(TextField).last;
+      await tester.tap(field);
+      await tester.enterText(field, '@man');
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+      expect(api.getAllThreadsCallCount, equals(before));
+    });
+
+    testWidgets('completes a label whose name contains spaces', (tester) async {
+      // The seeded catalogue really has names like this. Completing one
+      // unquoted would round-trip as label "v22" plus the word "Osprey"
+      // — a different query from the one that was picked, and one that
+      // matches no label at all.
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 4, name: 'V22 Osprey', color: '#42BED7'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      final field = find.byType(TextField).last;
+      await tester.tap(field);
+      await tester.enterText(field, '@osp');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(LabelChip, 'V22 Osprey'));
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.labelIds, equals([4]));
+      expect(find.text('No such label'), findsNothing);
     });
 
     testWidgets('does not suggest a label already in the query',

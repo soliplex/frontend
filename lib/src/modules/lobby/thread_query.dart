@@ -48,12 +48,21 @@ class ThreadQuery {
   String toString() => 'ThreadQuery(text: "$text", labels: $labelNames)';
 }
 
-/// Characters that end an `@label` token.
+/// An `@label` token: either `@name` or `@"name with spaces"`.
 ///
-/// A label name runs to the next space or punctuation, so
-/// `@urgent, @manuals` and `@urgent。` both terminate cleanly rather
-/// than swallowing the separator into the name.
-final RegExp _labelToken = RegExp(r'@([^\s,;]+)');
+/// A bare token runs to the next space or punctuation, so `@urgent,
+/// @manuals` terminates cleanly rather than swallowing the separator.
+/// Label names may contain spaces, though — "V22 Osprey" is an ordinary
+/// name — and those have to be quoted, or the token would end mid-name
+/// and the remainder would silently become free text.
+final RegExp _labelToken = RegExp(r'@(?:"([^"]*)"|([^\s,;"]+))');
+
+/// Whether [name] has to be quoted to survive a round trip.
+bool _needsQuoting(String name) => RegExp(r'[\s,;"]').hasMatch(name);
+
+/// [name] as it should appear in a query.
+String formatLabelToken(String name) =>
+    _needsQuoting(name) ? '@"$name"' : '@$name';
 
 /// Splits a raw search string into free text and `@label` tokens.
 ///
@@ -78,8 +87,12 @@ ThreadQuery parseThreadQuery(String raw) {
   final seen = <String>{};
 
   final text = raw.replaceAllMapped(_labelToken, (match) {
-    final name = match.group(1)!.toLowerCase();
-    if (seen.add(name)) labelNames.add(name);
+    // Group 1 is the quoted form, group 2 the bare one; exactly one
+    // matches.
+    final name = (match.group(1) ?? match.group(2)!).toLowerCase();
+    // An empty quoted token ('@""') names nothing; dropping it beats
+    // filtering on a label that cannot exist.
+    if (name.isNotEmpty && seen.add(name)) labelNames.add(name);
     // Replaced with a space, not with nothing: removing the token
     // outright would weld its neighbours together, turning
     // "Osprey @manuals Manual" into "Osprey Manual" with no gap.
@@ -110,6 +123,15 @@ String? activeLabelToken(String raw, int cursor) {
   if (at < 0) return null;
 
   final token = before.substring(at + 1);
+
+  if (token.startsWith('"')) {
+    final inner = token.substring(1);
+    // A closing quote means the token is finished; anything after it is
+    // ordinary text.
+    if (inner.contains('"')) return null;
+    return inner.toLowerCase();
+  }
+
   // Any separator inside means the token already ended; what follows is
   // ordinary text, not a name still being typed.
   if (token.contains(RegExp(r'[\s,;]'))) return null;
@@ -130,7 +152,10 @@ String? activeLabelToken(String raw, int cursor) {
   if (activeLabelToken(raw, cursor) == null) return null;
 
   final at = raw.substring(0, cursor).lastIndexOf('@');
-  final replacement = '@$name ';
+  // Quoted when the name needs it, so a name with spaces survives being
+  // re-read — otherwise completing "V22 Osprey" would produce a query
+  // meaning label "v22" plus the word "Osprey".
+  final replacement = '${formatLabelToken(name)} ';
   final text = raw.replaceRange(at, cursor, replacement);
 
   return (text: text, cursor: at + replacement.length);
