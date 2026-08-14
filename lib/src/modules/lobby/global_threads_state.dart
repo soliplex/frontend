@@ -86,6 +86,17 @@ class GlobalThreadsState {
   /// first page arrives and after the last.
   String? _nextCursor;
 
+  /// The active filter, applied to every page including [loadMore]'s —
+  /// paging a filtered listing has to stay filtered.
+  List<int> _labelIds = const [];
+  String _query = '';
+
+  /// Whether the listing is currently narrowed by a search.
+  ///
+  /// Lets the view tell "you have no threads" from "nothing matched",
+  /// which want different empty states.
+  bool get isFiltered => _labelIds.isNotEmpty || _query.isNotEmpty;
+
   /// Cancels the in-flight request, if any. Also the guard against
   /// overlapping pages: a non-null token means a fetch is already running,
   /// and [loadMore] declines rather than requesting the same page twice.
@@ -116,6 +127,34 @@ class GlobalThreadsState {
 
     _threads.value = const GlobalThreadsLoading();
     unawaited(_fetch(cursor: null));
+  }
+
+  /// Narrows the listing to threads matching [labelIds] and [query].
+  ///
+  /// [labelIds] is an "any of" match; empty means no label filter, so
+  /// clearing the last chip widens the listing rather than emptying it.
+  /// [query] matches thread names, ignoring case.
+  ///
+  /// A no-op when neither has changed, so a rebuild that re-emits the
+  /// current filter does not restart paging from zero.
+  void setFilter({List<int> labelIds = const [], String query = ''}) {
+    if (_sameFilter(labelIds, query)) return;
+    _labelIds = List.unmodifiable(labelIds);
+    _query = query;
+
+    if (_serverId == null) return;
+    _cancelInFlight();
+    _threads.value = const GlobalThreadsLoading();
+    unawaited(_fetch(cursor: null));
+  }
+
+  bool _sameFilter(List<int> labelIds, String query) {
+    if (query != _query) return false;
+    if (labelIds.length != _labelIds.length) return false;
+    for (var i = 0; i < labelIds.length; i++) {
+      if (labelIds[i] != _labelIds[i]) return false;
+    }
+    return true;
   }
 
   /// Reloads from the first page, discarding what is already held.
@@ -164,6 +203,8 @@ class GlobalThreadsState {
       final page = await _apiResolver(entry).getAllThreads(
         limit: pageSize,
         cursor: cursor,
+        labelIds: _labelIds,
+        query: _query,
         cancelToken: token,
       );
 
