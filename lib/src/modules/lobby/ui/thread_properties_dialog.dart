@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart'
@@ -209,7 +211,7 @@ class _ThreadPropertiesDialogState extends State<ThreadPropertiesDialog> {
 /// Selected labels paint in their own colour; unselected ones are
 /// outlined with a dot of it, so the set a thread carries reads at a
 /// glance rather than having to be compared against the whole catalogue.
-class _SelectableLabel extends StatelessWidget {
+class _SelectableLabel extends StatefulWidget {
   const _SelectableLabel({
     required this.label,
     required this.selected,
@@ -226,42 +228,76 @@ class _SelectableLabel extends StatelessWidget {
   final VoidCallback? onEdit;
 
   @override
+  State<_SelectableLabel> createState() => _SelectableLabelState();
+}
+
+class _SelectableLabelState extends State<_SelectableLabel> {
+  bool _hovered = false;
+
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS ||
+        TargetPlatform.windows ||
+        TargetPlatform.linux =>
+          true,
+        _ => false,
+      };
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final label = widget.label;
     final color = labelColor(label, theme.brightness);
 
     final chip = Semantics(
-      selected: selected,
+      selected: widget.selected,
       button: true,
-      child: selected
-          ? InkWell(onTap: onToggle, child: LabelChip(label: label))
+      child: widget.selected
+          ? InkWell(onTap: widget.onToggle, child: LabelChip(label: label))
           : SoliplexChip.action(
               label: Text(label.name),
               icon: Icon(Icons.circle, color: color),
-              onPressed: onToggle,
+              onPressed: widget.onToggle,
             ),
     );
 
-    final edit = onEdit;
+    final edit = widget.onEdit;
     if (edit == null) return chip;
 
-    // An explicit button rather than a right-click or long-press. Those
-    // would be invisible affordances on a chip nobody would think to
-    // try, and this is the only route from a thread to the label's own
+    // Revealed on hover, so a catalogue of chips does not read as a row
+    // of identical buttons competing with the labels themselves. There
+    // is no hover to wait for on touch, so it stays put there.
+    //
+    // Still an explicit button rather than a right-click or long-press:
+    // those would be invisible affordances on a chip nobody would think
+    // to try, and this is the only route from a thread to a label's own
     // settings.
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        chip,
-        IconButton(
-          icon: const Icon(Icons.tune, size: 16),
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(),
-          padding: const EdgeInsets.only(left: SoliplexSpacing.s1),
-          tooltip: 'Edit "${label.name}"',
-          onPressed: edit,
-        ),
-      ],
+    final showEdit = _hovered || !_isDesktop;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          chip,
+          // The slot is always occupied so the chips do not shuffle
+          // sideways as the pointer crosses them.
+          Visibility(
+            visible: showEdit,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: IconButton(
+              icon: const Icon(Icons.tune, size: 16),
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.only(left: SoliplexSpacing.s1),
+              tooltip: 'Edit "${label.name}"',
+              onPressed: showEdit ? edit : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

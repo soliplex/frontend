@@ -113,16 +113,19 @@ class LabelsView extends StatelessWidget {
       onRefresh: state.refresh,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: SoliplexSpacing.s2),
-        // One extra row for the create tile, which rides at the end of
-        // the list rather than sitting in a bar above it — the same
-        // button-as-tile shape the server sidebar uses, so the two read
-        // as one idiom rather than two.
+        // One extra row for the create tile — the same button-as-tile
+        // shape the server sidebar uses, so the two read as one idiom.
+        //
+        // At the head of the list rather than the tail, unlike that
+        // sidebar: a server list is a handful of entries, but a label
+        // catalogue can run to hundreds, and burying "new" under all of
+        // them would mean scrolling the whole thing to add one.
         itemCount: loaded.labels.length + 1,
         itemBuilder: (context, index) {
-          if (index == loaded.labels.length) {
+          if (index == 0) {
             return _NewLabelTile(onTap: () => _create(context));
           }
-          final label = loaded.labels[index];
+          final label = loaded.labels[index - 1];
           return _LabelRow(
             label: label,
             highlighted: label.id == selectedLabelId,
@@ -156,11 +159,11 @@ class LabelsView extends StatelessWidget {
   }
 }
 
-/// The create affordance, shaped as the list's last row.
+/// The create affordance, shaped as the list's first row.
 ///
 /// Deliberately a tile rather than a button in a bar above the list: it
-/// shares the rows' padding and scrolls with them, so "add one more"
-/// reads as the natural continuation of what is already there.
+/// shares the rows' padding and scrolls with them, so it reads as part
+/// of the catalogue rather than as chrome bolted above it.
 class _NewLabelTile extends StatelessWidget {
   const _NewLabelTile({required this.onTap});
 
