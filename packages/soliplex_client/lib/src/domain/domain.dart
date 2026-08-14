@@ -27,6 +27,7 @@ export 'sse_delivery_profile.dart';
 export 'surface.dart';
 export 'thread_history.dart';
 export 'thread_info.dart';
+export 'thread_page.dart';
 export 'thread_state_warning.dart';
 export 'transcript.dart';
 export 'workdir_file.dart';
