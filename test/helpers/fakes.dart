@@ -217,6 +217,22 @@ class FakeSoliplexApi extends SoliplexApi {
   /// How many times [getThreads] was invoked, for refresh/coalesce assertions.
   int getThreadsCallCount = 0;
 
+  /// Every thread [getAllThreads] pages over, in backend order. The fake
+  /// slices this by limit/offset so a test can exercise real paging by
+  /// seeding more threads than one page holds.
+  List<ThreadInfo>? allThreads;
+  Exception? nextAllThreadsError;
+
+  /// How many times [getAllThreads] was invoked, for load-more assertions.
+  int getAllThreadsCallCount = 0;
+
+  /// The (limit, offset) of each [getAllThreads] call, in order.
+  final List<({int limit, int offset})> allThreadsCalls = [];
+
+  /// When set, [getAllThreads] awaits this before returning, letting a test
+  /// hold a page in flight to prove overlapping loads are refused.
+  Completer<void>? allThreadsGate;
+
   /// [getRoomsStats] result: the activity batch keyed by room id. Lets a test
   /// give rooms distinct last-activity timestamps (e.g. for activity sorting).
   Map<String, RoomStats> roomsStats = {};
@@ -273,6 +289,32 @@ class FakeSoliplexApi extends SoliplexApi {
     if (nextThreadsError != null) throw nextThreadsError!;
     if (nextThreads != null) return nextThreads!;
     throw StateError('FakeSoliplexApi: set nextThreads or nextThreadsError');
+  }
+
+  @override
+  Future<ThreadPage> getAllThreads({
+    int limit = 50,
+    int offset = 0,
+    CancelToken? cancelToken,
+  }) async {
+    getAllThreadsCallCount++;
+    allThreadsCalls.add((limit: limit, offset: offset));
+    if (allThreadsGate != null) await allThreadsGate!.future;
+    if (nextAllThreadsError != null) throw nextAllThreadsError!;
+
+    // Unlike the other fakes, an unset listing yields an empty page rather
+    // than throwing: the lobby builds its threads tab on every render, so
+    // the many tests that only care about rooms would otherwise all have
+    // to stub a listing they never look at.
+    final all = allThreads ?? const <ThreadInfo>[];
+    final start = offset.clamp(0, all.length);
+    final end = (offset + limit).clamp(0, all.length);
+    return ThreadPage(
+      threads: all.sublist(start, end),
+      total: all.length,
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override

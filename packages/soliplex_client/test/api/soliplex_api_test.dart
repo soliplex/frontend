@@ -588,6 +588,138 @@ void main() {
       });
     });
 
+    group('getAllThreads', () {
+      void stubResponse(Map<String, dynamic> response) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => response);
+      }
+
+      Map<String, dynamic> threadJson(String id, String roomId) =>
+          <String, dynamic>{
+            'id': id,
+            'room_id': roomId,
+            'created': '2024-01-01T00:00:00Z',
+          };
+
+      test('returns a page spanning several rooms', () async {
+        stubResponse({
+          'threads': [
+            threadJson('thread-1', 'room-a'),
+            threadJson('thread-2', 'room-b'),
+          ],
+          'total': 5,
+          'limit': 2,
+          'offset': 0,
+        });
+
+        final page = await api.getAllThreads(limit: 2);
+
+        expect(page.threads.length, equals(2));
+        expect(page.threads[0].roomId, equals('room-a'));
+        expect(page.threads[1].roomId, equals('room-b'));
+        expect(page.total, equals(5));
+        expect(page.hasMore, isTrue);
+      });
+
+      test('sends limit and offset as query parameters', () async {
+        Uri? capturedUri;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return {
+            'threads': <dynamic>[],
+            'total': 0,
+            'limit': 10,
+            'offset': 20,
+          };
+        });
+
+        await api.getAllThreads(limit: 10, offset: 20);
+
+        expect(capturedUri?.path, equals('/api/v1/agui/threads'));
+        expect(capturedUri?.queryParameters['limit'], equals('10'));
+        expect(capturedUri?.queryParameters['offset'], equals('20'));
+      });
+
+      test('rejects a non-positive limit', () {
+        expect(
+          () => api.getAllThreads(limit: 0),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
+
+      test('rejects a negative offset', () {
+        expect(
+          () => api.getAllThreads(offset: -1),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
+
+      test('throws MalformedResponseException on a bad page', () async {
+        stubResponse({'threads': 'not-a-list'});
+
+        await expectLater(
+          api.getAllThreads(),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test('supports cancellation', () async {
+        final cancelToken = CancelToken();
+
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: cancelToken,
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'threads': <dynamic>[],
+            'total': 0,
+            'limit': 50,
+            'offset': 0,
+          },
+        );
+
+        await api.getAllThreads(cancelToken: cancelToken);
+
+        verify(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: cancelToken,
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).called(1);
+      });
+    });
+
     group('getRoomsStats', () {
       test('parses the dict[room_id, RoomStats] collection', () async {
         when(

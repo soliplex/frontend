@@ -13,12 +13,15 @@ import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/server_entry.dart';
 import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
+import '../global_threads_state.dart';
 import '../lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
+import '../lobby_tab.dart';
 import '../lobby_view_mode.dart';
 import '../room_activity_format.dart';
 import '../room_grouping.dart';
+import 'global_threads_view.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -71,6 +74,7 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   late final LobbyState _state;
+  late final GlobalThreadsState _threadsState;
 
   @override
   void initState() {
@@ -82,10 +86,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
       roomReadMarkers: widget.roomReadMarkers,
       serverReadMarkers: widget.serverReadMarkers,
     );
+    _threadsState = GlobalThreadsState(
+      entryResolver: (id) => widget.serverManager.servers.value[id],
+      apiResolver: widget.apiResolver,
+    );
   }
 
   @override
   void dispose() {
+    _threadsState.dispose();
     _state.dispose();
     super.dispose();
   }
@@ -104,6 +113,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // owns room read state (a room stays unread while any thread is unread).
     // Marking read here would clobber that and hide genuinely-unread threads.
     context.go(AppRoutes.room(entry.alias, roomId));
+  }
+
+  void _onThreadTap(String roomId, String threadId) {
+    // The threads tab only ever shows the selected server, so the thread
+    // belongs to it by construction.
+    final serverId = _state.selectedServerId.value;
+    if (serverId == null) return;
+    final entry = widget.serverManager.servers.value[serverId];
+    assert(entry != null, 'Thread tap for unknown serverId: $serverId');
+    if (entry == null) return;
+    context.go(AppRoutes.thread(entry.alias, roomId, threadId));
   }
 
   void _onInfoTap(String serverId, String roomId) {
@@ -138,6 +158,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final roomReadMarkers = _state.roomReadMarkers.watch(context);
     final serverReadMarkers = _state.serverReadMarkers.watch(context);
     final activityLoading = _state.activityLoading.watch(context);
+    final activeTab = _state.activeTab.watch(context);
+
+    // Keep the threads listing pointed at whatever the sidebar has
+    // selected. This is a no-op when the selection has not moved, so it is
+    // safe to run on every rebuild.
+    _threadsState.setServer(selectedServerId);
+
+    final threadsSection = LobbyThreadsSection(
+      activeTab: activeTab,
+      onTabChanged: _state.setActiveTab,
+      state: _threadsState,
+      onThreadTap: _onThreadTap,
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Persistent sidebar / two-pane layout is a desktop affordance; the
@@ -170,6 +204,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
+                threadsSection: threadsSection,
               )
             : _NarrowLayout(
                 servers: servers,
@@ -197,6 +232,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
+                threadsSection: threadsSection,
               );
       },
     );
@@ -230,8 +266,10 @@ class _WideLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
+    required this.threadsSection,
   });
 
+  final LobbyThreadsSection threadsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -306,6 +344,7 @@ class _WideLayout extends StatelessWidget {
                 onInfoTap: onInfoTap,
                 onAddServer: onAddServer,
                 onSignIn: onSignIn,
+                threadsSection: threadsSection,
               ),
             ),
           ],
@@ -342,8 +381,10 @@ class _NarrowLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
+    required this.threadsSection,
   });
 
+  final LobbyThreadsSection threadsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -448,6 +489,7 @@ class _NarrowLayout extends StatelessWidget {
           onInfoTap: onInfoTap,
           onAddServer: onAddServer,
           onSignIn: onSignIn,
+          threadsSection: threadsSection,
         ),
       ),
     );
@@ -475,7 +517,10 @@ class _RoomContent extends StatelessWidget {
     required this.onInfoTap,
     required this.onAddServer,
     required this.onSignIn,
+    required this.threadsSection,
   });
+
+  final LobbyThreadsSection threadsSection;
 
   final Map<String, ServerRooms> roomsByServer;
   final Map<String, ServerEntry> servers;
@@ -563,30 +608,69 @@ class _RoomContent extends StatelessWidget {
                 serverLabel: selectedEntry.displayName,
               ),
             ],
-            Padding(
-              // A non-scrolling bottom gap (matching the list's item spacing)
-              // so scrolled room titles/descriptions keep a gutter under the
-              // filter row instead of butting flush against it (issue #464).
-              // The ListView's own top padding scrolls away, so the gap has to
-              // live here, outside the scroll view.
-              padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
-                  SoliplexSpacing.s2, SoliplexSpacing.s4, SoliplexSpacing.s3),
-              child: _LobbyControls(
-                viewMode: viewMode,
-                onViewModeChanged: onViewModeChanged,
-                isWide: isWide,
-                searchQuery: searchQuery,
-                onSearchChanged: onSearchChanged,
-                sortMode: sortMode,
-                onSortModeChanged: onSortModeChanged,
-                sortLoading: activityLoading,
+            // Sits under the server heading so the tabs read as sections of
+            // the selected server, which is exactly what they are — the
+            // threads tab aggregates that server's rooms, not every server.
+            LobbyTabBar(
+              activeTab: threadsSection.activeTab,
+              onTabChanged: threadsSection.onTabChanged,
+            ),
+            if (threadsSection.activeTab == LobbyTab.rooms)
+              Padding(
+                // A non-scrolling bottom gap (matching the list's item
+                // spacing) so scrolled room titles/descriptions keep a gutter
+                // under the filter row instead of butting flush against it
+                // (issue #464). The ListView's own top padding scrolls away,
+                // so the gap has to live here, outside the scroll view.
+                padding: const EdgeInsets.fromLTRB(SoliplexSpacing.s4,
+                    SoliplexSpacing.s2, SoliplexSpacing.s4, SoliplexSpacing.s3),
+                child: _LobbyControls(
+                  viewMode: viewMode,
+                  onViewModeChanged: onViewModeChanged,
+                  isWide: isWide,
+                  searchQuery: searchQuery,
+                  onSearchChanged: onSearchChanged,
+                  sortMode: sortMode,
+                  onSortModeChanged: onSortModeChanged,
+                  sortLoading: activityLoading,
+                ),
+              ),
+            Expanded(
+              // IndexedStack rather than a conditional so each tab keeps its
+              // scroll position when the user flips between them — the
+              // threads list may be many pages deep by then.
+              child: IndexedStack(
+                index: threadsSection.activeTab.index,
+                sizing: StackFit.expand,
+                children: [
+                  _buildSelectedServer(context, effectiveViewMode),
+                  GlobalThreadsView(
+                    state: threadsSection.state,
+                    roomNames: _roomNames(),
+                    onThreadTap: threadsSection.onThreadTap,
+                  ),
+                ],
               ),
             ),
-            Expanded(child: _buildSelectedServer(context, effectiveViewMode)),
           ],
         );
       },
     );
+  }
+
+  /// Display names for the selected server's rooms, keyed by id.
+  ///
+  /// The threads listing only knows a thread's room id; the names are
+  /// already loaded here, so resolving them locally avoids asking the
+  /// backend to repeat itself on every page.
+  Map<String, String> _roomNames() {
+    final id = selectedServerId;
+    if (id == null) return const {};
+    final serverRooms = roomsByServer[id];
+    if (serverRooms is! RoomsLoaded) return const {};
+    return {
+      for (final room in serverRooms.rooms) room.id: room.name,
+    };
   }
 
   Widget _buildSelectedServer(BuildContext context, LobbyViewMode viewMode) {

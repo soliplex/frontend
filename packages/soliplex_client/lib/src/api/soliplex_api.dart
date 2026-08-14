@@ -24,6 +24,7 @@ import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
+import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_transport.dart';
@@ -353,6 +354,62 @@ class SoliplexApi {
     } on Object catch (error, stackTrace) {
       throw MalformedResponseException(
         message: 'getThreads: malformed thread entry: $error',
+        originalError: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Lists one page of the user's threads across every room they can see.
+  ///
+  /// Unlike [getThreads], which is scoped to a single room, this spans the
+  /// whole server so a client can show one aggregated list. Threads come
+  /// back with each room's threads contiguous — rooms ordered by their
+  /// latest activity, threads alphabetically within a room — so a caller
+  /// can start a new section whenever [ThreadInfo.roomId] changes instead
+  /// of regrouping the page itself.
+  ///
+  /// Parameters:
+  /// - [limit]: page size (must be positive)
+  /// - [offset]: how many threads to skip (must not be negative)
+  ///
+  /// Throws:
+  /// - [ArgumentError] if [limit] is not positive or [offset] is negative
+  /// - [AuthException] if not authenticated (401/403)
+  /// - [NotFoundException] if the endpoint is absent (pre-paging backend,
+  ///   404) — callers should treat this as "this server cannot aggregate
+  ///   threads" rather than as a transport failure
+  /// - [NetworkException] if connection fails
+  /// - [ApiException] for other server errors
+  /// - [CancelledException] if cancelled via [cancelToken]
+  Future<ThreadPage> getAllThreads({
+    int limit = 50,
+    int offset = 0,
+    CancelToken? cancelToken,
+  }) async {
+    if (limit <= 0) {
+      throw ArgumentError.value(limit, 'limit', 'must be positive');
+    }
+    if (offset < 0) {
+      throw ArgumentError.value(offset, 'offset', 'must not be negative');
+    }
+
+    final response = await _transport.request<Map<String, dynamic>>(
+      'GET',
+      _urlBuilder.build(
+        pathSegments: ['agui', 'threads'],
+        queryParameters: {'limit': '$limit', 'offset': '$offset'},
+      ),
+      cancelToken: cancelToken,
+    );
+
+    try {
+      return threadPageFromJson(response);
+    } on SoliplexException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      throw MalformedResponseException(
+        message: 'getAllThreads: malformed thread page: $error',
         originalError: error,
         stackTrace: stackTrace,
       );
