@@ -189,6 +189,66 @@ class ThreadListState {
     unawaited(_fetch());
   }
 
+  /// Saves a thread's name, description and labels together.
+  ///
+  /// Unlike [renameThread] this takes the description as given rather
+  /// than re-sending the cached one: the properties dialog edits both,
+  /// so what it hands over already *is* the whole metadata row.
+  ///
+  /// The results are folded into the held list rather than refetched.
+  /// The backend commits its transaction after sending the response, so
+  /// a listing requested straight after a write can still report the old
+  /// values.
+  Future<void> saveThreadProperties(
+    String threadId, {
+    required String name,
+    required String description,
+    required List<int> labelIds,
+  }) async {
+    if (name.trim().isEmpty) {
+      throw const FormatException('Thread name must not be empty');
+    }
+    if (_isDisposed) return;
+
+    try {
+      await _connection.api.updateThreadMetadata(
+        _roomId,
+        threadId,
+        name: name,
+        description: description.isNotEmpty ? description : null,
+      );
+      final updated = await _connection.api.setThreadLabels(
+        _roomId,
+        threadId,
+        labelIds: labelIds,
+      );
+
+      if (_isDisposed) return;
+      final latest = _threads.value;
+      if (latest is! ThreadsLoaded) {
+        // The list moved out from under the write; the server already
+        // has the change, so a fresh fetch reconciles.
+        unawaited(_fetch());
+        return;
+      }
+
+      _cancelInFlightFetch();
+      _threads.value = ThreadsLoaded([
+        for (final thread in latest.threads)
+          if (thread.id == threadId)
+            // The labels response carries no metadata, so the local copy
+            // takes the names from what was sent and the labels from
+            // what came back.
+            updated.copyWith(name: name, description: description)
+          else
+            thread,
+      ]);
+    } on AuthException catch (error) {
+      _funnelAuthException(error, op: 'saveThreadProperties');
+      return;
+    }
+  }
+
   Future<void> _fetch() async {
     if (_isDisposed) return;
     _cancelToken?.cancel('re-fetch');

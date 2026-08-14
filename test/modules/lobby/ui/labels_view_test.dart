@@ -167,14 +167,16 @@ void main() {
       expect(find.textContaining('thread'), findsNothing);
     });
 
-    testWidgets('carries the create affordance as the last row', (
+    testWidgets('carries the create affordance as the first row', (
       tester,
     ) async {
-      // A tile at the end of the list, not a button in a bar above it —
-      // matching the server sidebar, so the two read as one idiom.
+      // A tile in the list, not a button in a bar above it — the server
+      // sidebar's idiom. At the head rather than the tail, though: a
+      // catalogue can run to hundreds of labels, and burying "new" under
+      // all of them would mean scrolling the lot to add one.
       await _pumpLobby(
         tester,
-        labels: [_label(1, 'Manuals'), _label(2, 'Urgent')],
+        labels: [_label(1, 'Archived'), _label(2, 'Urgent')],
       );
       await _openLabelsTab(tester);
 
@@ -188,11 +190,11 @@ void main() {
         findsOneWidget,
       );
 
-      // ...and below the last label rather than at the top.
+      // ...and above the first label rather than after the last.
       final tileY = tester.getTopLeft(find.text('New label')).dy;
-      final lastChipY =
-          tester.getTopLeft(find.widgetWithText(LabelChip, 'Urgent')).dy;
-      expect(tileY, greaterThan(lastChipY));
+      final firstChipY =
+          tester.getTopLeft(find.widgetWithText(LabelChip, 'Archived')).dy;
+      expect(tileY, lessThan(firstChipY));
     });
 
     testWidgets('offers creation from the empty state', (tester) async {
