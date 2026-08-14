@@ -928,10 +928,11 @@ void main() {
           equals('/api/v1/rooms/room-1/agui/thread-1/labels'),
         );
         expect(
-            capturedBody,
-            equals({
-              'label_ids': [1]
-            }));
+          capturedBody,
+          equals({
+            'label_ids': [1],
+          }),
+        );
         // The whole thread comes back, so a caller can repaint from the
         // write rather than re-listing — which would race the backend's
         // post-response commit and show the old labels.
