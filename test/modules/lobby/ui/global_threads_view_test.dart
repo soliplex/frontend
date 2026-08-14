@@ -12,6 +12,10 @@ import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/global_threads_view.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/labels_view.dart'
+    show LabelChip;
+import 'package:soliplex_frontend/src/modules/lobby/ui/thread_search_field.dart'
+    show kThreadSearchDebounce;
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 
 import '../../../helpers/fakes.dart';
@@ -408,6 +412,162 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('This server has no labels yet.'), findsOneWidget);
+    });
+
+    testWidgets('filters by name as you type', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Osprey Manual'),
+          _thread('t2', 'r1', name: 'Unrelated'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, 'osprey');
+      // Past the debounce, so a word costs one request not five.
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.query, equals('osprey'));
+      expect(find.text('Osprey Manual'), findsOneWidget);
+      expect(find.text('Unrelated'), findsNothing);
+    });
+
+    testWidgets('suggests labels for an in-progress @ token', (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+          ThreadLabel(id: 2, name: 'Urgent', color: '#D93025'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@man');
+      await tester.pumpAndSettle();
+
+      // Only the matching label is offered, and matching folds case.
+      expect(find.widgetWithText(LabelChip, 'Manuals'), findsOneWidget);
+      expect(find.widgetWithText(LabelChip, 'Urgent'), findsNothing);
+    });
+
+    testWidgets('completing a suggestion filters by that label',
+        (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 7, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@man');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(LabelChip, 'Manuals'));
+      await tester.pumpAndSettle();
+
+      // The name resolves to its id — the wire filter is by id, and the
+      // name is only ever for humans.
+      expect(api.allThreadsCalls.last.labelIds, equals([7]));
+      // The menu closes once a choice is made.
+      expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+    });
+
+    testWidgets('does not suggest a label already in the query',
+        (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, '@manuals @man');
+      await tester.pumpAndSettle();
+
+      // Offering it twice would suggest a filter that changes nothing.
+      expect(find.widgetWithText(LabelChip, 'Manuals'), findsNothing);
+    });
+
+    testWidgets('says so when a typed label does not exist', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+        ],
+      );
+      await _openThreadsTab(tester);
+      final before = api.getAllThreadsCallCount;
+
+      await tester.enterText(find.byType(TextField).last, '@nonsense ');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+
+      // An unresolvable name cannot be expressed as a filter — an empty
+      // label list means *unfiltered* — so dropping it would silently
+      // widen the listing to everything, the opposite of what was asked.
+      expect(find.text('No such label'), findsOneWidget);
+      // Names the offending token, rather than leaving the user to guess
+      // which of several is wrong. (The search field also holds the text,
+      // so match the message itself.)
+      expect(
+        find.text('@nonsense does not match any label on this server.'),
+        findsOneWidget,
+      );
+      expect(api.getAllThreadsCallCount, equals(before));
+    });
+
+    testWidgets('distinguishes "nothing matched" from "no threads"',
+        (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, 'zzz-no-match');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+
+      // Telling someone staring at their own search that "threads you
+      // start show up here" would read as a bug.
+      expect(find.text('No matching threads'), findsOneWidget);
+      expect(find.text('No threads yet'), findsNothing);
+    });
+
+    testWidgets('clearing the search widens the listing again', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Osprey Manual'),
+          _thread('t2', 'r1', name: 'Unrelated'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await tester.enterText(find.byType(TextField).last, 'osprey');
+      await tester.pump(kThreadSearchDebounce);
+      await tester.pumpAndSettle();
+      expect(find.text('Unrelated'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.clear));
+      await tester.pumpAndSettle();
+
+      expect(api.allThreadsCalls.last.query, isEmpty);
+      expect(find.text('Unrelated'), findsOneWidget);
     });
 
     testWidgets('fetches the next page when scrolled near the bottom',

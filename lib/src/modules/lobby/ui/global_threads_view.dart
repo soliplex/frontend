@@ -11,6 +11,8 @@ import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
 import '../labels_state.dart';
 import '../lobby_tab.dart';
+import '../thread_query.dart';
+import 'thread_search_field.dart';
 
 /// One row of the aggregated listing: either a room heading or a thread.
 ///
@@ -202,12 +204,16 @@ class GlobalThreadsView extends StatefulWidget {
   const GlobalThreadsView({
     super.key,
     required this.state,
+    required this.labels,
     required this.roomNames,
     required this.onThreadTap,
     required this.onThreadAction,
   });
 
   final GlobalThreadsState state;
+
+  /// The server's catalogue, for the `@label` autocomplete.
+  final LabelsState labels;
 
   /// Display names for the selected server's rooms, keyed by room id. A
   /// room missing here falls back to its id rather than rendering blank.
@@ -252,8 +258,69 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
     widget.state.loadMore();
   }
 
+  /// Label names typed as `@name` that match nothing in the catalogue.
+  ///
+  /// Held rather than sent, because an unresolvable name cannot be
+  /// expressed as a filter: an empty `labelIds` means *unfiltered*, so
+  /// dropping the name would silently widen the listing to everything —
+  /// the opposite of what was asked for.
+  List<String> _unknownLabels = const [];
+
+  void _onQueryChanged(ThreadQuery query) {
+    final catalogue = {
+      for (final label in widget.labels.current) label.name.toLowerCase(): label
+    };
+
+    final resolved = <int>[];
+    final unknown = <String>[];
+    for (final name in query.labelNames) {
+      final label = catalogue[name];
+      if (label == null) {
+        unknown.add(name);
+      } else {
+        resolved.add(label.id);
+      }
+    }
+
+    setState(() => _unknownLabels = unknown);
+    if (unknown.isNotEmpty) return;
+
+    widget.state.setFilter(labelIds: resolved, query: query.text);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+          ),
+          child: Watch(
+            (context) => ThreadSearchField(
+              labels: widget.labels.current,
+              onChanged: _onQueryChanged,
+            ),
+          ),
+        ),
+        Expanded(child: _buildBody(context)),
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_unknownLabels.isNotEmpty) {
+      final names = _unknownLabels.map((name) => '@$name').join(', ');
+      return _ThreadsMessage(
+        icon: Icons.label_off_outlined,
+        title: 'No such label',
+        detail: '$names does not match any label on this server.',
+      );
+    }
+
     return Watch((context) {
       final threads = widget.state.threads.value;
       return switch (threads) {
@@ -279,11 +346,20 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
 
   Widget _buildList(BuildContext context, GlobalThreadsLoaded loaded) {
     if (loaded.threads.isEmpty) {
-      return const _ThreadsMessage(
-        icon: Icons.forum_outlined,
-        title: 'No threads yet',
-        detail: 'Threads you start in any room show up here.',
-      );
+      // "Nothing matched" and "you have nothing" are different answers,
+      // and offering "threads you start show up here" to someone staring
+      // at their own search would read as a bug.
+      return widget.state.isFiltered
+          ? const _ThreadsMessage(
+              icon: Icons.search_off,
+              title: 'No matching threads',
+              detail: 'Try a different name, or fewer labels.',
+            )
+          : const _ThreadsMessage(
+              icon: Icons.forum_outlined,
+              title: 'No threads yet',
+              detail: 'Threads you start in any room show up here.',
+            );
     }
 
     final rows = _flatten(loaded.threads, loadingMore: loaded.loadingMore);

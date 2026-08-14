@@ -729,6 +729,7 @@ class _RoomContent extends StatelessWidget {
                         _buildSelectedServer(context, effectiveViewMode),
                       LobbyTab.threads => GlobalThreadsView(
                           state: tabsSection.threads,
+                          labels: tabsSection.labels,
                           roomNames: _roomNames(),
                           onThreadTap: tabsSection.onThreadTap,
                           onThreadAction: tabsSection.onThreadAction,
