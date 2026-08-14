@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException, Room;
+import 'package:soliplex_design/soliplex_design.dart' show hashedHueColor;
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 
@@ -268,6 +269,16 @@ void main() {
       expect(
         roomAvatarColor('Alpha', Brightness.light),
         isNot(roomAvatarColor('Alpha', Brightness.dark)),
+      );
+    });
+
+    test('is the design system generator, not a second implementation', () {
+      // Rooms and labels have to agree: a room and an uncoloured label
+      // sharing a name should come out the same colour, which only
+      // holds while this delegates rather than reimplements.
+      expect(
+        roomAvatarColor('Alpha', Brightness.light),
+        equals(hashedHueColor('Alpha', Brightness.light)),
       );
     });
   });
