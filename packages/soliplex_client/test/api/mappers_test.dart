@@ -900,6 +900,40 @@ void main() {
         );
       });
 
+      test('parses a payload captured from a live backend', () {
+        // Verbatim from GET /api/v1/agui/threads. Pins the details that
+        // differ from the convenient shape: the id arrives as 'thread_id',
+        // the name is nested in metadata, 'runs' is null, and 'created'
+        // carries no zone while 'last_activity' does.
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            <String, dynamic>{
+              'room_id': 'analysis',
+              'thread_id': 'd05f6a30-414d-4851-a2b4-af02a50febbc',
+              'runs': null,
+              'created': '2026-08-14T12:01:01.189017',
+              'metadata': <String, dynamic>{
+                'name': 'Alpha-analysis',
+                'description': null,
+              },
+              'last_activity': '2026-08-14T12:01:01.202772Z',
+            },
+          ],
+          'total': 9,
+          'limit': 1,
+          'offset': 0,
+        });
+
+        final thread = page.threads.single;
+        expect(thread.id, equals('d05f6a30-414d-4851-a2b4-af02a50febbc'));
+        expect(thread.roomId, equals('analysis'));
+        expect(thread.name, equals('Alpha-analysis'));
+        expect(thread.description, equals(''));
+        expect(thread.lastActivity?.isUtc, isTrue);
+        expect(page.total, equals(9));
+        expect(page.hasMore, isTrue);
+      });
+
       test('propagates a malformed thread rather than dropping it', () {
         // Silently skipping a bad row would desync the rendered count
         // from 'total' and make paging land mid-list.
