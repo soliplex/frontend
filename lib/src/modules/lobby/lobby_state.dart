@@ -138,6 +138,20 @@ class LobbyState {
       Signal<Map<String, ServerRooms>>({});
   ReadonlySignal<Map<String, ServerRooms>> get roomsByServer => _roomsByServer;
 
+  final Signal<Map<String, bool>> _labelAdmins = Signal<Map<String, bool>>({});
+
+  /// Whether the user may curate each server's label catalogue, keyed by
+  /// server id. A server is absent until its [AdminStatus] has answered, and
+  /// absent reads as "no": the tab only appears on a verdict.
+  ///
+  /// Read from the server's [AdminStatus], which asks the same
+  /// `check_admin_access` the label endpoints enforce, so the tab is drawn
+  /// exactly when its writes would be allowed.
+  ///
+  /// This only decides what is painted. The server gates every write, so the
+  /// worst a wrong answer costs is a 403.
+  ReadonlySignal<Map<String, bool>> get labelAdmins => _labelAdmins;
+
   /// Preferred room layout. Starts at [LobbyViewMode.list]; replaced by the
   /// persisted preference (or its [LobbyViewMode.list] fallback) once
   /// [_loadViewMode] resolves.
@@ -599,6 +613,10 @@ class LobbyState {
         if (_activityFetchServerId == id) _cancelActivityFetch();
       }
       _roomsByServer.value = updatedRooms;
+      if (_labelAdmins.value.keys.any(removed.contains)) {
+        _labelAdmins.value = {..._labelAdmins.value}
+          ..removeWhere((id, _) => removed.contains(id));
+      }
       if (_roomActivity.value.keys.any((k) => removed.contains(k.serverId))) {
         _roomActivity.value = {..._roomActivity.value}
           ..removeWhere((k, _) => removed.contains(k.serverId));
@@ -653,6 +671,7 @@ class LobbyState {
       return;
     }
     _cancelTokens.remove(serverId)?.cancel('disconnected');
+    _forgetLabelAdmin(serverId);
     switch (current) {
       case ExpiredSession():
         // Keep the row visible with an inline "sign in again" affordance.
@@ -695,6 +714,7 @@ class LobbyState {
         serverId: RoomsLoaded(rooms),
       };
       _pruneDisappearedRooms(serverId, previous, rooms);
+      unawaited(_loadLabelAdmin(serverId, entry));
       // A fresh room list invalidates cached activity for this server (rooms
       // may have been added); drop those entries so recency refetches.
       _invalidateActivity(serverId);
@@ -725,6 +745,28 @@ class LobbyState {
         serverId: RoomsFailed(error),
       };
     });
+  }
+
+  /// Asks [entry]'s [AdminStatus] whether the user administers [serverId], and
+  /// records the verdict in [labelAdmins].
+  ///
+  /// [AdminStatus.read] never throws and keeps its answer, so asking after
+  /// every rooms fetch costs one request per signed-in identity. A `null`
+  /// (unanswered, or retired by a sign-out in flight) records nothing, so a
+  /// later fetch asks again.
+  Future<void> _loadLabelAdmin(String serverId, ServerEntry entry) async {
+    final isAdmin = await entry.adminStatus.read();
+    // The server may have been removed or disconnected while this was in
+    // flight; its verdict then describes nobody the lobby still shows.
+    if (isAdmin == null || !_authSubscriptions.containsKey(serverId)) return;
+    if (!entry.isConnected) return;
+    if (_labelAdmins.value[serverId] == isAdmin) return;
+    _labelAdmins.value = {..._labelAdmins.value, serverId: isAdmin};
+  }
+
+  void _forgetLabelAdmin(String serverId) {
+    if (!_labelAdmins.value.containsKey(serverId)) return;
+    _labelAdmins.value = {..._labelAdmins.value}..remove(serverId);
   }
 
   /// Prunes device-local state for rooms that vanished from [serverId]'s list
