@@ -821,6 +821,99 @@ void main() {
       });
     });
 
+    group('threadPageFromJson', () {
+      Map<String, dynamic> threadJson(String id, {required String roomId}) =>
+          <String, dynamic>{
+            'id': id,
+            'room_id': roomId,
+            'created': '2025-01-15T10:30:00.000',
+          };
+
+      test('parses threads and paging bounds', () {
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            threadJson('thread-1', roomId: 'room-1'),
+            threadJson('thread-2', roomId: 'room-1'),
+          ],
+          'total': 7,
+          'limit': 2,
+          'offset': 4,
+        });
+
+        expect(page.threads.map((t) => t.id), equals(['thread-1', 'thread-2']));
+        expect(page.total, equals(7));
+        expect(page.limit, equals(2));
+        expect(page.offset, equals(4));
+        expect(page.hasMore, isTrue);
+      });
+
+      test('preserves the backend ordering rather than re-sorting', () {
+        // Rooms arrive contiguous and pre-ordered; re-sorting client-side
+        // would break the divider-on-room-change rendering.
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [
+            threadJson('z-thread', roomId: 'room-2'),
+            threadJson('a-thread', roomId: 'room-1'),
+          ],
+          'total': 2,
+          'limit': 50,
+          'offset': 0,
+        });
+
+        expect(page.threads.map((t) => t.id), equals(['z-thread', 'a-thread']));
+      });
+
+      test('parses an empty page', () {
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': <dynamic>[],
+          'total': 0,
+          'limit': 50,
+          'offset': 0,
+        });
+
+        expect(page.threads, isEmpty);
+        expect(page.hasMore, isFalse);
+      });
+
+      test('falls back to a single complete page when bounds are absent', () {
+        final page = threadPageFromJson(<String, dynamic>{
+          'threads': [threadJson('thread-1', roomId: 'room-1')],
+        });
+
+        expect(page.total, equals(1));
+        expect(page.limit, equals(1));
+        expect(page.offset, equals(0));
+        expect(page.hasMore, isFalse);
+      });
+
+      test('throws FormatException when "threads" is absent', () {
+        expect(
+          () => threadPageFromJson(<String, dynamic>{'total': 0}),
+          throwsFormatException,
+        );
+      });
+
+      test('throws FormatException when "threads" is not a list', () {
+        expect(
+          () => threadPageFromJson(<String, dynamic>{'threads': 'nope'}),
+          throwsFormatException,
+        );
+      });
+
+      test('propagates a malformed thread rather than dropping it', () {
+        // Silently skipping a bad row would desync the rendered count
+        // from 'total' and make paging land mid-list.
+        expect(
+          () => threadPageFromJson(<String, dynamic>{
+            'threads': [
+              <String, dynamic>{'id': 'thread-1', 'room_id': 'room-1'},
+            ],
+          }),
+          throwsFormatException,
+        );
+      });
+    });
+
     group('threadInfoToJson', () {
       test('serializes correctly with all fields', () {
         final createdAt = DateTime.utc(2025);
