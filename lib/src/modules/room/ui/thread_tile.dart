@@ -7,7 +7,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../../shared/relative_time.dart';
 import '../../lobby/ui/unread_dot.dart';
 
-enum _ThreadAction { markRead, rename, delete }
+enum _ThreadAction { markRead, properties, rename, delete }
 
 class ThreadTile extends StatefulWidget {
   const ThreadTile({
@@ -15,6 +15,7 @@ class ThreadTile extends StatefulWidget {
     required this.thread,
     required this.isSelected,
     required this.onTap,
+    required this.onProperties,
     required this.onRename,
     required this.onDelete,
     required this.onMarkRead,
@@ -25,6 +26,10 @@ class ThreadTile extends StatefulWidget {
   final ThreadInfo thread;
   final bool isSelected;
   final VoidCallback onTap;
+
+  /// Opens the thread's full properties (name, description, labels).
+  final VoidCallback onProperties;
+
   final VoidCallback onRename;
   final VoidCallback onDelete;
 
@@ -128,6 +133,8 @@ class _ThreadTileState extends State<ThreadTile> {
         switch (action) {
           case _ThreadAction.markRead:
             widget.onMarkRead();
+          case _ThreadAction.properties:
+            widget.onProperties();
           case _ThreadAction.rename:
             widget.onRename();
           case _ThreadAction.delete:
@@ -146,6 +153,16 @@ class _ThreadTileState extends State<ThreadTile> {
               ],
             ),
           ),
+        const PopupMenuItem(
+          value: _ThreadAction.properties,
+          child: Row(
+            children: [
+              Icon(Icons.tune, size: 18),
+              SizedBox(width: SoliplexSpacing.s3),
+              Text('Properties'),
+            ],
+          ),
+        ),
         const PopupMenuItem(
           value: _ThreadAction.rename,
           child: Row(
