@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
+import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
+import 'package:soliplex_frontend/src/modules/lobby/ui/global_threads_view.dart';
 import 'package:soliplex_frontend/src/modules/lobby/ui/lobby_screen.dart';
 
 import '../../../helpers/fakes.dart';
@@ -145,6 +147,42 @@ void main() {
       // heads its block exactly once even though it holds two threads.
       expect(find.text('General'), findsOneWidget);
       expect(find.text('Manuals'), findsOneWidget);
+    });
+
+    testWidgets('every room rule spans the full pane width', (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [
+          Room(id: 'r1', name: 'Ops'),
+          Room(id: 'r2', name: 'A considerably longer room name'),
+        ],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha'),
+          _thread('t2', 'r2', name: 'Beta'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      // Measure what was laid out, not what was declared. The rule used to
+      // share a row with the room name, which handed it exactly half the
+      // pane however short the name was — so it read as a stunted version
+      // of the full-width rule under the server heading.
+      final paneWidth = tester.getSize(find.byType(GlobalThreadsView)).width;
+      final expected = paneWidth - SoliplexSpacing.s4 * 2;
+
+      final rules = find
+          .descendant(
+            of: find.byType(GlobalThreadsView),
+            matching: find.byType(Divider),
+          )
+          .evaluate()
+          .map((element) => element.size!.width)
+          .toList();
+
+      expect(rules.length, equals(2));
+      for (final width in rules) {
+        expect(width, closeTo(expected, 0.01));
+      }
     });
 
     testWidgets('falls back to the room id when the name is unknown',
