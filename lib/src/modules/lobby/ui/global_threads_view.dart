@@ -268,25 +268,26 @@ class _RoomHeading extends StatelessWidget {
         SoliplexSpacing.s4,
         SoliplexSpacing.s2,
       ),
-      child: Row(
+      // The rule sits under the name rather than beside it, so every
+      // divider spans the same width. Running it inline would leave it
+      // whatever the room name did not use, making a long-named room look
+      // like a shorter section break than a short-named one.
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Flexible(
-            child: Text(
-              name,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          Text(
+            name,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.primary,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(width: SoliplexSpacing.s3),
-          Expanded(
-            child: Divider(
-              height: 1,
-              thickness: 1,
-              color: theme.colorScheme.outlineVariant,
-            ),
+          const SizedBox(height: SoliplexSpacing.s2),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: theme.colorScheme.outlineVariant,
           ),
         ],
       ),
