@@ -65,7 +65,7 @@ void main() {
       expect(loaded.threads.map((t) => t.id), equals(['a', 'b', 'c']));
       expect(loaded.hasMore, isFalse);
       expect(
-        h.api.allThreadsCalls,
+        h.api.allThreadsCalls.map((c) => (limit: c.limit, cursor: c.cursor)),
         equals([(limit: 2, cursor: null), (limit: 2, cursor: '2')]),
       );
 
@@ -146,7 +146,8 @@ void main() {
 
       final loaded = h.state.threads.value as GlobalThreadsLoaded;
       expect(loaded.threads.map((t) => t.id), equals(['z']));
-      expect(h.api.allThreadsCalls.last, equals((limit: 2, cursor: null)));
+      expect(h.api.allThreadsCalls.last.limit, equals(2));
+      expect(h.api.allThreadsCalls.last.cursor, isNull);
 
       h.state.dispose();
     });
