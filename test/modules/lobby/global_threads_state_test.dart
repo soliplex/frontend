@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
-import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
 import 'package:soliplex_frontend/src/modules/lobby/global_threads_state.dart';
 
