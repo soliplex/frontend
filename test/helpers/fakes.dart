@@ -51,6 +51,11 @@ AppIdentity testIdentity() => const AppIdentity(
 /// an answer was reused or re-fetched — the backend writes an audit record per
 /// ask, so a second ask is a server-side side effect, not a wasted round trip.
 class AuthzOnlyClients {
+  AuthzOnlyClients({this.isAdminUser = true});
+
+  /// The verdict every client hands back.
+  final bool isAdminUser;
+
   int calls = 0;
 
   FakeHttpClient create() => FakeHttpClient()
@@ -61,7 +66,8 @@ class AuthzOnlyClients {
       calls++;
       return HttpResponse(
         statusCode: 200,
-        bodyBytes: Uint8List.fromList(utf8.encode('{"is_admin_user": true}')),
+        bodyBytes:
+            Uint8List.fromList(utf8.encode('{"is_admin_user": $isAdminUser}')),
         headers: const {'content-type': 'application/json'},
       );
     };
@@ -338,6 +344,31 @@ class FakeSoliplexApi extends SoliplexApi {
   /// hold a page in flight to prove overlapping loads are refused.
   Completer<void>? allThreadsGate;
 
+  /// The label catalogue [getLabels] returns.
+  ///
+  /// Defaults to empty rather than throwing, like [allThreads] and for the
+  /// same reason: the lobby loads the catalogue on every render, so tests
+  /// about anything else would otherwise all have to stub it.
+  List<ThreadLabel> labels = [];
+  Exception? nextLabelsError;
+
+  /// Errors for the individual mutations, so a test can fail one without
+  /// breaking the read that populates the list.
+  Exception? nextCreateLabelError;
+  Exception? nextUpdateLabelError;
+  Exception? nextDeleteLabelError;
+  Exception? nextSetThreadLabelsError;
+
+  /// The arguments of each mutation, in order.
+  final List<({String name, String? color})> createLabelCalls = [];
+  final List<({int id, String? name, String? color})> updateLabelCalls = [];
+  final List<int> deleteLabelCalls = [];
+  final List<({String roomId, String threadId, List<int> labelIds})>
+      setThreadLabelsCalls = [];
+
+  /// Allocates ids for labels the fake creates.
+  int _nextLabelId = 1;
+
   /// [getRoomsStats] result: the activity batch keyed by room id. Lets a test
   /// give rooms distinct last-activity timestamps (e.g. for activity sorting).
   Map<String, RoomStats> roomsStats = {};
@@ -444,6 +475,98 @@ class FakeSoliplexApi extends SoliplexApi {
       threads: all.sublist(start, end),
       nextCursor: end < all.length ? '$end' : null,
     );
+  }
+
+  @override
+  Future<List<ThreadLabel>> getLabels({CancelToken? cancelToken}) async {
+    if (nextLabelsError != null) throw nextLabelsError!;
+    return List.unmodifiable(labels);
+  }
+
+  @override
+  Future<ThreadLabel> createLabel({
+    required String name,
+    String? color,
+    CancelToken? cancelToken,
+  }) async {
+    createLabelCalls.add((name: name, color: color));
+    if (nextCreateLabelError != null) throw nextCreateLabelError!;
+    final created = ThreadLabel(
+      id: _nextLabelId++,
+      name: name,
+      // Mirrors the server: an unnamed colour is derived, never blank.
+      color: color ?? '#42D76D',
+      usageCount: 0,
+    );
+    labels = [...labels, created];
+    return created;
+  }
+
+  @override
+  Future<ThreadLabel> updateLabel(
+    int labelId, {
+    String? name,
+    String? color,
+    CancelToken? cancelToken,
+  }) async {
+    updateLabelCalls.add((id: labelId, name: name, color: color));
+    if (nextUpdateLabelError != null) throw nextUpdateLabelError!;
+    final existing = labels.firstWhere((label) => label.id == labelId);
+    final updated = existing.copyWith(name: name, color: color);
+    labels = [
+      for (final label in labels)
+        if (label.id == labelId) updated else label,
+    ];
+    return updated;
+  }
+
+  @override
+  Future<void> deleteLabel(int labelId, {CancelToken? cancelToken}) async {
+    deleteLabelCalls.add(labelId);
+    if (nextDeleteLabelError != null) throw nextDeleteLabelError!;
+    labels = [
+      for (final label in labels)
+        if (label.id != labelId) label,
+    ];
+  }
+
+  @override
+  Future<ThreadInfo> setThreadLabels(
+    String roomId,
+    String threadId, {
+    required List<int> labelIds,
+    CancelToken? cancelToken,
+  }) async {
+    setThreadLabelsCalls
+        .add((roomId: roomId, threadId: threadId, labelIds: labelIds));
+    if (nextSetThreadLabelsError != null) throw nextSetThreadLabelsError!;
+
+    final wanted = labelIds.toSet();
+    final attached = [
+      for (final label in labels)
+        if (wanted.contains(label.id)) label,
+    ];
+
+    final existing = (allThreads ?? const <ThreadInfo>[])
+        .where((thread) => thread.id == threadId)
+        .firstOrNull;
+    final updated = (existing ??
+            ThreadInfo(
+              id: threadId,
+              roomId: roomId,
+              createdAt: DateTime.utc(2026),
+            ))
+        .copyWith(labels: attached);
+
+    // Reflected back into the listing, so a test can assert that the tab
+    // repaints from the write rather than needing a refetch.
+    if (allThreads != null) {
+      allThreads = [
+        for (final thread in allThreads!)
+          if (thread.id == threadId) updated else thread,
+      ];
+    }
+    return updated;
   }
 
   @override
