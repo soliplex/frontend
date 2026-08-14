@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
 import 'package:soliplex_client/soliplex_client.dart'
-    show AuthException, NotFoundException;
+    show AuthException, NotFoundException, SoliplexApi;
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/server_entry.dart';
@@ -199,6 +199,117 @@ class GlobalThreadsState {
       );
       _threads.value = GlobalThreadsFailed(error);
     }
+  }
+
+  /// Saves a thread's name, description and labels.
+  ///
+  /// Returns null on success or a human-readable reason on failure, so
+  /// the dialog can show it inline rather than closing on an error.
+  ///
+  /// Both writes go out, then the result is folded into the held list.
+  /// Deliberately not a refetch: the backend commits its transaction
+  /// after sending the response, so a listing requested straight after a
+  /// write can still report the old values.
+  Future<String?> saveProperties(
+    ThreadInfo thread, {
+    required String name,
+    required String description,
+    required List<int> labelIds,
+  }) async {
+    return _mutate((api) async {
+      // Sent together because 'updateThreadMetadata' replaces the row
+      // wholesale — omitting the description would erase it.
+      await api.updateThreadMetadata(
+        thread.roomId,
+        thread.id,
+        name: name,
+        description: description,
+      );
+
+      final updated = await api.setThreadLabels(
+        thread.roomId,
+        thread.id,
+        labelIds: labelIds,
+      );
+
+      // The labels response carries the thread but not the metadata we
+      // just wrote, so the local copy takes the names from what was
+      // sent and the labels from what came back.
+      _replace(
+        updated.copyWith(name: name, description: description),
+      );
+    });
+  }
+
+  /// Renames a thread, folding the new name into the held list.
+  Future<String?> rename(ThreadInfo thread, String name) {
+    return _mutate((api) async {
+      await api.updateThreadMetadata(
+        thread.roomId,
+        thread.id,
+        name: name,
+        // Resent rather than omitted: the metadata row is replaced
+        // wholesale, so leaving this out would silently drop it.
+        description: thread.description,
+      );
+      _replace(thread.copyWith(name: name));
+    });
+  }
+
+  /// Deletes a thread and drops it from the held list.
+  Future<String?> delete(ThreadInfo thread) {
+    return _mutate((api) async {
+      await api.deleteThread(thread.roomId, thread.id);
+      final remaining = [
+        for (final held in _heldThreads())
+          if (held.id != thread.id) held,
+      ];
+      _write(remaining);
+    });
+  }
+
+  Future<String?> _mutate(Future<void> Function(SoliplexApi api) body) async {
+    final serverId = _serverId;
+    final entry = serverId == null ? null : _entryResolver(serverId);
+    if (entry == null) return 'No server selected';
+
+    try {
+      await body(_apiResolver(entry));
+      return null;
+    } on Object catch (error, st) {
+      if (_disposed) return null;
+      _logger.error(
+        'Thread operation failed for $serverId',
+        error: error,
+        stackTrace: st,
+      );
+      if (error is NotFoundException) return 'That thread no longer exists.';
+      if (error is AuthException) return 'You are not signed in.';
+      return 'Could not save the thread. Please try again.';
+    }
+  }
+
+  /// Swaps [thread] into the held list, leaving its position alone.
+  ///
+  /// Position is preserved rather than re-sorted: the list is ordered by
+  /// room and then by name, and having a thread jump elsewhere the
+  /// instant it is renamed would lose the row the user was looking at.
+  void _replace(ThreadInfo thread) {
+    _write([
+      for (final held in _heldThreads())
+        if (held.id == thread.id) thread else held,
+    ]);
+  }
+
+  void _write(List<ThreadInfo> threads) {
+    if (_disposed) return;
+    final current = _threads.value;
+    if (current is! GlobalThreadsLoaded) return;
+    _threads.value = GlobalThreadsLoaded(
+      threads: threads,
+      hasMore: current.hasMore,
+      loadingMore: current.loadingMore,
+    );
   }
 
   List<ThreadInfo> _heldThreads() {

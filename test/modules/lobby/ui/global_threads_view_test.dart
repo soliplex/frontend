@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
-import 'package:soliplex_client/soliplex_client.dart' show NotFoundException;
-import 'package:soliplex_design/soliplex_design.dart' show SoliplexSpacing;
+import 'package:soliplex_client/soliplex_client.dart'
+    show NotFoundException, ThreadLabel;
+import 'package:soliplex_design/soliplex_design.dart'
+    show SoliplexSpacing, soliplexLightTheme;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
@@ -64,7 +66,15 @@ Widget _buildApp(
       ),
     ],
   );
-  return ProviderScope(child: MaterialApp.router(routerConfig: router));
+  // The real app runs under the Soliplex theme, and the branded chips
+  // read their palette from its ThemeData extension — a bare MaterialApp
+  // makes them throw, which is a test artefact rather than a bug.
+  return ProviderScope(
+    child: MaterialApp.router(
+      theme: soliplexLightTheme(),
+      routerConfig: router,
+    ),
+  );
 }
 
 /// Seeds one connected server and pumps the lobby on a wide viewport.
@@ -72,6 +82,7 @@ Future<FakeSoliplexApi> _pumpLobby(
   WidgetTester tester, {
   required List<Room> rooms,
   required List<ThreadInfo> threads,
+  List<ThreadLabel> labels = const [],
   Exception? threadsError,
   void Function(String alias, String roomId, String threadId)? onThreadRoute,
 }) async {
@@ -89,6 +100,7 @@ Future<FakeSoliplexApi> _pumpLobby(
   final fakeApi = FakeSoliplexApi()
     ..nextRooms = rooms
     ..allThreads = threads
+    ..labels = labels
     ..nextAllThreadsError = threadsError;
 
   await tester.pumpWidget(
@@ -104,6 +116,21 @@ Future<FakeSoliplexApi> _pumpLobby(
 
 Future<void> _openThreadsTab(WidgetTester tester) async {
   await tester.tap(find.text('Threads'));
+  await tester.pumpAndSettle();
+}
+
+/// The overflow buttons belonging to thread rows.
+///
+/// Scoped to the listing because the server tiles in the sidebar carry
+/// their own `more_vert`, and an unscoped finder matches those too.
+Finder _threadMenus() => find.descendant(
+      of: find.byType(GlobalThreadsView),
+      matching: find.byIcon(Icons.more_vert),
+    );
+
+/// Opens the overflow menu on the [index]th thread row.
+Future<void> _openThreadMenu(WidgetTester tester, {int index = 0}) async {
+  await tester.tap(_threadMenus().at(index));
   await tester.pumpAndSettle();
 }
 
@@ -273,6 +300,114 @@ void main() {
 
       expect(find.text('Could not load threads'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('offers properties, rename and delete per thread',
+        (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+      );
+      await _openThreadsTab(tester);
+
+      await _openThreadMenu(tester);
+
+      expect(find.text('Properties'), findsOneWidget);
+      expect(find.text('Rename'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('renames a thread in place', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+      );
+      await _openThreadsTab(tester);
+
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).last, 'Renamed');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Rename').last);
+      await tester.pumpAndSettle();
+
+      expect(api.lastUpdatedName, equals('Renamed'));
+      // Repainted from the write rather than a refetch.
+      expect(find.text('Renamed'), findsOneWidget);
+      expect(find.text('Alpha'), findsNothing);
+    });
+
+    testWidgets('deletes a thread from the listing', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [
+          _thread('t1', 'r1', name: 'Alpha'),
+          _thread('t2', 'r1', name: 'Beta'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(api.lastDeletedThreadId, equals('t1'));
+      expect(find.text('Alpha'), findsNothing);
+      expect(find.text('Beta'), findsOneWidget);
+    });
+
+    testWidgets('edits a thread\'s labels from its properties', (tester) async {
+      final api = await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+        labels: const [
+          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
+          ThreadLabel(id: 2, name: 'Urgent', color: '#D93025'),
+        ],
+      );
+      await _openThreadsTab(tester);
+
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Properties'));
+      await tester.pumpAndSettle();
+
+      // The whole catalogue is offered; tapping attaches.
+      expect(find.text('Manuals'), findsOneWidget);
+      expect(find.text('Urgent'), findsOneWidget);
+      await tester.tap(find.text('Manuals'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(api.setThreadLabelsCalls.single.labelIds, equals([1]));
+      // Name and description travel together, because the metadata row
+      // is replaced wholesale.
+      expect(api.lastUpdatedName, equals('Alpha'));
+      expect(api.lastUpdatedDescription, isNotNull);
+    });
+
+    testWidgets('says so when the server has no labels yet', (tester) async {
+      await _pumpLobby(
+        tester,
+        rooms: const [Room(id: 'r1', name: 'General')],
+        threads: [_thread('t1', 'r1', name: 'Alpha')],
+      );
+      await _openThreadsTab(tester);
+
+      await _openThreadMenu(tester);
+      await tester.tap(find.text('Properties'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This server has no labels yet.'), findsOneWidget);
     });
 
     testWidgets('fetches the next page when scrolled near the bottom',

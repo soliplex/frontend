@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 // Only 'ThreadInfo': the barrel also exports ag_ui's 'State', which would
@@ -63,6 +65,7 @@ class LobbyTabsSection {
     required this.threads,
     required this.labels,
     required this.onThreadTap,
+    required this.onThreadAction,
     this.selectedLabelId,
   });
 
@@ -80,6 +83,9 @@ class LobbyTabsSection {
 
   /// Invoked with the room and thread to open.
   final void Function(String roomId, String threadId) onThreadTap;
+
+  /// Invoked with the thread and the menu entry chosen on it.
+  final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
 
   /// A label to highlight on the labels tab, from a deep link.
   final int? selectedLabelId;
@@ -198,6 +204,7 @@ class GlobalThreadsView extends StatefulWidget {
     required this.state,
     required this.roomNames,
     required this.onThreadTap,
+    required this.onThreadAction,
   });
 
   final GlobalThreadsState state;
@@ -207,6 +214,9 @@ class GlobalThreadsView extends StatefulWidget {
   final Map<String, String> roomNames;
 
   final void Function(String roomId, String threadId) onThreadTap;
+
+  /// Invoked with the thread and the menu entry chosen on it.
+  final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
 
   @override
   State<GlobalThreadsView> createState() => _GlobalThreadsViewState();
@@ -291,6 +301,7 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
           _ThreadRow(:final thread) => _ThreadListTile(
               thread: thread,
               onTap: () => widget.onThreadTap(thread.roomId, thread.id),
+              onAction: (action) => widget.onThreadAction(thread, action),
             ),
           _LoadingRow() => const Padding(
               padding: EdgeInsets.all(SoliplexSpacing.s4),
@@ -345,23 +356,119 @@ class _RoomHeading extends StatelessWidget {
   }
 }
 
-class _ThreadListTile extends StatelessWidget {
-  const _ThreadListTile({required this.thread, required this.onTap});
+/// What the per-thread overflow menu offers.
+enum ThreadRowAction { properties, rename, delete }
+
+class _ThreadListTile extends StatefulWidget {
+  const _ThreadListTile({
+    required this.thread,
+    required this.onTap,
+    required this.onAction,
+  });
 
   final ThreadInfo thread;
   final VoidCallback onTap;
+  final void Function(ThreadRowAction action) onAction;
+
+  @override
+  State<_ThreadListTile> createState() => _ThreadListTileState();
+}
+
+class _ThreadListTileState extends State<_ThreadListTile> {
+  bool _hovered = false;
+  bool _menuOpen = false;
+
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS ||
+        TargetPlatform.windows ||
+        TargetPlatform.linux =>
+          true,
+        _ => false,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final thread = widget.thread;
     // A thread with no name has never been titled; show the same
     // placeholder the room sidebar uses rather than an empty row.
     final title = thread.hasName ? thread.name : 'New Thread';
     final stamp = thread.lastActivity ?? thread.createdAt;
-    return ListTile(
-      dense: true,
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(formatRelativeTime(stamp)),
-      onTap: onTap,
+    final showMenu = _hovered || _menuOpen || !_isDesktop;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: ListTile(
+        dense: true,
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(formatRelativeTime(stamp)),
+        onTap: widget.onTap,
+        trailing: showMenu ? _buildMenu(context) : null,
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<ThreadRowAction>(
+      icon: Icon(
+        Icons.more_vert,
+        size: 18,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      tooltip: 'Thread options',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      // Keeps the button mounted while the popup is open. Without it the
+      // pointer leaving the row unmounts the button, and the popup's
+      // completion callback short-circuits on '!mounted' — silently
+      // dropping the selection. Learned the hard way in the room
+      // sidebar's own menu; the same trap applies here.
+      onOpened: () => setState(() => _menuOpen = true),
+      onCanceled: () => setState(() => _menuOpen = false),
+      onSelected: (action) {
+        setState(() => _menuOpen = false);
+        widget.onAction(action);
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: ThreadRowAction.properties,
+          child: Row(
+            children: [
+              Icon(Icons.tune, size: 18),
+              SizedBox(width: SoliplexSpacing.s3),
+              Text('Properties'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: ThreadRowAction.rename,
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 18),
+              SizedBox(width: SoliplexSpacing.s3),
+              Text('Rename'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ThreadRowAction.delete,
+          child: Row(
+            children: [
+              Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(width: SoliplexSpacing.s3),
+              Text(
+                'Delete',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show Room;
 import 'package:soliplex_client/soliplex_client.dart'
     show ApiException, NotFoundException, ThreadLabel;
+import 'package:soliplex_design/soliplex_design.dart' show soliplexLightTheme;
 import 'package:soliplex_frontend/src/modules/auth/auth_session.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_manager.dart';
 import 'package:soliplex_frontend/src/modules/lobby/lobby_state.dart';
@@ -58,7 +59,14 @@ Widget _buildApp(ServerManager manager, {ApiResolver? apiResolver}) {
       ),
     ],
   );
-  return ProviderScope(child: MaterialApp.router(routerConfig: router));
+  // Matches production: the branded chips read their palette from the
+  // Soliplex ThemeData extension.
+  return ProviderScope(
+    child: MaterialApp.router(
+      theme: soliplexLightTheme(),
+      routerConfig: router,
+    ),
+  );
 }
 
 /// Pumps the lobby with one connected server.
@@ -157,6 +165,34 @@ void main() {
       await _openLabelsTab(tester);
 
       expect(find.textContaining('thread'), findsNothing);
+    });
+
+    testWidgets('carries the create affordance as the last row', (
+      tester,
+    ) async {
+      // A tile at the end of the list, not a button in a bar above it —
+      // matching the server sidebar, so the two read as one idiom.
+      await _pumpLobby(
+        tester,
+        labels: [_label(1, 'Manuals'), _label(2, 'Urgent')],
+      );
+      await _openLabelsTab(tester);
+
+      // Inside the scrollable rather than pinned above it...
+      final list = find.descendant(
+        of: find.byType(LabelsView),
+        matching: find.byType(ListView),
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('New label')),
+        findsOneWidget,
+      );
+
+      // ...and below the last label rather than at the top.
+      final tileY = tester.getTopLeft(find.text('New label')).dy;
+      final lastChipY =
+          tester.getTopLeft(find.widgetWithText(LabelChip, 'Urgent')).dy;
+      expect(tileY, greaterThan(lastChipY));
     });
 
     testWidgets('offers creation from the empty state', (tester) async {
