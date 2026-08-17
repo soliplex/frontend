@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.99.2+81] - 2026-08-17
+
 ### Added
 
 - The room's confidentiality marking is shown inside the chat, where until now
@@ -49,6 +51,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   fitting and the address loses its descenders. The toolbar now sizes itself to
   the title it has to carry. It reproduces only with the OS text size raised, so
   a stock emulator does not show it.
+- The app bar no longer takes on a blue cast once content scrolls beneath it.
+  Material tints a scrolled-under bar toward the brand's own accent color, so on
+  mobile the bar shifted away from the surfaces around it the moment the
+  conversation moved under it. The bar now stays flat on every platform and at
+  every scroll position, with its bottom border as the only separator.
 
 ## [0.99.1+80] - 2026-08-06
 
