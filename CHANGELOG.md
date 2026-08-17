@@ -11,14 +11,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 ### Added
 
 - The room's confidentiality marking is shown inside the chat, where until now
-  it could only be read from the lobby: as a badge in the bar over the
-  conversation, standing as tall as the bar's buttons beside the room name and
-  its server, and as a line under the composer — "Information level is X for
-  this room" — in the slot other chat products give their standing caveat, so
-  the marking is the last thing read before a message is sent. Both are
-  suppressed on a deployment that configures no markings, as the lobby's badge
-  already is. Like every other marking in the app, both show the deployment's
-  default level: no per-room value exists yet.
+  it could only be read from the lobby: as a band across the conversation in
+  the level's own colors, directly under whatever names the room, and as a line
+  under the composer — "Information level is X for this room" — in the slot
+  other chat products give their standing caveat, so the marking is the last
+  thing read before a message is sent. The marking gets a row of its own rather
+  than a place in the header, because a marking is a fixed cost and a header's
+  width is not: sharing that width, a long marking leaves nothing of the room
+  name at the sizes phones and split-screen tablets run at. Both are suppressed
+  on a deployment that configures no markings, as the lobby's badge already is.
+  Like every other marking in the app, both show the deployment's default
+  level: no per-room value exists yet.
 
 ### Changed
 

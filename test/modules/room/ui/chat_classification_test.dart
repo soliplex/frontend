@@ -26,35 +26,104 @@ ThemeData _configured() => ThemeData(
       ],
     );
 
-Widget _wrap(Widget child, {ThemeData? theme}) => MaterialApp(
+Widget _wrap(Widget child, {ThemeData? theme, double? width}) => MaterialApp(
       theme: theme ?? _configured(),
-      home: Scaffold(body: Center(child: child)),
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: width,
+            // A column, as the chat stacks it: free to span the width it is
+            // given, free to collapse to nothing.
+            child: Column(mainAxisSize: MainAxisSize.min, children: [child]),
+          ),
+        ),
+      ),
+    );
+
+ThemeData _withLabel(String label) => ThemeData(
+      extensions: [
+        ClassificationTheme(
+          defaultId: 'x',
+          levels: [
+            ClassificationLevel(
+              id: 'x',
+              label: label,
+              background: const Color(0xFFEEDDDD),
+              foreground: const Color(0xFF441111),
+            ),
+          ],
+        ),
+      ],
     );
 
 void main() {
-  group('ChatClassificationBadge', () {
+  group('ChatClassificationBand', () {
     testWidgets('shows the deployment default marking', (tester) async {
-      await tester.pumpWidget(_wrap(const ChatClassificationBadge()));
+      await tester.pumpWidget(_wrap(const ChatClassificationBand()));
       expect(find.text('RESTRICTED'), findsOneWidget);
     });
 
-    testWidgets('stands as tall as the bar buttons beside it', (tester) async {
-      await tester.pumpWidget(_wrap(const ChatClassificationBadge()));
+    testWidgets('collapses whole when no marking is configured',
+        (tester) async {
+      await tester.pumpWidget(
+        _wrap(const ChatClassificationBand(), theme: ThemeData()),
+      );
+      expect(tester.getSize(find.byType(ChatClassificationBand)), Size.zero);
+    });
+
+    // A marking's colors are its own, never the app palette's: a brand
+    // restyling must not be able to change how a marking reads.
+    testWidgets('paints the level own colors, not the color scheme',
+        (tester) async {
+      await tester.pumpWidget(_wrap(const ChatClassificationBand()));
+
+      final band = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(ChatClassificationBand),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(band.color, const Color(0xFFEEDDDD));
       expect(
-        tester.getSize(find.byType(SoliplexClassificationBadge)).height,
-        kMinInteractiveDimension,
+        tester.widget<Text>(find.text('RESTRICTED')).style?.color,
+        const Color(0xFF441111),
       );
     });
 
-    testWidgets(
-        'collapses whole — gap included — when no marking is '
-        'configured', (tester) async {
+    // Clipping a marking is an integrity bug — a truncated label reads as a
+    // different, lower marking than the one the room carries. The band has no
+    // maxLines for that reason, unlike the room title above it.
+    testWidgets('wraps a label too long for its width instead of truncating',
+        (tester) async {
+      const long = 'CONTROLLED UNCLASSIFIED INFORMATION';
+
       await tester.pumpWidget(
-        _wrap(const ChatClassificationBadge(), theme: ThemeData()),
+        _wrap(
+          const ChatClassificationBand(),
+          width: 120,
+          theme: _withLabel('X'),
+        ),
       );
+      final oneLine =
+          tester.getSize(find.byType(ChatClassificationBand)).height;
+
+      await tester.pumpWidget(
+        _wrap(
+          const ChatClassificationBand(),
+          width: 120,
+          theme: _withLabel(long),
+        ),
+      );
+      // Markings do not cross-fade: ClassificationTheme.lerp holds the
+      // outgoing value for the theme transition, so the new label is only on
+      // screen once that animation has run out.
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(long), findsOneWidget);
       expect(
-        tester.getSize(find.byType(ChatClassificationBadge)),
-        Size.zero,
+        tester.getSize(find.byType(ChatClassificationBand)).height,
+        greaterThan(oneLine),
       );
     });
   });
