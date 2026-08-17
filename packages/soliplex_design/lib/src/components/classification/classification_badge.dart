@@ -13,11 +13,11 @@ import 'package:soliplex_design/src/tokens/spacing.dart';
 /// is an integrity bug — so this widget is given a bounded width by its
 /// parent. Not tappable.
 ///
-/// In a deployment that has configured no classifications the resolved
-/// level is the neutral built-in and this widget renders nothing: an
-/// unconfigured product should not sprout meaningless pills. A configured
-/// deployment always shows its default, and an unrecognized id always
-/// resolves to a fail-loud alarm marking that is shown.
+/// Renders nothing when the deployment declared no marking vocabulary
+/// ([ClassificationTheme.isConfigured]): an unconfigured product should not
+/// sprout meaningless pills. A configured deployment always shows a marking,
+/// and an unrecognized id always resolves to a fail-loud alarm marking that
+/// is shown.
 ///
 /// Safe under bare [ThemeData]: it reads only the null-safe
 /// [ClassificationTheme.of] and const tokens, never the `!`-guarded
@@ -31,13 +31,8 @@ class SoliplexClassificationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ClassificationTheme.of(context);
+    if (!theme.isConfigured) return const SizedBox.shrink();
     final level = theme.resolve(context, classification);
-
-    // Suppress only the unconfigured built-in (identity check). Configured
-    // defaults and the alarm level are distinct instances and still show.
-    if (identical(level, ClassificationTheme.fallbackLevel)) {
-      return const SizedBox.shrink();
-    }
 
     final textTheme = Theme.of(context).textTheme;
     return Semantics(

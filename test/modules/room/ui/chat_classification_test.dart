@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
@@ -71,6 +72,17 @@ void main() {
       expect(tester.getSize(find.byType(ChatClassificationBand)), Size.zero);
     });
 
+    // The band replaces its label's semantics with a named announcement, so a
+    // regression here is silence for a screen reader — invisible on screen and
+    // not recoverable from the label, which ExcludeSemantics drops.
+    testWidgets('announces the marking to a screen reader', (tester) async {
+      await tester.pumpWidget(_wrap(const ChatClassificationBand()));
+      expect(
+        find.bySemanticsLabel('Classification: RESTRICTED'),
+        findsOneWidget,
+      );
+    });
+
     // A marking's colors are its own, never the app palette's: a brand
     // restyling must not be able to change how a marking reads.
     testWidgets('paints the level own colors, not the color scheme',
@@ -120,7 +132,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text(long), findsOneWidget);
+      // Not clamped to a line count: `didExceedMaxLines` is the paragraph's
+      // own report that it was cut off, and it carries no pixel constant, so
+      // it survives type changes a height assertion would not.
+      expect(
+        tester.renderObject<RenderParagraph>(find.text(long)).didExceedMaxLines,
+        isFalse,
+      );
+      // And it wrapped rather than running off the edge.
       expect(
         tester.getSize(find.byType(ChatClassificationBand)).height,
         greaterThan(oneLine),

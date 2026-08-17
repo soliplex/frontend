@@ -37,6 +37,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Fixed
 
+- A deployment whose marking ladder starts at the design system's neutral
+  built-in level no longer suppresses every marking in the app. Whether a
+  marking is shown now follows from what the deployment declared rather than
+  from what its lowest level happens to look like, so a room sitting at the
+  bottom rung reads as marked instead of as unmarked.
 - The room header no longer clips the server address at enlarged OS text sizes.
   An app bar's toolbar is a fixed-height box that clips an oversized title
   without reporting anything, and the header stacks the room name over the

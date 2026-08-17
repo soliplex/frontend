@@ -151,15 +151,26 @@ class ClassificationTheme extends ThemeExtension<ClassificationTheme> {
     return this;
   }
 
+  /// Whether the deployment declared a marking vocabulary at all.
+  ///
+  /// False only for the built-in [fallback] — the instance a bare
+  /// [ThemeData] falls back to and the one `buildSoliplexThemeData` registers
+  /// for a flavor that passes no classifications. A surface asks this to
+  /// decide whether to render a marking at all: an unconfigured product
+  /// should not sprout meaningless pills, bands, or sentences about them.
+  ///
+  /// The question is what the deployment *declared*, not what a particular
+  /// level happens to look like. A deployment whose ladder starts at a level
+  /// equal to [fallbackLevel] is configured, and its rooms are marked.
+  bool get isConfigured => !identical(this, fallback);
+
   /// Null-safe accessor: falls back to [fallback] when no extension is
   /// registered, so consumers work under bare [ThemeData].
   static ClassificationTheme of(BuildContext context) {
     return Theme.of(context).extension<ClassificationTheme>() ?? fallback;
   }
 
-  /// The single neutral level used by [fallback]. Exposed so consumers can
-  /// detect the unconfigured built-in (e.g. to suppress a meaningless pill)
-  /// by identity.
+  /// The single neutral level used by [fallback].
   static const ClassificationLevel fallbackLevel = ClassificationLevel(
     id: 'unmarked',
     label: 'UNMARKED',
