@@ -8,6 +8,28 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- A server's address now reads without its `http(s)://` scheme everywhere it
+  names a server compactly — the room header, the lobby's app bar title on
+  narrow layouts, and the server sidebar tile — so the same server reads the
+  same way on both sides of the layout breakpoint. In the room header a link
+  glyph leads the line in the scheme's place. A server that reports a
+  human-readable name still shows that name, untouched.
+- The lobby's two-pane layout drops the title band that named the selected
+  server above the room list. The sidebar beside it already names the server,
+  so the band repeated what was on screen.
+
+### Fixed
+
+- The room header no longer clips the server address at enlarged OS text sizes.
+  An app bar's toolbar is a fixed-height box that clips an oversized title
+  without reporting anything, and the header stacks the room name over the
+  server it belongs to; past a certain system text size those two lines stop
+  fitting and the address loses its descenders. The toolbar now sizes itself to
+  the title it has to carry. It reproduces only with the OS text size raised, so
+  a stock emulator does not show it.
+
 ## [0.99.1+80] - 2026-08-06
 
 ### Added

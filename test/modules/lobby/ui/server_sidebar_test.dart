@@ -109,8 +109,8 @@ void main() {
 
       await tester.pumpWidget(_buildSidebar(servers: manager.servers.value));
 
-      expect(find.text('http://srv1.test'), findsOneWidget);
-      expect(find.text('http://srv2.test:9000'), findsOneWidget);
+      expect(find.text('srv1.test'), findsOneWidget);
+      expect(find.text('srv2.test:9000'), findsOneWidget);
     });
 
     testWidgets('a server with a name shows the name, not the raw address',
@@ -172,7 +172,7 @@ void main() {
         onSelectServer: (id) => selected = id,
       ));
 
-      await tester.tap(find.text('http://srv1.test'));
+      await tester.tap(find.text('srv1.test'));
       expect(selected, 'http://srv1.test');
     });
 
@@ -196,8 +196,8 @@ void main() {
 
       ListTile tileFor(String url) =>
           tester.widget<ListTile>(find.widgetWithText(ListTile, url));
-      expect(tileFor('http://srv2.test').selected, isTrue);
-      expect(tileFor('http://srv1.test').selected, isFalse);
+      expect(tileFor('srv2.test').selected, isTrue);
+      expect(tileFor('srv1.test').selected, isFalse);
     });
 
     testWidgets('server management lives in the tile menu, not a gear',
@@ -407,8 +407,7 @@ void main() {
             await tester.createGesture(kind: PointerDeviceKind.mouse);
         await gesture.addPointer(location: Offset.zero);
         addTearDown(gesture.removePointer);
-        await gesture
-            .moveTo(tester.getCenter(find.text('http://localhost:8000')));
+        await gesture.moveTo(tester.getCenter(find.text('localhost:8000')));
         await tester.pumpAndSettle();
 
         await tester.tap(find.byIcon(Icons.more_vert).first);

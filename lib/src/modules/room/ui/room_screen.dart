@@ -1974,8 +1974,9 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // A link glyph replaces the noisy `https://` scheme as the "this is
-            // the server address" cue (issue #485). Scaled with the text so it
-            // stays proportionate at large OS font sizes.
+            // the server address" cue (issue #485). Sized from the OS text
+            // scale rather than fixed, so it does not shrink to a dot beside
+            // enlarged text.
             Icon(
               Icons.link,
               size: MediaQuery.textScalerOf(context).scale(14),
@@ -2002,14 +2003,10 @@ class _RoomScreenState extends State<RoomScreen> {
   /// carries no scheme) passes through unchanged.
   String get _serverLabel => stripUrlScheme(widget.serverEntry.displayName);
 
-  /// Height the two-line [_roomTitle] needs at the current text scale. An
-  /// AppBar's toolbar is a fixed [kToolbarHeight] box that silently clips an
-  /// oversized title; with the tall brand font the two lines already fill it at
-  /// the default scale and overflow once the OS text size climbs past ~1.15×,
-  /// clipping the server line's descenders (issue #485). Growing the toolbar to
-  /// fit keeps the whole label visible at any accessibility scale, while the
-  /// [kToolbarHeight] floor keeps the leading/trailing icon buttons at their
-  /// Material touch-target size and the bar uncramped at the default scale.
+  /// Toolbar height that fits the two lines of [_roomTitle] at the current text
+  /// scale. A toolbar is a fixed [kToolbarHeight] box that clips an oversized
+  /// title and reports nothing, so the height is measured from the same styles
+  /// [_roomTitle] renders — keep the two in step.
   double _titleBarHeight(BuildContext context) {
     final theme = Theme.of(context);
     final scaler = MediaQuery.textScalerOf(context);
@@ -2020,7 +2017,9 @@ class _RoomScreenState extends State<RoomScreen> {
         textScaler: scaler,
         maxLines: 1,
       )..layout();
-      return painter.height;
+      final height = painter.height;
+      painter.dispose();
+      return height;
     }
 
     final content = lineHeight(theme.textTheme.titleMedium) +

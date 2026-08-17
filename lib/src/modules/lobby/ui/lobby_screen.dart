@@ -388,8 +388,6 @@ class _NarrowLayout extends StatelessWidget {
                 // Drop the `http(s)://` scheme, matching the room header's
                 // server line (issue #485).
                 stripUrlScheme(selectedEntry.displayName),
-                // Match the wide layout's sidebar text size, so the name does
-                // not resize when the layout crosses the breakpoint.
                 style: Theme.of(context).textTheme.titleMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

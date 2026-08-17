@@ -19,6 +19,25 @@ void main() {
     });
   });
 
+  group('stripUrlScheme', () {
+    test('drops a leading http(s) scheme', () {
+      expect(stripUrlScheme('https://api.example.com'), 'api.example.com');
+      expect(stripUrlScheme('http://localhost:8000'), 'localhost:8000');
+    });
+
+    test('leaves a label that carries no scheme alone', () {
+      expect(stripUrlScheme('Demo Server'), 'Demo Server');
+      expect(stripUrlScheme('localhost:8000'), 'localhost:8000');
+    });
+
+    test('only strips at the start, and only once', () {
+      expect(
+        stripUrlScheme('https://proxy.example.com/https://api.example.com'),
+        'proxy.example.com/https://api.example.com',
+      );
+    });
+  });
+
   group('aliasFromUrl', () {
     test('localhost with explicit port', () {
       expect(

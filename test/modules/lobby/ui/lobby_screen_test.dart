@@ -332,7 +332,8 @@ void main() {
       // already names the server, so there is no in-pane title band — the
       // address appears exactly once (in the sidebar).
       expect(find.byType(AppBar), findsNothing);
-      expect(find.text('http://localhost:8000'), findsOneWidget);
+      expect(find.text('localhost:8000'), findsOneWidget);
+      expect(find.text('http://localhost:8000'), findsNothing);
     });
 
     testWidgets('app bar names the server at the pane-header text size',
@@ -929,7 +930,7 @@ void main() {
       expect(find.text('Special'), findsNothing);
 
       // Select the second server in the sidebar.
-      await tester.tap(find.text('http://other.test:8000'));
+      await tester.tap(find.text('other.test:8000'));
       await tester.pumpAndSettle();
 
       expect(find.text('Special'), findsOneWidget);
@@ -972,7 +973,7 @@ void main() {
       expect(find.byType(Drawer), findsOneWidget);
 
       // Tap the second server's tile inside the drawer.
-      await tester.tap(find.text('http://other.test:8000'));
+      await tester.tap(find.text('other.test:8000'));
       await tester.pumpAndSettle();
 
       // The drawer closes and the newly-selected server's rooms show.

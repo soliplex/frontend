@@ -253,11 +253,12 @@ class _ServerTileState extends State<_ServerTile> {
         minLeadingWidth: 0,
         horizontalTitleGap: SoliplexSpacing.s3,
         selected: widget.selected,
-        // Prefer the server's human-readable name; fall back to the raw
-        // address. The tile shows only the name — the full address is reachable
-        // (and copyable) from the ⋮ menu's "Copy server address" action.
+        // Prefer the server's human-readable name; fall back to the address,
+        // without its scheme so it reads the same here as in the room header.
+        // The tile shows only the name — the full address is reachable (and
+        // copyable) from the ⋮ menu's "Copy server address" action.
         title: Text(
-          widget.entry.displayName,
+          stripUrlScheme(widget.entry.displayName),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
