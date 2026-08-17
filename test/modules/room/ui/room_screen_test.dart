@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_design/soliplex_design.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'package:soliplex_frontend/src/modules/lobby/lobby_read_markers.dart';
@@ -521,44 +522,46 @@ void main() {
     });
 
     testWidgets(
-        'AppBar grows so the server line is not clipped at large text scale '
-        '(issue #485)', (tester) async {
+        'grows the toolbar so the title is not clipped at large '
+        'text scale', (tester) async {
       tester.view.physicalSize = const Size(430, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
+      // An OS text size past the point where the two-line title outgrows the
+      // standard toolbar, which a fixed toolbar clips without warning.
+      tester.platformDispatcher.textScaleFactorTestValue = 3.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
       api.nextRoom = const Room(id: 'room-1', name: 'General');
 
       await tester.pumpWidget(MaterialApp(
-        home: MediaQuery(
-          // Emulate a device with an enlarged OS text size — the setting that
-          // pushed the two-line title past the fixed toolbar height and clipped
-          // the server line's descenders.
-          data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
-          child: RoomScreen(
-            serverEntry: entry,
-            roomId: 'room-1',
-            threadId: null,
-            runtimeManager: runtimeManager,
-            registry: registry,
-            uploadRegistry: uploadRegistry,
-            documentSelections: DocumentSelections(),
-          ),
+        // The toolbar is sized from the app's own type scale; Material's
+        // defaults are short enough that the title never outgrows the bar.
+        theme: lowerBrandTheme(const BrandTheme.soliplex(), Brightness.light),
+        home: RoomScreen(
+          serverEntry: entry,
+          roomId: 'room-1',
+          threadId: null,
+          runtimeManager: runtimeManager,
+          registry: registry,
+          uploadRegistry: uploadRegistry,
+          documentSelections: DocumentSelections(),
         ),
       ));
       await tester.pumpAndSettle();
 
-      // The toolbar grew beyond the fixed default to make room.
-      final appBarRect = tester.getRect(find.byType(AppBar));
-      expect(appBarRect.height, greaterThan(kToolbarHeight));
+      Rect inAppBar(Finder matching) => tester.getRect(
+          find.descendant(of: find.byType(AppBar), matching: matching));
 
-      // The server line sits fully inside the (grown) toolbar — its bottom no
-      // longer spills past the AppBar, which is what the clip was.
-      final serverRect = tester.getRect(find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text('test-server:8000'),
-      ));
-      expect(serverRect.bottom, lessThanOrEqualTo(appBarRect.bottom));
+      // Both ends of the title stay inside the bar. The toolbar centres an
+      // oversized title, so it spills top and bottom at once.
+      final appBarRect = tester.getRect(find.byType(AppBar));
+      expect(inAppBar(find.text('General')).top,
+          greaterThanOrEqualTo(appBarRect.top));
+      expect(inAppBar(find.byIcon(Icons.link)).bottom,
+          lessThanOrEqualTo(appBarRect.bottom));
+      expect(inAppBar(find.text('test-server:8000')).bottom,
+          lessThanOrEqualTo(appBarRect.bottom));
     });
 
     testWidgets(
