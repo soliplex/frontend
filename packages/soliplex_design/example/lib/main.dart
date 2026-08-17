@@ -404,18 +404,6 @@ class ClassificationBadgeGallery extends StatelessWidget {
             ],
           ),
           _Section(
-            title: 'Bar presentation: stands as tall as a bar control',
-            children: [
-              SizedBox(
-                height: kMinInteractiveDimension,
-                child: SoliplexClassificationBadge.bar(
-                  classification: 'restricted',
-                ),
-              ),
-              IconButton(icon: Icon(Icons.info_outline), onPressed: null),
-            ],
-          ),
-          _Section(
             title: 'Long label wraps in a narrow container',
             children: [
               SizedBox(

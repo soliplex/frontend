@@ -1891,6 +1891,10 @@ class _RoomScreenState extends State<RoomScreen> {
             serverLabel: widget.serverEntry.displayName,
           ),
           if (showHeader) _buildRoomHeader(room, roomStatus, threadStatus),
+          // Banded across the chat under whatever names the room — the app bar
+          // on narrow layouts, the in-page header on wide ones — so the
+          // marking never competes with the room name for the header's width.
+          const ChatClassificationBand(),
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
           _capWidth(_buildChatInput(threadView, room, messagesStatus)),
@@ -1961,58 +1965,43 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   /// The header title: the room name over the server it lives on, so a user
-  /// with several servers connected can see which one this room belongs to,
-  /// followed by the room's confidentiality marking — inside a room the chat
-  /// bar is the only place that can carry it.
-  ///
-  /// The marking sits beside the title rather than out with the trailing
-  /// actions: it labels the room, and reading it as one unit with the name is
-  /// the point. [Flexible] on the name column (not [Expanded]) lets the
-  /// marking claim the width it needs first — a truncated room name is a
-  /// nuisance, a truncated marking is an integrity bug.
+  /// with several servers connected can see which one this room belongs to.
   Widget _roomTitle(String roomName) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                roomName,
-                style: theme.textTheme.titleMedium,
+        Text(
+          roomName,
+          style: theme.textTheme.titleMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // A link glyph replaces the noisy `https://` scheme as the "this is
+            // the server address" cue (issue #485). Sized from the OS text
+            // scale rather than fixed, so it does not shrink to a dot beside
+            // enlarged text.
+            Icon(
+              Icons.link,
+              size: MediaQuery.textScalerOf(context).scale(14),
+              color: muted,
+            ),
+            const SizedBox(width: SoliplexSpacing.s1),
+            Flexible(
+              child: Text(
+                _serverLabel,
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // A link glyph replaces the noisy `https://` scheme as the
-                  // "this is the server address" cue (issue #485). Sized from
-                  // the OS text scale rather than fixed, so it does not shrink
-                  // to a dot beside enlarged text.
-                  Icon(
-                    Icons.link,
-                    size: MediaQuery.textScalerOf(context).scale(14),
-                    color: muted,
-                  ),
-                  const SizedBox(width: SoliplexSpacing.s1),
-                  Flexible(
-                    child: Text(
-                      _serverLabel,
-                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const ChatClassificationBadge(),
       ],
     );
   }

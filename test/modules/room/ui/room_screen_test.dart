@@ -719,19 +719,22 @@ void main() {
           );
 
       testWidgets(
-          'narrow layout carries it in the AppBar and under the '
+          'narrow layout carries it under the AppBar and under the '
           'composer', (tester) async {
         api.nextRoom = const Room(id: 'room-1', name: 'General');
 
         await pumpRoom(tester, width: 400, theme: markedTheme());
 
+        // Banded below the toolbar, not inside it: the marking is chrome of
+        // its own, never competing with the room name for the bar's width.
         expect(
           find.descendant(
             of: find.byType(AppBar),
             matching: find.text('RESTRICTED'),
           ),
-          findsOneWidget,
+          findsNothing,
         );
+        expect(find.text('RESTRICTED'), findsOneWidget);
         expect(
           find.text('Information level is RESTRICTED for this room'),
           findsOneWidget,
@@ -739,13 +742,13 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('wide layout carries it in the in-page header',
+      testWidgets('wide layout carries it under the in-page header',
           (tester) async {
         api.nextRoom = const Room(id: 'room-1', name: 'General');
 
         await pumpRoom(tester, width: 1200, theme: markedTheme());
 
-        // No AppBar on wide; the marking rides the in-page header instead.
+        // No AppBar on wide; the band sits under the in-page header instead.
         expect(find.byType(AppBar), findsNothing);
         expect(find.text('RESTRICTED'), findsOneWidget);
         expect(
@@ -754,6 +757,49 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       });
+
+      // The marking gets a row of its own so the header's width stays with
+      // identification. Mounted in the title instead, a twelve-character
+      // label starved the room name to zero width and overflowed the row at
+      // both layouts' worst widths — invisible at the 400px the tests above
+      // run at, which is why these two widths are pinned.
+      for (final (width, layout) in [
+        (320.0, 'narrowest phone'),
+        (600.0, 'tablet breakpoint, where the chat pane is at its narrowest'),
+      ]) {
+        testWidgets(
+            'a long marking leaves the room name legible at $width '
+            '($layout)', (tester) async {
+          const name = 'Quarterly Budget Planning';
+          api.nextRoom = const Room(id: 'room-1', name: name);
+
+          await pumpRoom(
+            tester,
+            width: width,
+            theme: ThemeData(
+              extensions: [
+                ClassificationTheme(
+                  defaultId: 'confidential',
+                  levels: const [
+                    ClassificationLevel(
+                      id: 'confidential',
+                      label: 'CONFIDENTIAL',
+                      background: Color(0xFFEEDDDD),
+                      foreground: Color(0xFF441111),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('CONFIDENTIAL'), findsOneWidget);
+          // Legible, not merely present: a name squeezed to a few characters
+          // identifies nothing.
+          expect(tester.getSize(find.text(name)).width, greaterThan(100));
+        });
+      }
 
       testWidgets('an unconfigured deployment gets neither', (tester) async {
         api.nextRoom = const Room(id: 'room-1', name: 'General');

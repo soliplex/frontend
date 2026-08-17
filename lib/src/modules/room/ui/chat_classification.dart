@@ -1,6 +1,6 @@
 /// The room's confidentiality marking as it appears inside the chat itself:
-/// a badge in the bar over the conversation ([ChatClassificationBadge]) and a
-/// sentence under the composer ([ChatClassificationNotice]).
+/// a band over the conversation ([ChatClassificationBand]) and a sentence
+/// under the composer ([ChatClassificationNotice]).
 ///
 /// Both resolve the ambient [ClassificationTheme]'s default — no per-room
 /// value exists yet (`Room` carries no classification and the backend sends
@@ -12,6 +12,16 @@ library;
 import 'package:flutter/material.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
+/// Design-system exception: half a step under [SoliplexSpacing.s1] (4), the
+/// smallest step the scale carries.
+///
+/// The band is chrome the conversation pays for on every screen at every
+/// width, so its height is worth buying down. At s1 the strip reads as a
+/// second toolbar; here it reads as a rule carrying a word. The scale has no
+/// smaller step by design — every `sN` is `4 × N`, so a 2 could only enter it
+/// under a name that lies about its size.
+const double _bandVerticalPadding = 2;
+
 /// Whether the deployment has configured any markings at all.
 ///
 /// Mirrors [SoliplexClassificationBadge]'s own suppression rule: the neutral
@@ -22,30 +32,55 @@ bool _classificationConfigured(BuildContext context) => !identical(
       ClassificationTheme.fallbackLevel,
     );
 
-/// The room's marking, mounted in the bar above the conversation beside the
-/// room title and its server subtitle.
+/// The room's marking, banded across the full width of the chat directly
+/// above the conversation — under the app bar on narrow layouts, under the
+/// in-page header on wide ones.
 ///
-/// Stands as tall as the bar's trailing icon buttons — [kMinInteractiveDimension]
-/// is their hit-target height — so the marking reads as part of the bar's
-/// furniture rather than as a pill floating in it. The label still wraps
-/// inside that height rather than truncating (clipping a marking is an
-/// integrity bug); two lines fit, so callers should let this widget take the
-/// width it asks for and shrink the room title instead.
+/// A row of its own rather than an element of the header: a marking is a
+/// fixed cost, and the header's width is not. Sharing that width, the marking
+/// takes what it needs and the room name and server pay for it — at the
+/// widths phones and split-screen tablets run at, a twelve-character label
+/// leaves nothing of the name. Banded, it costs one line of height at every
+/// width and identification keeps the bar.
 ///
-/// Carries its own leading gap, so a caller placing it after a title does not
-/// have to repeat the suppression check to avoid a stray gap on a deployment
-/// that configures no markings.
-class ChatClassificationBadge extends StatelessWidget {
-  const ChatClassificationBadge({super.key});
+/// Full-bleed in the level's own colors, the way a marking is banded on a
+/// document. The label centres and wraps rather than truncating — clipping a
+/// marking is an integrity bug — which the full width makes room for.
+class ChatClassificationBand extends StatelessWidget {
+  const ChatClassificationBand({super.key});
 
   @override
   Widget build(BuildContext context) {
     if (!_classificationConfigured(context)) return const SizedBox.shrink();
-    return const Padding(
-      padding: EdgeInsets.only(left: SoliplexSpacing.s2),
-      child: SizedBox(
-        height: kMinInteractiveDimension,
-        child: SoliplexClassificationBadge.bar(),
+    final level = ClassificationTheme.of(context).resolve(context, null);
+    return Semantics(
+      label: 'Classification: ${level.label}',
+      child: ExcludeSemantics(
+        child: ColoredBox(
+          color: level.background,
+          child: SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SoliplexSpacing.s4,
+                vertical: _bandVerticalPadding,
+              ),
+              child: Text(
+                level.label,
+                textAlign: TextAlign.center,
+                // Tighter leading than the body scale carries: the marking is
+                // a single line of caps in a band, not a paragraph, and the
+                // band should not cost the conversation more height than the
+                // word needs.
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: level.foreground,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
+                    ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
