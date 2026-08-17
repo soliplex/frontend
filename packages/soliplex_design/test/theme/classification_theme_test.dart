@@ -150,6 +150,52 @@ void main() {
     });
   });
 
+  group('isConfigured', () {
+    // Every marking surface in the app asks this before rendering anything, so
+    // a wrong answer is either a stock build sprouting UNMARKED chrome or a
+    // classified deployment showing no marking at all.
+    testWidgets('is false for a theme lowered with no classifications',
+        (tester) async {
+      // The production path: buildSoliplexThemeData always registers an
+      // extension, defaulting to the built-in fallback.
+      final ctx = await _context(
+        tester,
+        theme: buildSoliplexThemeData(
+          colors: lightSoliplexColors,
+          brightness: Brightness.light,
+        ),
+      );
+      expect(ClassificationTheme.of(ctx).isConfigured, isFalse);
+    });
+
+    testWidgets('is true for a deployment that declared a vocabulary',
+        (tester) async {
+      final ctx = await _context(
+        tester,
+        theme: buildSoliplexThemeData(
+          colors: lightSoliplexColors,
+          brightness: Brightness.light,
+          classifications: _theme(),
+        ),
+      );
+      expect(ClassificationTheme.of(ctx).isConfigured, isTrue);
+    });
+
+    // The question is what the deployment declared, not what a level looks
+    // like: reusing the neutral built-in as the bottom rung of a real ladder
+    // must not suppress every marking in the app.
+    test('is true for a ladder whose bottom rung is the built-in level', () {
+      final theme = ClassificationTheme(
+        defaultId: ClassificationTheme.fallbackLevel.id,
+        levels: [
+          ClassificationTheme.fallbackLevel,
+          ...(_theme().levels),
+        ],
+      );
+      expect(theme.isConfigured, isTrue);
+    });
+  });
+
   group('isMixed', () {
     test('distinct ids are mixed', () {
       expect(_theme().isMixed(['low', 'high']), isTrue);

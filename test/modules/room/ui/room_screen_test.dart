@@ -20,6 +20,7 @@ import 'package:soliplex_frontend/src/modules/room/document_selections.dart';
 import 'package:soliplex_frontend/src/modules/room/run_registry.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_anchor_storage.dart';
 import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
+import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
@@ -806,7 +807,9 @@ void main() {
 
         await pumpRoom(tester, width: 400);
 
-        expect(find.byType(SoliplexClassificationBadge), findsNothing);
+        // The band is always mounted and collapses to nothing, so its size is
+        // the assertion — `findsNothing` on it would pass for the wrong reason.
+        expect(tester.getSize(find.byType(ChatClassificationBand)), Size.zero);
         expect(find.textContaining('Information level'), findsNothing);
       });
     });

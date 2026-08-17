@@ -10,14 +10,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// use this to decide whether to spend a dedicated row's worth of layout — the
 /// badge itself is always mounted as a seam regardless (see [RoomMarkingsRow]).
 bool roomHasVisibleMarkings(BuildContext context, Room room) =>
-    room.hasQuizzes || _classificationConfigured(context);
-
-/// Mirrors [SoliplexClassificationBadge]'s own suppression rule: the badge
-/// shows nothing only for the unconfigured built-in level, detected by identity.
-bool _classificationConfigured(BuildContext context) => !identical(
-      ClassificationTheme.of(context).resolve(context, null),
-      ClassificationTheme.fallbackLevel,
-    );
+    room.hasQuizzes || ClassificationTheme.of(context).isConfigured;
 
 /// A room's confidentiality marking and quiz indicator, laid out on their own
 /// row so a long room name never has to share horizontal space with them —
@@ -44,7 +37,7 @@ class RoomMarkingsRow extends StatelessWidget {
           // The badge self-suppresses to zero width when no classification is
           // configured; only pay the gap when it actually occupies space, so
           // the quiz icon sits flush left instead of behind a leading gap.
-          if (_classificationConfigured(context))
+          if (ClassificationTheme.of(context).isConfigured)
             const SizedBox(width: SoliplexSpacing.s2),
           Tooltip(
             message: 'Has quizzes',

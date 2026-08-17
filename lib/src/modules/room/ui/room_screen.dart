@@ -1891,9 +1891,8 @@ class _RoomScreenState extends State<RoomScreen> {
             serverLabel: widget.serverEntry.displayName,
           ),
           if (showHeader) _buildRoomHeader(room, roomStatus, threadStatus),
-          // Banded across the chat under whatever names the room — the app bar
-          // on narrow layouts, the in-page header on wide ones — so the
-          // marking never competes with the room name for the header's width.
+          // Below the header slot, so the band lands under the app bar on
+          // narrow layouts and under the in-page header on wide ones.
           const ChatClassificationBand(),
           if (_filesExpanded) _buildFilePanel(roomStatus, threadStatus),
           Expanded(child: _capWidth(body)),
