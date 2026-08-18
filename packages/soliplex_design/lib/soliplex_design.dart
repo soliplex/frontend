@@ -25,5 +25,6 @@ export 'src/tokens/colors.dart';
 export 'src/tokens/hashed_color.dart';
 export 'src/tokens/radii.dart';
 export 'src/tokens/spacing.dart';
+export 'src/tokens/swatch.dart';
 export 'src/tokens/typography.dart';
 export 'src/tokens/typography_x.dart';
