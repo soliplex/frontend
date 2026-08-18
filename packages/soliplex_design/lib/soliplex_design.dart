@@ -22,7 +22,6 @@ export 'src/theme/theme.dart';
 export 'src/theme/theme_extensions.dart';
 export 'src/tokens/breakpoints.dart';
 export 'src/tokens/colors.dart';
-export 'src/tokens/hashed_color.dart';
 export 'src/tokens/radii.dart';
 export 'src/tokens/spacing.dart';
 export 'src/tokens/typography.dart';

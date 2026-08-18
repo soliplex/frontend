@@ -65,7 +65,7 @@ void main() {
       expect(loaded.threads.map((t) => t.id), equals(['a', 'b', 'c']));
       expect(loaded.hasMore, isFalse);
       expect(
-        h.api.allThreadsCalls.map((c) => (limit: c.limit, offset: c.offset)),
+        h.api.allThreadsCalls,
         equals([(limit: 2, offset: 0), (limit: 2, offset: 2)]),
       );
 
@@ -146,8 +146,7 @@ void main() {
 
       final loaded = h.state.threads.value as GlobalThreadsLoaded;
       expect(loaded.threads.map((t) => t.id), equals(['z']));
-      expect(h.api.allThreadsCalls.last.limit, equals(2));
-      expect(h.api.allThreadsCalls.last.offset, equals(0));
+      expect(h.api.allThreadsCalls.last, equals((limit: 2, offset: 0)));
 
       h.state.dispose();
     });
@@ -256,157 +255,6 @@ void main() {
       final loaded = h.state.threads.value as GlobalThreadsLoaded;
       expect(loaded.threads, isEmpty);
       expect(h.api.getAllThreadsCallCount, equals(0));
-
-      h.state.dispose();
-    });
-
-    test('rename folds the new name in without refetching', () async {
-      final h = _harness(pageSize: 10);
-      h.api.allThreads = [_thread('a'), _thread('b')];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-      final callsBefore = h.api.getAllThreadsCallCount;
-
-      final reason = await h.state.rename(_thread('a'), 'Renamed');
-
-      expect(reason, isNull);
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      expect(loaded.threads.first.name, equals('Renamed'));
-      // No refetch: the backend commits after responding, so a listing
-      // requested here could still report the old name.
-      expect(h.api.getAllThreadsCallCount, equals(callsBefore));
-
-      h.state.dispose();
-    });
-
-    test('rename keeps the thread where it was', () async {
-      // Re-sorting on rename would yank the row out from under whoever
-      // just renamed it.
-      final h = _harness(pageSize: 10);
-      h.api.allThreads = [_thread('a'), _thread('b')];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-
-      await h.state.rename(_thread('a'), 'zzz-last-alphabetically');
-
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      expect(loaded.threads.map((t) => t.id), equals(['a', 'b']));
-
-      h.state.dispose();
-    });
-
-    test('rename resends the description rather than dropping it', () async {
-      final h = _harness(pageSize: 10);
-      final described = ThreadInfo(
-        id: 'a',
-        roomId: 'room-1',
-        name: 'a',
-        description: 'keep me',
-        createdAt: DateTime.utc(2026),
-      );
-      h.api.allThreads = [described];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-
-      await h.state.rename(described, 'Renamed');
-
-      // 'updateThreadMetadata' replaces the row wholesale, so omitting
-      // the description would silently erase it.
-      expect(h.api.lastUpdatedDescription, equals('keep me'));
-
-      h.state.dispose();
-    });
-
-    test('delete drops the thread from the held list', () async {
-      final h = _harness(pageSize: 10);
-      h.api.allThreads = [_thread('a'), _thread('b')];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-
-      final reason = await h.state.delete(_thread('a'));
-
-      expect(reason, isNull);
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      expect(loaded.threads.map((t) => t.id), equals(['b']));
-
-      h.state.dispose();
-    });
-
-    test('a failed delete leaves the list alone', () async {
-      final h = _harness(pageSize: 10);
-      h.api.allThreads = [_thread('a'), _thread('b')];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-      h.api.nextDeleteThreadError = Exception('boom');
-
-      final reason = await h.state.delete(_thread('a'));
-
-      expect(reason, isNotNull);
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      expect(loaded.threads.map((t) => t.id), equals(['a', 'b']));
-
-      h.state.dispose();
-    });
-
-    test('saveProperties writes metadata and labels together', () async {
-      final h = _harness(pageSize: 10);
-      h.api
-        ..allThreads = [_thread('a')]
-        ..labels = const [
-          ThreadLabel(id: 1, name: 'Manuals', color: '#42D76D'),
-        ];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-
-      final reason = await h.state.saveProperties(
-        _thread('a'),
-        name: 'Renamed',
-        description: 'A description',
-        labelIds: const [1],
-      );
-
-      expect(reason, isNull);
-      expect(h.api.lastUpdatedName, equals('Renamed'));
-      expect(h.api.setThreadLabelsCalls.single.labelIds, equals([1]));
-
-      final loaded = h.state.threads.value as GlobalThreadsLoaded;
-      final thread = loaded.threads.single;
-      // The labels response carries no metadata, so the local copy takes
-      // the names from what was sent and the labels from what came back.
-      expect(thread.name, equals('Renamed'));
-      expect(thread.description, equals('A description'));
-      expect(thread.labels.single.name, equals('Manuals'));
-
-      h.state.dispose();
-    });
-
-    test('explains a failed save rather than dumping the exception', () async {
-      final h = _harness(pageSize: 10);
-      h.api.allThreads = [_thread('a')];
-      h.state.setServer(_serverId);
-      await pumpEventQueue();
-      h.api.nextUpdateMetadataError = Exception('boom');
-
-      final reason = await h.state.saveProperties(
-        _thread('a'),
-        name: 'Renamed',
-        description: '',
-        labelIds: const [],
-      );
-
-      expect(reason, contains('Could not save'));
-      expect(reason, isNot(contains('boom')));
-
-      h.state.dispose();
-    });
-
-    test('refuses to mutate with no server selected', () async {
-      final h = _harness();
-
-      final reason = await h.state.rename(_thread('a'), 'Renamed');
-
-      expect(reason, isNotNull);
-      expect(h.api.updateMetadataCallCount, equals(0));
 
       h.state.dispose();
     });

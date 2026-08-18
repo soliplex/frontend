@@ -24,7 +24,6 @@ import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/source_reference.dart';
 import 'package:soliplex_client/src/domain/thread_history.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
-import 'package:soliplex_client/src/domain/thread_label.dart';
 import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
@@ -373,12 +372,6 @@ class SoliplexApi {
   /// Parameters:
   /// - [limit]: page size (must be positive)
   /// - [offset]: how many threads to skip (must not be negative)
-  /// - [labelIds]: keep only threads carrying *any* of these labels. An
-  ///   empty or null list means no label filter — clearing the last chip
-  ///   must widen the listing, not empty it.
-  /// - [query]: keep only threads whose name contains this, ignoring
-  ///   case. Combines with [labelIds]: passing both narrows to threads
-  ///   matching the name *and* carrying one of the labels.
   ///
   /// Throws:
   /// - [ArgumentError] if [limit] is not positive or [offset] is negative
@@ -392,8 +385,6 @@ class SoliplexApi {
   Future<ThreadPage> getAllThreads({
     int limit = 50,
     int offset = 0,
-    List<int>? labelIds,
-    String? query,
     CancelToken? cancelToken,
   }) async {
     if (limit <= 0) {
@@ -403,22 +394,11 @@ class SoliplexApi {
       throw ArgumentError.value(offset, 'offset', 'must not be negative');
     }
 
-    final trimmedQuery = query?.trim() ?? '';
-
     final response = await _transport.request<Map<String, dynamic>>(
       'GET',
       _urlBuilder.build(
         pathSegments: ['agui', 'threads'],
-        queryParameters: {
-          'limit': '$limit',
-          'offset': '$offset',
-          // Omitted when empty rather than sent as a blank value: the
-          // backend reads a present-but-empty filter the same way, but
-          // leaving it out keeps the URL honest about what was asked.
-          if (labelIds != null && labelIds.isNotEmpty)
-            'label_ids': labelIds.map((id) => '$id').toList(growable: false),
-          if (trimmedQuery.isNotEmpty) 'q': trimmedQuery,
-        },
+        queryParameters: {'limit': '$limit', 'offset': '$offset'},
       ),
       cancelToken: cancelToken,
     );
@@ -656,207 +636,6 @@ class SoliplexApi {
       body: threadMetadataToJson(name: name, description: description),
       cancelToken: cancelToken,
     );
-  }
-
-  /// Replaces the labels carried by a thread, returning the updated thread.
-  ///
-  /// A replacement, not a delta: send the complete set the thread should
-  /// end up with. An empty [labelIds] clears them.
-  ///
-  /// The response carries the whole thread, labels included. Prefer
-  /// folding that into local state over re-fetching a listing: the
-  /// backend commits its transaction after sending the response, so a
-  /// listing requested immediately afterwards can still report the old
-  /// labels.
-  ///
-  /// Labels are only ever *selected* here — this never creates one. An
-  /// ID naming no label is a [NotFoundException].
-  ///
-  /// Throws:
-  /// - [ArgumentError] if [roomId] or [threadId] is empty
-  /// - [NotFoundException] if the thread or any label is unknown (404)
-  /// - [AuthException] if not authenticated (401/403)
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for other server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<ThreadInfo> setThreadLabels(
-    String roomId,
-    String threadId, {
-    required List<int> labelIds,
-    CancelToken? cancelToken,
-  }) async {
-    _requireNonEmpty(roomId, 'roomId');
-    _requireNonEmpty(threadId, 'threadId');
-
-    final response = await _transport.request<Map<String, dynamic>>(
-      'POST',
-      _urlBuilder.build(
-        pathSegments: ['rooms', roomId, 'agui', threadId, 'labels'],
-      ),
-      body: {'label_ids': labelIds},
-      cancelToken: cancelToken,
-    );
-
-    try {
-      return threadInfoFromJson(response);
-    } on SoliplexException {
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      throw MalformedResponseException(
-        message: 'setThreadLabels: malformed thread: $error',
-        originalError: error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  // ============================================================
-  // Labels
-  // ============================================================
-
-  /// Lists the server's whole label catalogue.
-  ///
-  /// Readable by anyone — a user has to know the catalogue to attach
-  /// anything from it. [ThreadLabel.usageCount] comes back only for
-  /// administrators; see its documentation before treating a `null` as
-  /// zero.
-  ///
-  /// Throws:
-  /// - [AuthException] if not authenticated (401/403)
-  /// - [NotFoundException] if the endpoint is absent (pre-labels
-  ///   backend, 404) — treat as "this server has no labels" rather than
-  ///   as a transport failure
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for other server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<List<ThreadLabel>> getLabels({CancelToken? cancelToken}) async {
-    final response = await _transport.request<Map<String, dynamic>>(
-      'GET',
-      _urlBuilder.build(pathSegments: ['agui', 'labels']),
-      cancelToken: cancelToken,
-    );
-
-    try {
-      return threadLabelsFromJson(response);
-    } on SoliplexException {
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      throw MalformedResponseException(
-        message: 'getLabels: malformed catalogue: $error',
-        originalError: error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  /// Creates a label, returning it as stored.
-  ///
-  /// Administrators only. [color] is a `#RRGGBB` string; omit it to let
-  /// the server pick one from the new label's own ID.
-  ///
-  /// Throws:
-  /// - [ArgumentError] if [name] is empty
-  /// - [ApiException] with `statusCode` 409 if a label with that name —
-  ///   ignoring case — already exists. There is no dedicated conflict
-  ///   type; callers that want to say "that name is taken" rather than
-  ///   "something went wrong" must check the status themselves.
-  /// - [PermissionDeniedException] if the caller is not an administrator
-  ///   (403)
-  /// - [AuthException] if not authenticated (401)
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for other server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<ThreadLabel> createLabel({
-    required String name,
-    String? color,
-    CancelToken? cancelToken,
-  }) async {
-    _requireNonEmpty(name, 'name');
-
-    final response = await _transport.request<Map<String, dynamic>>(
-      'POST',
-      _urlBuilder.build(pathSegments: ['agui', 'labels']),
-      body: {
-        'name': name,
-        if (color != null) 'color': color,
-      },
-      cancelToken: cancelToken,
-    );
-
-    return _labelFromResponse(response, 'createLabel');
-  }
-
-  /// Renames and/or recolours a label, returning it as stored.
-  ///
-  /// Administrators only. Each of [name] and [color] is left alone when
-  /// omitted, so recolouring cannot blank a name.
-  ///
-  /// Throws:
-  /// - [ArgumentError] if neither [name] nor [color] is given
-  /// - [NotFoundException] if no such label exists (404)
-  /// - [ApiException] with `statusCode` 409 if [name] collides with
-  ///   another label (see [createLabel] on why this is not its own type)
-  /// - [PermissionDeniedException] if the caller is not an administrator
-  ///   (403)
-  /// - [AuthException] if not authenticated (401)
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for other server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<ThreadLabel> updateLabel(
-    int labelId, {
-    String? name,
-    String? color,
-    CancelToken? cancelToken,
-  }) async {
-    if (name == null && color == null) {
-      throw ArgumentError('At least one label field must be provided');
-    }
-
-    final response = await _transport.request<Map<String, dynamic>>(
-      'POST',
-      _urlBuilder.build(pathSegments: ['agui', 'labels', '$labelId']),
-      body: {
-        if (name != null) 'name': name,
-        if (color != null) 'color': color,
-      },
-      cancelToken: cancelToken,
-    );
-
-    return _labelFromResponse(response, 'updateLabel');
-  }
-
-  /// Deletes a label, detaching it from every thread carrying it.
-  ///
-  /// Administrators only. The threads themselves are untouched.
-  ///
-  /// Throws:
-  /// - [NotFoundException] if no such label exists (404)
-  /// - [PermissionDeniedException] if the caller is not an administrator
-  ///   (403)
-  /// - [AuthException] if not authenticated (401)
-  /// - [NetworkException] if connection fails
-  /// - [ApiException] for other server errors
-  /// - [CancelledException] if cancelled via [cancelToken]
-  Future<void> deleteLabel(int labelId, {CancelToken? cancelToken}) async {
-    await _transport.request<void>(
-      'DELETE',
-      _urlBuilder.build(pathSegments: ['agui', 'labels', '$labelId']),
-      cancelToken: cancelToken,
-    );
-  }
-
-  ThreadLabel _labelFromResponse(Map<String, dynamic> response, String call) {
-    try {
-      return threadLabelFromJson(response);
-    } on SoliplexException {
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      throw MalformedResponseException(
-        message: '$call: malformed label: $error',
-        originalError: error,
-        stackTrace: stackTrace,
-      );
-    }
   }
 
   // ============================================================

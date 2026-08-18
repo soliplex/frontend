@@ -450,7 +450,16 @@ String _avatarInitial(String name) {
 /// A deterministic, theme-aware accent color for a room's avatar, derived from
 /// a stable hash of its [name] so the same room always gets the same hue.
 ///
-/// Delegates to the design system's [hashedHueColor], which labels use too, so
-/// the two share one algorithm rather than drifting apart as separate copies.
-Color roomAvatarColor(String name, Brightness brightness) =>
-    hashedHueColor(name, brightness);
+/// Uses HSL rather than a literal swatch table: a fixed hex palette would be a
+/// hex-literal violation outside the design package, and a hue wheel gives far
+/// more distinct, evenly-spread colors. Saturation/lightness are tuned per
+/// [brightness] so the initial stays legible in both themes.
+Color roomAvatarColor(String name, Brightness brightness) {
+  var hash = 0;
+  for (final unit in name.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  final hue = (hash % 360).toDouble();
+  final lightness = brightness == Brightness.dark ? 0.42 : 0.55;
+  return HSLColor.fromAHSL(1, hue, 0.55, lightness).toColor();
+}

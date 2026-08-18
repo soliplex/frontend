@@ -163,8 +163,7 @@ code** — it has the full accessor cheat sheet and the component inventory.
 | Breakpoint            | `SoliplexBreakpoints.{mobile,tablet,desktop}`                                                        |
 | Action button         | `SoliplexButton.{filled,outlined,text}` with `intent: ButtonIntent.{primary,danger}` and optional `isLoading` / `isCompact` / `icon` (set `iconAlignment: IconAlignment.end` for a trailing icon; `.text` also takes `alignment: Alignment.centerLeft` for full-width left-aligned nav rows) |
 | Inline status pill    | `SoliplexBadge(label, intent, icon)` — `BadgeIntent.{neutral,info,success,warning,danger}`           |
-| Chip                  | `SoliplexChip` (display), `.action`, `.filter` — same status intents as badge; `.colored(color:)` for a data-supplied swatch (thread labels), which derives its own readable foreground |
-| Identity / data color | `hashedHueColor(seed, brightness)` for a deterministic per-identity tint; `colorFromHex('#RRGGBB')` (null when unparseable) for a colour that arrives as data |
+| Chip                  | `SoliplexChip` (display), `.action`, `.filter` — same status intents as badge                        |
 | Text input            | `SoliplexInput(label, isPassword, isLoading, ...)` — eye toggle built in                             |
 | Select menu           | `SoliplexDropdown<T>(entries, onSelected, isLoading, ...)`                                           |
 | Date / time picker    | `SoliplexDatePickerField` / `SoliplexTimePickerField`, or imperative `showSoliplexDatePicker()` / `showSoliplexTimePicker()` |
