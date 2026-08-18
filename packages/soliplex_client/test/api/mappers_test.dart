@@ -948,6 +948,115 @@ void main() {
       });
     });
 
+    group('threadLabelFromJson', () {
+      Map<String, dynamic> labelJson({int? usageCount}) => <String, dynamic>{
+            'id': 7,
+            'name': 'Manuals',
+            'color': '#42D76D',
+            if (usageCount != null) 'usage_count': usageCount,
+          };
+
+      test('parses a label', () {
+        final label = threadLabelFromJson(labelJson());
+
+        expect(label.id, equals(7));
+        expect(label.name, equals('Manuals'));
+        expect(label.color, equals('#42D76D'));
+      });
+
+      test('leaves an absent usage count null rather than zero', () {
+        // The server withholds the count from non-administrators.
+        // Defaulting it to zero would present "you may not know" as
+        // "nothing uses this", making a destructive delete look safe.
+        expect(threadLabelFromJson(labelJson()).usageCount, isNull);
+      });
+
+      test('parses a usage count when the server sends one', () {
+        expect(
+          threadLabelFromJson(labelJson(usageCount: 0)).usageCount,
+          equals(0),
+        );
+        expect(
+          threadLabelFromJson(labelJson(usageCount: 12)).usageCount,
+          equals(12),
+        );
+      });
+
+      test('throws FormatException when a required field is missing', () {
+        // A label with no colour cannot be drawn and one with no id
+        // cannot be filtered on, so neither degrades usefully.
+        for (final missing in ['id', 'name', 'color']) {
+          final json = labelJson()..remove(missing);
+          expect(
+            () => threadLabelFromJson(json),
+            throwsFormatException,
+            reason: 'missing "$missing" should fail',
+          );
+        }
+      });
+
+      test('parses a payload captured from a live backend', () {
+        // Verbatim from GET /api/v1/agui/labels as an administrator.
+        final labels = threadLabelsFromJson(<String, dynamic>{
+          'labels': [
+            <String, dynamic>{
+              'id': 7,
+              'name': 'Archived',
+              'color': '#5F6368',
+              'usage_count': 2,
+            },
+            <String, dynamic>{
+              'id': 3,
+              'name': 'Fresh',
+              'color': '#D7C442',
+              'usage_count': 0,
+            },
+          ],
+        });
+
+        expect(labels.map((l) => l.name), equals(['Archived', 'Fresh']));
+        expect(labels.map((l) => l.usageCount), equals([2, 0]));
+      });
+
+      test('throws FormatException when "labels" is absent', () {
+        expect(
+          () => threadLabelsFromJson(<String, dynamic>{}),
+          throwsFormatException,
+        );
+      });
+    });
+
+    group('threadInfoFromJson labels', () {
+      test('parses labels attached to a thread', () {
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2025-01-15T10:30:00.000',
+          'labels': [
+            <String, dynamic>{
+              'id': 1,
+              'name': 'Manuals',
+              'color': '#42D76D',
+            },
+          ],
+        });
+
+        expect(thread.labels.single.name, equals('Manuals'));
+      });
+
+      test('treats an absent "labels" as none rather than failing', () {
+        // A pre-labels backend omits the field entirely, and the lobby
+        // still has to list its threads.
+        final thread = threadInfoFromJson(<String, dynamic>{
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2025-01-15T10:30:00.000',
+        });
+
+        expect(thread.labels, isEmpty);
+      });
+    });
+
     group('threadInfoToJson', () {
       test('serializes correctly with all fields', () {
         final createdAt = DateTime.utc(2025);

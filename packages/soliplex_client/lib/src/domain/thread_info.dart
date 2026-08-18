@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import 'package:soliplex_client/src/domain/thread_label.dart';
+
 /// Represents a thread (conversation) in a room.
 @immutable
 class ThreadInfo {
@@ -13,6 +15,7 @@ class ThreadInfo {
     this.description = '',
     this.metadata = const {},
     this.lastActivity,
+    this.labels = const [],
   }) : assert(
           lastActivity == null || lastActivity.isUtc,
           'lastActivity must be UTC',
@@ -46,6 +49,19 @@ class ThreadInfo {
   /// Metadata for the thread (empty map if not provided).
   final Map<String, dynamic> metadata;
 
+  /// Labels attached to the thread, in the order the server gave them.
+  ///
+  /// Whole labels rather than IDs, so a chip can be painted straight
+  /// from a listing without joining it against a separately-fetched
+  /// catalogue — and without a window in which a just-renamed label
+  /// still renders under its old name.
+  ///
+  /// Note that [operator ==] is id-only, so relabelling a thread does
+  /// *not* make two instances compare unequal. Anything that has to
+  /// notice a label change must compare [labels] itself rather than
+  /// leaning on `==` (or on a `Set`/`Map` keyed by the thread).
+  final List<ThreadLabel> labels;
+
   /// Whether the thread has an initial run.
   bool get hasInitialRun => initialRunId.isNotEmpty;
 
@@ -65,6 +81,7 @@ class ThreadInfo {
     DateTime? createdAt,
     Map<String, dynamic>? metadata,
     DateTime? lastActivity,
+    List<ThreadLabel>? labels,
   }) {
     return ThreadInfo(
       id: id ?? this.id,
@@ -75,6 +92,7 @@ class ThreadInfo {
       createdAt: createdAt ?? this.createdAt,
       metadata: metadata ?? this.metadata,
       lastActivity: lastActivity ?? this.lastActivity,
+      labels: labels ?? this.labels,
     );
   }
 

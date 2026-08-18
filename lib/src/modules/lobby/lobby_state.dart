@@ -37,6 +37,7 @@ class UserProfile {
     required this.familyName,
     required this.email,
     required this.preferredUsername,
+    this.isAdmin = false,
   });
 
   final String givenName;
@@ -44,11 +45,22 @@ class UserProfile {
   final String email;
   final String preferredUsername;
 
+  /// Whether the server considers this user an administrator.
+  ///
+  /// A display hint only — it decides which controls are painted, never
+  /// what is permitted. Every privileged operation is still gated
+  /// server-side, so a stale or absent value costs a 403 at worst.
+  ///
+  /// Absent from a pre-labels backend, where it defaults to false: an
+  /// older server has no label catalogue to manage anyway.
+  final bool isAdmin;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         givenName: json['given_name'] as String? ?? '',
         familyName: json['family_name'] as String? ?? '',
         email: json['email'] as String? ?? '',
         preferredUsername: json['preferred_username'] as String? ?? '',
+        isAdmin: json['is_admin'] as bool? ?? false,
       );
 }
 
@@ -140,6 +152,29 @@ class LobbyState {
   final Signal<Map<String, UserProfile?>> _userProfiles =
       Signal<Map<String, UserProfile?>>({});
   ReadonlySignal<Map<String, UserProfile?>> get userProfiles => _userProfiles;
+
+  /// Whether the user may curate [serverId]'s label catalogue.
+  ///
+  /// A server running with authentication disabled has no `/user_info`
+  /// at all — it answers 404 — so there is no profile to read an admin
+  /// flag from. That is single-user or development mode, where the only
+  /// user is necessarily in charge, so it grants access rather than
+  /// withholding it; reading "no profile" as "not an administrator"
+  /// there would leave the management tab permanently uneditable
+  /// locally.
+  ///
+  /// Keyed off the server's own `requiresAuth` rather than off the
+  /// profile being null, because null also covers an ordinary fetch
+  /// failure against a real server — which must not hand out the
+  /// administrator view.
+  ///
+  /// Either way this only decides what is painted. The server gates
+  /// every write, so the worst a wrong answer costs is a 403.
+  bool isLabelAdmin(String serverId) {
+    final entry = _serverManager.servers.value[serverId];
+    if (entry != null && !entry.requiresAuth) return true;
+    return _userProfiles.value[serverId]?.isAdmin ?? false;
+  }
 
   /// Preferred room layout. Starts at [LobbyViewMode.list]; replaced by the
   /// persisted preference (or its [LobbyViewMode.list] fallback) once

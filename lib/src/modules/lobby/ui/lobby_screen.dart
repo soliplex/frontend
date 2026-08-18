@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show Room;
+import 'package:soliplex_agent/soliplex_agent.dart' show Room, ThreadInfo;
 import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException;
 
@@ -15,6 +15,7 @@ import '../../auth/server_manager.dart';
 import '../../room/run_registry.dart';
 import '../global_threads_state.dart';
 import '../lobby_read_markers.dart' show RoomReadMarkers, ServerReadMarkers;
+import '../labels_state.dart';
 import '../lobby_sort_mode.dart';
 import '../lobby_state.dart';
 import '../lobby_tab.dart';
@@ -22,6 +23,8 @@ import '../lobby_view_mode.dart';
 import '../room_activity_format.dart';
 import '../room_grouping.dart';
 import 'global_threads_view.dart';
+import 'labels_view.dart';
+import 'thread_properties_dialog.dart';
 import 'room_card.dart';
 import 'room_grid_card.dart';
 import 'room_grid_layout.dart';
@@ -75,6 +78,11 @@ class LobbyScreen extends StatefulWidget {
 class _LobbyScreenState extends State<LobbyScreen> {
   late final LobbyState _state;
   late final GlobalThreadsState _threadsState;
+  late final LabelsState _labelsState;
+
+  /// The label the labels tab should highlight, set when a thread's
+  /// properties dialog jumps there to edit one.
+  int? _selectedLabelId;
 
   @override
   void initState() {
@@ -90,10 +98,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
       entryResolver: (id) => widget.serverManager.servers.value[id],
       apiResolver: widget.apiResolver,
     );
+    _labelsState = LabelsState(
+      entryResolver: (id) => widget.serverManager.servers.value[id],
+      apiResolver: widget.apiResolver,
+    );
   }
 
   @override
   void dispose() {
+    _labelsState.dispose();
     _threadsState.dispose();
     _state.dispose();
     super.dispose();
@@ -124,6 +137,63 @@ class _LobbyScreenState extends State<LobbyScreen> {
     assert(entry != null, 'Thread tap for unknown serverId: $serverId');
     if (entry == null) return;
     context.go(AppRoutes.thread(entry.alias, roomId, threadId));
+  }
+
+  Future<void> _onThreadAction(
+    ThreadInfo thread,
+    ThreadRowAction action,
+  ) async {
+    switch (action) {
+      case ThreadRowAction.properties:
+        await showDialog<void>(
+          context: context,
+          builder: (_) => ThreadPropertiesDialog(
+            thread: thread,
+            labels: _labelsState,
+            onSave: ({
+              required name,
+              required description,
+              required labelIds,
+            }) =>
+                _threadsState.saveProperties(
+              thread,
+              name: name,
+              description: description,
+              labelIds: labelIds,
+            ),
+            // Only offered to someone who has a labels tab to land on.
+            onEditLabel: _isLabelAdmin ? _onEditLabel : null,
+          ),
+        );
+      case ThreadRowAction.rename:
+        await showDialog<void>(
+          context: context,
+          builder: (_) => _RenameThreadDialog(
+            thread: thread,
+            onSave: (name) => _threadsState.rename(thread, name),
+          ),
+        );
+      case ThreadRowAction.delete:
+        await showDialog<void>(
+          context: context,
+          builder: (_) => _DeleteThreadDialog(
+            thread: thread,
+            onDelete: () => _threadsState.delete(thread),
+          ),
+        );
+    }
+  }
+
+  /// Whether the selected server lets this user curate labels.
+  bool get _isLabelAdmin {
+    final serverId = _state.selectedServerId.value;
+    return serverId != null && _state.isLabelAdmin(serverId);
+  }
+
+  /// Jumps to the labels tab with [labelId] highlighted.
+  void _onEditLabel(int labelId) {
+    setState(() => _selectedLabelId = labelId);
+    _state.setActiveTab(LobbyTab.labels);
   }
 
   void _onInfoTap(String serverId, String roomId) {
@@ -164,12 +234,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // selected. This is a no-op when the selection has not moved, so it is
     // safe to run on every rebuild.
     _threadsState.setServer(selectedServerId);
+    _labelsState.setServer(selectedServerId);
 
-    final threadsSection = LobbyThreadsSection(
+    // Non-administrators get no labels tab at all rather than a
+    // read-only one: every control on it is an administrator action, and
+    // the catalogue stays discoverable through the '@label' autocomplete
+    // and a thread's properties.
+    final tabsSection = LobbyTabsSection(
+      tabs: visibleLobbyTabs(isAdmin: _isLabelAdmin),
       activeTab: activeTab,
       onTabChanged: _state.setActiveTab,
-      state: _threadsState,
+      threads: _threadsState,
+      labels: _labelsState,
       onThreadTap: _onThreadTap,
+      onThreadAction: _onThreadAction,
+      selectedLabelId: _selectedLabelId,
     );
 
     return LayoutBuilder(
@@ -204,7 +283,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               )
             : _NarrowLayout(
                 servers: servers,
@@ -232,7 +311,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkRoomRead: _state.markRoomRead,
                 onInfoTap: _onInfoTap,
                 onSignIn: _onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               );
       },
     );
@@ -266,10 +345,10 @@ class _WideLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -344,7 +423,7 @@ class _WideLayout extends StatelessWidget {
                 onInfoTap: onInfoTap,
                 onAddServer: onAddServer,
                 onSignIn: onSignIn,
-                threadsSection: threadsSection,
+                tabsSection: tabsSection,
               ),
             ),
           ],
@@ -381,10 +460,10 @@ class _NarrowLayout extends StatelessWidget {
     required this.onMarkRoomRead,
     required this.onInfoTap,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
   final Map<String, ServerEntry> servers;
   final Map<String, UserProfile?> profiles;
   final AppIdentity identity;
@@ -489,7 +568,7 @@ class _NarrowLayout extends StatelessWidget {
           onInfoTap: onInfoTap,
           onAddServer: onAddServer,
           onSignIn: onSignIn,
-          threadsSection: threadsSection,
+          tabsSection: tabsSection,
         ),
       ),
     );
@@ -517,10 +596,10 @@ class _RoomContent extends StatelessWidget {
     required this.onInfoTap,
     required this.onAddServer,
     required this.onSignIn,
-    required this.threadsSection,
+    required this.tabsSection,
   });
 
-  final LobbyThreadsSection threadsSection;
+  final LobbyTabsSection tabsSection;
 
   final Map<String, ServerRooms> roomsByServer;
   final Map<String, ServerEntry> servers;
@@ -612,10 +691,11 @@ class _RoomContent extends StatelessWidget {
             // the selected server, which is exactly what they are — the
             // threads tab aggregates that server's rooms, not every server.
             LobbyTabBar(
-              activeTab: threadsSection.activeTab,
-              onTabChanged: threadsSection.onTabChanged,
+              tabs: tabsSection.tabs,
+              activeIndex: tabsSection.activeIndex,
+              onTabChanged: tabsSection.onTabChanged,
             ),
-            if (threadsSection.activeTab == LobbyTab.rooms)
+            if (tabsSection.tabs[tabsSection.activeIndex] == LobbyTab.rooms)
               Padding(
                 // A non-scrolling bottom gap (matching the list's item
                 // spacing) so scrolled room titles/descriptions keep a gutter
@@ -640,15 +720,25 @@ class _RoomContent extends StatelessWidget {
               // scroll position when the user flips between them — the
               // threads list may be many pages deep by then.
               child: IndexedStack(
-                index: threadsSection.activeTab.index,
+                index: tabsSection.activeIndex,
                 sizing: StackFit.expand,
                 children: [
-                  _buildSelectedServer(context, effectiveViewMode),
-                  GlobalThreadsView(
-                    state: threadsSection.state,
-                    roomNames: _roomNames(),
-                    onThreadTap: threadsSection.onThreadTap,
-                  ),
+                  for (final tab in tabsSection.tabs)
+                    switch (tab) {
+                      LobbyTab.rooms =>
+                        _buildSelectedServer(context, effectiveViewMode),
+                      LobbyTab.threads => GlobalThreadsView(
+                          state: tabsSection.threads,
+                          labels: tabsSection.labels,
+                          roomNames: _roomNames(),
+                          onThreadTap: tabsSection.onThreadTap,
+                          onThreadAction: tabsSection.onThreadAction,
+                        ),
+                      LobbyTab.labels => LabelsView(
+                          state: tabsSection.labels,
+                          selectedLabelId: tabsSection.selectedLabelId,
+                        ),
+                    },
                 ],
               ),
             ),
@@ -1254,6 +1344,187 @@ class _GroupHeader extends StatelessWidget {
           const Expanded(child: Divider()),
         ],
       ),
+    );
+  }
+}
+
+/// Renames a thread from the lobby's aggregated listing.
+///
+/// A separate, smaller dialog than the full properties one: renaming is
+/// the common case, and making people wade through a label picker to
+/// change a title would be a worse trade than a little duplication.
+class _RenameThreadDialog extends StatefulWidget {
+  const _RenameThreadDialog({required this.thread, required this.onSave});
+
+  final ThreadInfo thread;
+
+  /// Returns null on success or a reason to show inline.
+  final Future<String?> Function(String name) onSave;
+
+  @override
+  State<_RenameThreadDialog> createState() => _RenameThreadDialogState();
+}
+
+class _RenameThreadDialogState extends State<_RenameThreadDialog> {
+  late final TextEditingController _name =
+      TextEditingController(text: widget.thread.name);
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _name.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _name
+      ..removeListener(_onChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  bool get _canSubmit => _name.text.trim().isNotEmpty && !_busy;
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    final reason = await widget.onSave(_name.text.trim());
+
+    if (!mounted) return;
+    if (reason == null) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = reason;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Rename thread'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SoliplexInput(
+              label: 'Name',
+              controller: _name,
+              autofocus: true,
+              onSubmitted: _canSubmit ? (_) => _submit() : null,
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
+                child: Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        SoliplexButton.text(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        SoliplexButton.text(
+          onPressed: _canSubmit ? _submit : null,
+          isLoading: _busy,
+          child: const Text('Rename'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Confirms deleting a thread from the lobby's aggregated listing.
+class _DeleteThreadDialog extends StatefulWidget {
+  const _DeleteThreadDialog({required this.thread, required this.onDelete});
+
+  final ThreadInfo thread;
+
+  /// Returns null on success or a reason to show inline.
+  final Future<String?> Function() onDelete;
+
+  @override
+  State<_DeleteThreadDialog> createState() => _DeleteThreadDialogState();
+}
+
+class _DeleteThreadDialogState extends State<_DeleteThreadDialog> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    final reason = await widget.onDelete();
+
+    if (!mounted) return;
+    if (reason == null) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = reason;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final name =
+        widget.thread.hasName ? widget.thread.name : 'this untitled thread';
+    return AlertDialog(
+      title: const Text('Delete thread'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Delete "$name"? Its messages go with it.'),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        SoliplexButton.text(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        SoliplexButton.text(
+          onPressed: _busy ? null : _submit,
+          isLoading: _busy,
+          intent: ButtonIntent.danger,
+          child: const Text('Delete'),
+        ),
+      ],
     );
   }
 }

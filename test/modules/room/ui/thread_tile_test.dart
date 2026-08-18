@@ -26,6 +26,7 @@ void main() {
           thread: nameless,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -44,6 +45,7 @@ void main() {
               isSelected: false,
               unread: unread,
               onTap: () {},
+              onProperties: () {},
               onRename: () {},
               onDelete: () {},
               onMarkRead: () {},
@@ -65,6 +67,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -87,6 +90,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () => renameCalled = true,
           onDelete: () {},
           onMarkRead: () {},
@@ -111,6 +115,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () => deleteCalled = true,
           onMarkRead: () {},
@@ -145,6 +150,7 @@ void main() {
               thread: thread,
               isSelected: false,
               onTap: () {},
+              onProperties: () {},
               onRename: () => renameCalled = true,
               onDelete: () {},
               onMarkRead: () {},
@@ -195,6 +201,7 @@ void main() {
               thread: thread,
               isSelected: false,
               onTap: () {},
+              onProperties: () {},
               onRename: () {},
               onDelete: () => deleteCalled = true,
               onMarkRead: () {},
@@ -232,6 +239,7 @@ void main() {
           isSelected: false,
           isRunning: true,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -258,6 +266,7 @@ void main() {
               isSelected: false,
               isRunning: true,
               onTap: () {},
+              onProperties: () {},
               onRename: () {},
               onDelete: () {},
               onMarkRead: () {},
@@ -290,6 +299,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -312,6 +322,7 @@ void main() {
           isSelected: false,
           unread: true,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () => marked = true,
@@ -335,6 +346,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -354,6 +366,7 @@ void main() {
           thread: thread,
           isSelected: false,
           onTap: () {},
+          onProperties: () {},
           onRename: () {},
           onDelete: () {},
           onMarkRead: () {},
@@ -367,5 +380,36 @@ void main() {
     final deleteIcon = tester.widget<Icon>(find.byIcon(Icons.delete_outline));
     final theme = Theme.of(tester.element(find.text('Delete')));
     expect(deleteIcon.color, theme.colorScheme.error);
+  });
+
+  testWidgets('offers Properties alongside Rename and Delete', (tester) async {
+    // The same three entries the lobby's aggregated listing offers, so a
+    // thread behaves the same wherever it is met.
+    var propertiesCalled = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ThreadTile(
+          thread: thread,
+          isSelected: true,
+          onTap: () {},
+          onProperties: () => propertiesCalled = true,
+          onRename: () {},
+          onDelete: () {},
+          onMarkRead: () {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Properties'), findsOneWidget);
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+
+    await tester.tap(find.text('Properties'));
+    await tester.pumpAndSettle();
+
+    expect(propertiesCalled, isTrue);
   });
 }

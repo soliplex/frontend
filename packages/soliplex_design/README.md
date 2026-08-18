@@ -27,7 +27,18 @@ golden snapshots under
 | Text style            | `Theme.of(context).textTheme.{headlineMedium,titleLarge,titleMedium,titleSmall,bodyLarge,bodyMedium,bodySmall,labelMedium,labelSmall}` |
 | Monospace             | `context.monospace` — picks `SF Mono` on Cupertino, `Roboto Mono` elsewhere                          |
 | Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
+| Identity color        | `hashedHueColor(seed, brightness)` — deterministic per seed, tuned per theme (room avatars, labels)  |
+| Data-supplied color   | `colorFromHex('#RRGGBB')` — returns `null` when unparseable, so the caller picks its own fallback    |
+| Uncolored default     | `neutralSwatch` — the zero-saturation grey a label wears until someone picks a color for it          |
+| Quieting a swatch     | `swatchTint(color, brightness)` — `(fill, outline, content)`, desaturated and alpha'd for annotations |
 
+> `hashedHueColor` and `colorFromHex` exist so nothing outside this package
+> has to write `Color(0x...)` for a color that is *data* rather than a token —
+> a user-chosen label swatch, or a hue derived from a record's identity. Use
+> `SoliplexChip.colored` to render one: it lowers the swatch through
+> `swatchTint` into a wash, an outline, and text, so an arbitrary color can be
+> neither unreadable nor loud enough to out-shout what it annotates.
+>
 > The `SymbolicColors` entries are single shades. For errors **with** a
 > container surface use `colorScheme.errorContainer` / `onErrorContainer` —
 > not the symbolic `danger`. For success **with** a container surface use
@@ -57,7 +68,7 @@ across the library:
 | ------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------- |
 | `SoliplexButton`                | `.filled`, `.outlined`, `.text`                 | `FilledButton`, `OutlinedButton`, `TextButton`      | `intent`, `isLoading`, `isCompact`, `icon`, `iconAlignment`, `alignment` (text) |
 | `SoliplexBadge`                 | default                                         | inline status pills (not Material's positional `Badge`) | `intent`, `icon`                  |
-| `SoliplexChip`                  | default (display), `.action`, `.filter`         | `Chip`, `ActionChip`, `FilterChip`                  | `intent`, `selected`, `onDeleted`     |
+| `SoliplexChip`                  | default (display), `.action`, `.filter`, `.colored` | `Chip`, `ActionChip`, `FilterChip`              | `intent`, `selected`, `onDeleted`, `color` (`.colored`) |
 | `SoliplexInput`                 | default                                         | `TextField` / `TextFormField`                       | `isPassword` (eye toggle), `isLoading`, validation |
 | `SoliplexDropdown<T>`           | default                                         | `DropdownMenu<T>`                                   | `isLoading`, generic `T` end-to-end   |
 | `SoliplexDatePickerField`       | default + `showSoliplexDatePicker()` function   | `showDatePicker` + ad-hoc field                     | `isLoading`, `firstDate`, `lastDate`  |

@@ -659,6 +659,70 @@ void main() {
         expect(capturedUri?.queryParameters['offset'], equals('20'));
       });
 
+      test('repeats label_ids once per label', () async {
+        Uri? capturedUri;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return {
+            'threads': <dynamic>[],
+            'total': 0,
+            'limit': 50,
+            'offset': 0,
+          };
+        });
+
+        await api.getAllThreads(labelIds: [3, 7], query: '  manual  ');
+
+        // The backend reads a repeated key as a list; a single
+        // comma-joined value would be one label named "3,7".
+        expect(
+          capturedUri?.queryParametersAll['label_ids'],
+          equals(['3', '7']),
+        );
+        // Trimmed, so stray spaces from the search box do not become
+        // part of the pattern.
+        expect(capturedUri?.queryParameters['q'], equals('manual'));
+      });
+
+      test('omits both filters when they are empty', () async {
+        Uri? capturedUri;
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            'GET',
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          return {
+            'threads': <dynamic>[],
+            'total': 0,
+            'limit': 50,
+            'offset': 0,
+          };
+        });
+
+        // Clearing the last chip must widen the listing, not empty it.
+        await api.getAllThreads(labelIds: const [], query: '   ');
+
+        expect(capturedUri?.queryParameters.containsKey('label_ids'), isFalse);
+        expect(capturedUri?.queryParameters.containsKey('q'), isFalse);
+      });
+
       test('rejects a non-positive limit', () {
         expect(
           () => api.getAllThreads(limit: 0),
@@ -717,6 +781,191 @@ void main() {
             timeout: any(named: 'timeout'),
           ),
         ).called(1);
+      });
+    });
+
+    group('labels', () {
+      void stubJson(Map<String, dynamic> response) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((_) async => response);
+      }
+
+      Uri? capturedUri;
+      Object? capturedBody;
+      String? capturedMethod;
+
+      void stubCapturing(Map<String, dynamic> response) {
+        when(
+          () => mockTransport.request<Map<String, dynamic>>(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedMethod = invocation.positionalArguments[0] as String;
+          capturedUri = invocation.positionalArguments[1] as Uri;
+          capturedBody = invocation.namedArguments[#body];
+          return response;
+        });
+      }
+
+      test('getLabels parses the catalogue', () async {
+        stubJson({
+          'labels': [
+            {'id': 1, 'name': 'Manuals', 'color': '#42D76D'},
+            {'id': 2, 'name': 'Urgent', 'color': '#D93025'},
+          ],
+        });
+
+        final labels = await api.getLabels();
+
+        expect(labels.map((l) => l.name), equals(['Manuals', 'Urgent']));
+      });
+
+      test('getLabels throws MalformedResponseException on a bad body',
+          () async {
+        stubJson({'labels': 'not-a-list'});
+
+        await expectLater(
+          api.getLabels(),
+          throwsA(isA<MalformedResponseException>()),
+        );
+      });
+
+      test('createLabel posts the name and returns the stored label', () async {
+        stubCapturing({'id': 9, 'name': 'Manuals', 'color': '#42D76D'});
+
+        final label = await api.createLabel(name: 'Manuals');
+
+        expect(capturedMethod, equals('POST'));
+        expect(capturedUri?.path, equals('/api/v1/agui/labels'));
+        // Colour omitted, so the server derives one from the new
+        // label's own ID rather than being handed a placeholder.
+        expect(capturedBody, equals({'name': 'Manuals'}));
+        expect(label.id, equals(9));
+        expect(label.color, equals('#42D76D'));
+      });
+
+      test('createLabel rejects an empty name', () {
+        expect(
+          () => api.createLabel(name: ''),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
+
+      test('updateLabel sends only the fields given', () async {
+        stubCapturing({'id': 9, 'name': 'Manuals', 'color': '#FF8800'});
+
+        await api.updateLabel(9, color: '#FF8800');
+
+        expect(capturedMethod, equals('POST'));
+        expect(capturedUri?.path, equals('/api/v1/agui/labels/9'));
+        // No 'name' key at all: sending null would read as "blank it".
+        expect(capturedBody, equals({'color': '#FF8800'}));
+      });
+
+      test('updateLabel rejects a no-op call', () {
+        expect(
+          () => api.updateLabel(9),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
+
+      test('deleteLabel issues a DELETE', () async {
+        when(
+          () => mockTransport.request<void>(
+            any(),
+            any(),
+            cancelToken: any(named: 'cancelToken'),
+            fromJson: any(named: 'fromJson'),
+            body: any(named: 'body'),
+            headers: any(named: 'headers'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer((invocation) async {
+          capturedMethod = invocation.positionalArguments[0] as String;
+          capturedUri = invocation.positionalArguments[1] as Uri;
+        });
+
+        await api.deleteLabel(9);
+
+        expect(capturedMethod, equals('DELETE'));
+        expect(capturedUri?.path, equals('/api/v1/agui/labels/9'));
+      });
+
+      test('setThreadLabels returns the updated thread', () async {
+        stubCapturing({
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2024-01-01T00:00:00Z',
+          'labels': [
+            {'id': 1, 'name': 'Manuals', 'color': '#42D76D'},
+          ],
+        });
+
+        final thread = await api.setThreadLabels(
+          'room-1',
+          'thread-1',
+          labelIds: [1],
+        );
+
+        expect(capturedMethod, equals('POST'));
+        expect(
+          capturedUri?.path,
+          equals('/api/v1/rooms/room-1/agui/thread-1/labels'),
+        );
+        expect(
+          capturedBody,
+          equals({
+            'label_ids': [1],
+          }),
+        );
+        // The whole thread comes back, so a caller can repaint from the
+        // write rather than re-listing — which would race the backend's
+        // post-response commit and show the old labels.
+        expect(thread.labels.single.name, equals('Manuals'));
+      });
+
+      test('setThreadLabels clears with an empty list', () async {
+        stubCapturing({
+          'id': 'thread-1',
+          'room_id': 'room-1',
+          'created': '2024-01-01T00:00:00Z',
+          'labels': <dynamic>[],
+        });
+
+        final thread = await api.setThreadLabels(
+          'room-1',
+          'thread-1',
+          labelIds: const [],
+        );
+
+        expect(capturedBody, equals({'label_ids': <int>[]}));
+        expect(thread.labels, isEmpty);
+      });
+
+      test('setThreadLabels rejects empty identifiers', () {
+        expect(
+          () => api.setThreadLabels('', 'thread-1', labelIds: const []),
+          throwsA(isA<ArgumentError>()),
+        );
+        expect(
+          () => api.setThreadLabels('room-1', '', labelIds: const []),
+          throwsA(isA<ArgumentError>()),
+        );
       });
     });
 
