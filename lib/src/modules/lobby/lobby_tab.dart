@@ -11,31 +11,7 @@ enum LobbyTab {
 
   /// Every thread the user has in the server, grouped by room.
   threads,
-
-  /// The server's label catalogue.
-  ///
-  /// Administrators only — see [visibleLobbyTabs]. Labels are global to
-  /// the server, so curating them is not an ordinary user's business,
-  /// and there is nothing for a non-administrator to do here.
-  labels,
 }
-
-/// The tabs to show a user with the given [isAdmin] standing.
-///
-/// The labels tab is omitted entirely for non-administrators rather than
-/// shown read-only. Every control on it is an administrator action, so a
-/// read-only version would be a tab of things you cannot do — and the
-/// catalogue is still discoverable where it matters, through the
-/// `@label` autocomplete in the threads search and the label picker in a
-/// thread's properties.
-///
-/// This is presentation only. Nothing is authorized by it: the server
-/// refuses a non-administrator's write whether or not the tab was drawn.
-List<LobbyTab> visibleLobbyTabs({required bool isAdmin}) => [
-      LobbyTab.rooms,
-      LobbyTab.threads,
-      if (isAdmin) LobbyTab.labels,
-    ];
 
 /// Persists the user's last [LobbyTab] across launches.
 ///

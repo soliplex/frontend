@@ -45,11 +45,7 @@ class UrlBuilder {
   /// - [path]: A single path segment to append (e.g., 'rooms')
   /// - [pathSegments]: Multiple path segments to append
   ///   (e.g., `['rooms', '123']`)
-  /// - [queryParameters]: Query parameters to add to the URL. Each value
-  ///   is either a `String` or an `Iterable<String>`; an iterable repeats
-  ///   the key once per element (`?id=1&id=2`), which is how the backend
-  ///   expects a list-valued filter. A `Map<String, String>` still passes
-  ///   unchanged.
+  /// - [queryParameters]: Query parameters to add to the URL
   ///
   /// If both [path] and [pathSegments] are provided, they are combined
   /// with [path] first, followed by [pathSegments].
@@ -60,7 +56,7 @@ class UrlBuilder {
   Uri build({
     String? path,
     List<String>? pathSegments,
-    Map<String, Object>? queryParameters,
+    Map<String, String>? queryParameters,
   }) {
     // Start with base URI path segments
     final segments = <String>[

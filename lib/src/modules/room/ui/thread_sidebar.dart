@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
-import 'package:soliplex_agent/soliplex_agent.dart' show ThreadInfo;
 
 import '../thread_list_state.dart';
 import 'error_retry_panel.dart';
@@ -20,7 +19,6 @@ class ThreadSidebar extends StatelessWidget {
     this.onReauthenticate,
     this.quizzes = const {},
     this.onQuizTapped,
-    this.onThreadProperties,
     this.onRenameThread,
     this.onDeleteThread,
     this.onMarkThreadRead,
@@ -34,10 +32,6 @@ class ThreadSidebar extends StatelessWidget {
   final VoidCallback? onReauthenticate;
   final Map<String, String> quizzes;
   final void Function(String quizId)? onQuizTapped;
-
-  /// Opens a thread's full properties (name, description, labels).
-  final void Function(ThreadInfo thread)? onThreadProperties;
-
   final void Function(String threadId, String currentName)? onRenameThread;
   final void Function(String threadId)? onDeleteThread;
   final void Function(String threadId)? onMarkThreadRead;
@@ -112,7 +106,6 @@ class ThreadSidebar extends StatelessWidget {
                         isRunning: running.contains(thread.id),
                         unread: unreadThreadIds.contains(thread.id),
                         onTap: () => onThreadSelected(thread.id),
-                        onProperties: () => onThreadProperties?.call(thread),
                         onRename: () =>
                             onRenameThread?.call(thread.id, thread.name),
                         onDelete: () => onDeleteThread?.call(thread.id),

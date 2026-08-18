@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-// Not exported from the barrel: the derived foreground is an internal
-// guarantee of 'SoliplexChip.colored', not something callers supply.
-import 'package:soliplex_design/src/brand/contrast.dart';
 
 Widget _harness(Widget child) {
   return MaterialApp(
@@ -75,79 +72,6 @@ void main() {
       await tester.tap(find.text('All'));
       await tester.pump();
       expect(current, isTrue);
-    });
-  });
-
-  group('SoliplexChip.colored', () {
-    testWidgets('paints the colour it was given', (tester) async {
-      const swatch = Color(0xFF42D76D);
-      await tester.pumpWidget(
-        _harness(
-          const SoliplexChip.colored(label: Text('Manuals'), color: swatch),
-        ),
-      );
-
-      final chip = tester.widget<Chip>(find.byType(Chip));
-      expect(chip.backgroundColor, equals(swatch));
-    });
-
-    testWidgets('derives a readable foreground on a light swatch', (
-      tester,
-    ) async {
-      // Users pick label colours, so the caller never supplies the
-      // foreground — an open colour field would otherwise invite white
-      // text on pale yellow.
-      await tester.pumpWidget(
-        _harness(
-          const SoliplexChip.colored(
-            label: Text('Manuals'),
-            color: Color(0xFFF5F5A0),
-          ),
-        ),
-      );
-
-      final chip = tester.widget<Chip>(find.byType(Chip));
-      expect(
-        chip.labelStyle?.color,
-        equals(readableOn(const Color(0xFFF5F5A0))),
-      );
-    });
-
-    testWidgets('flips the foreground on a dark swatch', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          const SoliplexChip.colored(
-            label: Text('Archived'),
-            color: Color(0xFF1A1A2E),
-          ),
-        ),
-      );
-
-      final chip = tester.widget<Chip>(find.byType(Chip));
-      final onLight = readableOn(const Color(0xFFF5F5A0));
-      expect(chip.labelStyle?.color, isNot(equals(onLight)));
-    });
-
-    testWidgets('onDeleted fires and the close icon matches the label', (
-      tester,
-    ) async {
-      var fired = 0;
-      const swatch = Color(0xFF42D76D);
-      await tester.pumpWidget(
-        _harness(
-          SoliplexChip.colored(
-            label: const Text('Manuals'),
-            color: swatch,
-            onDeleted: () => fired++,
-          ),
-        ),
-      );
-
-      final chip = tester.widget<Chip>(find.byType(Chip));
-      expect(chip.deleteIconColor, equals(readableOn(swatch)));
-
-      await tester.tap(find.byIcon(Icons.cancel));
-      expect(fired, 1);
     });
   });
 }

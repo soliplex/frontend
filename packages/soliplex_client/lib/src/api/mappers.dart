@@ -12,7 +12,6 @@ import 'package:soliplex_client/src/domain/room_stats.dart';
 import 'package:soliplex_client/src/domain/room_tool.dart';
 import 'package:soliplex_client/src/domain/run_info.dart';
 import 'package:soliplex_client/src/domain/thread_info.dart';
-import 'package:soliplex_client/src/domain/thread_label.dart';
 import 'package:soliplex_client/src/domain/thread_page.dart';
 import 'package:soliplex_client/src/domain/workdir_file.dart';
 import 'package:soliplex_client/src/utils/parse_utils.dart';
@@ -489,64 +488,6 @@ RoomStats roomStatsFromJson(Map<String, dynamic> json) {
 }
 
 // ============================================================
-// ThreadLabel mappers
-// ============================================================
-
-/// Creates a [ThreadLabel] from JSON.
-///
-/// Throws [FormatException] if `id`, `name` or `color` is missing or of
-/// the wrong type — a label with no colour cannot be drawn, and one with
-/// no id cannot be filtered on, so neither degrades usefully.
-ThreadLabel threadLabelFromJson(Map<String, dynamic> json) {
-  final id = json['id'];
-  if (id is! num) {
-    throw const FormatException('Label missing required "id"');
-  }
-  final name = json['name'];
-  if (name is! String) {
-    throw FormatException('Label $id missing required "name"');
-  }
-  final color = json['color'];
-  if (color is! String) {
-    throw FormatException('Label $id missing required "color"');
-  }
-
-  return ThreadLabel(
-    id: id.toInt(),
-    name: name,
-    color: color,
-    // Absent for anyone but an administrator. Left null rather than
-    // defaulted to zero: the server withholds it deliberately, and
-    // reading "unknown" as "unused" would present a destructive delete
-    // as a harmless one.
-    usageCount: (json['usage_count'] as num?)?.toInt(),
-  );
-}
-
-/// Converts a [ThreadLabel] to JSON.
-Map<String, dynamic> threadLabelToJson(ThreadLabel label) {
-  return {
-    'id': label.id,
-    'name': label.name,
-    'color': label.color,
-    if (label.usageCount != null) 'usage_count': label.usageCount,
-  };
-}
-
-/// Creates a list of [ThreadLabel] from a catalogue response.
-///
-/// Throws [FormatException] if `labels` is absent or not a list.
-List<ThreadLabel> threadLabelsFromJson(Map<String, dynamic> json) {
-  final rawLabels = json['labels'];
-  if (rawLabels is! List) {
-    throw const FormatException('Label catalogue missing required "labels"');
-  }
-  return rawLabels
-      .map((entry) => threadLabelFromJson(entry as Map<String, dynamic>))
-      .toList(growable: false);
-}
-
-// ============================================================
 // ThreadInfo mappers
 // ============================================================
 
@@ -575,16 +516,6 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
       ? _tryParseTimestamp(rawActivity, logName: 'soliplex_client.api')
       : null;
 
-  // Absent on a pre-labels backend, so an empty list rather than a
-  // failure: a thread without labels is an ordinary thread, and this
-  // listing has to keep working against an older server.
-  final rawLabels = json['labels'];
-  final labels = rawLabels is List
-      ? rawLabels
-          .map((entry) => threadLabelFromJson(entry as Map<String, dynamic>))
-          .toList(growable: false)
-      : const <ThreadLabel>[];
-
   return ThreadInfo(
     id: json['id'] as String? ?? json['thread_id'] as String,
     roomId: json['room_id'] as String? ?? '',
@@ -594,7 +525,6 @@ ThreadInfo threadInfoFromJson(Map<String, dynamic> json) {
     createdAt: createdAt,
     metadata: metadata,
     lastActivity: lastActivity,
-    labels: labels,
   );
 }
 
@@ -610,8 +540,6 @@ Map<String, dynamic> threadInfoToJson(ThreadInfo thread) {
     if (thread.lastActivity != null)
       'last_activity': formatTimestamp(thread.lastActivity!),
     if (thread.metadata.isNotEmpty) 'metadata': thread.metadata,
-    if (thread.labels.isNotEmpty)
-      'labels': thread.labels.map(threadLabelToJson).toList(growable: false),
   };
 }
 

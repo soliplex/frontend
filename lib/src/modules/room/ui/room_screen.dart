@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart'
-    show AgentSessionState, ThreadInfo, ThreadKey;
+    show AgentSessionState, ThreadKey;
 import 'package:soliplex_client/soliplex_client.dart'
     show
         AuthException,
@@ -33,9 +33,7 @@ import '../../../core/routes.dart';
 import '../../../status_message/ui/status_message_banner.dart';
 import '../../auth/return_to_storage.dart';
 import '../../auth/server_entry.dart';
-import '../../lobby/labels_state.dart';
 import '../../lobby/lobby_read_markers.dart';
-import '../../lobby/ui/thread_properties_dialog.dart';
 import '../anchor_tracker.dart';
 import '../room_run_activity.dart';
 import '../room_unread.dart';
@@ -361,9 +359,6 @@ class _RoomScreenState extends State<RoomScreen> {
   CancelToken? _filterDocsCancelToken;
 
   late DocumentFilterHydrator _filterHydrator;
-
-  /// The server's label catalogue, for the thread properties dialog.
-  late LabelsState _labelsState;
 
   /// Per-thread attachment support resolved from thread history (the sandbox
   /// namespace in the thread's AG-UI state). A missing entry means it could not
@@ -1005,13 +1000,6 @@ class _RoomScreenState extends State<RoomScreen> {
     unawaited(_loadServerReadMarkers());
     _threadReadTracker = _createThreadReadTracker();
     _anchorTracker = _createAnchorTracker();
-    // The catalogue for a thread's properties dialog. Loaded here rather
-    // than when the dialog opens, so opening it does not stall on a
-    // round trip.
-    _labelsState = LabelsState(
-      entryResolver: (id) =>
-          id == widget.serverEntry.serverId ? widget.serverEntry : null,
-    )..setServer(widget.serverEntry.serverId);
     // Keep the room's unread dot derived from its threads: watch the thread
     // list and mark the room read only once no thread is unread.
     _watchRoomRead();
@@ -1303,7 +1291,6 @@ class _RoomScreenState extends State<RoomScreen> {
       userId: _userId,
       leavingThreadId: threadId,
     );
-    _labelsState.dispose();
     _cancelAutoSelect();
     _anchorAdvanceUnsub?.call();
     _roomReadUnsub?.call();
@@ -1661,38 +1648,6 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Future<void> _showPropertiesDialog(ThreadInfo thread) async {
-    await showDialog<void>(
-      context: context,
-      builder: (_) => ThreadPropertiesDialog(
-        thread: thread,
-        labels: _labelsState,
-        onSave: ({
-          required name,
-          required description,
-          required labelIds,
-        }) async {
-          try {
-            await _state.threadList.saveThreadProperties(
-              thread.id,
-              name: name,
-              description: description,
-              labelIds: labelIds,
-            );
-            return null;
-          } on Object catch (error) {
-            // The dialog shows a sentence inline rather than closing on
-            // an exception; the state layer has already logged it.
-            if (error is FormatException) return error.message;
-            return 'Could not save the thread. Please try again.';
-          }
-        },
-        // No labels tab to jump to from inside a room.
-        onEditLabel: null,
-      ),
-    );
-  }
-
   Future<void> _showDeleteDialog(String threadId) async {
     await showDialog<void>(
       context: context,
@@ -1742,7 +1697,6 @@ class _RoomScreenState extends State<RoomScreen> {
               onReauthenticate: _onReauthenticate,
               quizzes: room?.quizzes ?? const {},
               onQuizTapped: _onQuizTapped,
-              onThreadProperties: _showPropertiesDialog,
               onRenameThread: _showRenameDialog,
               onDeleteThread: _showDeleteDialog,
               onMarkThreadRead: (threadId) => _stampThreadRead((
@@ -1815,12 +1769,6 @@ class _RoomScreenState extends State<RoomScreen> {
                           onReauthenticate: _onReauthenticate,
                           quizzes: room?.quizzes ?? const {},
                           onQuizTapped: _onQuizTapped,
-                          onThreadProperties: (thread) {
-                            // Close the drawer first: the dialog would
-                            // otherwise open behind it.
-                            Navigator.pop(drawerContext);
-                            _showPropertiesDialog(thread);
-                          },
                           onRenameThread: (id, name) {
                             Navigator.pop(drawerContext);
                             _showRenameDialog(id, name);
