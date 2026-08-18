@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_design/soliplex_design.dart';
-// Not exported from the barrel: the derived foreground is an internal
-// guarantee of 'SoliplexChip.colored', not something callers supply.
+// Not exported from the barrel: the contrast floor a colored chip has to
+// clear is the package's own guarantee, not a knob callers turn.
 import 'package:soliplex_design/src/brand/contrast.dart';
 
 Widget _harness(Widget child) {
@@ -79,7 +79,9 @@ void main() {
   });
 
   group('SoliplexChip.colored', () {
-    testWidgets('paints the colour it was given', (tester) async {
+    testWidgets('washes and outlines the swatch rather than filling it', (
+      tester,
+    ) async {
       const swatch = Color(0xFF42D76D);
       await tester.pumpWidget(
         _harness(
@@ -87,45 +89,72 @@ void main() {
         ),
       );
 
+      final tint = swatchTint(swatch, Brightness.light);
       final chip = tester.widget<Chip>(find.byType(Chip));
-      expect(chip.backgroundColor, equals(swatch));
+      expect(chip.backgroundColor, equals(tint.fill));
+      expect(chip.side?.color, equals(tint.outline));
+
+      // The point of the exercise: a label annotates a thread, so the
+      // chip must not be painted at the strength the picker offered.
+      expect(chip.backgroundColor!.a, lessThan(swatch.a));
     });
 
-    testWidgets('derives a readable foreground on a light swatch', (
+    testWidgets('desaturates a swatch chosen at full strength', (tester) async {
+      // Users pick from a hue wheel, so swatches arrive fully committed
+      // to their hue; a row of those out-shouts the threads it labels.
+      const vivid = Color(0xFFFF0000);
+      final tint = swatchTint(vivid, Brightness.light);
+
+      expect(
+        HSLColor.fromColor(tint.content).saturation,
+        lessThan(HSLColor.fromColor(vivid).saturation),
+      );
+    });
+
+    testWidgets('keeps the neutral swatch neutral', (tester) async {
+      // Clamped, not scaled — an already-quiet swatch must come through
+      // untouched, or an uncoloured label picks up a tint nobody chose.
+      final tint = swatchTint(neutralSwatch, Brightness.light);
+      expect(HSLColor.fromColor(tint.content).saturation, equals(0));
+      expect(HSLColor.fromColor(tint.fill).saturation, equals(0));
+    });
+
+    testWidgets('derives a readable foreground on a pale swatch', (
       tester,
     ) async {
-      // Users pick label colours, so the caller never supplies the
-      // foreground — an open colour field would otherwise invite white
-      // text on pale yellow.
+      // The caller never supplies the foreground — an open colour field
+      // would otherwise invite white text on pale yellow.
+      const pale = Color(0xFFF5F5A0);
       await tester.pumpWidget(
         _harness(
-          const SoliplexChip.colored(
-            label: Text('Manuals'),
-            color: Color(0xFFF5F5A0),
-          ),
+          const SoliplexChip.colored(label: Text('Manuals'), color: pale),
+        ),
+      );
+
+      final chip = tester.widget<Chip>(find.byType(Chip));
+      final foreground = chip.labelStyle!.color!;
+      expect(
+        contrastRatio(foreground, soliplexLightTheme().colorScheme.surface),
+        greaterThanOrEqualTo(minContrast),
+      );
+    });
+
+    testWidgets('stays readable on a near-black swatch too', (tester) async {
+      const deep = Color(0xFF1A1A2E);
+      await tester.pumpWidget(
+        _harness(
+          const SoliplexChip.colored(label: Text('Archived'), color: deep),
         ),
       );
 
       final chip = tester.widget<Chip>(find.byType(Chip));
       expect(
-        chip.labelStyle?.color,
-        equals(readableOn(const Color(0xFFF5F5A0))),
-      );
-    });
-
-    testWidgets('flips the foreground on a dark swatch', (tester) async {
-      await tester.pumpWidget(
-        _harness(
-          const SoliplexChip.colored(
-            label: Text('Archived'),
-            color: Color(0xFF1A1A2E),
-          ),
+        contrastRatio(
+          chip.labelStyle!.color!,
+          soliplexLightTheme().colorScheme.surface,
         ),
+        greaterThanOrEqualTo(minContrast),
       );
-
-      final chip = tester.widget<Chip>(find.byType(Chip));
-      final onLight = readableOn(const Color(0xFFF5F5A0));
-      expect(chip.labelStyle?.color, isNot(equals(onLight)));
     });
 
     testWidgets('onDeleted fires and the close icon matches the label', (
@@ -144,7 +173,10 @@ void main() {
       );
 
       final chip = tester.widget<Chip>(find.byType(Chip));
-      expect(chip.deleteIconColor, equals(readableOn(swatch)));
+      expect(
+        chip.deleteIconColor,
+        equals(swatchTint(swatch, Brightness.light).content),
+      );
 
       await tester.tap(find.byIcon(Icons.cancel));
       expect(fired, 1);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:soliplex_design/src/brand/contrast.dart';
 import 'package:soliplex_design/src/components/chip/intent.dart';
+import 'package:soliplex_design/src/tokens/swatch.dart';
 
 /// A pill-shaped surface used for tags, filters, and small actions —
 /// Soliplex's thin layer over Material's `Chip` family.
@@ -18,8 +18,9 @@ import 'package:soliplex_design/src/components/chip/intent.dart';
 ///   selection-state already carries semantic meaning.
 /// - `SoliplexChip.colored()` — display chip in an **arbitrary colour**,
 ///   for identities the theme cannot know in advance (thread labels,
-///   whose colours users choose). Its foreground is derived, not
-///   supplied, so a user-chosen swatch cannot produce unreadable text.
+///   whose colours users choose). The swatch is quieted into a wash, an
+///   outline, and text, so a chosen colour can be neither unreadable nor
+///   loud enough to out-shout what it annotates.
 class SoliplexChip extends StatelessWidget {
   /// Static label chip. Pass [onDeleted] to add a trailing close button.
   const SoliplexChip({
@@ -63,18 +64,19 @@ class SoliplexChip extends StatelessWidget {
         intent = ChipIntent.neutral,
         _color = null;
 
-  /// Display chip painted in an arbitrary [color].
+  /// Display chip carrying an arbitrary [color].
   ///
   /// For identities whose colour is data rather than semantics — a
   /// thread label, say, whose swatch a user picked. The status
   /// [ChipIntent] vocabulary cannot express those: it is a closed set,
   /// and a label is not a status.
   ///
-  /// Only the background is taken. The foreground is derived from it, so
-  /// no caller can pick a colour combination that renders the text
-  /// unreadable — which is exactly what an open-ended colour field
-  /// invites. Pass [onDeleted] for a trailing close button, tinted to
-  /// match.
+  /// Only the swatch is taken; `swatchTint` derives what is actually
+  /// painted. The chip is an outlined wash rather than a solid fill —
+  /// a label annotates a thread and must not compete with it — and the
+  /// foreground is never supplied by the caller, since an open-ended
+  /// colour field otherwise invites white text on pale yellow. Pass
+  /// [onDeleted] for a trailing close button, tinted to match.
   const SoliplexChip.colored({
     required this.label,
     required Color color,
@@ -109,47 +111,53 @@ class SoliplexChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _kind == _ChipKind.colored
-        ? (background: _color, foreground: readableOn(_color!))
-        : chipIntentColors(intent, context);
+    final colors = chipIntentColors(intent, context);
     final labelStyle =
         colors.foreground == null ? null : TextStyle(color: colors.foreground);
 
-    switch (_kind) {
-      case _ChipKind.colored:
-        return Chip(
+    return switch (_kind) {
+      _ChipKind.colored => _buildColored(context),
+      _ChipKind.display => Chip(
           label: label,
           avatar: _avatar(colors.foreground),
           onDeleted: onDeleted,
           backgroundColor: colors.background,
           labelStyle: labelStyle,
           deleteIconColor: colors.foreground,
-        );
-      case _ChipKind.display:
-        return Chip(
-          label: label,
-          avatar: _avatar(colors.foreground),
-          onDeleted: onDeleted,
-          backgroundColor: colors.background,
-          labelStyle: labelStyle,
-          deleteIconColor: colors.foreground,
-        );
-      case _ChipKind.action:
-        return ActionChip(
+        ),
+      _ChipKind.action => ActionChip(
           label: label,
           avatar: _avatar(colors.foreground),
           onPressed: _onPressed,
           backgroundColor: colors.background,
           labelStyle: labelStyle,
-        );
-      case _ChipKind.filter:
-        return FilterChip(
+        ),
+      _ChipKind.filter => FilterChip(
           label: label,
           avatar: _avatar(null),
           selected: _selected,
           onSelected: _onSelected,
-        );
-    }
+        ),
+    };
+  }
+
+  /// The quieted rendering of a data-supplied swatch.
+  ///
+  /// The border is spelled out rather than left to the theme because
+  /// `Chip`'s default side is drawn from the colour scheme, which knows
+  /// nothing of this swatch — the outline is the part carrying the
+  /// label's identity, so it has to come from the same tint as the fill.
+  Widget _buildColored(BuildContext context) {
+    final tint = swatchTint(_color!, Theme.of(context).brightness);
+    return Chip(
+      label: label,
+      avatar: _avatar(tint.content),
+      onDeleted: onDeleted,
+      backgroundColor: tint.fill,
+      side: BorderSide(color: tint.outline),
+      labelStyle: TextStyle(color: tint.content),
+      deleteIconColor: tint.content,
+    );
   }
 
   /// Wraps [icon] in an [IconTheme] tinted to the intent's foreground

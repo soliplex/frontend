@@ -526,6 +526,11 @@ class _ChipGalleryState extends State<ChipGallery> {
                   Theme.of(context).brightness,
                 ),
               ),
+            // The neutral grey a label wears until somebody colours it.
+            const SoliplexChip.colored(
+              label: Text('Uncoloured'),
+              color: neutralSwatch,
+            ),
             // Deliberately awkward swatches: near-white and near-black
             // both have to stay readable, since users pick these.
             const SoliplexChip.colored(
