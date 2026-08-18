@@ -737,7 +737,7 @@ void main() {
         );
         expect(find.text('RESTRICTED'), findsOneWidget);
         expect(
-          find.text('Information level is RESTRICTED for this room'),
+          find.text('Information level is: RESTRICTED'),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
@@ -753,7 +753,7 @@ void main() {
         expect(find.byType(AppBar), findsNothing);
         expect(find.text('RESTRICTED'), findsOneWidget);
         expect(
-          find.text('Information level is RESTRICTED for this room'),
+          find.text('Information level is: RESTRICTED'),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);

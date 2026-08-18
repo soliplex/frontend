@@ -8,6 +8,13 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- The information level under the composer now reads "Information level is:
+  LEVEL" and sits tighter to the composer, so the level itself is what the line
+  ends on rather than trailing off into words that repeat what the screen
+  already shows.
+
 ## [0.99.2+81] - 2026-08-17
 
 ### Added

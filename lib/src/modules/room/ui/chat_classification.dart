@@ -102,10 +102,9 @@ class ChatClassificationNotice extends StatelessWidget {
       padding: const EdgeInsets.only(
         left: SoliplexSpacing.s4,
         right: SoliplexSpacing.s4,
-        bottom: SoliplexSpacing.s2,
       ),
       child: Text(
-        'Information level is ${level.label} for this room',
+        'Information level is: ${level.label}',
         textAlign: TextAlign.center,
         style: theme.textTheme.bodySmall
             ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
