@@ -246,7 +246,12 @@ class _SelectableLabelState extends State<_SelectableLabel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = widget.label;
-    final color = labelColor(label, theme.brightness);
+    // The same quieting the chip applies, so a label's dot and its chip
+    // are the same colour — an unselected label sitting next to a
+    // selected one would otherwise look like a different label.
+    final dot =
+        swatchTint(labelColor(label, theme.brightness), theme.brightness)
+            .content;
 
     final chip = Semantics(
       selected: widget.selected,
@@ -255,7 +260,7 @@ class _SelectableLabelState extends State<_SelectableLabel> {
           ? InkWell(onTap: widget.onToggle, child: LabelChip(label: label))
           : SoliplexChip.action(
               label: Text(label.name),
-              icon: Icon(Icons.circle, color: color),
+              icon: Icon(Icons.circle, color: dot),
               onPressed: widget.onToggle,
             ),
     );
