@@ -151,7 +151,7 @@ void main() {
     testWidgets('names the level the room carries', (tester) async {
       await tester.pumpWidget(_wrap(const ChatClassificationNotice()));
       expect(
-        find.text('Information level is RESTRICTED for this room'),
+        find.text('Information level is: RESTRICTED'),
         findsOneWidget,
       );
     });
