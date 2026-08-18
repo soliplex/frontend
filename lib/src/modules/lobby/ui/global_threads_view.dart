@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 // Only 'ThreadInfo': the barrel also exports ag_ui's 'State', which would
@@ -7,7 +9,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 
 import '../../../shared/relative_time.dart';
 import '../global_threads_state.dart';
+import '../labels_state.dart';
 import '../lobby_tab.dart';
+import '../thread_query.dart';
+import 'thread_search_field.dart';
 
 /// One row of the aggregated listing: either a room heading or a thread.
 ///
@@ -54,36 +59,66 @@ List<_Row> _flatten(List<ThreadInfo> threads, {required bool loadingMore}) {
 /// and narrow layouts forward the lobby's props verbatim, and each already
 /// carries around twenty.
 @immutable
-class LobbyThreadsSection {
-  const LobbyThreadsSection({
+class LobbyTabsSection {
+  const LobbyTabsSection({
+    required this.tabs,
     required this.activeTab,
     required this.onTabChanged,
-    required this.state,
+    required this.threads,
+    required this.labels,
     required this.onThreadTap,
+    required this.onThreadAction,
+    this.selectedLabelId,
   });
+
+  /// The tabs this user may see, in display order.
+  ///
+  /// Not every user gets every tab — the labels tab is administrators
+  /// only — so this is the authority on both what the strip renders and
+  /// what [activeTab] is allowed to be.
+  final List<LobbyTab> tabs;
 
   final LobbyTab activeTab;
   final ValueChanged<LobbyTab> onTabChanged;
-  final GlobalThreadsState state;
+  final GlobalThreadsState threads;
+  final LabelsState labels;
 
   /// Invoked with the room and thread to open.
   final void Function(String roomId, String threadId) onThreadTap;
+
+  /// Invoked with the thread and the menu entry chosen on it.
+  final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
+
+  /// A label to highlight on the labels tab, from a deep link.
+  final int? selectedLabelId;
+
+  /// Where [activeTab] sits among [tabs].
+  ///
+  /// Falls back to zero for a tab this user cannot see — a persisted
+  /// preference for the labels tab outliving an administrator's access,
+  /// say — which would otherwise index past the end of the strip.
+  int get activeIndex {
+    final index = tabs.indexOf(activeTab);
+    return index < 0 ? 0 : index;
+  }
 }
 
-/// The lobby's rooms/threads tab strip.
+/// The lobby's tab strip.
 ///
-/// Owns its own [TabController] and keeps it in step with [activeTab],
+/// Owns its own [TabController] and keeps it in step with the active tab,
 /// which is persisted outside the widget tree. Holding the controller here
 /// rather than in the screen keeps the two layouts from having to thread a
 /// controller through their (already long) parameter lists.
 class LobbyTabBar extends StatefulWidget {
   const LobbyTabBar({
     super.key,
-    required this.activeTab,
+    required this.tabs,
+    required this.activeIndex,
     required this.onTabChanged,
   });
 
-  final LobbyTab activeTab;
+  final List<LobbyTab> tabs;
+  final int activeIndex;
   final ValueChanged<LobbyTab> onTabChanged;
 
   @override
@@ -91,29 +126,46 @@ class LobbyTabBar extends StatefulWidget {
 }
 
 class _LobbyTabBarState extends State<LobbyTabBar>
-    with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(
-    length: LobbyTab.values.length,
-    vsync: this,
-    initialIndex: widget.activeTab.index,
-  )..addListener(_onControllerChanged);
+    with TickerProviderStateMixin {
+  late TabController _controller = _newController();
+
+  TabController _newController() => TabController(
+        length: widget.tabs.length,
+        vsync: this,
+        initialIndex: widget.activeIndex,
+      )..addListener(_onControllerChanged);
 
   @override
   void didUpdateWidget(LobbyTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // A TabController's length is fixed at construction, so a change in
+    // how many tabs this user may see means a new controller — which is
+    // also why this mixes in TickerProviderStateMixin rather than the
+    // single-ticker variant.
+    if (widget.tabs.length != _controller.length) {
+      _disposeController();
+      _controller = _newController();
+      return;
+    }
+
     // The tab can change from outside the strip (the persisted preference
     // resolving at launch). Mirror it without re-notifying, or the two
     // would bounce updates off each other.
-    if (widget.activeTab.index != _controller.index) {
-      _controller.index = widget.activeTab.index;
+    if (widget.activeIndex != _controller.index) {
+      _controller.index = widget.activeIndex;
     }
+  }
+
+  void _disposeController() {
+    _controller
+      ..removeListener(_onControllerChanged)
+      ..dispose();
   }
 
   @override
   void dispose() {
-    _controller
-      ..removeListener(_onControllerChanged)
-      ..dispose();
+    _disposeController();
     super.dispose();
   }
 
@@ -121,21 +173,27 @@ class _LobbyTabBarState extends State<LobbyTabBar>
     // Fires twice per swipe (start and settle); only the settled index is
     // worth persisting.
     if (_controller.indexIsChanging) return;
-    final tab = LobbyTab.values[_controller.index];
-    if (tab != widget.activeTab) widget.onTabChanged(tab);
+    if (_controller.index >= widget.tabs.length) return;
+    final tab = widget.tabs[_controller.index];
+    widget.onTabChanged(tab);
   }
 
   @override
   Widget build(BuildContext context) {
     return TabBar(
       controller: _controller,
-      tabs: const [
-        Tab(text: 'Rooms'),
-        Tab(text: 'Threads'),
+      tabs: [
+        for (final tab in widget.tabs) Tab(text: _tabLabel(tab)),
       ],
     );
   }
 }
+
+String _tabLabel(LobbyTab tab) => switch (tab) {
+      LobbyTab.rooms => 'Rooms',
+      LobbyTab.threads => 'Threads',
+      LobbyTab.labels => 'Labels',
+    };
 
 /// The lobby's aggregated thread listing for the selected server.
 ///
@@ -146,17 +204,25 @@ class GlobalThreadsView extends StatefulWidget {
   const GlobalThreadsView({
     super.key,
     required this.state,
+    required this.labels,
     required this.roomNames,
     required this.onThreadTap,
+    required this.onThreadAction,
   });
 
   final GlobalThreadsState state;
+
+  /// The server's catalogue, for the `@label` autocomplete.
+  final LabelsState labels;
 
   /// Display names for the selected server's rooms, keyed by room id. A
   /// room missing here falls back to its id rather than rendering blank.
   final Map<String, String> roomNames;
 
   final void Function(String roomId, String threadId) onThreadTap;
+
+  /// Invoked with the thread and the menu entry chosen on it.
+  final void Function(ThreadInfo thread, ThreadRowAction action) onThreadAction;
 
   @override
   State<GlobalThreadsView> createState() => _GlobalThreadsViewState();
@@ -192,8 +258,69 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
     widget.state.loadMore();
   }
 
+  /// Label names typed as `@name` that match nothing in the catalogue.
+  ///
+  /// Held rather than sent, because an unresolvable name cannot be
+  /// expressed as a filter: an empty `labelIds` means *unfiltered*, so
+  /// dropping the name would silently widen the listing to everything —
+  /// the opposite of what was asked for.
+  List<String> _unknownLabels = const [];
+
+  void _onQueryChanged(ThreadQuery query) {
+    final catalogue = {
+      for (final label in widget.labels.current) label.name.toLowerCase(): label
+    };
+
+    final resolved = <int>[];
+    final unknown = <String>[];
+    for (final name in query.labelNames) {
+      final label = catalogue[name];
+      if (label == null) {
+        unknown.add(name);
+      } else {
+        resolved.add(label.id);
+      }
+    }
+
+    setState(() => _unknownLabels = unknown);
+    if (unknown.isNotEmpty) return;
+
+    widget.state.setFilter(labelIds: resolved, query: query.text);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+            SoliplexSpacing.s4,
+            SoliplexSpacing.s2,
+          ),
+          child: Watch(
+            (context) => ThreadSearchField(
+              labels: widget.labels.current,
+              onChanged: _onQueryChanged,
+            ),
+          ),
+        ),
+        Expanded(child: _buildBody(context)),
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_unknownLabels.isNotEmpty) {
+      final names = _unknownLabels.map((name) => '@$name').join(', ');
+      return _ThreadsMessage(
+        icon: Icons.label_off_outlined,
+        title: 'No such label',
+        detail: '$names does not match any label on this server.',
+      );
+    }
+
     return Watch((context) {
       final threads = widget.state.threads.value;
       return switch (threads) {
@@ -219,11 +346,20 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
 
   Widget _buildList(BuildContext context, GlobalThreadsLoaded loaded) {
     if (loaded.threads.isEmpty) {
-      return const _ThreadsMessage(
-        icon: Icons.forum_outlined,
-        title: 'No threads yet',
-        detail: 'Threads you start in any room show up here.',
-      );
+      // "Nothing matched" and "you have nothing" are different answers,
+      // and offering "threads you start show up here" to someone staring
+      // at their own search would read as a bug.
+      return widget.state.isFiltered
+          ? const _ThreadsMessage(
+              icon: Icons.search_off,
+              title: 'No matching threads',
+              detail: 'Try a different name, or fewer labels.',
+            )
+          : const _ThreadsMessage(
+              icon: Icons.forum_outlined,
+              title: 'No threads yet',
+              detail: 'Threads you start in any room show up here.',
+            );
     }
 
     final rows = _flatten(loaded.threads, loadingMore: loaded.loadingMore);
@@ -241,6 +377,7 @@ class _GlobalThreadsViewState extends State<GlobalThreadsView> {
           _ThreadRow(:final thread) => _ThreadListTile(
               thread: thread,
               onTap: () => widget.onThreadTap(thread.roomId, thread.id),
+              onAction: (action) => widget.onThreadAction(thread, action),
             ),
           _LoadingRow() => const Padding(
               padding: EdgeInsets.all(SoliplexSpacing.s4),
@@ -295,23 +432,119 @@ class _RoomHeading extends StatelessWidget {
   }
 }
 
-class _ThreadListTile extends StatelessWidget {
-  const _ThreadListTile({required this.thread, required this.onTap});
+/// What the per-thread overflow menu offers.
+enum ThreadRowAction { properties, rename, delete }
+
+class _ThreadListTile extends StatefulWidget {
+  const _ThreadListTile({
+    required this.thread,
+    required this.onTap,
+    required this.onAction,
+  });
 
   final ThreadInfo thread;
   final VoidCallback onTap;
+  final void Function(ThreadRowAction action) onAction;
+
+  @override
+  State<_ThreadListTile> createState() => _ThreadListTileState();
+}
+
+class _ThreadListTileState extends State<_ThreadListTile> {
+  bool _hovered = false;
+  bool _menuOpen = false;
+
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS ||
+        TargetPlatform.windows ||
+        TargetPlatform.linux =>
+          true,
+        _ => false,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final thread = widget.thread;
     // A thread with no name has never been titled; show the same
     // placeholder the room sidebar uses rather than an empty row.
     final title = thread.hasName ? thread.name : 'New Thread';
     final stamp = thread.lastActivity ?? thread.createdAt;
-    return ListTile(
-      dense: true,
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(formatRelativeTime(stamp)),
-      onTap: onTap,
+    final showMenu = _hovered || _menuOpen || !_isDesktop;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: ListTile(
+        dense: true,
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(formatRelativeTime(stamp)),
+        onTap: widget.onTap,
+        trailing: showMenu ? _buildMenu(context) : null,
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<ThreadRowAction>(
+      icon: Icon(
+        Icons.more_vert,
+        size: 18,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      tooltip: 'Thread options',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      // Keeps the button mounted while the popup is open. Without it the
+      // pointer leaving the row unmounts the button, and the popup's
+      // completion callback short-circuits on '!mounted' — silently
+      // dropping the selection. Learned the hard way in the room
+      // sidebar's own menu; the same trap applies here.
+      onOpened: () => setState(() => _menuOpen = true),
+      onCanceled: () => setState(() => _menuOpen = false),
+      onSelected: (action) {
+        setState(() => _menuOpen = false);
+        widget.onAction(action);
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: ThreadRowAction.properties,
+          child: Row(
+            children: [
+              Icon(Icons.tune, size: 18),
+              SizedBox(width: SoliplexSpacing.s3),
+              Text('Properties'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: ThreadRowAction.rename,
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 18),
+              SizedBox(width: SoliplexSpacing.s3),
+              Text('Rename'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ThreadRowAction.delete,
+          child: Row(
+            children: [
+              Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(width: SoliplexSpacing.s3),
+              Text(
+                'Delete',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
