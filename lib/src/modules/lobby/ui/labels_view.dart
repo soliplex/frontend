@@ -13,7 +13,15 @@ import '../labels_state.dart';
 /// without turning the picker into a colour-matching exercise.
 const int _swatchCount = 12;
 
+/// The palette, neutral grey first.
+///
+/// The grey is offered rather than merely defaulted to: a label created
+/// without a colour carries [neutralSwatch], so the editor has to be
+/// able to show that as the current choice — and to let somebody who
+/// coloured a label go back to uncoloured. A default nothing in the
+/// picker can express is a one-way door.
 List<Color> _swatches(Brightness brightness) => [
+      neutralSwatch,
       for (var i = 0; i < _swatchCount; i++)
         hueColor(i * (360 / _swatchCount), brightness),
     ];
@@ -262,7 +270,7 @@ class LabelEditorDialog extends StatefulWidget {
 class _LabelEditorDialogState extends State<LabelEditorDialog> {
   late final TextEditingController _name =
       TextEditingController(text: widget.existing?.name ?? '');
-  Color? _color;
+  late Color _color;
   bool _busy = false;
   String? _error;
 
@@ -272,7 +280,12 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
   void initState() {
     super.initState();
     final existing = widget.existing;
-    if (existing != null) _color = colorFromHex(existing.color);
+    // A new label starts neutral rather than uncoloured: colour on a
+    // label is an annotation somebody opts into, and a hue assigned on
+    // its behalf is one it can never be seen not to have.
+    _color = existing == null
+        ? neutralSwatch
+        : colorFromHex(existing.color) ?? neutralSwatch;
     _name.addListener(_onNameChanged);
   }
 
@@ -295,7 +308,7 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
     });
 
     final name = _name.text.trim();
-    final color = _color == null ? null : _toHex(_color!);
+    final color = _toHex(_color);
     final existing = widget.existing;
 
     final reason = existing == null
@@ -317,9 +330,6 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = _swatches(theme.brightness);
-    // On create, nothing is chosen yet: leaving the colour null lets the
-    // server derive one from the new label's own ID, which spreads hues
-    // better than anything a picker default could.
     final selected = _color;
 
     return AlertDialog(
@@ -346,22 +356,11 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
                 for (final swatch in swatches)
                   _Swatch(
                     color: swatch,
-                    selected:
-                        selected != null && _toHex(selected) == _toHex(swatch),
+                    selected: _toHex(selected) == _toHex(swatch),
                     onTap: () => setState(() => _color = swatch),
                   ),
               ],
             ),
-            if (!_isEditing && selected == null)
-              Padding(
-                padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
-                child: Text(
-                  'Leave unpicked and the server chooses one.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
             const SizedBox(height: SoliplexSpacing.s4),
             Align(
               alignment: Alignment.centerLeft,
@@ -369,8 +368,7 @@ class _LabelEditorDialogState extends State<LabelEditorDialog> {
                 label: Text(
                   _name.text.trim().isEmpty ? 'Preview' : _name.text.trim(),
                 ),
-                color: selected ??
-                    hashedHueColor(_name.text.trim(), theme.brightness),
+                color: selected,
               ),
             ),
             if (_error != null)

@@ -218,8 +218,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(api.createLabelCalls.single.name, equals('Manuals'));
+      // Colour is an annotation somebody opts into: a new label goes out
+      // neutral rather than picking up a hue on its own behalf.
+      expect(api.createLabelCalls.single.color, equals('#808080'));
       // Painted from the write response rather than a refetch.
       expect(find.widgetWithText(LabelChip, 'Manuals'), findsOneWidget);
+    });
+
+    testWidgets('offers the neutral grey back when editing', (tester) async {
+      // The grey a label is created with has to be reachable in the
+      // picker, or the editor cannot show an uncoloured label as it is —
+      // and colouring one would be a one-way door.
+      await _pumpLobby(
+        tester,
+        labels: const [ThreadLabel(id: 1, name: 'Manuals', color: '#808080')],
+      );
+      await _openLabelsTab(tester);
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+
+      final grey = tester.widget<Semantics>(
+        find
+            .ancestor(
+              of: find.byType(InkWell),
+              matching: find.bySemanticsLabel('Colour #808080'),
+            )
+            .first,
+      );
+      expect(grey.properties.selected, isTrue);
     });
 
     testWidgets('reports a duplicate name inside the dialog', (tester) async {
