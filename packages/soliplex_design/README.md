@@ -29,12 +29,15 @@ golden snapshots under
 | Breakpoints           | `SoliplexBreakpoints.{mobile,tablet,desktop}` (320 / 600 / 840)                                      |
 | Identity color        | `hashedHueColor(seed, brightness)` — deterministic per seed, tuned per theme (room avatars, labels)  |
 | Data-supplied color   | `colorFromHex('#RRGGBB')` — returns `null` when unparseable, so the caller picks its own fallback    |
+| Uncolored default     | `neutralSwatch` — the zero-saturation grey a label wears until someone picks a color for it          |
+| Quieting a swatch     | `swatchTint(color, brightness)` — `(fill, outline, content)`, desaturated and alpha'd for annotations |
 
 > `hashedHueColor` and `colorFromHex` exist so nothing outside this package
 > has to write `Color(0x...)` for a color that is *data* rather than a token —
 > a user-chosen label swatch, or a hue derived from a record's identity. Use
-> `SoliplexChip.colored` to render one; it derives its own foreground, so an
-> arbitrary swatch cannot produce unreadable text.
+> `SoliplexChip.colored` to render one: it lowers the swatch through
+> `swatchTint` into a wash, an outline, and text, so an arbitrary color can be
+> neither unreadable nor loud enough to out-shout what it annotates.
 >
 > The `SymbolicColors` entries are single shades. For errors **with** a
 > container surface use `colorScheme.errorContainer` / `onErrorContainer` —
