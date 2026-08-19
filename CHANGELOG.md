@@ -8,6 +8,8 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+## [0.99.3+82] - 2026-08-19
+
 ### Changed
 
 - Failure messages can now be selected and copied. Until now the transcript was
