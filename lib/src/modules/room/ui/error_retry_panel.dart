@@ -30,7 +30,8 @@ class ErrorRetryPanel extends StatelessWidget {
         children: [
           Text(title, style: theme.textTheme.bodyMedium),
           const SizedBox(height: SoliplexSpacing.s1),
-          Text(
+          // Outside the transcript's SelectionArea — this panel replaces it.
+          SelectableText(
             error.toString(),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
 import 'package:soliplex_frontend/src/modules/auth/server_entry.dart';
+import 'package:soliplex_frontend/src/shared/selectable_content.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_info_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/upload_tracker_registry.dart';
 
@@ -117,6 +118,23 @@ void main() {
       expect(find.text('AGENT'), findsOneWidget);
       expect(find.text('gpt-4o'), findsOneWidget);
       expect(find.text('openai'), findsOneWidget);
+    });
+
+    testWidgets('the identifiers on this screen can be selected',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      // One region above every card, rather than a selectable widget per row:
+      // a selection widget wins the gesture arena, so one placed inside a card
+      // would leave its tap-to-expand rows dead to taps.
+      expect(
+        find.ancestor(
+          of: find.text('gpt-4o'),
+          matching: find.byType(SelectableContent),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows features card', (tester) async {

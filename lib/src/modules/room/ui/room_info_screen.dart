@@ -23,6 +23,7 @@ import 'room_info/quizzes_card.dart';
 import 'room_info/room_info_widgets.dart';
 import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
+import '../../../shared/selectable_content.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class RoomInfoScreen extends StatefulWidget {
@@ -170,87 +171,89 @@ class _RoomInfoBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(SoliplexSpacing.s4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SectionCard(
-            title: 'SERVER',
-            children: [
-              Text(
-                formatServerUrl(serverUrl),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+      child: SelectableContent(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionCard(
+              title: 'SERVER',
+              children: [
+                Text(
+                  formatServerUrl(serverUrl),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+            SectionCard(
+              title: 'ROOM',
+              children: [
+                Text(
+                  room.name,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+            if (room.hasDescription)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
+                child: Text(
+                  room.description,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ),
-            ],
-          ),
-          SectionCard(
-            title: 'ROOM',
-            children: [
-              Text(
-                room.name,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-          if (room.hasDescription)
-            Padding(
-              padding: const EdgeInsets.only(bottom: SoliplexSpacing.s4),
-              child: Text(
-                room.description,
-                style: Theme.of(context).textTheme.bodyLarge,
+            _AgentCard(agent: room.agent),
+            FeaturesCard(room: room, api: api, roomId: roomId),
+            QuizzesCard(
+              quizzes: room.quizzes,
+              onQuizTapped: (quizId) => context.go(
+                AppRoutes.quiz(
+                  serverAlias,
+                  roomId,
+                  quizId,
+                  from: AppRoutes.roomInfo(serverAlias, roomId),
+                ),
               ),
             ),
-          _AgentCard(agent: room.agent),
-          FeaturesCard(room: room, api: api, roomId: roomId),
-          QuizzesCard(
-            quizzes: room.quizzes,
-            onQuizTapped: (quizId) => context.go(
-              AppRoutes.quiz(
-                serverAlias,
-                roomId,
-                quizId,
-                from: AppRoutes.roomInfo(serverAlias, roomId),
+            ExpandableListCard<MapEntry<String, RoomSkill>>(
+              key: const ValueKey('skills'),
+              title: 'SKILLS',
+              items: room.skills.entries.toList(),
+              nameOf: (e) => e.key,
+              contentOf: (e) => buildSkillContent(e.value),
+            ),
+            ExpandableListCard<MapEntry<String, RoomTool>>(
+              key: const ValueKey('tools'),
+              title: 'TOOLS',
+              items: room.tools.entries.toList(),
+              nameOf: (e) => e.key,
+              contentOf: (e) => _buildToolContent(e.value),
+            ),
+            ExpandableListCard<MapEntry<String, McpClientToolset>>(
+              key: const ValueKey('mcp-toolsets'),
+              title: 'MCP CLIENT TOOLSETS',
+              emptyLabel: 'MCP client toolsets',
+              items: room.mcpClientToolsets.entries.toList(),
+              nameOf: (e) => e.key,
+              contentOf: (e) => _buildToolsetContent(e.value),
+            ),
+            ClientToolsCard(clientToolsFuture: clientToolsFuture),
+            if (room.supportsAttachments)
+              _UploadedFilesCard(
+                uploadRegistry: uploadRegistry,
+                serverEntry: serverEntry,
+                roomId: roomId,
               ),
+            DocumentsCard(
+              documentsFuture: documentsFuture,
+              onRetry: onRetryDocuments,
             ),
-          ),
-          ExpandableListCard<MapEntry<String, RoomSkill>>(
-            key: const ValueKey('skills'),
-            title: 'SKILLS',
-            items: room.skills.entries.toList(),
-            nameOf: (e) => e.key,
-            contentOf: (e) => buildSkillContent(e.value),
-          ),
-          ExpandableListCard<MapEntry<String, RoomTool>>(
-            key: const ValueKey('tools'),
-            title: 'TOOLS',
-            items: room.tools.entries.toList(),
-            nameOf: (e) => e.key,
-            contentOf: (e) => _buildToolContent(e.value),
-          ),
-          ExpandableListCard<MapEntry<String, McpClientToolset>>(
-            key: const ValueKey('mcp-toolsets'),
-            title: 'MCP CLIENT TOOLSETS',
-            emptyLabel: 'MCP client toolsets',
-            items: room.mcpClientToolsets.entries.toList(),
-            nameOf: (e) => e.key,
-            contentOf: (e) => _buildToolsetContent(e.value),
-          ),
-          ClientToolsCard(clientToolsFuture: clientToolsFuture),
-          if (room.supportsAttachments)
-            _UploadedFilesCard(
-              uploadRegistry: uploadRegistry,
-              serverEntry: serverEntry,
-              roomId: roomId,
-            ),
-          DocumentsCard(
-            documentsFuture: documentsFuture,
-            onRetry: onRetryDocuments,
-          ),
-          ChunkLookupCard(api: api, roomId: roomId),
-        ],
+            ChunkLookupCard(api: api, roomId: roomId),
+          ],
+        ),
       ),
     );
   }

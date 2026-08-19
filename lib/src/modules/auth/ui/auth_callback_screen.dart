@@ -183,7 +183,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         children: [
           Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
           const SizedBox(height: SoliplexSpacing.s4),
-          Text(
+          SelectableText(
             _error ?? 'An error occurred',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium,

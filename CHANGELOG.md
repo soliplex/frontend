@@ -10,6 +10,25 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- Failure messages can now be selected and copied. Until now the transcript was
+  the only place text could be selected, which left the strings worth reporting
+  — the exception behind a failed load or send, the reason a connection or
+  sign-in was refused, an upload's error, the detail behind a failed sign-out —
+  readable but impossible to get out of the app except by retyping. The
+  send-failure banner also gains a copy button, because it shows at most two
+  lines and a drag can only take the text that was painted. Server maintenance
+  and outage notices are selectable for the same reason: they are written to be
+  acted on elsewhere. Attached filenames can be selected alongside the upload
+  errors beside them. A room's details are selectable throughout — the model
+  name, provider, tool kinds and skill fields a user would quote when asking
+  about a room's setup.
+- Typing on the connect screen while the URL field has lost focus no longer
+  swallows the first character. The field only takes focus after the keystroke
+  has been dispatched, so until now that character went nowhere; it is now
+  entered along with the focus. A keystroke only counts as typing, so a shortcut
+  chord keeps its meaning and leaves any selection alone, control keys enter
+  nothing, and a keystroke aimed at a dialog over the screen no longer reaches
+  the field behind it.
 - The full-size image and SVG viewer now has a close button in its top-right
   corner. Tapping the backdrop already dismissed it, but nothing said so: on a
   full-bleed image there is no visible backdrop to aim at, and a screen reader

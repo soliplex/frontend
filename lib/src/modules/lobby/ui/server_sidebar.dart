@@ -634,7 +634,7 @@ class _LogoutErrorButton extends StatelessWidget {
               ? 'Server kept — sign-out failed'
               : 'Log out failed',
         ),
-        content: Text(failure.message),
+        content: SelectableText(failure.message),
         actions: [
           SoliplexButton.text(
             onPressed: () => Navigator.pop(context),

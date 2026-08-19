@@ -16,6 +16,8 @@ import '../server_entry.dart';
 import '../server_manager.dart';
 import 'connect_flow_rail.dart';
 import 'home_shell.dart';
+import '../../../shared/selectable_content.dart';
+import '../../../shared/type_to_focus.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -179,9 +181,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _handleKey(KeyEvent event) {
     if (_flow.state.value is! UrlInput) return false;
     if (_urlFocusNode.hasFocus) return false;
-    if (event is! KeyDownEvent) return false;
+    // A dialog over this screen owns the keyboard; the field behind it is not
+    // what the user is typing into. The flow state stays UrlInput throughout.
+    if (ModalRoute.of(context)?.isCurrent == false) return false;
+    final keyboard = HardwareKeyboard.instance;
+    if (!shouldFocusInputOnKey(
+      event,
+      isMetaPressed: keyboard.isMetaPressed,
+      isControlPressed: keyboard.isControlPressed,
+      isAltPressed: keyboard.isAltPressed,
+    )) {
+      return false;
+    }
     _urlFocusNode.requestFocus();
-    return false;
+
+    // Focus only lands after this event has been dispatched, so the field has
+    // no input connection to receive it and the character would be dropped —
+    // from a keystroke the user plainly meant for the field. Type it here.
+    if (!isTypedText(event.character)) return false;
+
+    final text = _urlController.text + event.character!;
+    _urlController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    return true;
   }
 
   // -- Shared layout --
@@ -280,11 +304,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Icon(Icons.public, size: 16, color: colors.onSurfaceVariant),
                 const SizedBox(width: SoliplexSpacing.s2),
                 Expanded(
-                  child: Text(
-                    _urlController.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.monospaceOn(theme.textTheme.bodySmall),
+                  child: SelectableContent(
+                    child: Text(
+                      _urlController.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.monospaceOn(theme.textTheme.bodySmall),
+                    ),
                   ),
                 ),
               ],
@@ -368,7 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 borderRadius: BorderRadius.circular(context.radii.sm),
                 border: Border.all(color: colors.outlineVariant),
               ),
-              child: Text(
+              child: SelectableText(
                 probeResult.serverUrl.toString(),
                 style: context.monospaceOn(theme.textTheme.bodySmall),
               ),
@@ -702,7 +728,7 @@ class UrlMessageBanner extends StatelessWidget {
               ),
               const SizedBox(width: SoliplexSpacing.s2),
               Expanded(
-                child: Text(
+                child: SelectableText(
                   text,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onErrorContainer,
@@ -712,7 +738,7 @@ class UrlMessageBanner extends StatelessWidget {
             ],
           ),
         ),
-      ConnectNotice(:final text) => Text(
+      ConnectNotice(:final text) => SelectableText(
           text,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,

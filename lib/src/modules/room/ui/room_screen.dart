@@ -55,6 +55,7 @@ import 'approval_handler.dart';
 import 'chat_classification.dart';
 import 'chat_input.dart';
 import 'chunk_visualization_page.dart';
+import 'copy_button.dart';
 import 'document_picker.dart';
 import 'error_retry_panel.dart';
 import 'inline_image_composer_controller.dart';
@@ -67,50 +68,12 @@ import '../../auth/auth_tokens.dart';
 import 'upload_event_banner.dart';
 import '../upload_tracker.dart';
 import '../upload_tracker_registry.dart';
+import '../../../shared/selectable_content.dart';
+import '../../../shared/type_to_focus.dart';
 import 'package:soliplex_design/soliplex_design.dart';
 
 final Logger _logger =
     LogManager.instance.getLogger('soliplex_frontend.room_screen');
-
-final _modifierKeys = <LogicalKeyboardKey>{
-  LogicalKeyboardKey.meta,
-  LogicalKeyboardKey.metaLeft,
-  LogicalKeyboardKey.metaRight,
-  LogicalKeyboardKey.control,
-  LogicalKeyboardKey.controlLeft,
-  LogicalKeyboardKey.controlRight,
-  LogicalKeyboardKey.alt,
-  LogicalKeyboardKey.altLeft,
-  LogicalKeyboardKey.altRight,
-  LogicalKeyboardKey.shift,
-  LogicalKeyboardKey.shiftLeft,
-  LogicalKeyboardKey.shiftRight,
-};
-
-/// Whether a key press should pull focus into the chat composer
-/// ("type to focus"). Only real typing does — never a bare modifier, and never
-/// while a shortcut modifier is held, so shortcuts like copy and select-all
-/// leave the transcript's [SelectionArea] selection intact instead of clearing
-/// it by moving focus.
-///
-/// Control *combined with* alt is treated as typing, not a shortcut: Windows
-/// synthesizes AltGr as Ctrl+Alt to compose special characters (`@`, `€`, `{`,
-/// …), so those keystrokes must still focus-and-type. Plain Alt/Option is
-/// likewise typing. A genuine Ctrl+Alt shortcut therefore focuses the composer
-/// too, which is harmless: callers move focus and leave the keystroke to run its
-/// normal course, so the shortcut still fires.
-bool shouldFocusChatInputOnKey(
-  KeyEvent event, {
-  required bool isMetaPressed,
-  required bool isControlPressed,
-  required bool isAltPressed,
-}) {
-  if (event is! KeyDownEvent) return false;
-  if (_modifierKeys.contains(event.logicalKey)) return false;
-  final shortcutModifierActive =
-      isMetaPressed || (isControlPressed && !isAltPressed);
-  return !shortcutModifierActive;
-}
 
 /// Whether a key press is [platform]'s paste chord: `V` under the command
 /// modifier that platform pastes with — meta on Apple, control elsewhere — and
@@ -1352,7 +1315,7 @@ class _RoomScreenState extends State<RoomScreen> {
       // stops the browser adding a copy of its own.
       return true;
     }
-    if (!shouldFocusChatInputOnKey(
+    if (!shouldFocusInputOnKey(
       event,
       isMetaPressed: keyboard.isMetaPressed,
       isControlPressed: keyboard.isControlPressed,
@@ -2131,29 +2094,34 @@ class _RoomScreenState extends State<RoomScreen> {
           // dismiss) on file rows.
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(right: SoliplexSpacing.s3),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (bothEmpty)
-                  Text(
-                    'No files attached.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  )
-                else ...[
-                  _buildScopeSection('Room', roomStatus, theme),
-                  // The divider sits between two visible sections. A
-                  // scope is "visible" when it's Loading or Failed
-                  // (those render a section row), or Loaded with at
-                  // least one file.
-                  if (_scopeRendersContent(roomStatus) &&
-                      _scopeRendersContent(threadStatus))
-                    const Divider(height: 12),
-                  _buildScopeSection('Thread', threadStatus, theme),
+            // One area over the panel covers the filenames and each row's
+            // upload error; sitting above the rows' own handlers leaves their
+            // taps intact.
+            child: SelectableContent(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (bothEmpty)
+                    Text(
+                      'No files attached.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    )
+                  else ...[
+                    _buildScopeSection('Room', roomStatus, theme),
+                    // The divider sits between two visible sections. A
+                    // scope is "visible" when it's Loading or Failed
+                    // (those render a section row), or Loaded with at
+                    // least one file.
+                    if (_scopeRendersContent(roomStatus) &&
+                        _scopeRendersContent(threadStatus))
+                      const Divider(height: 12),
+                    _buildScopeSection('Thread', threadStatus, theme),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -2556,6 +2524,7 @@ class _SendErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final errorText = error.error.toString();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -2566,14 +2535,23 @@ class _SendErrorBanner extends StatelessWidget {
           Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
           const SizedBox(width: SoliplexSpacing.s2),
           Expanded(
-            child: Text(
-              error.error.toString(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
+            child: SelectableContent(
+              child: Text(
+                errorText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
+          ),
+          // Two lines rarely hold a whole exception, and a drag can only select
+          // the glyphs that were painted. This copies the untruncated text.
+          CopyButton(
+            text: errorText,
+            tooltip: 'Copy error',
+            iconSize: 16,
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 16),

@@ -6,6 +6,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' show SoliplexHttpClient;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../shared/selectable_content.dart';
 import '../../core/status_message_config.dart';
 import '../status_message.dart';
 import '../status_message_controller.dart';
@@ -196,10 +197,14 @@ class _StatusMessageBannerState extends ConsumerState<StatusMessageBanner> {
                 child: Icon(_icon(message.category), color: fg),
               ),
               const SizedBox(width: SoliplexSpacing.s3),
+              // Operators write these to be acted on elsewhere — a maintenance
+              // window or an outage detail gets pasted into a ticket.
               Expanded(
-                child: _expanded
-                    ? _expandedContent(context, message, pill, window, fg)
-                    : _collapsedContent(context, message, pill, fg),
+                child: SelectableContent(
+                  child: _expanded
+                      ? _expandedContent(context, message, pill, window, fg)
+                      : _collapsedContent(context, message, pill, fg),
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),

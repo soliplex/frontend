@@ -23,6 +23,7 @@ import 'package:soliplex_frontend/src/modules/room/thread_read_markers.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_classification.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/chat_input.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_rail.dart';
+import 'package:soliplex_frontend/src/shared/type_to_focus.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/room_screen.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_sidebar.dart';
 import 'package:soliplex_frontend/src/modules/room/ui/thread_tile.dart';
@@ -132,7 +133,7 @@ Widget _buildRouted({
 }
 
 void main() {
-  group('shouldFocusChatInputOnKey', () {
+  group('shouldFocusInputOnKey', () {
     KeyDownEvent down(LogicalKeyboardKey key) => KeyDownEvent(
           physicalKey: PhysicalKeyboardKey.keyA,
           logicalKey: key,
@@ -145,7 +146,7 @@ void main() {
       bool control = false,
       bool alt = false,
     }) =>
-        shouldFocusChatInputOnKey(
+        shouldFocusInputOnKey(
           event,
           isMetaPressed: meta,
           isControlPressed: control,
