@@ -7,13 +7,30 @@ final Logger _logger = LogManager.instance.getLogger('soliplex.status_message');
 
 typedef StatusMessageFetcher = Future<StatusMessage?> Function();
 
+/// Seeded from the wall clock so a relaunch cannot reuse a value a previous
+/// run already spent, then incremented so two polls in the same millisecond
+/// still differ.
+int _cacheBuster = DateTime.now().millisecondsSinceEpoch;
+
+/// Operators cancel a banner by deleting the file, so a cached response keeps
+/// a withdrawn message on screen. The hosting block ships no `Cache-Control`,
+/// which leaves browsers and NSURLSession free to apply heuristic freshness; a
+/// per-fetch parameter makes every poll a distinct cache key. A fixed marker
+/// would not — it is just a different stable key.
+Uri _cacheBusted(Uri uri) => uri.replace(
+      queryParameters: <String, dynamic>{
+        ...uri.queryParametersAll,
+        '_': (_cacheBuster++).toString(),
+      },
+    );
+
 Future<StatusMessage?> fetchStatusMessage({
   required Uri baseUrl,
   required SoliplexHttpClient client,
   required String path,
 }) async {
   final transport = HttpTransport(client: client);
-  final uri = baseUrl.resolve(path);
+  final uri = _cacheBusted(baseUrl.resolve(path));
   try {
     final json = await transport.request<Map<String, dynamic>>('GET', uri);
     final message = StatusMessage.fromJson(json);

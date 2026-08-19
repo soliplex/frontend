@@ -39,6 +39,17 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   ends on rather than trailing off into words that repeat what the screen
   already shows.
 
+### Fixed
+
+- A status message that operators withdraw now clears within one poll instead
+  of lingering for hours. The app asked for the same address on every poll, so
+  a browser or system HTTP cache was free to answer from the copy it already
+  held; with the file served without any statement of how long it stays good,
+  those caches fall back to a guess proportional to the file's age, which for a
+  message posted days earlier runs to hours. Each poll now carries a value no
+  earlier poll used, which no cache can have an answer for. Edits to a posted
+  message reach readers on the same schedule.
+
 ## [0.99.2+81] - 2026-08-17
 
 ### Added
