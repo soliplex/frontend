@@ -818,6 +818,128 @@ void main() {
       expect(focusNode.hasFocus, isTrue);
     });
 
+    testWidgets('a keystroke that restores focus is not swallowed',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      final editableText = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(TextFormField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      editableText.focusNode.unfocus();
+      await tester.pumpAndSettle();
+
+      // Focus lands on the field only after this event is dispatched, so the
+      // field holds no input connection and the character would be lost.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyH);
+      await tester.pumpAndSettle();
+
+      expect(editableText.controller.text, 'h');
+    });
+
+    testWidgets('a shortcut chord leaves focus and selection alone',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      final editableText = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(TextFormField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      editableText.focusNode.unfocus();
+      await tester.pumpAndSettle();
+
+      // Copying selected text on this screen starts with a bare modifier. If
+      // that pulled focus to the URL field, the field would select-all and the
+      // copy would take the URL instead of what the user highlighted.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      expect(editableText.focusNode.hasFocus, isFalse);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    });
+
+    testWidgets('a keystroke behind a dialog does not reach the URL field',
+        (tester) async {
+      final serverManager = _createServerManager();
+      serverManager.addServer(
+        serverId: 'test',
+        serverUrl: Uri.parse('https://api.example.com'),
+      );
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove server?'), findsOneWidget);
+
+      final editableText = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(TextFormField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      final before = editableText.controller.text;
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
+      await tester.pumpAndSettle();
+
+      expect(editableText.controller.text, before);
+    });
+
+    testWidgets('a restored keystroke appends rather than replacing',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(
+        serverManager: serverManager,
+        defaultBackendUrl: 'https://api.example.com',
+      ));
+      await tester.pumpAndSettle();
+
+      final editableText = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(TextFormField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      editableText.focusNode.unfocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
+      await tester.pumpAndSettle();
+
+      expect(editableText.controller.text, 'https://api.example.comx');
+    });
+
+    testWidgets('a control key restores focus without typing anything',
+        (tester) async {
+      final serverManager = _createServerManager();
+      await tester.pumpWidget(_buildApp(serverManager: serverManager));
+      await tester.pumpAndSettle();
+
+      final editableText = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(TextFormField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      editableText.focusNode.unfocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+
+      expect(editableText.focusNode.hasFocus, isTrue);
+      expect(editableText.controller.text, isEmpty);
+    });
+
     testWidgets('no server section when no servers exist', (tester) async {
       final serverManager = _createServerManager();
       await tester.pumpWidget(_buildApp(serverManager: serverManager));

@@ -856,7 +856,7 @@ class _ServerSection extends StatelessWidget {
           RoomsFailed(:final error) => Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: SoliplexSpacing.s4),
-              child: Text(switch (error) {
+              child: SelectableText(switch (error) {
                 PermissionDeniedException() =>
                   "You don't have permission to view rooms on this server.",
                 _ => 'Failed to load rooms: $error',

@@ -32,6 +32,27 @@ void main() {
       expect(decoration.color, equals(theme.colorScheme.errorContainer));
     });
 
+    testWidgets('connect failure text can be selected for copying',
+        (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          UrlMessageBanner(
+            message: const ConnectError(
+              'Cannot reach https://example.invalid. (503)',
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.widgetWithText(
+          SelectableText,
+          'Cannot reach https://example.invalid. (503)',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('ConnectNotice shows text, no icon, no error container',
         (tester) async {
       await tester.pumpWidget(

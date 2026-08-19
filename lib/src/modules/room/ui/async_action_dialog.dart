@@ -89,7 +89,7 @@ class _AsyncActionDialogState extends State<AsyncActionDialog> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: SoliplexSpacing.s2),
-              child: Text(
+              child: SelectableText(
                 _error!,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,

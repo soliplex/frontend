@@ -53,6 +53,28 @@ void main() {
       expect(retried, 1);
     });
 
+    testWidgets('the error detail can be selected for copying', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ErrorRetryPanel(
+              title: 'Failed to load messages',
+              error: Exception('connection closed before full header'),
+              onRetry: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.widgetWithText(
+          SelectableText,
+          'Exception: connection closed before full header',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('auth error without onReauthenticate falls back to Retry',
         (tester) async {
       await tester.pumpWidget(
