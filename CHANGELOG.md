@@ -8,6 +8,14 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ## [Unreleased]
 
+### Changed
+
+- The iOS build declares one minimum OS version throughout. The app has
+  required iOS 16 since the platform was configured, but the bundled
+  `App.framework` still announced 13.0, so the two disagreed about the oldest
+  system the build supports. Both now read 16.0. Apple reads only the app's own
+  value, so the version the App Store enforces is unchanged.
+
 ## [0.99.3+82] - 2026-08-19
 
 ### Changed
