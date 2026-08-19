@@ -10,6 +10,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The full-size image and SVG viewer now has a close button in its top-right
+  corner. Tapping the backdrop already dismissed it, but nothing said so: on a
+  full-bleed image there is no visible backdrop to aim at, and a screen reader
+  user had nothing to land on at all. The viewer's own rotate and reset controls
+  move to the opposite corner to keep both reachable.
 - The information level under the composer now reads "Information level is:
   LEVEL" and sits tighter to the composer, so the level itself is what the line
   ends on rather than trailing off into words that repeat what the screen

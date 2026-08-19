@@ -12,6 +12,10 @@ import 'package:soliplex_design/soliplex_design.dart';
 /// which Flutter would otherwise route to a (clamped, invisible) pan.
 ///
 /// A reset control appears while zoomed. A rotate control is always shown.
+/// Both sit in the top-left, leaving the opposite corner free for whatever
+/// affordance the host puts there. The view carries no dismissal of its own:
+/// every host that embeds it already provides one.
+///
 /// Rotation is self-managed by default; use [ZoomableView.controlledRotation]
 /// to own rotation from the caller so it can persist across paging (e.g. per
 /// document page).
@@ -104,25 +108,27 @@ class _ZoomableViewState extends State<ZoomableView> {
             ),
           ),
         ),
-        // A quick way back to fit without scrolling all the way out. Shown only
-        // while zoomed.
-        if (_zoomed)
-          Positioned(
-            left: SoliplexSpacing.s2,
-            top: SoliplexSpacing.s2,
-            child: IconButton.filledTonal(
-              onPressed: _reset,
-              icon: const Icon(Icons.zoom_out_map),
-              tooltip: 'Reset zoom',
-            ),
-          ),
+        // Rotate is anchored at the edge so it keeps its position when reset
+        // appears beside it.
         Positioned(
-          right: SoliplexSpacing.s2,
+          left: SoliplexSpacing.s2,
           top: SoliplexSpacing.s2,
-          child: IconButton.filledTonal(
-            onPressed: _rotate,
-            icon: const Icon(Icons.rotate_right),
-            tooltip: 'Rotate',
+          child: Row(
+            spacing: SoliplexSpacing.s2,
+            children: [
+              IconButton.filledTonal(
+                onPressed: _rotate,
+                icon: const Icon(Icons.rotate_right),
+                tooltip: 'Rotate',
+              ),
+              // A quick way back to fit without scrolling all the way out.
+              if (_zoomed)
+                IconButton.filledTonal(
+                  onPressed: _reset,
+                  icon: const Icon(Icons.zoom_out_map),
+                  tooltip: 'Reset zoom',
+                ),
+            ],
           ),
         ),
       ],
@@ -132,7 +138,8 @@ class _ZoomableViewState extends State<ZoomableView> {
 
 /// Opens [viewer] full-size in a centered dialog, with an optional [caption]
 /// row beneath it, so the image and SVG zoom paths frame the viewer
-/// identically.
+/// identically. The dialog frame owns the close control, which is why
+/// [ZoomableView] has none.
 Future<void> showZoomableMediaDialog(
   BuildContext context, {
   required Widget viewer,
@@ -147,11 +154,28 @@ Future<void> showZoomableMediaDialog(
           maxWidth: 800,
           maxHeight: MediaQuery.sizeOf(context).height * 0.85,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            Expanded(child: viewer),
-            if (caption != null) caption,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(child: viewer),
+                if (caption != null) caption,
+              ],
+            ),
+            // The barrier dismisses too, but not discoverably: this is the way
+            // out a pointer or screen reader user can find. Kept in the corner
+            // the viewer leaves free, so it never covers the viewer's own
+            // controls.
+            Positioned(
+              right: SoliplexSpacing.s2,
+              top: SoliplexSpacing.s2,
+              child: IconButton.filledTonal(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+                tooltip: 'Close',
+              ),
+            ),
           ],
         ),
       ),

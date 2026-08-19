@@ -14,6 +14,32 @@ Widget _wrap(Widget child) => MaterialApp(
 InteractiveViewer _viewer(WidgetTester tester) =>
     tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
 
+int _quarterTurns(WidgetTester tester) =>
+    tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns;
+
+/// Pumps a host that opens the media dialog on tap, then opens it.
+Future<void> _openMediaDialog(WidgetTester tester, {Widget? caption}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showZoomableMediaDialog(
+              context,
+              viewer: const ZoomableView(child: SizedBox()),
+              caption: caption,
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  await tester.tap(find.text('open'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('enables trackpad-scroll zoom (Mac web support)', (tester) async {
     // On Mac web, Flutter routes trackpad two-finger scroll to a pan; with the
@@ -63,12 +89,12 @@ void main() {
     await tester.pumpWidget(_wrap(const ZoomableView(child: SizedBox())));
 
     expect(find.byTooltip('Rotate'), findsOneWidget);
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 0);
+    expect(_quarterTurns(tester), 0);
 
     await tester.tap(find.byTooltip('Rotate'));
     await tester.pump();
 
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
+    expect(_quarterTurns(tester), 1);
   });
 
   testWidgets('rotate delegates to onRotate when provided (no self-rotation)',
@@ -83,7 +109,7 @@ void main() {
     ));
 
     // The caller-supplied rotation is applied to the content.
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 3);
+    expect(_quarterTurns(tester), 3);
 
     await tester.tap(find.byTooltip('Rotate'));
     await tester.pump();
@@ -91,6 +117,35 @@ void main() {
     expect(rotations, 1);
     // Caller owns rotation; the view does not rotate itself — it stays at the
     // caller's value until the caller updates it.
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 3);
+    expect(_quarterTurns(tester), 3);
+  });
+
+  testWidgets('media dialog close control dismisses without shadowing rotate',
+      (tester) async {
+    await _openMediaDialog(tester);
+    expect(find.byType(Dialog), findsOneWidget);
+
+    // The dialog's close control sits over the viewer, so it can swallow taps
+    // meant for the viewer's own controls. Rotating has to still rotate, and
+    // must not dismiss.
+    await tester.tap(find.byTooltip('Rotate'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(_quarterTurns(tester), 1);
+
+    // The barrier dismisses as well; the button is the affordance a pointer or
+    // screen reader user can find.
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('media dialog shows the caption beneath the viewer',
+      (tester) async {
+    await _openMediaDialog(tester, caption: const Text('figure 1'));
+
+    expect(find.text('figure 1'), findsOneWidget);
   });
 }
