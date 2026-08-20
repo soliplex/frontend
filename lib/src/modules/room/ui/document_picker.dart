@@ -1,12 +1,14 @@
-import 'dart:developer' as developer;
-
 import 'package:flutter/material.dart';
 import 'package:soliplex_client/soliplex_client.dart' hide State;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../shared/document_display.dart';
 import 'document_label.dart';
 import 'document_source.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.document_picker');
 
 class DocumentPicker extends StatefulWidget {
   const DocumentPicker({
@@ -197,7 +199,7 @@ Future<Set<RagDocument>?> showDocumentPicker({
             );
           } else if (snapshot.hasError) {
             canConfirm = false;
-            developer.log(
+            _logger.warning(
               'Failed to load documents',
               error: snapshot.error,
               stackTrace: snapshot.stackTrace,

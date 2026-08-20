@@ -1,8 +1,10 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.pre_auth_state');
 
 /// State saved before OAuth redirect.
 ///
@@ -151,7 +153,13 @@ abstract final class PreAuthStateStorage {
       }
       return state;
     } catch (e, st) {
-      dev.log('Failed to load pre-auth state', error: e, stackTrace: st);
+      // Warning, not info: the state is cleared right after, so a sign-in
+      // already in flight loses its return target.
+      _logger.warning(
+        'Failed to load pre-auth state',
+        error: e,
+        stackTrace: st,
+      );
       await clear();
       return null;
     }

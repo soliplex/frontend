@@ -1,7 +1,7 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../core/util/debouncer.dart';
 import '../auth/auth_session.dart';
@@ -18,6 +18,8 @@ import 'upload_tracker.dart';
 import 'upload_tracker_registry.dart';
 
 export 'send_error.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.room_state');
 
 sealed class RoomStatus {}
 
@@ -151,32 +153,26 @@ class RoomState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
-      dev.log(
+      _logger.warning(
         'getRoom forbidden (403)',
         error: error,
-        name: 'RoomState',
-        level: 900,
       );
       _room.value = RoomFailed(error);
     } on AuthException catch (error) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
-      dev.log(
+      _logger.warning(
         'getRoom hit AuthException; funneling to markSessionExpired',
         error: error,
-        name: 'RoomState',
-        level: 900,
       );
       _auth.markSessionExpired();
     } on Object catch (error, st) {
       if (token.isCancelled) return;
       _roomFetchToken = null;
-      dev.log(
+      _logger.error(
         'getRoom failed',
         error: error,
         stackTrace: st,
-        name: 'RoomState',
-        level: 1000,
       );
       _room.value = RoomFailed(error);
     }
@@ -234,22 +230,18 @@ class RoomState {
       return threadInfo.id;
     } on PermissionDeniedException catch (error) {
       if (_isDisposed) return null;
-      dev.log(
+      _logger.warning(
         'createThread forbidden (403)',
         error: error,
-        name: 'RoomState',
-        level: 900,
       );
       _lastError.value = SendError(error);
       return null;
     } on Object catch (error, st) {
       if (_isDisposed) return null;
-      dev.log(
+      _logger.error(
         'createThread failed',
         error: error,
         stackTrace: st,
-        name: 'RoomState',
-        level: 1000,
       );
       _lastError.value = SendError(error);
       return null;

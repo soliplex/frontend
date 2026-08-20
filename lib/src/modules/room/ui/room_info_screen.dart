@@ -1,11 +1,11 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide State;
 import 'package:soliplex_client/soliplex_client.dart' hide Room, State;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../pick_file.dart';
 
@@ -25,6 +25,9 @@ import 'room_info/skill_card.dart';
 import 'room_info/system_prompt_viewer.dart';
 import '../../../shared/selectable_content.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.room_info_screen');
 
 class RoomInfoScreen extends StatefulWidget {
   const RoomInfoScreen({
@@ -400,12 +403,10 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
       result = await pick();
     } on PickFilePickerException catch (e, st) {
       if (!mounted) return;
-      dev.log(
+      _logger.error(
         'Pick failed',
         error: e.cause,
         stackTrace: st,
-        name: 'RoomInfoScreen',
-        level: 1000,
       );
       _tracker.recordClientError(
         roomId: widget.roomId,
@@ -416,11 +417,10 @@ class _UploadedFilesCardState extends State<_UploadedFilesCard> {
     }
     if (result == null || !mounted) return;
     for (final itemError in result.errors) {
-      dev.log(
-        'Pick failed for ${itemError.filename}',
+      _logger.error(
+        'Pick failed',
         error: itemError.cause,
-        name: 'RoomInfoScreen',
-        level: 1000,
+        attributes: {'filename': itemError.filename},
       );
       _tracker.recordClientError(
         roomId: widget.roomId,

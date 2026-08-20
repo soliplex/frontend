@@ -1,11 +1,14 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/auth_session.dart';
 import 'composer_draft.dart';
 import 'send_error.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.session_spawner');
 
 /// Owns the pending-spawn state machine shared by [ThreadViewState] and
 /// [RoomState].
@@ -82,21 +85,17 @@ class SessionSpawner {
       succeeded = true;
     } on PermissionDeniedException catch (error) {
       if (_cancelled || isDisposed()) return;
-      dev.log(
+      _logger.warning(
         'Spawn forbidden (403)',
         error: error,
-        name: 'SessionSpawner',
-        level: 900,
       );
       errorSignal.value =
           SendError(error, unsentText: encodeComposerDraft(prompt));
     } on AuthException catch (error) {
       if (_cancelled || isDisposed()) return;
-      dev.log(
+      _logger.warning(
         'Spawn hit AuthException; funneling to markSessionExpired',
         error: error,
-        name: 'SessionSpawner',
-        level: 900,
       );
       // The persistence callback runs first so the caller can save
       // state the redirect would otherwise drop, but a throw here must
@@ -104,12 +103,10 @@ class SessionSpawner {
       try {
         onAuthExpired?.call(prompt);
       } catch (callbackError, st) {
-        dev.log(
+        _logger.error(
           'onAuthExpired callback threw; continuing to markSessionExpired',
           error: callbackError,
           stackTrace: st,
-          name: 'SessionSpawner',
-          level: 1000,
         );
       }
       _auth.markSessionExpired();
@@ -117,12 +114,10 @@ class SessionSpawner {
       if (_cancelled || isDisposed()) return;
       // The banner shows only `error.toString()`, so an unanticipated failure
       // leaves no other trace of where it came from.
-      dev.log(
+      _logger.error(
         'Spawn failed',
         error: error,
         stackTrace: st,
-        name: 'SessionSpawner',
-        level: 1000,
       );
       errorSignal.value =
           SendError(error, unsentText: encodeComposerDraft(prompt));
@@ -153,23 +148,19 @@ class SessionSpawner {
           // caller is gone, but the auth state machine is the
           // singleton funnel and still needs the signal — otherwise
           // the next interaction continues with a dead session.
-          dev.log(
+          _logger.warning(
             'Cancelled spawn cleanup hit AuthException; '
             'funneling to markSessionExpired',
             error: e,
             stackTrace: st,
-            name: 'SessionSpawner',
-            level: 900,
           );
           _auth.markSessionExpired();
           return;
         }
-        dev.log(
+        _logger.warning(
           'Cancelled spawn cleanup failed',
           error: e,
           stackTrace: st,
-          name: 'SessionSpawner',
-          level: 900,
         );
       }),
     );

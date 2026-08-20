@@ -1,9 +1,14 @@
-import 'dart:developer' as dev;
-
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'access_token_identity.dart';
 import 'auth_tokens.dart';
+
+/// Routed through [LogManager] rather than `dart:developer` so these records
+/// reach the in-memory sink the diagnostics screen reads. A `dart:developer`
+/// entry only exists while a VM service is attached, which never holds for the
+/// release builds where refresh failures actually get reported.
+final Logger _logger = LogManager.instance.getLogger('soliplex.auth_session');
 
 /// Manages auth session and implements TokenRefresher for the HTTP client.
 ///
@@ -69,6 +74,10 @@ class AuthSession implements TokenRefresher {
   void markSessionExpired() {
     switch (_session.value) {
       case ActiveSession(:final provider, :final tokens):
+        _logger.warning(
+          'Session flipped ActiveSession -> ExpiredSession; tokens kept',
+          attributes: {'expiresAt': tokens.expiresAt.toIso8601String()},
+        );
         _session.value = ExpiredSession(provider: provider, tokens: tokens);
       case ExpiredSession():
       case NoSession():
@@ -115,11 +124,11 @@ class AuthSession implements TokenRefresher {
         clientId: provider.clientId,
       );
     } on AuthException catch (e, st) {
-      dev.log(
+      _logger.warning(
         'Token refresh threw AuthException; funneling to markSessionExpired',
         error: e,
         stackTrace: st,
-        level: 900,
+        attributes: {'discoveryUrl': provider.discoveryUrl},
       );
       markSessionExpired();
       return false;
@@ -128,13 +137,13 @@ class AuthSession implements TokenRefresher {
       // the AuthException arm above): an unexpected throw here is a
       // bug or a transient anomaly, not proof the IdP grant is dead.
       // Flipping to ExpiredSession would lock the user out for a
-      // recoverable failure. Log SEVERE and let the next API call
+      // recoverable failure. Log at error level and let the next API call
       // surface the real status via AuthException → funnel.
-      dev.log(
+      _logger.error(
         'Token refresh threw before producing a result',
         error: e,
         stackTrace: st,
-        level: 1000,
+        attributes: {'discoveryUrl': provider.discoveryUrl},
       );
       return false;
     }
@@ -158,9 +167,9 @@ class AuthSession implements TokenRefresher {
         return true;
 
       case TokenRefreshFailure(reason: TokenRefreshFailureReason.invalidGrant):
-        dev.log(
-          'Token refresh rejected (invalid_grant) for ${provider.discoveryUrl}',
-          level: 900,
+        _logger.warning(
+          'Token refresh rejected (invalid_grant)',
+          attributes: {'discoveryUrl': provider.discoveryUrl},
         );
         markSessionExpired();
         return false;
@@ -171,21 +180,25 @@ class AuthSession implements TokenRefresher {
         // A refresh attempt without a refresh token is a frontend
         // invariant violation: the session should never have been
         // marked refreshable in the first place.
-        dev.log(
-          'Token refresh requested without a refresh token '
-          'for ${provider.discoveryUrl}',
-          level: 1000,
+        _logger.error(
+          'Token refresh requested without a refresh token',
+          attributes: {'discoveryUrl': provider.discoveryUrl},
         );
         markSessionExpired();
         return false;
 
       case TokenRefreshFailure(:final reason):
         // networkError is recoverable on retry; unknownError is the
-        // anomaly worth a SEVERE entry.
-        dev.log(
-          'Token refresh failed (${reason.name}) for ${provider.discoveryUrl}',
-          level: reason == TokenRefreshFailureReason.networkError ? 900 : 1000,
-        );
+        // anomaly worth recording at error level.
+        final attributes = {
+          'discoveryUrl': provider.discoveryUrl,
+          'reason': reason.name,
+        };
+        if (reason == TokenRefreshFailureReason.networkError) {
+          _logger.warning('Token refresh failed', attributes: attributes);
+        } else {
+          _logger.error('Token refresh failed', attributes: attributes);
+        }
         return false;
     }
   }
