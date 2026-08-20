@@ -1,6 +1,8 @@
-import 'dart:developer' as dev;
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.selected_server_storage');
 
 /// Persists the id of the active server so the lobby can restore the
 /// selection across launches.
@@ -35,11 +37,11 @@ abstract final class SelectedServerStorage {
         await prefs.setString(_key, serverId);
       }
     } catch (e, st) {
-      dev.log(
-        'Failed to persist selected server ($serverId)',
+      _logger.error(
+        'Failed to persist the selected server',
         error: e,
         stackTrace: st,
-        level: 1000,
+        attributes: {'serverId': serverId},
       );
     }
   }

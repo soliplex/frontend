@@ -1,7 +1,7 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
 
 import 'package:soliplex_agent/soliplex_agent.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
@@ -17,6 +17,9 @@ import 'session_spawner.dart';
 import 'tool_calls_extension.dart';
 
 export 'send_error.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.thread_view_state');
 
 sealed class ThreadViewStatus {}
 
@@ -197,12 +200,10 @@ class ThreadViewState {
           .submitFeedback(_roomId, threadId, runId, feedback, reason: reason)
           .then((_) {}, onError: (Object e, StackTrace st) {
         if (e is AuthException) {
-          dev.log(
+          _logger.warning(
             'submitFeedback hit AuthException; funneling to markSessionExpired',
             error: e,
             stackTrace: st,
-            name: 'ThreadViewState',
-            level: 900,
           );
           _auth.markSessionExpired();
           return;
@@ -210,12 +211,10 @@ class ThreadViewState {
         // Fire-and-forget UX: surface nothing inline (thumbs-up is
         // ambient), but keep the failure debuggable so 5xx / decode /
         // programmer errors don't vanish.
-        dev.log(
+        _logger.warning(
           'Feedback submission failed',
           error: e,
           stackTrace: st,
-          name: 'ThreadViewState',
-          level: 900,
         );
       }),
     );
@@ -316,11 +315,9 @@ class ThreadViewState {
           // Both reasons surface to the user only as a friendly string.
           // Without this log, the underlying error and stack are
           // unrecoverable for diagnosis.
-          dev.log(
+          _logger.error(
             'Thread run failed: ${reason.name}',
             error: error,
-            name: 'ThreadViewState',
-            level: 1000,
           );
         }
         _lastSendError.value = SendError(_friendlyMessage(reason, error));
@@ -445,13 +442,11 @@ class ThreadViewState {
     } on PermissionDeniedException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      dev.log(
+      _logger.warning(
         _messages.value is MessagesLoaded
             ? 'Thread history refresh forbidden (403), keeping stale messages'
             : 'Thread history forbidden (403)',
         error: error,
-        name: 'ThreadViewState',
-        level: 900,
       );
       if (_messages.value is! MessagesLoaded) {
         _messages.value = MessagesFailed(error);
@@ -459,11 +454,9 @@ class ThreadViewState {
     } on AuthException catch (error) {
       if (token.isCancelled) return;
       _cancelToken = null;
-      dev.log(
+      _logger.warning(
         'Thread history hit AuthException; funneling to markSessionExpired',
         error: error,
-        name: 'ThreadViewState',
-        level: 900,
       );
       _auth.markSessionExpired();
     } on Object catch (error) {

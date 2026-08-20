@@ -1,6 +1,8 @@
-import 'dart:developer' as dev;
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.default_backend_url');
 
 /// Resolves the default backend URL using platform logic.
 ///
@@ -47,11 +49,11 @@ abstract final class DefaultBackendUrlStorage {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_key, url);
     } catch (e, st) {
-      dev.log(
-        'Failed to persist default backend url ($url)',
+      _logger.error(
+        'Failed to persist the default backend url',
         error: e,
         stackTrace: st,
-        level: 1000,
+        attributes: {'url': url},
       );
     }
   }

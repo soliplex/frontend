@@ -1,12 +1,13 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../modules/auth/auth_providers.dart';
 import '../../modules/auth/inactivity_logout_storage.dart';
 import '../../modules/auth/server_manager.dart';
 import 'inactivity_config.dart';
 import 'inactivity_monitor.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.inactivity');
 
 /// Holds the active [InactivityConfig].
 ///
@@ -37,9 +38,9 @@ final inactivityMonitorProvider = Provider<InactivityMonitor?>((ref) {
     // throw at read time). Returning null keeps the shell bootable for
     // consumers that don't include the auth module; logging leaves a
     // breadcrumb if that assumption ever stops holding.
-    dev.log(
-      'Inactivity monitor disabled: auth providers unavailable ($e).',
-      name: 'soliplex_frontend.inactivity',
+    _logger.warning(
+      'Inactivity monitor disabled: auth providers unavailable',
+      error: e,
     );
     return null;
   }

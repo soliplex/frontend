@@ -1,7 +1,10 @@
 import 'dart:async' show unawaited;
-import 'dart:developer' as dev;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/return_to_storage.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.composer_persistence');
 
 /// Persists [draft] so it survives the route guard's redirect on auth
 /// expiry. Build it with `encodeComposerDraft`, which keeps every image's
@@ -24,11 +27,10 @@ void persistComposerDraft({
       roomId: roomId,
       unsentText: draft,
     ).catchError((Object e, StackTrace st) {
-      dev.log(
+      _logger.error(
         'Failed to persist composer draft for auth roundtrip',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
     }),
   );

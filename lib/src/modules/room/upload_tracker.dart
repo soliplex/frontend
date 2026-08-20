@@ -1,13 +1,15 @@
 import 'dart:async' show unawaited;
 import 'dart:collection' show Queue;
-import 'dart:developer' as dev;
 import 'dart:io' show FileSystemException, SocketException;
 
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:soliplex_client/soliplex_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../auth/auth_session.dart';
 import '../auth/auth_tokens.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.upload_tracker');
 
 /// Sealed status for a single upload scope (a room or a thread).
 ///
@@ -353,21 +355,18 @@ class UploadTracker {
       // no longer the UX channel for an auth failure.
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
-      dev.log(
+      _logger.warning(
         'Upload list refresh hit AuthException; funneling to markSessionExpired',
         error: error,
-        name: 'UploadTracker',
-        level: 900,
       );
       _auth.markSessionExpired();
     } on SoliplexException catch (error) {
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
       if (scope.signal.value is UploadsLoaded) {
-        dev.log(
+        _logger.warning(
           'Upload list refresh failed, keeping stale list',
           error: error,
-          name: 'UploadTracker',
         );
       } else {
         scope.signal.value = UploadsFailed(error);
@@ -379,12 +378,10 @@ class UploadTracker {
       // fetchToken, wedging future refreshes. Wrap and surface.
       if (token.isCancelled || _isDisposed) return;
       scope.fetchToken = null;
-      dev.log(
+      _logger.error(
         'Unexpected error in upload list refresh',
         error: error,
         stackTrace: stackTrace,
-        name: 'UploadTracker',
-        level: 1000,
       );
       if (scope.signal.value is UploadsLoaded) {
         return;
@@ -635,10 +632,9 @@ class UploadTracker {
           // The next attempt re-invokes openStream() (via runPost) and
           // re-enters the auth-aware HTTP stack, which gets a fresh
           // proactive refresh.
-          dev.log(
+          _logger.warning(
             'Upload hit 401; retrying with a fresh stream',
             error: error,
-            name: 'UploadTracker',
           );
           continue;
         }
@@ -654,12 +650,10 @@ class UploadTracker {
           // Non-Soliplex throw indicates a bug (e.g., TypeError from a
           // mapper, StateError from a plugin). Log loudly; the user
           // still sees a Failed row via uploadErrorMessage's fallback.
-          dev.log(
+          _logger.error(
             'Unexpected error during upload POST',
             error: error,
             stackTrace: stackTrace,
-            name: 'UploadTracker',
-            level: 1000,
           );
         }
         _markFailed(scope, id, error);
@@ -674,11 +668,9 @@ class UploadTracker {
       // The dismiss path shouldn't be reachable (UI dismisses only
       // Failed rows); log loudly if it ever fires so the swallowed
       // exception is investigated.
-      dev.log(
+      _logger.error(
         'Upload completed after its pending record was removed',
         error: error,
-        name: 'UploadTracker',
-        level: 1000,
       );
       return;
     }

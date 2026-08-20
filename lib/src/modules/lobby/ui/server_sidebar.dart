@@ -1,9 +1,8 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signals_flutter/signals_flutter.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../../version.dart';
 import '../../../core/app_identity.dart';
@@ -15,6 +14,8 @@ import '../../auth/server_logout.dart';
 import '../../auth/server_manager.dart';
 import '../lobby_state.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.server_sidebar');
 
 class ServerSidebar extends StatelessWidget {
   const ServerSidebar({
@@ -420,7 +421,11 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
     try {
       await Clipboard.setData(ClipboardData(text: address));
     } on Exception catch (e, st) {
-      dev.log('Clipboard.setData failed', error: e, stackTrace: st);
+      _logger.warning(
+        'Clipboard.setData failed',
+        error: e,
+        stackTrace: st,
+      );
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not copy server address')),
       );
@@ -455,8 +460,11 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
           // The user chose to remove despite a failing sign-out; honour it and
           // drop the entry, logging the swallowed error (the IdP session may
           // outlive the entry — the accepted cost of the escape hatch).
-          dev.log('Logout failed; removing server anyway',
-              error: e, stackTrace: st);
+          _logger.warning(
+            'Logout failed; removing the server anyway',
+            error: e,
+            stackTrace: st,
+          );
           widget.serverManager.removeServer(widget.entry.serverId);
           return;
         case _AfterLogout.keep:
@@ -466,7 +474,7 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
           // and, via [_LogoutFailure.removalWasIntended], in the surfaced
           // message.
           final removalWasIntended = then == _AfterLogout.removeOnSuccess;
-          dev.log(
+          _logger.warning(
             removalWasIntended ? 'Logout failed; server kept' : 'Logout failed',
             error: e,
             stackTrace: st,

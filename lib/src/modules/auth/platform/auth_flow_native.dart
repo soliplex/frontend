@@ -1,10 +1,12 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/services.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:soliplex_agent/soliplex_agent.dart' hide AuthException;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'auth_flow.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.auth_flow_native');
 
 /// Creates the native platform implementation of [AuthFlow].
 ///
@@ -56,9 +58,8 @@ class NativeAuthFlow implements AuthFlow {
 
       final accessToken = result.accessToken;
       if (accessToken == null) {
-        dev.log(
-          'NativeAuthFlow: token exchange succeeded but access token was null',
-          level: 1000,
+        _logger.error(
+          'Token exchange succeeded but the access token was null',
         );
         throw const AuthException(
           'IdP returned success but no access token',
@@ -75,22 +76,42 @@ class NativeAuthFlow implements AuthFlow {
     } on AuthException {
       rethrow;
     } on FlutterAppAuthUserCancelledException catch (e, st) {
-      dev.log('NativeAuthFlow: user cancelled', error: e, stackTrace: st);
+      // A deliberate user action, not a fault — so info, which means it is
+      // filtered out of a release build. The flow already renders cancellation
+      // as a distinct notice rather than an error, so a report can tell the
+      // two apart without this record.
+      _logger.info(
+        'User cancelled sign-in',
+        error: e,
+        stackTrace: st,
+      );
       throw const AuthException(
         'User cancelled sign-in',
         kind: AuthFailureKind.cancelled,
       );
     } on FlutterAppAuthPlatformException catch (e, st) {
-      dev.log('NativeAuthFlow: platform exception', error: e, stackTrace: st);
+      _logger.warning(
+        'Sign-in platform exception',
+        error: e,
+        stackTrace: st,
+      );
       throw _classifyAppAuth(e);
     } on PlatformException catch (e, st) {
-      dev.log('NativeAuthFlow: channel exception', error: e, stackTrace: st);
+      _logger.warning(
+        'Sign-in channel exception',
+        error: e,
+        stackTrace: st,
+      );
       throw AuthException(
         'Sign-in channel error: ${e.code}',
         kind: AuthFailureKind.unknown,
       );
     } on Exception catch (e, st) {
-      dev.log('NativeAuthFlow: unexpected', error: e, stackTrace: st);
+      _logger.warning(
+        'Sign-in failed unexpectedly',
+        error: e,
+        stackTrace: st,
+      );
       throw const AuthException(
         'Unexpected sign-in failure',
         kind: AuthFailureKind.unknown,

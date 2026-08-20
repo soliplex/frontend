@@ -1,14 +1,15 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:soliplex_agent/soliplex_agent.dart'
     show SoliplexHttpClient, fetchOidcDiscoveryDocument;
 import 'package:soliplex_client/soliplex_client.dart' show SoliplexException;
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'auth_tokens.dart';
 import 'platform/auth_flow.dart';
 import 'server_entry.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.server_logout');
 
 /// Signs [entry] out of its identity provider, clearing the local session.
 ///
@@ -62,10 +63,9 @@ Future<void> logoutServer({
     // specific session and may ignore it, leaving the IdP session alive. Make
     // that degraded outcome observable rather than passing an empty hint
     // silently.
-    dev.log(
-      'Logout: active session has no id_token; RP-initiated logout omits '
-      'id_token_hint and the IdP may not end its session.',
-      level: 900,
+    _logger.warning(
+      'Active session has no id_token; RP-initiated logout omits '
+      'id_token_hint and the IdP may not end its session',
     );
   }
 
@@ -87,10 +87,9 @@ Future<void> logoutServer({
       // logout is impossible — local state is cleared but the IdP's SSO
       // session stays alive. Make that partial logout observable instead of a
       // silent no-op.
-      dev.log(
+      _logger.warning(
         'Web logout: provider has no end_session_endpoint; cleared local '
-        'session only, IdP session not ended.',
-        level: 900,
+        'session only, IdP session not ended',
       );
     }
     await authFlow.endSession(

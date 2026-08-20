@@ -1,8 +1,7 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import '../../../core/routes.dart';
 import '../auth_failure_description.dart';
@@ -17,6 +16,9 @@ import '../server_entry.dart';
 import '../server_manager.dart';
 import 'home_shell.dart';
 import 'package:soliplex_design/soliplex_design.dart';
+
+final Logger _logger =
+    LogManager.instance.getLogger('soliplex.auth_callback_screen');
 
 class AuthCallbackScreen extends ConsumerStatefulWidget {
   const AuthCallbackScreen({
@@ -53,7 +55,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           _fail('No callback parameters received.');
           return;
         case WebCallbackError(:final error):
-          dev.log('Auth callback returned OAuth error', error: error);
+          _logger.warning(
+            'Auth callback returned an OAuth error',
+            error: error,
+          );
           _fail(describeAuthFailure(
             kind: AuthFailureKind.idpRejected,
             oauthError: error,
@@ -112,11 +117,10 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
 
       if (mounted) context.go(_safeReturnTo(preAuth.frontendReturnTo));
     } catch (e, st) {
-      dev.log(
+      _logger.error(
         'Auth callback failed',
         error: e,
         stackTrace: st,
-        level: 1000,
       );
       _fail('Something went wrong. Please try again.');
     }
@@ -135,16 +139,16 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
     if (returnTo.startsWith('//') ||
         returnTo.startsWith('http://') ||
         returnTo.startsWith('https://')) {
-      dev.log(
-        'Rejected returnTo (open-redirect target): $returnTo',
-        level: 900,
+      _logger.warning(
+        'Rejected returnTo (open-redirect target)',
+        attributes: {'returnTo': returnTo},
       );
       return AppRoutes.lobby;
     }
     if (!returnTo.startsWith('/')) {
-      dev.log(
-        'Rejected returnTo (not an absolute path): $returnTo',
-        level: 800,
+      _logger.info(
+        'Rejected returnTo (not an absolute path)',
+        attributes: {'returnTo': returnTo},
       );
       return AppRoutes.lobby;
     }

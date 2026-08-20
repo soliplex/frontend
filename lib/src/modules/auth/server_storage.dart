@@ -1,8 +1,9 @@
-import 'dart:developer' as dev;
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'auth_tokens.dart';
+
+final Logger _logger = LogManager.instance.getLogger('soliplex.server_storage');
 
 /// Data persisted per server for session restoration.
 sealed class PersistedServer {
@@ -34,7 +35,10 @@ sealed class PersistedServer {
       );
     }
     if (providerJson != null || tokensJson != null) {
-      dev.log('Partial auth data for $serverUrl — treating as unauthenticated');
+      _logger.warning(
+        'Partial auth data; treating the server as unauthenticated',
+        attributes: {'serverUrl': serverUrl},
+      );
     }
     return KnownServer(
       serverUrl: serverUrl,
@@ -128,8 +132,11 @@ Future<void> clearServersIfFreshInstall(ServerStorage storage) async {
       await storage.delete(serverId);
     }
   } catch (e, st) {
-    dev.log('Failed to clear servers on fresh install',
-        error: e, stackTrace: st);
+    _logger.warning(
+      'Failed to clear servers on fresh install',
+      error: e,
+      stackTrace: st,
+    );
   }
   await prefs.setBool(_freshInstallKey, true);
 }
