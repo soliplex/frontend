@@ -19,6 +19,19 @@ const _publicPaths = {
   AppRoutes.home,
   AppRoutes.authCallback,
   AppRoutes.versions,
+  // A user who cannot sign in is unauthenticated by definition, and this
+  // screen is where the failure is visible. Guarding it would put the
+  // diagnosis out of reach of exactly the session that needs it.
+  //
+  // What that exposes without a session: request metadata, already redacted at
+  // capture (HttpRedactor replaces the values of Authorization, cookies and
+  // token-bearing query parameters), and log records, which are not redacted
+  // by anything.
+  // Those carry server and discovery URLs, hostnames and token expiry times —
+  // deployment detail, not credentials — and the release level floor keeps
+  // them to warnings and above. Nothing enforces that, so a logger that starts
+  // recording a secret makes it readable here.
+  AppRoutes.diagnostics,
 };
 
 class AuthAppModule extends AppModule {

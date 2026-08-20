@@ -87,6 +87,36 @@ void main() {
       expect(find.text('Soliplex'), findsOneWidget);
     });
 
+    testWidgets('allows the diagnostics screen when unauthenticated',
+        (tester) async {
+      // A user stranded on the sign-in screen is by definition unauthenticated,
+      // and the inspector is the only place the failing request is visible.
+      final contribution = module.build();
+      router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          ...contribution.routes,
+          GoRoute(
+            path: AppRoutes.diagnostics,
+            builder: (_, __) => const Text('Inspector'),
+          ),
+        ],
+        redirect: contribution.redirect,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: contribution.overrides,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      router.go(AppRoutes.diagnostics);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Inspector'), findsOneWidget);
+    });
+
     testWidgets('redirects /chat to / when unauthenticated', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();

@@ -341,7 +341,7 @@ class _RailAccountMenu extends StatelessWidget {
           PopupMenuItem(
             onTap: onDiagnostics,
             child:
-                const MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
+                const MenuRow(icon: Icons.troubleshoot, label: 'Diagnostics'),
           ),
           PopupMenuItem(
             onTap: onVersions,
