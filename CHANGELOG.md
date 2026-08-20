@@ -10,6 +10,24 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The Diagnostics screen now shows the app's own log records beside the
+  network requests, and can save both as a single plain-text report. The
+  records are the half of a failure the request list cannot show — why a probe
+  gave up, what the platform error behind a friendly message actually was,
+  whether a name resolves — and reading them used to mean attaching a debugger
+  or launching from a terminal, neither of which is true of an installed app
+  on a device. A `Requests` / `Logs` switch chooses the pane; clearing takes
+  whichever one is showing, while the saved report always carries both,
+  unfiltered, so nothing looks absent that was only filtered out. The report
+  gives every exchange an outcome, including one still in flight, since a
+  request that never came back is usually the reason for saving a report at
+  all, and it times everything in UTC so it can be read beside a server's own
+  logs. The sign-in screen's ⓘ button becomes a ⋮ menu offering Diagnostics
+  and Versions, the same pair the room and lobby menus already offer, so the
+  screen can be reached without a connected server — a user who cannot sign in
+  has no route through the lobby, and that is exactly when the records are
+  worth reading.
+
 - A failed sign-in or connection now leaves a record behind. Until now the app
   logged through `dart:developer`, whose entries only exist while a debugger is
   attached, so nothing survived in the builds where these failures actually get
