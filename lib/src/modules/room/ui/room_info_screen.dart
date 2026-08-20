@@ -95,7 +95,7 @@ class _RoomInfoScreenState extends State<RoomInfoScreen> {
             HomeShellHeader(
               appName: widget.appName,
               logo: widget.logo,
-              showAbout: false,
+              showUtilityMenu: false,
               leading: IconButton(
                 icon: Icon(Icons.adaptive.arrow_back),
                 tooltip: 'Back to room',

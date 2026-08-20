@@ -68,7 +68,7 @@ class _VersionsScreenState extends State<VersionsScreen> {
             HomeShellHeader(
               appName: widget.appName,
               logo: widget.logo,
-              showAbout: false,
+              showUtilityMenu: false,
               leading: IconButton(
                 icon: Icon(Icons.adaptive.arrow_back),
                 tooltip: 'Back',

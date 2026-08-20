@@ -5,6 +5,7 @@ import 'package:soliplex_design/soliplex_design.dart';
 import '../../../../version.dart';
 import '../../../core/layout.dart';
 import '../../../core/routes.dart';
+import '../../../core/ui/menu_row.dart';
 
 /// Shared chrome for the unauthenticated onboarding surfaces (home /
 /// connect flow, the OAuth callback, and the server list).
@@ -57,8 +58,8 @@ class HomeShell extends StatelessWidget {
 
 /// The branded top bar shared across the onboarding surfaces (home / connect
 /// flow, the OAuth callback, and the server list) and the versions screens:
-/// logo, app name, library version, and trailing [actions] — followed by an
-/// about/versions button so the bar reads the same everywhere.
+/// logo, app name, library version, and trailing [actions] — followed by the
+/// ⋮ menu of utility destinations so the bar reads the same everywhere.
 class HomeShellHeader extends StatelessWidget {
   const HomeShellHeader({
     super.key,
@@ -66,7 +67,7 @@ class HomeShellHeader extends StatelessWidget {
     this.logo,
     this.leading,
     this.actions,
-    this.showAbout = true,
+    this.showUtilityMenu = true,
   });
 
   final String appName;
@@ -76,13 +77,14 @@ class HomeShellHeader extends StatelessWidget {
   /// pushed sub-pages like the versions screens.
   final Widget? leading;
 
-  /// Trailing actions shown before the about/versions button. Screens like the
-  /// server list slot their navigation here.
+  /// Trailing actions shown before the ⋮ menu. Screens like the server list
+  /// slot their navigation here.
   final List<Widget>? actions;
 
-  /// Whether to show the trailing about/versions button. Off on the versions
-  /// screens themselves, which are already the about destination.
-  final bool showAbout;
+  /// Shows the ⋮ menu of utility destinations. On by default, and off for
+  /// screens that bring their own trailing chrome — the destinations
+  /// themselves, and the room info screen.
+  final bool showUtilityMenu;
 
   static const _logoSize = 24.0;
 
@@ -142,14 +144,47 @@ class HomeShellHeader extends StatelessWidget {
             ),
           ),
           ...?actions,
-          if (showAbout)
-            IconButton(
-              tooltip: 'About & versions',
-              icon: const Icon(Icons.info_outline),
-              onPressed: () => context.push(AppRoutes.versions),
-            ),
+          if (showUtilityMenu) const _UtilityMenu(),
         ],
       ),
+    );
+  }
+}
+
+/// Utility destinations reachable before a server is connected.
+///
+/// The same pair the room rail and lobby sidebar offer in their ⋮ menus, put
+/// where a user who cannot sign in can reach them: the rail and the sidebar
+/// both need a connected server, and a failed sign-in is exactly when the
+/// diagnostics are worth reading.
+enum _UtilityAction { diagnostics, versions }
+
+class _UtilityMenu extends StatelessWidget {
+  const _UtilityMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_UtilityAction>(
+      icon: const Icon(Icons.more_vert),
+      tooltip: 'Diagnostics & versions',
+      onSelected: (action) {
+        switch (action) {
+          case _UtilityAction.diagnostics:
+            context.push(AppRoutes.diagnostics);
+          case _UtilityAction.versions:
+            context.push(AppRoutes.versions);
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _UtilityAction.diagnostics,
+          child: MenuRow(icon: Icons.troubleshoot, label: 'Diagnostics'),
+        ),
+        PopupMenuItem(
+          value: _UtilityAction.versions,
+          child: MenuRow(icon: Icons.info_outline, label: 'Versions'),
+        ),
+      ],
     );
   }
 }

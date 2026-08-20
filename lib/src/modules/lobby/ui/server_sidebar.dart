@@ -701,7 +701,7 @@ class _AccountBar extends StatelessWidget {
             itemBuilder: (context) => const [
               PopupMenuItem(
                 value: _SidebarAction.diagnostics,
-                child: MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
+                child: MenuRow(icon: Icons.troubleshoot, label: 'Diagnostics'),
               ),
               PopupMenuItem(
                 value: _SidebarAction.versions,
