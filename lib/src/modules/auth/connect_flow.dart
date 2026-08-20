@@ -138,6 +138,29 @@ class ConnectFlow {
           final resultId = serverIdFromUrl(result.serverUrl);
           final existing = serverManager.servers.value[resultId];
           if (existing != null && existing.isConnected) {
+            // Reporting success straight from local state, without contacting
+            // the IdP. Benign when the session really is live, but it is also
+            // how a stale `isConnected` strands someone: every retry lands
+            // here and no sign-in is ever attempted. Record it either way, and
+            // escalate when the credentials backing that claim have already
+            // expired, so the strand is visible in a field report.
+            final session = existing.auth.session.value;
+            final message = 'Probe succeeded; reporting the existing session '
+                'as connected without re-authenticating';
+            final attributes = {
+              'serverId': resultId,
+              'session': session.runtimeType.toString(),
+              'requiresAuth': existing.requiresAuth,
+            };
+            if (session case ActiveSession(:final tokens)
+                when tokens.expiresAt.isBefore(DateTime.now())) {
+              _logger.warning(message, attributes: {
+                ...attributes,
+                'expiredAt': tokens.expiresAt.toIso8601String(),
+              });
+            } else {
+              _logger.info(message, attributes: attributes);
+            }
             await SelectedServerStorage.save(resultId);
             if (!_isCancelled(gen)) state.value = const Connected();
             return;
@@ -158,7 +181,7 @@ class ConnectFlow {
           );
       }
     } catch (e, st) {
-      _logger.error('ConnectFlow.connect failed', error: e, stackTrace: st);
+      _logger.error('connect failed', error: e, stackTrace: st);
       if (!_isCancelled(gen)) {
         state.value = UrlInput(
           message: ConnectError('Unexpected error connecting to $url: $e'),
@@ -252,7 +275,7 @@ class ConnectFlow {
     try {
       onServerConnected?.call(serverUrl);
     } on Object catch (e, st) {
-      _logger.warning('ConnectFlow: onServerConnected callback failed',
+      _logger.warning('onServerConnected callback failed',
           error: e, stackTrace: st);
     }
   }
@@ -323,7 +346,7 @@ class ConnectFlow {
         await PreAuthStateStorage.clear();
       } catch (e, st) {
         _logger.warning(
-          'ConnectFlow: post-login PreAuthState clear failed',
+          'post-login PreAuthState clear failed',
           error: e,
           stackTrace: st,
         );
@@ -356,7 +379,7 @@ class ConnectFlow {
       }
     } on Exception catch (e, st) {
       _logger.error(
-        'ConnectFlow._authenticate failed',
+        '_authenticate failed',
         error: e,
         stackTrace: st,
       );
