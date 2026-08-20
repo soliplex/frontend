@@ -221,7 +221,7 @@ Six feature modules composed in the standard flavor:
 - **lobby** — Server/room discovery with responsive layout
 - **room** — Chat interface, threads, agent execution, file upload, citations, document filtering, feedback
 - **quiz** — Interactive quizzes with multiple-choice and free-text input
-- **diagnostics** — Network inspector for HTTP request/response debugging
+- **diagnostics** — Diagnostics screen for HTTP request/response debugging
 - **versions** — App and backend version display (`/versions`, `/versions/server/:serverAlias`)
 
 ## Workspace Packages

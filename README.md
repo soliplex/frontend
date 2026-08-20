@@ -14,7 +14,7 @@ Serves as both a runnable app and an importable library.
 - **File Upload** -- Cross-platform file attachment to rooms and threads
 - **Document Filtering** -- Narrow RAG retrieval to selected documents
 - **Quizzes** -- Interactive question sessions with scoring and feedback
-- **Network Inspector** -- HTTP request/response debugging with run-level
+- **Diagnostics** -- HTTP request/response debugging with run-level
   filtering
 - **Responsive Layout** -- Adaptive wide/narrow views across mobile, tablet,
   and desktop

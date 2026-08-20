@@ -69,9 +69,9 @@ Six feature modules composed in the standard flavor (`lib/src/flavors/standard.d
   multiple-choice and free-text input, per-answer feedback with explanations,
   scoring, and retake support. Route:
   `/room/:serverAlias/:roomId/quiz/:quizId`.
-- **diagnostics** (`lib/src/modules/diagnostics/`) -- Network inspector for
+- **diagnostics** (`lib/src/modules/diagnostics/`) -- Diagnostics screen for
   HTTP request/response observation, event filtering by run, and SSE stream
-  parsing. Route: `/diagnostics/network`.
+  parsing. Route: `/diagnostics`.
 - **versions** (`lib/src/modules/versions/`) -- App and backend version
   display. Routes: `/versions`, `/versions/server/:serverAlias`.
 

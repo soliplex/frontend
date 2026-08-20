@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:soliplex_agent/soliplex_agent.dart';
 
-/// Collects HTTP events for the network inspector UI.
+/// Collects HTTP events for the diagnostics screen's request list.
 ///
 /// Events are bounded per list: on overflow, the oldest event is dropped
 /// so a long-running dev session cannot grow memory without bound.

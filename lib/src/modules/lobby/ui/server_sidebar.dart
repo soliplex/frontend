@@ -28,7 +28,7 @@ class ServerSidebar extends StatelessWidget {
     required this.onSignIn,
     required this.onMarkServerRead,
     required this.onAddServer,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
   });
 
@@ -53,7 +53,7 @@ class ServerSidebar extends StatelessWidget {
   /// Marks every room (and thread) on a server read, from its tile menu.
   final void Function(String serverId) onMarkServerRead;
   final VoidCallback onAddServer;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
   @override
@@ -86,7 +86,7 @@ class ServerSidebar extends StatelessWidget {
           _AccountBar(
             entry: selectedEntry,
             profile: selectedProfile,
-            onNetworkInspector: onNetworkInspector,
+            onDiagnostics: onDiagnostics,
             onVersions: onVersions,
           ),
         ],
@@ -650,7 +650,7 @@ class _LogoutErrorButton extends StatelessWidget {
 /// developer/utility destinations, deliberately de-emphasised vs. the account
 /// block they sit beside. ("Home" is intentionally absent — the Add Server
 /// button already routes to the home screen.)
-enum _SidebarAction { networkInspector, versions }
+enum _SidebarAction { diagnostics, versions }
 
 /// Sidebar footer: the signed-in account on the left, a ⋮ menu of utility
 /// actions on the right.
@@ -658,19 +658,19 @@ class _AccountBar extends StatelessWidget {
   const _AccountBar({
     required this.entry,
     required this.profile,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
   });
 
   final ServerEntry? entry;
   final UserProfile? profile;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
   void _onSelected(_SidebarAction action) {
     switch (action) {
-      case _SidebarAction.networkInspector:
-        onNetworkInspector();
+      case _SidebarAction.diagnostics:
+        onDiagnostics();
       case _SidebarAction.versions:
         onVersions();
     }
@@ -691,9 +691,8 @@ class _AccountBar extends StatelessWidget {
             onSelected: _onSelected,
             itemBuilder: (context) => const [
               PopupMenuItem(
-                value: _SidebarAction.networkInspector,
-                child: _MenuRow(
-                    icon: Icons.lan_outlined, label: 'Network Inspector'),
+                value: _SidebarAction.diagnostics,
+                child: _MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
               ),
               PopupMenuItem(
                 value: _SidebarAction.versions,
@@ -728,8 +727,8 @@ class _MenuRow extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: color),
         const SizedBox(width: SoliplexSpacing.s3),
-        // Flexible so a long label (e.g. "Network Inspector") can't overflow
-        // the menu's width; the menu widens to fit when there's room.
+        // Flexible so a long label can't overflow the menu's width; the menu
+        // widens to fit when there's room.
         Flexible(
           child: Text(
             label,

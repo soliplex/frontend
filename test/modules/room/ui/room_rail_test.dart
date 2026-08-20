@@ -26,7 +26,7 @@ RoomRail _rail({
   VoidCallback? onRetryRooms,
   VoidCallback? onBackToLobby,
   RoomAccount? account,
-  VoidCallback? onNetworkInspector,
+  VoidCallback? onDiagnostics,
   VoidCallback? onVersions,
 }) =>
     RoomRail(
@@ -41,7 +41,7 @@ RoomRail _rail({
       onBackToLobby: onBackToLobby ?? () {},
       entry: createTestServerEntry(),
       account: account,
-      onNetworkInspector: onNetworkInspector ?? () {},
+      onDiagnostics: onDiagnostics ?? () {},
       onVersions: onVersions ?? () {},
     );
 
@@ -190,7 +190,7 @@ void main() {
       var versions = false;
       await tester.pumpWidget(_wrap(_rail(
         account: (name: 'Ada Lovelace', email: 'ada@example.com'),
-        onNetworkInspector: () => inspector = true,
+        onDiagnostics: () => inspector = true,
         onVersions: () => versions = true,
       )));
 
@@ -200,10 +200,10 @@ void main() {
       // A no-auth test server resolves to Guest regardless of the cached
       // account, since the identity gate requires an ActiveSession.
       expect(find.text('Guest'), findsOneWidget);
-      expect(find.text('Network Inspector'), findsOneWidget);
+      expect(find.text('Diagnostics'), findsOneWidget);
       expect(find.text('Versions'), findsOneWidget);
 
-      await tester.tap(find.text('Network Inspector'));
+      await tester.tap(find.text('Diagnostics'));
       await tester.pumpAndSettle();
       expect(inspector, isTrue);
       expect(versions, isFalse);

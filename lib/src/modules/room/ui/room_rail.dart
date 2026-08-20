@@ -23,8 +23,8 @@ const String signedInLabel = 'Signed in';
 /// Discord-style: each room is a small initial avatar tinted by a hash of its
 /// name (see [roomAvatarColor]); the selected room is marked with a leading
 /// bar. The footer is a single ⋮ menu folding the account identity and the
-/// developer utilities (Network Inspector, Versions) — there's no room beside
-/// it for an account block at this width, so the identity lives inside the
+/// developer utilities (Diagnostics, Versions) — there's no room beside it
+/// for an account block at this width, so the identity lives inside the
 /// menu. Creating a room is deferred; this only lists.
 class RoomRail extends StatelessWidget {
   const RoomRail({
@@ -35,7 +35,7 @@ class RoomRail extends StatelessWidget {
     required this.onBackToLobby,
     required this.entry,
     required this.account,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
     this.roomsError,
     this.onRetryRooms,
@@ -76,7 +76,7 @@ class RoomRail extends StatelessWidget {
   /// fetch). Falls back to a generic "Signed in" / "Guest" label.
   final RoomAccount? account;
 
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
   /// Marks a room read from its avatar's context menu (long-press /
@@ -109,7 +109,7 @@ class RoomRail extends StatelessWidget {
           child: _RailAccountMenu(
             entry: entry,
             account: account,
-            onNetworkInspector: onNetworkInspector,
+            onDiagnostics: onDiagnostics,
             onVersions: onVersions,
           ),
         ),
@@ -313,13 +313,13 @@ class _RailAccountMenu extends StatelessWidget {
   const _RailAccountMenu({
     required this.entry,
     required this.account,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
   });
 
   final ServerEntry entry;
   final RoomAccount? account;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
 
   @override
@@ -338,9 +338,9 @@ class _RailAccountMenu extends StatelessWidget {
           ),
           const PopupMenuDivider(),
           PopupMenuItem(
-            onTap: onNetworkInspector,
-            child: const _MenuRow(
-                icon: Icons.lan_outlined, label: 'Network Inspector'),
+            onTap: onDiagnostics,
+            child:
+                const _MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
           ),
           PopupMenuItem(
             onTap: onVersions,

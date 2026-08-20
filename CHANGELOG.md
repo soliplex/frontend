@@ -10,6 +10,11 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- The developer menu entry that opens the captured HTTP traffic is now
+  called Diagnostics, matching the module behind it, and the route it opens
+  is `/diagnostics` rather than `/diagnostics/network`. The screen shows the
+  same captured requests it always has.
+
 - The iOS build declares one minimum OS version throughout. The app has
   required iOS 16 since the platform was configured, but the bundled
   `App.framework` still announced 13.0, so the two disagreed about the oldest

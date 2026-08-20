@@ -92,7 +92,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onAddServer() => context.go(AppRoutes.home);
 
-  void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
+  void _onDiagnostics() => context.push(AppRoutes.diagnostics);
 
   void _onVersions() => context.push(AppRoutes.versions);
 
@@ -164,7 +164,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
-                onNetworkInspector: _onNetworkInspector,
+                onDiagnostics: _onDiagnostics,
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onMarkRoomRead: _state.markRoomRead,
@@ -191,7 +191,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onMarkServerRead: _state.markServerRead,
                 serverManager: widget.serverManager,
                 onAddServer: _onAddServer,
-                onNetworkInspector: _onNetworkInspector,
+                onDiagnostics: _onDiagnostics,
                 onVersions: _onVersions,
                 onRoomTap: _onRoomTap,
                 onMarkRoomRead: _state.markRoomRead,
@@ -224,7 +224,7 @@ class _WideLayout extends StatelessWidget {
     required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
     required this.onRoomTap,
     required this.onMarkRoomRead,
@@ -251,7 +251,7 @@ class _WideLayout extends StatelessWidget {
   final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
@@ -278,7 +278,7 @@ class _WideLayout extends StatelessWidget {
                 onSignIn: onSignIn,
                 onMarkServerRead: onMarkServerRead,
                 onAddServer: onAddServer,
-                onNetworkInspector: onNetworkInspector,
+                onDiagnostics: onDiagnostics,
                 onVersions: onVersions,
               ),
             ),
@@ -333,7 +333,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onMarkServerRead,
     required this.serverManager,
     required this.onAddServer,
-    required this.onNetworkInspector,
+    required this.onDiagnostics,
     required this.onVersions,
     required this.onRoomTap,
     required this.onMarkRoomRead,
@@ -360,7 +360,7 @@ class _NarrowLayout extends StatelessWidget {
   final void Function(String serverId) onMarkServerRead;
   final ServerManager serverManager;
   final VoidCallback onAddServer;
-  final VoidCallback onNetworkInspector;
+  final VoidCallback onDiagnostics;
   final VoidCallback onVersions;
   final void Function(String serverId, String roomId) onRoomTap;
   final void Function(String serverId, String roomId) onMarkRoomRead;
@@ -413,7 +413,7 @@ class _NarrowLayout extends StatelessWidget {
               onSignIn: onSignIn,
               onMarkServerRead: onMarkServerRead,
               onAddServer: onAddServer,
-              onNetworkInspector: onNetworkInspector,
+              onDiagnostics: onDiagnostics,
               onVersions: onVersions,
             ),
           ),
