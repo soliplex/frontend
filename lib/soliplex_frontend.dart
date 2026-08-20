@@ -26,9 +26,25 @@ export 'package:soliplex_design/soliplex_design.dart'
         lightSoliplexColors,
         lowerBrandTheme,
         soliplexTextTheme;
+// Logging primitives, re-exported so a host app needs no `soliplex_logging`
+// dependency of its own. `LoggerFactory` carries `LogManager.getLogger`;
+// without it `Logger` would be a name a host can write but never obtain, since
+// its only constructor is private.
+export 'package:soliplex_logging/soliplex_logging.dart'
+    show
+        ConsoleSink,
+        LogLevel,
+        LogManager,
+        LogRecord,
+        LogSink,
+        Logger,
+        LoggerFactory,
+        MemorySink,
+        StdoutSink;
 export 'src/core/app_module.dart' show AppModule, ModuleRoutes;
 export 'src/core/app_identity.dart' show AppIdentity, BrandLogo;
 export 'src/core/flavor.dart' show Flavor, FlavorTheme;
+export 'src/core/log_sinks.dart' show installLogSinks;
 export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
 export 'src/core/shell.dart' show runSoliplexShell;
 export 'src/core/shell_config.dart' show ShellConfig;

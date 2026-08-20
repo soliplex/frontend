@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Added
+
+- Public logging API for apps embedding this package as a library:
+  `installLogSinks()`, `LogManager`, `Logger`, `LogRecord`, `LogLevel`, the
+  `LogSink` interface, the console, stdout and memory sinks, and
+  `LoggerFactory` — which carries `LogManager.getLogger`, and without which the
+  exported `Logger` could never be obtained.
+
+### Fixed
+
+- Apps embedding this package as a library can now get logging. `LogManager`
+  discards every record when no sink is registered, and the function that
+  registers them was reachable only through a `src/` path with the logging
+  package not re-exported, so a host writing its own `main()` had no supported
+  way to turn logging on. Installing sinks stays the host's decision — nothing
+  is registered on its behalf.
+- The file picker's boot-time cache cleanup (Android and iOS) no longer fails
+  silently. The plugin reports a failed delete by resolving with `false`, or
+  `null` when Android has no attached activity, so the result is now checked as
+  well as the throw.
+
 ## [0.100.0+83] - 2026-08-20
 
 ### Changed
