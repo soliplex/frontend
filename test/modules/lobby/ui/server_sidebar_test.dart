@@ -35,7 +35,7 @@ Widget _buildSidebar({
   void Function(String serverId)? onSignIn,
   void Function(String serverId)? onMarkServerRead,
   VoidCallback? onAddServer,
-  VoidCallback? onNetworkInspector,
+  VoidCallback? onDiagnostics,
   VoidCallback? onVersions,
   List<Override> overrides = const [],
   ThemeData? theme,
@@ -57,7 +57,7 @@ Widget _buildSidebar({
           onSignIn: onSignIn ?? (_) {},
           onMarkServerRead: onMarkServerRead ?? (_) {},
           onAddServer: onAddServer ?? () {},
-          onNetworkInspector: onNetworkInspector ?? () {},
+          onDiagnostics: onDiagnostics ?? () {},
           onVersions: onVersions ?? () {},
         ),
       ),
@@ -129,23 +129,22 @@ void main() {
       expect(find.text('https://api.example.com'), findsNothing);
     });
 
-    testWidgets('the more menu routes Network Inspector / Versions',
-        (tester) async {
+    testWidgets('the more menu routes Diagnostics / Versions', (tester) async {
       var inspector = 0;
       var versions = 0;
 
       await tester.pumpWidget(_buildSidebar(
         servers: const {},
-        onNetworkInspector: () => inspector++,
+        onDiagnostics: () => inspector++,
         onVersions: () => versions++,
       ));
 
       // Open the menu: no "Home" item (the Add Server button already routes
-      // home), and selecting Network Inspector routes and closes it.
+      // home), and selecting Diagnostics routes and closes it.
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
       expect(find.text('Home'), findsNothing);
-      await tester.tap(find.text('Network Inspector'));
+      await tester.tap(find.text('Diagnostics'));
       await tester.pumpAndSettle();
       expect(inspector, 1);
 

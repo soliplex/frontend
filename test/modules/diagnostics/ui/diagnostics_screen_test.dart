@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/diagnostics/network_inspector.dart';
-import 'package:soliplex_frontend/src/modules/diagnostics/ui/network_inspector_screen.dart';
+import 'package:soliplex_frontend/src/modules/diagnostics/ui/diagnostics_screen.dart';
 
 import '../../../helpers/http_event_factories.dart';
 
 void main() {
-  group('NetworkInspectorScreen', () {
+  group('DiagnosticsScreen', () {
     late NetworkInspector inspector;
 
     setUp(() {
@@ -21,8 +21,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
       expect(find.text('No HTTP requests yet'), findsOneWidget);
     });
@@ -31,7 +30,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: NetworkInspectorScreen(appName: 'Acme', inspector: inspector),
+          home: DiagnosticsScreen(appName: 'Acme', inspector: inspector),
         ),
       );
 
@@ -55,7 +54,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: NetworkInspectorScreen(appName: 'Acme', inspector: inspector),
+          home: DiagnosticsScreen(appName: 'Acme', inspector: inspector),
         ),
       );
 
@@ -79,8 +78,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
       expect(find.text('GET'), findsOneWidget);
     });
@@ -102,8 +100,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home:
-              NetworkInspectorScreen(appName: 'Soliplex', inspector: inspector),
+          home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector),
         ),
       );
 
@@ -121,8 +118,7 @@ void main() {
     testWidgets('clear button is disabled when no events', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
       final button = tester.widget<IconButton>(
           find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
@@ -133,8 +129,7 @@ void main() {
       inspector.onRequest(createRequestEvent());
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
       final button = tester.widget<IconButton>(
           find.widgetWithIcon(IconButton, Icons.delete_sweep_outlined));
@@ -151,8 +146,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
 
       await tester
@@ -168,8 +162,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
 
       final button = tester.widget<IconButton>(
@@ -197,8 +190,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-            home: NetworkInspectorScreen(
-                appName: 'Soliplex', inspector: inspector)),
+            home: DiagnosticsScreen(appName: 'Soliplex', inspector: inspector)),
       );
 
       // Panel is visible when concurrency events exist.
@@ -237,7 +229,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       await tester.pumpWidget(
         MaterialApp(
-          home: NetworkInspectorScreen(
+          home: DiagnosticsScreen(
             appName: 'Soliplex',
             inspector: inspector,
             initialRunId: initialRunId,

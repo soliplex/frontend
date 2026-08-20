@@ -1505,7 +1505,7 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  void _onNetworkInspector() => context.push(AppRoutes.networkInspector);
+  void _onDiagnostics() => context.push(AppRoutes.diagnostics);
 
   void _onVersions() => context.push(AppRoutes.versions);
 
@@ -1796,9 +1796,9 @@ class _RoomScreenState extends State<RoomScreen> {
       },
       entry: widget.serverEntry,
       account: _account,
-      onNetworkInspector: () {
+      onDiagnostics: () {
         onNavigate?.call();
-        _onNetworkInspector();
+        _onDiagnostics();
       },
       onVersions: () {
         onNavigate?.call();
@@ -2386,7 +2386,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           executionTrackers: threadView.executionTrackers,
                           onFeedbackSubmit: threadView.submitFeedback,
                           onInspect: (runId) => context.push(
-                            AppRoutes.networkInspectorForRun(runId),
+                            AppRoutes.diagnosticsForRun(runId),
                           ),
                           onShowChunkVisualization: (ref) =>
                               ChunkVisualizationPage.show(

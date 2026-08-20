@@ -8,13 +8,13 @@ class AppRoutes {
   static const home = '/';
   static const lobby = '/lobby';
   static const versions = '/versions';
-  static const networkInspector = '/diagnostics/network';
+  static const diagnostics = '/diagnostics';
   static const authCallback = '/auth/callback';
 
-  /// The network inspector pre-scoped to a single agent run — used by the
+  /// The diagnostics screen pre-scoped to a single agent run — used by the
   /// per-message "inspect HTTP traffic" affordance.
-  static String networkInspectorForRun(String runId) =>
-      '$networkInspector?run=${Uri.encodeComponent(runId)}';
+  static String diagnosticsForRun(String runId) =>
+      '$diagnostics?run=${Uri.encodeComponent(runId)}';
 
   static String homeWithUrl(String url, {String? returnTo}) {
     final base = '/?url=${Uri.encodeComponent(url)}';

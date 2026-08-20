@@ -133,7 +133,7 @@ Platform-native sans (Roboto on Android, SF on iOS/macOS, system on web/desktop)
 | labelMedium    | 16   | w500   | 1.5         | Button labels                      |
 | labelSmall     | 12   | w500   | 1.5         | Chip labels, timestamps            |
 
-**Monospace**: `SF Mono` on Cupertino, `Roboto Mono` everywhere else. Use for code blocks, inline code, and the network inspector.
+**Monospace**: `SF Mono` on Cupertino, `Roboto Mono` everywhere else. Use for code blocks, inline code, and the diagnostics screen.
 
 ### Spacing
 Five values only. Larger gaps are multiples of these — do **not** add new values without team review.

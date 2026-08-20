@@ -12,15 +12,15 @@ import '../network_inspector.dart';
 import 'concurrency_summary_panel.dart';
 import 'http_exchange_tile.dart';
 
-/// Status buckets for the inspector's quick filter. `pending`/`streaming`
+/// Status buckets for the request list's quick filter. `pending`/`streaming`
 /// in-flight exchanges only show under [all].
 enum _StatusFilter { all, success, errors }
 
 /// Category buckets, mapped onto [HttpCategory] (with an `all` passthrough).
 enum _CategoryFilter { all, llm, auth, system }
 
-class NetworkInspectorScreen extends StatefulWidget {
-  const NetworkInspectorScreen({
+class DiagnosticsScreen extends StatefulWidget {
+  const DiagnosticsScreen({
     required this.appName,
     required this.inspector,
     this.logo,
@@ -37,10 +37,10 @@ class NetworkInspectorScreen extends StatefulWidget {
   final String? initialRunId;
 
   @override
-  State<NetworkInspectorScreen> createState() => _NetworkInspectorScreenState();
+  State<DiagnosticsScreen> createState() => _DiagnosticsScreenState();
 }
 
-class _NetworkInspectorScreenState extends State<NetworkInspectorScreen> {
+class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   _StatusFilter _statusFilter = _StatusFilter.all;

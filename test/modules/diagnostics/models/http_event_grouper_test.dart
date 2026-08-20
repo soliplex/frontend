@@ -81,7 +81,7 @@ void main() {
         // The actual regression: with two or more groups in the result,
         // Dart's sort runs the comparator, which calls [timestamp] on
         // every group. Before the filter, the orphan threw a StateError
-        // and the Network Inspector UI red-screened.
+        // and the diagnostics screen red-screened.
         final events = [
           createRequestEvent(
             requestId: 'req-1',

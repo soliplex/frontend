@@ -1,7 +1,7 @@
 import 'http_event_group.dart';
 
 /// Coarse functional bucket for an HTTP exchange, inferred from its endpoint.
-/// Drives the Network Inspector's category filter.
+/// Drives the diagnostics screen's request-category filter.
 enum HttpCategory {
   /// AG-UI agent / model execution (runs, streaming turns, history, feedback).
   llm,

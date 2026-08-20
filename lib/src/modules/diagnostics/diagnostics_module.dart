@@ -5,7 +5,7 @@ import '../../core/app_module.dart';
 import '../../core/routes.dart';
 import 'diagnostics_providers.dart';
 import 'network_inspector.dart';
-import 'ui/network_inspector_screen.dart';
+import 'ui/diagnostics_screen.dart';
 
 class DiagnosticsAppModule extends AppModule {
   DiagnosticsAppModule({
@@ -28,8 +28,8 @@ class DiagnosticsAppModule extends AppModule {
         ],
         routes: [
           GoRoute(
-            path: AppRoutes.networkInspector,
-            builder: (context, state) => NetworkInspectorScreen(
+            path: AppRoutes.diagnostics,
+            builder: (context, state) => DiagnosticsScreen(
               appName: appName,
               logo: logo,
               initialRunId: state.uri.queryParameters['run'],
