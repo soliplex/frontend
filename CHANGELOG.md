@@ -10,6 +10,18 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 
 ### Changed
 
+- A failed sign-in or connection now leaves a record behind. Until now the app
+  logged through `dart:developer`, whose entries only exist while a debugger is
+  attached, so nothing survived in the builds where these failures actually get
+  reported — the user saw one friendly sentence and there was no way to tell a
+  name that does not resolve from a name that resolves while something above DNS
+  blocks the request, or from a session the app already believed was live. Log
+  records are now retained in the app itself, and a failed connection attempt
+  records every address it tried, the platform error behind the friendly message,
+  how long it took, and whether the name resolves when asked directly. A server
+  restored as connected on credentials that had already expired — which opens the
+  app as if signed in and then fails every call — is called out specifically.
+
 - The developer menu entry that opens the captured HTTP traffic is now
   called Diagnostics, matching the module behind it, and the route it opens
   is `/diagnostics` rather than `/diagnostics/network`. The screen shows the
