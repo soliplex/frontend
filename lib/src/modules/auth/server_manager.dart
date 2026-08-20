@@ -174,6 +174,17 @@ class ServerManager {
       throw StateError('No server entry for "$serverId"');
     }
 
+    // Deliberate, destructive, and the only in-app action that clears a
+    // server's stored credentials — so it belongs on the timeline of a field
+    // report at a level a release build keeps.
+    _logger.warning(
+      'Removing a server and its stored session',
+      attributes: {
+        'serverId': serverId,
+        'alias': entry.alias,
+        'session': entry.auth.session.value.runtimeType.toString(),
+      },
+    );
     _aliases.remove(entry.alias);
     _subscriptions.remove(serverId)?.call();
 
@@ -247,6 +258,42 @@ class ServerManager {
       }
     } finally {
       _restoring = false;
+    }
+    _logger.info(
+      'Restored ${_servers.value.length} server(s)',
+      attributes: {
+        'entries': [
+          for (final e in _servers.value.values)
+            {
+              'serverId': e.serverId,
+              'alias': e.alias,
+              'serverUrl': e.serverUrl.toString(),
+              'session': e.auth.session.value.runtimeType.toString(),
+              // isConnected is `!requiresAuth || isAuthenticated`, so a
+              // no-auth entry reads as connected whatever its session says.
+              'requiresAuth': e.requiresAuth,
+              'isConnected': e.isConnected,
+            },
+        ],
+      },
+    );
+    // The summary above is informational, so a release build drops it. A
+    // server restored as connected on credentials that already expired is a
+    // different matter: it makes the app open as if signed in and every call
+    // then fails, so it is recorded at a level that survives to a field
+    // report.
+    for (final entry in _servers.value.values) {
+      if (entry.auth.session.value case ActiveSession(:final tokens)
+          when tokens.expiresAt.isBefore(DateTime.now())) {
+        _logger.warning(
+          'Restored a server as connected on already-expired credentials',
+          attributes: {
+            'serverId': entry.serverId,
+            'alias': entry.alias,
+            'expiredAt': tokens.expiresAt.toIso8601String(),
+          },
+        );
+      }
     }
   }
 

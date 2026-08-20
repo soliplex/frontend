@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_logging/soliplex_logging.dart';
 
+import 'platform/host_resolution.dart';
+
 final Logger _logger =
     LogManager.instance.getLogger('soliplex.connection_probe');
 
@@ -81,9 +83,15 @@ Future<ConnectionProbeResult> probeConnection({
   try {
     candidates = _buildCandidateUrls(input);
   } on FormatException catch (e) {
+    _logger.warning(
+      'Probe rejected the address before any request',
+      error: e,
+      attributes: {'input': '"$input"', 'inputLength': input.length},
+    );
     return ConnectionFailure(e);
   }
 
+  final started = DateTime.now();
   NetworkException? lastNetworkError;
   final tried = <Uri>[];
   for (final uri in candidates) {
@@ -116,9 +124,48 @@ Future<ConnectionProbeResult> probeConnection({
         isTimeout: true,
       );
     } on Exception catch (e) {
+      _logger.warning(
+        'Probe failed with a non-network error',
+        error: e,
+        attributes: {
+          'requestedUrl': uri.toString(),
+          'errorType': e.runtimeType.toString(),
+          'elapsedMs': DateTime.now().difference(started).inMilliseconds,
+        },
+      );
       return ConnectionFailure(e, attemptedUrls: List.unmodifiable(tried));
     }
   }
+  // Stopped before the resolver check below, so it measures the probe rather
+  // than the probe plus the diagnostic that follows it. An instant failure
+  // means no resolution was attempted; seconds mean a real attempt that failed.
+  final elapsedMs = DateTime.now().difference(started).inMilliseconds;
+  // Ask the platform resolver directly: a "cannot find host" from the HTTP
+  // stack does not distinguish a real resolver failure from anything else in
+  // that stack preventing the lookup.
+  //
+  // This delays the failure the user is waiting on, which is why the lookup is
+  // held to a short deadline: a resolver that has not answered by then has
+  // already told us what the record needs to say.
+  final hostResolution = await describeHostResolution(tried.last.host);
+  _logger.warning(
+    'Probe exhausted every candidate address',
+    error: lastNetworkError,
+    attributes: {
+      'input': '"$input"',
+      'inputLength': input.length,
+      'candidates': tried.map((u) => u.toString()).toList(),
+      'hosts': tried.map((u) => '"${u.host}"').toList(),
+      'hostResolution': hostResolution,
+      'errorType': lastNetworkError?.runtimeType.toString(),
+      'isTimeout': lastNetworkError?.isTimeout,
+      // The platform error carries the domain and numeric code (e.g.
+      // NSURLErrorDomain -1003), which name the failure far more precisely
+      // than the localized sentence shown to the user.
+      'platformError': lastNetworkError?.originalError?.toString(),
+      'elapsedMs': elapsedMs,
+    },
+  );
   return ConnectionFailure(
     lastNetworkError ?? Exception('No reachable server at: $input'),
     attemptedUrls: List.unmodifiable(tried),
