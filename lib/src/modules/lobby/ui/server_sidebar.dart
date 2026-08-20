@@ -7,6 +7,7 @@ import 'package:soliplex_logging/soliplex_logging.dart';
 import '../../../../version.dart';
 import '../../../core/app_identity.dart';
 import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/menu_row.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
@@ -524,30 +525,30 @@ class _ServerTileMenuState extends ConsumerState<_ServerTileMenu> {
         if (!connected)
           const PopupMenuItem(
             value: _ServerTileAction.signIn,
-            child: _MenuRow(icon: Icons.login, label: 'Sign in'),
+            child: MenuRow(icon: Icons.login, label: 'Sign in'),
           ),
         if (connected && entry.requiresAuth)
           const PopupMenuItem(
             value: _ServerTileAction.logOut,
-            child: _MenuRow(icon: Icons.logout, label: 'Log out'),
+            child: MenuRow(icon: Icons.logout, label: 'Log out'),
           ),
         const PopupMenuItem(
           value: _ServerTileAction.markAllRead,
-          child: _MenuRow(
+          child: MenuRow(
             icon: Icons.mark_chat_read_outlined,
             label: 'Mark all as read',
           ),
         ),
         const PopupMenuItem(
           value: _ServerTileAction.copyAddress,
-          child: _MenuRow(
+          child: MenuRow(
             icon: Icons.content_copy,
             label: 'Copy server address',
           ),
         ),
         PopupMenuItem(
           value: _ServerTileAction.remove,
-          child: _MenuRow(
+          child: MenuRow(
             icon: Icons.delete_outline,
             label: 'Remove',
             destructive: true,
@@ -615,15 +616,15 @@ class _LogoutErrorButton extends StatelessWidget {
       itemBuilder: (context) => const [
         PopupMenuItem(
           value: _ErrorAction.retry,
-          child: _MenuRow(icon: Icons.refresh, label: 'Try again'),
+          child: MenuRow(icon: Icons.refresh, label: 'Try again'),
         ),
         PopupMenuItem(
           value: _ErrorAction.showDetail,
-          child: _MenuRow(icon: Icons.info_outline, label: 'Show error detail'),
+          child: MenuRow(icon: Icons.info_outline, label: 'Show error detail'),
         ),
         PopupMenuItem(
           value: _ErrorAction.remove,
-          child: _MenuRow(
+          child: MenuRow(
             icon: Icons.delete_outline,
             label: 'Remove server',
             destructive: true,
@@ -700,51 +701,16 @@ class _AccountBar extends StatelessWidget {
             itemBuilder: (context) => const [
               PopupMenuItem(
                 value: _SidebarAction.diagnostics,
-                child: _MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
+                child: MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
               ),
               PopupMenuItem(
                 value: _SidebarAction.versions,
-                child: _MenuRow(icon: Icons.info_outline, label: 'Versions'),
+                child: MenuRow(icon: Icons.info_outline, label: 'Versions'),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({
-    required this.icon,
-    required this.label,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String label;
-
-  /// Tints the row with `colorScheme.error` for a destructive action (Remove).
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = destructive ? Theme.of(context).colorScheme.error : null;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: SoliplexSpacing.s3),
-        // Flexible so a long label can't overflow the menu's width; the menu
-        // widens to fit when there's room.
-        Flexible(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: color == null ? null : TextStyle(color: color),
-          ),
-        ),
-      ],
     );
   }
 }

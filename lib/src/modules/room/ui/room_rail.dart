@@ -4,6 +4,7 @@ import 'package:soliplex_client/soliplex_client.dart'
     show PermissionDeniedException, Room;
 import 'package:soliplex_design/soliplex_design.dart';
 
+import '../../../core/ui/menu_row.dart';
 import '../../../shared/mark_read_context_menu.dart';
 import '../../auth/auth_tokens.dart';
 import '../../auth/server_entry.dart';
@@ -340,11 +341,11 @@ class _RailAccountMenu extends StatelessWidget {
           PopupMenuItem(
             onTap: onDiagnostics,
             child:
-                const _MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
+                const MenuRow(icon: Icons.lan_outlined, label: 'Diagnostics'),
           ),
           PopupMenuItem(
             onTap: onVersions,
-            child: const _MenuRow(icon: Icons.info_outline, label: 'Versions'),
+            child: const MenuRow(icon: Icons.info_outline, label: 'Versions'),
           ),
         ],
       );
@@ -415,26 +416,6 @@ class _AccountHeader extends StatelessWidget {
             ],
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// An icon + label row for a ⋮ menu item.
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: SoliplexSpacing.s3),
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
       ],
     );
   }
