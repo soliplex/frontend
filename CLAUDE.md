@@ -232,7 +232,7 @@ Five internal packages under `packages/`:
 - `soliplex_client` — Backend HTTP/AG-UI API client, domain models, citation extraction
 - `soliplex_client_native` — Native HTTP client (iOS/macOS via cupertino_http)
 - `soliplex_design` — Core design system: tokens, theme factories, branded component library (button / badge / chip / input / dropdown / date+time picker), `SoliplexGlow`, `SoliplexShimmer` (animated skeleton placeholder), `SoliplexShimmerText` (light-sweep on running labels), shared visual primitives
-- `soliplex_logging` — Structured logging with memory, console, disk, and backend sinks
+- `soliplex_logging` — Structured logging with memory, console, stdout, and backend sinks (the backend sink buffers through a queue, disk-backed on native)
 
 ## CI
 

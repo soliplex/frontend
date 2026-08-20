@@ -60,6 +60,7 @@ Future<Flavor> myFlavor() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installLogSinks();
   final flavor = await myFlavor();
   runSoliplexShell(flavor.build());
 }
@@ -85,9 +86,13 @@ Prefer `standardFlavor` unless you genuinely need a different module graph.
   `ShellConfig.fromModules`) throws without it.
 - Composition is append-only: add your own modules via `extraModules`; do not
   drop standard ones (Room depends on Lobby, and modules share session state).
+- Logging is yours to install, and nothing installs it for you: with no sink
+  attached `LogManager` discards every record. Call `installLogSinks()` before
+  you build your flavor, as the `main()` above does — the storage migration,
+  server restoration and the contrast checks below all log while the flavor is
+  being assembled.
 - Contrast checks only warn, never block. The warnings go through `LogManager`,
-  so attach a log sink in your app's `main()` to see them — with no sink
-  attached they drop silently.
+  so without a sink installed first they drop silently.
 - Disposal is yours: the `ShellConfig` returned by `Flavor.build()` carries a
   `dispose` callback that the shell widget never invokes. Standalone apps can
   rely on OS reclamation; embedders that unmount the shell must retain the

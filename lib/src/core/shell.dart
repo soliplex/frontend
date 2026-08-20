@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 import 'inactivity/inactivity_dialog_host.dart';
 import 'inactivity/inactivity_monitor.dart';
@@ -35,12 +36,35 @@ void runSoliplexShell(ShellConfig config) {
 /// `UnimplementedError`. The `kIsWeb` short-circuit is necessary
 /// because `Platform.isAndroid` itself throws on web.
 ///
-/// Fire-and-forget: errors during cleanup never block app startup.
+/// Fire-and-forget: a failed cleanup never blocks app startup, but it is
+/// recorded, because the symptom — last session's picked files staying on disk
+/// — is otherwise invisible.
+///
+/// Both outcomes need handling. The plugin reports a failed delete by
+/// *resolving* with `false`, and with `null` when Android has no attached
+/// activity; only a channel-level fault (`MissingPluginException`, a
+/// `PlatformException`) arrives as a throw. On a device cold start the call
+/// resolved `true`, so the `null` case is handled rather than expected.
 void _clearFilePickerTempCacheOnMobile() {
   if (kIsWeb) return;
   if (!(Platform.isAndroid || Platform.isIOS)) return;
+  final logger = LogManager.instance.getLogger('soliplex.shell');
   unawaited(
-    FilePicker.clearTemporaryFiles().catchError((Object _) => false),
+    FilePicker.clearTemporaryFiles().then((cleared) {
+      if (cleared != true) {
+        logger.warning(
+          'The file picker temp cache was not cleared (result: $cleared)',
+        );
+      }
+    }).catchError((Object error, StackTrace stack) {
+      // With the trace: for a MissingPluginException or a TypeError out of the
+      // plugin path it is the only thing naming where the throw came from.
+      logger.warning(
+        'Failed to clear the file picker temp cache',
+        error: error,
+        stackTrace: stack,
+      );
+    }),
   );
 }
 
