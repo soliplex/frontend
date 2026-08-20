@@ -379,7 +379,7 @@ class ConnectFlow {
       }
     } on Exception catch (e, st) {
       _logger.error(
-        '_authenticate failed',
+        'Authentication failed',
         error: e,
         stackTrace: st,
       );
