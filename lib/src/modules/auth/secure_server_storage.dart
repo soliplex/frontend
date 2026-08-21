@@ -58,7 +58,7 @@ Map<String, PersistedServer> deserializeStorageEntries(
     } catch (e, st) {
       _logger.warning(
         'Failed to load stored session ${entry.key}',
-        error: e,
+        attributes: {'failure': describeFailure(e)},
         stackTrace: st,
       );
     }

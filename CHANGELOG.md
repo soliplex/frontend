@@ -15,9 +15,27 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
   `LogSink` interface, the console, stdout and memory sinks, and
   `LoggerFactory` — which carries `LogManager.getLogger`, and without which the
   exported `Logger` could never be obtained.
+- `describeFailure` in the logging API, which renders a caught exception for a
+  log record without echoing the input it was thrown over.
 
 ### Fixed
 
+- Decode failures no longer carry the data they failed on into the log buffer
+  the diagnostics screen displays and can export to a file.
+  `FormatException.toString()` embeds roughly 78 characters of its source, so a
+  corrupt stored session logged its access and refresh tokens and a corrupt
+  composer entry logged the user's unsent draft. Thirteen sites now record the
+  failure's reason and position instead of the exception object, and keep the
+  stack trace.
+- A token refresh that fails for an unexpected reason now records what
+  happened. `unknownError` collapsed five distinct failures and the exception
+  was discarded, so the log could report that a refresh failed but never why —
+  the case behind sessions that could only be recovered by deleting and
+  re-adding the server.
+- A response body that cannot be decoded is now reported by its content type
+  and size instead of by quoting the body, which named a credential when the
+  endpoint returning it was the MCP token, and which surfaced in the on-screen
+  error text as well as the log.
 - Apps embedding this package as a library can now get logging. `LogManager`
   discards every record when no sink is registered, and the function that
   registers them was reachable only through a `src/` path with the logging

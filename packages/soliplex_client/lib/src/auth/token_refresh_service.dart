@@ -4,6 +4,7 @@ import 'package:soliplex_client/src/auth/oidc_discovery.dart';
 import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// Result of a token refresh operation.
 sealed class TokenRefreshResult {
@@ -45,11 +46,35 @@ class TokenRefreshSuccess extends TokenRefreshResult {
 /// Failed token refresh.
 class TokenRefreshFailure extends TokenRefreshResult {
   /// Creates a failed token refresh result.
-  const TokenRefreshFailure(this.reason);
+  const TokenRefreshFailure(this.reason, {this.cause});
 
   /// The reason for failure.
   final TokenRefreshFailureReason reason;
+
+  /// Log-safe phrase naming what produced [reason].
+  ///
+  /// [TokenRefreshFailureReason.unknownError] is a bucket — a malformed
+  /// response, a rejected discovery document and an IdP error code all land
+  /// in it — so without this the log can say a refresh failed but not why.
+  /// Never holds response text: failures are rendered by [describeFailure]
+  /// and the IdP's error code is reported only when it is one of
+  /// [_oidcErrorCodes]. `null` where [reason] already says everything.
+  final String? cause;
 }
+
+/// The error codes RFC 6749 §5.2 defines for a token endpoint.
+///
+/// A code outside this set is reported as `unrecognized` rather than echoed:
+/// the token response is the most credential-dense payload the app handles,
+/// and a non-conforming IdP could put anything in the field.
+const _oidcErrorCodes = {
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+};
 
 /// Reason for token refresh failure.
 enum TokenRefreshFailureReason {
@@ -141,10 +166,16 @@ class TokenRefreshService {
     } on NetworkException {
       return const TokenRefreshFailure(TokenRefreshFailureReason.networkError);
     } on FormatException catch (e) {
-      _onDiagnostic('TokenRefreshService: $e');
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
-    } catch (_) {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      _onDiagnostic('TokenRefreshService: ${describeFailure(e)}');
+      return TokenRefreshFailure(
+        TokenRefreshFailureReason.unknownError,
+        cause: describeFailure(e),
+      );
+    } catch (e) {
+      return TokenRefreshFailure(
+        TokenRefreshFailureReason.unknownError,
+        cause: describeFailure(e),
+      );
     }
   }
 
@@ -184,8 +215,11 @@ class TokenRefreshService {
     final Map<String, dynamic> tokenData;
     try {
       tokenData = jsonDecode(response.body) as Map<String, dynamic>;
-    } on FormatException {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+    } on FormatException catch (e) {
+      return TokenRefreshFailure(
+        TokenRefreshFailureReason.unknownError,
+        cause: 'token response was not JSON: ${describeFailure(e)}',
+      );
     }
 
     // Handle error responses
@@ -196,13 +230,20 @@ class TokenRefreshService {
           TokenRefreshFailureReason.invalidGrant,
         );
       }
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      final code = _oidcErrorCodes.contains(error) ? error : 'unrecognized';
+      return TokenRefreshFailure(
+        TokenRefreshFailureReason.unknownError,
+        cause: 'token endpoint returned ${response.statusCode} ($code)',
+      );
     }
 
     // Parse successful response
     final accessToken = tokenData['access_token'] as String?;
     if (accessToken == null) {
-      return const TokenRefreshFailure(TokenRefreshFailureReason.unknownError);
+      return const TokenRefreshFailure(
+        TokenRefreshFailureReason.unknownError,
+        cause: 'token response had no access_token',
+      );
     }
 
     DateTime expiresAt;

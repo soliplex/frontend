@@ -122,9 +122,9 @@ abstract final class ThreadAnchorStorage {
         // this skip isn't silent, matching the corruption sites elsewhere.
         _logger.warning(
           'Skipped corrupt thread anchor blob while clearing a thread',
-          error: error,
           stackTrace: st,
           attributes: {
+            'failure': describeFailure(error),
             'serverId': serverId,
             'roomId': roomId,
             'threadId': threadId,

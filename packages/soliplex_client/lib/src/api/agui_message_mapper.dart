@@ -261,7 +261,7 @@ void _dropLabelFor(
     // so one message cannot cost the thread.
     _logger.error(
       'Reading the content of $logContext threw; hydrating the message empty.',
-      error: error,
+      attributes: {'failure': describeFailure(error)},
       stackTrace: stackTrace,
     );
     return (parts: null, text: '');
@@ -434,7 +434,7 @@ MessagePart _readImageSource(
         _logger.warning(
           'Content[$index] of $logContext has undecodable base64; showing it '
           'as a missing attachment.',
-          error: error,
+          attributes: {'failure': describeFailure(error)},
         );
         return MissingAttachmentPart(
           reason: MissingAttachmentReason.undecodable,

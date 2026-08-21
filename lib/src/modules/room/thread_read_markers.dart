@@ -138,9 +138,9 @@ abstract final class ThreadReadMarkerStorage {
         // this skip isn't silent, matching the corruption sites elsewhere.
         _logger.warning(
           'Skipped corrupt thread read marker blob while clearing a thread',
-          error: error,
           stackTrace: st,
           attributes: {
+            'failure': describeFailure(error),
             'serverId': serverId,
             'roomId': roomId,
             'threadId': threadId,

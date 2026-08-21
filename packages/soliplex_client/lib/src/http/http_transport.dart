@@ -6,6 +6,7 @@ import 'package:soliplex_client/src/errors/exceptions.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 /// HTTP transport layer with JSON serialization and exception mapping.
 ///
@@ -431,8 +432,15 @@ class HttpTransport {
     } on SoliplexException {
       rethrow;
     } on Object catch (error, stackTrace) {
+      // `bodyBytes.length`, not `body.length`: `body` decodes UTF-8 and
+      // throws, and a throw here would replace the exception being built.
+      // The content type names a proxy or portal page answering in the
+      // backend's place, which the failure alone cannot.
       throw MalformedResponseException(
-        message: 'Could not decode the response body as $T: $error',
+        message: 'Could not decode the response body as $T '
+            '(content-type ${response.contentType ?? 'none'}, '
+            '${response.bodyBytes.length} bytes): '
+            '${describeFailure(error)}',
         originalError: error,
         stackTrace: stackTrace,
       );
