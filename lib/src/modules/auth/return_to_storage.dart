@@ -80,7 +80,7 @@ abstract final class ReturnToStorage {
     } catch (e, st) {
       _logger.warning(
         'Corrupted composer entry; clearing',
-        error: e,
+        attributes: {'failure': describeFailure(e)},
         stackTrace: st,
       );
       await clearComposer(serverId: serverId, userId: userId, roomId: roomId);

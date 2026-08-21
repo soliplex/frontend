@@ -253,6 +253,98 @@ void main() {
     });
 
     group('discovery validation', () {
+      test(
+          'names the cause when the token response is not JSON, without '
+          'echoing the body', () async {
+        setupDiscoverySuccess();
+        // A proxy or portal answering in the IdP's place, truncated mid-write:
+        // the body a real token endpoint returns is the most credential-dense
+        // payload in the app.
+        when(
+          () => mockClient.request(
+            'POST',
+            Uri.parse('https://idp.example.com/oauth2/token'),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => HttpResponse(
+            statusCode: 200,
+            bodyBytes: Uint8List.fromList(
+              utf8.encode('{"access_token":"at_SECRET_VALUE",'
+                  '"refresh_token":"rt_SECRET_VALUE" TRUNCATED'),
+            ),
+          ),
+        );
+
+        final result = await service.refresh(
+          discoveryUrl: discoveryUrl,
+          refreshToken: refreshToken,
+          clientId: clientId,
+        );
+
+        final failure = result as TokenRefreshFailure;
+        expect(failure.reason, TokenRefreshFailureReason.unknownError);
+        expect(failure.cause, isNotNull);
+        expect(failure.cause, contains('FormatException'));
+        expect(failure.cause, isNot(contains('SECRET')));
+      });
+
+      test('reports an unrecognized OIDC error code as unrecognized', () async {
+        setupDiscoverySuccess();
+        when(
+          () => mockClient.request(
+            'POST',
+            Uri.parse('https://idp.example.com/oauth2/token'),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async => jsonResponse(
+            {'error': 'at_SECRET_VALUE_masquerading_as_a_code'},
+            statusCode: 400,
+          ),
+        );
+
+        final result = await service.refresh(
+          discoveryUrl: discoveryUrl,
+          refreshToken: refreshToken,
+          clientId: clientId,
+        );
+
+        final failure = result as TokenRefreshFailure;
+        expect(failure.reason, TokenRefreshFailureReason.unknownError);
+        expect(failure.cause, isNot(contains('SECRET')));
+      });
+
+      test('names a recognized OIDC error code', () async {
+        setupDiscoverySuccess();
+        when(
+          () => mockClient.request(
+            'POST',
+            Uri.parse('https://idp.example.com/oauth2/token'),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              jsonResponse({'error': 'invalid_client'}, statusCode: 400),
+        );
+
+        final result = await service.refresh(
+          discoveryUrl: discoveryUrl,
+          refreshToken: refreshToken,
+          clientId: clientId,
+        );
+
+        final failure = result as TokenRefreshFailure;
+        expect(failure.reason, TokenRefreshFailureReason.unknownError);
+        expect(failure.cause, contains('invalid_client'));
+      });
+
       test('returns unknownError when discovery returns non-200', () async {
         when(
           () => mockClient.request(

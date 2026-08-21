@@ -182,7 +182,7 @@ class _ChunkVisualizationPageState extends State<ChunkVisualizationPage> {
     } on FormatException catch (error, stack) {
       _logger.warning(
         'chunk image base64 decode failed',
-        error: error,
+        attributes: {'failure': describeFailure(error)},
         stackTrace: stack,
       );
       return PageImageBroken(reason: error.message);

@@ -3,10 +3,28 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soliplex_frontend/src/modules/auth/secure_server_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/server_storage.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 void main() {
   group('deserializeStorageEntries', () {
     const prefix = 'soliplex_server_';
+
+    late MemorySink sink;
+
+    setUp(() {
+      sink = MemorySink();
+      LogManager.instance.addSink(sink);
+    });
+
+    tearDown(LogManager.instance.reset);
+
+    /// A persisted blob truncated mid-write: the shape production actually
+    /// hands to [jsonDecode], with the token values a failure would sit next
+    /// to.
+    const truncatedTokenBlob =
+        '{"serverUrl":"https://example.com","requiresAuth":true,'
+        '"tokens":{"accessToken":"eyJhbGciOiJIUzI1NiJ9.SECRET_PAYLOAD_HERE",'
+        '"refreshToken":"rt_ABCDEF"} TRUNCATED';
 
     String encode(Map<String, dynamic> json) => jsonEncode(json);
 
@@ -88,12 +106,28 @@ void main() {
     test('silently skips malformed JSON', () {
       final raw = {
         '${prefix}good': encode(knownServerJson()),
-        '${prefix}bad': 'not valid json {{{',
+        '${prefix}bad': truncatedTokenBlob,
       };
 
       final result = deserializeStorageEntries(raw, prefix: prefix);
       expect(result, hasLength(1));
       expect(result.containsKey('good'), isTrue);
+    });
+
+    test('logs the skipped entry without its token material', () {
+      final raw = {'${prefix}bad': truncatedTokenBlob};
+
+      deserializeStorageEntries(raw, prefix: prefix);
+
+      final record = sink.records.single;
+      expect(record.toString(), isNot(contains('SECRET_PAYLOAD_HERE')));
+      expect(record.toString(), isNot(contains('rt_ABCDEF')));
+      expect(record.error, isNull);
+      expect(record.message, contains('${prefix}bad'));
+      expect(
+        record.attributes['failure'],
+        'FormatException: Unexpected character (offset 150)',
+      );
     });
 
     test('silently skips entries where fromJson throws', () {

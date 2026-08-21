@@ -157,7 +157,7 @@ abstract final class PreAuthStateStorage {
       // already in flight loses its return target.
       _logger.warning(
         'Failed to load pre-auth state',
-        error: e,
+        attributes: {'failure': describeFailure(e)},
         stackTrace: st,
       );
       await clear();
