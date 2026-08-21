@@ -98,6 +98,55 @@ composes the standard one; `standard()` is that flavor, lowered. Modules are
 included/excluded by presence in the flavor — no enum or toggle framework. See
 `docs/authoring-a-flavor.md`.
 
+## Logging
+
+### Hard rule — never log a value the user or the backend supplied
+
+`error:` puts the exception object on the `LogRecord`, and `toString()` renders
+it into the in-memory buffer the diagnostics screen displays and can export to
+a file. Some exceptions carry the input they failed on:
+
+| Thrown by | What travels with it |
+| --------- | -------------------- |
+| `jsonDecode`, `int.parse`, `double.parse`, `Uri.parse`, `base64Decode` | `FormatException.source` — roughly 78 characters of the input around the failure offset |
+| `ArgumentError.value` | the rejected value |
+
+`utf8.decode` is the exception to the rule: its source is a byte list, so
+`toString()` prints no window.
+
+When a `catch` can see one of those — directly, or through a function it calls
+— pass `attributes: {'failure': describeFailure(e)}` (from `soliplex_logging`)
+instead of `error: e`. Keep `stackTrace:`; a stack trace carries frames, not
+values, and it is what says where the failure happened. This applies equally to
+a `.catchError(...)` or `onError:` callback, which is the same forward without
+the `catch` keyword to make it visible.
+
+The same applies to strings: never interpolate a caught exception into a log
+message, or into the `message:` of an exception you throw — the source window
+travels inside it. Interpolating an identifier (`serverId`, `roomId`) or a
+`runtimeType` is fine, and is what makes a record actionable.
+
+`describeFailure` keeps a `TypeError` whole, because the runtime builds it from
+type names alone: a cast failure still says what shape actually arrived, which
+is what names a proxy or portal page answering in the backend's place. An
+`ArgumentError` — and a `RangeError`, which extends it — keeps the name of the
+parameter it rejected, but never the value. Everything else is reduced to a
+type name, `StateError` and `UnsupportedError` included, because their text is
+supplied by whoever threw them.
+
+The rule does not fire when the record already carries the same value
+deliberately. `connection_probe.dart` logs `input`, `inputLength`, `candidates`
+and `hosts` as attributes, because a typed address with a stray character is a
+reported failure mode and the address is not a secret. Forwarding the
+`Uri.parse` failure beside them adds the offset of the offending character and
+no new value, so that site keeps `error:`.
+
+The rule does not reach network failures. A `SocketException` renders as a host
+and an OS error, and this codebase already logs hostnames as attributes
+(`discoveryUrl`). A `catch` that can only see those should keep `error:` —
+routing it through `describeFailure` would drop the failed host lookup that is
+the whole diagnosis.
+
 ## Design system
 
 The design system is the **single source of truth** for color, type, spacing,

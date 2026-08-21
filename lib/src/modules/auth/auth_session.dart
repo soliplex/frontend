@@ -187,12 +187,13 @@ class AuthSession implements TokenRefresher {
         markSessionExpired();
         return false;
 
-      case TokenRefreshFailure(:final reason):
+      case TokenRefreshFailure(:final reason, :final cause):
         // networkError is recoverable on retry; unknownError is the
         // anomaly worth recording at error level.
         final attributes = {
           'discoveryUrl': provider.discoveryUrl,
           'reason': reason.name,
+          if (cause != null) 'cause': cause,
         };
         if (reason == TokenRefreshFailureReason.networkError) {
           _logger.warning('Token refresh failed', attributes: attributes);

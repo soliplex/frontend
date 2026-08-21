@@ -150,7 +150,7 @@ class CitedFigures {
       _logger.warning(
         'RagSnapshot: picture ref "$ref" for document "$documentId" has '
         'undecodable base64; dropped.',
-        error: error,
+        attributes: {'failure': describeFailure(error)},
       );
       return null;
     }

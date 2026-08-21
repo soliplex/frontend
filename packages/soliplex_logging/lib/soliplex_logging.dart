@@ -1,6 +1,7 @@
 /// Central logging package for Soliplex applications.
 library;
 
+export 'src/failure_description.dart';
 export 'src/log_level.dart';
 export 'src/log_manager.dart';
 export 'src/log_record.dart';

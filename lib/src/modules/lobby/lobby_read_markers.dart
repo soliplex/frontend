@@ -150,9 +150,13 @@ abstract final class LobbyReadMarkerStorage {
         // skip isn't silent, matching the other corruption sites in this class.
         _logger.warning(
           'Skipped corrupt room read marker blob while clearing a room',
-          error: error,
           stackTrace: st,
-          attributes: {'serverId': serverId, 'roomId': roomId, 'key': k},
+          attributes: {
+            'failure': describeFailure(error),
+            'serverId': serverId,
+            'roomId': roomId,
+            'key': k,
+          },
         );
         continue;
       }

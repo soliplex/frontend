@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soliplex_frontend/src/core/keyed_storage.dart';
 import 'package:soliplex_frontend/src/modules/auth/return_to_storage.dart';
+import 'package:soliplex_logging/soliplex_logging.dart';
 
 final _baseTime = DateTime.utc(2026, 5, 20, 12);
 
@@ -9,9 +10,21 @@ void main() {
   group('ReturnToStorage composer', () {
     const u = 'iss#user';
 
+    late MemorySink sink;
+
     setUp(() {
       SharedPreferences.setMockInitialValues({});
+      sink = MemorySink();
+      LogManager.instance.addSink(sink);
     });
+
+    tearDown(LogManager.instance.reset);
+
+    /// An entry truncated mid-write: the shape production actually hands to
+    /// [jsonDecode], with the draft text a failure would sit next to.
+    const truncatedDraftEntry =
+        '{"unsentText":"my private draft about SECRET_PROJECT",'
+        '"createdAt":"2026-05-20T12:00:00.000Z" TRUNCATED';
 
     test('save and load round-trip', () async {
       await ReturnToStorage.saveComposer(
@@ -144,7 +157,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         encodeKey('soliplex_return_to:composer', ['a', u, 'r']),
-        '{not valid json',
+        truncatedDraftEntry,
       );
 
       final loaded = await ReturnToStorage.loadComposer(
@@ -154,6 +167,30 @@ void main() {
       );
       expect(loaded, isNull);
       expect(prefs.getKeys(), isEmpty);
+    });
+
+    test('logs the corrupted entry without its draft text', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        encodeKey('soliplex_return_to:composer', ['a', u, 'r']),
+        truncatedDraftEntry,
+      );
+
+      await ReturnToStorage.loadComposer(
+        serverId: 'a',
+        userId: u,
+        roomId: 'r',
+      );
+
+      final record = sink.records.single;
+      expect(record.toString(), isNot(contains('SECRET_PROJECT')));
+      expect(record.toString(), isNot(contains('private draft')));
+      expect(record.error, isNull);
+      expect(record.message, 'Corrupted composer entry; clearing');
+      expect(
+        record.attributes['failure'],
+        'FormatException: Unexpected character (offset 93)',
+      );
     });
 
     test('clearComposer removes a stored entry', () async {
