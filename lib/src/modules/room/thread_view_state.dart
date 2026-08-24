@@ -261,6 +261,7 @@ class ThreadViewState {
   }
 
   void cancelRun() {
+    if (_isDisposed) return;
     if (_spawner.cancel()) {
       _sessionState.value = null;
       return;

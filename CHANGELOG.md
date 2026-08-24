@@ -38,6 +38,27 @@ Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 - Errors contained inside the HTTP stack reach the app's log sink from the
   platform clients, and are rendered without echoing the input they were
   thrown over.
+- Pressing Stop always leaves the session in a terminal state.
+  `AgentSession.cancel()` previously let a throw from the orchestrator escape
+  into the widget callback that pressed the button, where Flutter printed it
+  and carried on: the press did nothing, the run kept streaming with no way to
+  reach it again, and the runtime waited on the session's result forever,
+  stalling every queued spawn behind it.
+- A run that throws instead of reaching a terminal state now settles the
+  session rather than stranding it, for the same reason.
+- Cancelling a spawn on a torn-down room or thread view no longer crashes.
+  `RoomState.cancelSpawn` and `ThreadViewState.cancelRun` wrote a signal their
+  own `dispose` had already disposed, which raises rather than being ignored;
+  every other method on both classes already returned early.
+
+### Added
+
+- `installUncaughtErrorLogging()` records errors no `catch` in the app saw —
+  the framework's, via `FlutterError.onError`, and the root zone's unhandled
+  asynchronous ones, via `PlatformDispatcher.onError` — into the same log sinks
+  the diagnostics screen reads. Both are additive: the framework's own console
+  dump and the platform's report of an unhandled error still happen. Host apps
+  embedding this package as a library can call it alongside `installLogSinks()`.
 
 ### Changed
 

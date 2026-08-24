@@ -6,6 +6,8 @@ Future<void> main() async {
   // See installLogSinks for where records surface (DevTools Logging vs stdout),
   // what can observe each, and the per-mode level floor.
   installLogSinks();
+  // After the sinks, not before: without one, LogManager discards the record.
+  installUncaughtErrorLogging();
   final callbackParams = CallbackParamsCapture.captureNow();
   clearCallbackUrl();
   runSoliplexShell(await standard(callbackParams: callbackParams));

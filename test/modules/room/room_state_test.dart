@@ -237,6 +237,36 @@ void main() {
     state.dispose();
   });
 
+  test('cancelSpawn after dispose does not throw', () async {
+    // The same shape as `ThreadViewState.cancelRun`, one file away: every
+    // other method here opens with the disposed guard, this one writes
+    // `_sessionState` without it, and signals raise on a write after disposal.
+    api.nextRoom = Room(id: 'room-1', name: 'Test');
+    api.nextThreads = [];
+
+    final state = RoomState(
+      serverEntry: serverEntry,
+      roomId: 'room-1',
+      runtimeManager: runtimeManager,
+      registry: registry,
+      uploadRegistry: uploadRegistry,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    // Left pending, so `_spawner.cancel()` reports a spawn to cancel and
+    // `cancelSpawn` reaches the write.
+    final future = state.sendToNewThread([const TextPart('Hello')]);
+    state.dispose();
+
+    state.cancelSpawn();
+
+    await future;
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+  });
+
   test('sendToNewThread adds thread to list locally', () async {
     final createdThread = ThreadInfo(
       id: 'spawned-thread',
