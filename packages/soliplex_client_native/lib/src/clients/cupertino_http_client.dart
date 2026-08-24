@@ -38,11 +38,17 @@ class CupertinoHttpClient implements SoliplexHttpClient {
   ///   to timeoutIntervalForRequest. When providing your own configuration,
   ///   you are responsible for its timeout settings.
   /// - [defaultTimeout]: Default timeout for requests.
+  /// - [onDiagnostic]: Sink for internal errors the client contained
+  ///   without failing the request. Defaults to `dart:developer`.
   CupertinoHttpClient({
     URLSessionConfiguration? configuration,
     this.defaultTimeout = defaultHttpTimeout,
-  }) : _client = CupertinoClient.fromSessionConfiguration(
+    HttpDiagnosticHandler? onDiagnostic,
+  })  : _client = CupertinoClient.fromSessionConfiguration(
           configuration ?? _createConfiguration(defaultTimeout),
+        ),
+        _onDiagnostic = safeDiagnosticHandler(
+          onDiagnostic ?? defaultHttpDiagnosticHandler,
         );
 
   /// Creates a Cupertino HTTP client with a custom client for testing.
@@ -52,7 +58,11 @@ class CupertinoHttpClient implements SoliplexHttpClient {
   CupertinoHttpClient.forTesting({
     required http.Client client,
     this.defaultTimeout = defaultHttpTimeout,
-  }) : _client = client;
+    HttpDiagnosticHandler? onDiagnostic,
+  })  : _client = client,
+        _onDiagnostic = safeDiagnosticHandler(
+          onDiagnostic ?? defaultHttpDiagnosticHandler,
+        );
 
   /// Creates a URLSessionConfiguration with the given timeout.
   static URLSessionConfiguration _createConfiguration(Duration timeout) {
@@ -61,6 +71,7 @@ class CupertinoHttpClient implements SoliplexHttpClient {
   }
 
   final http.Client _client;
+  final HttpDiagnosticHandler _onDiagnostic;
 
   /// Default timeout for requests when not specified per-request.
   final Duration defaultTimeout;
@@ -123,6 +134,25 @@ class CupertinoHttpClient implements SoliplexHttpClient {
         stackTrace: stackTrace,
       );
     } on http.ClientException catch (e, stackTrace) {
+      // Only a streamed body is wired to the token: `_pipeStreamToSink`
+      // injects the cancellation into the request sink, and it crosses the
+      // `NSInputStream` bridge as an `NSError`, so the [CancelledException]
+      // identity is gone by the time it lands here. Reporting a network
+      // failure for an upload the caller cancelled is what makes
+      // `UploadTracker` show a cancelled row as failed.
+      //
+      // Buffered bodies are never wired, so a client error there is a real
+      // failure even when some other request sharing the token was
+      // cancelled; those keep reporting as network failures.
+      if (body is Stream<List<int>> && (cancelToken?.isCancelled ?? false)) {
+        _onDiagnostic(
+          e,
+          stackTrace,
+          message: 'Client error on a cancelled streamed upload; '
+              'reporting the cancellation instead',
+        );
+        cancelToken!.throwIfCancelled();
+      }
       throw NetworkException(
         message: 'Client error: ${e.message}',
         originalError: e,
@@ -180,6 +210,25 @@ class CupertinoHttpClient implements SoliplexHttpClient {
     } on CancelledException {
       rethrow;
     } on http.ClientException catch (e, stackTrace) {
+      // Only a streamed body is wired to the token: `_pipeStreamToSink`
+      // injects the cancellation into the request sink, and it crosses the
+      // `NSInputStream` bridge as an `NSError`, so the [CancelledException]
+      // identity is gone by the time it lands here. Reporting a network
+      // failure for an upload the caller cancelled is what makes
+      // `UploadTracker` show a cancelled row as failed.
+      //
+      // Buffered bodies are never wired, so a client error there is a real
+      // failure even when some other request sharing the token was
+      // cancelled; those keep reporting as network failures.
+      if (body is Stream<List<int>> && (cancelToken?.isCancelled ?? false)) {
+        _onDiagnostic(
+          e,
+          stackTrace,
+          message: 'Client error on a cancelled streamed upload; '
+              'reporting the cancellation instead',
+        );
+        cancelToken!.throwIfCancelled();
+      }
       throw NetworkException(
         message: 'Client error: ${e.message}',
         originalError: e,
@@ -314,7 +363,27 @@ class CupertinoHttpClient implements SoliplexHttpClient {
         if (closed) return;
         sink.addError(CancelledException(reason: cancelToken.reason));
         closeSink();
-        subscription.cancel();
+        // A body stream that is an `async*` generator can raise while it
+        // unwinds, and Dart reports that through the future returned by
+        // `cancel()` rather than through `onError`. Discarding the future
+        // lets it reach the zone as an unhandled error.
+        //
+        // A [CancelledException] here is the body reacting to the same
+        // token, a second route for an event the caller already has: the
+        // sink error above makes their request future complete with one.
+        // Deliberate silence. Anything else is a real body failure — a file
+        // read that broke as the socket closed — and this is its only
+        // record, because that future carries the cancellation instead.
+        unawaited(
+          subscription.cancel().catchError((Object e, StackTrace st) {
+            if (e is CancelledException) return;
+            _onDiagnostic(
+              e,
+              st,
+              message: 'Request body teardown failed after cancel',
+            );
+          }),
+        );
       });
     }
   }

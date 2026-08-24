@@ -931,7 +931,13 @@ void main() {
       expect(completed.first.result, contains('timed out after'));
     });
 
-    test('cancelToken delegates to orchestrator', () {
+    test('cancel after the session went terminal still cancels the token',
+        () async {
+      // A run that failed or completed is terminal, but a tool parked on
+      // `requestApproval` is still waiting on this token: skipping the
+      // cancel leaves it hanging until the 60s tool timeout.
+      stubCreateRun();
+      stubRunAgent(stream: Stream.fromIterable(_happyPathEvents()));
       final session = createSession(
         api: api,
         agUiStreamClient: agUiStreamClient,
@@ -939,9 +945,34 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      // cancelToken returns a fresh token when no run is active.
+      await session.start(userMessage: [const TextPart('Hi')]);
+      expect(await session.result, isA<AgentSuccess>());
+      expect(session.cancelToken.isCancelled, isFalse);
+
+      session.cancel();
+
+      expect(session.cancelToken.isCancelled, isTrue);
+    });
+
+    test('cancelToken is one instance for the session, cancelled by dispose',
+        () {
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      // Every reader must get the same token, or a listener registered by an
+      // extension in onAttach cannot observe a later cancel.
       final token = session.cancelToken;
-      expect(token, isA<CancelToken>());
+      expect(session.cancelToken, same(token));
+      expect(token.isCancelled, isFalse);
+
+      session.dispose();
+
+      expect(session.cancelToken, same(token));
+      expect(token.isCancelled, isTrue);
     });
 
     test('ActivitySnapshotEvent bridges to ActivitySnapshot', () async {

@@ -338,9 +338,10 @@ class ConcurrencyLimitingHttpClient implements SoliplexHttpClient {
   Duration _nonNegative(Duration duration) {
     if (!duration.isNegative) return duration;
     _onDiagnostic(
-      StateError('Negative waitDuration from clock skew: $duration'),
+      StateError('Negative waitDuration from clock skew'),
       StackTrace.current,
-      message: 'Clock went backward during request; clamping waitDuration',
+      message: 'Clock went backward during request; clamping waitDuration '
+          'from $duration',
     );
     return Duration.zero;
   }

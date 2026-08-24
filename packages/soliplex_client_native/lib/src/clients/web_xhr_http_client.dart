@@ -18,9 +18,17 @@ import 'package:web/web.dart' as web;
 /// behaves identically to today.
 class WebXhrHttpClient implements SoliplexHttpClient {
   /// Wraps an inner [DartHttpClient] for non-upload paths.
-  WebXhrHttpClient({Duration defaultTimeout = defaultHttpTimeout})
-      : _defaultTimeout = defaultTimeout,
-        _inner = DartHttpClient(defaultTimeout: defaultTimeout);
+  ///
+  /// [onDiagnostic] is forwarded to that inner client, which is where
+  /// this client's contained internal errors arise.
+  WebXhrHttpClient({
+    Duration defaultTimeout = defaultHttpTimeout,
+    HttpDiagnosticHandler? onDiagnostic,
+  })  : _defaultTimeout = defaultTimeout,
+        _inner = DartHttpClient(
+          defaultTimeout: defaultTimeout,
+          onDiagnostic: onDiagnostic,
+        );
 
   final Duration _defaultTimeout;
   final DartHttpClient _inner;

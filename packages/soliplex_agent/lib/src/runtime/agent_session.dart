@@ -84,6 +84,21 @@ class AgentSession implements ToolExecutionContext {
   static const _toolTimeout = Duration(seconds: 60);
 
   final List<AgentSession> _children = [];
+
+  /// Cancellation signal for the session as a whole. Never replaced, and
+  /// cancelled at most once — [CancelToken.cancel] is idempotent — by
+  /// [cancel] or by [dispose].
+  ///
+  /// Deliberately not the token `RunOrchestrator` passes to the transport.
+  /// That one is scoped to a single HTTP request: it is re-minted for every
+  /// resume segment and cleared whenever no request is in flight, including
+  /// for the whole of the tool-execution window. Readers that need to know
+  /// whether *the session* was cancelled — tools polling
+  /// [ToolExecutionContext.cancelToken], and extensions that subscribe in
+  /// `onAttach`, which runs before the first request exists — need a token
+  /// whose lifetime is the session's.
+  final CancelToken _cancelToken = CancelToken();
+
   final Completer<AgentResult> _resultCompleter = Completer<AgentResult>();
   StreamSubscription<RunState>? _subscription;
   StreamSubscription<BaseEvent>? _baseEventSubscription;
@@ -196,16 +211,14 @@ class AgentSession implements ToolExecutionContext {
   // ToolExecutionContext implementation
   // ---------------------------------------------------------------------------
 
-  /// CancelToken from the underlying orchestrator, or a pre-cancelled token
-  /// once the session has been disposed.
+  /// The session's cancellation signal. Stable for the session's lifetime,
+  /// so a listener registered in `onAttach` still sees a later [cancel].
   ///
-  /// Late tool callers (a microtask resuming after [dispose]) read a
-  /// cancelled token rather than triggering the orchestrator's
-  /// disposed-getter guard, so dispose-race short-circuits return cleanly
-  /// instead of surfacing as opaque "tool failed" errors.
+  /// [dispose] cancels it, so a late tool caller (a microtask resuming after
+  /// teardown) reads a cancelled token and short-circuits cleanly instead of
+  /// surfacing an opaque "tool failed" error.
   @override
-  CancelToken get cancelToken =>
-      _disposed ? (CancelToken()..cancel()) : _orchestrator.cancelToken;
+  CancelToken get cancelToken => _cancelToken;
 
   @override
   Future<AgentSession> spawnChild({
@@ -334,11 +347,26 @@ class AgentSession implements ToolExecutionContext {
     _children.remove(child);
   }
 
-  /// Cancels the session and all children. No-op if already terminal.
+  /// Cancels the session and all children.
+  ///
+  /// The cancellation signal always fires; the child cascade and the
+  /// orchestrator cancel are skipped once the session is terminal.
   void cancel() {
+    // Ahead of the terminal check: a run that already failed is terminal, and
+    // a tool parked on an approval is still waiting on this token.
+    _cancelToken.cancel('session cancelled');
     if (_isTerminal) return;
     for (final child in _children.toList()) {
-      child.cancel();
+      try {
+        child.cancel();
+      } on Object catch (e, st) {
+        _logger.error(
+          'Child AgentSession cancel threw (parent=$id, '
+          'thread=${threadKey.threadId}, child=${child.id})',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
     _orchestrator.cancelRun();
   }
@@ -355,6 +383,27 @@ class AgentSession implements ToolExecutionContext {
     Map<String, dynamic>? stateOverlay,
   }) async {
     await _attachExtensions();
+    // `AgentRuntime.spawn` registers this session with its parent before
+    // awaiting `start`, so a parent cancel can land during the attach above.
+    // Starting anyway would create a backend run the user already stopped.
+    //
+    // Settle the result rather than just returning: `AgentRuntime` awaits it
+    // before draining the spawn queue, and before disposing the session when
+    // it owns the lifecycle, so leaving it pending would strand both.
+    if (_cancelToken.isCancelled) {
+      // [dispose] cancels the token too, and settles the result itself
+      // through `_completeIfPending` before disposing the signals that
+      // `_completeWith` writes.
+      if (_disposed) return;
+      _completeWith(
+        AgentFailure(
+          threadKey: threadKey,
+          reason: FailureReason.cancelled,
+          error: 'Cancelled before the run started',
+        ),
+      );
+      return;
+    }
     _subscription = _orchestrator.stateChanges.listen(_onStateChange);
     _baseEventSubscription = _orchestrator.baseEvents.listen(_bridgeBaseEvent);
     unawaited(
@@ -384,6 +433,7 @@ class AgentSession implements ToolExecutionContext {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _cancelToken.cancel('session disposed');
     for (final child in _children.toList()) {
       try {
         child.dispose();

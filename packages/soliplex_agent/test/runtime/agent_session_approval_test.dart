@@ -149,12 +149,11 @@ void main() {
       expect(result, isFalse);
     });
 
-    // The cancelToken.isCancelled short-circuit at AgentSession.requestApproval
-    // is only reachable mid-run (the orchestrator creates the token lazily in
-    // _subscribeToStream). Exercising it requires a real run; the disposed-
-    // session test below covers the equivalent deny-without-extension-call
-    // semantics through the _disposed guard, which is the path actually taken
-    // when AgentRuntime tears the session down.
+    // The cancelToken.isCancelled short-circuit at
+    // AgentSession.requestApproval is covered against a cancelled session in
+    // `cancel_during_tool_window_test.dart`. The disposed-session test below
+    // covers the sibling deny-without-extension-call path through the
+    // _disposed guard, which is what AgentRuntime's teardown takes.
 
     test(
       'session disposed → resolves false without touching extension',

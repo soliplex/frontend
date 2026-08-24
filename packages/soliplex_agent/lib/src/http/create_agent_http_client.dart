@@ -15,6 +15,11 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// platform client. 6 sits under the backend's per-client 10-connection
 /// cap with headroom. Raise it when moving to an HTTP/2 backend.
 ///
+/// [onDiagnostic] receives internal errors the stack contained without
+/// failing the request. It reaches the concurrency limiter and, when
+/// [observers] is non-empty, the observable decorator. Pass [innerClient]
+/// and it is that client's own handler that applies.
+///
 /// See `package:soliplex_client/CLAUDE.md` for the decorator stack
 /// rationale.
 SoliplexHttpClient createAgentHttpClient({
@@ -30,7 +35,7 @@ SoliplexHttpClient createAgentHttpClient({
     'tokenRefresher requires getToken to inject refreshed tokens',
   );
 
-  var client = innerClient ?? DartHttpClient();
+  var client = innerClient ?? DartHttpClient(onDiagnostic: onDiagnostic);
 
   if (observers != null && observers.isNotEmpty) {
     client = ObservableHttpClient(

@@ -159,14 +159,6 @@ class RunOrchestrator {
   /// conversation state.
   Stream<BaseEvent> get baseEvents => _baseEventController.stream;
 
-  /// The current cancellation token for the active run.
-  ///
-  /// Returns a fresh (uncancelled) token if no run is active.
-  CancelToken get cancelToken {
-    _guardNotDisposed();
-    return _cancelToken ?? CancelToken();
-  }
-
   /// Runs a complete agent interaction including all tool yield/resume cycles.
   ///
   /// State emissions continue on [stateChanges] for UI observers.
@@ -420,7 +412,7 @@ class RunOrchestrator {
     _cancelToken = null;
     _completeTerminalOnDispose();
     if (!_receivedTerminalEvent) {
-      unawaited(_subscription?.cancel());
+      _absorbTeardown(_subscription?.cancel(), 'dispose');
     }
     _subscription = null;
     if (!_controller.isClosed) {
@@ -462,11 +454,11 @@ class RunOrchestrator {
     // overwrite the user's cancel intent. Both paths drain and bail
     // before _subscribeToStream.
     if (_disposed) {
-      _drainUnownedStream(handle.events, 'Initialize drain failed');
+      _drainUnownedStream(handle.events, 'initialize drain (disposed)');
       return;
     }
     if (_cancelToken?.isCancelled ?? false) {
-      _drainUnownedStream(handle.events, 'Initialize drain failed');
+      _drainUnownedStream(handle.events, 'initialize drain (cancelled)');
       throw CancelledException(reason: _cancelToken?.reason);
     }
     _subscribeToStream(
@@ -481,20 +473,15 @@ class RunOrchestrator {
   }
 
   /// Drains an SSE stream we no longer own (cancel/dispose during a
-  /// post-`startRun` await). Listening with no `onData` and immediately
-  /// cancelling releases the underlying socket. `onError` routes through
-  /// `Logger.error` so a future bug landing here from a non-cancel path
-  /// leaves a Sentry-grade breadcrumb instead of an unhandled future.
-  void _drainUnownedStream(Stream<DecodeOutcome> events, String errorMessage) {
-    unawaited(
-      events
-          .listen(
-            null,
-            onError: (Object e, StackTrace st) =>
-                _logger.error(errorMessage, error: e, stackTrace: st),
-          )
-          .cancel(),
-    );
+  /// post-`startRun` await), releasing the underlying socket.
+  ///
+  /// The listen and the cancel happen in one turn, and every provider in
+  /// this package returns a cold `async*`, so no event can be delivered
+  /// first and an `onData`/`onError` pair would never fire. Whatever the generator raises as it unwinds arrives on the cancel
+  /// future instead, which is what [_absorbTeardown] reads; [site] labels the
+  /// record so each drain is distinguishable in the log.
+  void _drainUnownedStream(Stream<DecodeOutcome> events, String site) {
+    _absorbTeardown(events.listen(null).cancel(), site);
   }
 
   /// Drives the tool yield/resume loop for [runToCompletion].
@@ -572,7 +559,7 @@ class RunOrchestrator {
           '(state=${_currentState.runtimeType})',
         );
       }
-      _drainUnownedStream(handle.events, 'Resume drain failed');
+      _drainUnownedStream(handle.events, 'resume drain');
       _terminalCompleter = Completer<RunState>()..complete(_currentState);
       return;
     }
@@ -900,7 +887,7 @@ class RunOrchestrator {
     // which can fire after the new subscription replaces the old one.
     // `onData`/`onError` cease firing on the cancelled subscription, so
     // they need no epoch guard.
-    unawaited(_subscription?.cancel());
+    _absorbTeardown(_subscription?.cancel(), 'stale subscription');
     _subscription = null;
     _cancelToken ??= CancelToken();
     _receivedTerminalEvent = false;
@@ -1285,7 +1272,7 @@ class RunOrchestrator {
       // user-visible result mirrors mid-stream cancel handling —
       // not a `FailedState(reason: internalError)`. Accepts both
       // `CancelledException` (from our `CancelToken`) and
-      // `CancellationError` (Dart core / ag_ui interop).
+      // `CancellationError` (ag_ui's, for interop with its client).
       _setState(CancelledState.preRun(threadKey: key));
       return;
     }
@@ -1310,8 +1297,38 @@ class RunOrchestrator {
     }
   }
 
+  /// Absorbs whatever the teardown of an SSE subscription surfaces, where
+  /// [pending] is the future returned by [StreamSubscription.cancel] and
+  /// [site] names the teardown on the log record.
+  ///
+  /// Cancelling that subscription unwinds the provider's `async*` generator.
+  /// An error raised while it unwinds is delivered here rather than to the
+  /// subscription's `onError`, so discarding this future lets it reach the
+  /// zone as an unhandled error.
+  ///
+  /// The expected one is the cancellation the transport injects when the
+  /// run's token fires, scheduled by the token's completer and so still
+  /// undelivered when the caller's cancel runs. Every caller has its own
+  /// route to the outcome — a terminal state it publishes, or an exception
+  /// it throws — so this second copy carries nothing its recipient does not
+  /// already have: deliberate silence. Anything else is a real teardown
+  /// failure and is logged.
+  void _absorbTeardown(Future<void>? pending, String site) {
+    if (pending == null) return;
+    unawaited(
+      pending.catchError((Object e, StackTrace st) {
+        if (e is CancelledException || e is CancellationError) return;
+        _logger.warning(
+          'SSE subscription teardown failed: $site',
+          attributes: {'failure': describeFailure(e)},
+          stackTrace: st,
+        );
+      }),
+    );
+  }
+
   void _cleanup() {
-    unawaited(_subscription?.cancel());
+    _absorbTeardown(_subscription?.cancel(), 'cleanup');
     _subscription = null;
     _cancelToken = null;
   }
