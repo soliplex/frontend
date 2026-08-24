@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:soliplex_client/src/errors/exceptions.dart';
+import 'package:soliplex_client/src/http/http_diagnostic.dart';
 import 'package:soliplex_client/src/http/http_response.dart';
 import 'package:soliplex_client/src/http/soliplex_http_client.dart';
 import 'package:soliplex_client/src/utils/cancel_token.dart';
@@ -37,12 +38,19 @@ class DartHttpClient implements SoliplexHttpClient {
   /// - [client]: Optional [http.Client] to use. Creates a new one if not
   ///   provided.
   /// - [defaultTimeout]: Default timeout for requests.
+  /// - [onDiagnostic]: Sink for internal errors the client contained
+  ///   without failing the request. Defaults to `dart:developer`.
   DartHttpClient({
     http.Client? client,
     this.defaultTimeout = defaultHttpTimeout,
-  }) : _client = client ?? http.Client();
+    HttpDiagnosticHandler? onDiagnostic,
+  })  : _client = client ?? http.Client(),
+        _onDiagnostic = safeDiagnosticHandler(
+          onDiagnostic ?? defaultHttpDiagnosticHandler,
+        );
 
   final http.Client _client;
+  final HttpDiagnosticHandler _onDiagnostic;
 
   /// Default timeout for requests when not specified per-request.
   final Duration defaultTimeout;
@@ -296,7 +304,27 @@ class DartHttpClient implements SoliplexHttpClient {
         if (closed) return;
         sink.addError(CancelledException(reason: cancelToken.reason));
         closeSink();
-        subscription.cancel();
+        // A body stream that is an `async*` generator can raise while it
+        // unwinds, and Dart reports that through the future returned by
+        // `cancel()` rather than through `onError`. Discarding the future
+        // lets it reach the zone as an unhandled error.
+        //
+        // A [CancelledException] here is the body reacting to the same
+        // token, a second route for an event the caller already has: the
+        // sink error above makes their request future complete with one.
+        // Deliberate silence. Anything else is a real body failure — a file
+        // read that broke as the socket closed — and this is its only
+        // record, because that future carries the cancellation instead.
+        unawaited(
+          subscription.cancel().catchError((Object e, StackTrace st) {
+            if (e is CancelledException) return;
+            _onDiagnostic(
+              e,
+              st,
+              message: 'Request body teardown failed after cancel',
+            );
+          }),
+        );
       });
     }
   }

@@ -15,7 +15,10 @@ import 'package:soliplex_client/soliplex_client.dart';
 /// - Use streaming/chunked processing for large data
 /// - Check [cancelToken] at natural yield points
 abstract interface class ToolExecutionContext {
-  /// Cancellation token for the current run.
+  /// Cancellation signal for the session, cancelled when the session is
+  /// cancelled or torn down. Stable for the session's lifetime, so it
+  /// keeps reporting the session's state across a tool-yield boundary,
+  /// where no request is in flight.
   CancelToken get cancelToken;
 
   /// Spawn a child agent session linked to the current session.

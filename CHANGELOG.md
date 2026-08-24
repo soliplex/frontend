@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow the `version+build` scheme from `pubspec.yaml`, bumped via
 `dart run tool/bump_version.dart`.
 
+## [Unreleased]
+
+### Fixed
+
+- Tearing down a cancelled SSE subscription now observes the future
+  `StreamSubscription.cancel()` returns, so an error raised while the stream
+  generator unwinds — the transport's injected `CancelledException` among them
+  — no longer reaches the zone unhandled. Applies to the four teardown sites
+  in `RunOrchestrator`; other unguarded callbacks on the cancel path are
+  unchanged.
+- The upload request-body pipe observes that future too, on both the Dart and
+  the Cupertino client, so an error raised while the multipart body unwinds no
+  longer reaches the zone.
+- Cancellation is now observable to client-side tools and session extensions.
+  `AgentSession` owns a cancellation signal for the session's lifetime instead
+  of exposing `RunOrchestrator`'s request-scoped token, which is absent for the
+  whole tool-execution window and at extension-attach time — so a tool polling
+  `ToolExecutionContext.cancelToken` never saw a cancel, and a pending tool
+  approval was not denied when the session was cancelled.
+- Cancelling an upload on iOS and macOS reports the cancellation rather than a
+  network failure. NSURLSession surfaces an aborted upload as a client error,
+  so the cancel arrived as a `NetworkException` and the upload was shown as
+  failed instead of cancelled.
+- Pressing Stop denies a pending tool approval even when the run already
+  failed, instead of leaving the approval unresolved.
+- A session cancelled while its extensions are attaching no longer starts a
+  backend run.
+- The fallback from the native HTTP client to `DartHttpClient` is recorded
+  instead of downgrading silently.
+- Errors contained inside the HTTP stack reach the app's log sink from the
+  platform clients, and are rendered without echoing the input they were
+  thrown over.
+
+### Changed
+
+- **Breaking (library):** `AgentSession.cancelToken` is now scoped to the
+  session rather than the active request: it is one instance for the session's
+  lifetime, cancelled by `cancel()` or `dispose()`. It previously answered a
+  fresh, never-cancelled token whenever no request was in flight.
+- `DartHttpClient`, `CupertinoHttpClient`, `WebXhrHttpClient` and
+  `createPlatformClient` accept an optional `onDiagnostic` handler, defaulting
+  to `dart:developer` as the other clients in the stack already did.
+
 ## [0.101.0+84] - 2026-08-21
 
 ### Added

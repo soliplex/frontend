@@ -10,6 +10,10 @@ import 'package:soliplex_client_native/src/clients/web_xhr_http_client.dart';
 /// the file's disk-backed Blob — file bytes never enter the JS heap.
 SoliplexHttpClient createPlatformClientImpl({
   Duration defaultTimeout = defaultHttpTimeout,
+  HttpDiagnosticHandler? onDiagnostic,
 }) {
-  return WebXhrHttpClient(defaultTimeout: defaultTimeout);
+  return WebXhrHttpClient(
+    defaultTimeout: defaultTimeout,
+    onDiagnostic: onDiagnostic,
+  );
 }

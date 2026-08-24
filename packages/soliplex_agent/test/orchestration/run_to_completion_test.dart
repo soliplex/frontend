@@ -702,8 +702,8 @@ void main() {
     });
   });
 
-  group('runToCompletion cancelToken', () {
-    test('cancelToken getter returns active token during run', () async {
+  group('runToCompletion cancellation', () {
+    test('cancelRun cancels the token handed to the provider', () async {
       orchestrator = RunOrchestrator(
         llmProvider: AgUiLlmProvider(
           api: api,
@@ -713,23 +713,42 @@ void main() {
         logger: logger,
       );
       stubCreateRun();
-      stubRunAgent(stream: Stream.fromIterable(_toolCallEvents()));
 
-      CancelToken? captured;
-      final result = await orchestrator.runToCompletion(
+      final controller = StreamController<BaseEvent>();
+      addTearDown(controller.close);
+      CancelToken? sentToProvider;
+      when(
+        () => agUiStreamClient.runAgent(
+          any(),
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+          resumePolicy: any(named: 'resumePolicy'),
+          onReconnectStatus: any(named: 'onReconnectStatus'),
+        ),
+      ).thenAnswer((invocation) {
+        sentToProvider =
+            invocation.namedArguments[#cancelToken] as CancelToken?;
+        return controller.stream
+            .map<DecodeOutcome>((e) => DecodedEvent(e, const {}));
+      });
+
+      final run = orchestrator.runToCompletion(
         key: _key,
         userMessage: [const TextPart('Weather?')],
-        toolExecutor: (pending) async {
-          captured = orchestrator.cancelToken;
-          return _defaultToolExecutor(pending);
-        },
+        toolExecutor: _defaultToolExecutor,
       );
+      controller.add(RunStartedEvent(threadId: 'thread-1', runId: _runId));
+      await Future<void>.delayed(Duration.zero);
+      expect(orchestrator.currentState, isA<RunningState>());
+      expect(sentToProvider, isNotNull);
+      expect(sentToProvider!.isCancelled, isFalse);
 
-      // Tool executor captured a non-cancelled token.
-      expect(captured, isNotNull);
-      expect(captured!.isCancelled, isFalse);
-      // After completion, ignore the result type — just ensure no crash.
-      expect(result, isA<RunState>());
+      orchestrator.cancelRun();
+
+      // The transport learns of the cancel through this token; without it
+      // the socket is only torn down by the subscription cancel.
+      expect(sentToProvider!.isCancelled, isTrue);
+      expect(await run, isA<CancelledState>());
     });
   });
 }

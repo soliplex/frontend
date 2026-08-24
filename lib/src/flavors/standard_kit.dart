@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb, Listenable;
 import 'package:soliplex_agent/soliplex_agent.dart';
 import 'package:soliplex_client_native/soliplex_client_native.dart';
-import 'package:soliplex_logging/soliplex_logging.dart' show LoggerFactory;
+import 'package:soliplex_logging/soliplex_logging.dart'
+    show Logger, LoggerFactory, describeFailure;
 
 import '../core/app_identity.dart';
 import '../core/app_module.dart';
@@ -74,16 +75,15 @@ Future<StandardKit> buildStandardKit({
     Object error,
     StackTrace stackTrace, {
     required String message,
-  }) {
-    httpLogger.error(message, error: error, stackTrace: stackTrace);
-  }
+  }) =>
+      logHttpDiagnostic(httpLogger, error, stackTrace, message: message);
 
   SoliplexHttpClient buildClient({
     String? Function()? getToken,
     TokenRefresher? tokenRefresher,
   }) =>
       createAgentHttpClient(
-        innerClient: createPlatformClient(),
+        innerClient: createPlatformClient(onDiagnostic: onHttpDiagnostic),
         observers: [inspector],
         getToken: getToken,
         tokenRefresher: tokenRefresher,
@@ -206,5 +206,26 @@ Future<StandardKit> buildStandardKit({
       pollInterval: statusMessagePollInterval,
     ),
     serverManager: serverManager,
+  );
+}
+
+/// Writes an HTTP-stack diagnostic to [logger].
+///
+/// Uses `describeFailure` rather than `error:` because this sink carries
+/// exceptions this package did not construct. The request-body pipes forward
+/// whatever a caller-supplied upload stream raises — a `FileSystemException`
+/// renders the path it failed on — and the observer and redaction guards
+/// forward whatever host-app code throws. Either would otherwise render into
+/// the buffer the diagnostics screen displays and can export.
+void logHttpDiagnostic(
+  Logger logger,
+  Object error,
+  StackTrace stackTrace, {
+  required String message,
+}) {
+  logger.error(
+    message,
+    attributes: {'failure': describeFailure(error)},
+    stackTrace: stackTrace,
   );
 }
