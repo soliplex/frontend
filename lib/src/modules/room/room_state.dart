@@ -280,6 +280,7 @@ class RoomState {
 
   /// Cancels a pending new-thread spawn. No-op if nothing is in progress.
   void cancelSpawn() {
+    if (_isDisposed) return;
     if (_spawner.cancel()) _sessionState.value = null;
   }
 

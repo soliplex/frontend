@@ -49,6 +49,7 @@ export 'src/core/inactivity/inactivity_config.dart' show InactivityConfig;
 export 'src/core/shell.dart' show runSoliplexShell;
 export 'src/core/shell_config.dart' show ShellConfig;
 export 'src/core/status_message_config.dart' show StatusMessageConfig;
+export 'src/core/uncaught_errors.dart' show installUncaughtErrorLogging;
 export 'src/flavors/standard.dart' show standard, standardFlavor;
 export 'src/flavors/standard_kit.dart' show buildStandardKit, StandardKit;
 // The resolver type for `standard(documentBrowserUrl: ...)`; the provider that

@@ -697,6 +697,36 @@ void main() {
       state.dispose();
     });
 
+    test('cancelRun after dispose does not throw', () async {
+      // Every other method on this class opens with the disposed guard —
+      // `_onAuthChanged` three lines away from `cancelRun` does. Without it
+      // the spawn-cancel arm writes `_sessionState`, which `dispose` has
+      // already disposed, and signals raise on a write after disposal rather
+      // than ignoring it. The throw lands in the Stop button's `onPressed`.
+      api.nextThreadHistory = ThreadHistory(messages: const []);
+
+      final state = ThreadViewState(
+        connection: connection,
+        auth: auth,
+        roomId: 'room-1',
+        threadId: 'thread-1',
+        registry: registry,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      // Left pending, so the spawn-cancel arm is the one that runs.
+      final future = state.sendMessage([TextPart('Hello')], runtime);
+      state.dispose();
+
+      state.cancelRun();
+
+      await future;
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+
     test('cancelRun during spawn prevents session from attaching', () async {
       api.nextThreadHistory = ThreadHistory(messages: const []);
 

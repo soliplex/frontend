@@ -142,13 +142,16 @@ AgentSession createSession({
   ToolRegistry? toolRegistry,
   List<SessionExtension> extensions = const [],
   bool ephemeral = false,
+  RunOrchestrator? orchestrator,
 }) {
   final registry = toolRegistry ?? const ToolRegistry();
-  final orchestrator = RunOrchestrator(
-    llmProvider: AgUiLlmProvider(api: api, agUiStreamClient: agUiStreamClient),
-    toolRegistry: registry,
-    logger: logger,
-  );
+  final effectiveOrchestrator = orchestrator ??
+      RunOrchestrator(
+        llmProvider:
+            AgUiLlmProvider(api: api, agUiStreamClient: agUiStreamClient),
+        toolRegistry: registry,
+        logger: logger,
+      );
   final effectiveRuntime = runtime ?? MockAgentRuntime();
   // Stub ensureThreadState — `AgentSession.bus` resolves through it,
   // and `_onStateChange` calls `bus.setAgentState(...)` on every
@@ -166,7 +169,7 @@ AgentSession createSession({
     ephemeral: ephemeral,
     depth: 0,
     runtime: effectiveRuntime,
-    orchestrator: orchestrator,
+    orchestrator: effectiveOrchestrator,
     toolRegistry: registry,
     coordinator: SessionCoordinator(extensions, logger: logger),
     logger: logger,
@@ -422,6 +425,46 @@ void main() {
       expect(session.state, equals(AgentSessionState.completed));
       session.cancel(); // should not throw
       expect(session.state, equals(AgentSessionState.completed));
+    });
+
+    test('cancel settles the session when the orchestrator cancel throws',
+        () async {
+      // `cancelRun` guards on the orchestrator being live and throws a
+      // `StateError` when it is not. That throw lands in the widget callback
+      // that pressed Stop, where Flutter prints it and moves on: the press
+      // does nothing, the session never reaches a terminal state, and the
+      // runtime — which waits on `result` before disposing the session and
+      // draining the spawn queue — waits forever.
+      //
+      // Disposing the orchestrator alone is what reaches the guard. Disposing
+      // the session would dispose the orchestrator too, but it also forces the
+      // session terminal, so `cancel` returns before it ever gets there.
+      final orchestrator = RunOrchestrator(
+        llmProvider:
+            AgUiLlmProvider(api: api, agUiStreamClient: agUiStreamClient),
+        toolRegistry: const ToolRegistry(),
+        logger: logger,
+      );
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+        orchestrator: orchestrator,
+      );
+      addTearDown(session.dispose);
+      orchestrator.dispose();
+
+      session.cancel();
+
+      expect(
+        await session.result.timeout(const Duration(seconds: 2)),
+        isA<AgentFailure>().having(
+          (f) => f.reason,
+          'reason',
+          FailureReason.cancelled,
+        ),
+      );
+      expect(session.state, AgentSessionState.cancelled);
     });
   });
 
@@ -929,6 +972,48 @@ void main() {
       expect(completed, hasLength(1));
       expect(completed.first.status, equals(ToolCallStatus.failed));
       expect(completed.first.result, contains('timed out after'));
+    });
+
+    test('a throw from runToCompletion settles the session', () async {
+      // `runToCompletion` returns a terminal state on every expected path,
+      // cancellation included, so a throw is a bug — but the runtime waits on
+      // `result` before disposing the session and draining the spawn queue,
+      // and a stranded completer stalls both. A second `start` trips the
+      // orchestrator's already-active guard, which throws outside its own
+      // try/finally.
+      stubCreateRun();
+      final controller = StreamController<BaseEvent>();
+      addTearDown(controller.close);
+      stubRunAgent(stream: controller.stream);
+
+      final session = createSession(
+        api: api,
+        agUiStreamClient: agUiStreamClient,
+        logger: logger,
+      );
+      addTearDown(session.dispose);
+
+      final unhandled = <Object>[];
+      await runZonedGuarded(
+        () async {
+          // The first run never terminates, so nothing else can settle the
+          // session.
+          await session.start(userMessage: [const TextPart('Hi')]);
+          await session.start(userMessage: [const TextPart('Hi again')]);
+          await Future<void>.delayed(Duration.zero);
+        },
+        (error, _) => unhandled.add(error),
+      );
+
+      expect(unhandled, isEmpty);
+      expect(
+        await session.result.timeout(const Duration(seconds: 2)),
+        isA<AgentFailure>().having(
+          (f) => f.reason,
+          'reason',
+          FailureReason.internalError,
+        ),
+      );
     });
 
     test('cancel after the session went terminal still cancels the token',

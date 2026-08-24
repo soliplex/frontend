@@ -351,24 +351,49 @@ class AgentSession implements ToolExecutionContext {
   ///
   /// The cancellation signal always fires; the child cascade and the
   /// orchestrator cancel are skipped once the session is terminal.
+  ///
+  /// Cannot throw. The callers that press Stop are widget callbacks, where
+  /// Flutter prints a throw and carries on — so an error escaping here is a
+  /// press that silently did nothing while the run kept streaming. And since
+  /// `AgentRuntime` waits on [result] before disposing this session and
+  /// draining the spawn queue, a cancel that leaves no terminal state stalls
+  /// every spawn queued behind it, which is why the catch settles the session
+  /// itself rather than only recording the fault.
   void cancel() {
     // Ahead of the terminal check: a run that already failed is terminal, and
     // a tool parked on an approval is still waiting on this token.
     _cancelToken.cancel('session cancelled');
     if (_isTerminal) return;
-    for (final child in _children.toList()) {
-      try {
+    try {
+      // No per-child guard: the cascade calls this same method, and it does
+      // not throw.
+      for (final child in _children.toList()) {
         child.cancel();
-      } on Object catch (e, st) {
-        _logger.error(
-          'Child AgentSession cancel threw (parent=$id, '
-          'thread=${threadKey.threadId}, child=${child.id})',
-          error: e,
-          stackTrace: st,
+      }
+      _orchestrator.cancelRun();
+    } on Object catch (e, st) {
+      // The stack trace is what locates this one: `describeFailure` reduces a
+      // `StateError` to its type name, and the guard that threw it is a frame.
+      _logger.error(
+        'AgentSession cancel threw (session=$id, '
+        'thread=${threadKey.threadId})',
+        attributes: {'failure': describeFailure(e)},
+        stackTrace: st,
+      );
+      // Only here. Every other path out of `cancelRun` publishes a terminal
+      // `RunState`, or leaves one already published, and `_onStateChange`
+      // settles the session from it; a throw is the one exit that publishes
+      // nothing, so this is the one exit that has to settle it.
+      if (!_isTerminal && !_disposed) {
+        _completeWith(
+          AgentFailure(
+            threadKey: threadKey,
+            reason: FailureReason.cancelled,
+            error: 'Session cancelled',
+          ),
         );
       }
     }
-    _orchestrator.cancelRun();
   }
 
   /// Starts the orchestrator run and subscribes to state changes.
@@ -406,17 +431,45 @@ class AgentSession implements ToolExecutionContext {
     }
     _subscription = _orchestrator.stateChanges.listen(_onStateChange);
     _baseEventSubscription = _orchestrator.baseEvents.listen(_bridgeBaseEvent);
+    // Fire and forget, but not unobserved: `AgentRuntime` waits on this
+    // session's result before disposing it and draining the spawn queue, so a
+    // throw escaping here would leave the run with no terminal state, the
+    // session never torn down, and later spawns queued behind it. Every
+    // expected outcome — including a cancel — comes back as a terminal
+    // `RunState`, so reaching this handler means a bug, not a failed run.
     unawaited(
-      _orchestrator.runToCompletion(
-        key: threadKey,
-        userMessage: userMessage,
-        toolExecutor: _executeAll,
-        existingRunId: existingRunId,
-        cachedHistory: cachedHistory,
-        stateOverlay: stateOverlay,
-        onReconnectStatus: _onReconnectStatus,
-      ),
+      _orchestrator
+          .runToCompletion(
+            key: threadKey,
+            userMessage: userMessage,
+            toolExecutor: _executeAll,
+            existingRunId: existingRunId,
+            cachedHistory: cachedHistory,
+            stateOverlay: stateOverlay,
+            onReconnectStatus: _onReconnectStatus,
+          )
+          .catchError(_settleFailedRun),
     );
+  }
+
+  /// Settles the session when `runToCompletion` throws instead of returning a
+  /// terminal state, so the runtime's wait on [result] cannot hang.
+  RunState _settleFailedRun(Object error, StackTrace stackTrace) {
+    _logger.error(
+      'runToCompletion threw (session=$id, thread=${threadKey.threadId})',
+      attributes: {'failure': describeFailure(error)},
+      stackTrace: stackTrace,
+    );
+    if (!_disposed) {
+      _completeWith(
+        AgentFailure(
+          threadKey: threadKey,
+          reason: FailureReason.internalError,
+          error: 'Run did not reach a terminal state',
+        ),
+      );
+    }
+    return _orchestrator.currentState;
   }
 
   /// Bridges reconnect-lifecycle callbacks from `RunOrchestrator` /
